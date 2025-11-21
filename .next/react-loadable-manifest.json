@@ -1,0 +1,52 @@
+{
+  "app/LayoutContent.jsx -> ./(protected)/ads-content/page": {
+    "id": "app/LayoutContent.jsx -> ./(protected)/ads-content/page",
+    "files": [
+      "static/chunks/_app-pages-browser_src_app_protected_ads-content_page_jsx.js"
+    ]
+  },
+  "app/LayoutContent.jsx -> ./(protected)/brand/page": {
+    "id": "app/LayoutContent.jsx -> ./(protected)/brand/page",
+    "files": []
+  },
+  "app/LayoutContent.jsx -> ./(protected)/creatives/page": {
+    "id": "app/LayoutContent.jsx -> ./(protected)/creatives/page",
+    "files": [
+      "static/chunks/_app-pages-browser_src_app_protected_creatives_page_jsx.js"
+    ]
+  },
+  "app/LayoutContent.jsx -> ./(protected)/profile/page": {
+    "id": "app/LayoutContent.jsx -> ./(protected)/profile/page",
+    "files": [
+      "static/chunks/_app-pages-browser_src_app_protected_profile_page_jsx.js"
+    ]
+  },
+  "app/LayoutContent.jsx -> ./(protected)/social-content/page": {
+    "id": "app/LayoutContent.jsx -> ./(protected)/social-content/page",
+    "files": [
+      "static/chunks/_app-pages-browser_src_app_protected_social-content_page_jsx.js"
+    ]
+  },
+  "app/components/SalesReport.jsx -> react-apexcharts": {
+    "id": "app/components/SalesReport.jsx -> react-apexcharts",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_react-apexcharts_dist_react-apexcharts_min_js.js"
+    ]
+  },
+  "app/components/Statement.jsx -> react-apexcharts": {
+    "id": "app/components/Statement.jsx -> react-apexcharts",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_react-apexcharts_dist_react-apexcharts_min_js.js"
+    ]
+  },
+  "app/components/Statistics.jsx -> react-apexcharts": {
+    "id": "app/components/Statistics.jsx -> react-apexcharts",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_react-apexcharts_dist_react-apexcharts_min_js.js"
+    ]
+  },
+  "context/BrandContext.jsx -> @/utils/localDb": {
+    "id": "context/BrandContext.jsx -> @/utils/localDb",
+    "files": []
+  }
+}

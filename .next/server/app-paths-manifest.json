@@ -1,0 +1,5 @@
+{
+  "/(protected)/overview/page": "app/(protected)/overview/page.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/(protected)/image-gallery/page": "app/(protected)/image-gallery/page.js"
+}

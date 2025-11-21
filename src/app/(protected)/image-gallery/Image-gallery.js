@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import {
     Search,
     Image as ImageIcon,
@@ -9,7 +9,6 @@ import {
     FolderOpen,
     CloudUpload,
     Loader2,
-    Play,
     Download,
     Link2,
     ExternalLink,
@@ -25,8 +24,6 @@ export default function ImageGallery() {
     const [isLoading, setIsLoading] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [openMenu, setOpenMenu] = useState(null);
-    const [playingVideoId, setPlayingVideoId] = useState(null);
-    const videoRefs = useRef({});
 
     const getVideoUrl = (videoFiles) => {
         if (!videoFiles || videoFiles.length === 0) return null;
@@ -34,37 +31,17 @@ export default function ImageGallery() {
         return (hd || videoFiles[0]).link;
     };
 
-    const downloadMedia = async (url, filename) => {
-        try {
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename || "download";
-            a.click();
-        } catch (err) {
-            alert("Download failed. Try right-click → Save as.");
-        }
+    const downloadMedia = (url, filename) => {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename || "download";
+        a.click();
     };
 
     const copyLink = (url) => {
         navigator.clipboard.writeText(url);
         alert("Link copied!");
         setOpenMenu(null);
-    };
-
-    const toggleVideo = (id) => {
-        const video = videoRefs.current[id];
-        if (!video) return;
-
-        if (playingVideoId === id) {
-            video.pause();
-            setPlayingVideoId(null);
-        } else {
-            if (playingVideoId && videoRefs.current[playingVideoId]) {
-                videoRefs.current[playingVideoId].pause();
-            }
-            video.play();
-            setPlayingVideoId(id);
-        }
     };
 
     const searchPexels = async () => {
@@ -83,10 +60,6 @@ export default function ImageGallery() {
         }
     };
 
-    const handleKeyDown = (e) => {
-        if (e.key === "Enter") searchPexels();
-    };
-
     const saveToMyImages = (item) => {
         const isVid = "video_files" in item;
         const newImage = {
@@ -94,11 +67,10 @@ export default function ImageGallery() {
             src: isVid ? item.image : item.src.medium,
             videoUrl: isVid ? getVideoUrl(item.video_files) : null,
             alt: isVid ? item.user.name : item.alt || "Pexels media",
-            type: "saved",
             isVideo: isVid,
         };
-        if (!myImages.find((img) => img.id === newImage.id)) {
-            setMyImages((prev) => [newImage, ...prev]);
+        if (!myImages.some(img => img.id === newImage.id)) {
+            setMyImages(prev => [newImage, ...prev]);
         }
         setOpenMenu(null);
     };
@@ -109,12 +81,16 @@ export default function ImageGallery() {
             if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) return;
             const reader = new FileReader();
             reader.onload = (e) => {
-                setMyImages((prev) => [{
-                    id: `upload-${Date.now()}-${Math.random()}`,
-                    src: e.target?.result,
+                const newImg = {
+                    id: `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    src: e.target.result,
                     alt: file.name,
-                    type: "uploaded",
-                }, ...prev]);
+                    isVideo: false,
+                };
+                setMyImages(prev => {
+                    if (prev.some(img => img.src === newImg.src)) return prev;
+                    return [newImg, ...prev];
+                });
             };
             reader.readAsDataURL(file);
         });
@@ -128,11 +104,9 @@ export default function ImageGallery() {
     }, []);
 
     const removeFromMyImages = (id) => {
-        setMyImages((prev) => prev.filter((img) => img.id !== id));
+        setMyImages(prev => prev.filter(img => img.id !== id));
         setOpenMenu(null);
     };
-
-    const isVideo = (item) => "video_files" in item;
 
     const tabs = [
         { id: "search", label: "Search Results", icon: Search },
@@ -140,31 +114,33 @@ export default function ImageGallery() {
         { id: "upload", label: "Upload", icon: Upload },
     ];
 
+    const isSearchTab = activeTab === "search";
+    const currentItems = isSearchTab ? searchResults : myImages;
+
     return (
-        <div className="min-h-screen px-12">
-            <header className="bg-[#155dfc] text-white px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <ImageIcon size={24} />
-                    <span className="font-semibold text-lg">Image Library</span>
+        <div className="min-h-screen px-12 py-6">
+            <header className="bg-[#155dfc] text-white px-8 py-6 rounded-md shadow-lg mb-8">
+                <div className="flex items-center gap-3">
+                    <ImageIcon size={32} />
+                    <h1 className="text-2xl font-bold">Image Library</h1>
                 </div>
             </header>
 
-            <div className="py-6">
-                <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-                    <h2 className="text-xl font-semibold mb-4">Search Images & Videos</h2>
-                    <div className="flex gap-4 flex-wrap">
+            <div className=" mx-auto">
+                <div className="bg-white rounded-md p-6 shadow mb-8">
+                    <div className="flex flex-wrap gap-4 items-center">
                         <input
                             type="text"
-                            placeholder="Search Pexels for images or videos..."
+                            placeholder="Search millions of free images & videos..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            className="flex-1 min-w-[300px] px-4 py-2 border border-gray-200 placeholder:text-sm rounded-lg focus:outline-none focus:ring focus:ring-[#155dfc]/30 focus:border-[#155dfc]"
+                            onKeyDown={(e) => e.key === "Enter" && searchPexels()}
+                            className="flex-1 min-w-[300px] px-5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#155dfc]/30"
                         />
                         <select
                             value={mediaType}
                             onChange={(e) => setMediaType(e.target.value)}
-                            className="px-4 py-2 border text-md cursor-pointer border-gray-200 rounded-lg focus:outline-none focus:ring focus:ring-[#155dfc]/30"
+                            className="px-3 py-2 border cursor-pointer border-gray-200 rounded-lg"
                         >
                             <option value="Images">Images</option>
                             <option value="Videos">Videos</option>
@@ -172,171 +148,180 @@ export default function ImageGallery() {
                         <button
                             onClick={searchPexels}
                             disabled={isLoading}
-                            className="px-6 py-2 bg-[#155dfc] cursor-pointer hover:bg-[#155dfc]/70 text-white rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                            className="px-8 py-2 bg-[#155dfc] cursor-pointer hover:bg-[#155dfc]/90 text-white rounded-lg flex items-center gap-2 transition-all shadow-md"
                         >
-                            {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
+                            {isLoading ? <Loader2 className="animate-spin" size={22} /> : <Search size={22} />}
                             Search
                         </button>
                     </div>
                 </div>
 
-                <div className="flex gap-4 mb-6 border-b border-gray-200">
-                    {tabs.map((tab) => (
+                <div className="flex gap-10 mb-8 border-b-2 border-gray-200">
+                    {tabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`px-2 py-3 cursor-pointer flex items-center gap-2 transition-all duration-300 border-b-2 -mb-[2px] ${activeTab === tab.id
-                                ? "border-[#155dfc] text-[#155dfc]"
-                                : "border-transparent hover:text-[#155dfc]/80"
-                                }`}
+                            className={`pb-4 px-2 cursor-pointer flex items-center gap-3 font-medium transition-all duration-200 border-b-2 -mb-[2px] ${
+                                activeTab === tab.id
+                                    ? "border-[#155dfc] text-[#155dfc]"
+                                    : "border-transparent text-gray-600 hover:text-[#155dfc]"
+                            }`}
                         >
-                            <tab.icon size={18} />
+                            <tab.icon size={22} />
                             {tab.label}
                         </button>
                     ))}
                 </div>
 
-                {activeTab === "search" && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {searchResults.map((item) => {
-                            const isVid = isVideo(item);
-                            const videoUrl = isVid ? getVideoUrl(item.video_files) : null;
-
-                            return (
-                                <div key={item.id} className="relative group rounded-lg overflow-hidden bg-gray-100 aspect-[4/3]">
-                                    {isVid ? (
-                                        <div className="relative w-full h-full bg-black">
-                                            <video
-                                                ref={(el) => (videoRefs.current[item.id] = el)}
-                                                src={videoUrl}
-                                                poster={item.image}
-                                                className="w-full h-full object-cover"
-                                                preload="metadata"
-                                                playsInline
-                                                controls
-                                                controlsList="nodownload nofullscreen" // Optional: cleaner look
-                                                onPlay={() => setPlayingVideoId(item.id)}
-                                                onPause={() => {
-                                                    // Only clear if this was the playing one
-                                                    if (playingVideoId === item.id) {
-                                                        setPlayingVideoId(null);
-                                                    }
-                                                }}
-                                                // Optional: allow sound
-                                                muted={false}
-                                            />
-                                        </div>
-                                    ) : (
-                                        <img
-                                            src={item.src.medium}
-                                            alt={item.alt || "Pexels image"}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    )}
-
-                                    {/* Menu Button */}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setOpenMenu(openMenu === `s-${item.id}` ? null : `s-${item.id}`);
-                                        }}
-                                        className="absolute top-2 cursor-pointer right-2 p-1.5 bg-white hover:bg-gray-100 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-md z-20"
-                                    >
-                                        <MoreVertical size={20} />
-                                    </button>
-
-                                    {/* Dropdown Menu */}
-                                    {openMenu === `s-${item.id}` && (
-                                        <div className="absolute top-10 right-2 bg-white rounded-lg shadow-lg py-2 z-30 min-w-[180px] border border-gray-200">
-                                            <button
-                                                onClick={() => saveToMyImages(item)}
-                                                className="w-full cursor-pointer flex items-center gap-3 px-4 py-2 text-left hover:bg-gray-100 text-sm"
-                                            >
-                                                <FolderPlus size={16} />
-                                                Save to My Images
-                                            </button>
-                                            <button
-                                                onClick={() => downloadMedia(isVid ? videoUrl : item.src.original, `pexels-${item.id}`)}
-                                                className="w-full cursor-pointer flex items-center gap-3 px-4 py-2 text-left hover:bg-gray-100 text-sm"
-                                            >
-                                                <Download size={16} />
-                                                Download
-                                            </button>
-                                            <button
-                                                onClick={() => copyLink(isVid ? videoUrl : item.src.original)}
-                                                className="w-full cursor-pointer flex items-center gap-3 px-4 py-2 text-left hover:bg-gray-100 text-sm"
-                                            >
-                                                <Link2 size={16} />
-                                                Copy Link
-                                            </button>
-                                            <a
-                                                href={item.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="flex cursor-pointer items-center gap-3 px-4 py-2 hover:bg-gray-100 text-sm"
-                                            >
-                                                <ExternalLink size={16} />
-                                                View on Pexels
-                                            </a>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                        {searchResults.length === 0 && !isLoading && (
-                            <div className="col-span-full text-center py-20 text-gray-500">Search for images or videos to see results</div>
-                        )}
-                    </div>
-                )}
-
-                {/* My Images & Upload tabs unchanged */}
-                {activeTab === "myImages" && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {myImages.map((img) => (
-                            <div key={img.id} className="relative group rounded-lg overflow-hidden bg-gray-100 aspect-[4/3]">
-                                <img src={img.src} alt={img.alt} className="w-full h-full object-cover" />
-                                <button
-                                    onClick={() => setOpenMenu(openMenu === img.id ? null : img.id)}
-                                    className="absolute cursor-pointer top-2 right-2 p-1.5 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                                >
-                                    <MoreVertical size={18} />
-                                </button>
-                                {openMenu === img.id && (
-                                    <div className="absolute top-10 right-2 bg-white rounded-lg shadow-lg py-2 z-10">
-                                        <button onClick={() => removeFromMyImages(img.id)} className="px-4 cursor-pointer py-2 hover:bg-gray-100 text-sm text-red-600">
-                                            Remove
-                                        </button>
-                                    </div>
-                                )}
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                                    <span className="text-white text-xs bg-black/50 px-2 py-1 rounded">My Image</span>
-                                </div>
+                {(activeTab === "search" || activeTab === "myImages") && (
+                    <>
+                        {currentItems.length === 0 ? (
+                            <div className="text-center py-32 text-gray-500 text-xl">
+                                {isSearchTab
+                                    ? "Search for images or videos to see results"
+                                    : "No images yet. Upload or save from search!"}
                             </div>
-                        ))}
-                        {myImages.length === 0 && (
-                            <div className="col-span-full text-center py-20 text-gray-500">No images yet. Upload or save from search results.</div>
+                        ) : (
+                            <div className="columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6">
+                                {currentItems.map((item) => {
+                                    const isVid = isSearchTab ? "video_files" in item : !!item.isVideo;
+                                    const id = isSearchTab ? `s-${item.id}` : item.id;
+                                    const src = isSearchTab
+                                        ? (isVid ? item.image : item.src.medium)
+                                        : (isVid ? item.src : item.src);
+                                    const videoUrl = isVid
+                                        ? (isSearchTab ? getVideoUrl(item.video_files) : item.videoUrl)
+                                        : null;
+
+                                    return (
+                                        <div
+                                            key={id}
+                                            className="relative group break-inside-avoid mb-6 rounded-xl overflow-hidden bg-gray-100 shadow-md hover:shadow-xl transition-all"
+                                        >
+                                            {isVid ? (
+                                                <div className="aspect-[4/3] bg-black">
+                                                    <video
+                                                        src={videoUrl}
+                                                        poster={src}
+                                                        className="w-full h-full object-cover"
+                                                        controls
+                                                        controlsList="nodownload"
+                                                        preload="metadata"
+                                                        playsInline
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <img
+                                                    src={src}
+                                                    alt={item.alt || "Image"}
+                                                    className="w-full h-auto rounded-xl"
+                                                    loading="lazy"
+                                                />
+                                            )}
+
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenMenu(openMenu === id ? null : id);
+                                                }}
+                                                className="absolute cursor-pointer top-4 right-4 p-2.5 hover:bg-gray-200 bg-white/90 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg z-10"
+                                            >
+                                                <MoreVertical size={22} />
+                                            </button>
+
+                                            {openMenu === id && (
+                                                <div className="absolute top-14 right-4 bg-white rounded-xl shadow-2xl py-3 z-30 min-w-[210px] border border-gray-200">
+                                                    {isSearchTab ? (
+                                                        <>
+                                                            {!isVid && (
+                                                                <button
+                                                                    onClick={() => { saveToMyImages(item); setOpenMenu(null); }}
+                                                                    className="w-full cursor-pointer flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
+                                                                >
+                                                                    <FolderPlus size={18} /> Save to My Images
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => { downloadMedia(isVid ? videoUrl : item.src.original, `pexels-${item.id}`); setOpenMenu(null); }}
+                                                                className="w-full cursor-pointer flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
+                                                            >
+                                                                <Download size={18} /> Download
+                                                            </button>
+                                                            <button
+                                                                onClick={() => { copyLink(isVid ? videoUrl : item.src.original); }}
+                                                                className="w-full cursor-pointer flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
+                                                            >
+                                                                <Link2 size={18} /> Copy Link
+                                                            </button>
+                                                            <a
+                                                                href={item.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="w-full flex cursor-pointer items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
+                                                            >
+                                                                <ExternalLink size={18} /> View on Pexels
+                                                            </a>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                onClick={() => { downloadMedia(isVid ? item.videoUrl : item.src, item.alt || "my-image"); setOpenMenu(null); }}
+                                                                className="w-full flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
+                                                            >
+                                                                <Download size={18} /> Download
+                                                            </button>
+                                                            <button
+                                                                onClick={() => { removeFromMyImages(item.id); setOpenMenu(null); }}
+                                                                className="w-full flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium text-red-600"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {!isSearchTab && (
+                                                <div className="absolute bottom-4 left-4">
+                                                    <span className="bg-black/70 text-white px-4 py-2 rounded-full text-sm font-medium backdrop-blur">
+                                                        {isVid ? "My Video" : "My Image"}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         )}
-                    </div>
+                    </>
                 )}
 
                 {activeTab === "upload" && (
                     <div
                         onDrop={handleDrop}
                         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                        onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+                        onDragLeave={() => setIsDragging(false)}
                         onClick={() => document.getElementById("file-input")?.click()}
-                        className={`border-2 border-dashed rounded-xl p-16 text-center cursor-pointer transition-colors ${isDragging ? "border-[#155dfc] bg-[#155dfc]/5" : "border-gray-300 hover:border-[#155dfc]/50"
-                            }`}
+                        className={`border-4 border-dashed rounded-3xl p-32 text-center cursor-pointer transition-all ${
+                            isDragging ? "border-[#155dfc] bg-blue-50" : "border-gray-300 hover:border-gray-400"
+                        }`}
                     >
-                        <input id="file-input" type="file" multiple accept="image/*" onChange={(e) => handleFileUpload(e.target.files)} className="hidden" />
-                        <CloudUpload size={48} className="mx-auto mb-4 text-gray-400" />
-                        <p className="text-lg font-medium text-gray-700 mb-2">Drop images here or click to upload</p>
-                        <p className="text-sm text-gray-500">Supports: JPG, PNG, GIF (Max 5MB)</p>
+                        <input
+                            id="file-input"
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={(e) => handleFileUpload(e.target.files)}
+                            className="hidden"
+                        />
+                        <CloudUpload size={80} className="mx-auto mb-6 text-gray-400" />
+                        <p className="text-2xl font-bold text-gray-700 mb-3">Drop images here or click to upload</p>
+                        <p className="text-gray-500">JPG, PNG, GIF • Max 5MB each</p>
                     </div>
                 )}
             </div>
 
-            {openMenu && <div className="fixed inset-0 z-[-10]" onClick={() => setOpenMenu(null)} />}
+            {openMenu && <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />}
         </div>
     );
 }

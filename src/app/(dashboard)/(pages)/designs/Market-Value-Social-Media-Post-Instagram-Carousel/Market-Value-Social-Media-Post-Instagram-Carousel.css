@@ -1,0 +1,18 @@
+/* design.css */
+.corporate-poster {
+        --primary: #2563eb;
+          --secondary: #e8f004;
+          --primary-dark: color-mix(in srgb, var(--primary) 90%, black);
+          --primary-darker: color-mix(in srgb, var(--primary) 70%, black);
+          --primary-light: color-mix(in srgb, var(--primary) 30%, white);
+          --primary-glow: color-mix(in srgb, var(--primary) 50%, white);
+          --text-on-primary: #ffffff;
+          --text-on-secondary: #1e293b;
+          --border: color-mix(in srgb, var(--primary) 40%, transparent);
+          --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+          --radius-xl: 1.5rem;
+          --radius-lg: 1rem;
+}
+
+ 

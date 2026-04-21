@@ -1,0 +1,13 @@
+.Beige-Customer-Testimonial-Social-Media-Post-Carousel {
+    --primary: #4a601f;
+    --primary-light: #82aa37;
+    --secondary: #ebe4c7;
+    --secondary-light: #ece5d2;
+    --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    --radius-xl: 1.5rem;
+    --accent-on-secondary: #dbd6b8;
+      --accent-on-primary: #dbe4ca5e;
+
+    --gradient-primary: linear-gradient(105deg, var(--primary-light) 0%, var(--primary) 100%);
+      --gradient-secondary: linear-gradient(135deg, var(--primary) 10%, var(--primary-light) 100%);
+}

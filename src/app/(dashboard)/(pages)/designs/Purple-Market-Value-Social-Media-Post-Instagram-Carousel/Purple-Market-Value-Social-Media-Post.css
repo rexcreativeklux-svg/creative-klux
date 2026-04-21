@@ -1,0 +1,16 @@
+   .ClientTestimonialPoster {
+       --primary: #6547db;
+        --primary-light: #edeafb;
+       --secondary: #ffcb45;
+       --secondary-light: #abda02;
+       --text-on-primary: #ffffff;
+       --text-on-secondary: #1e293b;
+         --accent-on-primary: #f2f2f0;
+       --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+       --radius-xl: 1.5rem;
+
+
+       /* New gradient variables */
+       --gradient-primary: linear-gradient(135deg, var(--accent-on-primary) 0%, var(--primary-light) 100%);
+ 
+   }

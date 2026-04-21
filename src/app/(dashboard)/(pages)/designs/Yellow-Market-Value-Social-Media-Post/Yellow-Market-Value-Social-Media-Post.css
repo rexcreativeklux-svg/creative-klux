@@ -1,0 +1,48 @@
+  .yellow-poster {
+    --primary: #e8f005;
+    --secondary: #1e293b;
+    --primary-light: #f0f73b;
+    --text-on-primary: #1e293b;
+    --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+
+  }
+
+  .assets-poster {
+    --primary: #e8f004;
+    --primary-light: #f0f73b;
+    --secondary: #000000;
+    --text-on-primary: #000000;
+    --text-on-secondary: #ffffff;
+    --accent-on-secondary: #1d1d1d;
+    --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    --radius-xl: 1.5rem;
+  }
+
+  .market-poster {
+    --primary: #e8f004;
+    --secondary: #000000;
+    --text-on-primary: #000000;
+    --text-on-secondary: #ffffff;
+    --accent-on-secondary: #1d1d1d;
+    --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    --radius-xl: 1.5rem;
+  }
+
+  .reflects-poster {
+    --primary: #e8f004;
+    --secondary: #000000;
+    --text-on-primary: #000000;
+    --text-on-secondary: #ffffff;
+    --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    --radius-xl: 1.5rem;
+  }
+
+  .invisible-poster {
+    --primary: #e8f004;
+    --secondary: #000000;
+    --text-on-primary: #000000;
+    --text-on-secondary: #ffffff;
+    --accent-on-secondary: #1d1d1d;
+    --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    --radius-xl: 1.5rem;
+  }

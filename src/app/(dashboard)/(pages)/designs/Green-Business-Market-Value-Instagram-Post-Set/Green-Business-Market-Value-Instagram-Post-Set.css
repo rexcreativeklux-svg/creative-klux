@@ -1,0 +1,12 @@
+    .Green-Business-Market-Value-Instagram-Post-Set {
+        --primary: #0e391a;
+        --primary-light: #bfd856;
+        --secondary: #89c43b;
+        --secondary-light: #f5f3e3;
+        --accent-on-secondary: #e0e8c1;
+         --accent-on-primary: #1c4622;
+        --text-on-primary: #ffffff;
+        --text-on-secondary: #1e293b;
+        --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        --radius-xl: 1.5rem;
+    }

@@ -196,7 +196,7 @@ const CreativesPage = () => {
 
 // ─── CreativeSelector ─────────────────────────────────────────────────────────
 const CreativeSelector = ({ creatives, selected, onChange }) => (
-  <div className="bg-white/90  backdrop-blur border border-gray-200 rounded-2xl p-3 shadow-sm shrink-0">
+  <div className="bg-white/90  backdrop-blur  py-3 px-0  shrink-0">
     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-4">
       Creative Type
     </p>
@@ -212,8 +212,8 @@ const CreativeSelector = ({ creatives, selected, onChange }) => (
             onClick={() => onChange(c.id)}
             className={`relative group cursor-pointer flex items-start gap-2 px-2 py-3 rounded-xl border transition-all duration-300 text-left overflow-hidden
               ${active
-                ? "shadow-md scale-[1.02]"
-                : "hover:shadow-md hover:scale-[1.02]"
+                ? ""
+                : "hover:scale-[1.02]"
               }
             `}
             style={{
@@ -292,7 +292,7 @@ const CreativeSelector = ({ creatives, selected, onChange }) => (
 // ─── CategorySelector ─────────────────────────────────────────────────────────
 const CategorySelector = ({ creative, selected, onChange }) => (
   <div
-    className="rounded-lg p-4 border shrink-0"
+    className="rounded-lg px-0  shrink-0"
     style={{ borderColor: `${creative.color}20` }}
   >
     <p

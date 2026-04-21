@@ -50,6 +50,73 @@ const STEPS = [
   { id: 3, label: "Background Image", icon: Images },
 ];
 
+const VISUAL_STYLES = [
+  { value: "minimal", label: "Minimal" },
+  { value: "bold", label: "Bold" },
+  { value: "elegant", label: "Elegant" },
+  { value: "playful", label: "Playful" },
+  { value: "corporate", label: "Corporate" },
+
+  // NEW OPTIONS
+  { value: "modern", label: "Modern" },
+  { value: "neon", label: "Neon" },
+  { value: "pastel", label: "Pastel" },
+  { value: "luxury", label: "Luxury" },
+  { value: "sunset", label: "Sunset" },
+  // { value: "ocean", label: "Ocean" },
+  // { value: "forest", label: "Forest" },
+  // { value: "candy", label: "Candy" },
+  // { value: "midnight", label: "Midnight" },
+  // { value: "retro", label: "Retro" },
+  // { value: "tech", label: "Tech" },
+  // { value: "earthy", label: "Earthy" },
+  // { value: "ice", label: "Ice" },
+  // { value: "grape", label: "Grape" },
+  // { value: "fire", label: "Fire" },
+];
+
+
+const BRAND_COLORS = [
+  "#2563eb", "#0ea5e9", "#8b5cf6", "#ec4899", "#ef4444",
+];
+
+const STYLE_PREVIEWS = {
+  minimal: { bg: "#f8fafc", accent: "#e2e8f0", bar1: "#cbd5e1" },
+  bold: { bg: "#1e293b", accent: "#f59e0b", bar1: "#fff" },
+  elegant: { bg: "#fdf6ee", accent: "#c9a96e", bar1: "#a8a29e" },
+  playful: { bg: "#fef9c3", accent: "#f472b6", bar1: "#34d399" },
+  corporate: { bg: "#fff", accent: "#1d4ed8", bar1: "#1e293b" },
+  modern: { bg: "#0f172a", accent: "#22c55e", bar1: "#334155" },
+  neon: { bg: "#020617", accent: "#22d3ee", bar1: "#a21caf" },
+  pastel: { bg: "#fdf4ff", accent: "#f9a8d4", bar1: "#c4b5fd" },
+  luxury: { bg: "#0b0b0b", accent: "#d4af37", bar1: "#3f3f46" },
+  sunset: { bg: "#fff7ed", accent: "#fb923c", bar1: "#f43f5e" },
+  ocean: { bg: "#ecfeff", accent: "#06b6d4", bar1: "#0ea5e9" },
+  forest: { bg: "#f0fdf4", accent: "#16a34a", bar1: "#14532d" },
+  candy: { bg: "#fff1f2", accent: "#fb7185", bar1: "#f472b6" },
+  midnight: { bg: "#020617", accent: "#6366f1", bar1: "#1e293b" },
+  retro: { bg: "#fef3c7", accent: "#f97316", bar1: "#7c2d12" },
+  tech: { bg: "#0a0f1c", accent: "#3b82f6", bar1: "#1f2937" },
+  earthy: { bg: "#fafaf9", accent: "#a16207", bar1: "#78350f" },
+  ice: { bg: "#f0f9ff", accent: "#38bdf8", bar1: "#7dd3fc" },
+  grape: { bg: "#faf5ff", accent: "#9333ea", bar1: "#6b21a8" },
+  fire: { bg: "#fff7ed", accent: "#ef4444", bar1: "#7f1d1d" },
+};
+
+
+const StylePreview = ({ style, active }) => {
+  const s = STYLE_PREVIEWS[style] || STYLE_PREVIEWS.minimal;
+  return (
+    <div className="w-12 h-8 rounded overflow-hidden border border-gray-200 shrink-0" style={{ background: s.bg }}>
+      <div className="w-full h-2" style={{ background: s.accent }} />
+      <div className="px-1 pt-0.5 flex flex-col gap-0.5">
+        <div className="h-1 rounded-sm" style={{ background: s.bar1, width: "80%" }} />
+        <div className="h-1 rounded-sm" style={{ background: s.bar1, opacity: 0.5, width: "55%" }} />
+      </div>
+    </div>
+  );
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onResult }) => {
@@ -390,7 +457,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
   return (
     <>
       {/* ── Step indicator ───────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl px-5 py-4">
+      <div className="bg-white rounded-2xl px-0 py-4">
         <div className="flex items-center justify-between gap-2">
           {STEPS.map((s, idx) => {
             const Icon = s.icon;
@@ -420,7 +487,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       </div>
 
       {/* ── Step content card ────────────────────────────────────────────── */}
-      <div className="bg-white border border-gray-100 rounded-lg p-6 shadow-sm flex flex-col gap-6">
+      <div className="bg-white  rounded-lg py-2 flex flex-col gap-6">
 
         {error && (
           <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -450,12 +517,9 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Brand Name" required>
+            <div className="grid grid-cols-1 gap-4">
+              <Field label="Brand Name / Project Name" required>
                 <input type="text" value={formData.brandName} onChange={(e) => field("brandName", e.target.value)} placeholder="Your Brand" className={inputCls} />
-              </Field>
-              <Field label="Project Name">
-                <input type="text" value={formData.projectName || ""} onChange={(e) => field("projectName", e.target.value)} placeholder="Campaign Name" className={inputCls} />
               </Field>
             </div>
 
@@ -464,25 +528,78 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
                 placeholder="Brief description of your brand or campaign…" rows={3} className={`${inputCls} resize-none`} />
             </Field>
 
-            <div className="grid grid-cols-2 gap-4">
-              {["primaryColor", "secondaryColor"].map((f) => (
-                <Field key={f} label={f === "primaryColor" ? "Primary Color" : "Secondary Color"}>
-                  <div className="flex gap-2 items-center">
-                    <input type="color" value={formData[f]} onChange={(e) => field(f, e.target.value)}
-                      className="w-10 h-10 border border-gray-200 rounded-lg cursor-pointer p-1 shrink-0" />
-                    <input type="text" value={formData[f]} onChange={(e) => field(f, e.target.value)}
-                      className={`${inputCls} flex-1 min-w-0`} />
-                  </div>
-                </Field>
-              ))}
+            {/* Visual Style */}
+            <div className="grid grid-cols-1 gap-4">
+              <Field label="Visual Style">
+                <div className="flex py-1 gap-2">
+                  {VISUAL_STYLES.map((s) => (
+                    <button key={s.value} onClick={() => field("visualStyle", s.value)}
+                      className={`flex flex-col gap-2 px-3 py-1 rounded-md border cursor-pointer transition-all ${formData.visualStyle === s.value
+                        ? "border-blue-600 bg-blue-50"
+                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                        }`}>
+
+                      <span className={`text-xs font-semibold ${formData.visualStyle === s.value ? "text-blue-700" : "text-gray-500"}`}>
+                        {s.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </Field>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Font">
-                <select value={formData.font} onChange={(e) => field("font", e.target.value)} className={`${inputCls} bg-white cursor-pointer`}>
-                  {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
-                </select>
+
+              {/* Brand Color — inline color picker + hex input + small swatches */}
+              <Field label="Brand Color">
+                <div className="flex items-center gap-2">
+
+                  {/* Swatches */}
+                  <div className="flex items-center gap-1.5 flex-wrap max-w-50">
+                    {BRAND_COLORS.map((hex) => (
+                      <button
+                        key={hex}
+                        onClick={() => field("brandColor", hex)}
+                        className={`w-7 h-7 rounded-md cursor-pointer border-2 transition-transform hover:scale-110 ${formData.brandColor === hex
+                            ? "border-gray-800 scale-110"
+                            : "border-transparent"
+                          }`}
+                        style={{ background: hex }}
+                        title={hex}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Picker + Input */}
+                  <div className="flex items-center gap-2 flex-none">
+                    <label
+                      className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer overflow-hidden shrink-0 transition hover:scale-105"
+                      style={{ background: formData.brandColor || "#2563eb" }}
+                    >
+                      <input
+                        type="color"
+                        value={formData.brandColor || "#2563eb"}
+                        onChange={(e) => field("brandColor", e.target.value)}
+                        className="opacity-0 w-full h-full cursor-pointer"
+                      />
+                    </label>
+
+                    <input
+                      type="text"
+                      value={formData.brandColor || "#2563eb"}
+                      onChange={(e) =>
+                        /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) &&
+                        field("brandColor", e.target.value)
+                      }
+                      className={`${inputCls} w-22.5! flex-none px-2 text-sm font-mono`}
+                      maxLength={7}
+                    />
+                  </div>
+
+                </div>
               </Field>
+
+
               <Field label="Logo">
                 <div className="flex items-center gap-2">
                   <button onClick={() => logoInputRef.current?.click()}
@@ -499,24 +616,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Caption">
-                <div className="relative">
-                  <input type="text" value={formData.caption} maxLength={280}
-                    onChange={(e) => field("caption", e.target.value)}
-                    placeholder="Your ad message" className={`${inputCls} pr-10`} />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">
-                    {280 - (formData.caption?.length || 0)}
-                  </span>
-                </div>
-              </Field>
-              <Field label="Hashtags">
-                <input type="text"
-                  value={Array.isArray(formData.hashtags) ? formData.hashtags.join(" ") : ""}
-                  onChange={(e) => field("hashtags", e.target.value.split(" ").filter(Boolean))}
-                  placeholder="#Brand #Ad" className={inputCls} />
-              </Field>
-            </div>
+
           </div>
         )}
 

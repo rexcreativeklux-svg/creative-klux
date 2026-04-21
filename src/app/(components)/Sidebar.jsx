@@ -4,27 +4,34 @@ import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   FolderKanban,
-  BarChart3,
   BrainCircuit,
   Wand2,
   Settings,
-  UserRound,
   HelpCircle,
   Power,
+  ChevronDown,
+  Palette,
+  Layers,
+  Megaphone,
+  Share2,
+  TrendingUp,
+  Sparkles,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import LogoutModal from "./LogoutModal";
 import { FaTrello } from "react-icons/fa";
 
-
-const Sidebar = ({ togglePanel, activePanel }) => {
+const Sidebar = ({ isOpen, setIsOpen }) => {
   const router = useRouter();
+  const pathname = usePathname();
   const { logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [openDropdowns, setOpenDropdowns] = useState({});
 
- const handleLogout = async () => {
+  const handleLogout = async () => {
     try {
-      await logout(); // Clear session, cookies, etc.
+      await logout();
       router.push("/login");
     } catch (error) {
       console.error("Logout failed:", error);
@@ -32,113 +39,320 @@ const Sidebar = ({ togglePanel, activePanel }) => {
     }
   };
 
+  const toggleDropdown = (id, e) => {
+    e.preventDefault();
+    if (!isOpen) {
+      // Open sidebar first, then open dropdown after transition
+      setIsOpen(true);
+      setTimeout(() => {
+        setOpenDropdowns((prev) => ({ ...prev, [id]: true }));
+      }, 250);
+      return;
+    }
+    setOpenDropdowns((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const isActive = (href) =>
+    pathname === href || pathname?.startsWith(href + "/");
+
+  const isDropdownActive = (children) =>
+    children?.some((c) => isActive(c.href));
+
+  // ── Nav config ─────────────────────────────────────────────────
   const mainNavItems = [
-    { id: "brand",     label: "BrandKit",     icon: FaTrello },
-    { id: "projects",  label: "Creatives",    icon: FolderKanban },
-    { id: "ads",       label: "Ads Content",  icon: BarChart3 },
-    { id: "social",    label: "Social Content", icon: UserRound },
-    { id: "analyze",   label: "Analyze",      icon: BarChart3 },
-    { id: "predict",   label: "Predict",      icon: BrainCircuit },
-    { id: "retouch",   label: "Retouch",      icon: Wand2 },
+    {
+      id: "brand",
+      label: "BrandKit",
+      icon: FaTrello,
+      type: "dropdown",
+      children: [
+        { label: "Brand Profile", href: "/brand", icon: Palette },
+        { label: "Brand Assets", href: "/brand/assets", icon: Layers },
+        { label: "Create Brand", href: "/brand/create", icon: Sparkles },
+      ],
+    },
+    {
+      id: "creatives",
+      label: "Creatives",
+      href: "/creatives",
+      icon: FolderKanban,
+      type: "link",
+    },
+    {
+      id: "ads",
+      label: "Ads Content",
+      icon: Megaphone,
+      type: "dropdown",
+      children: [
+        { label: "Ad Campaigns", href: "/ads-content", icon: Megaphone },
+        { label: "Ad Copy", href: "/ads-content/copy", icon: Layers },
+        { label: "Ad Visuals", href: "/ads-content/visuals", icon: Palette },
+      ],
+    },
+    {
+      id: "social",
+      label: "Social Content",
+      icon: Share2,
+      type: "dropdown",
+      children: [
+        { label: "Feed Posts", href: "/social-content", icon: Share2 },
+        { label: "Stories", href: "/social-content/stories", icon: Layers },
+        { label: "Captions", href: "/social-content/captions", icon: Sparkles },
+      ],
+    },
+    {
+      id: "analyze",
+      label: "Analyze",
+      href: "/analyze",
+      icon: TrendingUp,
+      type: "link",
+    },
+    {
+      id: "predict",
+      label: "Predict",
+      href: "/predict",
+      icon: BrainCircuit,
+      type: "link",
+    },
+    {
+      id: "retouch",
+      label: "Retouch",
+      href: "/retouch",
+      icon: Wand2,
+      type: "link",
+    },
   ];
 
   const bottomNavItems = [
-    { id: "settings", label: "Settings", icon: Settings },
-    { id: "help",     label: "Help",      icon: HelpCircle },
+    { id: "settings", label: "Settings", href: "/settings", icon: Settings, type: "link" },
+    { id: "help", label: "Help", href: "/help", icon: HelpCircle, type: "link" },
   ];
 
-  const mobileNavItems = [...mainNavItems, ...bottomNavItems];
+  // ── Shared classes ─────────────────────────────────────────────
+  const itemBase =
+    "flex items-center gap-3 w-full rounded-lg transition-all duration-150 text-sm font-medium";
+  const itemPadding = isOpen ? "px-3 py-2.5" : "px-0 py-2.5 justify-center";
+  const activeClass = "bg-[#1e2d3d] text-white";
+  const defaultClass = "text-gray-600 hover:bg-gray-100 hover:text-gray-900";
+
+  // ── Link item ──────────────────────────────────────────────────
+  const renderLink = ({ id, href, icon: Icon, label }) => {
+    const active = isActive(href);
+    return (
+      <Link
+        key={id}
+        href={href}
+        title={!isOpen ? label : undefined}
+        className={`${itemBase} ${itemPadding} ${active ? activeClass : defaultClass}`}
+      >
+        <Icon className="h-[18px] w-[18px] flex-shrink-0" />
+        {isOpen && <span className="truncate">{label}</span>}
+      </Link>
+    );
+  };
+
+  // ── Dropdown item ──────────────────────────────────────────────
+  const renderDropdown = ({ id, icon: Icon, label, children }) => {
+    const dropOpen = openDropdowns[id];
+    const dropActive = isDropdownActive(children);
+
+    return (
+      <div key={id} className="relative">
+        <button
+          onClick={(e) => toggleDropdown(id, e)}
+          title={!isOpen ? label : undefined}
+          className={`${itemBase} ${itemPadding} ${dropActive ? activeClass : defaultClass}`}
+        >
+          <Icon className="h-[18px] w-[18px] flex-shrink-0" />
+          {isOpen && (
+            <>
+              <span className="flex-1 text-left truncate">{label}</span>
+              <ChevronDown
+                className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${dropOpen ? "rotate-180" : ""
+                  }`}
+              />
+            </>
+          )}
+        </button>
+
+        {/* Accordion — sidebar open */}
+        {isOpen && dropOpen && (
+          <div className="mt-0.5 ml-4 pl-3 border-l-2 border-gray-200 flex flex-col gap-0.5 pb-1">
+            {children.map((child) => {
+              const ChildIcon = child.icon;
+              const childActive = isActive(child.href);
+              return (
+                <Link
+                  key={child.href}
+                  href={child.href}
+                  className={`flex items-center gap-2.5 px-2 py-2 rounded-md text-sm transition-all duration-150 ${childActive
+                    ? "text-[#155dfc] font-semibold"
+                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                    }`}
+                >
+                  <ChildIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="truncate">{child.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Flyout tooltip — sidebar collapsed */}
+        {!isOpen && dropOpen && (
+          <div className="absolute left-full top-0 z-50 ml-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 overflow-hidden">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 py-1.5 border-b border-gray-100 mb-1">
+              {label}
+            </p>
+            {children.map((child) => {
+              const ChildIcon = child.icon;
+              return (
+                <Link
+                  key={child.href}
+                  href={child.href}
+                  onClick={() => setOpenDropdowns({})}
+                  className={`flex items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-gray-50 ${isActive(child.href) ? "text-[#155dfc] font-semibold" : "text-gray-700"
+                    }`}
+                >
+                  <ChildIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                  {child.label}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderItem = (item) =>
+    item.type === "link" ? renderLink(item) : renderDropdown(item);
 
   return (
     <>
-      {/* Desktop Sidebar */}
-      <nav className="hidden md:flex md:flex-col justify-between h-screen w-20 bg-white border-r border-gray-100">
-        <div className="flex flex-col justify-center items-center">
-          <div onClick={() => router.push("/")} className="pt-5 cursor-pointer">
-             <img
-              src="/logoblue.svg"
-              alt="Logo"
-              className="w-[40px]"   // adjust: w-24, w-40, w-48, etc.
-              loading="lazy"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1 mt-9">
-            {mainNavItems.map(({ id, icon: Icon, label }) => (
-              <div key={id} className="flex justify-center">
-                <button
-                  onClick={() => togglePanel(id)}
-                  className={`flex flex-col items-center cursor-pointer px-1 py-2 w-full transition-all duration-200 hover:bg-[#e7eeffd8] ${
-                    activePanel === id ? "bg-[#e7eeffe9] text-[#155dfc]" : "text-gray-600"
-                  }`}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="text-xs font-medium mt-1">{label}</span>
-                </button>
-              </div>
-            ))}
-          </div>
+      {/* ── Desktop Sidebar ───────────────────────────────────── */}
+      <nav
+        className={`
+          hidden md:flex md:flex-col flex-shrink-0
+          h-screen bg-white border-r border-gray-100
+          transition-all duration-300 ease-in-out overflow-hidden
+          ${isOpen ? "w-56" : "w-[60px]"}
+        `}
+      >
+        {/* Logo row */}
+        <div
+          className={`flex items-center h-16 flex-shrink-0 border-b border-gray-100 cursor-pointer
+            ${isOpen ? "px-4" : "justify-center px-0"}
+          `}
+          onClick={() => router.push("/")}
+        >
+          <img
+            src="/logoblue.svg"
+            alt="Logo"
+            className="w-7 h-7 flex-shrink-0"
+            loading="lazy"
+          />
+          {isOpen && (
+            <span className="ml-3 font-semibold text-gray-900 text-sm truncate">
+              Dashboard
+            </span>
+          )}
         </div>
 
-        <div className="mb-6 flex flex-col gap-0">
-          <div className="mx-4 border-t border-gray-200" />
+        {/* Scrollable nav area */}
+        <div className={`flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-0.5 ${isOpen ? "px-3" : "px-2"}`}>
+          {mainNavItems.map(renderItem)}
 
-          {bottomNavItems.map(({ id, icon: Icon, label }) => (
-            <div key={id} className="flex justify-center">
-              <button
-                onClick={() => togglePanel(id)}
-                className={`flex flex-col cursor-pointer items-center py-2 w-full transition-all duration-200 hover:bg-[#e7eeff] ${
-                  activePanel === id ? "bg-[#e7eeff] text-[#155dfc]" : "text-gray-600"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="text-xs font-medium mt-1">{label}</span>
-              </button>
-            </div>
-          ))}
+          <div className="my-2 border-t border-gray-100" />
 
-          {/* Logout Button */}
-          <div className="flex justify-center">
-            <button
-              onClick={() => setShowLogoutModal(true)}
-              className="flex flex-col cursor-pointer items-center py-2 w-full transition-all duration-200 hover:bg-red-50 text-red-600 hover:text-red-700 group"
-            >
-              <Power className="h-5 w-5 group-hover:animate-pulse" />
-              <span className="text-xs font-medium mt-1">Logout</span>
-            </button>
-          </div>
+
+        </div>
+
+        {/* Logout */}
+        <div className={`flex-shrink-0 border-t border-gray-100 py-3 ${isOpen ? "px-3" : "px-2"}`}>
+          {bottomNavItems.map(renderItem)}
+
+          <button
+            onClick={() => setShowLogoutModal(true)}
+            title={!isOpen ? "Logout" : undefined}
+            className={`${itemBase} ${itemPadding} text-red-500 cursor-pointer hover:bg-red-50 hover:text-red-600 group`}
+          >
+            <Power className="h-[18px] w-[18px] flex-shrink-0 group-hover:animate-pulse" />
+            {isOpen && <span className="truncate">Logout</span>}
+          </button>
         </div>
       </nav>
 
-      {/* Mobile Bottom Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 flex justify-around items-center py-3 md:hidden">
-        {mobileNavItems.map(({ id, icon: Icon, label }) => (
-          <button
-            key={id}
-            onClick={() => togglePanel(id)}
-            className={`flex flex-col cursor-pointer items-center text-xs font-semibold p-2 rounded-lg ${
-              activePanel === id ? "text-[#155dfc]" : "text-gray-600"
-            }`}
-          >
-            <Icon className="h-6 w-6" />
-            <span className="mt-1">{label}</span>
-          </button>
-        ))}
+      {/* ── Mobile Bottom Nav ──────────────────────────────────── */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 flex justify-around items-center py-2 md:hidden">
+        {[...mainNavItems, ...bottomNavItems].map((item) => {
+          const { id, label, icon: Icon, href, type, children } = item;
+          const isDropOpen = openDropdowns[id];
+
+          if (type === "link") {
+            return (
+              <Link
+                key={id}
+                href={href}
+                className={`flex flex-col items-center text-xs p-2 rounded-lg ${isActive(href) ? "text-[#155dfc]" : "text-gray-500"
+                  }`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="mt-0.5 font-medium">{label}</span>
+              </Link>
+            );
+          }
+
+          return (
+            <div key={id} className="relative">
+              <button
+                onClick={(e) => toggleDropdown(id, e)}
+                className={`flex flex-col items-center text-xs p-2 rounded-lg ${isDropOpen || isDropdownActive(children) ? "text-[#155dfc]" : "text-gray-500"
+                  }`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="mt-0.5 font-medium">{label}</span>
+              </button>
+
+              {isDropOpen && (
+                <div className="absolute bottom-14 left-1/2 -translate-x-1/2 w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50">
+                  <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-400 px-3 py-1.5 border-b border-gray-100">
+                    {label}
+                  </p>
+                  {children.map((child) => {
+                    const ChildIcon = child.icon;
+                    return (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        onClick={() => setOpenDropdowns({})}
+                        className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-50 ${isActive(child.href) ? "text-[#155dfc] font-semibold" : "text-gray-700"
+                          }`}
+                      >
+                        <ChildIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         <button
           onClick={() => setShowLogoutModal(true)}
-          className="flex flex-col items-center text-xs font-semibold p-2 rounded-lg text-red-600"
+          className="flex flex-col items-center text-xs p-2 rounded-lg text-red-500"
         >
-          <Power className="h-6 w-6" />
-          <span className="mt-1">Logout</span>
+          <Power className="h-5 w-5" />
+          <span className="mt-0.5 font-medium">Logout</span>
         </button>
       </nav>
 
-    {/* Reusable Modal handles both steps + success message */}
-     <LogoutModal
+      <LogoutModal
         isOpen={showLogoutModal}
-        onClose={() => setShowLogoutModal(false)}  // Only closes modal
-        onConfirm={handleLogout}                   // Only runs on success
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
       />
     </>
   );

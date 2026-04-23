@@ -126,11 +126,11 @@ const Resell = () => {
                 duration={notification.duration}
             />
 
-            <div className="w-full flex flex-col gap-4 p-4 sm:py-4 sm:px-10 bg-white">
+            <div className="w-full flex flex-col gap-4 p-4 rounded-lg bg-white">
                 {/* Header */}
                 <div className="space-y-2 pb-8">
                     <h1 className="font-semibold text-2xl">Resell accounts</h1>
-                    <p className="text-gray-600">Expand Your Business by Managing Resell Accounts Effectively</p>
+                    <p className="text-gray-600 text-sm">Expand Your Business by Managing Resell Accounts Effectively</p>
                 </div>
 
                 {/* Invite Section */}

@@ -18,6 +18,8 @@ import {
   Sparkles,
   Workflow,
   PackagePlus,
+  ShoppingCart,
+  CreditCard,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -109,38 +111,50 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         { label: "Captions", href: "/social-content/captions", icon: Sparkles },
       ],
     },
-      {
+    {
       id: "integrations",
       label: "Integrations",
       href: "/integrations",
       icon: Workflow,
       type: "link",
     },
-    {
-      id: "analyze",
-      label: "Analyze",
-      href: "/analyze",
-      icon: TrendingUp,
-      type: "link",
-    },
-    {
-      id: "predict",
-      label: "Predict",
-      href: "/predict",
-      icon: BrainCircuit,
-      type: "link",
-    },
-    {
-      id: "retouch",
-      label: "Retouch",
-      href: "/retouch",
-      icon: Wand2,
-      type: "link",
-    },
+    // {
+    //   id: "analyze",
+    //   label: "Analyze",
+    //   href: "/analyze",
+    //   icon: TrendingUp,
+    //   type: "link",
+    // },
+    // {
+    //   id: "predict",
+    //   label: "Predict",
+    //   href: "/predict",
+    //   icon: BrainCircuit,
+    //   type: "link",
+    // },
+    // {
+    //   id: "retouch",
+    //   label: "Retouch",
+    //   href: "/retouch",
+    //   icon: Wand2,
+    //   type: "link",
+    // },
   ];
 
   const bottomNavItems = [
-    { id: "settings", label: "Settings", href: "/settings", icon: Settings, type: "link" },
+    {
+      id: "settings",
+      label: "Settings",
+      icon: Settings,
+      type: "dropdown",
+      children: [
+        { label: "Profile", href: "/profile", icon: Layers },
+        { label: "Custom Domain", href: "/custom-domain", icon: Share2 },
+        { label: "Resell", href: "/resell", icon: ShoppingCart },
+        { label: "Billing", href: "/", icon: CreditCard },
+      ],
+    },
+
     { id: "help", label: "Help", href: "/help", icon: HelpCircle, type: "link" },
   ];
 

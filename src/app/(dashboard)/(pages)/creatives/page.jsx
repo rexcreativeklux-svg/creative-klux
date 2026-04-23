@@ -4,102 +4,224 @@ import React, { useState, useMemo } from "react";
 import {
     Search, LayoutGrid, List, Star, Trash2, Plus, Copy,
     Pencil, X, Check, Clock, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
+    Send, CalendarClock, ScanSearch, TrendingUp, Wand2,
 } from "lucide-react";
+import Link from "next/link";
 
 const MOCK_CREATIVES = [
     {
-        id: "1", type: "Ad", title: "Increase Sales — kll",
+        id: "1", type: "Image", title: "Increase Sales — kll",
         date: "Apr 21", favorite: false,
         image: "https://images.pexels.com/photos/3394650/pexels-photo-3394650.jpeg?w=600",
         copy: "Join the thousands of satisfied customers in New Mexico! Why kll is the #1 Choice for Everyone in NM!\n\nFrom young families to seasoned pros, kll has something for everyone. With our trusted quality and unbeatable prices, you won't find a better deal anywhere else. Discover why NM residents love us and experience the difference today!\n\n---\n\nHook: \"Join the thousands of satisfied customers in New Mexico!\"\nHeadline: \"Why kll is the #1 Choice for Everyone in NM!\"\nBody: From young families to seasoned pros, kll has something for everyone.\nCTA: Shop Now\nFormat: Image — Facebook & Instagram\nAudience: B2C, All ages\nPlatform: Facebook, Instagram\nSize: 1200x628",
-        goal: "Sales", audience: "B2C", size: "1200x628",
+        goal: "Sales", audience: "B2C", size: "1200x628", category: "Ads Creative",
     },
     {
-        id: "2", type: "Ad", title: "Increase Sales — fgh",
+        id: "2", type: "Image", title: "Increase Sales — fgh",
         date: "Apr 21", favorite: true,
         image: "https://images.pexels.com/photos/1649771/pexels-photo-1649771.jpeg?w=600",
         copy: "Seasonal Sale | Up to 50% OFF | Limited Time. Discover fgh premium tech products at unbeatable prices.\n\nOur best-in-class headphones deliver studio-quality sound for everyday life. Whether you're commuting, working, or working out — fgh has the gear for you.\n\n---\n\nHook: \"Don't miss out — limited time only!\"\nHeadline: \"fgh Premium Tech — Now 50% Off\"\nCTA: Buy Now\nFormat: Image — Instagram\nAudience: Tech enthusiasts, 18–35\nPlatform: Instagram\nSize: 1080x1080",
-        goal: "Sales", audience: "B2C", size: "1080x1080",
+        goal: "Sales", audience: "B2C", size: "1080x1080", category: "Ads Creative",
     },
     {
-        id: "3", type: "Ad", title: "Increase Sales — weviy",
+        id: "3", type: "Video", title: "Increase Sales — weviy",
         date: "Apr 21", favorite: false,
         image: "https://images.pexels.com/photos/3184418/pexels-photo-3184418.jpeg?w=600",
         copy: "WEVIY — All-in-One Platform to Launch & Scale Your Business. Start your journey today and see results in days, not months.\n\nWith Weviy, you get access to powerful tools built for modern teams: campaign management, AI creative generation, analytics dashboards, and one-click publishing across all major ad platforms.\n\n---\n\nHook: \"Scale your business without scaling your team.\"\nHeadline: \"All-in-One Platform for Growth\"\nCTA: Get Started Free\nFormat: Display — Google\nAudience: B2B startups, founders\nPlatform: Google Display Network\nSize: 1200x628",
-        goal: "Brand Awareness", audience: "B2B", size: "1200x628",
+        goal: "Brand Awareness", audience: "B2B", size: "1200x628", category: "Ads Creative",
     },
     {
-        id: "4", type: "Design", title: "Logo — weviy",
+        id: "4", type: "Logos & Brand Identity", title: "Logo — weviy",
         date: "Apr 21", favorite: true,
         image: "https://images.pexels.com/photos/1779487/pexels-photo-1779487.jpeg?w=600",
         copy: "Brand Identity Package for Weviy. Includes primary logo, icon mark, brand color palette, and typography guidelines.\n\nDesigned for digital and print use. The logo system includes horizontal, stacked, and icon-only lockups, each optimised for different contexts — from social media avatars to large-format print.\n\n---\n\nDeliverables: SVG, PNG (transparent), PDF brand guide\nFont pairing: Primary + Secondary\nColors: 3 brand colors + neutrals\nUsage: Digital, Print, Merchandise",
-        goal: "Brand Identity", audience: "All", size: "SVG",
+        goal: "Brand Identity", audience: "All", size: "SVG", category: "Designer Creative",
     },
     {
-        id: "5", type: "Ad", title: "Unlock Your Potential — NJM",
+        id: "5", type: "Reels / Stories / Shorts", title: "Unlock Your Potential — NJM",
         date: "Apr 21", favorite: false,
         image: "https://images.pexels.com/photos/3761504/pexels-photo-3761504.jpeg?w=600",
         copy: "UNLOCK YOUR POTENTIAL. Transform your performance with NJM's premium product line.\n\nWhether you're pushing through a plateau or just getting started, NJM gives you the edge. Our formula is clinically tested, athlete-approved, and designed to deliver real results — not just promises.\n\n---\n\nHook: \"Stop settling for average.\"\nHeadline: \"Unlock Your Potential with NJM\"\nCTA: Unlock Now\nFormat: Video — TikTok\nAudience: Fitness & lifestyle, 18–30\nPlatform: TikTok, Instagram Reels\nSize: 1080x1920",
-        goal: "Engagement", audience: "B2C", size: "1080x1920",
+        goal: "Engagement", audience: "B2C", size: "1080x1920", category: "Ads Creative",
     },
     {
-        id: "6", type: "Ad", title: "A Boy Coding",
+        id: "6", type: "Posts", title: "A Boy Coding",
         date: "Apr 21", favorite: false,
         image: "https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg?w=600",
         copy: "Learn to code with the best platform. Join 10,000+ developers who accelerated their careers with our curriculum.\n\nFrom beginner to job-ready in 6 months. Our structured learning paths, live mentorship, and real-world projects make us the #1 choice for career changers and self-taught developers looking to level up.\n\n---\n\nHook: \"Your next career starts with one line of code.\"\nHeadline: \"Join 10,000+ Developers Who Changed Their Lives\"\nCTA: Start Learning\nFormat: Image — LinkedIn\nAudience: B2B developers, career changers\nPlatform: LinkedIn\nSize: 1200x627",
-        goal: "Lead Generation", audience: "B2B", size: "1200x627",
+        goal: "Lead Generation", audience: "B2B", size: "1200x627", category: "Ads Creative",
     },
     {
-        id: "7", type: "Social", title: "AI Creative Engine",
+        id: "7", type: "Banners / Covers", title: "AI Creative Engine",
         date: "Apr 21", favorite: false,
         image: "https://images.pexels.com/photos/2599244/pexels-photo-2599244.jpeg?w=600",
         copy: "YOUR ALL-IN-ONE AI CREATIVE ENGINE — Ads, Socials, Designs. Unleash your creativity without limits.\n\nGenerate on-brand content in seconds. From image ads to video reels, social posts to brand decks — our AI engine handles the heavy lifting so your team can focus on strategy.\n\n---\n\nFormat: Twitter Header\nPlatform: Twitter / X\nSize: 1500x500\nTone: Bold, forward-looking\nAudience: Marketing teams, agencies",
-        goal: "Brand Awareness", audience: "Casual", size: "1500x500",
+        goal: "Brand Awareness", audience: "Casual", size: "1500x500", category: "Ads Creative",
     },
     {
-        id: "8", type: "Social", title: "Summer Campaign Reel",
+        id: "8", type: "Reels / Stories / Shorts", title: "Summer Campaign Reel",
         date: "Apr 20", favorite: true,
         image: "https://images.pexels.com/photos/1103970/pexels-photo-1103970.jpeg?w=600",
         copy: "Summer is here and so are we! Show off your best look with our new summer collection.\n\nTag us @brand for a chance to be featured on our page. We're celebrating the season with drops every Friday through August — follow along so you never miss a release.\n\n---\n\nHook: \"Summer's calling. Are you ready?\"\nCaption: Drop your summer look 🌞 Tag us to be featured.\nHashtags: #SummerVibes #NewDrop #BrandStyle\nFormat: Reel — Instagram\nDuration: 30s\nSize: 1080x1920",
-        goal: "Engagement", audience: "B2C", size: "1080x1920",
+        goal: "Engagement", audience: "B2C", size: "1080x1920", category: "Ads Creative",
     },
     {
-        id: "9", type: "Design", title: "Product Launch Flyer",
+        id: "9", type: "Flyers", title: "Product Launch Flyer",
         date: "Apr 19", favorite: false,
         image: "https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?w=600",
         copy: "New Product Launch — Be the first to experience it. Exclusive early access for our community.\n\nRegister now to secure your spot and receive a 20% launch discount. This is a limited-run release and once it's gone, it's gone. Don't wait — early access closes Friday.\n\n---\n\nHeadline: \"Be First. Get 20% Off.\"\nCTA: Register for Early Access\nFormat: Flyer — A4 Print & Digital\nDeliverables: PDF, PNG\nSize: 2480x3508\nAudience: Existing customers, VIP list",
-        goal: "Lead Generation", audience: "B2C", size: "2480x3508",
+        goal: "Lead Generation", audience: "B2C", size: "2480x3508", category: "Designer Creative",
     },
     {
-        id: "10", type: "Ad", title: "Black Friday Countdown",
+        id: "10", type: "Interactive", title: "Black Friday Countdown",
         date: "Apr 18", favorite: false,
         image: "https://images.pexels.com/photos/5632399/pexels-photo-5632399.jpeg?w=600",
         copy: "BLACK FRIDAY STARTS NOW. Up to 70% off everything. Don't miss the biggest sale of the year — deals expire at midnight.\n\nThis is our biggest sale ever. Every category. Every product. Up to 70% off with no minimum spend. Add to cart before midnight or miss out until next year.\n\n---\n\nHook: \"70% off. Midnight deadline. No excuses.\"\nHeadline: \"Black Friday Starts Now\"\nCTA: Shop the Sale\nFormat: Stories — Meta\nAudience: All shoppers\nPlatform: Facebook, Instagram Stories\nSize: 1080x1920",
-        goal: "Sales", audience: "B2C", size: "1080x1920",
+        goal: "Sales", audience: "B2C", size: "1080x1920", category: "Ads Creative",
     },
     {
-        id: "11", type: "Social", title: "Behind the Scenes — Studio",
+        id: "11", type: "Text to Video", title: "Behind the Scenes — Studio",
         date: "Apr 17", favorite: false,
         image: "https://images.pexels.com/photos/1181244/pexels-photo-1181244.jpeg?w=600",
         copy: "A peek behind the curtain. This is how we build the ads that build your brand.\n\nOur creative studio is a fast-moving blend of data, design, and storytelling. Every asset that comes out of here has been tested, iterated, and optimized before it ever reaches your audience.\n\n---\n\nCaption: \"This is where the magic happens ✨\"\nHashtags: #BehindTheScenes #CreativeProcess #StudioLife\nFormat: Carousel — Instagram\nSlides: 5\nSize: 1080x1080\nTone: Authentic, human",
-        goal: "Engagement", audience: "Casual", size: "1080x1080",
+        goal: "Engagement", audience: "Casual", size: "1080x1080", category: "Magic Studio",
     },
     {
-        id: "12", type: "Design", title: "Event Poster — TechSummit",
+        id: "12", type: "Posters", title: "Event Poster — TechSummit",
         date: "Apr 15", favorite: true,
         image: "https://images.pexels.com/photos/2774556/pexels-photo-2774556.jpeg?w=600",
         copy: "TechSummit 2025 — Where Innovation Meets Ambition. Join 500+ founders, engineers, and investors for two days of talks, workshops, and networking.\n\nThis year's theme: Building the Next Decade. Speakers from top-tier companies will share what's actually working in product, growth, and AI. Early bird tickets close May 1st.\n\n---\n\nEvent: TechSummit 2025\nDate: June 14–15, 2025\nVenue: Lagos, Nigeria\nCTA: Get Your Ticket\nFormat: Poster — A3 Print & Digital\nSize: 2480x3508\nDeliverables: PDF, PNG, Social-ready crop",
-        goal: "Brand Awareness", audience: "B2B", size: "2480x3508",
+        goal: "Brand Awareness", audience: "B2B", size: "2480x3508", category: "Designer Creative",
     },
 ];
 
-const TYPE_FILTERS = ["All", "Ad", "Social", "Design"];
+// ── Filter structure ──────────────────────────────────────────────────────────
+const FILTER_GROUPS = [
+    { label: "All", key: "All" },
+
+    {
+        label: "Ads Creative",
+        key: "Ads Creative",
+        children: ["Image", "Video", "Interactive", "Playable"],
+    },
+
+    {
+        label: "Social Creative",
+        key: "Social Creative",
+        children: [
+            "Posts",
+            "Reels / Stories / Shorts",
+            "Banners / Covers",
+            "Thumbnails",
+            "Memes / Trends",
+        ],
+    },
+
+    {
+        label: "Designer Creative",
+        key: "Designer Creative",
+        children: [
+            "Logos & Brand Identity",
+            "Business Cards",
+            "Banners (Print & Digital)",
+            "Flyers",
+            "Brochures",
+            "Posters",
+            "Infographics",
+            "Presentation Decks",
+            "Packaging Mockups",
+            "Digital Business Cards",
+        ],
+    },
+
+    {
+        label: "Magic Studio",
+        key: "Magic Studio",
+        children: [
+            "Text to Image",
+            "Text to Video",
+            "Image to Variations",
+            "Script to Voiceover to Video",
+            "Audio to Text",
+            "Persona-based Generator",
+            "Text to Audio",
+        ],
+    },
+
+    { label: "★ Favorites", key: "Favorites" },
+];
+
+
+// All leaf types that belong to each group
+const GROUP_CHILDREN = {
+    "Ads Creative": ["Image", "Video", "Interactive", "Playable"],
+
+    "Social Creative": [
+        "Posts",
+        "Reels / Stories / Shorts",
+        "Banners / Covers",
+        "Thumbnails",
+        "Memes / Trends",
+    ],
+
+    "Designer Creative": [
+        "Logos & Brand Identity",
+        "Business Cards",
+        "Banners (Print & Digital)",
+        "Flyers",
+        "Brochures",
+        "Posters",
+        "Infographics",
+        "Presentation Decks",
+        "Packaging Mockups",
+        "Digital Business Cards",
+    ],
+
+    "Magic Studio": [
+        "Text to Image",
+        "Text to Video",
+        "Image to Variations",
+        "Script to Voiceover to Video",
+        "Audio to Text",
+        "Persona-based Generator",
+        "Text to Audio",
+    ],
+};
+
 
 const TYPE_COLOR = {
-    Ad: { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-100", dot: "bg-blue-500" },
-    Social: { bg: "bg-emerald-50", text: "text-emerald-600", border: "border-emerald-100", dot: "bg-emerald-500" },
-    Design: { bg: "bg-violet-50", text: "text-violet-600", border: "border-violet-100", dot: "bg-violet-500" },
+    // Ads Creative
+    "Image": { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-100", dot: "bg-blue-500" },
+    "Video": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-100", dot: "bg-blue-600" },
+    "Interactive": { bg: "bg-cyan-50", text: "text-cyan-600", border: "border-cyan-100", dot: "bg-cyan-500" },
+    "Playable Social Creative": { bg: "bg-sky-50", text: "text-sky-600", border: "border-sky-100", dot: "bg-sky-500" },
+    "Posts": { bg: "bg-indigo-50", text: "text-indigo-600", border: "border-indigo-100", dot: "bg-indigo-500" },
+    "Reels / Stories / Shorts": { bg: "bg-blue-50", text: "text-blue-500", border: "border-blue-100", dot: "bg-blue-400" },
+    "Banners / Covers": { bg: "bg-teal-50", text: "text-teal-600", border: "border-teal-100", dot: "bg-teal-500" },
+    "Thumbnails": { bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-100", dot: "bg-sky-600" },
+    "Memes / Trends": { bg: "bg-cyan-50", text: "text-cyan-700", border: "border-cyan-100", dot: "bg-cyan-600" },
+    // Designer Creative
+    "Logos & Brand Identity": { bg: "bg-violet-50", text: "text-violet-600", border: "border-violet-100", dot: "bg-violet-500" },
+    "Business Cards": { bg: "bg-purple-50", text: "text-purple-600", border: "border-purple-100", dot: "bg-purple-500" },
+    "Banners (Print & Digital)": { bg: "bg-fuchsia-50", text: "text-fuchsia-600", border: "border-fuchsia-100", dot: "bg-fuchsia-500" },
+    "Flyers": { bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-100", dot: "bg-violet-600" },
+    "Brochures": { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-100", dot: "bg-purple-600" },
+    "Posters": { bg: "bg-fuchsia-50", text: "text-fuchsia-700", border: "border-fuchsia-100", dot: "bg-fuchsia-600" },
+    "Infographics": { bg: "bg-violet-50", text: "text-violet-500", border: "border-violet-100", dot: "bg-violet-400" },
+    "Presentation Decks": { bg: "bg-purple-50", text: "text-purple-500", border: "border-purple-100", dot: "bg-purple-400" },
+    "Packaging Mockups": { bg: "bg-fuchsia-50", text: "text-fuchsia-500", border: "border-fuchsia-100", dot: "bg-fuchsia-400" },
+    "Digital Business Cards": { bg: "bg-violet-50", text: "text-violet-800", border: "border-violet-200", dot: "bg-violet-700" },
+    // Magic Studio
+    "Text to Image": { bg: "bg-emerald-50", text: "text-emerald-600", border: "border-emerald-100", dot: "bg-emerald-500" },
+    "Text to Video": { bg: "bg-green-50", text: "text-green-600", border: "border-green-100", dot: "bg-green-500" },
+    "Image to Variations": { bg: "bg-teal-50", text: "text-teal-700", border: "border-teal-100", dot: "bg-teal-600" },
+    "Script to Voiceover to Video": { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-100", dot: "bg-emerald-600" },
+    "Audio to Text": { bg: "bg-green-50", text: "text-green-700", border: "border-green-100", dot: "bg-green-600" },
+    "Persona-based Generator": { bg: "bg-teal-50", text: "text-teal-500", border: "border-teal-100", dot: "bg-teal-400" },
+    "Text to Audio": { bg: "bg-emerald-50", text: "text-emerald-500", border: "border-emerald-100", dot: "bg-emerald-400" },
 };
+
+const DEFAULT_COLOR = { bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200", dot: "bg-gray-400" };
 
 const ITEMS_PER_PAGE = 6;
 
@@ -107,11 +229,13 @@ export default function CreativesPage() {
     const [creatives, setCreatives] = useState(MOCK_CREATIVES);
     const [search, setSearch] = useState("");
     const [activeFilter, setActiveFilter] = useState("All");
+    const [activeSubFilter, setActiveSubFilter] = useState(null);
     const [viewMode, setViewMode] = useState("grid");
     const [selectedId, setSelectedId] = useState(null);
     const [copied, setCopied] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
     const [page, setPage] = useState(1);
+    const [expandedGroup, setExpandedGroup] = useState(null);
 
     const filtered = useMemo(() => {
         return creatives.filter((c) => {
@@ -119,18 +243,42 @@ export default function CreativesPage() {
                 c.title.toLowerCase().includes(search.toLowerCase()) ||
                 c.type.toLowerCase().includes(search.toLowerCase()) ||
                 c.goal.toLowerCase().includes(search.toLowerCase());
-            const matchFilter =
-                activeFilter === "All" ||
-                (activeFilter === "Favorites" ? c.favorite : c.type === activeFilter);
+
+            let matchFilter = true;
+            if (activeFilter === "Favorites") {
+                matchFilter = c.favorite;
+            } else if (activeSubFilter) {
+                matchFilter = c.type === activeSubFilter;
+            } else if (activeFilter !== "All") {
+                const children = GROUP_CHILDREN[activeFilter];
+                if (children) {
+                    matchFilter = children.includes(c.type);
+                }
+            }
             return matchSearch && matchFilter;
         });
-    }, [creatives, search, activeFilter]);
+    }, [creatives, search, activeFilter, activeSubFilter]);
 
     const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
     const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
     const selected = creatives.find((c) => c.id === selectedId) || null;
 
-    const handleFilterChange = (key) => { setActiveFilter(key); setPage(1); };
+    const handleFilterChange = (key, isGroup = false) => {
+        setActiveFilter(key);
+        setActiveSubFilter(null);
+        setPage(1);
+        if (isGroup && key !== "All" && key !== "Favorites") {
+            setExpandedGroup(expandedGroup === key ? null : key);
+        } else {
+            setExpandedGroup(null);
+        }
+    };
+
+    const handleSubFilter = (type) => {
+        setActiveSubFilter(activeSubFilter === type ? null : type);
+        setPage(1);
+    };
+
     const handleSearch = (v) => { setSearch(v); setPage(1); };
 
     const toggleFavorite = (id, e) => {
@@ -154,10 +302,9 @@ export default function CreativesPage() {
     const handleSelect = (id) => setSelectedId((prev) => (prev === id ? null : id));
 
     return (
-        /* Full-height flex column — caller must ensure this sits inside a container with a defined height */
         <div className="flex flex-col justify-between pb-4 h-full">
 
-            {/* ── Header ─────────────────────────────────────────────────────────── */}
+            {/* ── Header ── */}
             <div className="flex items-center justify-between shrink-0">
                 <div>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Library</p>
@@ -168,7 +315,7 @@ export default function CreativesPage() {
                 </button>
             </div>
 
-            {/* ── Toolbar ────────────────────────────────────────────────────────── */}
+            {/* ── Toolbar ── */}
             <div className="py-3 flex flex-wrap items-center gap-3 shrink-0">
                 <div className="relative flex-1 min-w-[180px] max-w-xs">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
@@ -181,17 +328,23 @@ export default function CreativesPage() {
                     />
                 </div>
 
-                <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
-                    {[...TYPE_FILTERS, "★ Favorites"].map((f) => {
-                        const key = f === "★ Favorites" ? "Favorites" : f;
-                        const active = activeFilter === key;
+                <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl flex-wrap">
+                    {FILTER_GROUPS.map((group) => {
+                        const key = group.key;
+                        const isActive = activeFilter === key;
+                        const isExpanded = expandedGroup === key;
                         return (
                             <button
-                                key={f}
-                                onClick={() => handleFilterChange(key)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${active ? "bg-white text-blue-600 shadow-sm border border-blue-100" : "text-gray-500 hover:text-gray-700"}`}
+                                key={key}
+                                onClick={() => handleFilterChange(key, !!group.children)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${isActive ? "bg-white text-blue-600 shadow-sm border border-blue-100" : "text-gray-500 hover:text-gray-700"}`}
                             >
-                                {f}
+                                {group.label}
+                                {group.children && (
+                                    isExpanded
+                                        ? <ChevronUp className="w-3 h-3" />
+                                        : <ChevronDown className="w-3 h-3" />
+                                )}
                             </button>
                         );
                     })}
@@ -215,8 +368,27 @@ export default function CreativesPage() {
                 </div>
             </div>
 
-            {/* ── Scrollable content area ─────────────────────────────────────────── */}
-            {/* flex-1 + overflow-y-auto so it fills space above the sticky pagination */}
+            {/* ── Sub-filter pills (shown when a group is expanded) ── */}
+            {expandedGroup && GROUP_CHILDREN[expandedGroup] && (
+                <div className="flex flex-wrap gap-1.5 pb-3 shrink-0">
+                    {GROUP_CHILDREN[expandedGroup].map((type) => {
+                        const tc = TYPE_COLOR[type] || DEFAULT_COLOR;
+                        const isActive = activeSubFilter === type;
+                        return (
+                            <button
+                                key={type}
+                                onClick={() => handleSubFilter(type)}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border cursor-pointer transition-all ${isActive ? `${tc.bg} ${tc.text} ${tc.border} ring-2 ring-offset-1 ring-blue-300` : `${tc.bg} ${tc.text} ${tc.border} opacity-70 hover:opacity-100`}`}
+                            >
+                                <span className={`w-1.5 h-1.5 rounded-full ${tc.dot}`} />
+                                {type}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* ── Scrollable content area ── */}
             <div className="flex-1 overflow-y-auto pb-2">
                 {filtered.length === 0 ? (
                     <EmptyState hasCreatives={creatives.length > 0} />
@@ -239,7 +411,7 @@ export default function CreativesPage() {
                 )}
             </div>
 
-            {/* ── Pagination — sticky to bottom ───────────────────────────────────── */}
+            {/* ── Pagination ── */}
             {totalPages > 1 && (
                 <div className="shrink-0 flex items-center justify-between px-3 py-3 border-t border-gray-100 rounded bg-white">
                     <p className="text-xs text-gray-400">
@@ -273,8 +445,7 @@ export default function CreativesPage() {
                 </div>
             )}
 
-            {/* ── Sidebar overlay (fixed, slides in from right) ───────────────────── */}
-            {/* Backdrop */}
+            {/* ── Sidebar backdrop ── */}
             {selected && (
                 <div
                     className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-50"
@@ -282,9 +453,9 @@ export default function CreativesPage() {
                 />
             )}
 
-            {/* Panel */}
+            {/* ── Sidebar panel ── */}
             <div
-                className={`fixed top-0 right-0 h-full w-[340px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${selected ? "translate-x-0" : "translate-x-full"}`}
+                className={`fixed top-0 right-0 h-full w-[400px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${selected ? "translate-x-0" : "translate-x-full"}`}
             >
                 {selected && (
                     <Sidebar
@@ -297,7 +468,7 @@ export default function CreativesPage() {
                 )}
             </div>
 
-            {/* ── Delete confirm modal ─────────────────────────────────────────────── */}
+            {/* ── Delete confirm modal ── */}
             {deleteConfirm && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
                     <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl mx-4">
@@ -336,7 +507,7 @@ const GridView = ({ creatives, selectedId, onSelect, onToggleFavorite, onDeleteR
 
 // ── Card ──────────────────────────────────────────────────────────────────────
 const CreativeCard = ({ creative: c, selected, onSelect, onToggleFavorite, onDeleteRequest }) => {
-    const tc = TYPE_COLOR[c.type] || TYPE_COLOR.Ad;
+    const tc = TYPE_COLOR[c.type] || DEFAULT_COLOR;
     return (
         <div
             onClick={onSelect}
@@ -412,7 +583,7 @@ const TableView = ({ creatives, selectedId, onSelect, onToggleFavorite, onDelete
             </thead>
             <tbody className="divide-y divide-gray-50">
                 {creatives.map((c) => {
-                    const tc = TYPE_COLOR[c.type] || TYPE_COLOR.Ad;
+                    const tc = TYPE_COLOR[c.type] || DEFAULT_COLOR;
                     return (
                         <tr
                             key={c.id}
@@ -457,7 +628,7 @@ const TableView = ({ creatives, selectedId, onSelect, onToggleFavorite, onDelete
 const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied }) => {
     const [hovering, setHovering] = useState(false);
     const [expanded, setExpanded] = useState(false);
-    const tc = TYPE_COLOR[c.type] || TYPE_COLOR.Ad;
+    const tc = TYPE_COLOR[c.type] || DEFAULT_COLOR;
 
     const firstLine = c.copy.split("\n")[0];
     const hasMore = c.copy.length > firstLine.length;
@@ -481,7 +652,7 @@ const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied }) => 
 
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto min-h-0">
-                {/* Image */}
+                {/* Image with hover overlay */}
                 <div
                     className="relative bg-gray-100 overflow-hidden shrink-0"
                     style={{ aspectRatio: "16/9" }}
@@ -490,15 +661,19 @@ const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied }) => 
                 >
                     <img src={c.image} alt={c.title} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
                     {hovering && (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                            <button className="flex items-center gap-2 bg-white text-gray-800 text-xs font-semibold px-4 py-2 rounded-xl hover:bg-gray-50 transition shadow-lg cursor-pointer">
-                                <Pencil className="w-3.5 h-3.5" /> Edit Design
+                        <div className="absolute inset-0 px-3 bg-black/50 flex flex-row items-end justify-between gap-2">
+                            <button className="flex items-center gap-2 bg-blue-600 mb-4 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:scale-105 transition-all duration-200 shadow-lg cursor-pointer justify-center">
+                                <Send className="w-3 h-3" /> Post Now
+                            </button>
+                            <button className="flex items-center gap-2 bg-white mb-4 hover:bg-gray-100 text-gray-800 text-xs font-semibold px-3 py-2 rounded-lg hover:scale-105 transition-all duration-200 shadow-lg cursor-pointer justify-center">
+                                <CalendarClock className="w-3 h-3" /> Schedule Now
                             </button>
                         </div>
                     )}
                 </div>
 
                 <div className="px-4 py-4 flex flex-col gap-4">
+                    {/* Title & date */}
                     <div>
                         <h2 className="text-sm font-bold text-gray-900 leading-snug">{c.title}</h2>
                         <div className="flex items-center gap-1 mt-1">
@@ -507,6 +682,7 @@ const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied }) => 
                         </div>
                     </div>
 
+                    {/* Meta grid */}
                     <div className="grid grid-cols-3 gap-1.5">
                         {[["Goal", c.goal], ["Audience", c.audience], ["Size", c.size]].map(([label, value]) => (
                             <div key={label} className="bg-gray-50 rounded-xl px-2 py-2 text-center border border-gray-100">
@@ -516,6 +692,37 @@ const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied }) => 
                         ))}
                     </div>
 
+                    {/* Action buttons: Analyze, Predict, Retouch */}
+                    <div className="flex flex-row gap-2">
+
+                        <Link
+                            href={`/analyze/${c.id}`}
+                            className="flex flex-row items-center gap-1.5 py-1.5 px-4 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100 transition cursor-pointer group"
+                        >
+                            <ScanSearch className="w-4 h-4 text-blue-500 group-hover:text-blue-600" />
+                            <span className="text-[10px] font-semibold text-blue-600">Analyze</span>
+                        </Link>
+
+                        <Link
+                            href={`/predict/${c.id}`}
+                            className="flex flex-row items-center gap-1.5 py-1.5 px-4 rounded-lg bg-violet-50 border border-violet-100 hover:bg-violet-100 transition cursor-pointer group"
+                        >
+                            <TrendingUp className="w-4 h-4 text-violet-500 group-hover:text-violet-600" />
+                            <span className="text-[10px] font-semibold text-violet-600">Predict</span>
+                        </Link>
+
+                        <Link
+                            href={`/retouch/${c.id}`}
+                            className="flex flex-row items-center gap-1.5 py-1.5 px-4 rounded-lg bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition cursor-pointer group"
+                        >
+                            <Wand2 className="w-4 h-4 text-emerald-500 group-hover:text-emerald-600" />
+                            <span className="text-[10px] font-semibold text-emerald-600">Retouch</span>
+                        </Link>
+
+                    </div>
+
+
+                    {/* Generated copy */}
                     <div>
                         <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider mb-2">Generated Copy</p>
                         <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 leading-relaxed whitespace-pre-line border border-gray-100">

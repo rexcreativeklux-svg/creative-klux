@@ -435,8 +435,8 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                   className={`flex flex-1 items-center gap-2 min-w-0 ${step > s.id ? "cursor-pointer" : "cursor-default"}`}
                 >
                   <div className={`shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
-                    step > s.id  ? "border-blue-600 bg-blue-600 text-white"
-                    : step === s.id ? "border-blue-600 text-blue-600 bg-white"
+                    step > s.id  ? "border-emerald-600 bg-emerald-600 text-white"
+                    : step === s.id ? "border-emerald-600 text-emerald-600 bg-white"
                     : "border-gray-200 text-gray-300"
                   }`}>
                     {step > s.id ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
@@ -446,7 +446,7 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                   </span>
                 </button>
                 {idx < STEPS.length - 1 && (
-                  <div className={`h-0.5 flex-1 rounded-full transition-all ${step > s.id ? "bg-blue-600" : "bg-gray-200"}`} />
+                  <div className={`h-0.5 flex-1 rounded-full transition-all ${step > s.id ? "bg-emerald-600" : "bg-gray-200"}`} />
                 )}
               </React.Fragment>
             );
@@ -469,9 +469,9 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
             <SectionTitle>Post Details</SectionTitle>
 
             {/* URL import */}
-            <div className="border border-blue-100 rounded-xl p-4 bg-blue-50/40">
+            <div className="border border-emerald-100 rounded-xl p-4 bg-emerald-50/40">
               <div className="flex items-center gap-2 mb-3">
-                <Globe className="w-4 h-4 text-blue-600" />
+                <Globe className="w-4 h-4 text-emerald-600" />
                 <span className="text-sm font-medium text-gray-700">Import from URL</span>
                 <span className="text-xs text-gray-400 ml-auto">Auto-fills brand info</span>
               </div>
@@ -486,7 +486,7 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                 <button
                   onClick={handleImportBrand}
                   disabled={importingBrand || !brandUrl.trim()}
-                  className="px-5 py-1.5 bg-blue-600 cursor-pointer text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 shrink-0"
+                  className="px-5 py-1.5 bg-emerald-600 cursor-pointer text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2 shrink-0"
                 >
                   {importingBrand ? <Loader2 className="w-4 h-4 animate-spin" /> : "Import"}
                 </button>
@@ -564,7 +564,7 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                     onClick={() => field("tone", t.value)}
                     className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
                       formData.tone === t.value
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-700"
                         : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
                     }`}
                   >
@@ -585,7 +585,7 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                       onClick={() => togglePlatform(p.value)}
                       className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
                         active
-                          ? "border-blue-600 bg-blue-50 text-blue-700"
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-700"
                           : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
                       }`}
                     >
@@ -642,7 +642,7 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => logoInputRef.current?.click()}
-                    className="flex-1 px-3 py-2.5 border cursor-pointer border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-blue-500 hover:text-blue-600 flex items-center gap-2 transition"
+                    className="flex-1 px-3 py-2.5 border cursor-pointer border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-emerald-500 hover:text-emerald-600 flex items-center gap-2 transition"
                   >
                     <FileUp className="w-4 h-4" /> Upload
                   </button>
@@ -671,12 +671,12 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                     onClick={() => field("size", s.value)}
                     className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
                       formData.size === s.value
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-700"
                         : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
                     }`}
                   >
                     <p className="text-xs font-semibold">{s.label}</p>
-                    <p className={`text-[10px] mt-0.5 ${formData.size === s.value ? "text-blue-500" : "text-gray-400"}`}>{s.value}</p>
+                    <p className={`text-[10px] mt-0.5 ${formData.size === s.value ? "text-emerald-500" : "text-gray-400"}`}>{s.value}</p>
                   </button>
                 ))}
               </div>
@@ -690,7 +690,7 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                     onClick={() => field("campaignGoal", g)}
                     className={`px-4 py-2 rounded-lg cursor-pointer text-xs font-medium border-2 transition-all ${
                       formData.campaignGoal === g
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-700"
                         : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
                     }`}
                   >
@@ -707,10 +707,10 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                     key={a.value}
                     onClick={() => field("audience", a.value)}
                     className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
-                      formData.audience === a.value ? "border-blue-600 bg-blue-50" : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                      formData.audience === a.value ? "border-emerald-600 bg-emerald-50" : "border-gray-100 bg-gray-50 hover:border-gray-300"
                     }`}
                   >
-                    <p className={`text-xs font-semibold ${formData.audience === a.value ? "text-blue-700" : "text-gray-700"}`}>{a.label}</p>
+                    <p className={`text-xs font-semibold ${formData.audience === a.value ? "text-emerald-700" : "text-gray-700"}`}>{a.label}</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{a.desc}</p>
                   </button>
                 ))}
@@ -725,7 +725,7 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                     onClick={() => field("fileFormat", f)}
                     className={`px-4 py-2 rounded-lg cursor-pointer text-xs font-medium border-2 transition-all ${
                       formData.fileFormat === f
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-700"
                         : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
                     }`}
                   >
@@ -745,7 +745,7 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
               {selectedImages.length > 0 && (
                 <button
                   onClick={handleApplySelected}
-                  className="px-4 py-2 bg-blue-600 cursor-pointer text-white text-xs font-semibold rounded-lg flex items-center gap-2 hover:bg-blue-700"
+                  className="px-4 py-2 bg-emerald-600 cursor-pointer text-white text-xs font-semibold rounded-lg flex items-center gap-2 hover:bg-emerald-700"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   Apply ({selectedImages.length})
@@ -853,14 +853,14 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
           {step < 3 ? (
             <button
               onClick={handleContinue}
-              className="px-3 py-2 bg-blue-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-blue-700 hover:scale-105 flex items-center gap-2 transition"
+              className="px-3 py-2 bg-emerald-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 hover:scale-105 flex items-center gap-2 transition"
             >
               Continue <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
             <button
               onClick={handleGenerate}
-              className="px-3 py-2 bg-blue-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-blue-700 hover:scale-105 flex items-center gap-2 transition"
+              className="px-3 py-2 bg-emerald-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 hover:scale-105 flex items-center gap-2 transition"
             >
               {generating
                 ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -938,7 +938,7 @@ const PostsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
 };
 
 // ── shared micro-components ───────────────────────────────────────────────────
-const inputCls = "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
+const inputCls = "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent";
 
 const SectionTitle = ({ children }) => (
   <h3 className="font-semibold text-gray-900 text-base">{children}</h3>
@@ -958,8 +958,8 @@ const MediaBtn = ({ icon: Icon, label, onClick, primary }) => (
     onClick={onClick}
     className={`flex items-center gap-1.5 px-4 py-2 cursor-pointer rounded-lg text-xs font-semibold transition-all ${
       primary
-        ? "bg-blue-600 text-white hover:bg-blue-700"
-        : "bg-white border border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600"
+        ? "bg-emerald-600 text-white hover:bg-emerald-700"
+        : "bg-white border border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-600"
     }`}
   >
     <Icon className="w-4 h-4" /> {label}

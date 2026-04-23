@@ -80,11 +80,11 @@ const CustomDomainIntegration = () => {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 bg-white">
+    <div className="w-full mx-auto bg-white p-3 rounded-lg">
       {/* Header */}
       <div className="space-y-2 pb-10">
         <h1 className="font-semibold text-2xl">Resell accounts</h1>
-        <p className="text-gray-600">Expand Your Business by Managing Resell Accounts Effectively</p>
+        <p className="text-gray-600 text-sm">Expand Your Business by Managing Resell Accounts Effectively</p>
       </div>
 
 
@@ -100,7 +100,7 @@ const CustomDomainIntegration = () => {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">
               1. Change Nameservers
             </h2>
-            <p className="mb-4">
+            <p className="mb-4 text-sm">
               *Go to your domain registrar (e.g., GoDaddy, Namecheap, etc.), and edit your domain's DNS settings and change your domain's nameservers to
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -118,7 +118,7 @@ const CustomDomainIntegration = () => {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">
               2. Allow DNS Propagation Time
             </h2>
-            <p className="mb-4">
+            <p className="mb-4 text-sm">
               *Keep in mind that DNS changes may take up to 48 hours to propagate, although they often happen much quicker.
             </p>
           </div>
@@ -128,10 +128,10 @@ const CustomDomainIntegration = () => {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">
               3. Verify & Connect Your Domain
             </h2>
-            <p className="mb-2">
+            <p className="mb-2 text-sm">
               *After saving your DNS settings, return to Weviy, enter your domain and click on "Connect Domain"
             </p>
-            <p className="mb-4">
+            <p className="mb-4 text-sm">
               *We will automatically detect the domain, link it to your site, and install an SSL certificate..
             </p>
           </div>
@@ -148,10 +148,10 @@ const CustomDomainIntegration = () => {
               <select
                 value={selectedWebsite}
                 onChange={(e) => setSelectedWebsite(e.target.value)}
-                className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-4 py-3 pr-10 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none text-gray-700"
+                className="w-full appearance-none cursor-pointer placeholder:text-sm bg-white border border-gray-300 rounded-lg px-4 py-3 pr-10 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none text-gray-700"
               >
                 {websites.map((website) => (
-                  <option key={website.value} value={website.value}>
+                  <option key={website.value} className='placeholder:text-sm' value={website.value}>
                     {website.label}
                   </option>
                 ))}
@@ -167,7 +167,7 @@ const CustomDomainIntegration = () => {
               value={domainName}
               onChange={(e) => setDomainName(e.target.value)}
               placeholder="Domain name"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none"
+              className="w-full px-4 py-3 placeholder:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none"
               disabled={loading}
             />
           </div>

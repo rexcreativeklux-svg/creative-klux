@@ -30,6 +30,8 @@ import BannersForm from "./forms/BannersForm";
 import LogoForm from "./forms/LogoForm";
 import BusinessCardForm from "./forms/BusinessCardForm";
 import BannersPrintDigitalForm from "./forms/BannersPrintDigitalForm";
+import ThumbnailsForm from "./forms/ThumbnailsForm";
+import MemesTrendsForm from "./forms/MemesTrendForm";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -151,6 +153,38 @@ const StudioPage = () => {
       if (selectedCategory === "banners_covers") {
         return (
           <BannersForm
+            categoryId={selectedCategory}
+            category={category}
+            creative={creative}
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            sendUrl={sendUrl}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+      if (selectedCategory === "thumbnails") {
+        return (
+          <ThumbnailsForm
+            categoryId={selectedCategory}
+            category={category}
+            creative={creative}
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            sendUrl={sendUrl}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+         if (selectedCategory === "memes") {
+        return (
+          <MemesTrendsForm
             categoryId={selectedCategory}
             category={category}
             creative={creative}

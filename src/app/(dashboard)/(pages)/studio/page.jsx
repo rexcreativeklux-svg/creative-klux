@@ -10,7 +10,7 @@ import {
   CREATIVES,
   getCreativeById,
   getCategoryById,
-} from "./creatives.js";
+} from "../../(pages)/studio/creatives";
 
 // ── category forms (image ads for now) ───────────────────────────────────────
 import ImageAdsForm from "./forms/ImageAdsForm.jsx";
@@ -23,10 +23,16 @@ import AdPreview from "./Adpreview.jsx";
 // ── shared components ─────────────────────────────────────────────────────────
 import Toast from "@/app/(components)/Toast.jsx";
 import AdsIntegrationModal from "@/app/(components)/AdsIntegrationModal.jsx";
+import VideoAdsForm from "./forms/VideoAdsForm";
+import PostsForm from "./forms/PostForm";
+import ReelsForm from "./forms/ReelsForm";
+import BannersForm from "./forms/BannersForm";
+import LogoForm from "./forms/LogoForm";
+import BusinessCardForm from "./forms/BusinessCardForm";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CreativesPage = () => {
+const StudioPage = () => {
   const { activeBrand, sendUrl } = useAuth();
 
   // ── selection state ──────────────────────────────────────────────────────
@@ -93,8 +99,22 @@ const CreativesPage = () => {
 
   // ── render the correct form based on creative + category ─────────────────
   const renderForm = () => {
-    // Ads Creative
     if (selectedCreative === "ads_creative") {
+      if (selectedCategory === "video") {
+        return (
+          <VideoAdsForm
+            categoryId={selectedCategory}
+            category={category}
+            creative={creative}
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            sendUrl={sendUrl}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
       return (
         <ImageAdsForm
           categoryId={selectedCategory}
@@ -110,14 +130,92 @@ const CreativesPage = () => {
       );
     }
 
-    // Placeholder for other creatives
-    return (
-      <ComingSoon creative={creative} category={category} />
-    );
+    if (selectedCreative === "social_creative") {
+      if (selectedCategory === "reels") {
+        return (
+          <ReelsForm
+            categoryId={selectedCategory}
+            category={category}
+            creative={creative}
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            sendUrl={sendUrl}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+      if (selectedCategory === "banners_covers") {
+        return (
+          <BannersForm
+            categoryId={selectedCategory}
+            category={category}
+            creative={creative}
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            sendUrl={sendUrl}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+      // posts (and future: banners_covers, thumbnails, memes)
+      return (
+        <PostsForm
+          categoryId={selectedCategory}
+          category={category}
+          creative={creative}
+          formData={formData}
+          setFormData={setFormData}
+          activeBrand={activeBrand}
+          sendUrl={sendUrl}
+          showToast={showToast}
+          onResult={setResult}
+        />
+      );
+    }
+
+    if (selectedCreative === "designer_creative") {
+      if (selectedCategory === "logos") {
+        return (
+          <LogoForm
+            categoryId={selectedCategory}
+            category={category}
+            creative={creative}
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            sendUrl={sendUrl}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+      if (selectedCategory === "business_cards") {
+        return <BusinessCardForm categoryId={selectedCategory}
+          category={category}
+          creative={creative}
+          formData={formData}
+          setFormData={setFormData}
+          activeBrand={activeBrand}
+          sendUrl={sendUrl}
+          showToast={showToast}
+          onResult={setResult} />;
+      }
+
+      return <ComingSoon creative={creative} category={category} />;
+    }
+
+    return <ComingSoon creative={creative} category={category} />;
   };
 
   return (
-    <div className="flex bg-white flex-col overflow-hidden"
+    <div className="flex flex-col overflow-hidden"
       style={{ height: '100%', fontFamily: "'DM Sans', sans-serif" }}>
 
       <Toast isOpen={toast.isOpen} message={toast.message} onClose={closeToast} duration={2000} />
@@ -166,7 +264,7 @@ const CreativesPage = () => {
         </div>
 
         {/* ══ RIGHT PANEL (sticky, non-scrollable) ═══════════════════════ */}
-         <div className="flex-1 overflow-y-auto hide-scrollbar">
+        <div className="flex-1 overflow-y-auto hide-scrollbar">
           <AdPreview
             creative={creative}
             category={category}
@@ -196,8 +294,8 @@ const CreativesPage = () => {
 
 // ─── CreativeSelector ─────────────────────────────────────────────────────────
 const CreativeSelector = ({ creatives, selected, onChange }) => (
-  <div className="bg-white/90  backdrop-blur  py-3 px-0  shrink-0">
-    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-4">
+  <div className="  backdrop-blur  py- px-0  shrink-0">
+    <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-widest mb-2">
       Creative Type
     </p>
 
@@ -341,5 +439,5 @@ const ComingSoon = ({ creative, category }) => (
 );
 
 
-export default CreativesPage;
+export default StudioPage;
 

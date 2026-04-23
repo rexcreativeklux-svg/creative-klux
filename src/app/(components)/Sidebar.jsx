@@ -72,6 +72,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       ],
     },
     {
+      id: "studio",
+      label: "Studio",
+      href: "/studio",
+      icon: FolderKanban,
+      type: "link",
+    },
+    {
       id: "creatives",
       label: "Creatives",
       href: "/creatives",
@@ -132,8 +139,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const itemBase =
     "flex items-center gap-3 w-full rounded-lg transition-all duration-150 text-sm font-medium";
   const itemPadding = isOpen ? "px-3 py-2.5" : "px-0 py-2.5 justify-center";
-  const activeClass = "bg-[#1e2d3d] text-white";
-  const defaultClass = "text-gray-600 hover:bg-gray-100 hover:text-gray-900";
+  const activeClass = "bg-gray-200 text-black";
+  const defaultClass = "text-gray-600 hover:bg-gray-100 cursor-pointer hover:text-gray-900";
 
   // ── Link item ──────────────────────────────────────────────────
   const renderLink = ({ id, href, icon: Icon, label }) => {
@@ -168,7 +175,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             <>
               <span className="flex-1 text-left truncate">{label}</span>
               <ChevronDown
-                className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${dropOpen ? "rotate-180" : ""
+                className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${dropOpen ? "rotate-[-90deg]" : ""
                   }`}
               />
             </>
@@ -254,13 +261,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           />
           {isOpen && (
             <span className="ml-3 font-semibold text-gray-900 text-sm truncate">
-              Dashboard
+              Creative Klux
             </span>
           )}
         </div>
 
         {/* Scrollable nav area */}
-        <div className={`flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-0.5 ${isOpen ? "px-3" : "px-2"}`}>
+        <div className={`flex-1 overflow-y-auto cursor-pointer overflow-x-hidden py-3 flex flex-col gap-0.5 ${isOpen ? "px-3" : "px-2"}`}>
           {mainNavItems.map(renderItem)}
 
           <div className="my-2 border-t border-gray-100" />

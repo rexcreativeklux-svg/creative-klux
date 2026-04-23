@@ -15,13 +15,13 @@ import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSection";
 import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSection";
 
-import TextToImageTab from "../../designer-creatives/create/tabs/text-to-image/page";
-import TextToAudioTab from "../../designer-creatives/create/tabs/text-to-audio/page";
-import TextToVideoTab from "../../designer-creatives/create/tabs/text-to-video/page";
-import ImageToVariationsTab from "../../designer-creatives/create/tabs/image-to-variations/page";
-import ScriptToVoiceoverToVideoTab from "../../designer-creatives/create/tabs/script-to-voiceover/page";
-import AudioToTextTab from "../../ai-studio/create/audio-to-text/page";
-import PersonaBasedGeneratorTab from "../../designer-creatives/create/tabs/persona-based-generator/page";
+import TextToImageTab from "../../old-studio/designer-creatives/create/tabs/text-to-image/page";
+import TextToAudioTab from "../../old-studio/designer-creatives/create/tabs/text-to-audio/page";
+import TextToVideoTab from "../../old-studio/designer-creatives/create/tabs/text-to-video/page";
+import ImageToVariationsTab from "../../old-studio/designer-creatives/create/tabs/image-to-variations/page";
+import ScriptToVoiceoverToVideoTab from "../../old-studio/designer-creatives/create/tabs/script-to-voiceover/page";
+import AudioToTextTab from "../../old-studio/ai-studio/create/audio-to-text/page";
+import PersonaBasedGeneratorTab from "../../old-studio/designer-creatives/create/tabs/persona-based-generator/page";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const SIZE_OPTIONS = [
@@ -61,8 +61,8 @@ const VISUAL_STYLES = [
   { value: "modern", label: "Modern" },
   { value: "neon", label: "Neon" },
   { value: "pastel", label: "Pastel" },
-  { value: "luxury", label: "Luxury" },
-  { value: "sunset", label: "Sunset" },
+  // { value: "luxury", label: "Luxury" },
+  // { value: "sunset", label: "Sunset" },
   // { value: "ocean", label: "Ocean" },
   // { value: "forest", label: "Forest" },
   // { value: "candy", label: "Candy" },
@@ -457,7 +457,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
   return (
     <>
       {/* ── Step indicator ───────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl px-0 py-4">
+      <div className=" rounded-2xl px-0 py-4">
         <div className="flex items-center justify-between gap-2">
           {STEPS.map((s, idx) => {
             const Icon = s.icon;
@@ -487,7 +487,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       </div>
 
       {/* ── Step content card ────────────────────────────────────────────── */}
-      <div className="bg-white  rounded-lg py-2 flex flex-col gap-6">
+      <div className="bg-white px-2 rounded-lg py-2 flex flex-col gap-6">
 
         {error && (
           <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">

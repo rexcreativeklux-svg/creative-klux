@@ -65,7 +65,7 @@ const PLATFORMS = [
                 domain under "App Domains" and set the OAuth redirect URI to:
             </>
         ),
-        redirectUri: "https://your-app.com/oauth-callback",
+        redirectUri: "https://app.creativeklux.com/oauth-callback",
         appIdLabel: "Facebook App ID",
         appIdPlaceholder: "1234567890",
     },
@@ -81,7 +81,7 @@ const PLATFORMS = [
                 Instagram accounts will appear automatically.
             </>
         ),
-        redirectUri: "https://your-app.com/oauth-callback",
+        redirectUri: "https://app.creativeklux.com/oauth-callback",
         appIdLabel: "Facebook App ID (same as Facebook)",
         appIdPlaceholder: "1234567890",
     },
@@ -101,7 +101,7 @@ const PLATFORMS = [
                 redirect URI to your app's Authorized Redirect URLs:
             </>
         ),
-        redirectUri: "https://your-app.com/oauth-callback",
+        redirectUri: "https://app.creativeklux.com/oauth-callback",
         appIdLabel: "LinkedIn Client ID",
         appIdPlaceholder: "86xxxxxxxxxxxxxxxx",
     },
@@ -121,7 +121,7 @@ const PLATFORMS = [
                 your App ID. Set the redirect URI to:
             </>
         ),
-        redirectUri: "https://your-app.com/oauth-callback",
+        redirectUri: "https://app.creativeklux.com/oauth-callback",
         appIdLabel: "Meta App ID",
         appIdPlaceholder: "1234567890",
     },
@@ -141,7 +141,7 @@ const PLATFORMS = [
                 Add the redirect URI:
             </>
         ),
-        redirectUri: "https://your-app.com/oauth-callback",
+        redirectUri: "https://app.creativeklux.com/oauth-callback",
         appIdLabel: "Google Client ID",
         appIdPlaceholder: "xxxxxx.apps.googleusercontent.com",
     },
@@ -160,7 +160,7 @@ const PLATFORMS = [
                 → My Apps → Create App → copy the Client Key. Set the redirect URI to:
             </>
         ),
-        redirectUri: "https://your-app.com/oauth-callback",
+        redirectUri: "https://app.creativeklux.com/oauth-callback",
         appIdLabel: "TikTok Client Key",
         appIdPlaceholder: "awxxxxxxxxxxxxxxxxxx",
     },

@@ -16,6 +16,8 @@ import {
   Share2,
   TrendingUp,
   Sparkles,
+  Workflow,
+  PackagePlus,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -82,7 +84,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       id: "creatives",
       label: "Creatives",
       href: "/creatives",
-      icon: FolderKanban,
+      icon: PackagePlus,
       type: "link",
     },
     {
@@ -106,6 +108,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         { label: "Stories", href: "/social-content/stories", icon: Layers },
         { label: "Captions", href: "/social-content/captions", icon: Sparkles },
       ],
+    },
+      {
+      id: "integrations",
+      label: "Integrations",
+      href: "/integrations",
+      icon: Workflow,
+      type: "link",
     },
     {
       id: "analyze",

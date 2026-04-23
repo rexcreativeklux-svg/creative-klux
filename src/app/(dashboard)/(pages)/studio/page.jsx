@@ -29,6 +29,7 @@ import ReelsForm from "./forms/ReelsForm";
 import BannersForm from "./forms/BannersForm";
 import LogoForm from "./forms/LogoForm";
 import BusinessCardForm from "./forms/BusinessCardForm";
+import BannersPrintDigitalForm from "./forms/BannersPrintDigitalForm";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -197,7 +198,20 @@ const StudioPage = () => {
       }
 
       if (selectedCategory === "business_cards") {
-        return <BusinessCardForm categoryId={selectedCategory}
+        return <BusinessCardForm
+          categoryId={selectedCategory}
+          category={category}
+          creative={creative}
+          formData={formData}
+          setFormData={setFormData}
+          activeBrand={activeBrand}
+          sendUrl={sendUrl}
+          showToast={showToast}
+          onResult={setResult} />;
+      }
+
+      if (selectedCategory === "banners_print") {
+        return <BannersPrintDigitalForm categoryId={selectedCategory}
           category={category}
           creative={creative}
           formData={formData}

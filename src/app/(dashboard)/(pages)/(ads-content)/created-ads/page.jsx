@@ -32,7 +32,7 @@ export default function CreatedAds() {
   };
 
   return (
-    <div className="px-17 py-6">
+    <div className="py-6">
       <div className="flex justify-between items-center mb-10">
         <h1 className="text-xl font-semibold text-gray-900">Created Ads</h1>
         <button

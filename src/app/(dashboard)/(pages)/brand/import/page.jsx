@@ -373,8 +373,8 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
   ];
 
   return (
-    <div className="flex w-full py-4 lg:mt-3 lg:px-6 z-50 gap-10">
-      <div className="sticky bg-white overflow-hidden hidden lg:flex flex-col items-start w-[30%] h-[350px]">
+    <div className="flex w-full py-4 lg:mt-3  z-50 gap-10">
+      <div className="sticky overflow-hidden hidden lg:flex flex-col items-start w-[30%] h-[350px]">
         <div className="absolute top-0 left-4.5 w-1 h-full bg-gray-300 rounded-full" />
         <motion.div
           initial={{ height: 0 }}

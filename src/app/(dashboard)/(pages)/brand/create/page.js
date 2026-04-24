@@ -15,10 +15,11 @@ export default function CreateBrand({ isEditing, brandDraft }) {
   return (
   
     <div className="flex flex-col ">
-      <h1 className="py-2  font-semibold overflow-hidden bg-white text-2xl lg:px-5">
+      <h1 className="py-2  font-semibold overflow-hidden text-2xl">
         Create your brand
       </h1>
-      <div className="flex overflow-hidden py-3 lg:px-5 bg-white  gap-6">
+
+      <div className="flex overflow-hidden py-3   gap-6">
         <div className="flex flex-row gap-4">
           <div className="gap-1 flex flex-row">
             <button

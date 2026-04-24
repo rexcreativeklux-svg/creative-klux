@@ -32,6 +32,8 @@ import BusinessCardForm from "./forms/BusinessCardForm";
 import BannersPrintDigitalForm from "./forms/BannersPrintDigitalForm";
 import ThumbnailsForm from "./forms/ThumbnailsForm";
 import MemesTrendsForm from "./forms/MemesTrendForm";
+import TextToImageForm from "./forms/TextToImageForm";
+import TextToVideoForm from "./forms/TextToVideoForm";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -182,7 +184,7 @@ const StudioPage = () => {
         );
       }
 
-         if (selectedCategory === "memes") {
+      if (selectedCategory === "memes") {
         return (
           <MemesTrendsForm
             categoryId={selectedCategory}
@@ -197,6 +199,8 @@ const StudioPage = () => {
           />
         );
       }
+
+
 
       // posts (and future: banners_covers, thumbnails, memes)
       return (
@@ -254,6 +258,34 @@ const StudioPage = () => {
           sendUrl={sendUrl}
           showToast={showToast}
           onResult={setResult} />;
+      }
+
+      return <ComingSoon creative={creative} category={category} />;
+    }
+
+    if (selectedCreative === "magic_studio") {
+      if (selectedCategory === "text_to_image") {
+        return (
+          <TextToImageForm
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+      if (selectedCategory === "text_to_video") {
+        return (
+          <TextToVideoForm
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
       }
 
       return <ComingSoon creative={creative} category={category} />;

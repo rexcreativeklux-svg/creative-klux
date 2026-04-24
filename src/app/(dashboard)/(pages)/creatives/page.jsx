@@ -310,9 +310,13 @@ export default function CreativesPage() {
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Library</p>
                     <h1 className="text-xl font-bold text-gray-900 tracking-tight">My Creations</h1>
                 </div>
-                <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all hover:scale-105 shadow-sm shadow-blue-200 cursor-pointer">
+                <Link
+                    href="/studio"
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200 shadow-sm shadow-blue-200"
+                >
                     <Plus className="w-4 h-4" /> New Creation
-                </button>
+                </Link>
+
             </div>
 
             {/* ── Toolbar ── */}
@@ -796,9 +800,13 @@ const EmptyState = ({ hasCreatives }) => (
             {!hasCreatives && <p className="text-sm text-gray-400 mt-0.5">Click the create button to kickstart your campaign!</p>}
         </div>
         {!hasCreatives && (
-            <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all hover:scale-105 shadow-sm shadow-blue-200 cursor-pointer">
+            <Link
+                href="/studio"
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-all hover:scale-105 shadow-sm shadow-blue-200"
+            >
                 <Plus className="w-4 h-4" /> Create
-            </button>
+            </Link>
+
         )}
     </div>
 );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   FolderKanban,
@@ -20,6 +20,8 @@ import {
   PackagePlus,
   ShoppingCart,
   CreditCard,
+  LayoutDashboard,
+  Calendar,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -31,7 +33,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const pathname = usePathname();
   const { logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [openDropdowns, setOpenDropdowns] = useState({});
+  // const [openDropdowns, setOpenDropdowns] = useState({});
+  const [openDropdown, setOpenDropdown] = useState(null);
+
 
   const handleLogout = async () => {
     try {
@@ -45,16 +49,30 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
   const toggleDropdown = (id, e) => {
     e.preventDefault();
+
     if (!isOpen) {
-      // Open sidebar first, then open dropdown after transition
       setIsOpen(true);
       setTimeout(() => {
-        setOpenDropdowns((prev) => ({ ...prev, [id]: true }));
+        setOpenDropdown(id);
       }, 250);
       return;
     }
-    setOpenDropdowns((prev) => ({ ...prev, [id]: !prev[id] }));
+
+    setOpenDropdown((prev) => (prev === id ? null : id));
   };
+
+  useEffect(() => {
+    const allDropdowns = [...mainNavItems, ...bottomNavItems]
+      .filter((item) => item.type === "dropdown");
+
+    for (const item of allDropdowns) {
+      if (item.children?.some((c) => isActive(c.href))) {
+        setOpenDropdown(item.id);
+        break;
+      }
+    }
+  }, [pathname]);
+
 
   const isActive = (href) =>
     pathname === href || pathname?.startsWith(href + "/");
@@ -67,19 +85,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     {
       id: "brand",
       label: "BrandKit",
+      href: "/brand/reuse",
       icon: FaTrello,
-      type: "dropdown",
-      children: [
-        { label: "Brand Profile", href: "/brand", icon: Palette },
-        { label: "Brand Assets", href: "/brand/assets", icon: Layers },
-        { label: "Create Brand", href: "/brand/create", icon: Sparkles },
-      ],
-    },
-    {
-      id: "studio",
-      label: "Studio",
-      href: "/studio",
-      icon: FolderKanban,
       type: "link",
     },
     {
@@ -95,9 +102,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       icon: Megaphone,
       type: "dropdown",
       children: [
-        { label: "Ad Campaigns", href: "/ads-content", icon: Megaphone },
-        { label: "Ad Copy", href: "/ads-content/copy", icon: Layers },
-        { label: "Ad Visuals", href: "/ads-content/visuals", icon: Palette },
+        { label: "Created Ads", href: "/created-ads", icon: Megaphone },
+        { label: "Ads Planner", href: "/ads-planner", icon: Calendar },
       ],
     },
     {
@@ -106,9 +112,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       icon: Share2,
       type: "dropdown",
       children: [
-        { label: "Feed Posts", href: "/social-content", icon: Share2 },
-        { label: "Stories", href: "/social-content/stories", icon: Layers },
-        { label: "Captions", href: "/social-content/captions", icon: Sparkles },
+        { label: "Created Socials", href: "/social-socials", icon: Share2 },
+        { label: "Social Planner", href: "/social-planner", icon: Calendar },
       ],
     },
     {
@@ -183,7 +188,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
   // ── Dropdown item ──────────────────────────────────────────────
   const renderDropdown = ({ id, icon: Icon, label, children }) => {
-    const dropOpen = openDropdowns[id];
+    const dropOpen = openDropdown === id;
+
     const dropActive = isDropdownActive(children);
 
     return (
@@ -191,7 +197,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         <button
           onClick={(e) => toggleDropdown(id, e)}
           title={!isOpen ? label : undefined}
-          className={`${itemBase} ${itemPadding} ${dropActive ? activeClass : defaultClass}`}
+          className={`${itemBase} ${itemPadding} ${dropActive ? activeClass : defaultClass} cursor-pointer`}
         >
           <Icon className="h-[18px] w-[18px] flex-shrink-0" />
           {isOpen && (
@@ -215,7 +221,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                 <Link
                   key={child.href}
                   href={child.href}
-                  className={`flex items-center gap-2.5 px-2 py-2 rounded-md text-sm transition-all duration-150 ${childActive
+                  className={`flex items-center gap-2.5 px-2 py-2 rounded-md text-xs transition-all duration-150 ${childActive
                     ? "text-[#155dfc] font-semibold"
                     : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
                     }`}
@@ -240,7 +246,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                 <Link
                   key={child.href}
                   href={child.href}
-                  onClick={() => setOpenDropdowns({})}
+                  onClick={() => setOpenDropdown(null)}
                   className={`flex items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-gray-50 ${isActive(child.href) ? "text-[#155dfc] font-semibold" : "text-gray-700"
                     }`}
                 >
@@ -317,7 +323,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 flex justify-around items-center py-2 md:hidden">
         {[...mainNavItems, ...bottomNavItems].map((item) => {
           const { id, label, icon: Icon, href, type, children } = item;
-          const isDropOpen = openDropdowns[id];
+          const isDropOpen = openDropdown === id;
 
           if (type === "link") {
             return (
@@ -355,7 +361,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                       <Link
                         key={child.href}
                         href={child.href}
-                        onClick={() => setOpenDropdowns({})}
+                        onClick={() => setOpenDropdown(null)}
                         className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-50 ${isActive(child.href) ? "text-[#155dfc] font-semibold" : "text-gray-700"
                           }`}
                       >

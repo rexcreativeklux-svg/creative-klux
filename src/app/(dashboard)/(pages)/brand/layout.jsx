@@ -6,7 +6,7 @@ export default function BrandsLayout({ children }) {
   
 
       {/* Right side (swaps between create/reuse page) */}
-      <div className="flex-1 py-2 px-3 lg:px-5 ">
+      <div className="flex-1 py-2  ">
         {children}
       </div>
     </div>

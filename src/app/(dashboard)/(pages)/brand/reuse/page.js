@@ -175,7 +175,7 @@ export default function ReuseBrand({ navigateProjectTo, setShowModal }) {
      Render
      ------------------------------------------------- */
   return (
-    <div className="sm:px-16 h-full">
+    <div className="h-full">
       {/* Notification Modal */}
       <NotificationModal
         isOpen={notification.isOpen}
@@ -187,11 +187,11 @@ export default function ReuseBrand({ navigateProjectTo, setShowModal }) {
       />
 
       {/* Header */}
-      <div className="flex flex-row sm:pt-10 justify-between items-center">
-        <h1 className="text-2xl px-4 font-semibold">Created Brands</h1>
+      <div className="flex flex-row justify-between items-center">
+        <h1 className="text-2xl font-semibold">Created Brands</h1>
 
         <button
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 text-sm cursor-pointer transition duration-300"
+          className="flex items-center space-x-2 px-5 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 text-sm cursor-pointer transition duration-300"
           onClick={() => router.push("/brand/create")}
         >
           <Plus className="w-4 h-4" />
@@ -247,7 +247,7 @@ export default function ReuseBrand({ navigateProjectTo, setShowModal }) {
             return (
               <div
                 key={brand.id}
-                className="relative flex flex-col border rounded-md border-gray-200 py-5 px-4 bg-white hover:border-[#155dfc] cursor-pointer transition-colors"
+                className="relative flex flex-col border rounded-lg border-gray-200 py-5 px-4 bg-white hover:border-[#155dfc] cursor-pointer transition-colors"
               >
                 {/* Dropdown */}
                 <div className="absolute top-2 right-1 z-10">

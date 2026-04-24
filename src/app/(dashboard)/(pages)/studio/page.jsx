@@ -303,7 +303,7 @@ const StudioPage = () => {
       {/* ── page header ────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Magic Studio</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Creative Studio</h1>
           <p className="text-sm text-gray-400 mt-0.5">Create, preview, and publish in one place</p>
         </div>
       </div>

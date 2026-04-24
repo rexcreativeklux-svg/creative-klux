@@ -664,16 +664,6 @@ const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied }) => 
                     onMouseLeave={() => setHovering(false)}
                 >
                     <img src={c.image} alt={c.title} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
-                    {hovering && (
-                        <div className="absolute inset-0 px-3 bg-black/50 flex flex-row items-end justify-between gap-2">
-                            <button className="flex items-center gap-2 bg-blue-600 mb-4 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:scale-105 transition-all duration-200 shadow-lg cursor-pointer justify-center">
-                                <Send className="w-3 h-3" /> Post Now
-                            </button>
-                            <button className="flex items-center gap-2 bg-white mb-4 hover:bg-gray-100 text-gray-800 text-xs font-semibold px-3 py-2 rounded-lg hover:scale-105 transition-all duration-200 shadow-lg cursor-pointer justify-center">
-                                <CalendarClock className="w-3 h-3" /> Schedule Now
-                            </button>
-                        </div>
-                    )}
                 </div>
 
                 <div className="px-4 py-4 flex flex-col gap-4">
@@ -697,33 +687,48 @@ const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied }) => 
                     </div>
 
                     {/* Action buttons: Analyze, Predict, Retouch */}
-                    <div className="flex flex-row gap-2">
+                    <div className="flex flex-col gap-2">
 
-                        <Link
-                            href={`/analyze/${c.id}`}
-                            className="flex flex-row items-center gap-1.5 py-1.5 px-4 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100 transition cursor-pointer group"
-                        >
-                            <ScanSearch className="w-4 h-4 text-blue-500 group-hover:text-blue-600" />
-                            <span className="text-[10px] font-semibold text-blue-600">Analyze</span>
-                        </Link>
+                        {/* Primary actions */}
+                        <div className="flex gap-2">
+                            <Link href={`/`} className="flex-1 cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded-lg transition-all shadow-sm">
+                                <Send className="w-3 h-3" /> Post Now
+                            </Link>
 
-                        <Link
-                            href={`/predict/${c.id}`}
-                            className="flex flex-row items-center gap-1.5 py-1.5 px-4 rounded-lg bg-violet-50 border border-violet-100 hover:bg-violet-100 transition cursor-pointer group"
-                        >
-                            <TrendingUp className="w-4 h-4 text-violet-500 group-hover:text-violet-600" />
-                            <span className="text-[10px] font-semibold text-violet-600">Predict</span>
-                        </Link>
+                            <Link href={`/`} className="flex-1 cursor-pointer flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold py-2 rounded-lg transition-all">
+                                <CalendarClock className="w-3 h-3" /> Schedule
+                            </Link>
+                        </div>
 
-                        <Link
-                            href={`/retouch/${c.id}`}
-                            className="flex flex-row items-center gap-1.5 py-1.5 px-4 rounded-lg bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition cursor-pointer group"
-                        >
-                            <Wand2 className="w-4 h-4 text-emerald-500 group-hover:text-emerald-600" />
-                            <span className="text-[10px] font-semibold text-emerald-600">Retouch</span>
-                        </Link>
+                        {/* Smart tools */}
+                        <div className="flex gap-2">
+                            <Link
+                                href={`/analyze/${c.id}`}
+                                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-100 transition group"
+                            >
+                                <ScanSearch className="w-4 h-4 text-blue-500 group-hover:text-blue-600" />
+                                <span className="text-[11px] font-semibold text-blue-600">Analyze</span>
+                            </Link>
+
+                            <Link
+                                href={`/predict/${c.id}`}
+                                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-50 hover:bg-violet-100 border border-violet-100 transition group"
+                            >
+                                <TrendingUp className="w-4 h-4 text-violet-500 group-hover:text-violet-600" />
+                                <span className="text-[11px] font-semibold text-violet-600">Predict</span>
+                            </Link>
+
+                            <Link
+                                href={`/retouch/${c.id}`}
+                                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 transition group"
+                            >
+                                <Wand2 className="w-4 h-4 text-emerald-500 group-hover:text-emerald-600" />
+                                <span className="text-[11px] font-semibold text-emerald-600">Retouch</span>
+                            </Link>
+                        </div>
 
                     </div>
+
 
 
                     {/* Generated copy */}

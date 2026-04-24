@@ -34,6 +34,12 @@ import ThumbnailsForm from "./forms/ThumbnailsForm";
 import MemesTrendsForm from "./forms/MemesTrendForm";
 import TextToImageForm from "./forms/TextToImageForm";
 import TextToVideoForm from "./forms/TextToVideoForm";
+import ImageToVariationsForm from "./forms/ImageToVariationForm";
+import ScriptToVoiceoverForm from "./forms/ScriptToVoiceOverForm";
+import AudioToTextForm from "./forms/AudioToTextForm";
+import PersonaBasedGeneratorForm from "./forms/PersonaBasedGeneratorForm";
+import TextToAudioForm from "./forms/TextToAudioForm";
+import FlyerForm from "./forms/FlyerForm";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -260,6 +266,18 @@ const StudioPage = () => {
           onResult={setResult} />;
       }
 
+        if (selectedCategory === "flyers") {
+        return <FlyerForm categoryId={selectedCategory}
+          category={category}
+          creative={creative}
+          formData={formData}
+          setFormData={setFormData}
+          activeBrand={activeBrand}
+          sendUrl={sendUrl}
+          showToast={showToast}
+          onResult={setResult} />;
+      }
+
       return <ComingSoon creative={creative} category={category} />;
     }
 
@@ -279,6 +297,66 @@ const StudioPage = () => {
       if (selectedCategory === "text_to_video") {
         return (
           <TextToVideoForm
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+      if (selectedCategory === "image_to_variations") {
+        return (
+          <ImageToVariationsForm
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+      if (selectedCategory === "script_to_voiceover") {
+        return (
+          <ScriptToVoiceoverForm
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+      if (selectedCategory === "audio_to_text") {
+        return (
+          <AudioToTextForm
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+      if (selectedCategory === "persona_generator") {
+        return (
+          <PersonaBasedGeneratorForm
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+      if (selectedCategory === "text_to_audio") {
+        return (
+          <TextToAudioForm
             formData={formData}
             setFormData={setFormData}
             activeBrand={activeBrand}

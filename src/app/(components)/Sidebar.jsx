@@ -167,8 +167,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const itemBase =
     "flex items-center gap-3 w-full rounded-lg transition-all duration-150 text-sm font-medium";
   const itemPadding = isOpen ? "px-3 py-2.5" : "px-0 py-2.5 justify-center";
-  const activeClass = "bg-gray-200 text-black";
-  const defaultClass = "text-gray-600 hover:bg-gray-100 cursor-pointer hover:text-gray-900";
+  const activeClass = "bg-gray-100 text-blue-600";
+  const defaultClass = "text-gray-600 hover:bg-gray-50 cursor-pointer hover:text-gray-900";
 
   // ── Link item ──────────────────────────────────────────────────
   const renderLink = ({ id, href, icon: Icon, label }) => {
@@ -269,10 +269,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       {/* ── Desktop Sidebar ───────────────────────────────────── */}
       <nav
         className={`
-          hidden md:flex md:flex-col flex-shrink-0
+          hidden md:flex md:flex-col shrink-0
           h-screen bg-white border-r border-gray-100
           transition-all duration-300 ease-in-out overflow-hidden
-          ${isOpen ? "w-56" : "w-[60px]"}
+          ${isOpen ? "w-56" : "w-15"}
         `}
       >
         {/* Logo row */}

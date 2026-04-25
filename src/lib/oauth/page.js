@@ -2,37 +2,60 @@
  * OAuth popup flow for CreativeKlux integrations.
  *
  * How it works:
- * 1. User provides their platform App Client ID (stored in localStorage).
- * 2. openOAuthPopup() opens the platform's auth dialog in a popup window.
+ * 1. App Client IDs are set once by the developer in environment variables.
+ *    Users never need to create or provide their own platform app credentials —
+ *    they simply log in with their existing social accounts.
+ * 2. openOAuthPopup(platform) opens the platform's auth dialog in a popup.
  * 3. Platform redirects to /oauth-callback?platform=xxx&access_token=yyy (implicit flow)
  *    or /oauth-callback?platform=xxx&code=yyy (code flow — needs backend).
  * 4. OAuthCallback.jsx posts the result back via postMessage.
  * 5. We resolve the promise with the token data.
  *
  * Flow types by platform:
- *   Implicit (client-side only):  facebook, instagram, meta_ads, google_ads, linkedin, pinterest, snapchat, pinterest_ads, snapchat_ads
- *   Code flow (needs backend):    tiktok, tiktok_ads, youtube, twitter, linkedin_ads
+ *   Implicit (client-side only):  facebook, instagram, meta_ads, google_ads, linkedin, pinterest
+ *   Code flow (needs backend):    tiktok, tiktok_ads, youtube, twitter, linkedin_ads, snapchat, snapchat_ads, pinterest_ads
+ *
+ * Setup: add these to your .env file (Vite prefix shown — adjust for your framework):
+ *   VITE_FACEBOOK_APP_ID=
+ *   VITE_GOOGLE_CLIENT_ID=
+ *   VITE_TWITTER_CLIENT_ID=
+ *   VITE_LINKEDIN_CLIENT_ID=
+ *   VITE_YOUTUBE_CLIENT_ID=        (can share VITE_GOOGLE_CLIENT_ID if same GCP project)
+ *   VITE_PINTEREST_CLIENT_ID=
+ *   VITE_SNAPCHAT_CLIENT_ID=
+ *   VITE_TIKTOK_CLIENT_KEY=
+ *   VITE_TIKTOK_ADS_APP_ID=
  */
 
 // const REDIRECT_URI = `${window.location.origin}/oauth-callback`;
 const REDIRECT_URI = 'https://app.creativeklux.com/oauth-callback'
 
+/**
+ * Developer-owned app credentials, sourced from environment variables.
+ * These are set once by you — your users never touch them.
+ */
+const CLIENT_IDS = {
+  facebook: '1264520369211987',
+  // instagram: import.meta.env.VITE_FACEBOOK_APP_ID,   // same Meta app
+  // meta_ads: import.meta.env.VITE_FACEBOOK_APP_ID,   // same Meta app
+  // google_ads: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+  // youtube: import.meta.env.VITE_YOUTUBE_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID,
+  // twitter: import.meta.env.VITE_TWITTER_CLIENT_ID,
+  // linkedin: import.meta.env.VITE_LINKEDIN_CLIENT_ID,
+  // linkedin_ads: import.meta.env.VITE_LINKEDIN_CLIENT_ID,
+  // pinterest: import.meta.env.VITE_PINTEREST_CLIENT_ID,
+  // pinterest_ads: import.meta.env.VITE_PINTEREST_CLIENT_ID,
+  // snapchat: import.meta.env.VITE_SNAPCHAT_CLIENT_ID,
+  // snapchat_ads: import.meta.env.VITE_SNAPCHAT_CLIENT_ID,
+  // tiktok: import.meta.env.VITE_TIKTOK_CLIENT_KEY,
+  // tiktok_ads: import.meta.env.VITE_TIKTOK_ADS_APP_ID,
+};
 
-// localStorage keys for app Client IDs
-const CLIENT_IDS_KEY = 'creativeklux_oauth_client_ids';
-
-export function getClientIds() {
-  try { return JSON.parse(localStorage.getItem(CLIENT_IDS_KEY) || '{}'); } catch { return {}; }
-}
-
-export function saveClientId(platform, clientId) {
-  const ids = getClientIds();
-  ids[platform] = clientId;
-  localStorage.setItem(CLIENT_IDS_KEY, JSON.stringify(ids));
-}
-
+/** Returns the app Client ID for a platform, or throws if not configured. */
 export function getClientId(platform) {
-  return getClientIds()[platform] || null;
+  const id = CLIENT_IDS[platform];
+  if (!id) throw new Error(`Missing env variable for platform: ${platform}. Check your .env file.`);
+  return id;
 }
 
 // ─── Auth URL Builders ────────────────────────────────────────────────────────
@@ -45,23 +68,7 @@ function buildAuthUrl(platform, clientId) {
 
     // ── Facebook / Instagram / Meta Ads ──────────────────────────────────────
     // Implicit flow — token returned directly in the URL hash.
-    case 'facebook': {
-      const scope = encodeURIComponent(
-        'pages_show_list,pages_manage_posts,pages_read_engagement,' +
-        'instagram_basic,instagram_content_publish,' +
-        'ads_management,business_management,read_insights'
-      );
-
-      return (
-        `https://www.facebook.com/v19.0/dialog/oauth` +
-        `?client_id=${clientId}` +
-        `&redirect_uri=${redirect}` +
-        `&scope=${scope}` +
-        `&response_type=token` +
-        `&state=${state}`
-      );
-    }
-
+    case 'facebook':
     case 'instagram':
     case 'meta_ads': {
       const scope = encodeURIComponent(
@@ -69,10 +76,6 @@ function buildAuthUrl(platform, clientId) {
         'instagram_basic,instagram_content_publish,' +
         'ads_management,business_management,read_insights'
       );
-      // const scope = encodeURIComponent(
-      //   'public_profile,email,pages_show_list'
-      // );
-
       return (
         `https://www.facebook.com/v19.0/dialog/oauth` +
         `?client_id=${clientId}&redirect_uri=${redirect}` +
@@ -232,9 +235,12 @@ function buildAuthUrl(platform, clientId) {
  * Open OAuth popup and wait for the token.
  * Resolves with { access_token, platform } or { code, platform }.
  * Rejects with an Error on failure or user cancellation.
+ *
+ * Usage: openOAuthPopup('facebook')  — no clientId needed from the caller.
  */
-export function openOAuthPopup(platform, clientId) {
+export function openOAuthPopup(platform) {
   return new Promise((resolve, reject) => {
+    const clientId = getClientId(platform);         // resolved from env vars
     const url = buildAuthUrl(platform, clientId);
     const width = 600;
     const height = 700;

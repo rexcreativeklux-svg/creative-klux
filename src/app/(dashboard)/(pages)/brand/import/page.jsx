@@ -1,867 +1,528 @@
-
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Star, Share2, Recycle, CheckCircle2, Link, Music2, Search, Globe, Youtube, Check, Loader2, X, Zap, Settings, Upload } from "lucide-react";
-import { FaPinterest, FaWhatsapp, FaSnapchat, FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
 import {
-  getBrands,
-  saveBrand,
-  getBrandById,
-  makeBrandUrl,
-  parseBrandIdFromUrl,
-} from "@/utils/localDb";
-import { useBrand } from "@/context/BrandContext";
-import { useRouter } from "next/navigation";
+  Link, Upload, Star, Share2, Recycle, CheckCircle2,
+  Loader2, ChevronRight, ArrowLeft, Sparkles, Globe,
+  Search, Music2, Check,
+} from "lucide-react";
+import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
+import { useBrand } from "@/context/BrandContext";
+import { makeBrandUrl } from "@/utils/localDb";
+import { useRouter } from "next/navigation";
 import NotificationModal from "@/app/(components)/NotificationModal";
 
-export default function ImportBrand({ brands = [], refreshBrands, setBrandView, setActiveTab }) {
-  const { setActiveBrand } = useBrand();
-  const [step, setStep] = useState(0);
-  const [url, setUrl] = useState("");
-  const [justCreatedUrl, setJustCreatedUrl] = useState("");
-  const [compiledData, setCompiledData] = useState({
-    name: "",
-    description: "",
-    tagline: "",
-    fonts: "",
-    logo: null,
-    logoFileName: null,
-    logoDataUrl: null,
-    colors: { primary: "", secondary: "" },
-    socialAccounts: [],
-    adAccounts: [],
-    sourceUrl: null,
-    industry: "", // Added industry field
-  });
-  const [brandCreating, setBrandCreating] = useState(false);
-  const [brandCreated, setBrandCreated] = useState(false);
-  const { sendUrl, createBrand } = useAuth();
-  const router = useRouter();
-  const [importedBrand, setImportedBrand] = useState(null);
-  const [importing, setImporting] = useState(false);
-  // Add state for modal
-  const [notification, setNotification] = useState({
-    isOpen: false,
-    title: '',
-    message: '',
-    type: 'error'
-  });
+// ── constants ─────────────────────────────────────────────────────────────────
+const INDUSTRIES = ["Technology", "Healthcare", "Retail", "Finance", "Education", "Hospitality", "Other"];
+const FONTS = ["Inter", "Roboto", "Poppins", "Open Sans", "Lato", "Montserrat"];
+const SOCIAL_PLATFORMS = [
+  { id: "facebook",  name: "Facebook",  type: "Pages",    Icon: FaFacebook,  color: "#1877F2" },
+  { id: "instagram", name: "Instagram", type: "Business", Icon: FaInstagram, color: "#E4405F" },
+];
+const AD_PLATFORMS = [
+  { id: "google",   name: "Google Ads",   type: "Search & Display",  Icon: Search,   color: "#EA4335" },
+  { id: "meta",     name: "Meta Ads",     type: "Social Ads",        Icon: FaFacebook, color: "#1877F2" },
+  { id: "tiktok",   name: "TikTok Ads",   type: "Video Ads",         Icon: Music2,   color: "#010101" },
+  { id: "linkedin", name: "LinkedIn Ads", type: "Professional Ads",  Icon: FaLinkedin, color: "#0A66C2" },
+  { id: "bing",     name: "Bing Ads",     type: "Search Ads",        Icon: Globe,    color: "#00809D" },
+];
 
-  const showNotification = (title, message, type = 'error') => {
-    setNotification({ isOpen: true, title, message, type });
-  };
+const STEPS = [
+  { id: 1, label: "Brand Details",   Icon: Star },
+  { id: 2, label: "Social Accounts", Icon: Share2 },
+  { id: 3, label: "Ad Accounts",     Icon: Recycle },
+];
 
-  const closeNotification = () => {
-    setNotification(prev => ({ ...prev, isOpen: false }));
-  };
+// ── tiny helpers ──────────────────────────────────────────────────────────────
+const inputCls =
+  "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 " +
+  "placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 " +
+  "focus:border-transparent focus:bg-white transition-all";
 
-  useEffect(() => {
-    resetForm();
-  }, []);
+const Field = ({ label, required, children }) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+      {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+    </label>
+    {children}
+  </div>
+);
 
-  const resetForm = () => {
-    setCompiledData({
-      name: "",
-      description: "",
-      tagline: "",
-      fonts: "",
-      logoDataUrl: null,
-      colors: { primary: "#1e3a8a", secondary: "#10b981" },
-      socialAccounts: [],
-      adAccounts: [],
-      sourceUrl: null,
-      industry: "", // Reset industry
-    });
-    setUrl("");
-    setJustCreatedUrl("");
-    setBrandCreating(false);
-    setBrandCreated(false);
-    setStep(0);
-  };
+const ColorPicker = ({ label, value, onChange }) => (
+  <div className="flex flex-col gap-1.5 flex-1">
+    <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">{label}</label>
+    <div className="flex items-center gap-2">
+      <label
+        className="w-9 h-9 rounded-xl border border-gray-200 cursor-pointer overflow-hidden shadow-sm flex-shrink-0"
+        style={{ background: value }}
+      >
+        <input type="color" value={value} onChange={e => onChange(e.target.value)} className="opacity-0 w-full h-full cursor-pointer" />
+      </label>
+      <input
+        type="text" value={value} maxLength={7}
+        onChange={e => /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) && onChange(e.target.value)}
+        className={`${inputCls} font-mono text-xs w-28 flex-shrink-0`}
+      />
+    </div>
+  </div>
+);
 
-  // 2. Fixed onLogoFileChange - stores both File and preview URL
-  const onLogoFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setCompiledData((prev) => ({
-        ...prev,
-        logo: file, // ✅ Store the actual File object
-        logoDataUrl: ev.target.result, // Store preview URL
-        logoFileName: file.name
-      }));
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleImport = async () => {
-    if (!url.trim()) return;
-
-    setImporting(true);
-    try {
-      const brandData = await sendUrl(url);
-
-      if (!brandData || !brandData.data) {
-        console.error("Failed to import brand");
-        setImporting(false);
-        return;
-      }
-
-      setImportedBrand(brandData.data);
-      setStep(1);
-    } catch (err) {
-      console.error("Import failed:", err);
-    } finally {
-      setTimeout(() => setImporting(false), 400); // Smooth fade out
-    }
-  };
-
-  useEffect(() => {
-    if (step !== 1 || !importedBrand) return;
-
-    // Set all text fields immediately
-    setCompiledData(prev => ({
-      ...prev,
-      name: importedBrand.name || "",
-      description: importedBrand.description || "",
-      tagline: importedBrand.tagline || "",
-      fonts: importedBrand.font || "Inter",
-      colors: {
-        primary: importedBrand.primary_color || "#1e3a8a",
-        secondary: importedBrand.secondary_color || "#10b981",
-      },
-      socialAccounts: importedBrand.socialAccounts || [],
-      adAccounts: importedBrand.adAccounts || [],
-      sourceUrl: url,
-      industry: importedBrand.industry || "",
-      logoDataUrl: importedBrand.logo || null, // Show preview immediately
-      logo: null, // Will be set after download
-    }));
-
-    // Download logo in background if available
-    if (importedBrand.logo) {
-      const downloadLogo = async () => {
-        try {
-          console.log('Downloading logo from:', importedBrand.logo);
-
-          // Try direct fetch first (works if CORS allows)
-          let response = await fetch(importedBrand.logo).catch(() => null);
-
-          // If direct fetch fails, try with proxy
-          if (!response || !response.ok) {
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(importedBrand.logo)}`;
-            response = await fetch(proxyUrl);
-          }
-
-          if (response && response.ok) {
-            const blob = await response.blob();
-            const fileName = importedBrand.logo.split('/').pop().split('?')[0] || `logo-${Date.now()}.png`;
-            const file = new File([blob], fileName, { type: blob.type || 'image/png' });
-
-            console.log('Logo downloaded successfully:', file.name, file.size, file.type);
-
-            setCompiledData(prev => ({
-              ...prev,
-              logo: file, // ✅ Store the File object
-              logoFileName: fileName,
-            }));
-          } else {
-            throw new Error('Failed to fetch logo');
-          }
-        } catch (err) {
-          console.warn('Logo download failed, will try converting URL during brand creation:', err);
-          // Don't set logo to null - keep the URL for later conversion attempt
-        }
-      };
-
-      downloadLogo();
-    }
-
-    setImportedBrand(null); // Clear imported data after processing
-  }, [step, importedBrand, url]);
-
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://connect.facebook.net/en_US/sdk.js";
-    script.async = true;
-    script.defer = true;
-    script.crossOrigin = "anonymous";
-    document.body.appendChild(script);
-
-    window.fbAsyncInit = function () {
-      FB.init({
-        appId: "415385890784940",
-        cookie: true,
-        xfbml: true,
-        version: "v21.0",
-      });
-    };
-
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
-
-  const handleConnect = () => {
-    FB.login(
-      function (response) {
-        if (response.authResponse) {
-          console.log("User token:", response.authResponse.accessToken);
-        } else {
-          console.log("Login cancelled");
-        }
-      },
-      { scope: "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts" }
-    );
-  };
-
-  const updateCompiledData = (updates) => {
-    setCompiledData((prev) => ({ ...prev, ...updates }));
-  };
-
-  const handleContinue = () => {
-    if (step < steps.length) setStep(step + 1);
-  };
-
-  const completeBrandCreation = async () => {
-    // Validation
-    if (!compiledData.name.trim()) {
-      showNotification('Brand name required', 'Please enter a brand name.', 'error');
-      return;
-    }
-    if (!compiledData.industry) {
-      showNotification('Industry required', 'Please select an industry.', 'error');
-      return;
-    }
-
-    // SHOW "CREATING" NOTIFICATION IMMEDIATELY
-    showNotification('Creating your brand...', 'This may take a few seconds.', 'info');
-    setBrandCreating(true);
-
-    try {
-      let logoFile = compiledData.logo; // This is already a File from manual upload or background download
-
-      // If we don't have a File yet but have a logoDataUrl, convert it now
-      if (!logoFile && compiledData.logoDataUrl) {
-        console.log('Converting logoDataUrl to File...');
-
-        try {
-          // Check if it's a data URL (base64)
-          if (compiledData.logoDataUrl.startsWith('data:')) {
-            const matches = compiledData.logoDataUrl.match(/^data:(.+);base64,(.+)$/);
-            if (matches) {
-              const mimeType = matches[1];
-              const base64Data = matches[2];
-
-              // Convert base64 to blob
-              const byteCharacters = atob(base64Data);
-              const byteNumbers = new Array(byteCharacters.length);
-              for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-              }
-              const byteArray = new Uint8Array(byteNumbers);
-              const blob = new Blob([byteArray], { type: mimeType });
-
-              const extension = mimeType.split('/')[1] || 'png';
-              const fileName = compiledData.logoFileName || `logo.${extension}`;
-              logoFile = new File([blob], fileName, { type: mimeType });
-
-              console.log('✅ Logo converted from data URL:', logoFile.name, logoFile.size, logoFile.type);
-            }
-          } else {
-            // It's a regular URL - try to fetch it
-            console.log('Fetching logo from URL:', compiledData.logoDataUrl);
-
-            let response = await fetch(compiledData.logoDataUrl).catch(() => null);
-
-            // Try with proxy if direct fetch fails
-            if (!response || !response.ok) {
-              const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(compiledData.logoDataUrl)}`;
-              response = await fetch(proxyUrl);
-            }
-
-            if (response && response.ok) {
-              const blob = await response.blob();
-              const fileName = compiledData.logoFileName ||
-                compiledData.logoDataUrl.split('/').pop().split('?')[0] ||
-                `logo-${Date.now()}.${blob.type.split('/')[1] || 'png'}`;
-              logoFile = new File([blob], fileName, { type: blob.type });
-
-              console.log('✅ Logo fetched from URL:', logoFile.name, logoFile.size, logoFile.type);
-            }
-          }
-        } catch (err) {
-          console.warn('❌ Logo conversion failed:', err);
-          showNotification(
-            'Logo upload warning',
-            'Could not process logo. Brand will be created without a logo.',
-            'warning'
-          );
-          logoFile = null;
-        }
-      }
-
-      const payload = {
-        name: compiledData.name.trim(),
-        description: compiledData.description || "",
-        tagline: compiledData.tagline || "",
-        fonts: compiledData.fonts || "Inter",
-        logo: logoFile, // ✅ Now properly a File or null
-        colors: {
-          primary: compiledData.colors.primary || "#1e3a8a",
-          secondary: compiledData.colors.secondary || "#10b981"
-        },
-        socialAccounts: compiledData.socialAccounts || [],
-        adAccounts: compiledData.adAccounts || [],
-        sourceUrl: compiledData.sourceUrl || url,
-        url: url.trim(),
-        industry: compiledData.industry,
-        createLandingPage: false,
-      };
-
-      console.log('📤 Sending payload:', {
-        ...payload,
-        logo: payload.logo ? `${payload.logo.name} (${payload.logo.size} bytes, ${payload.logo.type})` : null
-      });
-
-      const brandData = await createBrand(payload);
-
-      if (!brandData) {
-        throw new Error("No response from server");
-      }
-
-      // Success!
-      console.log('✅ Brand created successfully:', brandData);
-      setJustCreatedUrl(makeBrandUrl(brandData.id));
-      setActiveBrand(brandData);
-      localStorage.setItem("activeBrand", JSON.stringify(brandData));
-      refreshBrands();
-      setBrandCreated(true);
-
-      showNotification(
-        'Brand created successfully!',
-        `Your brand is ready to use!`,
-        'success'
-      );
-
-      // Redirect to /brand/create after a short delay so user sees the success message
-      setTimeout(() => {
-        router.push('/brand/reuse');
-      }, 500);
-
-    } catch (error) {
-      console.error("❌ Brand creation failed:", error);
-      showNotification(
-        'Creation failed',
-        error.message || 'Something went wrong. Please try again.',
-        'error'
-      );
-    } finally {
-      setBrandCreating(false);
-    }
-  }; 
-
-  const steps = [
-    { id: 1, title: "Brand Details", icon: <Star className="h-5 w-5" /> },
-    { id: 2, title: "Social Media Accounts", icon: <Share2 className="h-5 w-5" /> },
-    { id: 3, title: "Ad Accounts", icon: <Recycle className="h-5 w-5" /> },
-  ];
+// ── live brand preview ────────────────────────────────────────────────────────
+const BrandPreview = ({ data }) => {
+  const primary   = data.primary   || "#2563eb";
+  const secondary = data.secondary || "#0ea5e9";
+  const name      = data.name      || "Your Brand";
+  const tagline   = data.tagline   || "";
+  const desc      = data.description || "Your brand description will appear here once you fill in the details.";
+  const font      = data.fonts     || "Inter";
+  const industry  = data.industry  || "";
+  const logo      = data.logoDataUrl || null;
 
   return (
-    <div className="flex w-full py-4 lg:mt-3  z-50 gap-10">
-      <div className="sticky overflow-hidden hidden lg:flex flex-col items-start w-[30%] h-[350px]">
-        <div className="absolute top-0 left-4.5 w-1 h-full bg-gray-300 rounded-full" />
-        <motion.div
-          initial={{ height: 0 }}
-          animate={{ height: `${((step - 1) / (steps.length - 1)) * 100}%` }}
-          transition={{ duration: 0.6, ease: "easeInOut" }}
-          className="absolute top-0 left-4.5 w-1 bg-[#155dfc] rounded-full"
-        />
-        {steps.map((s) => (
-          <div
-            key={s.id}
-            className="relative z-10 flex items-center h-full last:mb-0"
-          >
-            <div className="relative z-20">
-              <div
-                className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-white
-                  ${step === s.id
-                    ? "border-[#155dfc] bg-blue-100 text-[#155dfc]"
-                    : step > s.id
-                      ? "bg-[#155dfc] border-[#155dfc] text-white"
-                      : "border-gray-300 text-gray-300"
-                  }`}
-              >
-                {step > s.id ? (
-                  <CheckCircle2 size={20} className="text-[#155dfc]" />
-                ) : (
-                  s.icon
-                )}
-              </div>
-            </div>
-            <span
-              className={`ml-3 text-sm font-medium ${step === s.id ? "text-[#155dfc]" : "text-black"}`}
-            >
-              <div className="text-gray-500 text-xs">Step {s.id}</div>
-              <div className="font-medium">{s.title}</div>
-            </span>
+    <div className="sticky top-6 flex flex-col gap-3">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Live Preview</p>
+
+      {/* Main card */}
+      <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-md">
+        {/* Banner */}
+        <div
+          className="relative h-28 flex items-end p-4"
+          style={{ background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)` }}
+        >
+          <div className="absolute inset-0 opacity-[0.07]"
+            style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "24px 24px" }} />
+          <div className="absolute top-3 right-3 flex gap-1.5">
+            {[primary, secondary].map((c, i) => (
+              <div key={i} className="w-5 h-5 rounded-full border-2 border-white/60 shadow-sm" style={{ background: c }} />
+            ))}
+          </div>
+          <div className="w-14 h-14 rounded-2xl border-2 border-white shadow-lg bg-white flex items-center justify-center overflow-hidden">
+            {logo
+              ? <img src={logo} alt="logo" className="w-full h-full object-contain" />
+              : <span className="text-2xl font-black" style={{ color: primary }}>{name[0]?.toUpperCase()}</span>
+            }
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="bg-white p-4 flex flex-col gap-3">
+          <div>
+            <h3 className="font-bold text-gray-900 text-base leading-tight" style={{ fontFamily: font }}>{name}</h3>
+            {tagline && <p className="text-xs text-gray-400 mt-0.5 italic">{tagline}</p>}
+          </div>
+          <p className="text-xs text-gray-500 leading-relaxed line-clamp-3">{desc}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {industry && <span className="px-2.5 py-1 rounded-full text-xs font-medium border border-gray-200 text-gray-500 bg-gray-50">{industry}</span>}
+            {font     && <span className="px-2.5 py-1 rounded-full text-xs font-medium border border-gray-200 text-gray-500 bg-gray-50" style={{ fontFamily: font }}>{font}</span>}
+          </div>
+        </div>
+
+        {/* Color bar */}
+        <div className="h-1" style={{ background: `linear-gradient(90deg, ${primary}, ${secondary})` }} />
+      </div>
+
+      {/* Palette */}
+      <div className="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 shadow-sm">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Palette</span>
+        {[primary, secondary].map((c, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <div className="w-5 h-5 rounded-md border border-gray-200 shadow-sm" style={{ background: c }} />
+            <span className="text-xs font-mono text-gray-400">{c}</span>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-col w-full gap-8 bg-transparent border-gray-200 rounded-lg">
+      {/* Typography */}
+      <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Typography</p>
+        <p className="text-sm font-medium text-gray-800" style={{ fontFamily: font }}>Aa Bb Cc — {font}</p>
+      </div>
+    </div>
+  );
+};
 
-        <div className="px-2">
-          <AnimatePresence>
-            {(step === 0 || step === 1) && (
-              <motion.div initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }} className="space-y-2 z-50 bg-white border px-3 py-2 rounded-md border-gray-200">
-                <h2 className="text-lg font-semibold">Import Brand</h2>
+// ═══════════════════════════════════════════════════════════════════════════════
+export default function ImportBrand({ brands = [], refreshBrands, setBrandView, setActiveTab }) {
+  const { setActiveBrand } = useBrand();
+  const { sendUrl, createBrand } = useAuth();
+  const router = useRouter();
 
-                <div className="flex items-center gap-2 border border-gray-200 rounded-lg p-2">
-                  <Link className="h-4 w-4 text-gray-500" />
-                  <span className="font-semibold text-sm">URL</span>
-                  <input
-                    type="url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="paste your landing page or website url here"
-                    className="flex-1 text-sm placeholder:text-gray-300 outline-none"
-                  />
-                  <button
-                    onClick={handleImport}
-                    className="bg-[#155dfc] text-white px-4 py-1 rounded-md cursor-pointer font-medium transition hover:bg-blue-700"
-                  >
-                    Import
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+  const [step,        setStep]        = useState(0);
+  const [url,         setUrl]         = useState("");
+  const [importing,   setImporting]   = useState(false);
+  const [creating,    setCreating]    = useState(false);
 
-        {/* Import Animation */}
-        <AnimatePresence>
-          {importing && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-6 max-w-sm w-full mx-4"
-              >
-                {/* Spinning border */}
-                <div className="relative">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                    className="w-24 h-24 rounded-full border-4 border-gray-200 border-t-blue-700"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <motion.div
-                      animate={{ y: [0, -8, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                    >
-                      <Upload className="w-10 h-10 text-blue-700" />
-                    </motion.div>
-                  </div>
-                </div>
+  const [formData, setFormData] = useState({
+    name: "", description: "", tagline: "", fonts: "Inter",
+    logo: null, logoDataUrl: null, logoFileName: null,
+    primary: "#2563eb", secondary: "#0ea5e9",
+    socialAccounts: [], adAccounts: [],
+    sourceUrl: null, industry: "",
+  });
 
-                {/* Text */}
-                <div className="text-center">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Importing Your Brand
-                  </h3>
-                  <motion.p
-                    animate={{ opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                    className="text-sm text-gray-600 animate-pulse"
-                  >
-                    Please wait while we process your files...
-                  </motion.p>
-                </div>
+  const [notification, setNotification] = useState({ isOpen: false, title: "", message: "", type: "info", duration: 3000 });
+  const logoRef = useRef();
 
-                {/* Progress dots */}
-                <div className="flex gap-2">
-                  {[0, 1, 2].map((i) => (
-                    <motion.div
-                      key={i}
-                      animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
-                      transition={{
-                        duration: 1.5,
-                        repeat: Infinity,
-                        delay: i * 0.2,
-                        ease: "easeInOut"
-                      }}
-                      className="w-2 h-2 bg-blue-700 rounded-full"
-                    />
-                  ))}
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+  const notify = (title, message, type = "info", duration = 3000) =>
+    setNotification({ isOpen: true, title, message, type, duration });
+  const closeNotify = () => setNotification(p => ({ ...p, isOpen: false }));
 
-        <div className="pt-0 overflow-auto">
-          {step > 0 && (
-            <div className=" flex justify-between gap-10 flex-col p-2">
-              <div className="space-y-6 border border-gray-100 p-2">
-                {step === 1 && (
-                  <div className="space-y-6">
-                    <h2 className="text-lg font-semibold">Brand Details</h2>
-                    <input
-                      type="text"
-                      placeholder="Brand Name"
-                      value={compiledData.name}
-                      onChange={(e) => updateCompiledData({ name: e.target.value })}
-                      className="w-full border border-gray-200 p-2 rounded"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Tagline / Slogan"
-                      value={compiledData.tagline}
-                      onChange={(e) => updateCompiledData({ tagline: e.target.value })}
-                      className="w-full border border-gray-200 p-2 rounded"
-                    />
-                    <textarea
-                      placeholder="Brand Description"
-                      value={compiledData.description}
-                      onChange={(e) => updateCompiledData({ description: e.target.value })}
-                      className="w-full border border-gray-200 p-2 rounded"
-                      rows="3"
-                    />
-                    <div className="flex flex-row gap-4">
-                      <label className="px-2 py-1 border border-gray-200 rounded-md cursor-pointer bg-white inline-block">
-                        Upload Logo
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={onLogoFileChange}
-                          className="hidden"
-                        />
-                      </label>
-                      {compiledData.logoDataUrl && (
-                        <img
-                          src={compiledData.logoDataUrl}
-                          alt="Preview"
-                          className="h-9 w-10 object-cover border border-gray-200 rounded-md"
-                        />
-                      )}
-                    </div>
-                    <div className="flex gap-4">
-                      <div className="flex flex-row gap-2">
-                        <label className="flex font-medium text-gray-600">Primary</label>
-                        <input
-                          type="color"
-                          value={compiledData.colors.primary}
-                          onChange={(e) =>
-                            updateCompiledData({
-                              colors: { ...compiledData.colors, primary: e.target.value },
-                            })
-                          }
-                          className="w-8 h-6"
-                        />
-                      </div>
-                      <div className="flex flex-row gap-2">
-                        <label className="flex font-medium text-gray-600">Secondary</label>
-                        <input
-                          type="color"
-                          value={compiledData.colors.secondary}
-                          onChange={(e) =>
-                            updateCompiledData({
-                              colors: { ...compiledData.colors, secondary: e.target.value },
-                            })
-                          }
-                          className="w-8 h-6"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block mb-1 text-gray-600 font-medium">Fonts & Typography</label>
-                      <select
-                        value={compiledData.fonts}
-                        onChange={(e) => updateCompiledData({ font: e.target.value })}
-                        className="w-full border border-gray-200 p-2 rounded"
-                      >
-                        <option value="">Select a font</option>
-                        <option value="Inter">Inter</option>
-                        <option value="Roboto">Roboto</option>
-                        <option value="Poppins">Poppins</option>
-                        <option value="Open Sans">Open Sans</option>
-                        <option value="Lato">Lato</option>
-                        <option value="Montserrat">Montserrat</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block mb-1 text-gray-600 font-medium">Industry</label>
-                      <select
-                        value={compiledData.industry}
-                        onChange={(e) => updateCompiledData({ industry: e.target.value })}
-                        className="w-full border border-gray-200 p-2 rounded"
-                        required
-                      >
-                        <option value="">Select an industry</option>
-                        <option value="Technology">Technology</option>
-                        <option value="Healthcare">Healthcare</option>
-                        <option value="Retail">Retail</option>
-                        <option value="Finance">Finance</option>
-                        <option value="Education">Education</option>
-                        <option value="Hospitality">Hospitality</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-                {step === 2 && (
-                  <div className="space-y-6">
-                    <h2 className="text-lg font-semibold">Social Media Accounts</h2>
-                    <div className="space-y-3">
-                      {[
-                        {
-                          id: "facebook",
-                          name: "Facebook",
-                          type: "Pages",
-                          bg: "bg-blue-600",
-                          icon: <FaFacebook className="w-5 h-5 text-white" />,
-                        },
-                        {
-                          id: "instagram",
-                          name: "Instagram",
-                          type: "Business",
-                          bg: "bg-pink-500",
-                          icon: <FaInstagram className="w-5 h-5 text-white" />,
-                        },
-                      ].map((platform) => {
-                        const connectedAccounts = compiledData.socialAccounts.filter(
-                          (acc) => acc.platform === platform.id
-                        ) || [];
-                        return (
-                          <div
-                            key={platform.id}
-                            className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3 transition"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`w-8 h-8 flex items-center justify-center rounded-full ${platform.bg}`}
-                              >
-                                {platform.icon}
-                              </div>
-                              <div>
-                                <p className="font-medium">{platform.name}</p>
-                                <p className="text-xs text-gray-500">{platform.type}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center">
-                              {connectedAccounts.length > 0 ? (
-                                <select className="border border-gray-200 rounded px-2 py-1 text-sm">
-                                  <option>
-                                    {connectedAccounts.length} Account
-                                    {connectedAccounts.length > 1 ? "s" : ""} Connected
-                                  </option>
-                                  {connectedAccounts.map((acc, i) => (
-                                    <option key={i}>{acc.name || `Account ${i + 1}`}</option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <p className="text-gray-400 text-sm">No Accounts Connected</p>
-                              )}
-                            </div>
-                            <button
-                              onClick={handleConnect}
-                              className="ml-4 px-4 py-2 border cursor-pointer border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 text-sm font-medium"
-                            >
-                              Connect
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                {step === 3 && (
-                  <div className="space-y-6">
-                    <h2 className="text-lg font-semibold">Ad Accounts</h2>
-                    <div className="space-y-3">
-                      {[
-                        {
-                          id: "google",
-                          name: "Google Ads",
-                          type: "Search & Display",
-                          color: "bg-red-400",
-                          icon: <Search className="w-6 h-6 text-white" />,
-                        },
-                        {
-                          id: "metaAds",
-                          name: "Meta Ads",
-                          type: "Social Ads",
-                          color: "bg-blue-600",
-                          icon: <FaFacebook className="w-6 h-6 text-white" />,
-                        },
-                        {
-                          id: "tiktokAds",
-                          name: "TikTok Ads",
-                          type: "Video Ads",
-                          color: "bg-black",
-                          icon: <Music2 className="w-6 h-6 text-white" />,
-                        },
-                        {
-                          id: "linkedinAds",
-                          name: "LinkedIn Ads",
-                          type: "Professional Ads",
-                          color: "bg-blue-700",
-                          icon: <FaLinkedin className="w-6 h-6 text-white" />,
-                        },
-                        {
-                          id: "bingAds",
-                          name: "Bing Ads",
-                          type: "Search Ads",
-                          color: "bg-green-600",
-                          icon: <Globe className="w-6 h-6 text-white" />,
-                        },
-                      ].map((platform) => {
-                        const connectedAccounts = compiledData.adAccounts.filter(
-                          (acc) => acc.platform === platform.id
-                        ) || [];
-                        return (
-                          <div
-                            key={platform.id}
-                            className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3 transition"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`p-2 rounded-full ${platform.color}`}>
-                                {platform.icon}
-                              </div>
-                              <div>
-                                <p className="font-medium">{platform.name}</p>
-                                <p className="text-xs text-gray-500">{platform.type}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center">
-                              {connectedAccounts.length > 0 ? (
-                                <select className="border border-gray-200 rounded px-2 py-1 text-sm">
-                                  <option>
-                                    {connectedAccounts.length} Account
-                                    {connectedAccounts.length > 1 ? "s" : ""} Connected
-                                  </option>
-                                  {connectedAccounts.map((acc, i) => (
-                                    <option key={i}>{acc.name || `Account ${i + 1}`}</option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <p className="text-gray-400 text-sm">No Accounts Connected</p>
-                              )}
-                            </div>
-                            <button
-                              onClick={() =>
-                                updateCompiledData({
-                                  adAccounts: [
-                                    ...compiledData.adAccounts,
-                                    {
-                                      platform: platform.id,
-                                      name: `${platform.name} Account ${compiledData.adAccounts.filter((acc) => acc.platform === platform.id).length + 1
-                                        }`,
-                                    },
-                                  ],
-                                })
-                              }
-                              className="ml-4 px-4 cursor-pointer py-2 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 text-sm font-medium"
-                            >
-                              Connect
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
+  const set = (key, val) => setFormData(p => ({ ...p, [key]: val }));
 
-              <div className="py-2">
-                {step > 0 && (
-                  <div className="flex gap-4 justify-between">
-                    {step === 1 && (
-                      <button
-                        onClick={resetForm}
-                        className="bg-gray-200 cursor-pointer text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition flex items-center gap-2"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                    {step > 1 && (
-                      <button
-                        onClick={() => setStep(step - 1)}
-                        className="bg-gray-200 cursor-pointer text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition"
-                      >
-                        Back
-                      </button>
-                    )}
-                    {step < steps.length ? (
-                      <button
-                        onClick={handleContinue}
-                        className="bg-[#155dfc] cursor-pointer text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-                      >
-                        Continue
-                      </button>
-                    ) : (
-                      <button
-                        onClick={completeBrandCreation}
-                        className="bg-[#155dfc] cursor-pointer text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-                      >
-                        Create Brand
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+  // ── import ──────────────────────────────────────────────────────────────────
+  const handleImport = async () => {
+    if (!url.trim()) return;
+    setImporting(true);
+    try {
+      const res = await sendUrl(url);
+      const d   = res?.data;
+      if (d) {
+        setFormData(p => ({
+          ...p,
+          name:        d.name        || "",
+          description: d.description || "",
+          tagline:     d.tagline     || "",
+          fonts:       d.font        || "Inter",
+          primary:     d.primary_color  || "#2563eb",
+          secondary:   d.secondary_color || "#0ea5e9",
+          logoDataUrl: d.logo        || null,
+          sourceUrl:   url,
+          industry:    d.industry    || "",
+        }));
 
-              <style jsx>{`
-                @keyframes orbit {
-                  0% {
-                    transform: rotate(0deg) translateX(12px) rotate(0deg);
-                  }
-                  100% {
-                    transform: rotate(360deg) translateX(12px) rotate(-360deg);
-                  }
-                }
-                @keyframes progress {
-                  0% {
-                    transform: translateX(-100%);
-                  }
-                  50% {
-                    transform: translateX(0%);
-                  }
-                  100% {
-                    transform: translateX(100%);
-                  }
-                }
-                .animate-progress {
-                  animation: progress 2s ease-in-out infinite;
-                }
-              `}</style>
-            </div>
-          )}
-        </div>
+        // try to download logo as File in background
+        if (d.logo) {
+          fetch(`/api/proxy-image?url=${encodeURIComponent(d.logo)}`)
+            .then(r => r.blob())
+            .then(blob => {
+              const file = new File([blob], "logo.png", { type: blob.type });
+              setFormData(p => ({ ...p, logo: file }));
+            })
+            .catch(() => {});
+        }
+
+        setStep(1);
+      }
+    } catch { notify("Import failed", "Check the URL and try again.", "error"); }
+    finally  { setImporting(false); }
+  };
+
+  const handleLogoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => setFormData(p => ({ ...p, logo: file, logoDataUrl: ev.target.result, logoFileName: file.name }));
+    reader.readAsDataURL(file);
+  };
+
+  // ── create ──────────────────────────────────────────────────────────────────
+  const handleCreate = async () => {
+    if (!formData.name.trim()) return notify("Brand name required", "Please enter a brand name.", "error");
+    if (!formData.industry)    return notify("Industry required",   "Please select an industry.",  "error");
+
+    notify("Creating…", "Please wait.", "info", 0);
+    setCreating(true);
+    try {
+      const brandData = await createBrand({
+        name:           formData.name.trim(),
+        description:    formData.description,
+        tagline:        formData.tagline,
+        fonts:          formData.fonts,
+        logo:           formData.logo,
+        colors:         { primary: formData.primary, secondary: formData.secondary },
+        socialAccounts: formData.socialAccounts,
+        adAccounts:     formData.adAccounts,
+        sourceUrl:      formData.sourceUrl || url,
+        url:            url.trim(),
+        industry:       formData.industry,
+        createLandingPage: false,
+      });
+      if (!brandData) throw new Error("No response");
+      setActiveBrand(brandData);
+      localStorage.setItem("activeBrand", JSON.stringify(brandData));
+      refreshBrands?.();
+      closeNotify();
+      notify("Brand created!", "Redirecting…", "success", 2000);
+      setTimeout(() => router.push("/brand/reuse"), 1500);
+    } catch (err) {
+      closeNotify();
+      notify("Creation failed", err.message || "Something went wrong.", "error");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const canContinue = step === 1 ? (formData.name.trim() && formData.industry) : true;
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-gray-50/60 px-4 py-8 md:px-10">
+      <NotificationModal
+        isOpen={notification.isOpen} onClose={closeNotify}
+        title={notification.title}  message={notification.message}
+        type={notification.type}    duration={notification.duration}
+      />
+
+      {/* Page title */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Import Brand</h1>
+        <p className="text-sm text-gray-500 mt-1">Paste your website URL — we'll auto-extract your brand identity.</p>
       </div>
 
-      <NotificationModal
-        isOpen={notification.isOpen}
-        onClose={closeNotification}
-        title={notification.title}
-        message={notification.message}
-        type={notification.type}
-        duration={3000}
-      />
+      {/* URL bar */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-3 shadow-sm mb-6">
+        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+          <Link className="w-4 h-4 text-blue-600" />
+        </div>
+        <input
+          type="url" value={url} onChange={e => setUrl(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleImport()}
+          placeholder="https://yourdomain.com"
+          className="flex-1 text-sm outline-none placeholder:text-gray-400 text-gray-800 bg-transparent"
+        />
+        <button
+          onClick={handleImport} disabled={importing || !url.trim()}
+          className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 shrink-0 cursor-pointer transition"
+        >
+          {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Upload className="w-4 h-4" /> Import</>}
+        </button>
+      </div>
+
+      {/* Loading overlay */}
+      <AnimatePresence>
+        {importing && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl p-10 flex flex-col items-center gap-5 shadow-2xl">
+              <div className="relative">
+                <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                  className="w-20 h-20 rounded-full border-4 border-gray-100 border-t-blue-600" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Upload className="w-8 h-8 text-blue-600" />
+                </div>
+              </div>
+              <div className="text-center">
+                <p className="font-semibold text-gray-900">Importing your brand…</p>
+                <p className="text-sm text-gray-400 mt-1">Extracting colors, fonts, and assets</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Empty state */}
+      {step === 0 && !importing && (
+        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center">
+            <Globe className="w-7 h-7 text-blue-400" />
+          </div>
+          <p className="font-semibold text-gray-700">Paste a URL above to get started</p>
+          <p className="text-sm text-gray-400 max-w-xs">We'll extract your brand name, colors, logo, and description automatically.</p>
+        </div>
+      )}
+
+      {/* Form + preview */}
+      {step > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-start">
+
+          {/* ── Left: steps + form ── */}
+          <div className="flex flex-col gap-5">
+
+            {/* Step indicator */}
+            <div className="bg-white border border-gray-100 rounded-2xl px-5 py-4 shadow-sm">
+              <div className="flex items-center gap-0">
+                {STEPS.map((s, idx) => (
+                  <div key={s.id} className="flex items-center gap-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all ${
+                        step > s.id  ? "border-blue-600 bg-blue-600 text-white"
+                        : step === s.id ? "border-blue-600 text-blue-600 bg-white"
+                        : "border-gray-200 text-gray-300 bg-white"
+                      }`}>
+                        {step > s.id ? <Check className="w-3.5 h-3.5" /> : s.id}
+                      </div>
+                      <span className={`text-xs font-medium hidden sm:block ${step >= s.id ? "text-gray-700" : "text-gray-300"}`}>{s.label}</span>
+                    </div>
+                    {idx < STEPS.length - 1 && (
+                      <div className={`h-0.5 flex-1 mx-3 rounded-full ${step > s.id ? "bg-blue-600" : "bg-gray-200"}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Form card */}
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex flex-col gap-5">
+
+              {/* ── Step 1: Brand Details ── */}
+              {step === 1 && (
+                <>
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                    <Star className="w-4 h-4 text-blue-600" /> Brand Details
+                  </h3>
+
+                  <Field label="Brand Name" required>
+                    <input type="text" value={formData.name} onChange={e => set("name", e.target.value)}
+                      placeholder="e.g. Acme Corp" className={inputCls} />
+                  </Field>
+
+                  <Field label="Tagline / Slogan">
+                    <input type="text" value={formData.tagline} onChange={e => set("tagline", e.target.value)}
+                      placeholder="e.g. Just do it" className={inputCls} />
+                  </Field>
+
+                  <Field label="Description">
+                    <textarea value={formData.description} onChange={e => set("description", e.target.value)}
+                      rows={3} placeholder="Brief brand description…" className={`${inputCls} resize-none`} />
+                  </Field>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Industry" required>
+                      <select value={formData.industry} onChange={e => set("industry", e.target.value)} className={inputCls}>
+                        <option value="">Select industry…</option>
+                        {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Font">
+                      <select value={formData.fonts} onChange={e => set("fonts", e.target.value)} className={inputCls}>
+                        {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                    </Field>
+                  </div>
+
+                  {/* Logo */}
+                  <Field label="Logo">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => logoRef.current?.click()}
+                        className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-blue-500 hover:text-blue-600 transition cursor-pointer bg-gray-50">
+                        <Upload className="w-4 h-4" /> Upload Logo
+                      </button>
+                      <input type="file" accept="image/*" className="hidden" ref={logoRef} onChange={handleLogoChange} />
+                      {formData.logoDataUrl && (
+                        <div className="w-10 h-10 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                          <img src={formData.logoDataUrl} alt="logo" className="w-full h-full object-contain" />
+                        </div>
+                      )}
+                    </div>
+                  </Field>
+
+                  {/* Colors */}
+                  <div className="flex gap-4">
+                    <ColorPicker label="Primary Color"   value={formData.primary}   onChange={v => set("primary",   v)} />
+                    <ColorPicker label="Secondary Color" value={formData.secondary} onChange={v => set("secondary", v)} />
+                  </div>
+                </>
+              )}
+
+              {/* ── Step 2: Social Accounts ── */}
+              {step === 2 && (
+                <>
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                    <Share2 className="w-4 h-4 text-blue-600" /> Social Accounts
+                  </h3>
+                  <p className="text-sm text-gray-500 -mt-2">Connect social media accounts to manage posts for this brand.</p>
+                  <div className="flex flex-col gap-3">
+                    {SOCIAL_PLATFORMS.map(({ id, name, type, Icon, color }) => {
+                      const connected = formData.socialAccounts.filter(a => a.platform === id);
+                      return (
+                        <div key={id} className="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50/60">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: color + "18" }}>
+                              <Icon style={{ color, fontSize: 18 }} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">{name}</p>
+                              <p className="text-xs text-gray-400">{type}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {connected.length > 0
+                              ? <span className="text-xs text-green-600 font-medium">{connected.length} connected</span>
+                              : <span className="text-xs text-gray-400">Not connected</span>}
+                            <button className="px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg bg-white hover:bg-gray-50 cursor-pointer transition">
+                              Connect
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* ── Step 3: Ad Accounts ── */}
+              {step === 3 && (
+                <>
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                    <Recycle className="w-4 h-4 text-blue-600" /> Ad Accounts
+                  </h3>
+                  <p className="text-sm text-gray-500 -mt-2">Connect ad platforms to run campaigns for this brand.</p>
+                  <div className="flex flex-col gap-3">
+                    {AD_PLATFORMS.map(({ id, name, type, Icon, color }) => {
+                      const connected = formData.adAccounts.filter(a => a.platform === id);
+                      return (
+                        <div key={id} className="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50/60">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: color + "18" }}>
+                              <Icon style={{ color, fontSize: 18 }} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">{name}</p>
+                              <p className="text-xs text-gray-400">{type}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {connected.length > 0
+                              ? <span className="text-xs text-green-600 font-medium">{connected.length} connected</span>
+                              : <span className="text-xs text-gray-400">Not connected</span>}
+                            <button className="px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg bg-white hover:bg-gray-50 cursor-pointer transition">
+                              Connect
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Navigation */}
+              <div className={`flex gap-3 pt-2 ${step > 1 ? "justify-between" : "justify-between"}`}>
+                <button
+                  onClick={() => step === 1 ? (setStep(0), setUrl("")) : setStep(p => p - 1)}
+                  className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer transition flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" /> {step === 1 ? "Cancel" : "Back"}
+                </button>
+
+                {step < 3 ? (
+                  <button
+                    onClick={() => setStep(p => p + 1)}
+                    disabled={!canContinue}
+                    className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 cursor-pointer transition flex items-center gap-2"
+                  >
+                    Continue <ChevronRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleCreate}
+                    disabled={creating}
+                    className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 cursor-pointer transition flex items-center gap-2"
+                  >
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Create Brand</>}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Right: preview ── */}
+          <BrandPreview data={{ ...formData }} />
+        </div>
+      )}
     </div>
   );
 }

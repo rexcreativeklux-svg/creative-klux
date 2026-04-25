@@ -9,7 +9,7 @@ import {
     CheckCircle2,
     X,
 } from "lucide-react";
-import { openOAuthPopup, saveClientId } from "@/app/lib/oauth/page";
+import { openOAuthPopup, saveClientId } from "@/lib/oauth/page";
 
 
 // ── Real SVG brand icons ───────────────────────────────────────────────────────

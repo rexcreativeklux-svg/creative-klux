@@ -462,7 +462,8 @@ const StudioPage = () => {
       <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Creative Studio</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Create, preview, and publish in one place</p>
+          <p className="text-sm text-gray-400 mt-0.5">Choose a creative engine to get started.
+          </p>
         </div>
       </div>
 
@@ -534,7 +535,8 @@ const StudioPage = () => {
 const CreativeSelector = ({ creatives, selected, onChange }) => (
   <div className="  backdrop-blur  py- px-0  shrink-0">
     <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-widest mb-2">
-      Creative Type
+      What do you want to create today?
+
     </p>
 
     <div className="grid grid-cols-4 gap-2">
@@ -590,9 +592,11 @@ const CreativeSelector = ({ creatives, selected, onChange }) => (
               >
                 {c.label}
               </p>
-              <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
+              <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
                 {c.desc}
+               
               </p>
+               <p className="text-[9px] text-gray-400">{c.inner}</p>
             </div>
 
             {/* check indicator */}
@@ -623,7 +627,6 @@ const CreativeSelector = ({ creatives, selected, onChange }) => (
     </div>
   </div>
 );
-
 
 // ─── CategorySelector ─────────────────────────────────────────────────────────
 const CategorySelector = ({ creative, selected, onChange }) => (

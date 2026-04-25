@@ -9,6 +9,8 @@ import {
     CheckCircle2,
     X,
 } from "lucide-react";
+import { openOAuthPopup, saveClientId } from "@/app/lib/oauth/page";
+
 
 // ── Real SVG brand icons ───────────────────────────────────────────────────────
 const FacebookIcon = () => (
@@ -378,12 +380,33 @@ const PlatformCard = ({ platform, expandedId, setExpandedId, appIds, setAppIds, 
 
     const toggleExpand = () => setExpandedId((prev) => (prev === platform.id ? null : platform.id));
 
-    const handleConnect = () => {
-        const id = appIds[platform.id]?.trim();
-        if (!id) return;
-        setConnected((prev) => ({ ...prev, [platform.id]: true }));
+   const handleConnect = async () => {
+    const clientId = appIds[platform.id]?.trim();
+    if (!clientId) return;
+
+    try {
+        // 1. Save client ID locally
+        saveClientId(platform.id, clientId);
+
+        // 2. Start OAuth popup
+        const result = await openOAuthPopup(platform.id, clientId);
+
+        console.log("OAuth success:", result);
+
+        // 3. Mark as connected
+        setConnected((prev) => ({
+            ...prev,
+            [platform.id]: true,
+        }));
+
         setExpandedId(null);
-    };
+
+    } catch (err) {
+        console.error(err);
+        alert(err.message || "Connection failed");
+    }
+};
+
 
     const handleDisconnect = () => {
         setConnected((prev) => ({ ...prev, [platform.id]: false }));

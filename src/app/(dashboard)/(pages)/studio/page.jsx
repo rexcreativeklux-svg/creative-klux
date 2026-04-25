@@ -40,6 +40,12 @@ import AudioToTextForm from "./forms/AudioToTextForm";
 import PersonaBasedGeneratorForm from "./forms/PersonaBasedGeneratorForm";
 import TextToAudioForm from "./forms/TextToAudioForm";
 import FlyerForm from "./forms/FlyerForm";
+import BrochuresForm from "./forms/BrochureForm";
+import PosterForm from "./forms/PosterForm";
+import InfographicForm from "./forms/InfographicForm";
+import PresentationDeckForm from "./forms/PresentationDeckForm";
+import PackagingForm from "./forms/PackagingMockupForm";
+import DigitalBusinessCardForm from "./forms/DigitalBusinessCardForm";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -266,7 +272,7 @@ const StudioPage = () => {
           onResult={setResult} />;
       }
 
-        if (selectedCategory === "flyers") {
+      if (selectedCategory === "flyers") {
         return <FlyerForm categoryId={selectedCategory}
           category={category}
           creative={creative}
@@ -276,6 +282,80 @@ const StudioPage = () => {
           sendUrl={sendUrl}
           showToast={showToast}
           onResult={setResult} />;
+      }
+
+      if (selectedCategory === "brochures") {
+        return <BrochuresForm categoryId={selectedCategory}
+          category={category}
+          creative={creative}
+          formData={formData}
+          setFormData={setFormData}
+          activeBrand={activeBrand}
+          sendUrl={sendUrl}
+          showToast={showToast}
+          onResult={setResult} />;
+      }
+
+      if (selectedCategory === "posters") {
+        return <PosterForm categoryId={selectedCategory}
+          category={category}
+          creative={creative}
+          formData={formData}
+          setFormData={setFormData}
+          activeBrand={activeBrand}
+          sendUrl={sendUrl}
+          showToast={showToast}
+          onResult={setResult} />;
+      }
+
+      if (selectedCategory === "infographics") {
+        return <InfographicForm categoryId={selectedCategory}
+          category={category}
+          creative={creative}
+          formData={formData}
+          setFormData={setFormData}
+          activeBrand={activeBrand}
+          sendUrl={sendUrl}
+          showToast={showToast}
+          onResult={setResult} />;
+      }
+
+      if (selectedCategory === "presentation_decks") {
+        return <PresentationDeckForm categoryId={selectedCategory}
+          category={category}
+          creative={creative}
+          formData={formData}
+          setFormData={setFormData}
+          activeBrand={activeBrand}
+          sendUrl={sendUrl}
+          showToast={showToast}
+          onResult={setResult} />;
+      }
+
+      if (selectedCategory === "packaging") {
+        return (
+          <PackagingForm
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            sendUrl={sendUrl}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
+      }
+
+      if (selectedCategory === "digital_biz_cards") {
+        return (
+          <DigitalBusinessCardForm
+            formData={formData}
+            setFormData={setFormData}
+            activeBrand={activeBrand}
+            sendUrl={sendUrl}
+            showToast={showToast}
+            onResult={setResult}
+          />
+        );
       }
 
       return <ComingSoon creative={creative} category={category} />;

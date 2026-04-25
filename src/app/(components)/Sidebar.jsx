@@ -156,7 +156,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         { label: "Profile", href: "/profile", icon: Layers },
         { label: "Custom Domain", href: "/custom-domain", icon: Share2 },
         { label: "Resell", href: "/resell", icon: ShoppingCart },
-        { label: "Billing", href: "/", icon: CreditCard },
+        { label: "Billing", href: "/billing", icon: CreditCard },
       ],
     },
 

@@ -558,10 +558,11 @@ export function AuthProvider({ children }) {
       });
 
       const text = await res.text();
-      console.log("import Raw Response:", text);
+
       let data;
       try {
         data = JSON.parse(text);
+        console.log(data)
       } catch {
         console.error("Invalid JSON response:", text);
         return null;

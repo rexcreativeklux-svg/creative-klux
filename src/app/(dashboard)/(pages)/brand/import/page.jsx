@@ -18,21 +18,21 @@ import NotificationModal from "@/app/(components)/NotificationModal";
 const INDUSTRIES = ["Technology", "Healthcare", "Retail", "Finance", "Education", "Hospitality", "Other"];
 const FONTS = ["Inter", "Roboto", "Poppins", "Open Sans", "Lato", "Montserrat"];
 const SOCIAL_PLATFORMS = [
-  { id: "facebook",  name: "Facebook",  type: "Pages",    Icon: FaFacebook,  color: "#1877F2" },
+  { id: "facebook", name: "Facebook", type: "Pages", Icon: FaFacebook, color: "#1877F2" },
   { id: "instagram", name: "Instagram", type: "Business", Icon: FaInstagram, color: "#E4405F" },
 ];
 const AD_PLATFORMS = [
-  { id: "google",   name: "Google Ads",   type: "Search & Display",  Icon: Search,   color: "#EA4335" },
-  { id: "meta",     name: "Meta Ads",     type: "Social Ads",        Icon: FaFacebook, color: "#1877F2" },
-  { id: "tiktok",   name: "TikTok Ads",   type: "Video Ads",         Icon: Music2,   color: "#010101" },
-  { id: "linkedin", name: "LinkedIn Ads", type: "Professional Ads",  Icon: FaLinkedin, color: "#0A66C2" },
-  { id: "bing",     name: "Bing Ads",     type: "Search Ads",        Icon: Globe,    color: "#00809D" },
+  { id: "google", name: "Google Ads", type: "Search & Display", Icon: Search, color: "#EA4335" },
+  { id: "meta", name: "Meta Ads", type: "Social Ads", Icon: FaFacebook, color: "#1877F2" },
+  { id: "tiktok", name: "TikTok Ads", type: "Video Ads", Icon: Music2, color: "#010101" },
+  { id: "linkedin", name: "LinkedIn Ads", type: "Professional Ads", Icon: FaLinkedin, color: "#0A66C2" },
+  { id: "bing", name: "Bing Ads", type: "Search Ads", Icon: Globe, color: "#00809D" },
 ];
 
 const STEPS = [
-  { id: 1, label: "Brand Details",   Icon: Star },
+  { id: 1, label: "Brand Details", Icon: Star },
   { id: 2, label: "Social Accounts", Icon: Share2 },
-  { id: 3, label: "Ad Accounts",     Icon: Recycle },
+  { id: 3, label: "Ad Accounts", Icon: Recycle },
 ];
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
@@ -51,19 +51,35 @@ const Field = ({ label, required, children }) => (
 );
 
 const ColorPicker = ({ label, value, onChange }) => (
-  <div className="flex flex-col gap-1.5 flex-1">
-    <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">{label}</label>
-    <div className="flex items-center gap-2">
+  <div className="flex flex-col gap-1.5 w-full">
+    <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+      {label}
+    </label>
+
+    <div className="flex items-center gap-2 w-full">
+      {/* color box */}
       <label
-        className="w-9 h-9 rounded-xl border border-gray-200 cursor-pointer overflow-hidden shadow-sm flex-shrink-0"
+        className="w-10 h-10 rounded-xl border border-gray-200 cursor-pointer overflow-hidden shadow-sm flex-shrink-0"
         style={{ background: value }}
       >
-        <input type="color" value={value} onChange={e => onChange(e.target.value)} className="opacity-0 w-full h-full cursor-pointer" />
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="opacity-0 w-full h-full cursor-pointer"
+        />
       </label>
+
+      {/* hex input */}
       <input
-        type="text" value={value} maxLength={7}
-        onChange={e => /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) && onChange(e.target.value)}
-        className={`${inputCls} font-mono text-xs w-28 flex-shrink-0`}
+        type="text"
+        value={value}
+        maxLength={7}
+        onChange={(e) =>
+          /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) &&
+          onChange(e.target.value)
+        }
+        className={`${inputCls} font-mono text-xs w-full min-w-0`}
       />
     </div>
   </div>
@@ -71,14 +87,14 @@ const ColorPicker = ({ label, value, onChange }) => (
 
 // ── live brand preview ────────────────────────────────────────────────────────
 const BrandPreview = ({ data }) => {
-  const primary   = data.primary   || "#2563eb";
+  const primary = data.primary || "#2563eb";
   const secondary = data.secondary || "#0ea5e9";
-  const name      = data.name      || "Your Brand";
-  const tagline   = data.tagline   || "";
-  const desc      = data.description || "Your brand description will appear here once you fill in the details.";
-  const font      = data.fonts     || "Inter";
-  const industry  = data.industry  || "";
-  const logo      = data.logoDataUrl || null;
+  const name = data.name || "Your Brand";
+  const tagline = data.tagline || "";
+  const desc = data.description || "Your brand description will appear here once you fill in the details.";
+  const font = data.fonts || "Inter";
+  const industry = data.industry || "";
+  const logo = data.logoDataUrl || null;
 
   return (
     <div className="sticky top-6 flex flex-col gap-3">
@@ -115,7 +131,7 @@ const BrandPreview = ({ data }) => {
           <p className="text-xs text-gray-500 leading-relaxed line-clamp-3">{desc}</p>
           <div className="flex flex-wrap gap-1.5">
             {industry && <span className="px-2.5 py-1 rounded-full text-xs font-medium border border-gray-200 text-gray-500 bg-gray-50">{industry}</span>}
-            {font     && <span className="px-2.5 py-1 rounded-full text-xs font-medium border border-gray-200 text-gray-500 bg-gray-50" style={{ fontFamily: font }}>{font}</span>}
+            {font && <span className="px-2.5 py-1 rounded-full text-xs font-medium border border-gray-200 text-gray-500 bg-gray-50" style={{ fontFamily: font }}>{font}</span>}
           </div>
         </div>
 
@@ -149,10 +165,10 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
   const { sendUrl, createBrand } = useAuth();
   const router = useRouter();
 
-  const [step,        setStep]        = useState(0);
-  const [url,         setUrl]         = useState("");
-  const [importing,   setImporting]   = useState(false);
-  const [creating,    setCreating]    = useState(false);
+  const [step, setStep] = useState(0);
+  const [url, setUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "", description: "", tagline: "", fonts: "Inter",
@@ -177,19 +193,19 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
     setImporting(true);
     try {
       const res = await sendUrl(url);
-      const d   = res?.data;
+      const d = res?.data;
       if (d) {
         setFormData(p => ({
           ...p,
-          name:        d.name        || "",
+          name: d.name || "",
           description: d.description || "",
-          tagline:     d.tagline     || "",
-          fonts:       d.font        || "Inter",
-          primary:     d.primary_color  || "#2563eb",
-          secondary:   d.secondary_color || "#0ea5e9",
-          logoDataUrl: d.logo        || null,
-          sourceUrl:   url,
-          industry:    d.industry    || "",
+          tagline: d.tagline || "",
+          fonts: d.font || "Inter",
+          primary: d.primary_color || "#2563eb",
+          secondary: d.secondary_color || "#0ea5e9",
+          logoDataUrl: d.logo || null,
+          sourceUrl: url,
+          industry: d.industry || "",
         }));
 
         // try to download logo as File in background
@@ -200,13 +216,13 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
               const file = new File([blob], "logo.png", { type: blob.type });
               setFormData(p => ({ ...p, logo: file }));
             })
-            .catch(() => {});
+            .catch(() => { });
         }
 
         setStep(1);
       }
     } catch { notify("Import failed", "Check the URL and try again.", "error"); }
-    finally  { setImporting(false); }
+    finally { setImporting(false); }
   };
 
   const handleLogoChange = (e) => {
@@ -220,23 +236,23 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
   // ── create ──────────────────────────────────────────────────────────────────
   const handleCreate = async () => {
     if (!formData.name.trim()) return notify("Brand name required", "Please enter a brand name.", "error");
-    if (!formData.industry)    return notify("Industry required",   "Please select an industry.",  "error");
+    if (!formData.industry) return notify("Industry required", "Please select an industry.", "error");
 
     notify("Creating…", "Please wait.", "info", 0);
     setCreating(true);
     try {
       const brandData = await createBrand({
-        name:           formData.name.trim(),
-        description:    formData.description,
-        tagline:        formData.tagline,
-        fonts:          formData.fonts,
-        logo:           formData.logo,
-        colors:         { primary: formData.primary, secondary: formData.secondary },
+        name: formData.name.trim(),
+        description: formData.description,
+        tagline: formData.tagline,
+        fonts: formData.fonts,
+        logo: formData.logo,
+        colors: { primary: formData.primary, secondary: formData.secondary },
         socialAccounts: formData.socialAccounts,
-        adAccounts:     formData.adAccounts,
-        sourceUrl:      formData.sourceUrl || url,
-        url:            url.trim(),
-        industry:       formData.industry,
+        adAccounts: formData.adAccounts,
+        sourceUrl: formData.sourceUrl || url,
+        url: url.trim(),
+        industry: formData.industry,
         createLandingPage: false,
       });
       if (!brandData) throw new Error("No response");
@@ -258,21 +274,21 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50/60 px-4 py-8 md:px-10">
+    <div className="py-4">
       <NotificationModal
         isOpen={notification.isOpen} onClose={closeNotify}
-        title={notification.title}  message={notification.message}
-        type={notification.type}    duration={notification.duration}
+        title={notification.title} message={notification.message}
+        type={notification.type} duration={notification.duration}
       />
 
       {/* Page title */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Import Brand</h1>
+        {/* <h1 className="text-2xl font-bold text-gray-900">Import Brand</h1> */}
         <p className="text-sm text-gray-500 mt-1">Paste your website URL — we'll auto-extract your brand identity.</p>
       </div>
 
       {/* URL bar */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-3 shadow-sm mb-6">
+      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3 mb-6">
         <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
           <Link className="w-4 h-4 text-blue-600" />
         </div>
@@ -284,7 +300,7 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
         />
         <button
           onClick={handleImport} disabled={importing || !url.trim()}
-          className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 shrink-0 cursor-pointer transition"
+          className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 shrink-0 cursor-pointer transition"
         >
           {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Upload className="w-4 h-4" /> Import</>}
         </button>
@@ -332,16 +348,15 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
           <div className="flex flex-col gap-5">
 
             {/* Step indicator */}
-            <div className="bg-white border border-gray-100 rounded-2xl px-5 py-4 shadow-sm">
+            <div className="py-2">
               <div className="flex items-center gap-0">
                 {STEPS.map((s, idx) => (
                   <div key={s.id} className="flex items-center gap-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all ${
-                        step > s.id  ? "border-blue-600 bg-blue-600 text-white"
-                        : step === s.id ? "border-blue-600 text-blue-600 bg-white"
-                        : "border-gray-200 text-gray-300 bg-white"
-                      }`}>
+                      <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all ${step > s.id ? "border-blue-600 bg-blue-600 text-white"
+                          : step === s.id ? "border-blue-600 text-blue-600 bg-white"
+                            : "border-gray-200 text-gray-300 bg-white"
+                        }`}>
                         {step > s.id ? <Check className="w-3.5 h-3.5" /> : s.id}
                       </div>
                       <span className={`text-xs font-medium hidden sm:block ${step >= s.id ? "text-gray-700" : "text-gray-300"}`}>{s.label}</span>
@@ -355,7 +370,7 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
             </div>
 
             {/* Form card */}
-            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex flex-col gap-5">
+            <div className="bg-white border border-gray-100 rounded-lg p-6 shadow flex flex-col gap-5">
 
               {/* ── Step 1: Brand Details ── */}
               {step === 1 && (
@@ -411,7 +426,7 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
 
                   {/* Colors */}
                   <div className="flex gap-4">
-                    <ColorPicker label="Primary Color"   value={formData.primary}   onChange={v => set("primary",   v)} />
+                    <ColorPicker label="Primary Color" value={formData.primary} onChange={v => set("primary", v)} />
                     <ColorPicker label="Secondary Color" value={formData.secondary} onChange={v => set("secondary", v)} />
                   </div>
                 </>

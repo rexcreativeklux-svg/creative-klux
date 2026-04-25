@@ -64,23 +64,40 @@ const Field = ({ label, required, children }) => (
 );
 
 const ColorPicker = ({ label, value, onChange }) => (
-  <div className="flex flex-col gap-1.5 flex-1">
-    <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">{label}</label>
-    <div className="flex items-center gap-2">
+  <div className="flex flex-col gap-1.5 w-full">
+    <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+      {label}
+    </label>
+
+    <div className="flex items-center gap-2 w-full">
+      {/* color box */}
       <label
-        className="w-9 h-9 rounded-xl border border-gray-200 cursor-pointer overflow-hidden shadow-sm flex-shrink-0"
+        className="w-10 h-10 rounded-xl border border-gray-200 cursor-pointer overflow-hidden shadow-sm flex-shrink-0"
         style={{ background: value }}
       >
-        <input type="color" value={value} onChange={e => onChange(e.target.value)} className="opacity-0 w-full h-full cursor-pointer" />
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="opacity-0 w-full h-full cursor-pointer"
+        />
       </label>
+
+      {/* hex input */}
       <input
-        type="text" value={value} maxLength={7}
-        onChange={e => /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) && onChange(e.target.value)}
-        className={`${inputCls} font-mono text-xs w-28 flex-shrink-0`}
+        type="text"
+        value={value}
+        maxLength={7}
+        onChange={(e) =>
+          /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) &&
+          onChange(e.target.value)
+        }
+        className={`${inputCls} font-mono text-xs w-full min-w-0`}
       />
     </div>
   </div>
 );
+
 
 // ── live preview ──────────────────────────────────────────────────────────────
 const BrandPreview = ({ data }) => {
@@ -233,7 +250,7 @@ export default function ManualCreate({ refreshBrands, setBrandView, setActiveTab
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50/60 py-4">
+    <div className=" py-4">
       <NotificationModal
         isOpen={notification.isOpen} onClose={closeNotify}
         title={notification.title} message={notification.message}
@@ -245,7 +262,7 @@ export default function ManualCreate({ refreshBrands, setBrandView, setActiveTab
         <p className="text-sm text-gray-500 mt-1">Fill in your brand details manually to get started.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6 items-start">
 
         {/* ── Left: steps + form ── */}
         <div className="flex flex-col gap-5">
@@ -257,8 +274,8 @@ export default function ManualCreate({ refreshBrands, setBrandView, setActiveTab
                 <div key={s.id} className="flex items-center gap-0 flex-1 min-w-0">
                   <div className="flex items-center gap-2 shrink-0">
                     <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all ${step > s.id ? "border-blue-600 bg-blue-600 text-white"
-                        : step === s.id ? "border-blue-600 text-blue-600 bg-white"
-                          : "border-gray-200 text-gray-300 bg-white"
+                      : step === s.id ? "border-blue-600 text-blue-600 bg-white"
+                        : "border-gray-200 text-gray-300 bg-white"
                       }`}>
                       {step > s.id ? <Check className="w-3.5 h-3.5" /> : s.id}
                     </div>
@@ -419,17 +436,17 @@ export default function ManualCreate({ refreshBrands, setBrandView, setActiveTab
                   <span className="text-xs font-normal text-gray-400 ml-1">(optional)</span>
                 </h3>
                 <p className="text-sm text-gray-500 -mt-2">Choose the type of website to build for this brand.</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="flex flex-wrap gap-2">
                   {WEBSITE_TYPES.map(({ id, label }) => {
                     const active = formData.websiteType === id;
                     return (
                       <button
                         key={id}
                         onClick={() => set("websiteType", active ? "" : id)}
-                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition cursor-pointer text-left ${active ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-xs font-semibold transition cursor-pointer text-left ${active ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
                           }`}
                       >
-                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${active ? "border-blue-600 bg-blue-600" : "border-gray-300"
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${active ? "border-blue-600 bg-blue-600" : "border-gray-200"
                           }`}>
                           {active && <Check className="w-2.5 h-2.5 text-white" />}
                         </div>
@@ -445,7 +462,7 @@ export default function ManualCreate({ refreshBrands, setBrandView, setActiveTab
             <div className="flex justify-between gap-3 pt-2">
               <button
                 onClick={() => step === 1 ? router.back() : setStep(p => p - 1)}
-                className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer transition flex items-center gap-2"
+                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer transition flex items-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" /> {step === 1 ? "Cancel" : "Back"}
               </button>
@@ -453,7 +470,7 @@ export default function ManualCreate({ refreshBrands, setBrandView, setActiveTab
               {step < 4 ? (
                 <button
                   onClick={() => setStep(p => p + 1)}
-                  className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 cursor-pointer transition flex items-center gap-2"
+                  className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 cursor-pointer transition flex items-center gap-2"
                 >
                   Continue <ChevronRight className="w-4 h-4" />
                 </button>
@@ -461,7 +478,7 @@ export default function ManualCreate({ refreshBrands, setBrandView, setActiveTab
                 <button
                   onClick={handleCreate}
                   disabled={creating}
-                  className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 cursor-pointer transition flex items-center gap-2"
+                  className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 cursor-pointer transition flex items-center gap-2"
                 >
                   {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Create Brand</>}
                 </button>

@@ -35,7 +35,7 @@ const REDIRECT_URI = 'https://app.creativeklux.com/oauth-callback'
  * These are set once by you — your users never touch them.
  */
 const CLIENT_IDS = {
-  facebook: '1264520369211987',
+  facebook: '415385890784940',
   // instagram: import.meta.env.VITE_FACEBOOK_APP_ID,   // same Meta app
   // meta_ads: import.meta.env.VITE_FACEBOOK_APP_ID,   // same Meta app
   // google_ads: import.meta.env.VITE_GOOGLE_CLIENT_ID,

@@ -15,7 +15,7 @@ export default function CreateBrand({ isEditing, brandDraft }) {
   return (
   
     <div className="flex flex-col ">
-      <h1 className="py-2  font-semibold overflow-hidden text-2xl">
+      <h1 className="font-semibold overflow-hidden pb-2 text-xl">
         Create your brand
       </h1>
 
@@ -24,7 +24,7 @@ export default function CreateBrand({ isEditing, brandDraft }) {
           <div className="gap-1 flex flex-row">
             <button
               onClick={() => setActiveCreateTab("import")}
-              className={`font-medium transition cursor-pointer duration-300 ${
+              className={`font-medium transition cursor-pointer text-sm duration-300 ${
                 activeCreateTab === "import" ? "border-b text-[#155dfc] border-[#155dfc]" : "text-black"
               }`}
             >
@@ -35,7 +35,7 @@ export default function CreateBrand({ isEditing, brandDraft }) {
           <div className="gap-1 flex flex-row">
             <button
               onClick={() => setActiveCreateTab("manual")}
-              className={`font-medium cursor-pointer transition duration-300 ${
+              className={`font-medium cursor-pointer text-sm transition duration-300 ${
                 activeCreateTab === "manual" ? "border-b text-[#155dfc] border-[#155dfc]" : "text-black"
               }`}
             >

@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
   const [tutorialVideosError, setTutorialVideosError] = useState(null);
 
 
-  const BASE_URL = "https://backend.creativeklux.com/api/creativeklux-userend";
+  const BASE_URL = "https://api.creativeklux.com/api/creativeklux-userend";
 
   // Static endpoints (no id needed)
   const API_LOGIN_URL = `${BASE_URL}/login`;
@@ -45,6 +45,7 @@ export function AuthProvider({ children }) {
   const API_DELETE_SOCIAL_ACCOUNT_URL = `${BASE_URL}/social-accounts/disconnect`;
   const API_IMAGE_GALLERY_URL = `${BASE_URL}/image-gallery`;
   const API_FETCH_TUTORIAL_VIDEOS = `${BASE_URL}/tutorial-videos`;
+  const API_AI_CHAT_URL = `${BASE_URL}/creatives/ai-creative`;
 
 
   // Load token on mount and fetch profile and brands
@@ -544,41 +545,41 @@ export function AuthProvider({ children }) {
     }
   };
 
-const sendUrl = async (url) => {
-  if (!url || !token) return;
+  const sendUrl = async (url) => {
+    if (!url || !token) return;
 
-  try {
-    const res = await fetch(API_SEND_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ url }),
-    });
-
-    const text = await res.text();
-    let data;
     try {
-      data = JSON.parse(text);
-    } catch {
-      console.error("Invalid JSON response:", text);
-      return { ok: false, message: "Invalid server response" };
-    }
+      const res = await fetch(API_SEND_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ url }),
+      });
 
-    if (!res.ok) {
-      // Extract first validation error if present, else fallback to message
-      const firstError = data?.errors
-        ? Object.values(data.errors)[0]?.[0]
-        : null;
-      return { ok: false, message: firstError || data?.message || "Import failed" };
-    }
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("Invalid JSON response:", text);
+        return { ok: false, message: "Invalid server response" };
+      }
 
-    return { ok: true, data };
-  } catch (err) {
-    return { ok: false, message: err.message || "Network error" };
-  }
-};
+      if (!res.ok) {
+        // Extract first validation error if present, else fallback to message
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        return { ok: false, message: firstError || data?.message || "Import failed" };
+      }
+
+      return { ok: true, data };
+    } catch (err) {
+      return { ok: false, message: err.message || "Network error" };
+    }
+  };
 
   const createBrand = async (brandData) => {
     if (!token) {
@@ -1372,6 +1373,100 @@ const sendUrl = async (url) => {
     }
   }, [token]);
 
+  const generateAdsCreative = async ({ creativeType, categoryType, ...formPayload }) => {
+    if (!token) {
+      console.error("No auth token found. User may not be logged in.");
+      return { ok: false, message: "Not authenticated" };
+    }
+
+    const url = `${BASE_URL}/generation`;
+
+    const generation_data = {
+      creative_type: creativeType,       // e.g. "ads_creative"
+      subtype: categoryType,       // e.g. "image"
+      ...formPayload,                    // brandName, size, campaignGoal, etc.
+    };
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ generation_data }),
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("Invalid JSON from generation endpoint:", text);
+        return { ok: false, message: "Invalid server response" };
+      }
+
+      if (!res.ok) {
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        return { ok: false, message: firstError || data?.message || "Generation failed" };
+      }
+
+      return { ok: true, data };
+    } catch (err) {
+      console.error("Generation request failed:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  };
+
+  const creativeAiChat = async ({ message, creativeType, history = [] }) => {
+    if (!token) {
+      console.error("No auth token found. User may not be logged in.");
+      return { ok: false, message: "Not authenticated" };
+    }
+
+    try {
+      const res = await fetch(API_AI_CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message,
+          creative_type: creativeType,
+          history, // array of { role: "user"|"assistant", content: string }
+        }),
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("Invalid JSON from ai-creative-chat:", text);
+        return { ok: false, message: "Invalid server response" };
+      }
+
+      if (!res.ok) {
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        return {
+          ok: false,
+          message: firstError || data?.message || "Chat request failed",
+        };
+      }
+
+      // Expected response shape: { ok: true, reply: "...", data?: any }
+      return { ok: true, reply: data.reply || data.message || "", data };
+    } catch (err) {
+      console.error("creativeAiChat failed:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -1383,6 +1478,8 @@ const sendUrl = async (url) => {
         brandId,
         setActiveBrand,
         brandsLoading,
+        generateAdsCreative,
+        creativeAiChat,
         updateBrandById,
         handleDelete,
         fetchAdsAccounts,

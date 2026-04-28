@@ -42,7 +42,7 @@ import AdsIntegrationModal from "@/app/(components)/AdsIntegrationModal.jsx";
 
 // ─── inner component that reads search params ─────────────────────────────────
 const StudioInner = () => {
-  const { activeBrand, sendUrl } = useAuth();
+  const { activeBrand, sendUrl, generateAdsCreative } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -90,27 +90,27 @@ const StudioInner = () => {
     setStep("result");
   };
 
-useEffect(() => {
-  if (!activeBrand) return;
+  useEffect(() => {
+    if (!activeBrand) return;
 
-  const color = activeBrand.primary_color || "#2563eb";
+    const color = activeBrand.primary_color || "#2563eb";
 
-  setFormData((prev) => ({
-    ...prev,
-    brandName: activeBrand.name || "",
-    description: activeBrand.description || "",
+    setFormData((prev) => ({
+      ...prev,
+      brandName: activeBrand.name || "",
+      description: activeBrand.description || "",
 
-    // ✅ canonical
-    brandColor: color,
+      // ✅ canonical
+      brandColor: color,
 
-    // ⚠️ derived (temporary)
-    primaryColor: color,
-    secondaryColor: activeBrand.secondary_color || prev.secondaryColor,
+      // ⚠️ derived (temporary)
+      primaryColor: color,
+      secondaryColor: activeBrand.secondary_color || prev.secondaryColor,
 
-    logo: activeBrand.logo || prev.logo,
-    caption: `Discover ${activeBrand.name || "our brand"}!`,
-  }));
-}, [activeBrand]);
+      logo: activeBrand.logo || prev.logo,
+      caption: `Discover ${activeBrand.name || "our brand"}!`,
+    }));
+  }, [activeBrand]);
 
 
   const category = getCategoryById(selectedCreative, selectedCategory);
@@ -135,6 +135,7 @@ useEffect(() => {
       sendUrl,
       showToast,
       onResult: handleResult,
+      generateAdsCreative,
     };
 
     if (selectedCreative === "ads_creative") {

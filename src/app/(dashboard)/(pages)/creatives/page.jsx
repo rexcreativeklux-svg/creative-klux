@@ -305,17 +305,27 @@ export default function CreativesPage() {
         <div className="flex flex-col justify-between pb-4 h-full">
 
             {/* ── Header ── */}
-            <div className="flex items-center justify-between shrink-0">
+            <div className="flex items-center justify-between pb-4 shrink-0">
                 <div>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Library</p>
                     <h1 className="text-xl font-bold text-gray-900 tracking-tight">My Creations</h1>
                 </div>
-                <Link
-                    href="/studio/select"
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200 shadow-sm shadow-blue-200"
-                >
-                    <Plus className="w-4 h-4" /> New Creation
-                </Link>
+
+                <div className="flex flex-row gap-4">
+                    <Link
+                        href="/studio/ai-select"
+                        className="flex items-center gap-2 border border-gray-400 hover:bg-gray-200 text-black text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200 "
+                    >
+                        <Plus className="w-4 h-4" /> Instant Creation
+                    </Link>
+
+                    <Link
+                        href="/studio/select"
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200 "
+                    >
+                        <Plus className="w-4 h-4" /> Custom Creation
+                    </Link>
+                </div>
 
             </div>
 

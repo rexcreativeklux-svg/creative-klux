@@ -119,7 +119,7 @@ const StylePreview = ({ style, active }) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onResult }) => {
+const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onResult, generateAdsCreative, creative, categoryId, }) => {
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [brandUrl, setBrandUrl] = useState(activeBrand?.url || activeBrand?.source_url || "");
@@ -133,6 +133,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
   const [showCropper, setShowCropper] = useState(false);
   const [crop, setCrop] = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
   const [completedCrop, setCompletedCrop] = useState(null);
+  const [imageSrcMeta, setImageSrcMeta] = useState([]); // tracks original URLs parallel to imageSrc
 
   const cropperRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -175,27 +176,25 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
   }, [currentCropIndex]);
 
   // ── field helper ──────────────────────────────────────────────────────────
- const field = (key, value) => {
-  if (key === "brandColor") {
-    value = value.startsWith("#") ? value : `#${value}`;
-  }
+  const field = (key, value) => {
+    if (key === "brandColor") {
+      value = value.startsWith("#") ? value : `#${value}`;
+    }
 
-  setFormData((prev) => ({
-    ...prev,
+    setFormData((prev) => ({
+      ...prev,
 
-    // ✅ always update canonical
-    [key]: value,
+      // ✅ always update canonical
+      [key]: value,
 
-    // ⚠️ keep legacy fields synced (temporary)
-    ...(key === "brandColor" && {
-      primaryColor: value,
-    }),
-  }));
+      // ⚠️ keep legacy fields synced (temporary)
+      ...(key === "brandColor" && {
+        primaryColor: value,
+      }),
+    }));
 
-  setError("");
-};
-
-
+    setError("");
+  };
 
   // ── URL import ────────────────────────────────────────────────────────────
   const handleImportBrand = async () => {
@@ -264,19 +263,23 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
               type: blob.type || "image/png",
             });
             file.previewUrl = URL.createObjectURL(blob);
+            file.sourceUrl = item.large || item.src || null;  // ← attach original URL
             return file;
           })
         );
 
         const previewUrls = processedFiles.map((f) => f.previewUrl);
+        const sourceUrls = processedFiles.map((f) => f.sourceUrl || null);
 
         // ← Reset instead of appending if cropper was closed
         if (!showCropper) {
           setImageSrc(previewUrls);
+          setImageSrcMeta(sourceUrls);
           setCroppedImages(Array(previewUrls.length).fill(null));
           setCurrentCropIndex(0);
         } else {
           setImageSrc((prev) => [...prev, ...previewUrls]);
+          setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
           setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
           setCurrentCropIndex(imageSrc.length);
         }
@@ -322,10 +325,12 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     // ← Reset instead of appending if cropper was closed
     if (!showCropper) {
       setImageSrc(urls);
+      setImageSrcMeta(Array(urls.length).fill(null));
       setCroppedImages(Array(urls.length).fill(null));
       setCurrentCropIndex(0);
     } else {
       setImageSrc((prev) => [...prev, ...urls]);
+      setImageSrcMeta((prev) => [...prev, ...Array(urls.length).fill(null)]);
       setCroppedImages((prev) => [...prev, ...Array(urls.length).fill(null)]);
       setCurrentCropIndex(imageSrc.length);
     }
@@ -356,6 +361,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
     const file = new File([blob], `cropped-${currentCropIndex}.png`, { type: "image/png" });
     file.previewUrl = URL.createObjectURL(blob);
+    file.sourceUrl = imageSrcMeta[currentCropIndex] || null;
 
     setCroppedImages((prev) => {
       const updated = [...prev];
@@ -378,6 +384,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     fetch(url).then((r) => r.blob()).then((blob) => {
       const file = new File([blob], `original-${currentCropIndex}.png`, { type: blob.type });
       file.previewUrl = url;
+      file.sourceUrl = imageSrcMeta[currentCropIndex] || null;
       setCroppedImages((prev) => {
         const u = [...prev];
         u[currentCropIndex] = file;
@@ -431,18 +438,18 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
   //   }, 3000);
   // };
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setGenerating(true);
+    setError("");
 
     const validImages = croppedImages.filter(Boolean);
 
     const payload = {
+      creativeType: creative?.id,          // e.g. "ads_creative"
+      categoryType: categoryId,            // e.g. "image"
       brandName: formData.brandName || null,
       description: formData.description || null,
-      brandColor:
-        formData.brandColor ??
-        null,
-
+      brandColor: formData.brandColor ?? null,
       logo: formData.logo || null,
       visualStyle: formData.visualStyle || null,
       font: formData.font || null,
@@ -453,23 +460,24 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       fileFormat: formData.fileFormat || null,
       caption: formData.caption || null,
       hashtags: formData.hashtags || [],
-      backgroundImages: validImages.map((f) => f?.previewUrl).filter(Boolean),
+      backgroundImages: validImages
+        .map((f) => f?.sourceUrl || f?.previewUrl)
+        .filter(Boolean),
       generatedAt: new Date().toISOString(),
     };
 
     console.log("🚀 Generate Payload:", payload);
 
-    setTimeout(() => {
-      const assets = Array.from({ length: 4 }, (_, i) => {
-        const url = payload.backgroundImages[i % Math.max(payload.backgroundImages.length, 1)]
-          || recommendedImages[i]?.large
-          || "/placeholder.png";
-        return { id: `img_${i}`, preview: url, alt: `Generated Image ${i + 1}` };
-      });
+    const result = await generateAdsCreative(payload);
 
-      onResult({ assets, payload });
+    if (!result.ok) {
+      setError(result.message || "Generation failed. Please try again.");
       setGenerating(false);
-    }, 3000);
+      return;
+    }
+
+    onResult({ assets: result.data?.assets || [], payload, raw: result.data });
+    setGenerating(false);
   };
 
   // ── Magic media select toggle ─────────────────────────────────────────────
@@ -890,6 +898,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
         onCancel={() => {
           setShowCropper(false);
           setImageSrc([]);
+          setImageSrcMeta([]);
           setCroppedImages([]);
         }}
         onPrevious={handlePreviousCrop}

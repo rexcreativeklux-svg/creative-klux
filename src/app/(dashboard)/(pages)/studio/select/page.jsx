@@ -13,6 +13,8 @@ const pipelineOptions = [
     studioPath: "/studio?creative=ads_creative",
     color: "#2563eb",
     Icon: Tv2,
+    tags: ["Image Ads", "Video Ads", "Interactive Ads"],
+    extraCount: 1,
     decorative: (
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-4 right-4 w-16 h-10 border-2 border-violet-300/40 rounded-lg" />
@@ -34,6 +36,8 @@ const pipelineOptions = [
     studioPath: "/studio?creative=social_creative",
     color: "#059669",
     Icon: Share2,
+    tags: ["Posts", "Reels / Stories", "Banners / Covers"],
+    extraCount: 2,
     decorative: (
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-5 left-5 w-9 h-9 border-2 border-sky-300/40 rounded-xl" />
@@ -54,6 +58,8 @@ const pipelineOptions = [
     studioPath: "/studio?creative=designer_creative",
     color: "#7c3aed",
     Icon: Palette,
+    tags: ["Logos", "Business Cards", "Banners"],
+    extraCount: 7,
     decorative: (
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-4 right-6 w-10 h-10 border-2 border-amber-300/40 rounded-full" />
@@ -75,11 +81,16 @@ const pipelineOptions = [
     studioPath: "/studio?creative=magic_studio",
     color: "#db2777",
     Icon: Sparkles,
+    tags: ["Text to Image", "Text to Video", "Image Variations"],
+    extraCount: 4,
     decorative: (
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="w-20 h-20 border-2 border-emerald-300/20 rounded-full group-hover:animate-ping" />
-          <div className="absolute w-14 h-14 border border-emerald-300/20 rounded-full group-hover:animate-ping" style={{ animationDelay: "0.4s" }} />
+          <div
+            className="absolute w-14 h-14 border border-emerald-300/20 rounded-full group-hover:animate-ping"
+            style={{ animationDelay: "0.4s" }}
+          />
         </div>
         <svg className="absolute inset-0 w-full h-full">
           <circle cx="20%" cy="25%" r="3" fill="#db2777" opacity="0.2" />
@@ -93,41 +104,54 @@ const pipelineOptions = [
 
 export default function StudioSelectPage() {
   return (
-    <div className="flex flex-col  justify-center min-h-full">
-      <div className="mb-8 ">
-        <div className="font-semibold text-xl text-gray-900">Creative Studio</div>
-        <p className="text-sm text-gray-400 mt-0.5">Choose a creative engine to get started</p>
+    <div className="flex flex-col items-center justify-center min-h-full py-10 px-4">
+      {/* Header */}
+      <div className="text-center mb-8">
+        <h1 className="text-xl font-semibold text-gray-900">
+          What would you like to create?
+        </h1>
+        <p className="text-sm text-gray-400 mt-1">
+          Choose a creative type .
+        </p>
       </div>
 
-      <div className=" grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+      {/* Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full mt-12.5 max-w-2xl">
         {pipelineOptions.map((opt) => {
           const { Icon } = opt;
           return (
             <div
               key={opt.type}
-              className="bg-white rounded-xl border cursor-pointer border-gray-200 py-5 px-5 flex flex-col transition-all duration-200 relative group overflow-hidden"
+              className="bg-white rounded-xl border border-gray-200 py-5 px-5 flex flex-col transition-all duration-200 relative group overflow-hidden cursor-pointer"
               style={{ transition: "box-shadow 0.2s, border-color 0.2s" }}
-              onMouseEnter={e => {
+              onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = opt.color + "60";
                 e.currentTarget.style.boxShadow = `0 4px 20px ${opt.color}18`;
               }}
-              onMouseLeave={e => {
+              onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = "#E5E7EB";
                 e.currentTarget.style.boxShadow = "none";
               }}
             >
-              {/* subtle bg glow on hover */}
+              {/* Subtle bg glow on hover */}
               <div
                 className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                style={{ background: `radial-gradient(ellipse at top right, ${opt.color}0d, transparent 65%)` }}
+                style={{
+                  background: `radial-gradient(ellipse at top right, ${opt.color}0d, transparent 65%)`,
+                }}
               />
 
-              {/* icon area */}
+              {/* Icon area with decorative elements + hover buttons */}
               <div
-                className="w-full h-40 rounded-xl flex items-center justify-center mb-4 relative overflow-hidden transition-all duration-300"
-                style={{ background: `${opt.color}0f`, border: `1px solid ${opt.color}20` }}
+                className="w-full h-28 rounded-xl flex items-center justify-center mb-4 relative overflow-hidden transition-all duration-300"
+                style={{
+                  background: `${opt.color}0f`,
+                  border: `1px solid ${opt.color}20`,
+                }}
               >
                 {opt.decorative}
+
+                {/* Center icon */}
                 <div
                   className="relative z-10 w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition-transform duration-300 group-hover:scale-110"
                   style={{ background: `${opt.color}18` }}
@@ -139,10 +163,12 @@ export default function StudioSelectPage() {
                   />
                 </div>
 
-                {/* overlay buttons — sit on top of the icon area on hover */}
+                {/* Hover overlay buttons */}
                 <div
                   className="absolute inset-0 z-20 flex items-end gap-2 p-3 opacity-0 group-hover:opacity-100 transition-all duration-200"
-                  style={{ background: `linear-gradient(to top, ${opt.color}30 0%, transparent 60%)` }}
+                  style={{
+                    background: `linear-gradient(to top, ${opt.color}30 0%, transparent 60%)`,
+                  }}
                 >
                   <Link
                     href="#"
@@ -152,8 +178,12 @@ export default function StudioSelectPage() {
                       color: opt.color,
                       border: `1px solid ${opt.color}30`,
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,1)"}
-                    onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.85)"}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "rgba(255,255,255,1)")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "rgba(255,255,255,0.85)")
+                    }
                   >
                     <Zap size={11} /> Instant
                   </Link>
@@ -167,14 +197,15 @@ export default function StudioSelectPage() {
                 </div>
               </div>
 
-              {/* text */}
+              {/* Text */}
               <div className="relative z-10 flex-1">
-                <h3 className="text-md font-semibold mb-0.5" style={{ color: "#111827" }}>
+                <h3 className="text-md font-semibold mb-0.5 text-gray-900">
                   {opt.name}
                 </h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{opt.desc}</p>
+                {/* <p className="text-sm text-gray-500 leading-relaxed">{opt.desc}</p> */}
                 <p className="text-[11px] text-gray-400 mt-0.5">{opt.inner}</p>
               </div>
+
             </div>
           );
         })}

@@ -13,6 +13,7 @@ import { useBrand } from "@/context/BrandContext";
 import { makeBrandUrl } from "@/utils/localDb";
 import { useRouter } from "next/navigation";
 import NotificationModal from "@/app/(components)/NotificationModal";
+import Toast from "@/app/(components)/Toast";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const INDUSTRIES = ["Technology", "Healthcare", "Retail", "Finance", "Education", "Hospitality", "Other"];
@@ -40,6 +41,7 @@ const inputCls =
   "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 " +
   "placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 " +
   "focus:border-transparent focus:bg-white transition-all";
+
 
 const Field = ({ label, required, children }) => (
   <div className="flex flex-col gap-1.5">
@@ -170,6 +172,10 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  const [toast, setToast] = useState({ isOpen: false, message: "" });
+  const showToast = (message) => setToast({ isOpen: true, message });
+  const closeToast = () => setToast(p => ({ ...p, isOpen: false }));
+
   const [formData, setFormData] = useState({
     name: "", description: "", tagline: "", fonts: "Inter",
     logo: null, logoDataUrl: null, logoFileName: null,
@@ -177,6 +183,14 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
     socialAccounts: [], adAccounts: [],
     sourceUrl: null, industry: "",
   });
+
+  const [urlError, setUrlError] = useState("");
+
+  const isValidUrl = (val) => {
+    try { new URL(val); return true; }
+    catch { return false; }
+  };
+
 
   const [notification, setNotification] = useState({ isOpen: false, title: "", message: "", type: "info", duration: 3000 });
   const logoRef = useRef();
@@ -187,13 +201,30 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
 
   const set = (key, val) => setFormData(p => ({ ...p, [key]: val }));
 
+  const handleUrlBlur = () => {
+    if (url.trim() && !isValidUrl(url.trim())) {
+      setUrlError("Please enter a valid URL (e.g. https://yourdomain.com)");
+    } else {
+      setUrlError("");
+    }
+  };
+
   // ── import ──────────────────────────────────────────────────────────────────
   const handleImport = async () => {
     if (!url.trim()) return;
+    if (!isValidUrl(url.trim())) {
+      setUrlError("Please enter a valid URL (e.g. https://yourdomain.com)");
+      return;
+    }
+    setUrlError("");
     setImporting(true);
     try {
       const res = await sendUrl(url);
-      const d = res?.data;
+      if (!res?.ok) {
+        showToast(res?.message || "Import failed. Check the URL and try again.");
+        return;
+      }
+      const d = res.data?.data;
       if (d) {
         setFormData(p => ({
           ...p,
@@ -207,8 +238,6 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
           sourceUrl: url,
           industry: d.industry || "",
         }));
-
-        // try to download logo as File in background
         if (d.logo) {
           fetch(`/api/proxy-image?url=${encodeURIComponent(d.logo)}`)
             .then(r => r.blob())
@@ -218,11 +247,13 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
             })
             .catch(() => { });
         }
-
         setStep(1);
       }
-    } catch { notify("Import failed", "Check the URL and try again.", "error"); }
-    finally { setImporting(false); }
+    } catch {
+      showToast("Something went wrong. Please try again.");
+    } finally {
+      setImporting(false);
+    }
   };
 
   const handleLogoChange = (e) => {
@@ -275,17 +306,25 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="py-4">
-      <NotificationModal
-        isOpen={notification.isOpen} onClose={closeNotify}
-        title={notification.title} message={notification.message}
-        type={notification.type} duration={notification.duration}
+      <Toast
+        isOpen={toast.isOpen}
+        message={toast.message}
+        onClose={closeToast}
+        duration={3000}
       />
 
       {/* Page title */}
-      <div className="mb-6">
+      <div className="mb-4">
         {/* <h1 className="text-2xl font-bold text-gray-900">Import Brand</h1> */}
         <p className="text-sm text-gray-500 mt-1">Paste your website URL — we'll auto-extract your brand identity.</p>
       </div>
+
+      {urlError && (
+        <p className="text-xs text-red-500 pb-2 flex items-center gap-1">
+          <span className="inline-block w-1 h-1 rounded-full bg-red-500" />
+          {urlError}
+        </p>
+      )}
 
       {/* URL bar */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3 mb-6">
@@ -293,13 +332,18 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
           <Link className="w-4 h-4 text-blue-600" />
         </div>
         <input
-          type="url" value={url} onChange={e => setUrl(e.target.value)}
+          type="url"
+          value={url}
+          onChange={e => { setUrl(e.target.value); if (urlError) setUrlError(""); }}
+          onBlur={handleUrlBlur}
           onKeyDown={e => e.key === "Enter" && handleImport()}
           placeholder="https://yourdomain.com"
-          className="flex-1 text-sm outline-none placeholder:text-gray-400 text-gray-800 bg-transparent"
+          className={`flex-1 text-sm outline-none placeholder:text-gray-400 text-gray-800 bg-transparent ${urlError ? "text-red-500" : ""
+            }`}
         />
+
         <button
-          onClick={handleImport} disabled={importing || !url.trim()}
+          onClick={handleImport} disabled={importing || !url.trim() || !!urlError}
           className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 shrink-0 cursor-pointer transition"
         >
           {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Upload className="w-4 h-4" /> Import</>}
@@ -354,8 +398,8 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
                   <div key={s.id} className="flex items-center gap-0 flex-1">
                     <div className="flex items-center gap-2">
                       <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all ${step > s.id ? "border-blue-600 bg-blue-600 text-white"
-                          : step === s.id ? "border-blue-600 text-blue-600 bg-white"
-                            : "border-gray-200 text-gray-300 bg-white"
+                        : step === s.id ? "border-blue-600 text-blue-600 bg-white"
+                          : "border-gray-200 text-gray-300 bg-white"
                         }`}>
                         {step > s.id ? <Check className="w-3.5 h-3.5" /> : s.id}
                       </div>

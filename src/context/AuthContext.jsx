@@ -544,41 +544,41 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const sendUrl = async (url) => {
-    if (!url || !token) return;
+const sendUrl = async (url) => {
+  if (!url || !token) return;
 
+  try {
+    const res = await fetch(API_SEND_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ url }),
+    });
+
+    const text = await res.text();
+    let data;
     try {
-      const res = await fetch(API_SEND_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ url }),
-      });
-
-      const text = await res.text();
-
-      let data;
-      try {
-        data = JSON.parse(text);
-        console.log(data)
-      } catch {
-        console.error("Invalid JSON response:", text);
-        return null;
-      }
-
-      if (!res.ok) {
-        console.error("Import failed:", data?.message || "Unknown error");
-        return null;
-      }
-
-      return data;
-    } catch (err) {
-      console.error("Error sending URL:", err.message);
-      return null;
+      data = JSON.parse(text);
+    } catch {
+      console.error("Invalid JSON response:", text);
+      return { ok: false, message: "Invalid server response" };
     }
-  };
+
+    if (!res.ok) {
+      // Extract first validation error if present, else fallback to message
+      const firstError = data?.errors
+        ? Object.values(data.errors)[0]?.[0]
+        : null;
+      return { ok: false, message: firstError || data?.message || "Import failed" };
+    }
+
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, message: err.message || "Network error" };
+  }
+};
 
   const createBrand = async (brandData) => {
     if (!token) {

@@ -1,28 +1,18 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye } from "lucide-react";
+import { ArrowLeft, ChevronRight } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
-// ── creative configs ──────────────────────────────────────────────────────────
 import {
   CREATIVES,
   getCreativeById,
   getCategoryById,
 } from "../../(pages)/studio/creatives";
 
-// ── category forms (image ads for now) ───────────────────────────────────────
 import ImageAdsForm from "./forms/ImageAdsForm.jsx";
-// Stubs for future forms — replace with real imports as you build them
-// import VideoAdsForm from "./forms/VideoAdsForm";
-
-// ── preview ───────────────────────────────────────────────────────────────────
-import AdPreview from "./Adpreview.jsx";
-
-// ── shared components ─────────────────────────────────────────────────────────
-import Toast from "@/app/(components)/Toast.jsx";
-import AdsIntegrationModal from "@/app/(components)/AdsIntegrationModal.jsx";
 import VideoAdsForm from "./forms/VideoAdsForm";
 import PostsForm from "./forms/PostForm";
 import ReelsForm from "./forms/ReelsForm";
@@ -46,21 +36,30 @@ import InfographicForm from "./forms/InfographicForm";
 import PresentationDeckForm from "./forms/PresentationDeckForm";
 import PackagingForm from "./forms/PackagingMockupForm";
 import DigitalBusinessCardForm from "./forms/DigitalBusinessCardForm";
+import AdPreview from "./Adpreview.jsx";
+import Toast from "@/app/(components)/Toast.jsx";
+import AdsIntegrationModal from "@/app/(components)/AdsIntegrationModal.jsx";
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-const StudioPage = () => {
+// ─── inner component that reads search params ─────────────────────────────────
+const StudioInner = () => {
   const { activeBrand, sendUrl } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // ── selection state ──────────────────────────────────────────────────────
-  const [selectedCreative, setSelectedCreative] = useState(CREATIVES[0].id);
+  const creativeParam = searchParams.get("creative") || CREATIVES[0].id;
+
+  // resolve the creative object first so we can read its categories
+  const creative = getCreativeById(creativeParam);
+
+  const [selectedCreative] = useState(creativeParam);
   const [selectedCategory, setSelectedCategory] = useState(
-    CREATIVES[0].categories[0].id
+    creative?.categories[0]?.id || CREATIVES[0].categories[0].id
   );
+  const [step, setStep] = useState("form"); // "form" | "result"
 
-  // ── global shared form data (lifted up so preview always has it) ─────────
   const [formData, setFormData] = useState({
     brandName: activeBrand?.name || "",
+    brandColor: activeBrand?.primary_color || "#2563eb",
     description: activeBrand?.description || "",
     primaryColor: activeBrand?.primary_color || "#2563eb",
     secondaryColor: activeBrand?.secondary_color || "#0ea5e9",
@@ -73,12 +72,10 @@ const StudioPage = () => {
     audience: "",
     fileFormat: "PNG",
     backgroundImage: null,
-    // video / other future fields
     duration: "",
     format: "",
   });
 
-  // ── result / modal state ─────────────────────────────────────────────────
   const [result, setResult] = useState(null);
   const [toast, setToast] = useState({ isOpen: false, message: "" });
   const [isAdsModalOpen, setIsAdsModalOpen] = useState(false);
@@ -88,364 +85,93 @@ const StudioPage = () => {
   const showToast = (msg) => setToast({ isOpen: true, message: msg });
   const closeToast = () => setToast({ isOpen: false, message: "" });
 
-  // ── prefill from activeBrand ──────────────────────────────────────────────
-  useEffect(() => {
-    if (!activeBrand) return;
-    setFormData((prev) => ({
-      ...prev,
-      brandName: activeBrand.name || "",
-      description: activeBrand.description || "",
-      primaryColor: activeBrand.primary_color || "#2563eb",
-      secondaryColor: activeBrand.secondary_color || "#0ea5e9",
-      logo: activeBrand.logo || prev.logo,
-      caption: `Discover ${activeBrand.name || "our brand"}!`,
-    }));
-  }, [activeBrand]);
-
-  // ── when creative changes, reset to first category ───────────────────────
-  const handleCreativeChange = (creativeId) => {
-    setSelectedCreative(creativeId);
-    const creative = getCreativeById(creativeId);
-    setSelectedCategory(creative.categories[0].id);
-    setResult(null);
+  const handleResult = (res) => {
+    setResult(res);
+    setStep("result");
   };
 
-  // ── resolve current creative / category objects ───────────────────────────
-  const creative = getCreativeById(selectedCreative);
+useEffect(() => {
+  if (!activeBrand) return;
+
+  const color = activeBrand.primary_color || "#2563eb";
+
+  setFormData((prev) => ({
+    ...prev,
+    brandName: activeBrand.name || "",
+    description: activeBrand.description || "",
+
+    // ✅ canonical
+    brandColor: color,
+
+    // ⚠️ derived (temporary)
+    primaryColor: color,
+    secondaryColor: activeBrand.secondary_color || prev.secondaryColor,
+
+    logo: activeBrand.logo || prev.logo,
+    caption: `Discover ${activeBrand.name || "our brand"}!`,
+  }));
+}, [activeBrand]);
+
+
   const category = getCategoryById(selectedCreative, selectedCategory);
 
-  // ── render the correct form based on creative + category ─────────────────
+  const handleBack = () => {
+    if (step === "result") {
+      setStep("form");
+      setResult(null);
+    } else {
+      router.push("/studio/select");
+    }
+  };
+
   const renderForm = () => {
+    const commonProps = {
+      categoryId: selectedCategory,
+      category,
+      creative,
+      formData,
+      setFormData,
+      activeBrand,
+      sendUrl,
+      showToast,
+      onResult: handleResult,
+    };
+
     if (selectedCreative === "ads_creative") {
-      if (selectedCategory === "video") {
-        return (
-          <VideoAdsForm
-            categoryId={selectedCategory}
-            category={category}
-            creative={creative}
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            sendUrl={sendUrl}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-      return (
-        <ImageAdsForm
-          categoryId={selectedCategory}
-          category={category}
-          creative={creative}
-          formData={formData}
-          setFormData={setFormData}
-          activeBrand={activeBrand}
-          sendUrl={sendUrl}
-          showToast={showToast}
-          onResult={setResult}
-        />
-      );
+      if (selectedCategory === "video") return <VideoAdsForm {...commonProps} />;
+      return <ImageAdsForm {...commonProps} />;
     }
 
     if (selectedCreative === "social_creative") {
-      if (selectedCategory === "reels") {
-        return (
-          <ReelsForm
-            categoryId={selectedCategory}
-            category={category}
-            creative={creative}
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            sendUrl={sendUrl}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-      if (selectedCategory === "banners_covers") {
-        return (
-          <BannersForm
-            categoryId={selectedCategory}
-            category={category}
-            creative={creative}
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            sendUrl={sendUrl}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-      if (selectedCategory === "thumbnails") {
-        return (
-          <ThumbnailsForm
-            categoryId={selectedCategory}
-            category={category}
-            creative={creative}
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            sendUrl={sendUrl}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-      if (selectedCategory === "memes") {
-        return (
-          <MemesTrendsForm
-            categoryId={selectedCategory}
-            category={category}
-            creative={creative}
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            sendUrl={sendUrl}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-
-
-      // posts (and future: banners_covers, thumbnails, memes)
-      return (
-        <PostsForm
-          categoryId={selectedCategory}
-          category={category}
-          creative={creative}
-          formData={formData}
-          setFormData={setFormData}
-          activeBrand={activeBrand}
-          sendUrl={sendUrl}
-          showToast={showToast}
-          onResult={setResult}
-        />
-      );
+      if (selectedCategory === "reels") return <ReelsForm {...commonProps} />;
+      if (selectedCategory === "banners_covers") return <BannersForm {...commonProps} />;
+      if (selectedCategory === "thumbnails") return <ThumbnailsForm {...commonProps} />;
+      if (selectedCategory === "memes") return <MemesTrendsForm {...commonProps} />;
+      return <PostsForm {...commonProps} />;
     }
 
     if (selectedCreative === "designer_creative") {
-      if (selectedCategory === "logos") {
-        return (
-          <LogoForm
-            categoryId={selectedCategory}
-            category={category}
-            creative={creative}
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            sendUrl={sendUrl}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-      if (selectedCategory === "business_cards") {
-        return <BusinessCardForm
-          categoryId={selectedCategory}
-          category={category}
-          creative={creative}
-          formData={formData}
-          setFormData={setFormData}
-          activeBrand={activeBrand}
-          sendUrl={sendUrl}
-          showToast={showToast}
-          onResult={setResult} />;
-      }
-
-      if (selectedCategory === "banners_print") {
-        return <BannersPrintDigitalForm categoryId={selectedCategory}
-          category={category}
-          creative={creative}
-          formData={formData}
-          setFormData={setFormData}
-          activeBrand={activeBrand}
-          sendUrl={sendUrl}
-          showToast={showToast}
-          onResult={setResult} />;
-      }
-
-      if (selectedCategory === "flyers") {
-        return <FlyerForm categoryId={selectedCategory}
-          category={category}
-          creative={creative}
-          formData={formData}
-          setFormData={setFormData}
-          activeBrand={activeBrand}
-          sendUrl={sendUrl}
-          showToast={showToast}
-          onResult={setResult} />;
-      }
-
-      if (selectedCategory === "brochures") {
-        return <BrochuresForm categoryId={selectedCategory}
-          category={category}
-          creative={creative}
-          formData={formData}
-          setFormData={setFormData}
-          activeBrand={activeBrand}
-          sendUrl={sendUrl}
-          showToast={showToast}
-          onResult={setResult} />;
-      }
-
-      if (selectedCategory === "posters") {
-        return <PosterForm categoryId={selectedCategory}
-          category={category}
-          creative={creative}
-          formData={formData}
-          setFormData={setFormData}
-          activeBrand={activeBrand}
-          sendUrl={sendUrl}
-          showToast={showToast}
-          onResult={setResult} />;
-      }
-
-      if (selectedCategory === "infographics") {
-        return <InfographicForm categoryId={selectedCategory}
-          category={category}
-          creative={creative}
-          formData={formData}
-          setFormData={setFormData}
-          activeBrand={activeBrand}
-          sendUrl={sendUrl}
-          showToast={showToast}
-          onResult={setResult} />;
-      }
-
-      if (selectedCategory === "presentation_decks") {
-        return <PresentationDeckForm categoryId={selectedCategory}
-          category={category}
-          creative={creative}
-          formData={formData}
-          setFormData={setFormData}
-          activeBrand={activeBrand}
-          sendUrl={sendUrl}
-          showToast={showToast}
-          onResult={setResult} />;
-      }
-
-      if (selectedCategory === "packaging") {
-        return (
-          <PackagingForm
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            sendUrl={sendUrl}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-      if (selectedCategory === "digital_biz_cards") {
-        return (
-          <DigitalBusinessCardForm
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            sendUrl={sendUrl}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
+      if (selectedCategory === "logos") return <LogoForm {...commonProps} />;
+      if (selectedCategory === "business_cards") return <BusinessCardForm {...commonProps} />;
+      if (selectedCategory === "banners_print") return <BannersPrintDigitalForm {...commonProps} />;
+      if (selectedCategory === "flyers") return <FlyerForm {...commonProps} />;
+      if (selectedCategory === "brochures") return <BrochuresForm {...commonProps} />;
+      if (selectedCategory === "posters") return <PosterForm {...commonProps} />;
+      if (selectedCategory === "infographics") return <InfographicForm {...commonProps} />;
+      if (selectedCategory === "presentation_decks") return <PresentationDeckForm {...commonProps} />;
+      if (selectedCategory === "packaging") return <PackagingForm {...commonProps} />;
+      if (selectedCategory === "digital_biz_cards") return <DigitalBusinessCardForm {...commonProps} />;
       return <ComingSoon creative={creative} category={category} />;
     }
 
     if (selectedCreative === "magic_studio") {
-      if (selectedCategory === "text_to_image") {
-        return (
-          <TextToImageForm
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-      if (selectedCategory === "text_to_video") {
-        return (
-          <TextToVideoForm
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-      if (selectedCategory === "image_to_variations") {
-        return (
-          <ImageToVariationsForm
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-      if (selectedCategory === "script_to_voiceover") {
-        return (
-          <ScriptToVoiceoverForm
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-      if (selectedCategory === "audio_to_text") {
-        return (
-          <AudioToTextForm
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-      if (selectedCategory === "persona_generator") {
-        return (
-          <PersonaBasedGeneratorForm
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
-      if (selectedCategory === "text_to_audio") {
-        return (
-          <TextToAudioForm
-            formData={formData}
-            setFormData={setFormData}
-            activeBrand={activeBrand}
-            showToast={showToast}
-            onResult={setResult}
-          />
-        );
-      }
-
+      if (selectedCategory === "text_to_image") return <TextToImageForm {...commonProps} />;
+      if (selectedCategory === "text_to_video") return <TextToVideoForm {...commonProps} />;
+      if (selectedCategory === "image_to_variations") return <ImageToVariationsForm {...commonProps} />;
+      if (selectedCategory === "script_to_voiceover") return <ScriptToVoiceoverForm {...commonProps} />;
+      if (selectedCategory === "audio_to_text") return <AudioToTextForm {...commonProps} />;
+      if (selectedCategory === "persona_generator") return <PersonaBasedGeneratorForm {...commonProps} />;
+      if (selectedCategory === "text_to_audio") return <TextToAudioForm {...commonProps} />;
       return <ComingSoon creative={creative} category={category} />;
     }
 
@@ -453,71 +179,119 @@ const StudioPage = () => {
   };
 
   return (
-    <div className="flex flex-col overflow-hidden"
-      style={{ height: '100%', fontFamily: "'DM Sans', sans-serif" }}>
-
+    <div
+      className="flex flex-col overflow-hidden"
+      style={{ height: "100%", fontFamily: "'DM Sans', sans-serif" }}
+    >
       <Toast isOpen={toast.isOpen} message={toast.message} onClose={closeToast} duration={2000} />
+
+      {/* ── header ── */}
+      <div className="flex items-center gap-2 mb-5 shrink-0">
+        <button
+          onClick={handleBack}
+          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition-colors cursor-pointer group"
+        >
+          <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
+          {step === "result" ? "Back to form" : "Back"}
+        </button>
+
+        {/* breadcrumb */}
+        <div className="flex items-center gap-1.5 text-sm text-gray-400">
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span
+            className="font-medium transition-colors"
+            style={{ color: creative?.color }}
+          >
+            {creative?.label}
+          </span>
+          {category && (
+            <>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span className="text-gray-500">{category.label}</span>
+            </>
+          )}
+          {step === "result" && (
+            <>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span className="text-gray-500">Results</span>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* ── page header ────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Creative Studio</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Choose a creative engine to get started.
+          <p className="text-sm text-gray-400 mt-0.5">Select a category to get started.
           </p>
         </div>
       </div>
 
-      {/* ── main layout ────────────────────────────────────────────────────── */}
-      <div className="flex flex-1 gap-6 px-1 pb-6 min-h-0 overflow-hidden">
+      {/* ── steps ── */}
+      <AnimatePresence mode="wait">
 
-        {/* ══ LEFT PANEL (scrollable) ══════════════════════════════════════ */}
-        <div
-          className="flex flex-1 flex-col gap-4 overflow-y-auto hide-scrollbar pr-1 min-h-0  "
-        >
-          {/* Creative type radio cards */}
-          <CreativeSelector
-            creatives={CREATIVES}
-            selected={selectedCreative}
-            onChange={handleCreativeChange}
-          />
+        {/* ── FORM STEP ── */}
+        {step === "form" && (
+          <motion.div
+            key="form"
+            initial={{ opacity: 0, x: -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={{ duration: 0.18 }}
+            className="flex flex-1 flex-col gap-4 overflow-y-auto hide-scrollbar pr-1 min-h-0"
+          >
+            {/* Category pills */}
+            <CategorySelector
+              creative={creative}
+              selected={selectedCategory}
+              onChange={(cat) => {
+                setSelectedCategory(cat);
+                setResult(null);
+              }}
+            />
 
-          {/* Category pills */}
-          <CategorySelector
-            creative={creative}
-            selected={selectedCategory}
-            onChange={setSelectedCategory}
-          />
+            {/* Form */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`${selectedCreative}-${selectedCategory}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
+              >
+                {renderForm()}
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
+        )}
 
-          {/* Form area */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`${selectedCreative}-${selectedCategory}`}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.18 }}
-            >
-              {renderForm()}
-            </motion.div>
-          </AnimatePresence>
-        </div>
+        {/* ── RESULT STEP ── */}
+        {step === "result" && (
+          <motion.div
+            key="result"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 16 }}
+            transition={{ duration: 0.18 }}
+            className="flex flex-1 overflow-y-auto hide-scrollbar min-h-0"
+          >
+            <AdPreview
+              creative={creative}
+              category={category}
+              formData={formData}
+              result={result}
+              onBack={() => { setStep("form"); setResult(null); }}
+              onOpenModal={(type, assets) => {
+                setActionType(type);
+                setCurrentAssets(assets);
+                setIsAdsModalOpen(true);
+              }}
+            />
+          </motion.div>
+        )}
 
-        {/* ══ RIGHT PANEL (sticky, non-scrollable) ═══════════════════════ */}
-        <div className="flex-1 overflow-y-auto hide-scrollbar">
-          <AdPreview
-            creative={creative}
-            category={category}
-            formData={formData}
-            result={result}
-            onBack={() => setResult(null)}
-            onOpenModal={(type, assets) => {
-              setActionType(type);
-              setCurrentAssets(assets);
-              setIsAdsModalOpen(true);
-            }}
-          />
-        </div>
-      </div>
+      </AnimatePresence>
 
       {isAdsModalOpen && (
         <AdsIntegrationModal
@@ -531,109 +305,9 @@ const StudioPage = () => {
   );
 };
 
-// ─── CreativeSelector ─────────────────────────────────────────────────────────
-const CreativeSelector = ({ creatives, selected, onChange }) => (
-  <div className="  backdrop-blur  py- px-0  shrink-0">
-    <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-widest mb-2">
-      What do you want to create today?
-
-    </p>
-
-    <div className="grid grid-cols-4 gap-2">
-      {creatives.map((c) => {
-        const Icon = c.icon;
-        const active = selected === c.id;
-
-        return (
-          <button
-            key={c.id}
-            onClick={() => onChange(c.id)}
-            className={`relative group cursor-pointer flex items-start gap-2 px-2 py-3 rounded-xl border transition-all duration-300 text-left overflow-hidden
-              ${active
-                ? ""
-                : "hover:scale-[1.02]"
-              }
-            `}
-            style={{
-              borderColor: active ? c.color : "#E5E7EB",
-              background: active
-                ? `linear-gradient(135deg, ${c.color}15, ${c.color}05)`
-                : "#ffffff",
-            }}
-          >
-            {/* subtle glow */}
-            <div
-              className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-300`}
-              style={{
-                background: `radial-gradient(circle at top right, ${c.color}15, transparent 60%)`,
-              }}
-            />
-
-            {/* icon */}
-            <div
-              className="relative shrink-0 w-5 h-5 rounded-xl flex items-center justify-center shadow-sm"
-              style={{
-                background: active
-                  ? `linear-gradient(135deg, ${c.color}, ${c.color}cc)`
-                  : `${c.color}12`,
-              }}
-            >
-              <Icon
-                className="w-2 h-2"
-                style={{ color: active ? "#fff" : c.color }}
-              />
-            </div>
-
-            {/* text */}
-            <div className="min-w-0 relative z-10">
-              <p
-                className="text-sm font-semibold truncate"
-                style={{ color: active ? c.color : "#111827" }}
-              >
-                {c.label}
-              </p>
-              <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
-                {c.desc}
-               
-              </p>
-               <p className="text-[9px] text-gray-400">{c.inner}</p>
-            </div>
-
-            {/* check indicator */}
-            {active && (
-              <div className="absolute top-1 right-1  flex items-center justify-center"
-
-              >
-                <svg
-                  className="w-3 h-3 text-black"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={3}
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-            )}
-
-            {/* bottom accent line */}
-            <div
-              className="absolute bottom-0 left-0 h-[2px] w-0 group-hover:w-full transition-all duration-300"
-              style={{ background: c.color }}
-            />
-          </button>
-        );
-      })}
-    </div>
-  </div>
-);
-
 // ─── CategorySelector ─────────────────────────────────────────────────────────
 const CategorySelector = ({ creative, selected, onChange }) => (
-  <div
-    className="rounded-lg px-0  shrink-0"
-    style={{ borderColor: `${creative.color}20` }}
-  >
+  <div className="shrink-0">
     <p
       className="text-[10px] font-semibold uppercase tracking-widest mb-3"
       style={{ color: creative.color }}
@@ -647,7 +321,7 @@ const CategorySelector = ({ creative, selected, onChange }) => (
           <button
             key={cat.id}
             onClick={() => onChange(cat.id)}
-            className="flex items-center gap-1.5 px-3 py-1.5 hover:scale-105 cursor-pointer rounded-md border text-xs font-medium transition-all duration-200"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-all duration-200 hover:scale-105"
             style={{
               borderColor: active ? creative.color : `${creative.color}30`,
               background: active ? creative.color : "white",
@@ -662,7 +336,7 @@ const CategorySelector = ({ creative, selected, onChange }) => (
   </div>
 );
 
-// ─── ComingSoon stub ──────────────────────────────────────────────────────────
+// ─── ComingSoon ───────────────────────────────────────────────────────────────
 const ComingSoon = ({ creative, category }) => (
   <div
     className="rounded-2xl border-2 border-dashed p-12 flex flex-col items-center gap-3 text-center"
@@ -679,6 +353,11 @@ const ComingSoon = ({ creative, category }) => (
   </div>
 );
 
-
-export default StudioPage;
-
+// ─── page export (wrapped in Suspense for useSearchParams) ────────────────────
+export default function StudioPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-gray-400">Loading…</div>}>
+      <StudioInner />
+    </Suspense>
+  );
+}

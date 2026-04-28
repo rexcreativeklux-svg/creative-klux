@@ -311,7 +311,7 @@ export default function CreativesPage() {
                     <h1 className="text-xl font-bold text-gray-900 tracking-tight">My Creations</h1>
                 </div>
                 <Link
-                    href="/studio"
+                    href="/studio/select"
                     className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200 shadow-sm shadow-blue-200"
                 >
                     <Plus className="w-4 h-4" /> New Creation

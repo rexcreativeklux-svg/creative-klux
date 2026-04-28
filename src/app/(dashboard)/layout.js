@@ -77,8 +77,8 @@ export default function DashboardLayout({ children }) {
                         toggleSidebar={toggleSidebar}
                         setShowModal={setShowModal}
                     />
-                    <div className="flex-1  overflow-y-auto">
-                        <div className="px-9 pt-24 bg-[#f7f8fc]  h-full">
+                    <div className="flex-1 bg-[#f7f8fc]  h-full overflow-y-auto">
+                        <div className="px-9 pt-24 ">
                             {children || <Overview />}
                         </div>
                     </div>

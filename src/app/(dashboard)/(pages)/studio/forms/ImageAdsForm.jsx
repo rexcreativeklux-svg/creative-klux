@@ -175,12 +175,27 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
   }, [currentCropIndex]);
 
   // ── field helper ──────────────────────────────────────────────────────────
-  const field = (key, value) => {
-    if (key === "primaryColor" || key === "secondaryColor")
-      value = value.startsWith("#") ? value : `#${value}`;
-    setFormData((p) => ({ ...p, [key]: value }));
-    setError("");
-  };
+ const field = (key, value) => {
+  if (key === "brandColor") {
+    value = value.startsWith("#") ? value : `#${value}`;
+  }
+
+  setFormData((prev) => ({
+    ...prev,
+
+    // ✅ always update canonical
+    [key]: value,
+
+    // ⚠️ keep legacy fields synced (temporary)
+    ...(key === "brandColor" && {
+      primaryColor: value,
+    }),
+  }));
+
+  setError("");
+};
+
+
 
   // ── URL import ────────────────────────────────────────────────────────────
   const handleImportBrand = async () => {
@@ -193,7 +208,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       setFormData((p) => ({
         ...p,
         brandName: d.name || "", description: d.description || "",
-        primaryColor: d.primary_color || "#2563eb", secondaryColor: d.secondary_color || "#0ea5e9",
+        primaryColor: d.primary_color, secondaryColor: d.secondary_color || "#0ea5e9",
         font: d.font || "Montserrat", caption: `Discover ${d.name}!`,
         hashtags: ["#ImageAd", "#Brand"], logo: d.logo || "",
         importedImages: d.images?.map((i) => i.url).filter(Boolean) || [],
@@ -402,16 +417,57 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
   };
 
   // ── Generate ──────────────────────────────────────────────────────────────
+  // const handleGenerate = () => {
+  //   setGenerating(true);
+  //   setTimeout(() => {
+  //     const valid = croppedImages.filter(Boolean);
+  //     const assets = Array.from({ length: 4 }, (_, i) => {
+  //       const src = valid[i % Math.max(valid.length, 1)];
+  //       const url = src?.previewUrl || recommendedImages[i]?.large || "/placeholder.png";
+  //       return { id: `img_${i}`, preview: url, alt: `Generated Image ${i + 1}` };
+  //     });
+  //     onResult({ assets });
+  //     setGenerating(false);
+  //   }, 3000);
+  // };
+
   const handleGenerate = () => {
     setGenerating(true);
+
+    const validImages = croppedImages.filter(Boolean);
+
+    const payload = {
+      brandName: formData.brandName || null,
+      description: formData.description || null,
+      brandColor:
+        formData.brandColor ??
+        null,
+
+      logo: formData.logo || null,
+      visualStyle: formData.visualStyle || null,
+      font: formData.font || null,
+      sourceUrl: brandUrl || null,
+      size: formData.size || null,
+      campaignGoal: formData.campaignGoal || null,
+      audience: formData.audience || null,
+      fileFormat: formData.fileFormat || null,
+      caption: formData.caption || null,
+      hashtags: formData.hashtags || [],
+      backgroundImages: validImages.map((f) => f?.previewUrl).filter(Boolean),
+      generatedAt: new Date().toISOString(),
+    };
+
+    console.log("🚀 Generate Payload:", payload);
+
     setTimeout(() => {
-      const valid = croppedImages.filter(Boolean);
       const assets = Array.from({ length: 4 }, (_, i) => {
-        const src = valid[i % Math.max(valid.length, 1)];
-        const url = src?.previewUrl || recommendedImages[i]?.large || "/placeholder.png";
+        const url = payload.backgroundImages[i % Math.max(payload.backgroundImages.length, 1)]
+          || recommendedImages[i]?.large
+          || "/placeholder.png";
         return { id: `img_${i}`, preview: url, alt: `Generated Image ${i + 1}` };
       });
-      onResult({ assets });
+
+      onResult({ assets, payload });
       setGenerating(false);
     }, 3000);
   };
@@ -561,8 +617,8 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
                         key={hex}
                         onClick={() => field("brandColor", hex)}
                         className={`w-7 h-7 rounded-md cursor-pointer border-2 transition-transform hover:scale-110 ${formData.brandColor === hex
-                            ? "border-gray-800 scale-110"
-                            : "border-transparent"
+                          ? "border-gray-800 scale-110"
+                          : "border-transparent"
                           }`}
                         style={{ background: hex }}
                         title={hex}
@@ -574,11 +630,11 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
                   <div className="flex items-center gap-2 flex-none">
                     <label
                       className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer overflow-hidden shrink-0 transition hover:scale-105"
-                      style={{ background: formData.brandColor || "#2563eb" }}
+                      style={{ background: formData.brandColor }}
                     >
                       <input
                         type="color"
-                        value={formData.brandColor || "#2563eb"}
+                        value={formData.brandColor}
                         onChange={(e) => field("brandColor", e.target.value)}
                         className="opacity-0 w-full h-full cursor-pointer"
                       />
@@ -586,7 +642,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
 
                     <input
                       type="text"
-                      value={formData.brandColor || "#2563eb"}
+                      value={formData.brandColor}
                       onChange={(e) =>
                         /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) &&
                         field("brandColor", e.target.value)

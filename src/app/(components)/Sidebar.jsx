@@ -22,6 +22,12 @@ import {
   CreditCard,
   LayoutDashboard,
   Calendar,
+  BarChart3,
+  Activity,
+  Brain,
+  ShieldCheck,
+  Radar,
+  TrendingUpDownIcon,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -114,6 +120,26 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       children: [
         { label: "Created Socials", href: "/social-socials", icon: Share2 },
         { label: "Social Planner", href: "/social-planner", icon: Calendar },
+      ],
+    },
+    {
+      id: "analyze",
+      label: "Analyze",
+      icon: BarChart3,
+      type: "dropdown",
+      children: [
+        { label: "Brand Pulse", href: "/brandPulse", icon: Activity },
+        { label: "Creative IQ", href: "/creativeIQ", icon: Brain },
+      ],
+    },
+      {
+      id: "predict",
+      label: "Predict",
+      icon: TrendingUp,
+      type: "dropdown",
+      children: [
+        { label: "AdGuard", href: "/adGuard", icon: ShieldCheck },
+        { label: "Rival Lens", href: "/rivalLens", icon: Radar },
       ],
     },
     {

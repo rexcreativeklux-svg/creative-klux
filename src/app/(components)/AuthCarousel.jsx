@@ -3,19 +3,19 @@ import React, { useState, useEffect } from "react";
 
 const slides = [
     {
-        image: "/medi.png",
+        image: "/ads-creative-image.png",
         tagline: "Data-driven ad creatives that speak louder than words.",
     },
     {
-        image: "/medi.png",
+        image: "/designer-image.png",
         tagline: "Your brand deserves designs that convert, not just look pretty.",
     },
     {
-        image: "/medi.png",
+        image: "/social-creatives-image.webp",
         tagline: "Smart creatives for smarter campaigns.",
     },
     {
-        image: "/medi.png",
+        image: "/magic-studio-image.webp",
         tagline: "From idea to impact — scale ads with confidence.",
     },
 ];

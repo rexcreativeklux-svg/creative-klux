@@ -10,12 +10,19 @@ import ProtectedRoute from "../(components)/ProtectedRoutes";
 import Sidebar from "../(components)/Sidebar";
 import '../globals.css';
 
+const NO_PADDING_ROUTES = [
+    "/studio/ai-select",
+    "/studio/ai-chat-page"
+];
+
 export default function DashboardLayout({ children }) {
     const router = useRouter();
     const pathname = usePathname();
     const { brands, activeBrand, setActiveBrand, brandsLoading } = useAuth();
     const [showModal, setShowModal] = useState(false);
     const [isPending, startTransition] = useTransition();
+
+    const noPadding = NO_PADDING_ROUTES.some(route => pathname.startsWith(route));
 
     // Sidebar open/collapsed state — persisted in localStorage
     const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -77,8 +84,8 @@ export default function DashboardLayout({ children }) {
                         toggleSidebar={toggleSidebar}
                         setShowModal={setShowModal}
                     />
-                    <div className="flex-1 bg-[#f7f8fc]  h-full overflow-y-auto">
-                        <div className="px-9 pt-24 ">
+                    <div className="flex-1 bg-[#f7f8fc] h-full overflow-y-auto">
+                        <div className={`h-full ${noPadding ? "" : "px-9 pt-24"}`}>
                             {children || <Overview />}
                         </div>
                     </div>

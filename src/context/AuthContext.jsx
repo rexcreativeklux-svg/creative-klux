@@ -1379,7 +1379,7 @@ export function AuthProvider({ children }) {
       return { ok: false, message: "Not authenticated" };
     }
 
-    const url = `${BASE_URL}/generation`;
+    const url = `${BASE_URL}/creatives/custom-creative`;
 
     const generation_data = {
       creative_type: creativeType,       // e.g. "ads_creative"

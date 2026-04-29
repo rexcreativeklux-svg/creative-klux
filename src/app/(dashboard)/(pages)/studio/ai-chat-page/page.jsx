@@ -8,41 +8,45 @@ import AiChatMessage from "./aiChatMessage";
 import AiChatInput from "./aiChatInput";
 import AiChatTypingIndicator from "./aiChatTypingIndicator";
 
-// ── Creative config (no hardcoded colors anymore) ──
 const CREATIVE_CONFIG = {
   ads_creative: {
     label: "Ads Creative",
     icon: Tv2,
-    greeting:
-      "Hi! I'm your **Ads Creative** assistant 👋\n\nTell me about the ad you want to create...",
+    color: "#60a5fa",
+    colorRgb: "96,165,250",
+    greeting: "Hi! I'm your **Ads Creative** assistant 👋\n\nTell me about the ad you want to create — platform, audience, product — and I'll craft something that converts.",
     placeholder: "e.g. Create a Meta ad for my skincare brand...",
   },
   social_creative: {
     label: "Social Creative",
     icon: Share2,
-    greeting:
-      "Hey! I'm your **Social Creative** assistant ✨\n\nWhat kind of social content...",
+    color: "#34d399",
+    colorRgb: "52,211,153",
+    greeting: "Hey! I'm your **Social Creative** assistant ✨\n\nWhat kind of social content are we making today?",
     placeholder: "e.g. Design an Instagram carousel...",
   },
   designer_creative: {
-    label: "Designer Creative",
+    label: "Designer",
     icon: Palette,
-    greeting:
-      "Hello! I'm your **Designer Creative** assistant 🎨\n\nWhat are we designing today?",
+    color: "#c084fc",
+    colorRgb: "192,132,252",
+    greeting: "Hello! I'm your **Designer** assistant 🎨\n\nWhat are we designing today? Tell me the vibe, purpose, or brand.",
     placeholder: "e.g. Design a minimalist logo...",
   },
   magic_studio: {
     label: "Magic Studio",
     icon: Wand2,
-    greeting:
-      "Welcome to **Magic Studio** ✨\n\nWhat would you like to create today?",
-    placeholder: "e.g. Generate a futuristic city...",
+    color: "#fb7185",
+    colorRgb: "251,113,133",
+    greeting: "Welcome to **Magic Studio** ✨\n\nWhat would you like to generate today? Images, video, audio — just describe your vision.",
+    placeholder: "e.g. Generate a futuristic city at dusk...",
   },
   general: {
     label: "Creative Studio",
     icon: Sparkles,
-    greeting:
-      "Hi! I'm **CreativeKlux AI** 🚀\n\nWhat would you like to make today?",
+    color: "#c084fc",
+    colorRgb: "192,132,252",
+    greeting: "Hi! I'm **CreativeKlux AI** 🚀\n\nWhat would you like to make today?",
     placeholder: "Describe what you'd like to create...",
   },
 };
@@ -60,12 +64,10 @@ export default function AiCreativeChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // auto scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
-  // greeting
   useEffect(() => {
     setMessages([
       {
@@ -77,34 +79,18 @@ export default function AiCreativeChatPage() {
   }, [creativeType]);
 
   const handleSend = async (content) => {
-    const userMessage = {
-      role: "user",
-      content,
-      timestamp: new Date().toISOString(),
-    };
-
+    const userMessage = { role: "user", content, timestamp: new Date().toISOString() };
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
     try {
-      const history = messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      const result = await creativeAiChat({
-        message: content,
-        creativeType,
-        history,
-      });
-
+      const history = messages.map((m) => ({ role: m.role, content: m.content }));
+      const result = await creativeAiChat({ message: content, creativeType, history });
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: result.ok
-            ? result.reply
-            : result.message || "Something went wrong.",
+          content: result.ok ? result.reply : result.message || "Something went wrong.",
           image_url: result.data?.image_url || null,
           timestamp: new Date().toISOString(),
         },
@@ -112,11 +98,7 @@ export default function AiCreativeChatPage() {
     } catch {
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: "Oops! Something went wrong.",
-          timestamp: new Date().toISOString(),
-        },
+        { role: "assistant", content: "Oops! Something went wrong.", timestamp: new Date().toISOString() },
       ]);
     } finally {
       setIsLoading(false);
@@ -124,57 +106,94 @@ export default function AiCreativeChatPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-transparent">
-      
-      {/* ── Header ── */}
-      <header className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
+    <div className="pt-20 h-full"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        background: "#010b1a",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      {/* Ambient background glows */}
+      <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0 }}>
+        <div style={{ position: "absolute", top: "-10%", left: "10%", width: "45vw", height: "45vw", borderRadius: "50%", background: `radial-gradient(circle, rgba(${config.colorRgb},0.08) 0%, transparent 70%)` }} />
+        <div style={{ position: "absolute", bottom: "5%", right: "5%", width: "35vw", height: "35vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(192,132,252,0.06) 0%, transparent 70%)" }} />
+      </div>
 
+      {/* ── Header ── */}
+      <header className="px-8"
+        style={{
+          position: "relative",
+          zIndex: 10,
+          height: 60,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          borderBottom: "1px solid rgba(255,255,255,0.07)",
+          background: "rgba(1,11,26,0.85)",
+          backdropFilter: "blur(16px)",
+          flexShrink: 0,
+        }}
+      >
         <button
           onClick={() => router.back()}
-          className="w-8 h-8 rounded-lg flex items-center justify-center 
-          text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+          style={{ width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.55)", cursor: "pointer", transition: "all 0.15s", flexShrink: 0 }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.09)"; e.currentTarget.style.color = "#fff"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "rgba(255,255,255,0.55)"; }}
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft style={{ width: 15, height: 15 }} />
         </button>
 
-        <div className="flex-1">
-          <h1 className="text-sm font-semibold text-gray-900">
-            {config.label}
-          </h1>
-          <p className="text-[11px] text-gray-400">
-            Powered by CreativeKlux AI
-          </p>
+        {/* Icon */}
+        <div style={{ width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: `rgba(${config.colorRgb},0.15)`, border: `1px solid rgba(${config.colorRgb},0.3)`, flexShrink: 0 }}>
+          <Icon style={{ width: 16, height: 16, color: config.color }} strokeWidth={1.75} />
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[11px] text-gray-400">Online</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: 0, letterSpacing: "-0.01em" }}>{config.label}</p>
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: 0 }}>Powered by CreativeKlux AI</p>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#34d399", boxShadow: "0 0 8px rgba(52,211,153,0.7)", display: "inline-block" }} />
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Online</span>
         </div>
       </header>
 
       {/* ── Messages ── */}
-      <main className="flex-1 overflow-y-auto py-6">
-        <div className=" space-y-5">
+      <main
+        style={{
+          position: "relative",
+          zIndex: 1,
+          flex: 1,
+          overflowY: "auto",
+          padding: "24px 16px",
+          scrollbarWidth: "thin",
+          scrollbarColor: "rgba(255,255,255,0.1) transparent",
+        }}
+      >
+        <div style={{ maxWidth: 760, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
           {messages.map((msg, i) => (
-            <AiChatMessage key={i} message={msg} accentColor="primary" />
+            <AiChatMessage key={i} message={msg} config={config} />
           ))}
-
-          {isLoading && <AiChatTypingIndicator />}
-
+          {isLoading && <AiChatTypingIndicator config={config} />}
           <div ref={messagesEndRef} />
         </div>
       </main>
 
-      {/* ── Sticky Input ── */}
-      <div className="sticky bottom-0 z-10 
-        bg-white/90 backdrop-blur border-t border-gray-200">
-
-        <div className="max-w-3xl mx-auto px-4 py-3">
-          <AiChatInput
-            onSend={handleSend}
-            isLoading={isLoading}
-            placeholder={config.placeholder}
-          />
+      {/* ── Input ── */}
+      <div
+        style={{
+          position: "sticky",
+          bottom: 0,
+          zIndex: 10,
+          background: "linear-gradient(to top, #010b1a 60%, transparent)",
+          padding: "16px 16px 24px",
+        }}
+      >
+        <div style={{ maxWidth: 760, margin: "0 auto" }}>
+          <AiChatInput onSend={handleSend} isLoading={isLoading} placeholder={config.placeholder} config={config} />
         </div>
       </div>
     </div>

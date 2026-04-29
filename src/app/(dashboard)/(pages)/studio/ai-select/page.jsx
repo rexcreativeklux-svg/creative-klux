@@ -224,20 +224,20 @@ export default function StudioSelectPage() {
     if (selectedType) setTimeout(() => inputRef.current?.focus(), 50);
   }, [selectedType]);
 
-  const navigateToChat = (type, message = "") => {
+  const navigateToChat = (type = "general", message = "") => {
     const params = new URLSearchParams({ creative: type });
-    if (message.trim()) params.set("initialMessage", message.trim());
+
+    if (message.trim()) {
+      params.set("initialMessage", message.trim());
+    }
+
     router.push(`/studio/ai-chat-page?${params.toString()}`);
   };
 
   const handleCardClick = (type) => {
-    if (selectedType === type) {
-      navigateToChat(type, inputValue);
-    } else {
-      setSelectedType(type);
-      setInputValue("");
-    }
+    navigateToChat(type, inputValue);
   };
+
 
   const handleInputKeyDown = (e) => {
     if (e.key === "Enter" && selectedType) { e.preventDefault(); navigateToChat(selectedType, inputValue); }
@@ -245,15 +245,15 @@ export default function StudioSelectPage() {
   };
 
   return (
-    <div className="h-full" style={{  background: "#010b1a", position: "relative", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <div className="h-full" style={{ background: "#010b1a", position: "relative", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <SpaceCanvas />
 
-      <div className="pt-[15%]" style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", alignItems: "center",}}>
+      <div className="pt-[10%]" style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", alignItems: "center", }}>
 
         {/* Badge */}
         <div style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "rgba(192,132,252,0.1)", border: "1px solid rgba(192,132,252,0.3)", color: "rgba(255,255,255,0.72)", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", padding: "6px 16px", borderRadius: 999, marginBottom: 24, textTransform: "uppercase" }}>
           <Sparkles style={{ width: 12, height: 12, color: "#c084fc" }} />
-          Creative Klux AI Studio
+          Creative Klux AI
         </div>
 
         {/* Headline */}
@@ -266,11 +266,18 @@ export default function StudioSelectPage() {
         </h1>
 
         <p className="text-gray-400" style={{ fontSize: 14, textAlign: "center", margin: "0 0 52px", letterSpacing: "0.01em" }}>
-          Pick a studio · describe your vision · let AI do the rest
+          Select a creative or describe your vision · let AI do the rest
         </p>
 
         {/* Cards */}
-        <div className="pt-10" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14, width: "100%", maxWidth: 940 }}>
+        <div className="pt-10" style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: 10,
+          width: "100%",
+          maxWidth: 940
+        }}
+        >
           {PIPELINE_OPTIONS.map((opt) => {
             const { Icon } = opt;
             const isSel = selectedType === opt.type;
@@ -278,7 +285,7 @@ export default function StudioSelectPage() {
             const lit = isSel || isHov;
 
             return (
-              <button
+              <button className="px-4 py-4 rounded-xl"
                 key={opt.type}
                 onClick={() => handleCardClick(opt.type)}
                 onMouseEnter={() => setHovered(opt.type)}
@@ -286,11 +293,9 @@ export default function StudioSelectPage() {
                 style={{
                   position: "relative",
                   display: "flex",
-                  flexDirection: "column",
+                  flexDirection: "row",
                   alignItems: "flex-start",
                   textAlign: "left",
-                  padding: "22px 20px 20px",
-                  borderRadius: 20,
                   border: `1.5px solid ${isSel ? opt.borderActive : isHov ? `rgba(${opt.colorRgb},0.5)` : opt.borderIdle}`,
                   background: lit ? opt.cardBg : "rgba(255,255,255,0.045)",
                   backdropFilter: "blur(20px)",
@@ -300,8 +305,8 @@ export default function StudioSelectPage() {
                   boxShadow: isSel
                     ? `0 0 48px rgba(${opt.colorRgb},0.28), 0 12px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.12)`
                     : isHov
-                    ? `0 0 24px rgba(${opt.colorRgb},0.18), 0 8px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)`
-                    : "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)",
+                      ? `0 0 24px rgba(${opt.colorRgb},0.18), 0 8px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)`
+                      : "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)",
                   transform: isSel ? "translateY(-5px) scale(1.015)" : isHov ? "translateY(-2px)" : "none",
                   outline: "none",
                   overflow: "hidden",
@@ -325,21 +330,46 @@ export default function StudioSelectPage() {
                   <Icon style={{ color: lit ? opt.color : `rgba(${opt.colorRgb},0.65)` }} strokeWidth={1.75} size={21} />
                 </div>
 
-                {/* Name */}
-                <p style={{ fontSize: 14, fontWeight: 700, color: lit ? "#ffffff" : "rgba(255,255,255,0.82)", margin: "0 0 6px", letterSpacing: "-0.015em" }}>
-                  {opt.name}
-                </p>
+                <div className="pl-4">
+                  {/* Name */}
+                  <p style={{ fontSize: 14, fontWeight: 700, color: lit ? "#ffffff" : "rgba(255,255,255,0.82)", margin: "0 0 6px", letterSpacing: "-0.015em" }}>
+                    {opt.name}
+                  </p>
 
-                {/* Tagline */}
-                <p style={{ fontSize: 11, fontWeight: 600, color: lit ? opt.color : `rgba(${opt.colorRgb},0.55)`, margin: "0 0 8px", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                  {opt.tagline}
-                </p>
+                  {/* Tagline */}
+                  <p style={{ fontSize: 11, fontWeight: 600, color: lit ? opt.color : `rgba(${opt.colorRgb},0.55)`, margin: "0 0 8px", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                    {opt.tagline}
+                  </p>
 
-                {/* Description */}
-                <p className="text-gray-400" style={{ fontSize: 12, margin: "0 0 18px", lineHeight: 1.6 }}>
-                  {opt.description}
-                </p>
+                  {/* Description */}
+                  <p className="text-gray-400" style={{ fontSize: 12, lineHeight: 1.6 }}>
+                    {opt.description}
+                  </p>
 
+                  <div style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 6,
+                    marginTop: 10
+                  }}>
+                    {opt.tags.map((tag, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          fontSize: 10,
+                          padding: "4px 8px",
+                          borderRadius: 999,
+                          background: `rgba(${opt.colorRgb},0.12)`,
+                          color: `rgba(${opt.colorRgb},0.9)`,
+                          border: `1px solid rgba(${opt.colorRgb},0.25)`,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </button>
             );
           })}
@@ -368,17 +398,39 @@ export default function StudioSelectPage() {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleInputKeyDown}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  navigateToChat("general", inputValue);
+                }
+              }}
               onFocus={() => setInputFocused(true)}
               onBlur={() => setInputFocused(false)}
-              disabled={!selectedType}
-              placeholder={selectedConfig ? `Describe what you want to make with ${selectedConfig.name}… (optional)` : "Select a studio above to get started…"}
-              style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 14, color: "rgba(255,255,255)", cursor: !selectedType ? "not-allowed" : "text", opacity: !selectedType ? 0.32 : 0 }}
+              placeholder="Describe what you want to create… (or pick a studio)"
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                fontSize: 14,
+                color: "white",
+              }}
             />
+
             <button
-              onClick={() => selectedType && navigateToChat(selectedType, inputValue)}
-              disabled={!selectedType}
-              style={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: "none", background: selectedConfig ? `linear-gradient(135deg, ${selectedConfig.color} 0%, rgba(${selectedConfig.colorRgb},0.65) 100%)` : "rgba(255,255,255,0.07)", color: "#fff", cursor: !selectedType ? "not-allowed" : "pointer", opacity: !selectedType ? 0.22 : 1, transition: "all 0.15s", boxShadow: selectedConfig ? `0 4px 18px rgba(${selectedConfig.colorRgb},0.45)` : "none" }}>
+              onClick={() => navigateToChat("general", inputValue)}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "linear-gradient(135deg, #c084fc 0%, rgba(192,132,252,0.7) 100%)",
+                color: "#fff",
+              }}
+            >
+
               <ArrowRight className="text-white" style={{ width: 17, height: 17 }} />
             </button>
           </div>

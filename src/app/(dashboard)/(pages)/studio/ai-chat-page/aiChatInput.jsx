@@ -3,13 +3,18 @@
 import React, { useState, useRef, useEffect } from "react";
 import { SendHorizontal, Loader2 } from "lucide-react";
 
-export default function AiChatInput({ onSend, isLoading, placeholder = "Message CreativeKlux AI...", config }) {
+export default function AiChatInput({
+  onSend,
+  isLoading,
+  placeholder = "Message CreativeKlux AI...",
+  config,
+}) {
   const [value, setValue] = useState("");
   const [focused, setFocused] = useState(false);
   const textareaRef = useRef(null);
 
-  const color = config?.color || "#c084fc";
-  const colorRgb = config?.colorRgb || "192,132,252";
+  const color = config?.color || "#7c3aed";
+  const colorRgb = config?.colorRgb || "124,58,237";
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -40,17 +45,19 @@ export default function AiChatInput({ onSend, isLoading, placeholder = "Message 
         style={{
           display: "flex",
           alignItems: "flex-end",
-          gap: 10,
-          borderRadius: 16,
-          border: `1.5px solid ${focused ? `rgba(${colorRgb},0.65)` : "rgba(255,255,255,0.1)"}`,
-          padding: "10px 12px",
-          background: "rgba(255,255,255,0.055)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
+          gap: 8,
+          borderRadius: 14,
+          border: `1.5px solid ${
+            focused
+              ? `rgba(${colorRgb}, 0.6)`
+              : "#e5e7eb"
+          }`,
+          padding: "9px 10px",
+          background: "#fff",
           transition: "border-color 0.2s, box-shadow 0.2s",
           boxShadow: focused
-            ? `0 0 0 3px rgba(${colorRgb},0.12), 0 8px 32px rgba(0,0,0,0.4)`
-            : "0 4px 24px rgba(0,0,0,0.3)",
+            ? `0 0 0 3px rgba(${colorRgb}, 0.1)`
+            : "none",
         }}
       >
         <textarea
@@ -69,9 +76,9 @@ export default function AiChatInput({ onSend, isLoading, placeholder = "Message 
             border: "none",
             outline: "none",
             resize: "none",
-            fontSize: 13,
+            fontSize: 12.5,
             lineHeight: 1.6,
-            color: "rgba(255,255,255,0.88)",
+            color: "#111827",
             padding: "2px 0",
             maxHeight: 140,
             fontFamily: "inherit",
@@ -83,37 +90,54 @@ export default function AiChatInput({ onSend, isLoading, placeholder = "Message 
           onClick={handleSubmit}
           disabled={!canSend}
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 11,
+            width: 34,
+            height: 34,
+            borderRadius: 10,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
             border: "none",
             background: canSend
-              ? `linear-gradient(135deg, ${color} 0%, rgba(${colorRgb},0.7) 100%)`
-              : "rgba(255,255,255,0.07)",
-            color: "#fff",
+              ? `linear-gradient(135deg, ${color} 0%, rgba(${colorRgb}, 0.75) 100%)`
+              : "#f1f5f9",
+            color: canSend ? "#fff" : "#9ca3af",
             cursor: canSend ? "pointer" : "not-allowed",
-            opacity: canSend ? 1 : 0.3,
+            opacity: canSend ? 1 : 0.6,
             transition: "all 0.15s",
-            boxShadow: canSend ? `0 4px 14px rgba(${colorRgb},0.4)` : "none",
+            boxShadow: canSend
+              ? `0 3px 12px rgba(${colorRgb}, 0.35)`
+              : "none",
           }}
         >
           {isLoading ? (
-            <Loader2 style={{ width: 15, height: 15, animation: "spin 1s linear infinite" }} />
+            <Loader2
+              style={{
+                width: 14,
+                height: 14,
+                animation: "ck-spin 1s linear infinite",
+              }}
+            />
           ) : (
-            <SendHorizontal style={{ width: 15, height: 15 }} />
+            <SendHorizontal style={{ width: 14, height: 14 }} />
           )}
         </button>
       </div>
 
-      <p style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", textAlign: "center", marginTop: 8 }}>
+      <p
+        style={{
+          fontSize: 10,
+          color: "#9ca3af",
+          textAlign: "center",
+          marginTop: 7,
+        }}
+      >
         Enter to send · Shift+Enter for new line
       </p>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes ck-spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }

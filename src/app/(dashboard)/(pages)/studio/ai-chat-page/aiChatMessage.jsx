@@ -3,14 +3,14 @@
 import React from "react";
 import { Sparkles, User } from "lucide-react";
 
-function MessageContent({ content, isUser }) {
+function MessageContent({ content, isUser, color }) {
   if (!content) return null;
   const parts = content.split(/(\*\*[^*]+\*\*)/g);
   return (
     <span>
       {parts.map((part, i) =>
         part.startsWith("**") && part.endsWith("**") ? (
-          <strong key={i} style={{ color: isUser ? "#fff" : "#fff", fontWeight: 700 }}>
+          <strong key={i} style={{ color: color, fontWeight: 700 }}>
             {part.slice(2, -2)}
           </strong>
         ) : (
@@ -23,88 +23,112 @@ function MessageContent({ content, isUser }) {
 
 export default function AiChatMessage({ message, config }) {
   const isUser = message.role === "user";
-  const color = config?.color || "#c084fc";
-  const colorRgb = config?.colorRgb || "192,132,252";
+  const color = config?.color || "#7c3aed";
+  const colorRgb = config?.colorRgb || "124,58,237";
 
   return (
     <div
       style={{
         display: "flex",
-        gap: 10,
+        gap: 9,
         flexDirection: isUser ? "row-reverse" : "row",
         alignItems: "flex-end",
+        animation: "ck-msg-in 0.22s ease both",
       }}
     >
       {/* Avatar */}
       <div
         style={{
-          width: 32,
-          height: 32,
+          width: 30,
+          height: 30,
           borderRadius: "50%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
           background: isUser
-            ? `rgba(${colorRgb},0.2)`
-            : "rgba(255,255,255,0.06)",
+            ? `rgba(${colorRgb}, 0.12)`
+            : `rgba(${colorRgb}, 0.07)`,
           border: isUser
-            ? `1px solid rgba(${colorRgb},0.4)`
-            : "1px solid rgba(255,255,255,0.1)",
+            ? `1px solid rgba(${colorRgb}, 0.28)`
+            : `1px solid rgba(${colorRgb}, 0.2)`,
         }}
       >
         {isUser ? (
-          <User style={{ width: 14, height: 14, color: color }} />
+          <User style={{ width: 13, height: 13, color }} />
         ) : (
-          <Sparkles style={{ width: 14, height: 14, color: color }} />
+          <img
+            src="/logoblue.svg"
+            alt="AI"
+            style={{
+              width: 18,
+              height: 18,
+              objectFit: "contain",
+            }}
+          />
         )}
+
       </div>
 
       {/* Bubble */}
       <div
         style={{
-          maxWidth: "75%",
-          padding: "12px 16px",
-          borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-          fontSize: 13,
+          maxWidth: "76%",
+          padding: "11px 14px",
+          fontSize: 12.5,
           lineHeight: 1.65,
+          color: "#111827",
+          borderRadius: isUser
+            ? "16px 16px 4px 16px"
+            : "16px 16px 16px 4px",
           background: isUser
-            ? `linear-gradient(135deg, rgba(${colorRgb},0.3) 0%, rgba(${colorRgb},0.18) 100%)`
-            : "rgba(255,255,255,0.055)",
+            ? `linear-gradient(135deg, rgba(${colorRgb}, 0.12) 0%, rgba(${colorRgb}, 0.07) 100%)`
+            : "#f8fafc",
           border: isUser
-            ? `1px solid rgba(${colorRgb},0.45)`
-            : "1px solid rgba(255,255,255,0.09)",
-          color: isUser ? "#fff" : "rgba(255,255,255,0.85)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          boxShadow: isUser
-            ? `0 4px 20px rgba(${colorRgb},0.2)`
-            : "0 2px 16px rgba(0,0,0,0.3)",
+            ? `1px solid rgba(${colorRgb}, 0.25)`
+            : "1px solid #e9ecef",
         }}
       >
-        <MessageContent content={message.content} isUser={isUser} />
+        <MessageContent content={message.content} isUser={isUser} color={color} />
 
         {message.image_url && (
           <img
             src={message.image_url}
             alt="Generated creative"
-            style={{ marginTop: 12, borderRadius: 12, width: "100%", maxWidth: 320, objectFit: "cover", border: "1px solid rgba(255,255,255,0.1)" }}
+            style={{
+              marginTop: 10,
+              borderRadius: 10,
+              width: "100%",
+              maxWidth: 300,
+              objectFit: "cover",
+              border: "1px solid #e9ecef",
+            }}
           />
         )}
 
         <p
           style={{
             fontSize: 10,
-            marginTop: 6,
+            marginTop: 5,
             textAlign: isUser ? "right" : "left",
-            color: isUser ? `rgba(${colorRgb},0.6)` : "rgba(255,255,255,0.25)",
+            color: isUser ? `rgba(${colorRgb}, 0.55)` : "#9ca3af",
           }}
         >
           {message.timestamp
-            ? new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            ? new Date(message.timestamp).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
             : ""}
         </p>
       </div>
+
+      <style>{`
+        @keyframes ck-msg-in {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

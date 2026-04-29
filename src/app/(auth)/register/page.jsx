@@ -121,13 +121,27 @@ export default function RegisterPage() {
             {/* left content */}
             <div className="flex-1 flex flex-col items-center ">
 
-                <div className=" md:pt-10 lg:pt-15 pb-5 flex flex-col gap-4 md:gap-5 lg:gap-10 ">
+                <div className=" md:pt-10 lg:pt-20 pb-5 flex flex-col gap-4 md:gap-5 lg:gap-10 ">
                     <div className="flex flex-col space-y-5 justify-center items-center">
-                        <h1 className="text-6xl flex justify-center font-bold ">Register!</h1>
+                        <div
+                            className={`flex items-center pb-10 flex-shrink-0 border-b border-gray-100 cursor-pointer
+          `}
+                        >
+                            <img
+                                src="/logoblue.svg"
+                                alt="Logo"
+                                className="w-14 h-14 flex-shrink-0"
+                                loading="lazy"
+                            />
 
-                        <p className="w-[370px] text-gray-600 flex justify-center items-center text-center">
+                            <span className="ml-3 text-4xl sm:text-6xl text-gray-900 font-bold truncate">
+                                Creative Klux
+                            </span>
+                        </div>
+
+                        {/* <p className="w-[370px] text-gray-600 flex justify-center items-center text-center">
                             Simplify your workflow and build your productivity with Tuga's app. Get started for free
-                        </p>
+                        </p> */}
                     </div>
 
                     <div className="py-3 md:py-1">
@@ -136,7 +150,7 @@ export default function RegisterPage() {
                                 placeholder="Name"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="w-full py-3 px-5 outline-0 rounded-4xl border border-gray-500 text-black"
+                                className="w-full py-3 px-5 outline-0 rounded-2xl border border-gray-500 text-black"
                                 required
                             />
                             <input
@@ -144,7 +158,7 @@ export default function RegisterPage() {
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full py-3 px-5 outline-0 rounded-4xl border border-gray-500 text-black"
+                                className="w-full py-3 px-5 outline-0 rounded-2xl border border-gray-500 text-black"
                                 required
                             />
 
@@ -154,7 +168,7 @@ export default function RegisterPage() {
                                     value={licenseCode}
                                     onChange={(e) => setLicenseCode(e.target.value)}
                                     placeholder="License Code"
-                                    className="w-full py-3 px-5 border outline-0 border-gray-500 text-black rounded-4xl "
+                                    className="w-full py-3 px-5 border outline-0 border-gray-500 text-black rounded-2xl "
                                 />
                                 <p className="text-[#155dfc] text-xs p-1 px-5 mt-1">
                                     Leave (License Code) empty if it's a free trial account.(7 days)
@@ -168,7 +182,7 @@ export default function RegisterPage() {
                                     type={showPassword ? "text" : "password"}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full py-3 outline-0 px-5 rounded-4xl border border-gray-500 text-black pr-10"
+                                    className="w-full py-3 outline-0 px-5 rounded-2xl border border-gray-500 text-black pr-10"
                                     required
                                 />
                                 <button
@@ -189,7 +203,7 @@ export default function RegisterPage() {
                                     type={showPassword ? "text" : "password"}
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
-                                    className="w-full py-3 outline-0 px-5 rounded-4xl border border-gray-500 text-black pr-10"
+                                    className="w-full py-3 outline-0 px-5 rounded-2xl border border-gray-500 text-black pr-10"
                                     required
                                 />
                                 <button
@@ -203,7 +217,7 @@ export default function RegisterPage() {
                                 {confirmError && <p className="text-red-600 px-4 text-xs mt-1">{confirmError}</p>}
                             </div>
 
-                            <div className="flex text-xs justify-end hover:underline font-medium">
+                            <div className="flex text-xs cursor-pointer justify-end hover:underline font-medium">
                                 Forgot Password?
                             </div>
 
@@ -277,14 +291,6 @@ export default function RegisterPage() {
                                 aria-label="Continue with Google"
                             >
                                 <GoogleIcon />
-                            </button>
-
-                            <button
-                                onClick={handleAppleLogin}
-                                className="w-14 h-14 hover:cursor-pointer bg-black rounded-full flex items-center justify-center text-white hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                                aria-label="Continue with Apple"
-                            >
-                                <AppleIcon />
                             </button>
 
                             <button

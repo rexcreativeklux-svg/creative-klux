@@ -111,12 +111,27 @@ export default function LoginPage() {
             <div className="flex-1 flex flex-col pt-20 sm:pt-30 items-center ">
                 <div className=" flex  space-y-10 flex-col ">
                     <div className="flex flex-col space-y-8 justify-center items-center">
-                        <h1 className="text-4xl sm:text-6xl flex justify-center font-bold ">Welcome back !</h1>
 
-                        <p className=" justify-center text-[#155dfc] font-medium text-md items-center text-center">
+                        <div
+                            className={`flex items-center pb-20 flex-shrink-0 border-b border-gray-100 cursor-pointer
+          `}
+                        >
+                            <img
+                                src="/logoblue.svg"
+                                alt="Logo"
+                                className="w-14 h-14 flex-shrink-0"
+                                loading="lazy"
+                            />
+
+                            <span className="ml-3 text-4xl sm:text-6xl text-gray-900 font-bold truncate">
+                                Creative Klux
+                            </span>
+                        </div>
+
+                        {/* <p className=" justify-center text-[#155dfc] font-medium text-md items-center text-center">
                             The all-in-one AI creative engine for brands, marketers, and agencies <br />
                             <span className="">Create ads, social posts, videos, and brand assets faster than ever.</span>
-                        </p>
+                        </p> */}
                     </div>
 
 
@@ -197,15 +212,6 @@ export default function LoginPage() {
                                 aria-label="Continue with Google"
                             >
                                 <GoogleIcon />
-                            </button>
-
-                            {/* Apple */}
-                            <button
-                                onClick={handleAppleLogin}
-                                className="w-14 h-14 hover:cursor-pointer bg-black rounded-full flex items-center justify-center text-white hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                                aria-label="Continue with Apple"
-                            >
-                                <AppleIcon />
                             </button>
 
                             {/* Facebook */}

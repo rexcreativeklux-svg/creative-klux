@@ -13,6 +13,7 @@ import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSection";
 import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSection";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
+import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -353,8 +354,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       audience: formData.audience || null,
       fileFormat: formData.fileFormat || null,
       caption: formData.caption || null,
-      hashtags: formData.hashtags || [],
-      backgroundImages: validImages
+      images: validImages
         .map((f) => f?.sourceUrl || f?.previewUrl)
         .filter(Boolean),
       generatedAt: new Date().toISOString(),
@@ -447,6 +447,39 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     }
 
     setMediaPickerOpen(false);
+  };
+
+  // Handles "Use" — just takes the original URL, no cropping
+  const handleBrandImageUse = (imageObjs) => {
+    const pseudos = imageObjs.map((imageObj) => ({
+      previewUrl: imageObj.src,
+      sourceUrl: imageObj.src,
+      name: imageObj.alt || "brand-image",
+      type: "image/jpeg",
+    }));
+    setCroppedImages((prev) => [...prev, ...pseudos]);
+    showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+  };
+
+  // Handles "Crop" — feeds the original URL into the existing cropper flow
+  // After crop, saveCroppedImage preserves imageSrcMeta[i] as the sourceUrl
+  const handleBrandImageCrop = async (imageObjs) => {
+    for (const imageObj of imageObjs) {
+      const originalUrl = imageObj.src;
+      let cropperUrl = originalUrl;
+      try {
+        const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(originalUrl)}`);
+        const blob = await res.blob();
+        cropperUrl = URL.createObjectURL(blob);
+      } catch (err) {
+        console.warn("Proxy failed, falling back to original URL", err);
+      }
+      setImageSrc((prev) => [...prev, cropperUrl]);
+      setImageSrcMeta((prev) => [...prev, originalUrl]);
+      setCroppedImages((prev) => [...prev, null]);
+    }
+    if (!showCropper) setCurrentCropIndex(0);
+    setShowCropper(true);
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -676,31 +709,45 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
         {/* ═══ STEP 3 ═══════════════════════════════════════════════════════ */}
         {step === 3 && (
           <div className="flex flex-col gap-4">
-            <SectionTitle>Background Image</SectionTitle>
+            <SectionTitle>Select Images</SectionTitle>
 
-            {/* Selected media previews */}
-            {croppedImages.length > 0 && (
+            {/* ── Brand images strip ── */}
+            <BrandImagesStrip
+              onSelect={handleBrandImageUse}
+              onCrop={handleBrandImageCrop}
+              selectedUrls={croppedImages
+                .filter(Boolean)
+                .map((f) => f?.sourceUrl || f?.previewUrl)
+                .filter(Boolean)}
+            />
+
+            {/* ── Already-selected previews ── */}
+            {croppedImages.filter(Boolean).length > 0 && (
               <div>
-                <p className="text-xs font-medium text-gray-500 mb-2">Selected media</p>
+                <p className="text-xs font-medium text-gray-500 mb-2">
+                  Selected ({croppedImages.filter(Boolean).length})
+                </p>
                 <div className="grid grid-cols-5 gap-2">
                   {croppedImages.map((item, index) => {
-                    const url = item?.previewUrl || (item instanceof File || item instanceof Blob ? URL.createObjectURL(item) : null);
-                    const isVideo = item?.videoSrc || item?.type?.includes?.("video");
+                    if (!item) return null;
+                    const url = item?.previewUrl;
+                    const isVideo = item?.type?.includes?.("video");
                     return (
                       <div key={index} className="relative group">
-                        {url ? (
-                          isVideo ? (
-                            <video src={item.videoSrc || url} poster={item.thumbnail}
-                              className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
-                              muted loop playsInline preload="metadata"
-                              onMouseEnter={(e) => e.target.play().catch(() => { })}
-                              onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
-                            />
-                          ) : (
-                            <img src={url} alt={`Selected ${index + 1}`}
-                              className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
-                            />
-                          )
+                        {isVideo ? (
+                          <video
+                            src={url} poster={item.thumbnail}
+                            className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
+                            muted loop playsInline preload="metadata"
+                            onMouseEnter={(e) => e.target.play().catch(() => { })}
+                            onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
+                          />
+                        ) : url ? (
+                          <img
+                            src={url}
+                            alt={`Selected ${index + 1}`}
+                            className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
+                          />
                         ) : (
                           <div className="w-full h-24 bg-gray-100 border-2 border-dashed rounded-xl flex items-center justify-center">
                             <span className="text-xs text-gray-400">No media</span>
@@ -719,7 +766,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
               </div>
             )}
 
-            {/* Single upload / pick button */}
+            {/* ── Upload / picker zone ── */}
             <div
               className="border-2 border-dashed border-gray-200 rounded-2xl p-8 bg-gray-50 flex flex-col items-center gap-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
               onClick={() => setMediaPickerOpen(true)}
@@ -728,8 +775,8 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
                 <FileUp className="w-5 h-5 text-gray-400" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-semibold text-gray-700">Upload or Select Background</p>
-                <p className="text-xs text-gray-400 mt-1">Search, library, magic studio, or upload from device</p>
+                <p className="text-sm font-semibold text-gray-700">Upload or Search More Images</p>
+                <p className="text-xs text-gray-400 mt-1">Search web, magic studio, or upload from device</p>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); setMediaPickerOpen(true); }}
@@ -745,7 +792,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
         <div className={`flex gap-3 pt-2 ${step > 1 ? "justify-between" : "justify-end"}`}>
           {step > 1 && (
             <button onClick={() => setStep((p) => p - 1)}
-              className="px-3 py-2 border border-gray-200 hover:scale-105 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+              className="px-3 py-2 cursor-pointer border border-gray-200 hover:scale-105 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
               ← Back
             </button>
           )}

@@ -163,7 +163,14 @@ function DesignCanvas({ variation }) {
 
         /* word-wrap helper */
         const maxW = el.width || 9999;
-        const words = el.text.split(" ");
+        const text = typeof el.content === "string"
+          ? el.content
+          : typeof el.text === "string"
+            ? el.text
+            : "";
+
+        const words = text.trim().split(/\s+/);
+
         let line = "", lineY = el.y + size;
         words.forEach((word) => {
           const test = line ? line + " " + word : word;
@@ -361,7 +368,7 @@ function PreviewPanel({ result, config }) {
                             }}
                             title={scoreLabel}
                           >
-                            ★ {scoreNum}/10
+                            ★ {scoreNum}/100
                           </span>
                         )}
                       </div>
@@ -565,7 +572,6 @@ export default function AiCreativeChatPage() {
 
       {/* ── Body ── */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-
 
         {/* ── Chat panel ── */}
         <div

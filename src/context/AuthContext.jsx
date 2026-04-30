@@ -9,7 +9,7 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [socialAccounts, setSocialAccounts] = useState([]);
-  const [brandId, setBrandId] = useState(null);
+  // const [brandId, setBrandId] = useState(null);
   const [brands, setBrands] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
   const [activeBrand, setActiveBrandState] = useState(null);
@@ -22,6 +22,8 @@ export function AuthProvider({ children }) {
   const [tutorialVideos, setTutorialVideos] = useState([]);
   const [tutorialVideosLoading, setTutorialVideosLoading] = useState(false);
   const [tutorialVideosError, setTutorialVideosError] = useState(null);
+  const activeBrandId = activeBrand?.id || null;
+
 
 
   const BASE_URL = "https://api.creativeklux.com/api/creativeklux-userend";
@@ -46,6 +48,9 @@ export function AuthProvider({ children }) {
   const API_IMAGE_GALLERY_URL = `${BASE_URL}/image-gallery`;
   const API_FETCH_TUTORIAL_VIDEOS = `${BASE_URL}/tutorial-videos`;
   const API_AI_CHAT_URL = `${BASE_URL}/creatives/ai-creative`;
+  const SAVE_DESIGN = `${BASE_URL}/creative-designs`;
+  const FETCH_DESIGN = `${BASE_URL}/creative-designs`;
+
 
 
   // Load token on mount and fetch profile and brands
@@ -302,7 +307,6 @@ export function AuthProvider({ children }) {
       setToken(null);
       setBrands([]);
       setActiveBrandState(null);
-      setBrandId(null);
       setBrandsLoading(false);
     }
   };
@@ -770,11 +774,9 @@ export function AuthProvider({ children }) {
         if (selectedBrand) {
           // console.log("Setting active brand from stored ID:", selectedBrand);
           setActiveBrandState(selectedBrand);
-          setBrandId(storedBrandId);
         } else {
           console.log("Stored brand ID not found in brands, clearing:", storedBrandId);
           setActiveBrandState(null);
-          setBrandId(null);
           localStorage.removeItem("activeBrandId");
         }
       }
@@ -804,37 +806,27 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   const setActiveBrand = (brandOrId) => {
-    console.log("setActiveBrand called with:", brandOrId);
     if (brandOrId === null) {
       setActiveBrandState(null);
-      setBrandId(null);
       localStorage.removeItem("activeBrandId");
       return;
     }
 
-    let id;
     let selectedBrand;
 
-    if (typeof brandOrId === "object" && brandOrId !== null) {
-      id = brandOrId.id;
+    if (typeof brandOrId === "object") {
       selectedBrand = brandOrId;
     } else {
-      id = Number(brandOrId);
-      selectedBrand = brands.find((brand) => brand.id === id);
+      const id = Number(brandOrId);
+      selectedBrand = brands.find((b) => b.id === id);
     }
 
-    if (selectedBrand) {
-      console.log("Setting active brand:", selectedBrand);
-      setActiveBrandState(selectedBrand);
-      setBrandId(id);
-      localStorage.setItem("activeBrandId", id);
-    } else {
-      console.error("Invalid brand ID, not found in brands:", id);
-      setActiveBrandState(null);
-      setBrandId(null);
-      localStorage.removeItem("activeBrandId");
-    }
+    if (!selectedBrand) return;
+
+    setActiveBrandState(selectedBrand);
+    localStorage.setItem("activeBrandId", selectedBrand.id);
   };
+
 
   const fetchBrandById = async (id) => {
     if (!token) {
@@ -1370,7 +1362,7 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-  const generateAdsCreative = async ({ creativeType, categoryType, ...formPayload }) => {
+  const generateCustomCreative = async ({ creativeType, categoryType, ...formPayload }) => {
     if (!token) {
       console.error("No auth token found. User may not be logged in.");
       return { ok: false, message: "Not authenticated" };
@@ -1378,11 +1370,16 @@ export function AuthProvider({ children }) {
 
     const url = `${BASE_URL}/creatives/custom-creative`;
 
+    // Strip "_creative" suffix: "ads_creative" → "ads", "magic_studio" → "magic_studio"
+    const creativeTypeShort = creativeType?.replace("_creative", "") || creativeType;
+
     const generation_data = {
-      creative_type: creativeType,       // e.g. "ads_creative"
-      subtype: categoryType,       // e.g. "image"
-      ...formPayload,                    // brandName, size, campaignGoal, etc.
+      creative_type: creativeTypeShort,  // "ads", "social", "designer", "magic_studio"
+      create_sub_type: categoryType,
+      ...formPayload,
     };
+
+    console.log("🚀 Generate Payload:", generation_data);
 
     try {
       const res = await fetch(url, {
@@ -1391,13 +1388,16 @@ export function AuthProvider({ children }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ generation_data }),
+        body: JSON.stringify({
+          generation_data: JSON.stringify(generation_data),
+        }),
       });
 
       const text = await res.text();
       let data;
       try {
         data = JSON.parse(text);
+        console.log(data)
       } catch {
         console.error("Invalid JSON from generation endpoint:", text);
         return { ok: false, message: "Invalid server response" };
@@ -1473,10 +1473,11 @@ export function AuthProvider({ children }) {
         brands,
         teams,
         teamsLoading,
-        brandId,
+        // brandId,
         setActiveBrand,
+        activeBrandId,
         brandsLoading,
-        generateAdsCreative,
+        generateCustomCreative,
         creativeAiChat,
         updateBrandById,
         handleDelete,

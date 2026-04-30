@@ -24,7 +24,7 @@ import PersonaBasedGeneratorTab from "../(dashboard)/(pages)/old-studio/designer
 
 const MAIN_TABS = [
   { id: "search",  label: "Search Media",  icon: FileSearch },
-  { id: "library", label: "Your Library",  icon: FolderOpen },
+  { id: "library", label: "My Library",  icon: FolderOpen },
   { id: "magic",   label: "Magic Studio",  icon: Sparkles   },
   { id: "upload",  label: "Upload File",   icon: FileUp     },
 ];

@@ -42,7 +42,7 @@ import AdsIntegrationModal from "@/app/(components)/AdsIntegrationModal.jsx";
 
 // ─── inner component that reads search params ─────────────────────────────────
 const StudioInner = () => {
-  const { activeBrand, sendUrl, generateAdsCreative } = useAuth();
+  const { activeBrand, sendUrl, generateCustomCreative } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -136,7 +136,7 @@ const StudioInner = () => {
       sendUrl,
       showToast,
       onResult: handleResult,
-      generateAdsCreative,
+      generateCustomCreative,
     };
 
     if (selectedCreative === "ads_creative") {

@@ -111,7 +111,7 @@ const StylePreview = ({ style, active }) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onResult, generateAdsCreative, creative, categoryId, }) => {
+const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onResult, generateCustomCreative, creative, categoryId, }) => {
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [brandUrl, setBrandUrl] = useState(activeBrand?.url || activeBrand?.source_url || "");
@@ -360,9 +360,9 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       generatedAt: new Date().toISOString(),
     };
 
-    console.log("🚀 Generate Payload:", payload);
+    // console.log("🚀 Generate Payload:", payload);
 
-    const result = await generateAdsCreative(payload);
+    const result = await generateCustomCreative(payload);
 
     if (!result.ok) {
       setError(result.message || "Generation failed. Please try again.");

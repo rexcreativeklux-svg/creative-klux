@@ -8,20 +8,12 @@ import {
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
-import SearchMediaModal from "@/app/(components)/SearchMediaModal";
-import LibraryMediaModal from "@/app/(components)/LibraryMediaModal";
-import MagicMediaModal from "@/app/(components)/MagicMediaModal";
+
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSection";
 import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSection";
+import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 
-import TextToImageTab from "../../old-studio/designer-creatives/create/tabs/text-to-image/page";
-import TextToAudioTab from "../../old-studio/designer-creatives/create/tabs/text-to-audio/page";
-import TextToVideoTab from "../../old-studio/designer-creatives/create/tabs/text-to-video/page";
-import ImageToVariationsTab from "../../old-studio/designer-creatives/create/tabs/image-to-variations/page";
-import ScriptToVoiceoverToVideoTab from "../../old-studio/designer-creatives/create/tabs/script-to-voiceover/page";
-import AudioToTextTab from "../../old-studio/ai-studio/create/audio-to-text/page";
-import PersonaBasedGeneratorTab from "../../old-studio/designer-creatives/create/tabs/persona-based-generator/page";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const SIZE_OPTIONS = [
@@ -74,7 +66,6 @@ const VISUAL_STYLES = [
   // { value: "grape", label: "Grape" },
   // { value: "fire", label: "Fire" },
 ];
-
 
 const BRAND_COLORS = [
   "#2563eb", "#0ea5e9", "#8b5cf6", "#ec4899", "#ef4444",
@@ -139,17 +130,11 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
   const fileInputRef = useRef(null);
   const logoInputRef = useRef(null);
 
-  // ── modal state ───────────────────────────────────────────────────────────
-  const [searchModalOpen, setSearchModalOpen] = useState(false);
-  const [libraryModalOpen, setLibraryModalOpen] = useState(false);
-  const [magicModalOpen, setMagicModalOpen] = useState(false);
-  const [selectedImages, setSelectedImages] = useState([]);
-  const [selectedMedia, setSelectedMedia] = useState([]);
-  const [magicTab, setMagicTab] = useState("Text to Image");
-
   // ── recommended images ────────────────────────────────────────────────────
   const [recommendedImages, setRecommendedImages] = useState([]);
   const [loadingRecommended, setLoadingRecommended] = useState(false);
+
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
 
   useEffect(() => {
     if (!formData.brandName?.trim()) return;
@@ -223,97 +208,6 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     const reader = new FileReader();
     reader.onload = () => field("logo", reader.result);
     reader.readAsDataURL(file);
-  };
-
-  // ── Apply selected — EXACT copy of Posts handleApplySelected ─────────────
-  const handleApplySelected = async () => {
-    const sources = magicModalOpen ? selectedMedia : selectedImages;
-    if (sources.length === 0) return;
-
-    const images = sources.filter(
-      (item) =>
-        !item.type ||
-        item.type === "image" ||
-        (typeof item.src === "string" && !item.src.includes(".mp4") && !item.videoSrc)
-    );
-
-    const videos = sources.filter(
-      (item) =>
-        item.type === "video" ||
-        item.videoSrc ||
-        (typeof item.src === "string" && item.src.includes(".mp4"))
-    );
-
-    if (images.length > 0) {
-      try {
-        const processedFiles = await Promise.all(
-          images.map(async (item, idx) => {
-            let url = item.src || item.large || item;
-
-            const shouldProxy = typeof url === "string" && url.startsWith("http");
-            const fetchUrl = shouldProxy
-              ? `/api/proxy-image?url=${encodeURIComponent(url)}`
-              : url;
-
-            const res = await fetch(fetchUrl);
-            if (!res.ok) throw new Error(`Failed to load image: ${url}`);
-
-            const blob = await res.blob();
-            const file = new File([blob], `selected-image-${Date.now()}-${idx}`, {
-              type: blob.type || "image/png",
-            });
-            file.previewUrl = URL.createObjectURL(blob);
-            file.sourceUrl = item.large || item.src || null;  // ← attach original URL
-            return file;
-          })
-        );
-
-        const previewUrls = processedFiles.map((f) => f.previewUrl);
-        const sourceUrls = processedFiles.map((f) => f.sourceUrl || null);
-
-        // ← Reset instead of appending if cropper was closed
-        if (!showCropper) {
-          setImageSrc(previewUrls);
-          setImageSrcMeta(sourceUrls);
-          setCroppedImages(Array(previewUrls.length).fill(null));
-          setCurrentCropIndex(0);
-        } else {
-          setImageSrc((prev) => [...prev, ...previewUrls]);
-          setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
-          setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
-          setCurrentCropIndex(imageSrc.length);
-        }
-
-        setShowCropper(true);
-        showToast(`Added ${images.length} image${images.length > 1 ? "s" : ""} — now crop them`);
-      } catch (err) {
-        console.error("Image loading failed:", err);
-        showToast("Some images couldn't be loaded. Please try again.");
-      }
-    }
-
-    if (videos.length > 0) {
-      const videoObjects = videos.map((video, i) => ({
-        id: `video-${Date.now()}-${i}`,
-        previewUrl: video.videoSrc || video.src || video.large,
-        thumbnail: video.thumbnail || video.image || video.src,
-        type: "video",
-        alt: video.alt || "Selected video",
-        original: video,
-      }));
-      setCroppedImages((prev) => [...prev, ...videoObjects]);
-      showToast(`Added ${videos.length} video${videos.length > 1 ? "s" : ""}`);
-    }
-
-    if (images.length === 0 && videos.length > 0) {
-      setShowCropper(false);
-    }
-
-    setSearchModalOpen(false);
-    setLibraryModalOpen(false);
-    setMagicModalOpen(false);
-    setSelectedImages([]);
-    setSelectedMedia([]);
   };
 
   // ── File input — EXACT copy of Posts handleFileChange ────────────────────
@@ -480,41 +374,79 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     setGenerating(false);
   };
 
-  // ── Magic media select toggle ─────────────────────────────────────────────
-  const handleMagicSelect = (src) =>
-    setSelectedMedia((p) => p.includes(src) ? p.filter((m) => m !== src) : p.length < 5 ? [...p, src] : p);
-
-  const handleCancelSelection = () => {
-    setSelectedImages([]);
-    setSelectedMedia([]);
-    setSearchModalOpen(false);
-    setLibraryModalOpen(false);
-    setMagicModalOpen(false);
-  };
-
-  const renderTabContent = () => {
-    const shared = { selectedMedia, handleSelectMedia: handleMagicSelect };
-    const map = {
-      "Text to Image": <TextToImageTab {...shared} postData={formData} activeBrand={activeBrand} />,
-      "Text to Audio": <TextToAudioTab {...shared} />,
-      "Text to Video": <TextToVideoTab {...shared} />,
-      "Image to Variations": <ImageToVariationsTab {...shared} brandName={formData.brandName} postData={formData} activeBrand={activeBrand}
-        onClose={() => setMagicModalOpen(false)}
-        openSearchModal={() => { setSearchModalOpen(true); setMagicModalOpen(false); }}
-        openLibraryModal={() => { setLibraryModalOpen(true); setMagicModalOpen(false); }} />,
-      "Script to Voiceover to Video": <ScriptToVoiceoverToVideoTab {...shared} />,
-      "Audio to Text": <AudioToTextTab {...shared} />,
-      "Persona-based Generator": <PersonaBasedGeneratorTab {...shared} />,
-    };
-    return map[magicTab] ?? <div className="p-4 text-sm text-gray-500">Select a tab</div>;
-  };
-
   const handlePreviousCrop = () => {
     if (currentCropIndex > 0) {
       setCurrentCropIndex((prev) => prev - 1);
       setCrop({ unit: "%", width: 80, height: 80, x: 10, y: 10 });
       setCompletedCrop(null);  // ← was setting a value, now null
     }
+  };
+
+  //  ADD this unified apply handler that matches handleApplySelected's logic:
+  const handleApplyFromPicker = async (images, media) => {
+    // images = [{ src, large, file? }]  (search + upload items)
+    // media  = [src, ...]               (magic studio selections)
+
+    if (images.length > 0) {
+      try {
+        const processedFiles = await Promise.all(
+          images.map(async (item, idx) => {
+            // If it already has a File object (upload tab), use it directly
+            if (item.file instanceof File) {
+              item.file.previewUrl = item.src;
+              item.file.sourceUrl = null;
+              return item.file;
+            }
+
+            // Otherwise proxy-fetch (search / library URLs)
+            const url = item.large || item.src;
+            const fetchUrl = url.startsWith("http")
+              ? `/api/proxy-image?url=${encodeURIComponent(url)}`
+              : url;
+            const res = await fetch(fetchUrl);
+            const blob = await res.blob();
+            const file = new File([blob], `selected-${Date.now()}-${idx}`, { type: blob.type || "image/png" });
+            file.previewUrl = URL.createObjectURL(blob);
+            file.sourceUrl = item.large || item.src || null;
+            return file;
+          })
+        );
+
+        const previewUrls = processedFiles.map((f) => f.previewUrl);
+        const sourceUrls = processedFiles.map((f) => f.sourceUrl || null);
+
+        if (!showCropper) {
+          setImageSrc(previewUrls);
+          setImageSrcMeta(sourceUrls);
+          setCroppedImages(Array(previewUrls.length).fill(null));
+          setCurrentCropIndex(0);
+        } else {
+          setImageSrc((prev) => [...prev, ...previewUrls]);
+          setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
+          setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
+          setCurrentCropIndex(imageSrc.length);
+        }
+
+        setShowCropper(true);
+        showToast(`Added ${images.length} image(s) — crop them`);
+      } catch (err) {
+        console.error("Image loading failed:", err);
+        showToast("Some images couldn't be loaded.");
+      }
+    }
+
+    if (media.length > 0) {
+      const videoObjects = media.map((src, i) => ({
+        id: `video-${Date.now()}-${i}`,
+        previewUrl: src,
+        thumbnail: src,
+        type: "video",
+      }));
+      setCroppedImages((prev) => [...prev, ...videoObjects]);
+      showToast(`Added ${media.length} media item(s)`);
+    }
+
+    setMediaPickerOpen(false);
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -743,94 +675,42 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
 
         {/* ═══ STEP 3 ═══════════════════════════════════════════════════════ */}
         {step === 3 && (
-          <div className="flex flex-col ">
-            <div className="flex items-center justify-between">
-              <SectionTitle>Background Image</SectionTitle>
-              {selectedImages.length > 0 && (
-                <button
-                  onClick={handleApplySelected}
-                  className="px-4 py-2 bg-blue-600 cursor-pointer text-white text-xs font-semibold rounded-lg flex items-center gap-2 hover:bg-blue-700"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Apply ({selectedImages.length})
-                </button>
-              )}
-            </div>
+          <div className="flex flex-col gap-4">
+            <SectionTitle>Background Image</SectionTitle>
 
-            {(formData.importedImages || []).length > 0 && (
-              <ImportedBrandImagesSection
-                importedImages={formData.importedImages}
-                selectedImages={selectedImages}
-                setSelectedImages={setSelectedImages}
-                showToast={showToast}
-              />
-            )}
-
-            <RecommendedImagesSection
-              recommendedImages={recommendedImages}
-              isLoadingRecommended={loadingRecommended}
-              selectedImages={selectedImages}
-              setSelectedImages={setSelectedImages}
-              showToast={showToast}
-            />
-
-            {/* ── Selected media — EXACT render logic from Posts ────────────── */}
+            {/* Selected media previews */}
             {croppedImages.length > 0 && (
-              <div className="py-2">
+              <div>
                 <p className="text-xs font-medium text-gray-500 mb-2">Selected media</p>
                 <div className="grid grid-cols-5 gap-2">
                   {croppedImages.map((item, index) => {
-                    // Posts' exact safe URL extraction
-                    const url =
-                      item?.previewUrl ||
-                      (item instanceof File || item instanceof Blob
-                        ? URL.createObjectURL(item)
-                        : null);
-
-                    // Posts' exact video detection
-                    const isVideo =
-                      item?.videoSrc || item?.type?.includes?.("video");
-
+                    const url = item?.previewUrl || (item instanceof File || item instanceof Blob ? URL.createObjectURL(item) : null);
+                    const isVideo = item?.videoSrc || item?.type?.includes?.("video");
                     return (
                       <div key={index} className="relative group">
                         {url ? (
                           isVideo ? (
-                            <video
-                              src={item.videoSrc || url}
-                              poster={item.thumbnail}
-                              className="w-full h-auto object-cover rounded-md border border-gray-200 shadow"
-                              muted
-                              loop
-                              playsInline
-                              preload="metadata"
+                            <video src={item.videoSrc || url} poster={item.thumbnail}
+                              className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
+                              muted loop playsInline preload="metadata"
                               onMouseEnter={(e) => e.target.play().catch(() => { })}
-                              onMouseLeave={(e) => {
-                                e.target.pause();
-                                e.target.currentTime = 0;
-                              }}
+                              onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
                             />
                           ) : (
-                            <img
-                              src={url}
-                              alt={`Selected ${index + 1}`}
-                              className="w-full h-auto object-cover rounded-md border border-gray-200 shadow"
+                            <img src={url} alt={`Selected ${index + 1}`}
+                              className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
                             />
                           )
                         ) : (
-                          <div className="w-full h-32 bg-gray-100 border-2 border-dashed rounded-lg flex items-center justify-center">
-                            <span className="text-xs text-gray-500">No media</span>
+                          <div className="w-full h-24 bg-gray-100 border-2 border-dashed rounded-xl flex items-center justify-center">
+                            <span className="text-xs text-gray-400">No media</span>
                           </div>
                         )}
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeCroppedImage(index);
-                          }}
-                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full p-1 hover:bg-red-600 cursor-pointer"
+                          onClick={(e) => { e.stopPropagation(); removeCroppedImage(index); }}
+                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition bg-red-500 text-white rounded-full p-1 hover:bg-red-600 cursor-pointer"
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          <X className="w-3 h-3" />
                         </button>
                       </div>
                     );
@@ -839,22 +719,24 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
               </div>
             )}
 
-            {/* ── Upload / source zone ─────────────────────────────────────── */}
-            <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6 bg-gray-50 flex flex-col items-center gap-3">
+            {/* Single upload / pick button */}
+            <div
+              className="border-2 border-dashed border-gray-200 rounded-2xl p-8 bg-gray-50 flex flex-col items-center gap-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
+              onClick={() => setMediaPickerOpen(true)}
+            >
               <div className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
                 <FileUp className="w-5 h-5 text-gray-400" />
               </div>
               <div className="text-center">
                 <p className="text-sm font-semibold text-gray-700">Upload or Select Background</p>
-                <p className="text-xs text-gray-400 mt-1">From library, web search, or AI generation</p>
+                <p className="text-xs text-gray-400 mt-1">Search, library, magic studio, or upload from device</p>
               </div>
-              <div className="flex flex-wrap gap-2 justify-center">
-                <MediaBtn icon={FileSearch} label="Search Media" onClick={() => setSearchModalOpen(true)} />
-                <MediaBtn icon={FolderOpen} label="Your Library" onClick={() => setLibraryModalOpen(true)} />
-                <MediaBtn icon={Sparkles} label="Magic Media" onClick={() => setMagicModalOpen(true)} />
-                <MediaBtn icon={FileUp} label="Upload File" onClick={() => fileInputRef.current?.click()} />
-              </div>
-              <input type="file" accept="image/*" multiple className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+              <button
+                onClick={(e) => { e.stopPropagation(); setMediaPickerOpen(true); }}
+                className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition cursor-pointer flex items-center gap-2"
+              >
+                <Images className="w-4 h-4" /> Choose Media
+              </button>
             </div>
           </div>
         )}
@@ -904,43 +786,15 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
         onPrevious={handlePreviousCrop}
       />
 
-      <SearchMediaModal
-        isOpen={searchModalOpen}
-        onClose={() => setSearchModalOpen(false)}
-        selectedImages={selectedImages}
-        onSelectImage={(src) =>
-          setSelectedImages((p) => p.includes(src) ? p.filter((s) => s !== src) : [...p, src])
-        }
-        onApply={handleApplySelected}
-        onCancel={handleCancelSelection}
+      <MediaPickerModal
+        isOpen={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        onCancel={() => setMediaPickerOpen(false)}
+        onApply={handleApplyFromPicker}
+        postData={formData}
+        activeBrand={activeBrand}
+        showToast={showToast}
       />
-
-      <LibraryMediaModal
-        isOpen={libraryModalOpen}
-        onClose={() => setLibraryModalOpen(false)}
-        selectedImages={selectedImages}
-        onSelectImage={(src) =>
-          setSelectedImages((p) => p.includes(src) ? p.filter((s) => s !== src) : [...p, src])
-        }
-        onApply={handleApplySelected}
-        onCancel={handleCancelSelection}
-      />
-
-      <MagicMediaModal
-        isOpen={magicModalOpen}
-        onClose={() => {
-          setMagicModalOpen(false);
-          setSelectedMedia([]);
-        }}
-        activeTab={magicTab}
-        onTabChange={setMagicTab}
-        selectedMedia={selectedMedia}
-        onSelectMedia={handleMagicSelect}
-        onApply={handleApplySelected}
-        onCancel={handleCancelSelection}
-      >
-        {renderTabContent()}
-      </MagicMediaModal>
 
       {generating && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/60 flex items-center justify-center z-50">

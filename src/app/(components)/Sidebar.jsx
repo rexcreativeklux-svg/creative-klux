@@ -66,9 +66,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   // Auto-open dropdown if a child is active
   useEffect(() => {
     const dropdownItems = [
-      { id: "social", children: [{ href: "/social-socials" }, { href: "/social-planner" }] },
+      { id: "social", children: [{ href: "/created-socials" }, { href: "/social-planner" }] },
       { id: "ads", children: [{ href: "/created-ads" }, { href: "/ads-planner" }] },
     ];
+
     for (const item of dropdownItems) {
       if (item.children.some((c) => isActive(c.href))) {
         setOpenDropdown(item.id);
@@ -100,23 +101,38 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   ];
 
   const toolsItems = [
-    { id: "adGuard", label: "AdGuard", href: "/adGuard", icon: ShieldCheck, type: "link" },
-    { id: "rivalLens", label: "Rival Lens", href: "/rivalLens", icon: Radar, type: "link" },
+    { id: "adGuard", label: "AdGuard", href: "/adGuard", icon: ShieldCheck },
+    { id: "rivalLens", label: "Rival Lens", href: "/rivalLens", icon: Radar },
+  ];
+
+  const manageItems = [
     {
-      id: "social", label: "Social Content", icon: Share2, type: "dropdown",
+      id: "social",
+      label: "Social Content",
+      icon: Share2,
+      type: "dropdown",
       children: [
         { label: "Created Socials", href: "/created-socials", icon: Share2 },
         { label: "Social Planner", href: "/social-planner", icon: Calendar },
       ],
     },
     {
-      id: "ads", label: "Ads Content", icon: Megaphone, type: "dropdown",
+      id: "ads",
+      label: "Ads Content",
+      icon: Megaphone,
+      type: "dropdown",
       children: [
         { label: "Created Ads", href: "/created-ads", icon: Megaphone },
         { label: "Ads Planner", href: "/ads-planner", icon: Calendar },
       ],
     },
-    { id: "integrations", label: "Integrations", href: "/integrations", icon: Workflow, type: "link" },
+    {
+      id: "integrations",
+      label: "Integrations",
+      href: "/integrations",
+      icon: Workflow,
+      type: "link",
+    },
   ];
 
   const bottomMenuLinks = [
@@ -175,7 +191,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           {isOpen && (
             <>
               <span className="flex-1 text-left truncate">{label}</span>
-              <ChevronDown className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${dropOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${dropOpen ? "-rotate-90" : ""}`} />
             </>
           )}
         </button>
@@ -278,8 +294,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         {/* Scrollable nav area */}
         <div className={`flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-3 ${isOpen ? "px-3" : "px-2"}`}>
           {renderSection("Create", createItems)}
+          {renderSection("Manage", manageItems)}
           {renderSection("Insights", insightsItems)}
           {renderSection("Tools", toolsItems)}
+
         </div>
 
         {/* Bottom user area */}
@@ -332,7 +350,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               </div>
             )}
             {isOpen && (
-              <ChevronRight className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${showBottomMenu ? "-rotate-90" : "rotate-90"}`} />
+              <ChevronRight className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${showBottomMenu ? "-rotate-4" : "rotate-90"}`} />
             )}
           </button>
         </div>
@@ -340,56 +358,57 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
       {/* ── Mobile Bottom Nav ──────────────────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 flex justify-around items-center py-2 md:hidden">
-        {[...createItems, ...insightsItems, ...toolsItems.slice(0, 3)].map((item) => {
-          const { id, label, icon: Icon, href, type, children } = item;
-          const isDropOpen = openDropdown === id;
+        {[...createItems, ...manageItems.slice(0, 2), ...insightsItems]
+          .map((item) => {
+            const { id, label, icon: Icon, href, type, children } = item;
+            const isDropOpen = openDropdown === id;
 
-          if (type === "dropdown") {
+            if (type === "dropdown") {
+              return (
+                <div key={id} className="relative">
+                  <button
+                    onClick={(e) => toggleDropdown(id, e)}
+                    className={`flex flex-col items-center text-xs p-2 rounded-lg ${isDropOpen || isDropdownActive(children) ? "text-blue-600" : "text-gray-500"}`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="mt-0.5 font-medium">{label}</span>
+                  </button>
+                  {isDropOpen && (
+                    <div className="absolute bottom-14 left-1/2 -translate-x-1/2 w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50">
+                      <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-400 px-3 py-1.5 border-b border-gray-100">
+                        {label}
+                      </p>
+                      {children.map((child) => {
+                        const ChildIcon = child.icon;
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            onClick={() => setOpenDropdown(null)}
+                            className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-50 ${isActive(child.href) ? "text-blue-600 font-semibold" : "text-gray-700"}`}
+                          >
+                            <ChildIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                            {child.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
-              <div key={id} className="relative">
-                <button
-                  onClick={(e) => toggleDropdown(id, e)}
-                  className={`flex flex-col items-center text-xs p-2 rounded-lg ${isDropOpen || isDropdownActive(children) ? "text-blue-600" : "text-gray-500"}`}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="mt-0.5 font-medium">{label}</span>
-                </button>
-                {isDropOpen && (
-                  <div className="absolute bottom-14 left-1/2 -translate-x-1/2 w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50">
-                    <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-400 px-3 py-1.5 border-b border-gray-100">
-                      {label}
-                    </p>
-                    {children.map((child) => {
-                      const ChildIcon = child.icon;
-                      return (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          onClick={() => setOpenDropdown(null)}
-                          className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-50 ${isActive(child.href) ? "text-blue-600 font-semibold" : "text-gray-700"}`}
-                        >
-                          <ChildIcon className="h-3.5 w-3.5 flex-shrink-0" />
-                          {child.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <Link
+                key={id}
+                href={href}
+                className={`flex flex-col items-center text-xs p-2 rounded-lg ${isActive(href) ? "text-blue-600" : "text-gray-500"}`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="mt-0.5 font-medium">{label}</span>
+              </Link>
             );
-          }
-
-          return (
-            <Link
-              key={id}
-              href={href}
-              className={`flex flex-col items-center text-xs p-2 rounded-lg ${isActive(href) ? "text-blue-600" : "text-gray-500"}`}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="mt-0.5 font-medium">{label}</span>
-            </Link>
-          );
-        })}
+          })}
 
         <div ref={bottomMenuRef} className="relative">
           <button

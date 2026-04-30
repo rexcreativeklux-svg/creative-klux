@@ -1236,7 +1236,6 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-
   const uploadImage = useCallback(async (file) => {
     if (!token) throw new Error("Not authenticated");
     if (!file) throw new Error("No file provided");

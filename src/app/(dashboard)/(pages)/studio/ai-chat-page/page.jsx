@@ -241,32 +241,134 @@ function PreviewPanel({ result, config }) {
           flex: 1,
           overflowY: "auto",
           padding: 12,
-          columns: 3,
-          columnGap: 2,
+          display: "flex",
+          gap: 10,
+          alignItems: "flex-start",
           scrollbarWidth: "thin",
           scrollbarColor: "rgba(0,0,0,0.08) transparent",
         }}
       >
-        {variations.map((v) => (
+        {/* split into two columns manually */}
+        {[0, 1].map((colIdx) => (
           <div
-            key={v.id}
-            style={{
-              breakInside: "avoid",
-              marginBottom: 10,
-              display: "flex",
-              flexDirection: "column",
-            }}
+            key={colIdx}
+            style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}
           >
-            {/* canvas */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <DesignCanvas variation={v} />
-            </div>
+            {variations
+              .filter((_, i) => i % 2 === colIdx)
+              .map((v) => {
+                const score = v.copy?.performance_score || "";
+                const scoreNum = score.split("/")[0];
+                const scoreLabel = score.split("—")[1]?.trim() || "";
+
+                return (
+                  <div
+                    key={v.id}
+                    className="border border-gray-200"
+                    style={{
+                      borderRadius: 12,
+                      overflow: "hidden",
+                      background: "#fff",
+                    }}
+                  >
+                    {/* canvas */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <DesignCanvas variation={v} />
+                    </div>
+
+                    {/* copy details */}
+                    <div style={{ padding: "10px 11px 11px" }}>
+
+                      {/* name + category row */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: "#111", margin: 0, lineHeight: 1.3 }}>
+                          {v.name}
+                        </p>
+                        <span style={{
+                          fontSize: 8.5,
+                          fontWeight: 600,
+                          padding: "2px 7px",
+                          borderRadius: 20,
+                          background: "rgba(0,0,0,0.05)",
+                          color: "#666",
+                          whiteSpace: "nowrap",
+                          marginLeft: 6,
+                          flexShrink: 0,
+                        }}>
+                          {v.category}
+                        </span>
+                      </div>
+
+                      {/* headline */}
+                      {v.copy?.headline && (
+                        <p style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", margin: "0 0 2px", lineHeight: 1.35 }}>
+                          {v.copy.headline}
+                        </p>
+                      )}
+
+                      {/* tagline */}
+                      {v.copy?.tagline && (
+                        <p style={{ fontSize: 9.5, color: "#64748b", margin: "0 0 6px", lineHeight: 1.4, fontStyle: "italic" }}>
+                          {v.copy.tagline}
+                        </p>
+                      )}
+
+                      {/* body */}
+                      {v.copy?.body && (
+                        <p style={{
+                          fontSize: 9,
+                          color: "#94a3b8",
+                          margin: "0 0 8px",
+                          lineHeight: 1.55,
+                          display: "-webkit-box",
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}>
+                          {v.copy.body}
+                        </p>
+                      )}
+
+                      {/* CTA + score row */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                        {v.copy?.cta && (
+                          <span style={{
+                            fontSize: 8.5,
+                            fontWeight: 700,
+                            padding: "3px 9px",
+                            borderRadius: 20,
+                            background: "#0f172a",
+                            color: "#fff",
+                            whiteSpace: "nowrap",
+                          }}>
+                            {v.copy.cta}
+                          </span>
+                        )}
+                        {scoreNum && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              color: "#22c55e",
+                              whiteSpace: "nowrap",
+                              marginLeft: "auto",
+                            }}
+                            title={scoreLabel}
+                          >
+                            ★ {scoreNum}/10
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         ))}
       </div>

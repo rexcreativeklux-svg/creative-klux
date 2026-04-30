@@ -239,7 +239,7 @@ export default function StudioSelectPage() {
         >
           What will you{" "}
         <span className="bg-gradient-to-r from-[#003dda] via-blue-300 to-blue-600 bg-clip-text text-transparent">
-                        create?
+                        create
                     </span>{" "}
           today?
         </h1>

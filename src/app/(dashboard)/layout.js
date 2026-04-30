@@ -12,7 +12,8 @@ import '../globals.css';
 
 const NO_PADDING_ROUTES = [
     "/studio/ai-select",
-    "/studio/ai-chat-page"
+    "/studio/ai-chat-page",
+    "/studio/select",
 ];
 
 export default function DashboardLayout({ children }) {

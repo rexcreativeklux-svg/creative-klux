@@ -23,7 +23,15 @@ export default function AiChatTypingIndicator({ config }) {
           border: "1px solid rgba(255,255,255,0.1)",
         }}
       >
-        <Sparkles style={{ width: 14, height: 14, color: color }} />
+        <img
+          src="/logoblue.svg"
+          alt="AI"
+          style={{
+            width: 18,
+            height: 18,
+            objectFit: "contain",
+          }}
+        />
       </div>
 
       {/* Dots bubble */}

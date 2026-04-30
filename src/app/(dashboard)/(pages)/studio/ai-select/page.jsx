@@ -11,11 +11,11 @@ const PIPELINE_OPTIONS = [
     tagline: "Run Ads",
     description: "High-converting ads for Google, Meta, TikTok & more",
     Icon: Tv2,
-    color: "#60a5fa",
-    colorRgb: "96,165,250",
-    cardBg: "rgba(15,40,100,0.7)",
-    borderIdle: "rgba(96,165,250,0.22)",
-    borderActive: "rgba(96,165,250,0.9)",
+    color: "#3b82f6",
+    colorRgb: "59,130,246",
+    cardBg: "#fff",
+    borderIdle: "rgba(59,130,246,0.18)",
+    borderActive: "rgba(59,130,246,0.8)",
     tags: ["Image Ads", "Video Ads", "Interactive"],
   },
   {
@@ -24,11 +24,11 @@ const PIPELINE_OPTIONS = [
     tagline: "Create Content",
     description: "Posts, reels, and stories for every platform",
     Icon: Share2,
-    color: "#34d399",
-    colorRgb: "52,211,153",
-    cardBg: "rgba(5,45,35,0.7)",
-    borderIdle: "rgba(52,211,153,0.22)",
-    borderActive: "rgba(52,211,153,0.9)",
+    color: "#10b981",
+    colorRgb: "16,185,129",
+    cardBg: "#fff",
+    borderIdle: "rgba(16,185,129,0.18)",
+    borderActive: "rgba(16,185,129,0.8)",
     tags: ["Posts", "Reels", "Banners"],
   },
   {
@@ -37,11 +37,11 @@ const PIPELINE_OPTIONS = [
     tagline: "Design Anything",
     description: "Logos, flyers, brand assets & more",
     Icon: Palette,
-    color: "#c084fc",
-    colorRgb: "192,132,252",
-    cardBg: "rgba(50,15,90,0.7)",
-    borderIdle: "rgba(192,132,252,0.22)",
-    borderActive: "rgba(192,132,252,0.9)",
+    color: "#8b5cf6",
+    colorRgb: "139,92,246",
+    cardBg: "#fff",
+    borderIdle: "rgba(139,92,246,0.18)",
+    borderActive: "rgba(139,92,246,0.8)",
     tags: ["Logos", "Business Cards", "Banners"],
   },
   {
@@ -50,16 +50,17 @@ const PIPELINE_OPTIONS = [
     tagline: "AI Generation",
     description: "Text to image, video, audio & variations",
     Icon: Wand2,
-    color: "#fb7185",
-    colorRgb: "251,113,133",
-    cardBg: "rgba(90,10,40,0.7)",
-    borderIdle: "rgba(251,113,133,0.22)",
-    borderActive: "rgba(251,113,133,0.9)",
+    color: "#f43f5e",
+    colorRgb: "244,63,94",
+    cardBg: "#fff",
+    borderIdle: "rgba(244,63,94,0.18)",
+    borderActive: "rgba(244,63,94,0.8)",
     tags: ["Text to Image", "Text to Video", "Voiceover"],
   },
 ];
 
-function SpaceCanvas() {
+/* ── Soft light canvas background ── */
+function LightCanvas() {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
 
@@ -80,115 +81,52 @@ function SpaceCanvas() {
     const W = () => canvas.offsetWidth;
     const H = () => canvas.offsetHeight;
 
-    const stars = Array.from({ length: 220 }, () => ({
-      x: Math.random(),
-      y: Math.random(),
-      r: Math.random() * 1.6 + 0.2,
-      base: Math.random() * 0.55 + 0.1,
-      phase: Math.random() * Math.PI * 2,
-      freq: Math.random() * 0.008 + 0.003,
-    }));
-
     const orbs = [
-      { x: 0.18, y: 0.28, r: 0.38, rgb: "96,165,250", spd: 0.00007, ang: 0.5 },
-      { x: 0.78, y: 0.55, r: 0.32, rgb: "192,132,252", spd: 0.00005, ang: 2.2 },
-      { x: 0.52, y: 0.08, r: 0.28, rgb: "251,113,133", spd: 0.00009, ang: 4.8 },
-      { x: 0.08, y: 0.72, r: 0.22, rgb: "52,211,153", spd: 0.00006, ang: 1.2 },
-      { x: 0.9, y: 0.15, r: 0.2, rgb: "192,132,252", spd: 0.00008, ang: 3.3 },
+      { x: 0.12, y: 0.2,  r: 0.42, rgb: "59,130,246",  spd: 0.00006, ang: 0.5 },
+      { x: 0.82, y: 0.5,  r: 0.36, rgb: "139,92,246",  spd: 0.00004, ang: 2.2 },
+      { x: 0.5,  y: 0.85, r: 0.3,  rgb: "244,63,94",   spd: 0.00008, ang: 4.8 },
+      { x: 0.05, y: 0.75, r: 0.24, rgb: "16,185,129",  spd: 0.00005, ang: 1.2 },
+      { x: 0.9,  y: 0.1,  r: 0.22, rgb: "139,92,246",  spd: 0.00007, ang: 3.3 },
     ];
 
-    const floaters = Array.from({ length: 50 }, () => ({
-      x: Math.random() * 1200,
-      y: Math.random() * 900,
-      vx: (Math.random() - 0.5) * 0.25,
-      vy: -Math.random() * 0.2 - 0.05,
-      r: Math.random() * 2.2 + 0.4,
-      alpha: Math.random() * 0.35 + 0.08,
-      rgb: ["96,165,250", "192,132,252", "251,113,133", "52,211,153"][Math.floor(Math.random() * 4)],
+    const dots = Array.from({ length: 40 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      r: Math.random() * 1.8 + 0.5,
+      base: Math.random() * 0.18 + 0.06,
       phase: Math.random() * Math.PI * 2,
+      freq: Math.random() * 0.006 + 0.002,
+      rgb: ["59,130,246","139,92,246","244,63,94","16,185,129"][Math.floor(Math.random()*4)],
     }));
-
-    const shoots = [];
-    let lastShoot = 0;
-
-    const spawnShoot = () => {
-      const dir = Math.random() > 0.5 ? 1 : -1;
-      shoots.push({
-        x: dir > 0 ? -50 : W() + 50,
-        y: Math.random() * H() * 0.6,
-        vx: dir * (Math.random() * 5 + 4),
-        vy: Math.random() * 2.5 + 0.5,
-        len: Math.random() * 140 + 80,
-        life: 1,
-      });
-    };
 
     const draw = (ts) => {
       const t = ts * 0.001;
       const w = W(), h = H();
-
       ctx.clearRect(0, 0, w, h);
 
-      const bg = ctx.createLinearGradient(0, 0, w * 0.6, h);
-      bg.addColorStop(0, "#010b1a");
-      bg.addColorStop(0.45, "#020d20");
-      bg.addColorStop(1, "#010810");
-      ctx.fillStyle = bg;
+      // white base
+      ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, w, h);
 
+      // soft coloured orbs
       orbs.forEach((orb) => {
         orb.ang += orb.spd;
-        const ox = (orb.x + Math.cos(orb.ang) * 0.09) * w;
-        const oy = (orb.y + Math.sin(orb.ang * 1.4) * 0.07) * h;
+        const ox = (orb.x + Math.cos(orb.ang) * 0.08) * w;
+        const oy = (orb.y + Math.sin(orb.ang * 1.3) * 0.06) * h;
         const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, orb.r * w);
-        g.addColorStop(0, `rgba(${orb.rgb},0.14)`);
-        g.addColorStop(0.35, `rgba(${orb.rgb},0.06)`);
-        g.addColorStop(1, "rgba(0,0,0,0)");
+        g.addColorStop(0, `rgba(${orb.rgb},0.07)`);
+        g.addColorStop(0.5, `rgba(${orb.rgb},0.03)`);
+        g.addColorStop(1, `rgba(${orb.rgb},0)`);
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, w, h);
       });
 
-      stars.forEach((s) => {
-        const a = s.base + Math.sin(t * s.freq * 60 + s.phase) * 0.28;
+      // floating dots
+      dots.forEach((d) => {
+        const a = d.base + Math.sin(t * d.freq * 60 + d.phase) * 0.08;
         ctx.beginPath();
-        ctx.arc(s.x * w, s.y * h, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${Math.max(0, a)})`;
-        ctx.fill();
-      });
-
-      if (ts - lastShoot > 1800 + Math.random() * 2500) {
-        spawnShoot();
-        lastShoot = ts;
-      }
-      for (let i = shoots.length - 1; i >= 0; i--) {
-        const s = shoots[i];
-        s.x += s.vx;
-        s.y += s.vy;
-        s.life -= 0.016;
-        if (s.life <= 0 || s.x < -200 || s.x > w + 200) { shoots.splice(i, 1); continue; }
-        const grad = ctx.createLinearGradient(s.x - s.vx * (s.len / 5), s.y - s.vy * (s.len / 5), s.x, s.y);
-        grad.addColorStop(0, "transparent");
-        grad.addColorStop(0.7, `rgba(200,220,255,${s.life * 0.6})`);
-        grad.addColorStop(1, `rgba(255,255,255,${s.life * 0.95})`);
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = 1.8;
-        ctx.beginPath();
-        ctx.moveTo(s.x - s.vx * (s.len / 5), s.y - s.vy * (s.len / 5));
-        ctx.lineTo(s.x, s.y);
-        ctx.stroke();
-      }
-
-      floaters.forEach((p) => {
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < 0) p.x = w;
-        if (p.x > w) p.x = 0;
-        if (p.y < 0) p.y = h + 10;
-        if (p.y > h + 10) p.y = 0;
-        const pulse = 0.65 + 0.35 * Math.sin(t * 1.2 + p.phase);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${p.rgb},${p.alpha * pulse})`;
+        ctx.arc(d.x * w, d.y * h, d.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${d.rgb},${a})`;
         ctx.fill();
       });
 
@@ -205,7 +143,13 @@ function SpaceCanvas() {
   return (
     <canvas
       ref={canvasRef}
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+      }}
     />
   );
 }
@@ -226,11 +170,7 @@ export default function StudioSelectPage() {
 
   const navigateToChat = (type = "general", message = "") => {
     const params = new URLSearchParams({ creative: type });
-
-    if (message.trim()) {
-      params.set("initialMessage", message.trim());
-    }
-
+    if (message.trim()) params.set("initialMessage", message.trim());
     router.push(`/studio/ai-chat-page?${params.toString()}`);
   };
 
@@ -238,54 +178,101 @@ export default function StudioSelectPage() {
     navigateToChat(type, inputValue);
   };
 
-
-  const handleInputKeyDown = (e) => {
-    if (e.key === "Enter" && selectedType) { e.preventDefault(); navigateToChat(selectedType, inputValue); }
-    if (e.key === "Escape") { setSelectedType(null); setInputValue(""); }
-  };
-
   return (
-    <div className="h-full" style={{ background: "#010b1a", position: "relative", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <SpaceCanvas />
+    <div
+      className="h-full"
+      style={{
+        background: "#ffffff",
+        position: "relative",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <LightCanvas />
 
-      <div className="pt-[10%]" style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", alignItems: "center", }}>
-
+      <div
+        className="pt-[8%]"
+        style={{
+          position: "relative",
+          zIndex: 1,
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          isolation: "isolate",
+        }}
+      >
         {/* Badge */}
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "rgba(192,132,252,0.1)", border: "1px solid rgba(192,132,252,0.3)", color: "rgba(255,255,255,0.72)", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", padding: "6px 16px", borderRadius: 999, marginBottom: 24, textTransform: "uppercase" }}>
-          <Sparkles style={{ width: 12, height: 12, color: "#c084fc" }} />
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            background: "rgba(139,92,246,0.08)",
+            border: "1px solid rgba(139,92,246,0.22)",
+            color: "#8b5cf6",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            padding: "6px 16px",
+            borderRadius: 999,
+            marginBottom: 22,
+            textTransform: "uppercase",
+          }}
+        >
+          <Sparkles style={{ width: 12, height: 12 }} />
           Creative Klux AI
         </div>
 
         {/* Headline */}
-        <h1 style={{ fontSize: "clamp(30px, 4.5vw, 52px)", fontWeight: 800, color: "#fff", textAlign: "center", lineHeight: 1.1, margin: "0 0 14px", letterSpacing: "-0.035em" }}>
+        <h1
+          style={{
+            fontSize: "clamp(28px, 4.5vw, 50px)",
+            fontWeight: 800,
+            color: "#0f172a",
+            textAlign: "center",
+            lineHeight: 1.1,
+            margin: "0 0 12px",
+            letterSpacing: "-0.035em",
+          }}
+        >
           What will you{" "}
-          <span style={{ background: "linear-gradient(95deg, #60a5fa 0%, #c084fc 48%, #fb7185 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-            create
-          </span>{" "}
+        <span className="bg-gradient-to-r from-[#003dda] via-blue-300 to-blue-600 bg-clip-text text-transparent">
+                        create?
+                    </span>{" "}
           today?
         </h1>
 
-        <p className="text-gray-400" style={{ fontSize: 14, textAlign: "center", margin: "0 0 52px", letterSpacing: "0.01em" }}>
+        <p
+          style={{
+            fontSize: 14,
+            color: "#64748b",
+            textAlign: "center",
+            margin: "0 0 48px",
+            letterSpacing: "0.01em",
+          }}
+        >
           Select a creative or describe your vision · let AI do the rest
         </p>
 
         {/* Cards */}
-        <div className="pt-10" style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: 10,
-          width: "100%",
-          maxWidth: 940
-        }}
+        <div
+          className="pt-6 px-4"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: 12,
+            width: "100%",
+            maxWidth: 900,
+          }}
         >
           {PIPELINE_OPTIONS.map((opt) => {
             const { Icon } = opt;
-            const isSel = selectedType === opt.type;
             const isHov = hovered === opt.type;
-            const lit = isSel || isHov;
 
             return (
-              <button className="px-4 py-4 rounded-xl"
+              <button
                 key={opt.type}
                 onClick={() => handleCardClick(opt.type)}
                 onMouseEnter={() => setHovered(opt.type)}
@@ -296,72 +283,115 @@ export default function StudioSelectPage() {
                   flexDirection: "row",
                   alignItems: "flex-start",
                   textAlign: "left",
-                  border: `1.5px solid ${isSel ? opt.borderActive : isHov ? `rgba(${opt.colorRgb},0.5)` : opt.borderIdle}`,
-                  background: lit ? opt.cardBg : "rgba(255,255,255,0.045)",
-                  backdropFilter: "blur(20px)",
-                  WebkitBackdropFilter: "blur(20px)",
+                  padding: "18px 18px",
+                  borderRadius: 16,
+                  border: `1.5px solid ${
+                    isHov ? opt.borderActive : opt.borderIdle
+                  }`,
+                  background: isHov
+                    ? `rgba(${opt.colorRgb}, 0.04)`
+                    : "#ffffff",
                   cursor: "pointer",
-                  transition: "all 0.22s cubic-bezier(0.4,0,0.2,1)",
-                  boxShadow: isSel
-                    ? `0 0 48px rgba(${opt.colorRgb},0.28), 0 12px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.12)`
-                    : isHov
-                      ? `0 0 24px rgba(${opt.colorRgb},0.18), 0 8px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)`
-                      : "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)",
-                  transform: isSel ? "translateY(-5px) scale(1.015)" : isHov ? "translateY(-2px)" : "none",
+                  transition: "all 0.2s cubic-bezier(0.4,0,0.2,1)",
+                  boxShadow: isHov
+                    ? `0 8px 32px rgba(${opt.colorRgb},0.14), 0 2px 8px rgba(0,0,0,0.06)`
+                    : "0 1px 4px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.04)",
+                  transform: isHov ? "translateY(-3px)" : "none",
                   outline: "none",
                   overflow: "hidden",
                 }}
               >
-                {/* Top shimmer line */}
-                <div aria-hidden="true" style={{ position: "absolute", top: 0, left: "15%", right: "15%", height: 1, background: lit ? `linear-gradient(90deg, transparent, rgba(${opt.colorRgb},0.7), transparent)` : "linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)", borderRadius: 1, transition: "all 0.3s" }} />
-
-                {/* Glow corner */}
-                {isSel && (
-                  <div aria-hidden="true" style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: `radial-gradient(circle, rgba(${opt.colorRgb},0.3) 0%, transparent 70%)`, pointerEvents: "none" }} />
-                )}
-
-                {/* Pulse dot */}
-                {isSel && (
-                  <div style={{ position: "absolute", top: 16, right: 16, width: 8, height: 8, borderRadius: "50%", background: opt.color, boxShadow: `0 0 12px ${opt.color}, 0 0 24px rgba(${opt.colorRgb},0.5)` }} />
-                )}
+                {/* Top shimmer line on hover */}
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: "10%",
+                    right: "10%",
+                    height: 1,
+                    background: isHov
+                      ? `linear-gradient(90deg, transparent, rgba(${opt.colorRgb},0.5), transparent)`
+                      : "transparent",
+                    borderRadius: 1,
+                    transition: "all 0.3s",
+                  }}
+                />
 
                 {/* Icon */}
-                <div style={{ width: 46, height: 46, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: `rgba(${opt.colorRgb},${lit ? 0.22 : 0.1})`, border: `1.5px solid rgba(${opt.colorRgb},${lit ? 0.5 : 0.18})`, marginBottom: 15, transition: "all 0.22s", flexShrink: 0 }}>
-                  <Icon style={{ color: lit ? opt.color : `rgba(${opt.colorRgb},0.65)` }} strokeWidth={1.75} size={21} />
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: `rgba(${opt.colorRgb}, ${isHov ? 0.14 : 0.08})`,
+                    border: `1px solid rgba(${opt.colorRgb}, ${isHov ? 0.35 : 0.16})`,
+                    flexShrink: 0,
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <Icon
+                    style={{ color: opt.color }}
+                    strokeWidth={1.75}
+                    size={20}
+                  />
                 </div>
 
-                <div className="pl-4">
+                <div style={{ paddingLeft: 14, flex: 1 }}>
                   {/* Name */}
-                  <p style={{ fontSize: 14, fontWeight: 700, color: lit ? "#ffffff" : "rgba(255,255,255,0.82)", margin: "0 0 6px", letterSpacing: "-0.015em" }}>
+                  <p
+                    style={{
+                      fontSize: 13.5,
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      margin: "0 0 3px",
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
                     {opt.name}
                   </p>
 
                   {/* Tagline */}
-                  <p style={{ fontSize: 11, fontWeight: 600, color: lit ? opt.color : `rgba(${opt.colorRgb},0.55)`, margin: "0 0 8px", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                  <p
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      color: opt.color,
+                      margin: "0 0 6px",
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                    }}
+                  >
                     {opt.tagline}
                   </p>
 
                   {/* Description */}
-                  <p className="text-gray-400" style={{ fontSize: 12, lineHeight: 1.6 }}>
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: "#64748b",
+                      margin: "0 0 10px",
+                      lineHeight: 1.55,
+                    }}
+                  >
                     {opt.description}
                   </p>
 
-                  <div style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 6,
-                    marginTop: 10
-                  }}>
+                  {/* Tags */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                     {opt.tags.map((tag, i) => (
                       <span
                         key={i}
                         style={{
                           fontSize: 10,
-                          padding: "4px 8px",
+                          padding: "3px 8px",
                           borderRadius: 999,
-                          background: `rgba(${opt.colorRgb},0.12)`,
-                          color: `rgba(${opt.colorRgb},0.9)`,
-                          border: `1px solid rgba(${opt.colorRgb},0.25)`,
+                          background: `rgba(${opt.colorRgb}, 0.08)`,
+                          color: opt.color,
+                          border: `1px solid rgba(${opt.colorRgb}, 0.18)`,
                           fontWeight: 500,
                         }}
                       >
@@ -370,29 +400,114 @@ export default function StudioSelectPage() {
                     ))}
                   </div>
                 </div>
+
+                {/* Arrow on hover */}
+                {isHov && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 16,
+                      right: 14,
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      background: `rgba(${opt.colorRgb}, 0.1)`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <ArrowRight
+                      style={{ width: 11, height: 11, color: opt.color }}
+                    />
+                  </div>
+                )}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Bottom input */}
-      <div style={{ position: "sticky", bottom: 50, zIndex: 2, background: "linear-gradient(to top, #010b1a 60%, transparent)" }}>
-        <div style={{ maxWidth: 700, margin: "0 auto" }}>
-
-          <div style={{ display: "flex", alignItems: "center", height: 20, marginBottom: 10 }}>
+      {/* Bottom input bar */}
+      <div
+        style={{
+          position: "sticky",
+          bottom: 0,
+          zIndex: 2,
+          background:
+            "linear-gradient(to top, rgba(255,255,255,1) 65%, rgba(255,255,255,0))",
+          paddingBottom: 28,
+          paddingTop: 24,
+        }}
+      >
+        <div style={{ maxWidth: 680, margin: "0 auto", padding: "0 16px" }}>
+          {/* status line */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              height: 20,
+              marginBottom: 10,
+            }}
+          >
             {selectedConfig ? (
-              <span style={{ fontSize: 11, fontWeight: 600, color: selectedConfig.color, display: "flex", alignItems: "center", gap: 7 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: selectedConfig.color, boxShadow: `0 0 10px ${selectedConfig.color}`, display: "inline-block" }} />
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: selectedConfig.color,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: selectedConfig.color,
+                    display: "inline-block",
+                  }}
+                />
                 {selectedConfig.name} selected
-                <span style={{ color: "rgba(255,255,255,0.28)", fontWeight: 400 }}>· Esc to clear</span>
+                <span style={{ color: "#94a3b8", fontWeight: 400 }}>
+                  · Esc to clear
+                </span>
               </span>
             ) : (
-              <span className="text-gray-300" style={{ fontSize: 13, }}>Select a studio above to get started</span>
+              <span style={{ fontSize: 12, color: "#64748b" }}>
+                Select a studio above or describe your vision below
+              </span>
             )}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10, borderRadius: 16, border: `1.5px solid ${inputFocused && selectedConfig ? `rgba(${selectedConfig.colorRgb},0.75)` : inputFocused ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.1)"}`, padding: "12px 14px", background: "rgba(255,255,255,0.055)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", transition: "all 0.2s", boxShadow: inputFocused && selectedConfig ? `0 0 0 3px rgba(${selectedConfig.colorRgb},0.15), 0 8px 32px rgba(0,0,0,0.45)` : "0 4px 24px rgba(0,0,0,0.35)" }}>
+          {/* input row */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              borderRadius: 14,
+              border: `1.5px solid ${
+                inputFocused && selectedConfig
+                  ? `rgba(${selectedConfig.colorRgb}, 0.65)`
+                  : inputFocused
+                  ? "rgba(99,102,241,0.45)"
+                  : "#e2e8f0"
+              }`,
+              padding: "11px 12px",
+              background: "#fff",
+              boxShadow: inputFocused
+                ? `0 0 0 3px ${
+                    selectedConfig
+                      ? `rgba(${selectedConfig.colorRgb},0.1)`
+                      : "rgba(99,102,241,0.08)"
+                  }, 0 4px 16px rgba(0,0,0,0.06)`
+                : "0 2px 8px rgba(0,0,0,0.05)",
+              transition: "all 0.2s",
+            }}
+          >
             <input
               ref={inputRef}
               type="text"
@@ -403,40 +518,62 @@ export default function StudioSelectPage() {
                   e.preventDefault();
                   navigateToChat("general", inputValue);
                 }
+                if (e.key === "Escape") {
+                  setSelectedType(null);
+                  setInputValue("");
+                }
               }}
               onFocus={() => setInputFocused(true)}
               onBlur={() => setInputFocused(false)}
-              placeholder="Describe what you want to create… (or pick a studio)"
+              placeholder="Describe what you want to create… (or pick a studio above)"
               style={{
                 flex: 1,
                 background: "transparent",
                 border: "none",
                 outline: "none",
-                fontSize: 14,
-                color: "white",
+                fontSize: 13.5,
+                color: "#0f172a",
+                fontFamily: "inherit",
               }}
             />
 
             <button
               onClick={() => navigateToChat("general", inputValue)}
               style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
+                width: 38,
+                height: 38,
+                borderRadius: 10,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "linear-gradient(135deg, #c084fc 0%, rgba(192,132,252,0.7) 100%)",
+                border: "none",
+                background: selectedConfig
+                  ? `linear-gradient(135deg, ${selectedConfig.color}, rgba(${selectedConfig.colorRgb},0.7))`
+                  : "#003dda",
                 color: "#fff",
+                cursor: "pointer",
+                boxShadow: selectedConfig
+                  ? `0 3px 12px rgba(${selectedConfig.colorRgb},0.35)`
+                  : "0 3px 12px rgba(139,92,246,0.3)",
+                transition: "all 0.15s",
+                flexShrink: 0,
               }}
             >
-
-              <ArrowRight className="text-white" style={{ width: 17, height: 17 }} />
+              <ArrowRight style={{ width: 16, height: 16 }} />
             </button>
           </div>
 
-          <p style={{ fontSize: 11, color: "rgba(255,255,255)", textAlign: "center", marginTop: 10 }}>
-            {selectedType ? "Enter to launch · description is optional" : "Choose a studio, describe your vision or jump straight in"}
+          <p
+            style={{
+              fontSize: 11,
+              color: "#94a3b8",
+              textAlign: "center",
+              marginTop: 9,
+            }}
+          >
+            {selectedType
+              ? "Enter to launch · description is optional"
+              : "Choose a studio above, or describe your vision and jump straight in"}
           </p>
         </div>
       </div>

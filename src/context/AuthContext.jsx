@@ -369,7 +369,6 @@ export function AuthProvider({ children }) {
       });
 
       const text = await res.text();
-      console.log("Teams Raw Response:", text);
 
       let data;
       try {
@@ -1338,7 +1337,6 @@ export function AuthProvider({ children }) {
       });
 
       const text = await res.text();
-      console.log("Tutorial Videos Raw Response:", text);
 
       let data;
       try {
@@ -1444,6 +1442,7 @@ export function AuthProvider({ children }) {
       let data;
       try {
         data = JSON.parse(text);
+        console.log(data)
       } catch {
         console.error("Invalid JSON from ai-creative-chat:", text);
         return { ok: false, message: "Invalid server response" };

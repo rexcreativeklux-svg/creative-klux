@@ -1,198 +1,380 @@
 "use client";
 
-import React from "react";
-import { Tv2, Share2, Palette, Sparkles } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Tv2, Share2, Palette, Sparkles, ArrowRight } from "lucide-react";
 
-const pipelineOptions = [
-  {
-    type: "ads_creative",
-    name: "Ads Creative",
-    desc: "Run Ads",
-    inner: "Create high-converting ads for Google, Meta, TikTok & more",
-    color: "#2563eb",
-    Icon: Tv2,
-    tags: ["Image Ads", "Video Ads", "Interactive Ads"],
-    decorative: (
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-4 right-4 w-16 h-10 border-2 border-blue-300/40 rounded-lg" />
-        <div className="absolute top-7 right-7 w-10 h-6 border border-blue-300/30 rounded" />
-        <div className="absolute bottom-6 left-5 w-12 h-1.5 bg-blue-300/30 rounded-full" />
-        <div className="absolute bottom-9 left-5 w-8 h-1.5 bg-blue-200/30 rounded-full" />
-        <svg className="absolute inset-0 w-full h-full">
-          <circle cx="18%" cy="70%" r="5" fill="#2563eb" opacity="0.12" />
-          <circle cx="75%" cy="75%" r="3" fill="#2563eb" opacity="0.15" />
-        </svg>
-      </div>
-    ),
-  },
-  {
-    type: "social_creative",
-    name: "Social Creative",
-    desc: "Create Content",
-    inner: "Posts, reels, and stories for Instagram, TikTok, LinkedIn & more",
-    color: "#059669",
-    Icon: Share2,
-    tags: ["Posts", "Reels / Stories", "Banners / Covers"],
-    decorative: (
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-5 left-5 w-9 h-9 border-2 border-emerald-300/40 rounded-xl" />
-        <div className="absolute top-5 left-16 w-9 h-9 border-2 border-emerald-300/30 rounded-xl" />
-        <div className="absolute bottom-5 left-5 right-5 h-1.5 bg-emerald-200/30 rounded-full" />
-        <svg className="absolute inset-0 w-full h-full">
-          <circle cx="80%" cy="30%" r="6" fill="#059669" opacity="0.1" />
-          <circle cx="70%" cy="65%" r="3" fill="#059669" opacity="0.15" />
-        </svg>
-      </div>
-    ),
-  },
-  {
-    type: "designer_creative",
-    name: "Designer Creative",
-    desc: "Design Anything",
-    inner: "Logos, flyers, banners, brand assets & more",
-    color: "#7c3aed",
-    Icon: Palette,
-    tags: ["Logos", "Business Cards", "Banners"],
-    decorative: (
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-4 right-6 w-10 h-10 border-2 border-violet-300/40 rounded-full" />
-        <div className="absolute top-8 right-10 w-4 h-4 bg-violet-300/20 rounded-full" />
-        <div className="absolute bottom-5 left-5 w-14 h-1.5 bg-violet-200/30 rounded-full" />
-        <div className="absolute bottom-8 left-5 w-9 h-1.5 bg-violet-300/20 rounded-full" />
-        <svg className="absolute inset-0 w-full h-full">
-          <circle cx="20%" cy="35%" r="4" fill="#7c3aed" opacity="0.12" />
-          <circle cx="65%" cy="70%" r="5" fill="#7c3aed" opacity="0.1" />
-        </svg>
-      </div>
-    ),
-  },
-  {
-    type: "magic_studio",
-    name: "Magic Studio",
-    desc: "AI Generation",
-    inner: "Generate images, videos, variations, voiceovers & more",
-    color: "#db2777",
-    Icon: Sparkles,
-    tags: ["Text to Image", "Text to Video", "Image Variations"],
-    decorative: (
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-20 h-20 border-2 border-pink-300/20 rounded-full" />
-          <div className="absolute w-14 h-14 border border-pink-300/20 rounded-full" />
-        </div>
-        <svg className="absolute inset-0 w-full h-full">
-          <circle cx="20%" cy="25%" r="3" fill="#db2777" opacity="0.2" />
-          <circle cx="78%" cy="70%" r="4" fill="#db2777" opacity="0.15" />
-          <circle cx="75%" cy="25%" r="2.5" fill="#db2777" opacity="0.18" />
-        </svg>
-      </div>
-    ),
-  },
+const PIPELINE_OPTIONS = [
+    {
+        type: "ads_creative",
+        name: "Ads Creative",
+        tagline: "Run Ads",
+        description: "Create high-converting ads for Google, Meta, TikTok & more",
+        Icon: Tv2,
+        color: "#2563eb",
+        colorRgb: "37,99,235",
+        tags: ["Image Ads", "Video Ads", "Interactive Ads"],
+    },
+    {
+        type: "social_creative",
+        name: "Social Creative",
+        tagline: "Create Content",
+        description: "Posts, reels, and stories for Instagram, TikTok, LinkedIn & more",
+        Icon: Share2,
+        color: "#059669",
+        colorRgb: "5,150,105",
+        tags: ["Posts", "Reels / Stories", "Banners / Covers"],
+    },
+    {
+        type: "designer_creative",
+        name: "Designer Creative",
+        tagline: "Design Anything",
+        description: "Logos, flyers, banners, brand assets & more",
+        Icon: Palette,
+        color: "#7c3aed",
+        colorRgb: "124,58,237",
+        tags: ["Logos", "Business Cards", "Banners"],
+    },
+    {
+        type: "magic_studio",
+        name: "Magic Studio",
+        tagline: "AI Generation",
+        description: "Generate images, videos, variations, voiceovers & more",
+        Icon: Sparkles,
+        color: "#db2777",
+        colorRgb: "219,39,119",
+        tags: ["Text to Image", "Text to Video", "Image Variations"],
+    },
 ];
 
+/* ── Soft light canvas background ── */
+function LightCanvas() {
+    const canvasRef = useRef(null);
+    const animRef = useRef(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+
+        const resize = () => {
+            canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+            canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        };
+        resize();
+        const ro = new ResizeObserver(resize);
+        ro.observe(canvas);
+
+        const W = () => canvas.offsetWidth;
+        const H = () => canvas.offsetHeight;
+
+        const orbs = [
+            { x: 0.12, y: 0.2, r: 0.42, rgb: "37,99,235", spd: 0.00006, ang: 0.5 },
+            { x: 0.82, y: 0.5, r: 0.36, rgb: "124,58,237", spd: 0.00004, ang: 2.2 },
+            { x: 0.5, y: 0.85, r: 0.3, rgb: "219,39,119", spd: 0.00008, ang: 4.8 },
+            { x: 0.05, y: 0.75, r: 0.24, rgb: "5,150,105", spd: 0.00005, ang: 1.2 },
+            { x: 0.9, y: 0.1, r: 0.22, rgb: "124,58,237", spd: 0.00007, ang: 3.3 },
+        ];
+
+        const dots = Array.from({ length: 40 }, () => ({
+            x: Math.random(),
+            y: Math.random(),
+            r: Math.random() * 1.8 + 0.5,
+            base: Math.random() * 0.18 + 0.06,
+            phase: Math.random() * Math.PI * 2,
+            freq: Math.random() * 0.006 + 0.002,
+            rgb: ["37,99,235", "124,58,237", "219,39,119", "5,150,105"][
+                Math.floor(Math.random() * 4)
+            ],
+        }));
+
+        const draw = (ts) => {
+            const t = ts * 0.001;
+            const w = W(), h = H();
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, w, h);
+
+            orbs.forEach((orb) => {
+                orb.ang += orb.spd;
+                const ox = (orb.x + Math.cos(orb.ang) * 0.08) * w;
+                const oy = (orb.y + Math.sin(orb.ang * 1.3) * 0.06) * h;
+                const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, orb.r * w);
+                g.addColorStop(0, `rgba(${orb.rgb},0.07)`);
+                g.addColorStop(0.5, `rgba(${orb.rgb},0.03)`);
+                g.addColorStop(1, `rgba(${orb.rgb},0)`);
+                ctx.fillStyle = g;
+                ctx.fillRect(0, 0, w, h);
+            });
+
+            dots.forEach((d) => {
+                const a = d.base + Math.sin(t * d.freq * 60 + d.phase) * 0.08;
+                ctx.beginPath();
+                ctx.arc(d.x * w, d.y * h, d.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${d.rgb},${a})`;
+                ctx.fill();
+            });
+
+            animRef.current = requestAnimationFrame(draw);
+        };
+
+        animRef.current = requestAnimationFrame(draw);
+        return () => {
+            cancelAnimationFrame(animRef.current);
+            ro.disconnect();
+        };
+    }, []);
+
+    return (
+        <canvas
+            ref={canvasRef}
+            style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                pointerEvents: "none",
+            }}
+        />
+    );
+}
+
 export default function StudioSelectPage() {
-  const router = useRouter();
+    const router = useRouter();
+    const [hovered, setHovered] = useState(null);
 
-  return (
-    <div className="flex flex-col items-center justify-center pt-20 px-4">
-      {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900">
-          What would you like to create?
-        </h1>
-        <p className="text-sm text-gray-400 mt-1">
-          Choose a creative type to get started.
-        </p>
-      </div>
+    return (
+        <div
+            className="h-full"
+            style={{
+                background: "#ffffff",
+                position: "relative",
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+            }}
+        >
+            <LightCanvas />
 
-      {/* Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
-        {pipelineOptions.map((opt) => {
-          const { Icon } = opt;
-          return (
-            <div
-              key={opt.type}
-              onClick={() => router.push(`/studio?creative=${opt.type}`)}
-              className="bg-white rounded-xl border border-gray-200 py-5 px-5 flex flex-col relative group overflow-hidden cursor-pointer select-none"
-              style={{ transition: "box-shadow 0.2s, border-color 0.2s, transform 0.15s" }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = opt.color + "55";
-                e.currentTarget.style.boxShadow = `0 4px 20px ${opt.color}18`;
-                e.currentTarget.style.transform = "translateY(-1px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "#E5E7EB";
-                e.currentTarget.style.boxShadow = "none";
-                e.currentTarget.style.transform = "none";
-              }}
-              onMouseDown={(e) => {
-                e.currentTarget.style.transform = "translateY(0px) scale(0.99)";
-              }}
-              onMouseUp={(e) => {
-                e.currentTarget.style.transform = "translateY(-1px)";
-              }}
+            <div className="pt-40"
+                style={{
+                    position: "relative",
+                    zIndex: 1,
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    isolation: "isolate",
+
+                }}
             >
-              {/* Subtle bg glow on hover */}
-              <div
-                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                style={{
-                  background: `radial-gradient(ellipse at top right, ${opt.color}0d, transparent 65%)`,
-                }}
-              />
 
-              {/* Icon area */}
-              <div
-                className="w-full h-28 rounded-xl flex items-center justify-center mb-4 relative overflow-hidden"
-                style={{
-                  background: `${opt.color}0f`,
-                  border: `1px solid ${opt.color}20`,
-                }}
-              >
-                {opt.decorative}
 
-                <div
-                  className="relative z-10 w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition-transform duration-300 group-hover:scale-110"
-                  style={{ background: `${opt.color}18` }}
+                {/* Headline */}
+                <h1
+                    style={{
+                        fontSize: "clamp(26px, 4vw, 46px)",
+                        fontWeight: 800,
+                        color: "#0f172a",
+                        textAlign: "center",
+                        lineHeight: 1.1,
+                        margin: "0 0 12px",
+                        letterSpacing: "-0.035em",
+                    }}
                 >
-                  <Icon
-                    className="w-7 h-7"
-                    style={{ color: opt.color }}
-                    strokeWidth={1.5}
-                  />
-                </div>
-              </div>
+                    What would you like to{" "}
+                    <span className="bg-gradient-to-r from-[#003dda] via-blue-300 to-blue-600 bg-clip-text text-transparent">
+                        Create
+                    </span>
+                    {" "}
+                    today?
+                </h1>
 
-              {/* Text */}
-              <div className="relative z-10 flex-1">
-                <h3 className="text-sm font-semibold mb-0.5 text-gray-900">
-                  {opt.name}
-                </h3>
-                <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
-                  {opt.inner}
+                <p className="pb-20"
+                    style={{
+                        fontSize: 14,
+                        color: "#64748b",
+                        textAlign: "center",
+                        margin: "0 0 44px",
+                        letterSpacing: "0.01em",
+                    }}
+                >
+                    Choose a creative type to get started
                 </p>
 
-                {/* Tags */}
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {opt.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                      style={{
-                        background: `${opt.color}10`,
-                        color: opt.color,
-                        border: `1px solid ${opt.color}20`,
-                      }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
+                {/* Cards */}
+                <div
+                    style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2, 1fr)",
+                        gap: 12,
+                        width: "100%",
+                        maxWidth: 860,
+                        padding: "0 16px",
+                    }}
+                >
+                    {PIPELINE_OPTIONS.map((opt) => {
+                        const { Icon } = opt;
+                        const isHov = hovered === opt.type;
+
+                        return (
+                            <button
+                                key={opt.type}
+                                onClick={() => router.push(`/studio?creative=${opt.type}`)}
+                                onMouseEnter={() => setHovered(opt.type)}
+                                onMouseLeave={() => setHovered(null)}
+                                style={{
+                                    position: "relative",
+                                    display: "flex",
+                                    flexDirection: "row",
+                                    alignItems: "flex-start",
+                                    textAlign: "left",
+                                    padding: "18px",
+                                    borderRadius: 16,
+                                    border: `1.5px solid ${isHov
+                                        ? `rgba(${opt.colorRgb}, 0.7)`
+                                        : `rgba(${opt.colorRgb}, 0.18)`
+                                        }`,
+                                    background: isHov
+                                        ? `rgba(${opt.colorRgb}, 0.03)`
+                                        : "#ffffff",
+                                    cursor: "pointer",
+                                    transition: "all 0.2s cubic-bezier(0.4,0,0.2,1)",
+                                    boxShadow: isHov
+                                        ? `0 8px 32px rgba(${opt.colorRgb},0.13), 0 2px 8px rgba(0,0,0,0.05)`
+                                        : "0 1px 4px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.03)",
+                                    transform: isHov ? "translateY(-3px)" : "none",
+                                    outline: "none",
+                                    overflow: "hidden",
+                                }}
+                            >
+                                {/* top shimmer on hover */}
+                                <div
+                                    aria-hidden="true"
+                                    style={{
+                                        position: "absolute",
+                                        top: 0,
+                                        left: "10%",
+                                        right: "10%",
+                                        height: 1,
+                                        background: isHov
+                                            ? `linear-gradient(90deg, transparent, rgba(${opt.colorRgb},0.45), transparent)`
+                                            : "transparent",
+                                        transition: "all 0.3s",
+                                    }}
+                                />
+
+                                {/* icon */}
+                                <div
+                                    style={{
+                                        width: 44,
+                                        height: 44,
+                                        borderRadius: 12,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        background: `rgba(${opt.colorRgb}, ${isHov ? 0.13 : 0.08})`,
+                                        border: `1px solid rgba(${opt.colorRgb}, ${isHov ? 0.3 : 0.15})`,
+                                        flexShrink: 0,
+                                        transition: "all 0.2s",
+                                    }}
+                                >
+                                    <Icon
+                                        style={{ color: opt.color }}
+                                        strokeWidth={1.75}
+                                        size={20}
+                                    />
+                                </div>
+
+                                <div style={{ paddingLeft: 14, flex: 1 }}>
+                                    {/* name */}
+                                    <p
+                                        style={{
+                                            fontSize: 13.5,
+                                            fontWeight: 700,
+                                            color: "#0f172a",
+                                            margin: "0 0 3px",
+                                            letterSpacing: "-0.01em",
+                                        }}
+                                    >
+                                        {opt.name}
+                                    </p>
+
+                                    {/* tagline */}
+                                    <p
+                                        style={{
+                                            fontSize: 10.5,
+                                            fontWeight: 600,
+                                            color: opt.color,
+                                            margin: "0 0 6px",
+                                            letterSpacing: "0.04em",
+                                            textTransform: "uppercase",
+                                        }}
+                                    >
+                                        {opt.tagline}
+                                    </p>
+
+                                    {/* description */}
+                                    <p
+                                        style={{
+                                            fontSize: 12,
+                                            color: "#64748b",
+                                            margin: "0 0 10px",
+                                            lineHeight: 1.55,
+                                        }}
+                                    >
+                                        {opt.description}
+                                    </p>
+
+                                    {/* tags */}
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                                        {opt.tags.map((tag, i) => (
+                                            <span
+                                                key={i}
+                                                style={{
+                                                    fontSize: 10,
+                                                    padding: "3px 8px",
+                                                    borderRadius: 999,
+                                                    background: `rgba(${opt.colorRgb}, 0.08)`,
+                                                    color: opt.color,
+                                                    border: `1px solid rgba(${opt.colorRgb}, 0.18)`,
+                                                    fontWeight: 500,
+                                                }}
+                                            >
+                                                {tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* arrow indicator — smooth fade/scale in on hover */}
+                                <div
+                                    style={{
+                                        position: "absolute",
+                                        top: 16,
+                                        right: 14,
+                                        width: 22,
+                                        height: 22,
+                                        borderRadius: "50%",
+                                        background: `rgba(${opt.colorRgb}, 0.1)`,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        transition: "opacity 0.2s, transform 0.2s",
+                                        opacity: isHov ? 1 : 0,
+                                        transform: isHov ? "scale(1)" : "scale(0.6)",
+                                    }}
+                                >
+                                    <ArrowRight
+                                        style={{ width: 11, height: 11, color: opt.color }}
+                                    />
+                                </div>
+                            </button>
+                        );
+                    })}
                 </div>
-              </div>
             </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+        </div>
+    );
 }

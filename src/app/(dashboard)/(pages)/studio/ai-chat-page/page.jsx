@@ -81,12 +81,144 @@ function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-/* ─── Preview panel ─────────────────────────────────────────── */
+/* ─── DesignCanvas ─────────────────────────────────────────────
+   Renders a single variation's elements array onto an HTML canvas
+──────────────────────────────────────────────────────────────── */
+function DesignCanvas({ variation }) {
+  const canvasRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !variation) return;
+    const ctx = canvas.getContext("2d");
+    const { width, height, background } = variation.canvas;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    /* background */
+    ctx.fillStyle = background || "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+
+    variation.elements.forEach((el) => {
+      ctx.save();
+      ctx.globalAlpha = el.opacity ?? 1;
+
+      if (el.rotation) {
+        const cx = el.x + (el.width || 0) / 2;
+        const cy = el.y + (el.height || 0) / 2;
+        ctx.translate(cx, cy);
+        ctx.rotate((el.rotation * Math.PI) / 180);
+        ctx.translate(-cx, -cy);
+      }
+
+      if (el.type === "shape") {
+        ctx.fillStyle = el.fill || "transparent";
+        ctx.strokeStyle = el.stroke || "transparent";
+        ctx.lineWidth = el.strokeWidth || 0;
+
+        if (el.shape === "circle") {
+          const r = (el.width || 0) / 2;
+          ctx.beginPath();
+          ctx.arc(el.x + r, el.y + r, r, 0, Math.PI * 2);
+          ctx.fill();
+          if (el.strokeWidth) ctx.stroke();
+        } else if (el.shape === "triangle") {
+          const w = el.width || 0, h = el.height || 0;
+          ctx.beginPath();
+          ctx.moveTo(el.x + w / 2, el.y);
+          ctx.lineTo(el.x + w, el.y + h);
+          ctx.lineTo(el.x, el.y + h);
+          ctx.closePath();
+          ctx.fill();
+          if (el.strokeWidth) ctx.stroke();
+        } else {
+          /* rectangle (default) */
+          const r = el.borderRadius || 0;
+          if (r) {
+            ctx.beginPath();
+            ctx.roundRect(el.x, el.y, el.width, el.height, r);
+            ctx.fill();
+            if (el.strokeWidth) ctx.stroke();
+          } else {
+            ctx.fillRect(el.x, el.y, el.width, el.height);
+            if (el.strokeWidth) ctx.strokeRect(el.x, el.y, el.width, el.height);
+          }
+        }
+      }
+
+      if (el.type === "text") {
+        const size = el.fontSize || 16;
+        const weight = el.fontWeight || "normal";
+        const align = el.textAlign || "left";
+        ctx.font = `${weight} ${size}px 'DM Sans', sans-serif`;
+        ctx.fillStyle = el.color || "#000000";
+        ctx.textAlign = align;
+
+        const x = align === "center"
+          ? el.x + (el.width || 0) / 2
+          : align === "right"
+            ? el.x + (el.width || 0)
+            : el.x;
+
+        /* word-wrap helper */
+        const maxW = el.width || 9999;
+        const words = el.text.split(" ");
+        let line = "", lineY = el.y + size;
+        words.forEach((word) => {
+          const test = line ? line + " " + word : word;
+          if (ctx.measureText(test).width > maxW && line) {
+            ctx.fillText(line, x, lineY);
+            line = word;
+            lineY += size * 1.35;
+          } else {
+            line = test;
+          }
+        });
+        if (line) ctx.fillText(line, x, lineY);
+      }
+
+      if (el.type === "image" && el.src) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          canvas.getContext("2d").drawImage(img, el.x, el.y, el.width, el.height);
+        };
+        img.src = el.src;
+      }
+
+      ctx.restore();
+    });
+  }, [variation]);
+
+  if (!variation) return null;
+
+  const { width, height } = variation.canvas;
+  const MAX_W = 340, MAX_H = 340;
+  const scale = Math.min(MAX_W / width, MAX_H / height, 1);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        width: width * scale,
+        height: height * scale,
+        borderRadius: 10,
+        boxShadow: "0 4px 24px rgba(0,0,0,0.10)",
+        display: "block",
+      }}
+    />
+  );
+}
 
 function PreviewPanel({ result, config }) {
-  const { color, colorRgb, colorLight } = config;
+  const { colorRgb, colorLight } = config;
 
-  if (!result) return <AiPreviewIdle config={config} />;
+  if (!result || result.type !== "design") {
+    return <AiPreviewIdle config={config} />;
+  }
+
+  const { variations, time } = result;
 
   return (
     <div
@@ -102,95 +234,64 @@ function PreviewPanel({ result, config }) {
         animation: "ck-slide-in 0.35s cubic-bezier(0.34,1.56,0.64,1) both",
       }}
     >
-      {/* main area */}
+
+      {/* ── masonry grid of all designs ── */}
       <div
         style={{
           flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: `linear-gradient(135deg, ${colorLight} 0%, #fff 100%)`,
-          padding: 24,
-          textAlign: "center",
+          overflowY: "auto",
+          padding: 12,
+          columns: 3,
+          columnGap: 2,
+          scrollbarWidth: "thin",
+          scrollbarColor: "rgba(0,0,0,0.08) transparent",
         }}
       >
-        {result.image_url ? (
-          <img
-            src={result.image_url}
-            alt="Generated creative"
-            style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 10, objectFit: "cover" }}
-          />
-        ) : (
-          <div>
+        {variations.map((v) => (
+          <div
+            key={v.id}
+            style={{
+              breakInside: "avoid",
+              marginBottom: 10,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {/* canvas */}
             <div
               style={{
-                width: 58,
-                height: 58,
-                borderRadius: "50%",
-                background: `rgba(${colorRgb},0.13)`,
-                border: `1.5px solid rgba(${colorRgb},0.3)`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                margin: "0 auto 14px",
               }}
             >
-              <CheckCircle2 style={{ width: 22, height: 22, color }} strokeWidth={1.8} />
+              <DesignCanvas variation={v} />
             </div>
-            <p
-              style={{
-                fontWeight: 600,
-                fontSize: 13,
-                color: "#0f0f0f",
-                marginBottom: 6,
-                fontFamily: "var(--ck-font-display, inherit)",
-              }}
-            >
-              Creative Generated
-            </p>
-            <p
-              style={{
-                fontSize: 11,
-                color: "#6b6b6b",
-                lineHeight: 1.55,
-                maxWidth: 210,
-                margin: "0 auto",
-              }}
-            >
-              {result.summary}
-            </p>
           </div>
-        )}
+        ))}
       </div>
 
-      {/* footer */}
+      {/* ── footer ── */}
       <div
         style={{
-          padding: "9px 14px",
+          padding: "8px 14px",
           borderTop: "0.5px solid rgba(0,0,0,0.08)",
           fontSize: 11,
           color: "#6b6b6b",
           display: "flex",
           alignItems: "center",
           gap: 6,
+          flexShrink: 0,
         }}
       >
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: "#22c55e",
-            display: "inline-block",
-          }}
-        />
-        Ready to export · {result.time}
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+        {variations.length} designs ready · {time}
       </div>
 
       <style>{`
         @keyframes ck-slide-in {
           from { opacity: 0; transform: translateY(14px) scale(0.97); }
-          to   { opacity: 1; transform: translateY(0)   scale(1); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
     </div>
@@ -280,12 +381,12 @@ export default function AiCreativeChatPage() {
           },
         ]);
 
-        /* push to preview panel */
-        setPreviewResult({
-          summary: reply.replace(/\*\*/g, "").slice(0, 120) + (reply.length > 120 ? "…" : ""),
-          image_url: result.data?.image_url || null,
-          time: nowTime(),
-        });
+        const designType = result.data?.type;
+        const designVars = result.data?.variations;
+
+        if (designType === "design" && Array.isArray(designVars) && designVars.length) {
+          setPreviewResult({ type: "design", variations: designVars, time: nowTime() });
+        }
       } catch {
         setMessages((prev) => [
           ...prev,
@@ -326,11 +427,12 @@ export default function AiCreativeChatPage() {
         },
       ]);
 
-      setPreviewResult({
-        summary: reply.replace(/\*\*/g, "").slice(0, 120) + (reply.length > 120 ? "…" : ""),
-        image_url: result.data?.image_url || null,
-        time: nowTime(),
-      });
+      const designType = result.data?.type;
+      const designVars = result.data?.variations;
+
+      if (designType === "design" && Array.isArray(designVars) && designVars.length) {
+        setPreviewResult({ type: "design", variations: designVars, time: nowTime() });
+      }
 
     } catch {
       setMessages((prev) => [

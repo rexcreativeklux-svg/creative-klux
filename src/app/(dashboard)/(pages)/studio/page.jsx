@@ -72,9 +72,11 @@ const StudioInner = () => {
     visualStyle: "modern",
     audience: "B2C",
     fileFormat: "PNG",
+    videoType: "Reels",
     backgroundImage: null,
     duration: "",
-    format: "",
+    videoFormat: "MP4",
+    postTone: "Casual"
   });
 
   const [result, setResult] = useState(null);

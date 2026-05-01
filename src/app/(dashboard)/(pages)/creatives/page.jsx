@@ -174,30 +174,30 @@ function normalizeDesign(raw) {
 // ── Filter structure — flat, no nested subtypes ───────────────────────────────
 // Maps filter key → the type/category values from the API that belong to it
 const FILTER_TYPE_MAP = {
-    ads:          ["ads"],
-    social:       ["social"],
-    design:       ["card", "banner", "designer", "design"],
+    ads: ["ads"],
+    social: ["social"],
+    design: ["card", "banner", "designer", "design"],
     magic_studio: ["magic", "magic_studio", "text to image", "text to video", "image to variations", "audio to text"],
 };
 
 const FILTER_GROUPS = [
-    { label: "All",           key: "all" },
-    { label: "Ads",           key: "ads" },
-    { label: "Social",        key: "social" },
-    { label: "Design",        key: "design" },
-    { label: "Magic Studio",  key: "magic_studio" },
-    { label: "★ Favorites",   key: "favorites" },
+    { label: "All", key: "all" },
+    { label: "Ads", key: "ads" },
+    { label: "Social", key: "social" },
+    { label: "Design", key: "design" },
+    { label: "Magic Studio", key: "magic_studio" },
+    { label: "★ Favorites", key: "favorites" },
 ];
 
 const TYPE_COLOR = {
-    ads:         { bg: "bg-blue-50",    text: "text-blue-600",    border: "border-blue-100",    dot: "bg-blue-500" },
-    social:      { bg: "bg-indigo-50",  text: "text-indigo-600",  border: "border-indigo-100",  dot: "bg-indigo-500" },
-    card:        { bg: "bg-violet-50",  text: "text-violet-600",  border: "border-violet-100",  dot: "bg-violet-500" },
-    banner:      { bg: "bg-teal-50",    text: "text-teal-600",    border: "border-teal-100",    dot: "bg-teal-500" },
-    image:       { bg: "bg-blue-50",    text: "text-blue-600",    border: "border-blue-100",    dot: "bg-blue-400" },
-    video:       { bg: "bg-cyan-50",    text: "text-cyan-600",    border: "border-cyan-100",    dot: "bg-cyan-500" },
-    poster:      { bg: "bg-fuchsia-50", text: "text-fuchsia-700", border: "border-fuchsia-100", dot: "bg-fuchsia-600" },
-    flyer:       { bg: "bg-violet-50",  text: "text-violet-700",  border: "border-violet-100",  dot: "bg-violet-600" },
+    ads: { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-100", dot: "bg-blue-500" },
+    social: { bg: "bg-indigo-50", text: "text-indigo-600", border: "border-indigo-100", dot: "bg-indigo-500" },
+    card: { bg: "bg-violet-50", text: "text-violet-600", border: "border-violet-100", dot: "bg-violet-500" },
+    banner: { bg: "bg-teal-50", text: "text-teal-600", border: "border-teal-100", dot: "bg-teal-500" },
+    image: { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-100", dot: "bg-blue-400" },
+    video: { bg: "bg-cyan-50", text: "text-cyan-600", border: "border-cyan-100", dot: "bg-cyan-500" },
+    poster: { bg: "bg-fuchsia-50", text: "text-fuchsia-700", border: "border-fuchsia-100", dot: "bg-fuchsia-600" },
+    flyer: { bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-100", dot: "bg-violet-600" },
 };
 const DEFAULT_COLOR = { bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200", dot: "bg-gray-400" };
 
@@ -207,18 +207,18 @@ const ITEMS_PER_PAGE = 9;
 export default function CreativesPage() {
     const { fetchDesigns, activeBrandId, deleteDesignById, bulkDeleteDesigns, updateDesignById } = useAuth();
 
-    const [creatives, setCreatives]     = useState([]);
-    const [loading, setLoading]         = useState(true);
-    const [error, setError]             = useState(null);
-    const [search, setSearch]           = useState("");
+    const [creatives, setCreatives] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [search, setSearch] = useState("");
     const [activeFilter, setActiveFilter] = useState("all");
-    const [viewMode, setViewMode]       = useState("grid");
-    const [selectedId, setSelectedId]   = useState(null);
-    const [copied, setCopied]           = useState(false);
+    const [viewMode, setViewMode] = useState("grid");
+    const [selectedId, setSelectedId] = useState(null);
+    const [copied, setCopied] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
-    const [page, setPage]               = useState(1);
+    const [page, setPage] = useState(1);
     const [bulkSelected, setBulkSelected] = useState([]);
-    const [isBulkMode, setIsBulkMode]   = useState(false);
+    const [isBulkMode, setIsBulkMode] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
 
     // Toast state
@@ -335,8 +335,8 @@ export default function CreativesPage() {
     }, [creatives, search, activeFilter]);
 
     const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-    const paginated  = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
-    const selected   = creatives.find((c) => c.id === selectedId) || null;
+    const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+    const selected = creatives.find((c) => c.id === selectedId) || null;
 
     const handleSearch = (v) => { setSearch(v); setPage(1); };
 
@@ -358,8 +358,8 @@ export default function CreativesPage() {
     };
 
     const toggleBulkMode = () => { setIsBulkMode((v) => !v); setBulkSelected([]); };
-    const selectAll      = () => setBulkSelected(paginated.map((c) => c.id));
-    const deselectAll    = () => setBulkSelected([]);
+    const selectAll = () => setBulkSelected(paginated.map((c) => c.id));
+    const deselectAll = () => setBulkSelected([]);
 
     // ── Loading / Error states ───────────────────────────────────────────────────
     if (loading) {
@@ -396,13 +396,6 @@ export default function CreativesPage() {
                     <h1 className="text-xl font-bold text-gray-900 tracking-tight">My Creations</h1>
                 </div>
                 <div className="flex flex-row gap-3 items-center">
-                    <button
-                        onClick={loadDesigns}
-                        className="p-2 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition cursor-pointer"
-                        title="Refresh"
-                    >
-                        <RefreshCw className="w-4 h-4" />
-                    </button>
                     <button
                         onClick={toggleBulkMode}
                         className={`flex items-center gap-2 border text-sm font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${isBulkMode ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-300 hover:bg-gray-100 text-gray-600"}`}
@@ -856,11 +849,11 @@ const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied, onDel
                     {/* Hovering Edit button — opens copy editor */}
                     <button
                         className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/preview:opacity-100 transition-opacity duration-200 cursor-pointer"
-                        onClick={() => onEdit(c)}
+                      
                     >
-                        <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 rounded-xl text-sm font-semibold text-gray-700 hover:bg-white transition">
+                        <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 hover:scale-105 rounded-lg text-sm font-semibold text-gray-700 hover:bg-white transition">
                             <Edit2 className="w-3.5 h-3.5" />
-                            Edit Copy
+                            Edit with editor
                         </div>
                     </button>
                 </div>
@@ -999,30 +992,41 @@ const EmptyState = ({ hasCreatives }) => (
             {!hasCreatives && <p className="text-sm text-gray-400 mt-0.5">Click the create button to kickstart your campaign!</p>}
         </div>
         {!hasCreatives && (
-            <Link href="/studio" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-all hover:scale-105 shadow-sm shadow-blue-200">
-                <Plus className="w-4 h-4" /> Create
-            </Link>
+            <div className="flex flex-row gap-3 items-center">
+                <Link
+                    href="/studio/ai-select"
+                    className="flex items-center gap-2 border border-gray-400 hover:bg-gray-200 text-black text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
+                >
+                    <Plus className="w-4 h-4" /> Instant Creation
+                </Link>
+                <Link
+                    href="/studio/select"
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
+                >
+                    <Plus className="w-4 h-4" /> Custom Creation
+                </Link>
+            </div>
         )}
     </div>
 );
 
 // ── Edit Copy Modal ───────────────────────────────────────────────────────────
 const COPY_FIELDS = [
-    { key: "name",      label: "Design Name",   type: "input",    placeholder: "e.g. Summer Campaign Card" },
-    { key: "headline",  label: "Headline",       type: "input",    placeholder: "e.g. Adventure Awaits" },
-    { key: "tagline",   label: "Tagline",        type: "input",    placeholder: "e.g. Discover your next thrill" },
-    { key: "body",      label: "Body Copy",      type: "textarea", placeholder: "e.g. Join us for an unforgettable journey…" },
-    { key: "cta",       label: "Call to Action", type: "input",    placeholder: "e.g. Get Started" },
+    { key: "name", label: "Design Name", type: "input", placeholder: "e.g. Summer Campaign Card" },
+    { key: "headline", label: "Headline", type: "input", placeholder: "e.g. Adventure Awaits" },
+    { key: "tagline", label: "Tagline", type: "input", placeholder: "e.g. Discover your next thrill" },
+    { key: "body", label: "Body Copy", type: "textarea", placeholder: "e.g. Join us for an unforgettable journey…" },
+    { key: "cta", label: "Call to Action", type: "input", placeholder: "e.g. Get Started" },
 ];
 
 function EditCopyModal({ creative, onClose, onSave }) {
     const [saving, setSaving] = useState(false);
     const [fields, setFields] = useState({
-        name:     creative.name || "",
+        name: creative.name || "",
         headline: creative.copy?.headline || "",
-        tagline:  creative.copy?.tagline  || "",
-        body:     creative.copy?.body     || "",
-        cta:      creative.copy?.cta      || "",
+        tagline: creative.copy?.tagline || "",
+        body: creative.copy?.body || "",
+        cta: creative.copy?.cta || "",
     });
 
     const handleChange = (key, value) => setFields((prev) => ({ ...prev, [key]: value }));
@@ -1034,9 +1038,9 @@ function EditCopyModal({ creative, onClose, onSave }) {
             copy: {
                 ...creative.copy,   // preserve any extra keys like performance_score
                 headline: fields.headline,
-                tagline:  fields.tagline,
-                body:     fields.body,
-                cta:      fields.cta,
+                tagline: fields.tagline,
+                body: fields.body,
+                cta: fields.cta,
             },
         });
         setSaving(false);

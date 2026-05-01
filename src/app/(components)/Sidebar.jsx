@@ -112,8 +112,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       icon: Share2,
       type: "dropdown",
       children: [
-        { label: "Created Socials", href: "/created-socials", icon: Share2 },
-        { label: "Social Planner", href: "/social-planner", icon: Calendar },
+        { label: " Publishing", href: "/created-socials", icon: Share2 },
+        { label: " Calendar", href: "/social-planner", icon: Calendar },
+        { label: "Analytics", href: "/analytics", icon: Activity },
       ],
     },
     {
@@ -122,8 +123,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       icon: Megaphone,
       type: "dropdown",
       children: [
-        { label: "Created Ads", href: "/created-ads", icon: Megaphone },
-        { label: "Ads Planner", href: "/ads-planner", icon: Calendar },
+        { label: "Publishing", href: "/created-ads", icon: Megaphone },
+        { label: "Calendar", href: "/ads-planner", icon: Calendar },
+        { label: "Analytics", href: "/analytics", icon: Activity },
       ],
     },
     {

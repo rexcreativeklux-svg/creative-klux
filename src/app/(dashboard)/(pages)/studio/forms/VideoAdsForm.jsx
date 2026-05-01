@@ -44,7 +44,7 @@ const AUDIENCES = [
     { value: "Sales", label: "Sales", desc: "Hot leads, ad audiences" },
 ];
 
-const FILE_FORMATS = ["MP4", "MOV"];
+const VIDEO_FORMAT = ["MP4", "MOV"];
 
 const VISUAL_STYLES = [
     { value: "minimal", label: "Minimal" },
@@ -352,7 +352,7 @@ const VideoAdsForm = ({
     // ── Step navigation ───────────────────────────────────────────────────────
     const handleContinue = () => {
         if (step === 1 && !formData.brandName) return setError("Brand name is required.");
-        if (step === 2 && (!formData.size || !formData.campaignGoal || !formData.audience || !formData.fileFormat))
+        if (step === 2 && (!formData.size || !formData.campaignGoal || !formData.audience || !formData.videoFormat))
             return setError("Please complete all fields before continuing.");
         if (step === 3 && croppedImages.filter(Boolean).length === 0)
             return setError("Select at least one background image or video.");
@@ -380,7 +380,7 @@ const VideoAdsForm = ({
             size: formData.size || null,
             campaignGoal: formData.campaignGoal || null,
             audience: formData.audience || null,
-            fileFormat: formData.fileFormat || null,
+            videoFormat: formData.videoFormat || null,
             videoType: formData.videoType || null,
             caption: formData.caption || null,
             images: validMedia
@@ -647,11 +647,11 @@ const VideoAdsForm = ({
                             </div>
                         </Field>
 
-                        <Field label="File Format">
+                        <Field label="Video Format">
                             <div className="flex gap-2">
-                                {FILE_FORMATS.map((f) => (
-                                    <button key={f} onClick={() => field("fileFormat", f)}
-                                        className={`px-4 py-2 rounded-lg cursor-pointer text-xs font-medium border-2 transition-all ${formData.fileFormat === f ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"}`}>
+                                {VIDEO_FORMAT.map((f) => (
+                                    <button key={f} onClick={() => field("videoFormat", f)}
+                                        className={`px-4 py-2 rounded-lg cursor-pointer text-xs font-medium border-2 transition-all ${formData.videoFormat === f ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"}`}>
                                         {f}{f === "MP4" && " ✓"}
                                     </button>
                                 ))}

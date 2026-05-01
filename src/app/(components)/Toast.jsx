@@ -1,9 +1,14 @@
 // components/Toast.jsx
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { useEffect } from "react";
 
-export default function Toast({ message, isOpen, onClose, duration = 2000 }) {
+export default function Toast({ message, isOpen, onClose, duration = 2000, type = "success" }) {
+
+    const isError = type === "error";
+    const iconColor = isError ? "text-red-600" : "text-green-600";
+    const barColor = isError ? "bg-red-600" : "bg-green-600";
+
     // Auto-close after the specified duration
     useEffect(() => {
         if (isOpen) {
@@ -19,9 +24,11 @@ export default function Toast({ message, isOpen, onClose, duration = 2000 }) {
         <AnimatePresence>
             {isOpen && (
                 <motion.div
-                    initial={{ x: -100, x: 100, opacity: 0 }}
-                    animate={{ x: 0, x: 0, opacity: 1 }}
-                    exit={{ x: -100, x: 100, opacity: 0 }}
+                    initial={{ x: 100, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: 100, opacity: 0 }}
+
+
                     transition={{
                         type: "spring",
                         stiffness: 200,
@@ -29,10 +36,18 @@ export default function Toast({ message, isOpen, onClose, duration = 2000 }) {
                     }}
                     className="fixed top-6 right-6 z-9999"
                 >
-                    <div className="bg-white rounded-xl shadow-2xl border border-gray-100 px-6 py-4 flex items-center gap-3 min-w-[320px] max-w-md">
+                    <div className={`rounded-xl shadow-2xl border px-6 py-4 flex items-center gap-3 min-w-[320px] max-w-md
+  ${isError ? "bg-red-50 border-red-200" : "bg-white border-gray-100"}`}>
+
                         {/* Success Icon */}
                         <div className="flex-shrink-0">
-                            <CheckCircle2 className="w-10 h-10 text-green-600" strokeWidth={2} />
+                            {isError ? (
+                                <AlertCircle className={`w-10 h-10 ${iconColor}`} strokeWidth={2} />
+                            ) : (
+                                <CheckCircle2 className={`w-10 h-10 ${iconColor}`} strokeWidth={2} />
+                            )}
+
+
                         </div>
 
                         {/* Message */}
@@ -57,7 +72,9 @@ export default function Toast({ message, isOpen, onClose, duration = 2000 }) {
                                 ease: "linear",
                             }}
                             style={{ originX: 0 }}
-                            className="h-full w-full bg-green-600"
+                            className={`h-full w-full ${barColor}`}
+
+
                         />
                     </div>
                 </motion.div>

@@ -48,8 +48,8 @@ export function AuthProvider({ children }) {
   const API_IMAGE_GALLERY_URL = `${BASE_URL}/image-gallery`;
   const API_FETCH_TUTORIAL_VIDEOS = `${BASE_URL}/tutorial-videos`;
   const API_AI_CHAT_URL = `${BASE_URL}/creatives/ai-creative`;
-  const SAVE_DESIGN = `${BASE_URL}/creative-designs`;
-  const FETCH_DESIGN = `${BASE_URL}/creative-designs`;
+  const SAVE_DESIGN_URL = `${BASE_URL}/creative-designs`;
+  const FETCH_DESIGN_URL = `${BASE_URL}/creative-designs`;
 
 
 
@@ -1465,6 +1465,271 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const saveDesign = useCallback(async (brandId, variations, creativeType = "ads") => {
+    if (!token) {
+      console.error("saveDesign: no auth token.");
+      return { ok: false, message: "Not authenticated" };
+    }
+    if (!brandId) {
+      console.error("saveDesign: no brand ID provided.");
+      return { ok: false, message: "No active brand selected" };
+    }
+    if (!Array.isArray(variations) || variations.length === 0) {
+      return { ok: false, message: "No designs selected to save" };
+    }
+
+    // Derive a short type string — strip "_creative" suffix if present
+    const typeShort = creativeType?.replace("_creative", "") || "ads";
+
+    const payload = {
+      brand_id: brandId,
+      creativedesigns: variations.map((v) => ({
+        name: v.name || "Untitled Design",
+        score: v.copy?.performance_score
+          ? parseInt(v.copy.performance_score.split("/")[0], 10) || 0
+          : 0,
+        copy: JSON.stringify(v.copy || {}),
+        canvas: { canvas: v.canvas, elements: v.elements },
+        type: typeShort,
+        sub_type: v.category?.toLowerCase() || "image",
+      })),
+    };
+
+    console.log("saveDesign payload:", payload);
+
+    try {
+      const res = await fetch(SAVE_DESIGN_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+        console.log(data)
+      } catch {
+        console.error("saveDesign: invalid JSON response", text);
+        return { ok: false, message: "Invalid server response" };
+      }
+
+      if (!res.ok) {
+        const firstError =
+          data?.errors
+            ? Object.values(data.errors)[0]?.[0]
+            : data?.error
+              ? Object.values(data.error)[0]?.[0]
+              : null;
+
+        return {
+          ok: false,
+          message: firstError || data?.message || "Failed to save designs",
+        };
+      }
+
+
+      console.log("saveDesign success:", data);
+      return { ok: true, data };
+    } catch (err) {
+      console.error("saveDesign error:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  }, [token]);
+
+  const fetchDesigns = useCallback(async (perPage = 9) => {
+    if (!token) {
+      console.error("fetchDesigns: no auth token.");
+      return null;
+    }
+
+    if (!activeBrandId) {
+      console.error("fetchDesigns: no activeBrandId.");
+      return null;
+    }
+
+    const url = `${FETCH_DESIGN_URL}?brand_id=${activeBrandId}&per_page=${perPage}`;
+
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const text = await res.text();
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("fetchDesigns: invalid JSON response", text);
+        return null;
+      }
+
+      if (!res.ok) {
+        console.error("fetchDesigns failed:", data?.message || `HTTP ${res.status}`);
+        return null;
+      }
+
+      console.log("fetchDesigns success:", data);
+
+      return Array.isArray(data)
+        ? data
+        : Array.isArray(data.data)
+          ? data.data
+          : data;
+
+    } catch (err) {
+      console.error("fetchDesigns error:", err);
+      return null;
+    }
+  }, [token, activeBrandId]);
+
+  const deleteDesignById = useCallback(async (id) => {
+    if (!token) return { ok: false, message: "Not authenticated" };
+    if (!id) return { ok: false, message: "No design ID provided" };
+
+    try {
+      const res = await fetch(`${BASE_URL}/creative-designs/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = {}; }
+
+      if (!res.ok) {
+        return { ok: false, message: data?.message || `Delete failed (${res.status})` };
+      }
+
+      return { ok: true, message: data?.message || "Design deleted" };
+    } catch (err) {
+      console.error("deleteDesignById error:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  }, [token]);
+
+
+  const bulkDeleteDesigns = useCallback(async (ids) => {
+    if (!token) return { ok: false, message: "Not authenticated" };
+    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, message: "No IDs provided" };
+
+    try {
+      const res = await fetch(`${BASE_URL}/creative-designs/bulk-delete`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids }),
+      });
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = {}; }
+
+      if (!res.ok) {
+        return { ok: false, message: data?.message || `Bulk delete failed (${res.status})` };
+      }
+
+      return { ok: true, message: data?.message || `${ids.length} design(s) deleted` };
+    } catch (err) {
+      console.error("bulkDeleteDesigns error:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  }, [token]);
+
+
+  const updateDesignById = useCallback(async (id, updates) => {
+    if (!token) return { ok: false, message: "Not authenticated" };
+    if (!id) return { ok: false, message: "No design ID provided" };
+
+    // `updates` can include any subset of: { name, score, copy, canvas, type, sub_type }
+    try {
+      const res = await fetch(`${BASE_URL}/creative-designs/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updates),
+      });
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = {}; }
+
+      if (!res.ok) {
+        return { ok: false, message: data?.message || `Update failed (${res.status})` };
+      }
+
+      console.log("updateDesignById success:", data);
+      return { ok: true, data };
+    } catch (err) {
+      console.error("updateDesignById error:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  }, [token]);
+
+  const analyzeRival = useCallback(async ({ url, period = "last_30_days" }) => {
+    if (!token) {
+      console.error("analyzeRival: no auth token.");
+      return null;
+    }
+
+    if (!url) {
+      console.error("analyzeRival: url is required.");
+      return null;
+    }
+
+    try {
+      const res = await fetch(`${BASE_URL}/rival-lens/analyze`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          url,
+          period,
+        }),
+      });
+
+      const text = await res.text();
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("analyzeRival: invalid JSON response", text);
+        return null;
+      }
+
+      if (!res.ok) {
+        console.error("analyzeRival failed:", data?.message || `HTTP ${res.status}`);
+        return null;
+      }
+
+      console.log("analyzeRival success:", data);
+
+      return data;
+    } catch (err) {
+      console.error("analyzeRival error:", err);
+      return null;
+    }
+  }, [token]);
+
+
   return (
     <AuthContext.Provider
       value={{
@@ -1475,6 +1740,12 @@ export function AuthProvider({ children }) {
         teamsLoading,
         // brandId,
         setActiveBrand,
+        deleteDesignById,
+        bulkDeleteDesigns,
+        updateDesignById,
+        fetchDesigns,
+        saveDesign,
+        analyzeRival,
         activeBrandId,
         brandsLoading,
         generateCustomCreative,

@@ -6,6 +6,7 @@ import {
   RefreshCw, Download, Telescope, TrendingUp, TrendingDown,
   ChevronDown, Loader2,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 // ── design token ──────────────────────────────────────────────────────────────
 const PRIMARY = "#2563eb";
@@ -17,12 +18,12 @@ const FAKE_DATA = {
   dataTag: "DATA UP TO DATE",
 
   kpis: [
-    { label: "Monthly Visits",   value: "1.2M",  sub: "+29.4%", trend: "up" },
-    { label: "Unique Visitors",  value: "852K",  sub: "+29.4%", trend: "up" },
-    { label: "Pages / Visit",    value: "2.13",  sub: "+11.2%", trend: "up" },
-    { label: "Avg Duration",     value: "5:34s", sub: "+0.6%",  trend: "up" },
-    { label: "Bounce Rate",      value: "59.2%", sub: "High",   trend: "down" },
-    { label: "Desktop Share",    value: "72%",   sub: "vs 28% mobile", trend: null },
+    { label: "Monthly Visits", value: "1.2M", sub: "+29.4%", trend: "up" },
+    { label: "Unique Visitors", value: "852K", sub: "+29.4%", trend: "up" },
+    { label: "Pages / Visit", value: "2.13", sub: "+11.2%", trend: "up" },
+    { label: "Avg Duration", value: "5:34s", sub: "+0.6%", trend: "up" },
+    { label: "Bounce Rate", value: "59.2%", sub: "High", trend: "down" },
+    { label: "Desktop Share", value: "72%", sub: "vs 28% mobile", trend: null },
   ],
 
   gender: { male: 33.3, female: 66.7 },
@@ -32,32 +33,32 @@ const FAKE_DATA = {
     { range: "25–34", pct: 34 },
     { range: "35–44", pct: 24 },
     { range: "45–54", pct: 16 },
-    { range: "55–64", pct: 8  },
-    { range: "65+",   pct: 2  },
+    { range: "55–64", pct: 8 },
+    { range: "65+", pct: 2 },
   ],
 
   traffic: [
     { label: "Organic Search", pct: 41, color: "#ef4444" },
-    { label: "Direct",         pct: 28, color: "#3b82f6" },
-    { label: "Social",         pct: 19, color: "#f59e0b" },
-    { label: "Referral",       pct: 12, color: "#10b981" },
+    { label: "Direct", pct: 28, color: "#3b82f6" },
+    { label: "Social", pct: 19, color: "#f59e0b" },
+    { label: "Referral", pct: 12, color: "#10b981" },
   ],
 
   socioeconomic: [
     { label: "Household Size", value: "3–4 persons" },
-    { label: "Income Level",   value: "Low–Middle" },
-    { label: "Education",      value: "High School / Diploma" },
+    { label: "Income Level", value: "Low–Middle" },
+    { label: "Education", value: "High School / Diploma" },
     { label: "Primary Device", value: "Desktop (72%)" },
-    { label: "Top Channel",    value: "Organic Search" },
-    { label: "Geo Focus",      value: "US, UK, IN" },
+    { label: "Top Channel", value: "Organic Search" },
+    { label: "Geo Focus", value: "US, UK, IN" },
   ],
 
   keywords: [
-    { kw: "ai ad creative generator",  vol: "40.5K", pos: 2,  traffic: "18.4%", cpc: "$3.20" },
-    { kw: "free ad design tool",        vol: "27.2K", pos: 4,  traffic: "12.1%", cpc: "$2.80" },
-    { kw: "social media ad maker",      vol: "18.6K", pos: 7,  traffic: "8.9%",  cpc: "$4.10" },
-    { kw: "competitor analysis tool",   vol: "14.1K", pos: 9,  traffic: "6.3%",  cpc: "$5.50" },
-    { kw: "banner ad generator ai",     vol: "11.3K", pos: 12, traffic: "4.7%",  cpc: "$2.10" },
+    { kw: "ai ad creative generator", vol: "40.5K", pos: 2, traffic: "18.4%", cpc: "$3.20" },
+    { kw: "free ad design tool", vol: "27.2K", pos: 4, traffic: "12.1%", cpc: "$2.80" },
+    { kw: "social media ad maker", vol: "18.6K", pos: 7, traffic: "8.9%", cpc: "$4.10" },
+    { kw: "competitor analysis tool", vol: "14.1K", pos: 9, traffic: "6.3%", cpc: "$5.50" },
+    { kw: "banner ad generator ai", vol: "11.3K", pos: 12, traffic: "4.7%", cpc: "$2.10" },
   ],
 };
 
@@ -131,16 +132,34 @@ export default function RivalLensPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
   const [animBars, setAnimBars] = useState(false);
+  const { analyzeRival } = useAuth();
 
   const handleAnalyze = async () => {
     if (!url.trim()) return;
+
     setAnalyzing(true);
     setResult(null);
     setAnimBars(false);
-    await new Promise((r) => setTimeout(r, 2200));
-    setResult(FAKE_DATA);
+
+    // map UI date → API format
+    const periodMap = {
+      "Last 7 Days": "last_7_days",
+      "Last 30 Days": "last_30_days",
+      "Last 90 Days": "last_90_days",
+      "Last 12 Months": "last_12_months",
+    };
+
+    const data = await analyzeRival({
+      url,
+      period: periodMap[dateRange] || "last_30_days",
+    });
+
+    if (data) {
+      setResult(data);
+      setTimeout(() => setAnimBars(true), 300);
+    }
+
     setAnalyzing(false);
-    setTimeout(() => setAnimBars(true), 300);
   };
 
   return (
@@ -168,7 +187,7 @@ export default function RivalLensPage() {
 
       {/* ── search bar — always visible ── */}
       <div className="bg-white border border-gray-200 rounded-xl px-3 py-3 sticky top-[49px] z-10">
-        <div className="max-w-7xl mx-auto">
+        <div className="">
           {!result && (
             <p className="text-xs font-semibold text-gray-500 mb-2">Analyze a Competitor</p>
           )}

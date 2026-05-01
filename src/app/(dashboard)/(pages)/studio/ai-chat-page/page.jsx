@@ -11,6 +11,7 @@ import AiChatMessage from "./aiChatMessage";
 import AiChatInput from "./aiChatInput";
 import AiChatTypingIndicator from "./aiChatTypingIndicator";
 import AiPreviewIdle from "./aiPreviewIdle";
+import Toast from "@/app/(components)/Toast";
 
 /* ─── config ───────────────────────────────────────────────── */
 
@@ -218,7 +219,13 @@ function DesignCanvas({ variation }) {
   );
 }
 
-function PreviewPanel({ result, config }) {
+function PreviewPanel({ result,
+  config,
+  selectedDesigns,
+  setSelectedDesigns,
+  onToggleSelect,
+  saveDesign,
+  activeBrandId, showToast, }) {
   const { colorRgb, colorLight } = config;
 
   if (!result || result.type !== "design") {
@@ -226,6 +233,8 @@ function PreviewPanel({ result, config }) {
   }
 
   const { variations, time } = result;
+
+
 
   return (
     <div
@@ -241,6 +250,65 @@ function PreviewPanel({ result, config }) {
         animation: "ck-slide-in 0.35s cubic-bezier(0.34,1.56,0.64,1) both",
       }}
     >
+
+      {selectedDesigns?.length > 0 && (
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 20,
+            background: "#fff",
+            padding: "10px 12px",
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 10,
+            borderBottom: "1px solid #eee",
+            transform: "translateY(-10px)",
+            animation: "slideDown 0.25s ease forwards",
+          }}
+        >
+          <button className="hover:scale-95"
+            onClick={async () => {
+              const res = await saveDesign(activeBrandId, selectedDesigns, "ads");
+
+              if (res?.ok) {
+                setSelectedDesigns([]);
+                showToast("Design(s) saved successfully", "success");
+              } else {
+                showToast(res?.message || "Failed to save designs", "error");
+              }
+            }}
+            style={{
+              background: "#22c55e",
+              color: "#fff",
+              border: "none",
+              padding: "8px 12px",
+              borderRadius: 10,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Save {selectedDesigns.length} design
+            {selectedDesigns.length > 1 ? "s" : ""}
+          </button>
+
+          <button className="hover:scale-95"
+            onClick={() => setSelectedDesigns([])}
+            style={{
+              background: "#f3f4f6",
+              color: "#111",
+              border: "1px solid #e5e7eb",
+              padding: "8px 10px",
+              borderRadius: 10,
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* ── masonry grid of all designs ── */}
       <div
@@ -267,17 +335,43 @@ function PreviewPanel({ result, config }) {
                 const score = v.copy?.performance_score || "";
                 const scoreNum = score.split("/")[0];
                 const scoreLabel = score.split("—")[1]?.trim() || "";
+                const isSelected = selectedDesigns?.some((s) => s.id === v.id);
 
                 return (
                   <div
                     key={v.id}
+                    onClick={() => onToggleSelect(v)}
                     className="border border-gray-200"
                     style={{
                       borderRadius: 12,
                       overflow: "hidden",
                       background: "#fff",
+                      border: isSelected ? "2px solid #22c55e" : "1px solid #e5e7eb",
                     }}
                   >
+
+                    {isSelected && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 8,
+                          right: 8,
+                          width: 18,
+                          height: 18,
+                          borderRadius: "50%",
+                          background: "#22c55e",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fff",
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        ✓
+                      </div>
+                    )}
+
                     {/* canvas */}
                     <div
                       style={{
@@ -402,6 +496,18 @@ function PreviewPanel({ result, config }) {
           from { opacity: 0; transform: translateY(14px) scale(0.97); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
+
+        @keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
       `}</style>
     </div>
   );
@@ -412,7 +518,7 @@ function PreviewPanel({ result, config }) {
 export default function AiCreativeChatPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { creativeAiChat } = useAuth();
+  const { creativeAiChat, saveDesign, activeBrandId } = useAuth();
 
   const creativeType = searchParams.get("creative") || "general";
   const config = CREATIVE_CONFIG[creativeType] || CREATIVE_CONFIG.general;
@@ -424,9 +530,23 @@ export default function AiCreativeChatPage() {
   const [previewResult, setPreviewResult] = useState(null);
   const messagesEndRef = useRef(null);
   const hasInitialized = useRef(false);
+  const [selectedDesigns, setSelectedDesigns] = useState([]);
 
   const initialMessage = searchParams.get("initialMessage") || "";
 
+  const [toast, setToast] = useState({
+    open: false,
+    message: "",
+    type: "success", // or "error"
+  });
+
+  const showToast = (message, type = "success") => {
+    setToast({ open: true, message, type });
+  };
+
+  const closeToast = () => {
+    setToast((prev) => ({ ...prev, open: false }));
+  };
 
   useEffect(() => {
     if (hasInitialized.current) return;
@@ -455,8 +575,6 @@ export default function AiCreativeChatPage() {
       },
     ]);
   }, [creativeType, initialMessage]);
-
-
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -556,6 +674,19 @@ export default function AiCreativeChatPage() {
       setIsLoading(false);
     }
   }, [creativeType, creativeAiChat]);
+
+  const toggleDesignSelection = useCallback((design) => {
+    setSelectedDesigns((prev) => {
+      const exists = prev.find((d) => d.id === design.id);
+
+      if (exists) {
+        return prev.filter((d) => d.id !== design.id);
+      }
+
+      return [...prev, design];
+    });
+  }, []);
+
 
 
   /* ── render ── */
@@ -787,10 +918,32 @@ export default function AiCreativeChatPage() {
               overflow: "hidden",
             }}
           >
-            <PreviewPanel result={previewResult} config={config} />
+
+
+            <PreviewPanel
+              result={previewResult}
+              config={config}
+              selectedDesigns={selectedDesigns}
+              setSelectedDesigns={setSelectedDesigns}
+              onToggleSelect={toggleDesignSelection}
+              saveDesign={saveDesign}
+              activeBrandId={activeBrandId}
+              showToast={showToast}
+            />
+
           </div>
         </div>
       </div>
+
+      <Toast
+        message={toast.message}
+        isOpen={toast.open}
+        onClose={closeToast}
+         type={toast.type}
+      />
+
     </div>
+
+
   );
 }

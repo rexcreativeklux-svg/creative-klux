@@ -340,8 +340,8 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     const validImages = croppedImages.filter(Boolean);
 
     const payload = {
-      creativeType: creative?.id,          // e.g. "ads_creative"
-      categoryType: categoryId,            // e.g. "image"
+      creativeType: creative?.id,
+      categoryType: categoryId,
       brandName: formData.brandName || null,
       description: formData.description || null,
       brandColor: formData.brandColor ?? null,
@@ -360,8 +360,6 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       generatedAt: new Date().toISOString(),
     };
 
-    // console.log("🚀 Generate Payload:", payload);
-
     const result = await generateCustomCreative(payload);
 
     if (!result.ok) {
@@ -370,7 +368,27 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       return;
     }
 
-    onResult({ assets: result.data?.assets || [], payload, raw: result.data });
+    const data = result.data;
+
+    // ── canvas-based design response (AI returns { type: "design", variations: [...] })
+    if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
+      onResult({
+        type: "design",
+        variations: data.variations,
+        reply: data.reply || "",
+        meta: data.meta || {},
+        payload,
+        raw: data,
+      });
+    } else {
+      // ── fallback: image/video asset response
+      onResult({
+        assets: data?.assets || [],
+        payload,
+        raw: data,
+      });
+    }
+
     setGenerating(false);
   };
 

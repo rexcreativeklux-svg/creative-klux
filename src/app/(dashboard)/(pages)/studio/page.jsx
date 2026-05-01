@@ -42,7 +42,7 @@ import AdsIntegrationModal from "@/app/(components)/AdsIntegrationModal.jsx";
 
 // ─── inner component that reads search params ─────────────────────────────────
 const StudioInner = () => {
-  const { activeBrand, sendUrl, generateCustomCreative } = useAuth();
+  const { activeBrand, sendUrl, generateCustomCreative, saveDesign, activeBrandId } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -69,7 +69,7 @@ const StudioInner = () => {
     hashtags: [],
     size: "1200x628",
     campaignGoal: "Engagement",
-      visualStyle: "modern",
+    visualStyle: "modern",
     audience: "B2C",
     fileFormat: "PNG",
     backgroundImage: null,
@@ -289,9 +289,13 @@ const StudioInner = () => {
                 setCurrentAssets(assets);
                 setIsAdsModalOpen(true);
               }}
+              saveDesign={saveDesign}
+              activeBrandId={activeBrandId}
+              showToast={showToast}
             />
           </motion.div>
         )}
+
 
       </AnimatePresence>
 

@@ -396,13 +396,7 @@ export default function CreativesPage() {
                     <h1 className="text-xl font-bold text-gray-900 tracking-tight">My Creations</h1>
                 </div>
                 <div className="flex flex-row gap-3 items-center">
-                    <button
-                        onClick={toggleBulkMode}
-                        className={`flex items-center gap-2 border text-sm font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${isBulkMode ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-300 hover:bg-gray-100 text-gray-600"}`}
-                    >
-                        {isBulkMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                        {isBulkMode ? "Exit Select" : "Select"}
-                    </button>
+
                     <Link
                         href="/studio/ai-select"
                         className="flex items-center gap-2 border border-gray-400 hover:bg-gray-200 text-black text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
@@ -476,6 +470,16 @@ export default function CreativesPage() {
 
             {/* ── Content ── */}
             <div className="flex-1 overflow-y-auto pb-2">
+                <div className="py-1">
+                    <button
+                        onClick={toggleBulkMode}
+                        className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${isBulkMode ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-300 hover:bg-gray-100 text-gray-600"}`}
+                    >
+                        {isBulkMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                        {/* {isBulkMode ? "Exit Select" : "Select"} */}
+                    </button>
+                </div>
+
                 {filtered.length === 0 ? (
                     <EmptyState hasCreatives={creatives.length > 0} />
                 ) : viewMode === "grid" ? (
@@ -849,7 +853,7 @@ const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied, onDel
                     {/* Hovering Edit button — opens copy editor */}
                     <button
                         className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/preview:opacity-100 transition-opacity duration-200 cursor-pointer"
-                      
+
                     >
                         <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 hover:scale-105 rounded-lg text-sm font-semibold text-gray-700 hover:bg-white transition">
                             <Edit2 className="w-3.5 h-3.5" />

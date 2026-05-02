@@ -82,6 +82,24 @@ export default function CreativeScoring() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+
+      {/* ── Page header ── */}
+      <div className="mb-6">
+      
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: "linear-gradient(135deg, #f59e0b, #ea580c)" }}
+          >
+            <Star className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Creative Scoring AI</h1>
+            <p className="text-sm text-gray-400">Score your creatives for performance, brand awareness, or engagement to optimize results.</p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* ── LEFT: Upload ── */}

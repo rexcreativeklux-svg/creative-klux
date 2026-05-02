@@ -122,9 +122,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       icon: Share2,
       type: "dropdown",
       children: [
-        { label: " Publishing", href: "/created-socials", icon: Share2 },
-        { label: " Calendar", href: "/social-planner", icon: Calendar },
-        { label: "Analytics", href: "/analytics", icon: Activity },
+        { label: " Publishing", href: "/social-publishing", icon: Share2 },
+        { label: " Calendar", href: "/social-calendar", icon: Calendar },
+        { label: "Analytics", href: "/social-analytics", icon: Activity },
       ],
     },
     {

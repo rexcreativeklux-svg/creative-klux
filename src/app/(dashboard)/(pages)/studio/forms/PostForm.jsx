@@ -61,7 +61,7 @@ const BRAND_COLORS = [
 ];
 
 const STEPS = [
-  { id: 1, label: "Post Details",          icon: Type },
+  { id: 1, label: "Post Details",           icon: Type },
   { id: 2, label: "Size, Goals & Audience", icon: Scan },
   { id: 3, label: "Background Image",       icon: Images },
 ];
@@ -79,13 +79,13 @@ const PostsForm = ({
   const [generating, setGenerating]         = useState(false);
 
   // ── image state ──────────────────────────────────────────────────────────
-  const [imageSrc, setImageSrc]                     = useState([]);
-  const [croppedImages, setCroppedImages]           = useState([]);
-  const [currentCropIndex, setCurrentCropIndex]     = useState(0);
-  const [showCropper, setShowCropper]               = useState(false);
-  const [crop, setCrop]                             = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
-  const [completedCrop, setCompletedCrop]           = useState(null);
-  const [imageSrcMeta, setImageSrcMeta]             = useState([]);
+  const [imageSrc, setImageSrc]                 = useState([]);
+  const [croppedImages, setCroppedImages]       = useState([]);
+  const [currentCropIndex, setCurrentCropIndex] = useState(0);
+  const [showCropper, setShowCropper]           = useState(false);
+  const [crop, setCrop]                         = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
+  const [completedCrop, setCompletedCrop]       = useState(null);
+  const [imageSrcMeta, setImageSrcMeta]         = useState([]);
 
   const cropperRef   = useRef(null);
   const logoInputRef = useRef(null);
@@ -102,10 +102,22 @@ const PostsForm = ({
   }, [croppedImages]);
 
   // ── field helper ──────────────────────────────────────────────────────────
+  // Mirrors ImageAdsForm: color keys are kept bidirectionally in sync so that
+  // brandColor and primaryColor always reflect the same value regardless of
+  // which key the parent or payload consumer reads.
   const field = (key, value) => {
     if (key === "primaryColor" || key === "secondaryColor" || key === "brandColor")
       value = value.startsWith("#") ? value : `#${value}`;
-    setFormData((p) => ({ ...p, [key]: value }));
+
+    setFormData((prev) => ({
+      ...prev,
+      [key]: value,
+
+      // ✅ keep brandColor ↔ primaryColor in sync (mirrors ImageAdsForm pattern)
+      ...(key === "primaryColor" && { brandColor: value }),
+      ...(key === "brandColor"   && { primaryColor: value }),
+    }));
+
     setError("");
   };
 
@@ -126,6 +138,7 @@ const PostsForm = ({
         ...p,
         brandName:      d.name        || "",
         description:    d.description || "",
+        // sync both color keys on import
         primaryColor:   d.primary_color   || "#2563eb",
         brandColor:     d.primary_color   || "#2563eb",
         secondaryColor: d.secondary_color || "#0ea5e9",
@@ -232,8 +245,8 @@ const PostsForm = ({
       } catch (err) {
         console.warn("Proxy failed, falling back to original URL", err);
       }
-      setImageSrc((prev)     => [...prev, cropperUrl]);
-      setImageSrcMeta((prev) => [...prev, originalUrl]);
+      setImageSrc((prev)      => [...prev, cropperUrl]);
+      setImageSrcMeta((prev)  => [...prev, originalUrl]);
       setCroppedImages((prev) => [...prev, null]);
     }
     if (!showCropper) setCurrentCropIndex(0);
@@ -337,6 +350,8 @@ const PostsForm = ({
       categoryType: categoryId,
       brandName:    formData.brandName    || null,
       description:  formData.description  || null,
+      // brandColor and primaryColor are kept in sync by field(), so either works;
+      // fall back to primaryColor for backward compat with older formData shapes.
       brandColor:   formData.brandColor   ?? formData.primaryColor ?? null,
       logo:         formData.logo         || null,
       visualStyle:  formData.visualStyle  || null,
@@ -366,6 +381,7 @@ const PostsForm = ({
 
     const data = result.data;
 
+    // ── canvas-based design response
     if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
       onResult({
         type:       "design",
@@ -376,6 +392,7 @@ const PostsForm = ({
         raw: data,
       });
     } else {
+      // ── fallback: image/video asset response
       onResult({
         assets: data?.assets || [],
         payload,
@@ -408,7 +425,7 @@ const PostsForm = ({
                   className={`flex flex-1 items-center gap-2 min-w-0 ${step > s.id ? "cursor-pointer" : "cursor-default"}`}
                 >
                   <div className={`shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
-                    step > s.id   ? "border-emerald-600 bg-emerald-600 text-white"
+                    step > s.id    ? "border-emerald-600 bg-emerald-600 text-white"
                     : step === s.id ? "border-emerald-600 text-emerald-600 bg-white"
                     : "border-gray-200 text-gray-300"
                   }`}>
@@ -466,8 +483,8 @@ const PostsForm = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Brand Name" required>
+            <div className="">
+              <Field label="Brand Name / Project Name" required>
                 <input
                   type="text" value={formData.brandName}
                   onChange={(e) => field("brandName", e.target.value)}
@@ -475,14 +492,14 @@ const PostsForm = ({
                   className={inputCls}
                 />
               </Field>
-              <Field label="Project Name">
+              {/* <Field label="Project Name">
                 <input
                   type="text" value={formData.projectName || ""}
                   onChange={(e) => field("projectName", e.target.value)}
                   placeholder="Campaign or project name"
                   className={inputCls}
                 />
-              </Field>
+              </Field> */}
             </div>
 
             <Field label="Post Description">
@@ -495,7 +512,7 @@ const PostsForm = ({
               />
             </Field>
 
-            <Field label="Caption">
+            {/* <Field label="Caption">
               <div className="relative">
                 <textarea
                   value={formData.caption || ""}
@@ -509,9 +526,9 @@ const PostsForm = ({
                   {280 - (formData.caption?.length || 0)}
                 </span>
               </div>
-            </Field>
+            </Field> */}
 
-            <Field label="Hashtags">
+            {/* <Field label="Hashtags">
               <div className="relative">
                 <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -522,7 +539,7 @@ const PostsForm = ({
                   className={`${inputCls} pl-9`}
                 />
               </div>
-            </Field>
+            </Field> */}
 
             <Field label="Post Tone">
               <div className="flex flex-wrap gap-2 py-1">
@@ -542,7 +559,7 @@ const PostsForm = ({
               </div>
             </Field>
 
-            <Field label="Target Platform(s)">
+            <Field label="Target Platform">
               <div className="flex flex-wrap gap-2 py-1">
                 {PLATFORMS.map((p) => {
                   const active = (formData.platforms || []).includes(p.value);

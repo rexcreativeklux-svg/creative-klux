@@ -67,16 +67,21 @@ const StudioInner = () => {
     logo: activeBrand?.logo || "",
     caption: "",
     hashtags: [],
-    size: "1200x628",
+    size: "1080x1080",
     campaignGoal: "Engagement",
     visualStyle: "modern",
     audience: "B2C",
     fileFormat: "PNG",
     videoType: "Reels",
+    videoStyle: "cinematic",
     backgroundImage: null,
     duration: "",
     videoFormat: "MP4",
-    postTone: "Casual"
+    postTone: "Casual",
+    tone: "casual",
+    platforms: "instagram",
+    postSize: "1080x1080",
+    cta: "Download Now",
   });
 
   const [result, setResult] = useState(null);

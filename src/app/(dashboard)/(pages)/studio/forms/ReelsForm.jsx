@@ -4,38 +4,16 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Globe, Loader2, FileUp, X, CheckCircle2, ChevronRight,
-  Sparkles, FileSearch, FolderOpen, Images, Scan, Film,
-  Hash, Music, Clock, Subtitles, Mic,
+  Sparkles, Images, Scan, Film, Hash, Music,
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
-import SearchMediaModal from "@/app/(components)/SearchMediaModal";
-import LibraryMediaModal from "@/app/(components)/LibraryMediaModal";
-import MagicMediaModal from "@/app/(components)/MagicMediaModal";
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
-import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSection";
-import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSection";
-
-import TextToImageTab from "../../old-studio/designer-creatives/create/tabs/text-to-image/page";
-import TextToAudioTab from "../../old-studio/designer-creatives/create/tabs/text-to-audio/page";
-import TextToVideoTab from "../../old-studio/designer-creatives/create/tabs/text-to-video/page";
-import ImageToVariationsTab from "../../old-studio/designer-creatives/create/tabs/image-to-variations/page";
-import ScriptToVoiceoverToVideoTab from "../../old-studio/designer-creatives/create/tabs/script-to-voiceover/page";
-import AudioToTextTab from "../../old-studio/ai-studio/create/audio-to-text/page";
-import PersonaBasedGeneratorTab from "../../old-studio/designer-creatives/create/tabs/persona-based-generator/page";
+import MediaPickerModal from "@/app/(components)/MediaPickerModal";
+import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-// Reels/Stories/Shorts are always vertical — sizes locked to portrait formats
-const SIZE_OPTIONS = [
-  { value: "1080x1920", label: "Reels / TikTok",   desc: "9:16 vertical" },
-  { value: "1080x1920", label: "Stories",           desc: "9:16 vertical" },
-  { value: "1080x1920", label: "YouTube Shorts",    desc: "9:16 vertical" },
-  { value: "1080x1350", label: "Portrait Feed",     desc: "4:5 portrait" },
-  { value: "1080x1080", label: "Square Feed",       desc: "1:1 square" },
-];
-
-// Deduplicate by value for the actual selector
 const UNIQUE_SIZES = [
   { value: "1080x1920", label: "9:16 — Reels / TikTok / Shorts / Stories" },
   { value: "1080x1350", label: "4:5 — Portrait Feed" },
@@ -43,35 +21,31 @@ const UNIQUE_SIZES = [
 ];
 
 const PLATFORMS = [
-  { value: "instagram_reels",  label: "Instagram Reels" },
-  { value: "tiktok",           label: "TikTok" },
-  { value: "youtube_shorts",   label: "YouTube Shorts" },
-  { value: "instagram_stories",label: "Instagram Stories" },
-  { value: "facebook_reels",   label: "Facebook Reels" },
-  { value: "snapchat",         label: "Snapchat" },
+  { value: "instagram_reels",   label: "Instagram Reels" },
+  { value: "tiktok",            label: "TikTok" },
+  { value: "youtube",    label: "YouTube Shorts" },
+  { value: "instagram", label: "Instagram Stories" },
+  { value: "facebook_reels",    label: "Facebook Reels" },
+  { value: "snapchat",          label: "Snapchat" },
 ];
 
 const DURATION_OPTIONS = [
-  { value: "15",  label: "15s",  desc: "Stories / quick hook" },
-  { value: "30",  label: "30s",  desc: "Reels / TikTok sweet spot" },
-  { value: "60",  label: "60s",  desc: "Full story arc" },
-  { value: "90",  label: "90s",  desc: "YouTube Shorts max" },
+  { value: "15", label: "15s", desc: "Stories / quick hook" },
+  { value: "30", label: "30s", desc: "Reels / TikTok sweet spot" },
+  { value: "60", label: "60s", desc: "Full story arc" },
+  { value: "90", label: "90s", desc: "YouTube Shorts max" },
 ];
 
 const CAMPAIGN_GOALS = [
-  "Brand Awareness",
-  "Engagement",
-  "Followers",
-  "Sales",
-  "Website Traffic",
+  "Brand Awareness", "Engagement", "Followers", "Sales", "Website Traffic",
 ];
 
 const AUDIENCES = [
-  { value: "Gen Z",         label: "Gen Z",         desc: "13–26, TikTok-native" },
-  { value: "Millennials",   label: "Millennials",   desc: "27–42, Instagram-first" },
-  { value: "B2C",           label: "B2C",           desc: "End consumers" },
-  { value: "B2B",           label: "B2B",           desc: "Professionals & teams" },
-  { value: "Inspirational", label: "Creators",      desc: "Entrepreneurs & influencers" },
+  { value: "Gen Z",         label: "Gen Z",      desc: "13–26, TikTok-native" },
+  { value: "Millennials",   label: "Millennials", desc: "27–42, Instagram-first" },
+  { value: "B2C",           label: "B2C",         desc: "End consumers" },
+  { value: "B2B",           label: "B2B",         desc: "Professionals & teams" },
+  { value: "Inspirational", label: "Creators",    desc: "Entrepreneurs & influencers" },
 ];
 
 const VIDEO_STYLES = [
@@ -95,63 +69,40 @@ const BRAND_COLORS = [
   "#059669", "#0ea5e9", "#8b5cf6", "#ec4899", "#f59e0b",
 ];
 
-const FILE_FORMATS = ["MP4", "MOV", "WEBM"];
+const VIDEO_FORMAT = ["MP4", "MOV", "WEBM"];
 
 const STEPS = [
-  { id: 1, label: "Video Details",          icon: Film },
+  { id: 1, label: "Video Details",            icon: Film },
   { id: 2, label: "Format, Goals & Audience", icon: Scan },
-  { id: 3, label: "Media & Assets",          icon: Images },
+  { id: 3, label: "Media & Assets",           icon: Images },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onResult }) => {
-  const [step, setStep]                 = useState(1);
-  const [error, setError]               = useState("");
-  const [brandUrl, setBrandUrl]         = useState(activeBrand?.url || activeBrand?.source_url || "");
+const ReelsForm = ({
+  formData, setFormData, activeBrand, sendUrl, showToast, onResult,
+  generateCustomCreative, creative, categoryId,
+}) => {
+  const [step, setStep]                     = useState(1);
+  const [error, setError]                   = useState("");
+  const [brandUrl, setBrandUrl]             = useState(activeBrand?.url || activeBrand?.source_url || "");
   const [importingBrand, setImportingBrand] = useState(false);
-  const [generating, setGenerating]     = useState(false);
+  const [generating, setGenerating]         = useState(false);
 
   // ── image/video asset state ───────────────────────────────────────────────
-  const [imageSrc, setImageSrc]               = useState([]);
-  const [croppedImages, setCroppedImages]     = useState([]);
+  const [imageSrc, setImageSrc]                 = useState([]);
+  const [croppedImages, setCroppedImages]       = useState([]);
   const [currentCropIndex, setCurrentCropIndex] = useState(0);
-  const [showCropper, setShowCropper]         = useState(false);
-  const [crop, setCrop]                       = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
-  const [completedCrop, setCompletedCrop]     = useState(null);
+  const [showCropper, setShowCropper]           = useState(false);
+  const [crop, setCrop]                         = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
+  const [completedCrop, setCompletedCrop]       = useState(null);
+  const [imageSrcMeta, setImageSrcMeta]         = useState([]); // tracks original URLs parallel to imageSrc
 
   const cropperRef   = useRef(null);
-  const fileInputRef = useRef(null);
   const logoInputRef = useRef(null);
 
   // ── modal state ───────────────────────────────────────────────────────────
-  const [searchModalOpen,  setSearchModalOpen]  = useState(false);
-  const [libraryModalOpen, setLibraryModalOpen] = useState(false);
-  const [magicModalOpen,   setMagicModalOpen]   = useState(false);
-  const [selectedImages,   setSelectedImages]   = useState([]);
-  const [selectedMedia,    setSelectedMedia]    = useState([]);
-  const [magicTab,         setMagicTab]         = useState("Text to Video");  // default to video tab
-
-  // ── recommended images ────────────────────────────────────────────────────
-  const [recommendedImages,  setRecommendedImages]  = useState([]);
-  const [loadingRecommended, setLoadingRecommended] = useState(false);
-
-  useEffect(() => {
-    if (!formData.brandName?.trim()) return;
-    const t = setTimeout(async () => {
-      setLoadingRecommended(true);
-      try {
-        const query = `${formData.brandName} ${formData.campaignGoal || "short video reel"} vertical`;
-        const res = await fetch(`/api/pexels?query=${encodeURIComponent(query)}&per_page=8`);
-        const d   = await res.json();
-        setRecommendedImages(
-          (d.photos || []).map((p) => ({ id: p.id, src: p.src.medium, large: p.src.large2x, alt: p.alt || "" }))
-        );
-      } catch { setRecommendedImages([]); }
-      finally   { setLoadingRecommended(false); }
-    }, 800);
-    return () => clearTimeout(t);
-  }, [formData.brandName, formData.campaignGoal]);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
 
   // Sync first cropped media → live preview
   useEffect(() => {
@@ -162,10 +113,18 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
   useEffect(() => { setCompletedCrop(null); }, [currentCropIndex]);
 
   // ── field helper ──────────────────────────────────────────────────────────
+  // Keeps brandColor ↔ primaryColor in sync (mirrors ImageAdsForm / PostsForm pattern)
   const field = (key, value) => {
-    if (key === "primaryColor")
+    if (key === "primaryColor" || key === "brandColor")
       value = value.startsWith("#") ? value : `#${value}`;
-    setFormData((p) => ({ ...p, [key]: value }));
+
+    setFormData((prev) => ({
+      ...prev,
+      [key]: value,
+      ...(key === "primaryColor" && { brandColor: value }),
+      ...(key === "brandColor"   && { primaryColor: value }),
+    }));
+
     setError("");
   };
 
@@ -187,9 +146,11 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
         ...p,
         brandName:      d.name        || "",
         description:    d.description || "",
-        primaryColor:   d.primary_color   || "#059669",
-        font:           d.font  || "Montserrat",
-        caption:        p.caption || `Watch ${d.name}!`,
+        // sync both color keys on import
+        primaryColor:   d.primary_color || "#059669",
+        brandColor:     d.primary_color || "#059669",
+        font:           d.font || "Montserrat",
+        caption:        p.caption   || `Watch ${d.name}!`,
         hashtags:       p.hashtags?.length ? p.hashtags : ["#Reels", "#Shorts", "#TikTok"],
         logo:           d.logo || "",
         importedImages: d.images?.map((i) => i.url).filter(Boolean) || [],
@@ -207,101 +168,98 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
     reader.readAsDataURL(file);
   };
 
-  // ── Apply selected (identical pattern to ImageAdsForm) ───────────────────
-  const handleApplySelected = async () => {
-    const sources = magicModalOpen ? selectedMedia : selectedImages;
-    if (sources.length === 0) return;
-
-    const images = sources.filter(
-      (item) =>
-        !item.type ||
-        item.type === "image" ||
-        (typeof item.src === "string" && !item.src.includes(".mp4") && !item.videoSrc)
-    );
-
-    const videos = sources.filter(
-      (item) =>
-        item.type === "video" ||
-        item.videoSrc ||
-        (typeof item.src === "string" && item.src.includes(".mp4"))
-    );
-
+  // ── Apply from MediaPickerModal (mirrors ImageAdsForm exactly) ────────────
+  const handleApplyFromPicker = async (images, media) => {
     if (images.length > 0) {
       try {
         const processedFiles = await Promise.all(
           images.map(async (item, idx) => {
-            let url = item.src || item.large || item;
-            const shouldProxy = typeof url === "string" && url.startsWith("http");
-            const fetchUrl    = shouldProxy ? `/api/proxy-image?url=${encodeURIComponent(url)}` : url;
+            // If it already has a File object (upload tab), use it directly
+            if (item.file instanceof File) {
+              item.file.previewUrl = item.src;
+              item.file.sourceUrl  = null;
+              return item.file;
+            }
+            // Otherwise proxy-fetch (search / library URLs)
+            const url      = item.large || item.src;
+            const fetchUrl = url.startsWith("http")
+              ? `/api/proxy-image?url=${encodeURIComponent(url)}`
+              : url;
             const res  = await fetch(fetchUrl);
-            if (!res.ok) throw new Error(`Failed to load image: ${url}`);
             const blob = await res.blob();
-            const file = new File([blob], `selected-image-${Date.now()}-${idx}`, { type: blob.type || "image/png" });
+            const file = new File([blob], `selected-${Date.now()}-${idx}`, { type: blob.type || "image/png" });
             file.previewUrl = URL.createObjectURL(blob);
+            file.sourceUrl  = item.large || item.src || null;
             return file;
           })
         );
 
         const previewUrls = processedFiles.map((f) => f.previewUrl);
+        const sourceUrls  = processedFiles.map((f) => f.sourceUrl || null);
 
         if (!showCropper) {
           setImageSrc(previewUrls);
+          setImageSrcMeta(sourceUrls);
           setCroppedImages(Array(previewUrls.length).fill(null));
           setCurrentCropIndex(0);
         } else {
           setImageSrc((prev) => [...prev, ...previewUrls]);
+          setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
           setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
           setCurrentCropIndex(imageSrc.length);
         }
 
         setShowCropper(true);
-        showToast(`Added ${images.length} image${images.length > 1 ? "s" : ""} — now crop them`);
+        showToast(`Added ${images.length} image(s) — crop them`);
       } catch (err) {
         console.error("Image loading failed:", err);
-        showToast("Some images couldn't be loaded. Please try again.");
+        showToast("Some images couldn't be loaded.");
       }
     }
 
-    if (videos.length > 0) {
-      const videoObjects = videos.map((video, i) => ({
+    if (media.length > 0) {
+      const videoObjects = media.map((src, i) => ({
         id:         `video-${Date.now()}-${i}`,
-        previewUrl: video.videoSrc || video.src || video.large,
-        thumbnail:  video.thumbnail || video.image || video.src,
+        previewUrl: src,
+        thumbnail:  src,
         type:       "video",
-        alt:        video.alt || "Selected video",
-        original:   video,
       }));
       setCroppedImages((prev) => [...prev, ...videoObjects]);
-      showToast(`Added ${videos.length} video${videos.length > 1 ? "s" : ""}`);
+      showToast(`Added ${media.length} media item(s)`);
     }
 
-    if (images.length === 0 && videos.length > 0) setShowCropper(false);
-
-    setSearchModalOpen(false);
-    setLibraryModalOpen(false);
-    setMagicModalOpen(false);
-    setSelectedImages([]);
-    setSelectedMedia([]);
+    setMediaPickerOpen(false);
   };
 
-  // ── File input ────────────────────────────────────────────────────────────
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
-    const urls = files.map((f) => URL.createObjectURL(f));
+  // ── Brand image strip handlers (mirrors ImageAdsForm exactly) ─────────────
+  const handleBrandImageUse = (imageObjs) => {
+    const pseudos = imageObjs.map((imageObj) => ({
+      previewUrl: imageObj.src,
+      sourceUrl:  imageObj.src,
+      name:       imageObj.alt || "brand-image",
+      type:       "image/jpeg",
+    }));
+    setCroppedImages((prev) => [...prev, ...pseudos]);
+    showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+  };
 
-    if (!showCropper) {
-      setImageSrc(urls);
-      setCroppedImages(Array(urls.length).fill(null));
-      setCurrentCropIndex(0);
-    } else {
-      setImageSrc((prev) => [...prev, ...urls]);
-      setCroppedImages((prev) => [...prev, ...Array(urls.length).fill(null)]);
-      setCurrentCropIndex(imageSrc.length);
+  const handleBrandImageCrop = async (imageObjs) => {
+    for (const imageObj of imageObjs) {
+      const originalUrl = imageObj.src;
+      let cropperUrl    = originalUrl;
+      try {
+        const res  = await fetch(`/api/proxy-image?url=${encodeURIComponent(originalUrl)}`);
+        const blob = await res.blob();
+        cropperUrl = URL.createObjectURL(blob);
+      } catch (err) {
+        console.warn("Proxy failed, falling back to original URL", err);
+      }
+      setImageSrc((prev)      => [...prev, cropperUrl]);
+      setImageSrcMeta((prev)  => [...prev, originalUrl]);
+      setCroppedImages((prev) => [...prev, null]);
     }
-
+    if (!showCropper) setCurrentCropIndex(0);
     setShowCropper(true);
-    e.target.value = "";
   };
 
   // ── Save crop ─────────────────────────────────────────────────────────────
@@ -326,6 +284,7 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
     const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
     const file = new File([blob], `cropped-${currentCropIndex}.png`, { type: "image/png" });
     file.previewUrl = URL.createObjectURL(blob);
+    file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
 
     setCroppedImages((prev) => {
       const updated = [...prev];
@@ -340,7 +299,7 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
     } else {
       setShowCropper(false);
     }
-  }, [completedCrop, currentCropIndex, imageSrc.length]);
+  }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta]);
 
   // ── Skip crop ─────────────────────────────────────────────────────────────
   const handleSkipCrop = () => {
@@ -348,6 +307,7 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
     fetch(url).then((r) => r.blob()).then((blob) => {
       const file = new File([blob], `original-${currentCropIndex}.png`, { type: blob.type });
       file.previewUrl = url;
+      file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
       setCroppedImages((prev) => { const u = [...prev]; u[currentCropIndex] = file; return u; });
       if (currentCropIndex < imageSrc.length - 1) {
         setCurrentCropIndex((prev) => prev + 1);
@@ -387,57 +347,73 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
     setStep((p) => p + 1);
   };
 
-  // ── Generate ──────────────────────────────────────────────────────────────
-  const handleGenerate = () => {
+  // ── Generate — mirrors ImageAdsForm.handleGenerate exactly ────────────────
+  const handleGenerate = async () => {
     setGenerating(true);
-    setTimeout(() => {
-      const valid  = croppedImages.filter(Boolean);
-      const assets = Array.from({ length: 4 }, (_, i) => {
-        const src = valid[i % Math.max(valid.length, 1)];
-        const url = src?.previewUrl || recommendedImages[i]?.large || "/placeholder.png";
-        return {
-          id:       `reel_${i}`,
-          preview:  url,
-          alt:      `Generated Reel ${i + 1}`,
-          type:     src?.type === "video" ? "video" : "image",
-          duration: formData.duration || "30",
-        };
-      });
-      onResult({ assets });
-      setGenerating(false);
-    }, 3000);
-  };
+    setError("");
 
-  // ── Magic media toggle ────────────────────────────────────────────────────
-  const handleMagicSelect = (src) =>
-    setSelectedMedia((p) => p.includes(src) ? p.filter((m) => m !== src) : p.length < 5 ? [...p, src] : p);
+    const validImages = croppedImages.filter(Boolean);
 
-  const handleCancelSelection = () => {
-    setSelectedImages([]);
-    setSelectedMedia([]);
-    setSearchModalOpen(false);
-    setLibraryModalOpen(false);
-    setMagicModalOpen(false);
-  };
-
-  const renderTabContent = () => {
-    const shared = { selectedMedia, handleSelectMedia: handleMagicSelect };
-    const map = {
-      "Text to Image":               <TextToImageTab {...shared} postData={formData} activeBrand={activeBrand} />,
-      "Text to Audio":               <TextToAudioTab {...shared} />,
-      "Text to Video":               <TextToVideoTab {...shared} />,
-      "Image to Variations":         <ImageToVariationsTab {...shared} brandName={formData.brandName} postData={formData} activeBrand={activeBrand}
-                                       onClose={() => setMagicModalOpen(false)}
-                                       openSearchModal={() => { setSearchModalOpen(true);  setMagicModalOpen(false); }}
-                                       openLibraryModal={() => { setLibraryModalOpen(true); setMagicModalOpen(false); }} />,
-      "Script to Voiceover to Video":<ScriptToVoiceoverToVideoTab {...shared} />,
-      "Audio to Text":               <AudioToTextTab {...shared} />,
-      "Persona-based Generator":     <PersonaBasedGeneratorTab {...shared} />,
+    const payload = {
+      creativeType: creative?.id,
+      categoryType: categoryId,
+      brandName:    formData.brandName    || null,
+      description:  formData.description  || null,
+      brandColor:   formData.brandColor   ?? formData.primaryColor ?? null,
+      logo:         formData.logo         || null,
+      videoStyle:   formData.videoStyle   || null,
+      hook:         formData.hook         || null,
+      font:         formData.font         || null,
+      sourceUrl:    brandUrl              || null,
+      size:         formData.size         || null,
+      duration:     formData.duration     || null,
+      campaignGoal: formData.campaignGoal || null,
+      audience:     formData.audience     || null,
+      videoFormat:   formData.videoFormat   || null,
+      caption:      formData.caption      || null,
+      hashtags:     formData.hashtags     || [],
+      platforms:    formData.platforms    || [],
+      musicVibe:    formData.musicVibe    || null,
+      subtitles:    formData.subtitles    || null,
+      images: validImages
+        .map((f) => f?.sourceUrl || f?.previewUrl)
+        .filter(Boolean),
+      generatedAt: new Date().toISOString(),
     };
-    return map[magicTab] ?? <div className="p-4 text-sm text-gray-500">Select a tab</div>;
+
+    const result = await generateCustomCreative(payload);
+
+    if (!result.ok) {
+      setError(result.message || "Generation failed. Please try again.");
+      setGenerating(false);
+      return;
+    }
+
+    const data = result.data;
+
+    // ── canvas-based design response
+    if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
+      onResult({
+        type:       "design",
+        variations: data.variations,
+        reply:      data.reply || "",
+        meta:       data.meta  || {},
+        payload,
+        raw: data,
+      });
+    } else {
+      // ── fallback: asset response
+      onResult({
+        assets: data?.assets || [],
+        payload,
+        raw: data,
+      });
+    }
+
+    setGenerating(false);
   };
 
-  // Reels are always 9:16 by default
+  // Reels default to 9:16; respect selected size if set
   const cropAspectRatio = (() => {
     if (!formData.size) return 9 / 16;
     const [w, h] = formData.size.split("x").map(Number);
@@ -448,7 +424,7 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
   return (
     <>
       {/* ── Step indicator ───────────────────────────────────────────────── */}
-      <div className=" rounded-2xl px-0 py-4">
+      <div className="rounded-2xl px-0 py-4">
         <div className="flex items-center justify-between gap-2">
           {STEPS.map((s, idx) => {
             const Icon = s.icon;
@@ -459,7 +435,7 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                   className={`flex flex-1 items-center gap-2 min-w-0 ${step > s.id ? "cursor-pointer" : "cursor-default"}`}
                 >
                   <div className={`shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
-                    step > s.id  ? "border-emerald-600 bg-emerald-600 text-white"
+                    step > s.id    ? "border-emerald-600 bg-emerald-600 text-white"
                     : step === s.id ? "border-emerald-600 text-emerald-600 bg-white"
                     : "border-gray-200 text-gray-300"
                   }`}>
@@ -518,8 +494,8 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
             </div>
 
             {/* Brand name + Project name */}
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Brand Name" required>
+            <div className="">
+              <Field label="Brand Name / Project Name" required>
                 <input
                   type="text" value={formData.brandName || ""}
                   onChange={(e) => field("brandName", e.target.value)}
@@ -527,14 +503,14 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                   className={inputCls}
                 />
               </Field>
-              <Field label="Project / Series Name">
+              {/* <Field label="Project / Series Name">
                 <input
                   type="text" value={formData.projectName || ""}
                   onChange={(e) => field("projectName", e.target.value)}
                   placeholder="e.g. Summer Drop Series"
                   className={inputCls}
                 />
-              </Field>
+              </Field> */}
             </div>
 
             {/* Script / description */}
@@ -549,7 +525,7 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
             </Field>
 
             {/* Hook type */}
-            <Field label="Opening Hook">
+            {/* <Field label="Opening Hook">
               <div className="flex flex-wrap gap-2 py-1">
                 {HOOKS.map((h) => (
                   <button
@@ -565,7 +541,7 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                   </button>
                 ))}
               </div>
-            </Field>
+            </Field> */}
 
             {/* Video style */}
             <Field label="Video Style">
@@ -586,8 +562,8 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
               </div>
             </Field>
 
-            {/* Caption + Hashtags */}
-            <Field label="Caption">
+            {/* Caption */}
+            {/* <Field label="Caption">
               <div className="relative">
                 <textarea
                   value={formData.caption || ""}
@@ -601,9 +577,10 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                   {2200 - (formData.caption?.length || 0)}
                 </span>
               </div>
-            </Field>
+            </Field> */}
 
-            <Field label="Hashtags">
+            {/* Hashtags */}
+            {/* <Field label="Hashtags">
               <div className="relative">
                 <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -614,9 +591,9 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                   className={`${inputCls} pl-9`}
                 />
               </div>
-            </Field>
+            </Field> */}
 
-            {/* Target platforms (multi-select) */}
+            {/* Target platforms */}
             <Field label="Target Platforms">
               <div className="flex flex-wrap gap-2 py-1">
                 {PLATFORMS.map((p) => {
@@ -698,38 +675,6 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
               </Field>
             </div>
 
-            {/* Optional extras row */}
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Music / Audio Vibe">
-                <div className="relative">
-                  <Music className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={formData.musicVibe || ""}
-                    onChange={(e) => field("musicVibe", e.target.value)}
-                    placeholder="e.g. Upbeat, Lo-fi, Dramatic"
-                    className={`${inputCls} pl-9`}
-                  />
-                </div>
-              </Field>
-              <Field label="Captions / Subtitles">
-                <div className="flex gap-2">
-                  {["Auto-generate", "None", "Manual"].map((opt) => (
-                    <button
-                      key={opt}
-                      onClick={() => field("subtitles", opt)}
-                      className={`flex-1 px-2 py-2.5 rounded-lg border cursor-pointer text-xs font-semibold transition-all ${
-                        formData.subtitles === opt
-                          ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                          : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </Field>
-            </div>
           </div>
         )}
 
@@ -738,7 +683,6 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
           <div className="flex flex-col gap-6">
             <SectionTitle>Format, Goals & Audience</SectionTitle>
 
-            {/* Duration */}
             <Field label="Video Duration">
               <div className="grid grid-cols-4 gap-2">
                 {DURATION_OPTIONS.map((d) => (
@@ -758,7 +702,6 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
               </div>
             </Field>
 
-            {/* Size / aspect ratio */}
             <Field label="Aspect Ratio / Size">
               <div className="grid grid-cols-3 gap-2">
                 {UNIQUE_SIZES.map((s) => (
@@ -778,7 +721,6 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
               </div>
             </Field>
 
-            {/* Campaign goal */}
             <Field label="Campaign Goal">
               <div className="flex flex-wrap gap-2">
                 {CAMPAIGN_GOALS.map((g) => (
@@ -797,7 +739,6 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
               </div>
             </Field>
 
-            {/* Audience */}
             <Field label="Audience">
               <div className="grid grid-cols-3 gap-2">
                 {AUDIENCES.map((a) => (
@@ -815,15 +756,14 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
               </div>
             </Field>
 
-            {/* File format */}
             <Field label="Export Format">
               <div className="flex gap-2">
-                {FILE_FORMATS.map((f) => (
+                {VIDEO_FORMAT.map((f) => (
                   <button
                     key={f}
-                    onClick={() => field("fileFormat", f)}
+                    onClick={() => field("videoFormat", f)}
                     className={`px-4 py-2 rounded-lg cursor-pointer text-xs font-medium border-2 transition-all ${
-                      formData.fileFormat === f
+                      formData.videoFormat === f
                         ? "border-emerald-600 bg-emerald-50 text-emerald-700"
                         : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
                     }`}
@@ -838,93 +778,66 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
 
         {/* ═══ STEP 3 — Media & Assets ══════════════════════════════════════ */}
         {step === 3 && (
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between mb-1">
-              <SectionTitle>Media & Assets</SectionTitle>
-              {selectedImages.length > 0 && (
-                <button
-                  onClick={handleApplySelected}
-                  className="px-4 py-2 bg-emerald-600 cursor-pointer text-white text-xs font-semibold rounded-lg flex items-center gap-2 hover:bg-emerald-700"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Apply ({selectedImages.length})
-                </button>
-              )}
-            </div>
+          <div className="flex flex-col gap-4">
+            <SectionTitle>Media & Assets</SectionTitle>
 
-            <p className="text-xs text-gray-400 mb-4">
+            <p className="text-xs text-gray-400 -mt-2">
               Add images or video clips to compose your reel. Videos are preferred — images will be used as slides.
             </p>
 
-            {(formData.importedImages || []).length > 0 && (
-              <ImportedBrandImagesSection
-                importedImages={formData.importedImages}
-                selectedImages={selectedImages}
-                setSelectedImages={setSelectedImages}
-                showToast={showToast}
-              />
-            )}
-
-            <RecommendedImagesSection
-              recommendedImages={recommendedImages}
-              isLoadingRecommended={loadingRecommended}
-              selectedImages={selectedImages}
-              setSelectedImages={setSelectedImages}
-              showToast={showToast}
+            {/* ── Brand images strip ── */}
+            <BrandImagesStrip
+              onSelect={handleBrandImageUse}
+              onCrop={handleBrandImageCrop}
+              selectedUrls={croppedImages
+                .filter(Boolean)
+                .map((f) => f?.sourceUrl || f?.previewUrl)
+                .filter(Boolean)}
             />
 
-            {/* Selected media grid */}
-            {croppedImages.length > 0 && (
-              <div className="py-2">
+            {/* ── Already-selected previews ── */}
+            {croppedImages.filter(Boolean).length > 0 && (
+              <div>
                 <p className="text-xs font-medium text-gray-500 mb-2">
-                  Selected media ({croppedImages.filter(Boolean).length})
+                  Selected ({croppedImages.filter(Boolean).length})
                 </p>
                 <div className="grid grid-cols-5 gap-2">
                   {croppedImages.map((item, index) => {
-                    const url =
-                      item?.previewUrl ||
-                      (item instanceof File || item instanceof Blob ? URL.createObjectURL(item) : null);
-                    const isVideo = item?.videoSrc || item?.type?.includes?.("video");
-
+                    if (!item) return null;
+                    const url     = item?.previewUrl;
+                    const isVideo = item?.type?.includes?.("video") || item?.videoSrc;
                     return (
                       <div key={index} className="relative group">
-                        {url ? (
-                          isVideo ? (
-                            <video
-                              src={item.videoSrc || url}
-                              poster={item.thumbnail}
-                              className="w-full h-auto object-cover rounded-md border border-gray-200 shadow"
-                              muted loop playsInline preload="metadata"
-                              onMouseEnter={(e) => e.target.play().catch(() => {})}
-                              onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
-                            />
-                          ) : (
-                            <img
-                              src={url}
-                              alt={`Asset ${index + 1}`}
-                              className="w-full h-auto object-cover rounded-md border border-gray-200 shadow"
-                            />
-                          )
+                        {isVideo ? (
+                          <video
+                            src={item.videoSrc || url}
+                            poster={item.thumbnail}
+                            className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
+                            muted loop playsInline preload="metadata"
+                            onMouseEnter={(e) => e.target.play().catch(() => {})}
+                            onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
+                          />
+                        ) : url ? (
+                          <img
+                            src={url}
+                            alt={`Asset ${index + 1}`}
+                            className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
+                          />
                         ) : (
-                          <div className="w-full h-32 bg-gray-100 border-2 border-dashed rounded-lg flex items-center justify-center">
-                            <span className="text-xs text-gray-500">No media</span>
+                          <div className="w-full h-24 bg-gray-100 border-2 border-dashed rounded-xl flex items-center justify-center">
+                            <span className="text-xs text-gray-400">No media</span>
                           </div>
                         )}
-
-                        {/* Video badge */}
                         {isVideo && (
                           <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
                             VIDEO
                           </span>
                         )}
-
                         <button
                           onClick={(e) => { e.stopPropagation(); removeCroppedImage(index); }}
-                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full p-1 hover:bg-red-600 cursor-pointer"
+                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition bg-red-500 text-white rounded-full p-1 hover:bg-red-600 cursor-pointer"
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          <X className="w-3 h-3" />
                         </button>
                       </div>
                     );
@@ -933,8 +846,11 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
               </div>
             )}
 
-            {/* Upload / source zone — video-first messaging */}
-            <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6 bg-gray-50 flex flex-col items-center gap-3 mt-2">
+            {/* ── Upload / picker zone ── */}
+            <div
+              className="border-2 border-dashed border-gray-200 rounded-2xl p-8 bg-gray-50 flex flex-col items-center gap-3 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition-all"
+              onClick={() => setMediaPickerOpen(true)}
+            >
               <div className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
                 <Film className="w-5 h-5 text-gray-400" />
               </div>
@@ -942,20 +858,12 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
                 <p className="text-sm font-semibold text-gray-700">Upload Clips or Images</p>
                 <p className="text-xs text-gray-400 mt-1">Videos recommended · Images will become slides · Max 5 assets</p>
               </div>
-              <div className="flex flex-wrap gap-2 justify-center">
-                <MediaBtn icon={FileSearch} label="Search Media"  onClick={() => setSearchModalOpen(true)} />
-                <MediaBtn icon={FolderOpen} label="Your Library"  onClick={() => setLibraryModalOpen(true)} />
-                <MediaBtn icon={Sparkles}   label="Magic Media"   onClick={() => { setMagicTab("Text to Video"); setMagicModalOpen(true); }} primary />
-                <MediaBtn icon={FileUp}     label="Upload File"   onClick={() => fileInputRef.current?.click()} />
-              </div>
-              <input
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                className="hidden"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-              />
+              <button
+                onClick={(e) => { e.stopPropagation(); setMediaPickerOpen(true); }}
+                className="px-5 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition cursor-pointer flex items-center gap-2"
+              >
+                <Images className="w-4 h-4" /> Choose Media
+              </button>
             </div>
           </div>
         )}
@@ -980,7 +888,8 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
           ) : (
             <button
               onClick={handleGenerate}
-              className="px-3 py-2 bg-emerald-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 hover:scale-105 flex items-center gap-2 transition"
+              disabled={generating}
+              className="px-3 py-2 bg-emerald-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 hover:scale-105 flex items-center gap-2 transition disabled:opacity-60"
             >
               {generating
                 ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -1005,44 +914,24 @@ const ReelsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onR
         aspectRatio={cropAspectRatio}
         onSave={saveCroppedImage}
         onSkip={handleSkipCrop}
-        onCancel={() => { setShowCropper(false); setImageSrc([]); setCroppedImages([]); }}
+        onCancel={() => {
+          setShowCropper(false);
+          setImageSrc([]);
+          setImageSrcMeta([]);
+          setCroppedImages([]);
+        }}
         onPrevious={handlePreviousCrop}
       />
 
-      <SearchMediaModal
-        isOpen={searchModalOpen}
-        onClose={() => setSearchModalOpen(false)}
-        selectedImages={selectedImages}
-        onSelectImage={(src) =>
-          setSelectedImages((p) => p.includes(src) ? p.filter((s) => s !== src) : [...p, src])
-        }
-        onApply={handleApplySelected}
-        onCancel={handleCancelSelection}
+      <MediaPickerModal
+        isOpen={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        onCancel={() => setMediaPickerOpen(false)}
+        onApply={handleApplyFromPicker}
+        postData={formData}
+        activeBrand={activeBrand}
+        showToast={showToast}
       />
-
-      <LibraryMediaModal
-        isOpen={libraryModalOpen}
-        onClose={() => setLibraryModalOpen(false)}
-        selectedImages={selectedImages}
-        onSelectImage={(src) =>
-          setSelectedImages((p) => p.includes(src) ? p.filter((s) => s !== src) : [...p, src])
-        }
-        onApply={handleApplySelected}
-        onCancel={handleCancelSelection}
-      />
-
-      <MagicMediaModal
-        isOpen={magicModalOpen}
-        onClose={() => { setMagicModalOpen(false); setSelectedMedia([]); }}
-        activeTab={magicTab}
-        onTabChange={setMagicTab}
-        selectedMedia={selectedMedia}
-        onSelectMedia={handleMagicSelect}
-        onApply={handleApplySelected}
-        onCancel={handleCancelSelection}
-      >
-        {renderTabContent()}
-      </MagicMediaModal>
 
       {generating && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/60 flex items-center justify-center z-50">
@@ -1071,19 +960,6 @@ const Field = ({ label, required, children }) => (
     </label>
     {children}
   </div>
-);
-
-const MediaBtn = ({ icon: Icon, label, onClick, primary }) => (
-  <button
-    onClick={onClick}
-    className={`flex items-center gap-1.5 px-4 py-2 cursor-pointer rounded-lg text-xs font-semibold transition-all ${
-      primary
-        ? "bg-emerald-600 text-white hover:bg-emerald-700"
-        : "bg-white border border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-600"
-    }`}
-  >
-    <Icon className="w-4 h-4" /> {label}
-  </button>
 );
 
 export default ReelsForm;

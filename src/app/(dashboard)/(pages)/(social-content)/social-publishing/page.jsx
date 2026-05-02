@@ -285,7 +285,7 @@ export default function Publishing() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 md:p-8">
+    <div className="">
 
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
@@ -421,14 +421,14 @@ export default function Publishing() {
           </div>
           <p className="text-gray-900 font-semibold mb-1">No published or scheduled posts yet</p>
           <p className="text-gray-400 text-sm mb-5">
-            Go to your Projects, hover a card, and click <strong className="text-gray-600">Publish</strong> to get started.
+            Go to your Creatives, hover a card, and click <strong className="text-gray-600">Publish</strong> to get started.
           </p>
           <Link
-            href="/projects"
+            href="/creatives"
             className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-white shadow-sm hover:opacity-90 transition-opacity"
             style={{ backgroundColor: BRAND }}
           >
-            Go to Projects
+            Go to Creatives
           </Link>
         </div>
       )}

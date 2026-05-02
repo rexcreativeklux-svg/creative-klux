@@ -133,9 +133,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       icon: Megaphone,
       type: "dropdown",
       children: [
-        { label: "Publishing", href: "/created-ads", icon: Megaphone },
-        { label: "Calendar", href: "/ads-planner", icon: Calendar },
-        { label: "Analytics", href: "/analytics", icon: Activity },
+        { label: "Publishing", href: "/ads-publishing", icon: Megaphone },
+        { label: "Calendar", href: "/ads-calendar", icon: Calendar },
+        { label: "Analytics", href: "/ads-analytics", icon: Activity },
       ],
     },
     {

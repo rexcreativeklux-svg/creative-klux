@@ -4,88 +4,12 @@ import React, { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   RefreshCw, Download, ShieldCheck, Upload,
-  X, Loader2, MoreHorizontal, Maximize2, Share2, CheckCircle2,
+  X, Loader2, Share2, CheckCircle2, AlertCircle,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 // ── design token ──────────────────────────────────────────────────────────────
 const PRIMARY = "#2563eb";
-
-// ── fake result database ──────────────────────────────────────────────────────
-const FAKE_RESULT = {
-  summary: [
-    { label: "Platform", status: "FAILED" },
-    { label: "Brand", status: "WARNING" },
-    { label: "Legal", status: "FAILED" },
-  ],
-  sections: [
-    {
-      title: "Platform Compliance",
-      badge: "2 ISSUES",
-      badgeColor: "#ef4444",
-      items: [
-        {
-          name: "Meta / Instagram",
-          status: "FAILED",
-          desc: "Excessive text overlay — likely violates the 20% text-to-image rule. Reduce headline size or use a dedicated text zone.",
-        },
-        {
-          name: "Google Ads",
-          status: "WARNING",
-          desc: 'May contain language flagged by Google\'s sensitive categories policy. Review for absolute claims ("best", "guaranteed").',
-        },
-        {
-          name: "LinkedIn",
-          status: "PASSED",
-          desc: "Professional tone, clear messaging — aligned with LinkedIn business advertising standards.",
-        },
-      ],
-    },
-    {
-      title: "Brand Compliance",
-      badge: "3 WARNINGS",
-      badgeColor: "#f59e0b",
-      items: [
-        {
-          name: "Brand Tone Mismatch",
-          status: "WARNING",
-          desc: "Ad copy uses casual language inconsistent with your brand's defined professional tone. Consider revising.",
-        },
-        {
-          name: "Logo Placement",
-          status: "WARNING",
-          desc: "Logo is partially obscured. Adjust to ensure full visibility within safe zones.",
-        },
-        {
-          name: "Color Scheme",
-          status: "WARNING",
-          desc: "Background color deviates from your approved brand palette. Use brand-approved colors.",
-        },
-      ],
-    },
-    {
-      title: "Legal Compliance",
-      badge: "1 FAILED",
-      badgeColor: "#ef4444",
-      items: [
-        {
-          name: "Image Rights",
-          status: "FAILED",
-          desc: "Image usage cannot be verified. Ensure all imagery is licensed, royalty-free, or original.",
-        },
-        {
-          name: "Legal Disclaimer",
-          status: "WARNING",
-          desc: "Required disclaimer may be missing for your target region. Add required legal copy below the CTA.",
-        },
-        {
-          name: "Copyright Check",
-          status: "PASSED",
-          desc: "No copyrighted text, logos, or media detected in the creative assets.",
-        },
-      ],
-    },
-  ],
-};
 
 const PLATFORMS = [
   { id: "meta", label: "Meta / Facebook / Instagram" },
@@ -95,7 +19,7 @@ const PLATFORMS = [
   { id: "twitter", label: "X / Twitter Ads" },
 ];
 
-// ── status pill ───────────────────────────────────────────────────────────────
+// ── status config ─────────────────────────────────────────────────────────────
 const statusCfg = {
   FAILED: { bg: "#fee2e2", color: "#b91c1c", dot: "#ef4444" },
   WARNING: { bg: "#fef9c3", color: "#a16207", dot: "#f59e0b" },
@@ -116,19 +40,26 @@ function StatusPill({ status }) {
 
 // ── main page ─────────────────────────────────────────────────────────────────
 export default function AdGuardPage() {
+  // Pull both functions from the auth context
+  const { checkCompliance, uploadImage } = useAuth();
+
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [uploadedUrl, setUploadedUrl] = useState(null); // cached after first upload
   const [dragging, setDragging] = useState(false);
   const [selectedPlatforms, setSelectedPlatforms] = useState(["meta", "google"]);
   const [guidelinesUrl, setGuidelinesUrl] = useState("");
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
   const fileRef = useRef();
 
   const acceptFile = (f) => {
     if (!f) return;
     setFile(f);
     setResult(null);
+    setError(null);
+    setUploadedUrl(null); // reset so the new file gets uploaded fresh
     const reader = new FileReader();
     reader.onload = (e) => setPreview(e.target.result);
     reader.readAsDataURL(f);
@@ -140,22 +71,88 @@ export default function AdGuardPage() {
     acceptFile(e.dataTransfer.files?.[0]);
   }, []);
 
-  const clearFile = () => { setFile(null); setPreview(null); setResult(null); };
+  const clearFile = () => {
+    setFile(null);
+    setPreview(null);
+    setResult(null);
+    setUploadedUrl(null);
+    setError(null);
+  };
 
   const togglePlatform = (id) =>
     setSelectedPlatforms((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
     );
 
+  // ── Main handler ───────────────────────────────────────────────────────────
   const handleCheck = async () => {
     if (!file) return;
     setChecking(true);
-    await new Promise((r) => setTimeout(r, 2400));
-    setResult(FAKE_RESULT);
-    setChecking(false);
+    setError(null);
+
+    try {
+      const response = await checkCompliance({
+        image: file,           // ← raw File object, not a URL
+        platforms: selectedPlatforms,
+      });
+
+      if (!response.ok) {
+        setError(response.message || "Compliance check failed");
+        return;
+      }
+
+      setResult(response.data);
+    } catch (err) {
+      setError(err.message || "Something went wrong. Please try again.");
+    } finally {
+      setChecking(false);
+    }
   };
 
   const hasResult = !!result;
+
+  // ── shared platform checklist ─────────────────────────────────────────────
+  const PlatformChecks = () => (
+    <div className="flex flex-col gap-2">
+      {PLATFORMS.map((p) => {
+        const checked = selectedPlatforms.includes(p.id);
+        return (
+          <label key={p.id} className="flex items-center gap-2.5 cursor-pointer">
+            <div
+              onClick={() => togglePlatform(p.id)}
+              className="w-4 h-4 rounded flex items-center justify-center border transition-all duration-150 cursor-pointer"
+              style={{
+                background: checked ? PRIMARY : "white",
+                borderColor: checked ? PRIMARY : "#d1d5db",
+              }}
+            >
+              {checked && (
+                <svg className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24">
+                  <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </div>
+            <span
+              className="text-sm transition-colors"
+              style={{ color: checked ? "#111827" : "#6b7280" }}
+              onClick={() => togglePlatform(p.id)}
+            >
+              {p.label}
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+
+  // ── reusable error banner ─────────────────────────────────────────────────
+  const ErrorBanner = ({ compact = false }) =>
+    error ? (
+      <div className={`flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl ${compact ? "px-3 py-2" : "px-3 py-2.5"}`}>
+        <AlertCircle className={`${compact ? "w-3.5 h-3.5" : "w-4 h-4"} text-red-500 shrink-0 mt-0.5`} />
+        <p className={`${compact ? "text-[11px]" : "text-xs"} text-red-600`}>{error}</p>
+      </div>
+    ) : null;
 
   return (
     <div className="" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -168,7 +165,10 @@ export default function AdGuardPage() {
           <span className="text-xs text-gray-400 ml-1">— Compliance checker</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center hover:scale-105 gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer">
+          <button
+            onClick={() => { setResult(null); setError(null); }}
+            className="flex items-center hover:scale-105 gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+          >
             <RefreshCw className="w-3 h-3" /> Refresh
           </button>
           <button
@@ -181,7 +181,7 @@ export default function AdGuardPage() {
       </div>
 
       {/* ── body ── */}
-      <div className=" py-6  mx-auto">
+      <div className="py-6 mx-auto">
         <AnimatePresence mode="wait">
 
           {/* ══ CENTERED — no result ════════════════════════════════════════ */}
@@ -224,7 +224,7 @@ export default function AdGuardPage() {
                       <img src={preview} alt="preview" className="w-full h-auto object-cover rounded-xl" />
                       <button
                         onClick={(e) => { e.stopPropagation(); clearFile(); }}
-                        className="absolute top-2 right-2 w-7 h-7 bg-white rounded-full border border-gray-200 flex items-center justify-cen2er  hover:bg-gray-200 hover:scale-105 cursor-pointer transition"
+                        className="absolute top-2 right-2 w-7 h-7 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-200 hover:scale-105 cursor-pointer transition"
                       >
                         <X className="w-3.5 h-3.5 text-gray-500" />
                       </button>
@@ -244,39 +244,10 @@ export default function AdGuardPage() {
                   )}
                 </div>
 
-                {/* platform checkboxes */}
+                {/* platforms */}
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">Check against platforms</p>
-                  <div className="flex flex-col gap-2">
-                    {PLATFORMS.map((p) => {
-                      const checked = selectedPlatforms.includes(p.id);
-                      return (
-                        <label key={p.id} className="flex items-center gap-2.5 cursor-pointer group">
-                          <div
-                            onClick={() => togglePlatform(p.id)}
-                            className="w-4 h-4 rounded flex items-center justify-center border transition-all duration-150 cursor-pointer"
-                            style={{
-                              background: checked ? PRIMARY : "white",
-                              borderColor: checked ? PRIMARY : "#d1d5db",
-                            }}
-                          >
-                            {checked && (
-                              <svg className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24">
-                                <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                          </div>
-                          <span
-                            className="text-sm transition-colors"
-                            style={{ color: checked ? "#111827" : "#6b7280" }}
-                            onClick={() => togglePlatform(p.id)}
-                          >
-                            {p.label}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  <PlatformChecks />
                 </div>
 
                 {/* guidelines URL */}
@@ -292,11 +263,12 @@ export default function AdGuardPage() {
                   />
                 </div>
 
-                {/* CTA */}
+                <ErrorBanner />
+
                 <button
                   onClick={handleCheck}
                   disabled={!file || checking || selectedPlatforms.length === 0}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 hover:scale-105 rounded-lg text-sm font-semibold text-white transition-all cursor-pointer disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 hover:scale-105 rounded-lg text-sm font-semibold text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   style={{ background: `linear-gradient(135deg, ${PRIMARY}, #1d4ed8)` }}
                 >
                   {checking
@@ -320,7 +292,7 @@ export default function AdGuardPage() {
             >
               {/* ── LEFT: upload panel ── */}
               <div className="flex flex-col gap-4">
-                <div className="bg-white rounded-2xl border border-gray-200  overflow-hidden">
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                   <p className="text-xs font-semibold text-gray-500 px-5 pt-4 pb-3 border-b border-gray-100">Upload Ad Creative</p>
 
                   {/* mini drop hint */}
@@ -353,11 +325,10 @@ export default function AdGuardPage() {
                           {file?.name?.replace(/\.[^.]+$/, "") || "Creative"}
                         </span>
                       </div>
-                   
                     </div>
 
                     {preview && (
-                      <div className=" overflow-hidden mb-3">
+                      <div className="overflow-hidden mb-3">
                         <img src={preview} alt="creative" className="w-full object-contain max-h-72" />
                       </div>
                     )}
@@ -380,31 +351,10 @@ export default function AdGuardPage() {
                 </div>
 
                 {/* platform checkboxes (compact) */}
-                <div className="bg-white rounded-2xl border border-gray-200  p-4">
+                <div className="bg-white rounded-2xl border border-gray-200 p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-3">Check against platforms</p>
-                  <div className="flex flex-col gap-2">
-                    {PLATFORMS.map((p) => {
-                      const checked = selectedPlatforms.includes(p.id);
-                      return (
-                        <label key={p.id} className="flex items-center gap-2.5 cursor-pointer">
-                          <div
-                            onClick={() => togglePlatform(p.id)}
-                            className="w-4 h-4 rounded flex items-center justify-center border transition-all duration-150 cursor-pointer"
-                            style={{ background: checked ? PRIMARY : "white", borderColor: checked ? PRIMARY : "#d1d5db" }}
-                          >
-                            {checked && (
-                              <svg className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24">
-                                <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                          </div>
-                          <span className="text-sm" style={{ color: checked ? "#111827" : "#6b7280" }} onClick={() => togglePlatform(p.id)}>
-                            {p.label}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  <PlatformChecks />
+
                   <input
                     type="url"
                     value={guidelinesUrl}
@@ -412,14 +362,19 @@ export default function AdGuardPage() {
                     placeholder="https://yourbrand.com/guidelines"
                     className="mt-3 w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none transition"
                   />
+
+                  <div className="mt-3">
+                    <ErrorBanner compact />
+                  </div>
+
                   <button
                     onClick={handleCheck}
                     disabled={checking || selectedPlatforms.length === 0}
-                    className="mt-3 w-full hover:scale-95 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold text-white transition cursor-pointer disabled:opacity-50"
+                    className="mt-3 w-full hover:scale-95 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold text-white transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     style={{ background: `linear-gradient(135deg, ${PRIMARY}, #1d4ed8)` }}
                   >
                     {checking
-                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Running…</>
+                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />{uploadedUrl ? " Running…" : " Uploading…"}</>
                       : <><ShieldCheck className="w-3.5 h-3.5" /> Re-run Check</>
                     }
                   </button>
@@ -432,14 +387,14 @@ export default function AdGuardPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
                 className="flex flex-col gap-4 pb-5"
-                style={{ maxHeight: "calc(100vh - 100px)" }}
+                style={{ maxHeight: "calc(100vh - 100px)", overflowY: "auto" }}
               >
                 {/* summary tabs */}
                 <div className="grid grid-cols-3 gap-3">
                   {result.summary.map((s) => {
                     const cfg = statusCfg[s.status];
                     return (
-                      <div key={s.label} className="bg-white rounded-xl border border-gray-200  px-4 py-3 text-center">
+                      <div key={s.label} className="bg-white rounded-xl border border-gray-200 px-4 py-3 text-center">
                         <p className="text-[10px] text-gray-400 font-medium mb-1">{s.label}</p>
                         <span className="text-xs font-bold" style={{ color: cfg.color }}>{s.status}</span>
                       </div>
@@ -454,7 +409,7 @@ export default function AdGuardPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.22, delay: 0.15 + si * 0.08 }}
-                    className="bg-white rounded-2xl border border-gray-200  p-5"
+                    className="bg-white rounded-2xl border border-gray-200 p-5"
                   >
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-sm font-semibold text-gray-900">{section.title}</p>
@@ -478,7 +433,6 @@ export default function AdGuardPage() {
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex items-center gap-2 min-w-0">
-                                {/* status dot */}
                                 <div className="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5" style={{ background: cfg.dot }} />
                                 <p className="text-sm font-semibold text-gray-800">{item.name}</p>
                               </div>

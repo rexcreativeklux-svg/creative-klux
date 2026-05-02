@@ -1619,7 +1619,6 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-
   const bulkDeleteDesigns = useCallback(async (ids) => {
     if (!token) return { ok: false, message: "Not authenticated" };
     if (!Array.isArray(ids) || ids.length === 0) return { ok: false, message: "No IDs provided" };
@@ -1648,7 +1647,6 @@ export function AuthProvider({ children }) {
       return { ok: false, message: err.message || "Network error" };
     }
   }, [token]);
-
 
   const updateDesignById = useCallback(async (id, updates) => {
     if (!token) return { ok: false, message: "Not authenticated" };
@@ -1729,6 +1727,148 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
+  const getCompetitorInsights = useCallback(async ({ url }) => {
+    if (!token) {
+      console.error("getCompetitorInsights: no auth token.");
+      return { ok: false, message: "Not authenticated" };
+    }
+
+    if (!url) {
+      console.error("getCompetitorInsights: url is required.");
+      return { ok: false, message: "URL is required" };
+    }
+
+    try {
+      const normalizedUrl = url
+        .replace(/^https?:\/\//, "")
+        .split("/")[0];
+
+      const res = await fetch(`${BASE_URL}/competitor-insights`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          url: normalizedUrl,
+        }),
+      });
+
+      const text = await res.text();
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("Invalid JSON:", text);
+        return { ok: false, message: "Invalid server response" };
+      }
+
+      if (!res.ok) {
+        return {
+          ok: false,
+          message: data?.message || "Failed to fetch competitor insights",
+        };
+      }
+
+      return { ok: true, data };
+    } catch (err) {
+      console.error("getCompetitorInsights error:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  }, [token]);
+
+  const checkCompliance = useCallback(async ({ image, platforms }) => {
+    if (!token) return { ok: false, message: "Not authenticated" };
+    if (!image) return { ok: false, message: "Image is required" };
+
+    try {
+      const formData = new FormData();
+      formData.append("image", image); // ← actual File object
+      if (Array.isArray(platforms)) {
+        platforms.forEach((p) => formData.append("platforms[]", p));
+      }
+
+      console.log(formData)
+
+      const res = await fetch(`${BASE_URL}/compliance-checker`, {
+        method: "POST",
+        headers: {
+          // NO Content-Type — browser sets multipart boundary automatically
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch {
+        return { ok: false, message: "Invalid server response" };
+      }
+
+      if (!res.ok) return { ok: false, message: data?.message || "Compliance check failed" };
+      return { ok: true, data };
+    } catch (err) {
+      return { ok: false, message: err.message || "Network error" };
+    }
+  }, [token]);
+
+  const creativeScoring = useCallback(async ({ image }) => {
+  if (!token) return { ok: false, message: "Not authenticated" };
+  if (!image) return { ok: false, message: "Image is required" };
+
+  try {
+    const formData = new FormData();
+    formData.append("image", image);
+
+    const res = await fetch(`${BASE_URL}/creative-scoring`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch {
+      return { ok: false, message: "Invalid server response" };
+    }
+
+    if (!res.ok) return { ok: false, message: data?.message || "Creative scoring failed" };
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, message: err.message || "Network error" };
+  }
+}, [token]);
+
+const creativeInsights = useCallback(async ({ brand }) => {
+  if (!token) return { ok: false, message: "Not authenticated" };
+  if (!brand?.trim()) return { ok: false, message: "Brand name is required" };
+
+  try {
+    const res = await fetch(`${BASE_URL}/creative-insights`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ brand }),
+    });
+
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch {
+      return { ok: false, message: "Invalid server response" };
+    }
+
+    if (!res.ok) return { ok: false, message: data?.message || "Creative insights failed" };
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, message: err.message || "Network error" };
+  }
+}, [token]);
+
 
   return (
     <AuthContext.Provider
@@ -1740,7 +1880,11 @@ export function AuthProvider({ children }) {
         teamsLoading,
         // brandId,
         setActiveBrand,
+        checkCompliance,
+        creativeInsights,
         deleteDesignById,
+        creativeScoring,
+        getCompetitorInsights,
         bulkDeleteDesigns,
         updateDesignById,
         fetchDesigns,

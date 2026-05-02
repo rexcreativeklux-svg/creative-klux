@@ -96,13 +96,23 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   ];
 
   const insightsItems = [
-    { id: "brandPulse", label: "Brand Pulse", href: "/brandPulse", icon: Activity },
-    { id: "creativeIQ", label: "Creative IQ", href: "/creativeIQ", icon: Brain },
+    // { id: "brandPulse", label: "Brand Pulse", href: "/brandPulse", icon: Activity },
+    // { id: "creativeIQ", label: "Creative IQ", href: "/creativeIQ", icon: Brain },
+    { id: "creative-insights", label: "Creative Insights", href: "/creative-insights", icon: Activity },
+    { id: "competitor", label: "Competitor Insights", href: "/competitor-insights", icon: Radar },
   ];
 
   const toolsItems = [
-    { id: "adGuard", label: "AdGuard", href: "/adGuard", icon: ShieldCheck },
-    { id: "rivalLens", label: "Rival Lens", href: "/rivalLens", icon: Radar },
+    // { id: "adGuard", label: "AdGuard", href: "/adGuard", icon: ShieldCheck },
+    // { id: "rivalLens", label: "Rival Lens", href: "/rivalLens", icon: Radar },
+
+    { id: "compliance", label: "Compliance Checker", href: "/compliance-checker", icon: ShieldCheck },
+    { id: "creative-scoring", label: "Creative Scoring AI", href: "/creative-scoring-ai", icon: Brain },
+
+
+
+
+
   ];
 
   const manageItems = [

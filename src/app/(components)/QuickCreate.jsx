@@ -8,15 +8,15 @@ const QUICK_ACTIONS = [
   {
     href: "/studio/ai-select",
     icon: MessageSquare,
-    label: "AI Chat Studio",
+    label: "AI Studio",
     description: "Describe your creative and let AI build it",
     iconBg: "#ede9fe",
     iconColor: "#7c3aed",
   },
   {
-    href: "/",
+    href: "/studio/create-from-url",
     icon: Link2,
-    label: "Create from URL",
+    label: "Website to Design",
     description: "Enter a website URL to generate brand-matched creatives",
     iconBg: "#d1fae5",
     iconColor: "#059669",
@@ -24,7 +24,7 @@ const QUICK_ACTIONS = [
   {
     href: "/studio/select",
     icon: FileText,
-    label: "Fill a Form",
+    label: "Custom Create",
     description: "Use a guided form to create your asset step by step",
     iconBg: "#fef3c7",
     iconColor: "#d97706",

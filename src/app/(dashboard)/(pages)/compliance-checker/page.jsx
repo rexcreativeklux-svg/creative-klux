@@ -5,22 +5,23 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ShieldCheck, Upload, Loader2, X,
   CheckCircle, XCircle, AlertTriangle, AlertCircle,
+  LayoutGrid, Image as ImageIcon, ChevronRight,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext"; // ← adjust path if needed
+import { useAuth } from "@/context/AuthContext";
 
 const PLATFORMS = [
-  { id: "facebook",  label: "Meta"       },
-  { id: "google",    label: "Google"     },
-  { id: "linkedin",  label: "LinkedIn"   },
-  { id: "tiktok",    label: "TikTok"     },
-  { id: "twitter",   label: "Twitter/X"  },
+  { id: "Meta",       label: "Meta"      },
+  { id: "Google",     label: "Google"    },
+  { id: "LinkedIn",   label: "LinkedIn"  },
+  { id: "TikTok",     label: "TikTok"    },
+  { id: "Twitter/X",  label: "Twitter/X" },
 ];
 
-// ── status badge ──────────────────────────────────────────────────────────────
+/* ─── status badge ────────────────────────────────────────────── */
 const STATUS_CFG = {
-  Passed:  { icon: CheckCircle,    text: "text-green-600",  bg: "bg-green-50  border-green-100"  },
-  Failed:  { icon: XCircle,        text: "text-red-600",    bg: "bg-red-50    border-red-100"    },
-  Warning: { icon: AlertTriangle,  text: "text-orange-500", bg: "bg-orange-50 border-orange-100" },
+  Passed:  { icon: CheckCircle,   text: "text-green-600",  bg: "bg-green-50  border-green-100"  },
+  Failed:  { icon: XCircle,       text: "text-red-600",    bg: "bg-red-50    border-red-100"    },
+  Warning: { icon: AlertTriangle, text: "text-orange-500", bg: "bg-orange-50 border-orange-100" },
 };
 
 function StatusBadge({ status }) {
@@ -33,7 +34,6 @@ function StatusBadge({ status }) {
   );
 }
 
-// ── issue row ─────────────────────────────────────────────────────────────────
 function IssueRow({ title, detail, titleColor = "text-gray-800" }) {
   return (
     <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
@@ -43,22 +43,241 @@ function IssueRow({ title, detail, titleColor = "text-gray-800" }) {
   );
 }
 
-// ── main page ─────────────────────────────────────────────────────────────────
+/* ─── scoreColor helper (for design score badges) ────────────── */
+const scoreColor = (score) => {
+  if (score >= 80) return "#22c55e";
+  if (score >= 60) return "#2563eb";
+  if (score >= 40) return "#f97316";
+  return "#ef4444";
+};
+
+/* ─── DesignModal ─────────────────────────────────────────────── */
+function DesignModal({ onClose, onSelect }) {
+  const { fetchDesigns } = useAuth();
+  const [designs, setDesigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const [error, setError] = useState("");
+
+  React.useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const result = await fetchDesigns(50);
+      if (!result) {
+        setError("Failed to load designs. Make sure you have an active brand selected.");
+      } else {
+        const arr = Array.isArray(result)
+          ? result
+          : Array.isArray(result.data)
+            ? result.data
+            : [];
+        setDesigns(arr);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const handleConfirm = () => {
+    if (!selected) return;
+    onSelect(selected);
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 16 }}
+        transition={{ duration: 0.2 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(135deg, #10b981, #0d9488)" }}
+            >
+              <LayoutGrid className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">Choose a Design</p>
+              <p className="text-xs text-gray-400">Select a saved creative to check compliance</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition cursor-pointer"
+          >
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-24 gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+              <p className="text-sm text-gray-400">Loading your designs…</p>
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="flex items-start gap-2 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-red-600">{error}</p>
+            </div>
+          )}
+
+          {!loading && !error && designs.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-24 gap-3">
+              <LayoutGrid className="w-10 h-10 text-gray-200" />
+              <p className="text-sm text-gray-400">No saved designs found for this brand.</p>
+            </div>
+          )}
+
+          {/* Masonry grid */}
+          {!loading && designs.length > 0 && (
+            <div className="columns-2 md:columns-3 gap-3 space-y-3">
+              {designs.map((design) => {
+                const canvasData = (() => {
+                  try {
+                    return typeof design.canvas === "string"
+                      ? JSON.parse(design.canvas)
+                      : design.canvas;
+                  } catch { return null; }
+                })();
+                const copyData = (() => {
+                  try {
+                    return typeof design.copy === "string"
+                      ? JSON.parse(design.copy)
+                      : design.copy;
+                  } catch { return {}; }
+                })();
+
+                const bgColor = canvasData?.canvas?.background || "#f4f4f4";
+                const isSelected = selected?.id === design.id;
+                const imgEl = canvasData?.elements?.find((el) => el.type === "image");
+
+                return (
+                  <div
+                    key={design.id}
+                    onClick={() => setSelected(design)}
+                    className="break-inside-avoid mb-3 rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-200"
+                    style={{
+                      borderColor: isSelected ? "#10b981" : "transparent",
+                      boxShadow: isSelected
+                        ? "0 0 0 3px rgba(16,185,129,0.18)"
+                        : "0 1px 4px rgba(0,0,0,0.07)",
+                    }}
+                  >
+                    <div
+                      className="w-full relative flex items-center justify-center overflow-hidden"
+                      style={{ background: bgColor, minHeight: 100, aspectRatio: "4/3" }}
+                    >
+                      {imgEl ? (
+                        <img
+                          src={imgEl.url}
+                          alt={design.name}
+                          className="w-full h-full object-cover"
+                          style={{ opacity: imgEl.opacity ?? 1 }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="w-8 h-8 text-gray-300" />
+                        </div>
+                      )}
+
+                      {isSelected && (
+                        <div className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                          <CheckCircle className="w-4 h-4 text-white" />
+                        </div>
+                      )}
+
+                      {design.score && (
+                        <div
+                          className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-xs font-bold text-white"
+                          style={{ background: scoreColor(design.score) }}
+                        >
+                          {design.score}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-white px-3 py-2">
+                      <p className="text-xs font-semibold text-gray-800 truncate">{design.name}</p>
+                      {copyData?.headline && (
+                        <p className="text-xs text-gray-400 truncate mt-0.5">{copyData.headline}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+          <p className="text-xs text-gray-400">
+            {selected ? `Selected: ${selected.name}` : "No design selected"}
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!selected}
+              className="px-5 py-2 rounded-xl text-sm font-semibold text-white flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              style={{ background: "linear-gradient(135deg, #10b981, #0d9488)" }}
+            >
+              Use This Design <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ─── Main Component ──────────────────────────────────────────── */
 export default function ComplianceChecker() {
   const { checkCompliance } = useAuth();
 
+  // Source: "image" | "design" | null
+  const [source, setSource] = useState(null);
+
+  // Image upload state
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [dragging, setDragging] = useState(false);
-  const [selectedPlatforms, setSelectedPlatforms] = useState(["facebook", "google", "linkedin"]);
+  const fileRef = useRef();
+
+  // Design state
+  const [selectedDesign, setSelectedDesign] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+
+  // Shared state
+  const [selectedPlatforms, setSelectedPlatforms] = useState(["Meta", "Google", "LinkedIn"]);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  const fileRef = useRef();
 
+  /* ── file handlers ── */
   const acceptFile = (f) => {
     if (!f) return;
     setFile(f);
+    setSource("image");
+    setSelectedDesign(null);
     setData(null);
     setError("");
     const reader = new FileReader();
@@ -72,7 +291,18 @@ export default function ComplianceChecker() {
     acceptFile(e.dataTransfer.files?.[0]);
   }, []);
 
-  const clearFile = () => {
+  const clearAll = () => {
+    setFile(null);
+    setPreview(null);
+    setSelectedDesign(null);
+    setSource(null);
+    setData(null);
+    setError("");
+  };
+
+  const handleDesignSelect = (design) => {
+    setSelectedDesign(design);
+    setSource("design");
     setFile(null);
     setPreview(null);
     setData(null);
@@ -84,16 +314,30 @@ export default function ComplianceChecker() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
 
+  /* ── analyze ── */
   const analyze = async () => {
-    if (!file || selectedPlatforms.length === 0) return;
+    if (selectedPlatforms.length === 0) {
+      setError("Please select at least one platform.");
+      return;
+    }
     setLoading(true);
     setError("");
     setData(null);
 
-    const response = await checkCompliance({
-      image: file,
-      platforms: selectedPlatforms,
-    });
+    let response;
+
+    if (source === "image" && file) {
+      response = await checkCompliance({ image: file, platforms: selectedPlatforms });
+    } else if (source === "design" && selectedDesign) {
+      const canvasPayload = typeof selectedDesign.canvas === "string"
+        ? selectedDesign.canvas
+        : JSON.stringify(selectedDesign.canvas);
+      response = await checkCompliance({ canvas: canvasPayload, platforms: selectedPlatforms });
+    } else {
+      setError("Please upload an image or select a design first.");
+      setLoading(false);
+      return;
+    }
 
     if (!response.ok) {
       setError(response.message || "Check failed. Please try again.");
@@ -103,12 +347,25 @@ export default function ComplianceChecker() {
     setLoading(false);
   };
 
+  const hasInput = source !== null;
+
+  // Design preview helpers
+  const designCanvasData = (() => {
+    if (!selectedDesign) return null;
+    try {
+      return typeof selectedDesign.canvas === "string"
+        ? JSON.parse(selectedDesign.canvas)
+        : selectedDesign.canvas;
+    } catch { return null; }
+  })();
+  const designBg = designCanvasData?.canvas?.background || "#f4f4f4";
+  const designImg = designCanvasData?.elements?.find((el) => el.type === "image");
+
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* ── Page header ── */}
       <div className="mb-6">
-      
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
@@ -130,45 +387,117 @@ export default function ComplianceChecker() {
 
           {/* Upload card */}
           <div className="bg-white border border-gray-200 rounded-2xl p-6">
-            <p className="font-semibold text-sm text-gray-800 mb-4">Upload Ad Creative</p>
+            <p className="font-semibold text-sm text-gray-800 mb-4">Choose Creative Source</p>
 
-            {!preview ? (
-              <div
-                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={onDrop}
-                onClick={() => fileRef.current?.click()}
-                className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-10 cursor-pointer transition-colors"
-                style={{ borderColor: dragging ? "#2563eb" : "#e5e7eb", background: dragging ? "#eff6ff" : "#f9fafb" }}
-              >
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => acceptFile(e.target.files?.[0])}
-                  className="hidden"
-                />
-                <Upload className="w-8 h-8 text-gray-400 mb-3" />
-                <p className="text-sm font-semibold text-gray-700">Click or drop to upload</p>
-                <p className="text-xs text-gray-400 mt-1">PNG, JPG, WEBP supported</p>
-              </div>
-            ) : (
-              <div className="relative rounded-xl overflow-hidden">
-                <img
-                  src={preview}
-                  alt="Ad creative"
-                  className="w-full object-contain max-h-72 bg-gray-100"
-                />
-                <button
-                  onClick={clearFile}
-                  className="absolute top-2 right-2 w-7 h-7 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition cursor-pointer"
+            {/* Both pickers — shown when nothing selected */}
+            {!hasInput && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                {/* Upload image */}
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={onDrop}
+                  onClick={() => fileRef.current?.click()}
+                  className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 cursor-pointer transition-all group"
+                  style={{
+                    borderColor: dragging ? "#10b981" : "#e5e7eb",
+                    background: dragging ? "#f0fdf4" : "#f9fafb",
+                  }}
                 >
-                  <X className="w-3.5 h-3.5 text-gray-500" />
-                </button>
-                <div className="px-1 pt-2">
-                  <p className="text-xs font-semibold text-gray-700 truncate">{file?.name}</p>
-                  <p className="text-[10px] text-gray-400">{(file?.size / 1024 / 1024).toFixed(2)} MB</p>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => acceptFile(e.target.files?.[0])}
+                    className="hidden"
+                  />
+                  <div className="w-10 h-10 rounded-xl bg-gray-100 group-hover:bg-green-100 flex items-center justify-center mb-3 transition-colors">
+                    <Upload className="w-5 h-5 text-gray-400 group-hover:text-green-500 transition-colors" />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-700 text-center">Upload Image</p>
+                  <p className="text-xs text-gray-400 mt-1 text-center">PNG, JPG, WEBP</p>
                 </div>
+
+                {/* Choose from designs */}
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl p-8 cursor-pointer hover:border-teal-400 hover:bg-teal-50/40 transition-all group text-left"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-gray-100 group-hover:bg-teal-100 flex items-center justify-center mb-3 transition-colors">
+                    <LayoutGrid className="w-5 h-5 text-gray-400 group-hover:text-teal-500 transition-colors" />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-700 text-center">Choose a Design</p>
+                  <p className="text-xs text-gray-400 mt-1 text-center">From saved creatives</p>
+                </button>
+              </div>
+            )}
+
+            {/* Image preview */}
+            {source === "image" && preview && (
+              <div className="space-y-3">
+                <div className="relative rounded-xl overflow-hidden">
+                  <img
+                    src={preview}
+                    alt="Ad creative"
+                    className="w-full object-contain max-h-72 bg-gray-100"
+                  />
+                  <button
+                    onClick={clearAll}
+                    className="absolute top-2 right-2 w-7 h-7 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition cursor-pointer shadow-sm"
+                  >
+                    <X className="w-3.5 h-3.5 text-gray-500" />
+                  </button>
+                  <div className="absolute bottom-2 left-2 bg-white/90 rounded-lg px-2 py-0.5 shadow-sm">
+                    <p className="text-xs font-semibold text-gray-700 truncate max-w-[180px]">{file?.name}</p>
+                    <p className="text-[10px] text-gray-400">{(file?.size / 1024 / 1024).toFixed(2)} MB</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="w-full py-2 rounded-xl text-xs font-medium text-gray-500 border border-gray-200 hover:border-teal-300 hover:text-teal-600 transition cursor-pointer"
+                >
+                  Or choose from saved designs instead
+                </button>
+              </div>
+            )}
+
+            {/* Design preview */}
+            {source === "design" && selectedDesign && (
+              <div className="space-y-3">
+                <div
+                  className="relative rounded-xl overflow-hidden flex items-center justify-center"
+                  style={{ background: designBg, minHeight: 180, maxHeight: 280 }}
+                >
+                  {designImg ? (
+                    <img
+                      src={designImg.url}
+                      alt={selectedDesign.name}
+                      className="w-full h-full object-cover"
+                      style={{ opacity: designImg.opacity ?? 1, maxHeight: 280 }}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 py-10">
+                      <LayoutGrid className="w-8 h-8 text-gray-300" />
+                      <p className="text-xs text-gray-400">Canvas design</p>
+                    </div>
+                  )}
+                  <button
+                    onClick={clearAll}
+                    className="absolute top-2 right-2 w-7 h-7 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition cursor-pointer shadow-sm"
+                  >
+                    <X className="w-3.5 h-3.5 text-gray-500" />
+                  </button>
+                  <div className="absolute bottom-2 left-2 px-2.5 py-1 bg-white/90 rounded-lg text-xs font-semibold text-gray-700 shadow-sm">
+                    {selectedDesign.name}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="w-full py-2 rounded-xl text-xs font-medium text-gray-500 border border-gray-200 hover:border-teal-300 hover:text-teal-600 transition cursor-pointer"
+                >
+                  Choose a different design
+                </button>
               </div>
             )}
           </div>
@@ -185,7 +514,7 @@ export default function ComplianceChecker() {
                     onClick={() => togglePlatform(p.id)}
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer"
                     style={active
-                      ? { borderColor: "#2563eb", background: "#eff6ff", color: "#2563eb" }
+                      ? { borderColor: "#10b981", background: "#f0fdf4", color: "#10b981" }
                       : { borderColor: "#e5e7eb", background: "white", color: "#9ca3af" }
                     }
                   >
@@ -205,12 +534,12 @@ export default function ComplianceChecker() {
           )}
 
           {/* CTA */}
-          {file && (
+          {hasInput && (
             <button
               onClick={analyze}
               disabled={loading || selectedPlatforms.length === 0}
               className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 cursor-pointer"
-              style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)" }}
+              style={{ background: "linear-gradient(135deg, #10b981, #0d9488)" }}
             >
               {loading
                 ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Checking compliance…</span>
@@ -223,17 +552,15 @@ export default function ComplianceChecker() {
         {/* ── RIGHT: Results ── */}
         <div className="flex flex-col gap-4">
 
-          {/* Loading */}
           {loading && (
             <div className="flex items-center justify-center h-64 bg-white border border-gray-200 rounded-2xl">
               <div className="text-center">
-                <Loader2 className="w-10 h-10 animate-spin text-blue-500 mx-auto mb-4" />
+                <Loader2 className="w-10 h-10 animate-spin text-green-500 mx-auto mb-4" />
                 <p className="text-gray-400 text-sm">AI is checking compliance…</p>
               </div>
             </div>
           )}
 
-          {/* Results */}
           <AnimatePresence>
             {data && !loading && (
               <motion.div
@@ -338,18 +665,26 @@ export default function ComplianceChecker() {
             )}
           </AnimatePresence>
 
-          {/* Empty state */}
           {!data && !loading && (
             <div className="flex items-center justify-center h-64 bg-white border border-gray-200 rounded-2xl">
               <div className="text-center">
                 <ShieldCheck className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-                <p className="text-sm text-gray-400">Upload an ad to check compliance</p>
+                <p className="text-sm text-gray-400">Upload an image or pick a saved design to check compliance</p>
               </div>
             </div>
           )}
         </div>
-
       </div>
+
+      {/* ── Modal ── */}
+      <AnimatePresence>
+        {showModal && (
+          <DesignModal
+            onClose={() => setShowModal(false)}
+            onSelect={handleDesignSelect}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

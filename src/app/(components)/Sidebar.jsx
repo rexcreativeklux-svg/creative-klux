@@ -40,13 +40,22 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
   const handleLogout = async () => {
     try {
-      await logout();
+      setShowLogoutModal(false); // close UI first
+      setShowBottomMenu(false);
+
+      await logout(); // auth action
       router.push("/login");
     } catch (error) {
       console.error("Logout failed:", error);
-      setShowLogoutModal(false);
     }
   };
+
+
+  //   const handleLogout = async () => {
+  //   await logout();
+  //   router.push("/login");
+  // };
+
 
   const isActive = (href) =>
     pathname === href || pathname?.startsWith(href + "/");
@@ -79,15 +88,25 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   }, [pathname]);
 
   // Close bottom menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (bottomMenuRef.current && !bottomMenuRef.current.contains(e.target)) {
-        setShowBottomMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+useEffect(() => {
+  const handleClickOutside = (e) => {
+    if (showLogoutModal) return;
+
+    const menuEl = bottomMenuRef.current;
+    if (!menuEl) return;
+
+    if (!menuEl.contains(e.target)) {
+      setShowBottomMenu(false);
+    }
+  };
+
+  document.addEventListener("click", handleClickOutside);
+
+  return () =>
+    document.removeEventListener("click", handleClickOutside);
+}, [showLogoutModal]);
+
+
 
   // ── Nav sections ───────────────────────────────────────────────
   const createItems = [
@@ -316,13 +335,18 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         <div ref={bottomMenuRef} className={`flex-shrink-0 border-t border-gray-100 relative ${isOpen ? "px-3 py-3" : "px-2 py-3"}`}>
           {/* Bottom popup menu */}
           {showBottomMenu && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden z-50">
+            <div 
+
+              className="absolute bottom-full left-3 right-3 mb-2 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden z-50">
               <div className="py-1.5">
                 {bottomMenuLinks.map(({ label, href, icon: Icon }) => (
                   <Link
                     key={href}
                     href={href}
-                    onClick={() => setShowBottomMenu(false)}
+                   onClick={() => {
+  setTimeout(() => setShowBottomMenu(false), 0);
+}}
+
                     className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-gray-50
                       ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-700"}`}
                   >
@@ -332,8 +356,12 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                 ))}
                 <div className="border-t border-gray-100 mt-1 pt-1">
                   <button
-                    onClick={() => { setShowBottomMenu(false); setShowLogoutModal(true); }}
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 w-full transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowBottomMenu(false);
+                      setShowLogoutModal(true);
+                    }}
+                    className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 w-full transition-colors"
                   >
                     <Power className="h-4 w-4 flex-shrink-0" />
                     Logout

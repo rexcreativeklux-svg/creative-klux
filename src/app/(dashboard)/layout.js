@@ -20,8 +20,14 @@ export default function DashboardLayout({ children }) {
     const router = useRouter();
     const pathname = usePathname();
     const { brands, activeBrand, setActiveBrand, brandsLoading } = useAuth();
-    const [showModal, setShowModal] = useState(false);
+    const showModal =
+        !brandsLoading &&
+        brands.length > 0 &&
+        !activeBrand &&
+        !pathname.startsWith("/brand/create");
+
     const [isPending, startTransition] = useTransition();
+    
 
     const noPadding = NO_PADDING_ROUTES.some(route => pathname.startsWith(route));
 
@@ -48,15 +54,15 @@ export default function DashboardLayout({ children }) {
 
     const toggleSidebar = () => setSidebarOpen((prev) => !prev);
 
-    const shouldShowModal = useMemo(() => {
-        if (brandsLoading || !brands) return false;
-        const excludedPaths = ["/brand/create"];
-        return brands.length > 0 && !activeBrand && !excludedPaths.includes(pathname);
-    }, [activeBrand, pathname, brandsLoading, brands]);
+    // const shouldShowModal = useMemo(() => {
+    //     if (brandsLoading || !brands) return false;
+    //     const excludedPaths = ["/brand/create"];
+    //     return brands.length > 0 && !activeBrand && !excludedPaths.includes(pathname);
+    // }, [activeBrand, pathname, brandsLoading, brands]);
 
-    useEffect(() => {
-        setShowModal(shouldShowModal);
-    }, [shouldShowModal]);
+    // useEffect(() => {
+    //     setShowModal(shouldShowModal);
+    // }, [shouldShowModal]);
 
     const handleSelectBrand = (brand) => {
         router.push("/projects/create");
@@ -68,7 +74,7 @@ export default function DashboardLayout({ children }) {
                 } catch (error) {
                     console.error("Error saving brand:", error);
                 }
-                setShowModal(false);
+                // setShowModal(false);
             });
         });
     };
@@ -83,7 +89,8 @@ export default function DashboardLayout({ children }) {
                     <Header
                         sidebarOpen={sidebarOpen}
                         toggleSidebar={toggleSidebar}
-                        setShowModal={setShowModal}
+                        // setShowModal={() => { }}
+
                     />
                     <div className="flex-1 bg-[#f7f8fc] h-full overflow-y-auto">
                         <div className={`h-full ${noPadding ? "" : "px-9 pt-24"}`}>
@@ -94,7 +101,7 @@ export default function DashboardLayout({ children }) {
 
                 {showModal && (
                     <ModalPage
-                        onClose={() => setShowModal(false)}
+                         onClose={() => {}}
                         onSelectBrand={handleSelectBrand}
                     />
                 )}

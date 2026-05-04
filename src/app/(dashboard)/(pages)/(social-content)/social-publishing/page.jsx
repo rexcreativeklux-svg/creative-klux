@@ -14,13 +14,12 @@ import {
   fetchLivePostsFromConnectedAccounts, deletePostFromPlatform,
   updatePostCaptionOnPlatform,
 } from '../../../../../(lib)/integration';
- import Link from 'next/link';
- import { useParams } from 'next/navigation';
+import Link from 'next/link';
 
 const BRAND       = '#003dda';
 const BRAND_LIGHT = '#003dda14';
 
-/* ─── Helpers (replaces date-fns) ─── */
+/* ─── Helpers ─── */
 function formatDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -74,16 +73,9 @@ const TABS = [
 ];
 
 /* ─── Sub-components ─── */
-
 function StatCell({ value }) {
-  if (value === undefined || value === null) {
-    return <span className="text-gray-300 text-xs">—</span>;
-  }
-  return (
-    <span className="text-xs font-semibold text-gray-800">
-      {typeof value === 'number' ? value.toLocaleString() : value}
-    </span>
-  );
+  if (value === undefined || value === null) return <span className="text-gray-300 text-xs">—</span>;
+  return <span className="text-xs font-semibold text-gray-800">{typeof value === 'number' ? value.toLocaleString() : value}</span>;
 }
 
 function StatusBadge({ post }) {
@@ -130,12 +122,10 @@ function SummaryCard({ label, value, Icon }) {
 }
 
 /* ─── Main Component ─── */
-
-export default function Publishing() {
-  const { type } = useParams();
-  const isAds     = type === 'ads';
-  const typeLabel = isAds ? 'Ads' : 'Social';
-  const matchType = isAds ? 'ad' : 'social';
+export default function SocialPublishing() {
+  // Hardcoded for social
+  const typeLabel = 'Social';
+  const matchType = 'social';
 
   const [allPosts,       setAllPosts]       = useState([]);
   const [refreshing,     setRefreshing]     = useState(null);
@@ -342,11 +332,7 @@ export default function Publishing() {
               {tab.label}
               <span
                 className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                style={
-                  statusFilter === tab.key
-                    ? { backgroundColor: BRAND, color: '#fff' }
-                    : { backgroundColor: '#f3f4f6', color: '#6b7280' }
-                }
+                style={statusFilter === tab.key ? { backgroundColor: BRAND, color: '#fff' } : { backgroundColor: '#f3f4f6', color: '#6b7280' }}
               >
                 {TAB_COUNTS[tab.key]}
               </span>
@@ -368,9 +354,6 @@ export default function Publishing() {
               <option value="all">All Platforms</option>
               <optgroup label="── Social Media">
                 {SOCIAL_PLATFORMS.map(p => <option key={p.id} value={p.id}>{p.icon} {p.label}</option>)}
-              </optgroup>
-              <optgroup label="── Advertising">
-                {ADS_PLATFORMS.map(p => <option key={p.id} value={p.id}>{p.icon} {p.label}</option>)}
               </optgroup>
             </select>
           </div>
@@ -419,7 +402,7 @@ export default function Publishing() {
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: BRAND_LIGHT }}>
             <Calendar className="w-7 h-7" style={{ color: BRAND }} />
           </div>
-          <p className="text-gray-900 font-semibold mb-1">No published or scheduled posts yet</p>
+          <p className="text-gray-900 font-semibold mb-1">No published or scheduled social posts yet</p>
           <p className="text-gray-400 text-sm mb-5">
             Go to your Creatives, hover a card, and click <strong className="text-gray-600">Publish</strong> to get started.
           </p>
@@ -463,7 +446,6 @@ export default function Publishing() {
                       key={post.id}
                       className={`border-b border-gray-100 transition-colors hover:bg-blue-50/40 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
                     >
-                      {/* Creative */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           {post.image_url
@@ -472,31 +454,19 @@ export default function Publishing() {
                           }
                           <div className="min-w-0">
                             <p className="text-xs font-semibold text-gray-800 truncate max-w-[180px]">{post.project_title}</p>
-                            {post.caption && (
-                              <p className="text-[10px] text-gray-400 truncate max-w-[180px] mt-0.5">{post.caption}</p>
-                            )}
+                            {post.caption && <p className="text-[10px] text-gray-400 truncate max-w-[180px] mt-0.5">{post.caption}</p>}
                           </div>
                         </div>
                       </td>
-
-                      {/* Platform */}
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${meta.cls}`}>
                           {meta.icon} {meta.label}
                         </span>
                       </td>
-
-                      {/* Status */}
                       <td className="px-4 py-3"><StatusBadge post={post} /></td>
-
-                      {/* Date */}
                       <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                        {post.status === 'scheduled' && post.scheduled_at
-                          ? formatDate(post.scheduled_at)
-                          : formatDate(post.published_at)}
+                        {post.status === 'scheduled' && post.scheduled_at ? formatDate(post.scheduled_at) : formatDate(post.published_at)}
                       </td>
-
-                      {/* Stats */}
                       <td className="px-3 py-3 text-center"><StatCell value={stats.impressions} /></td>
                       <td className="px-3 py-3 text-center"><StatCell value={stats.reach} /></td>
                       <td className="px-3 py-3 text-center"><StatCell value={stats.clicks} /></td>
@@ -505,8 +475,6 @@ export default function Publishing() {
                       <td className="px-3 py-3 text-center">
                         <StatCell value={stats.ctr ? `${Number(stats.ctr).toFixed(2)}%` : undefined} />
                       </td>
-
-                      {/* Actions */}
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           {post.status === 'scheduled' && (
@@ -516,12 +484,9 @@ export default function Publishing() {
                               disabled={publishingNow === post.id}
                               title="Publish now"
                             >
-                              {publishingNow === post.id
-                                ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                : <Send className="w-3.5 h-3.5" />}
+                              {publishingNow === post.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                             </button>
                           )}
-
                           <button
                             className="h-7 w-7 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                             onClick={() => editingCaption === post.id ? setEditingCaption(null) : handleEditCaption(post)}
@@ -529,7 +494,6 @@ export default function Publishing() {
                           >
                             {editingCaption === post.id ? <X className="w-3.5 h-3.5" /> : <Edit2 className="w-3.5 h-3.5" />}
                           </button>
-
                           {post.post_id && (
                             <button
                               className="h-7 w-7 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-40"
@@ -540,7 +504,6 @@ export default function Publishing() {
                               <RefreshCw className={`w-3.5 h-3.5 ${refreshing === post.id ? 'animate-spin' : ''}`} />
                             </button>
                           )}
-
                           <button
                             className="h-7 w-7 rounded-md flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                             onClick={() => handleDelete(post)}
@@ -549,8 +512,6 @@ export default function Publishing() {
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-
-                        {/* Inline caption editor */}
                         {editingCaption === post.id && (
                           <div className="mt-2 space-y-1.5">
                             <textarea
@@ -581,7 +542,6 @@ export default function Publishing() {
             <span className="text-xs text-gray-400">
               Showing {filteredPosts.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredPosts.length)} of {filteredPosts.length} posts
             </span>
-
             {totalPages > 1 && (
               <div className="flex items-center gap-1">
                 <button
@@ -591,7 +551,6 @@ export default function Publishing() {
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
                   <button
                     key={n}
@@ -604,7 +563,6 @@ export default function Publishing() {
                     {n}
                   </button>
                 ))}
-
                 <button
                   className="h-7 w-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                   disabled={page === totalPages}

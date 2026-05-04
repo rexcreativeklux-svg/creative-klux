@@ -25,7 +25,7 @@ export default function LogoutModal({ isOpen, onClose, onConfirm }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center bg-transparent justify-center backdrop-blur-sm px-4">
+    <div className="fixed inset-0 z-[9999] flex items-center bg-transparent justify-center backdrop-blur-sm px-4">
       <div className="bg-white border border-gray-200 rounded-xl shadow-xl max-w-sm w-full px-6 py-3 animate-in fade-in zoom-in duration-300">
         {stage === "confirm" ? (
           <>

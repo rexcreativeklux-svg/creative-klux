@@ -11,8 +11,7 @@ import {
 } from 'date-fns';
 import { getPublishedPosts, deletePostFromPlatform, fetchLivePostsFromConnectedAccounts } from '../../../../../(lib)/integration';
 import { toast } from 'sonner';
- import Link from 'next/link';
- import { useParams } from 'next/navigation';
+import Link from 'next/link';
 
 const PLATFORM_META = {
   facebook:    { label: 'FB',      emoji: '🔵' },
@@ -57,25 +56,24 @@ function PostPill({ post, onDelete }) {
   );
 }
 
-export default function ContentCalendar() {
-  const { type } = useParams();
-  const isAds = type === 'ads';
-  const typeLabel = isAds ? 'Ads' : 'Social';
-  const matchType = isAds ? 'ad' : 'social';
+export default function SocialContentCalendar() {
+  // Hardcoded for social
+  const typeLabel = 'Social';
+  const matchType = 'social';
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [allPosts, setAllPosts] = useState([]);
-  const [selectedDay, setSelectedDay] = useState(null);
+  const [allPosts, setAllPosts]         = useState([]);
+  const [selectedDay, setSelectedDay]   = useState(null);
 
   const reload = useCallback(() => setAllPosts(getPublishedPosts()), []);
 
   const fetchLive = useCallback(async () => {
     try {
       const livePosts = await fetchLivePostsFromConnectedAccounts();
-      const local = getPublishedPosts();
-      const localIds = new Set(local.map(p => p.id));
-      const newPosts = livePosts.filter(lp => !localIds.has(lp.id));
-      const merged = [...newPosts, ...local];
+      const local     = getPublishedPosts();
+      const localIds  = new Set(local.map(p => p.id));
+      const newPosts  = livePosts.filter(lp => !localIds.has(lp.id));
+      const merged    = [...newPosts, ...local];
       localStorage.setItem('creativeklux_published_posts', JSON.stringify(merged));
       setAllPosts(merged);
     } catch {
@@ -96,7 +94,7 @@ export default function ContentCalendar() {
   const monthStart = startOfMonth(currentMonth);
   const monthEnd   = endOfMonth(currentMonth);
   const calStart   = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const calEnd     = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const calEnd     = endOfWeek(monthEnd,     { weekStartsOn: 1 });
   const days       = eachDayOfInterval({ start: calStart, end: calEnd });
 
   const getPostsForDay = (day) =>
@@ -106,13 +104,13 @@ export default function ContentCalendar() {
     });
 
   const selectedDayPosts = selectedDay ? getPostsForDay(selectedDay) : [];
-
-  const totalScheduled = posts.filter(p => p.status === 'scheduled').length;
-  const totalPublished = posts.filter(p => p.status === 'published').length;
+  const totalScheduled   = posts.filter(p => p.status === 'scheduled').length;
+  const totalPublished   = posts.filter(p => p.status === 'published').length;
 
   return (
     <div className="">
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 mb-1">{typeLabel} Calendar</h1>
@@ -128,7 +126,7 @@ export default function ContentCalendar() {
           </div>
           <Link href="/creatives">
             <button
-              className="inline-flex items-center cursor-pointer hover:scale-95 gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white  transition-all duration-200 hover:opacity-90"
+              className="inline-flex items-center cursor-pointer hover:scale-95 gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white transition-all duration-200 hover:opacity-90"
               style={{ background: '#003dda' }}
             >
               <Plus className="w-3.5 h-3.5" /> New Post
@@ -137,10 +135,10 @@ export default function ContentCalendar() {
         </div>
       </div>
 
-      {/* Month nav */}
+      {/* ── Month nav ── */}
       <div className="flex items-center gap-4 mb-4">
         <button
-          className="h-8 w-8 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50  transition-all duration-200"
+          className="h-8 w-8 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-all duration-200"
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
         >
           <ChevronLeft className="w-4 h-4" />
@@ -149,7 +147,7 @@ export default function ContentCalendar() {
           {format(currentMonth, 'MMMM yyyy')}
         </h2>
         <button
-          className="h-8 w-8 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50  transition-colors"
+          className="h-8 w-8 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
         >
           <ChevronRight className="w-4 h-4" />
@@ -163,9 +161,10 @@ export default function ContentCalendar() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Calendar grid */}
+
+        {/* ── Calendar grid ── */}
         <div className="lg:col-span-3">
-          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden ">
+          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
             {/* Day headers */}
             <div className="grid grid-cols-7 border-b border-gray-100">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
@@ -178,10 +177,10 @@ export default function ContentCalendar() {
             {/* Weeks */}
             <div className="grid grid-cols-7">
               {days.map((day, idx) => {
-                const dayPosts  = getPostsForDay(day);
+                const dayPosts   = getPostsForDay(day);
                 const isSelected = selectedDay && isSameDay(day, selectedDay);
-                const inMonth   = isSameMonth(day, currentMonth);
-                const todayDay  = isToday(day);
+                const inMonth    = isSameMonth(day, currentMonth);
+                const todayDay   = isToday(day);
 
                 return (
                   <div
@@ -189,9 +188,9 @@ export default function ContentCalendar() {
                     onClick={() => setSelectedDay(isSameDay(day, selectedDay) ? null : day)}
                     className={
                       'min-h-[90px] p-1.5 border-b border-r border-gray-100 cursor-pointer transition-colors ' +
-                      (!inMonth ? 'opacity-30 ' : '') +
-                      (isSelected ? 'bg-blue-50 ' : 'hover:bg-gray-50 ') +
-                      (idx % 7 === 6 ? 'border-r-0' : '')
+                      (!inMonth    ? 'opacity-30 '      : '') +
+                      (isSelected  ? 'bg-blue-50 '      : 'hover:bg-gray-50 ') +
+                      (idx % 7 === 6 ? 'border-r-0'     : '')
                     }
                   >
                     <div
@@ -218,9 +217,9 @@ export default function ContentCalendar() {
           </div>
         </div>
 
-        {/* Day detail panel */}
+        {/* ── Day detail panel ── */}
         <div className="lg:col-span-1">
-          <div className="rounded-xl border border-gray-200 bg-white p-4 sticky top-6 ">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 sticky top-6">
             {selectedDay ? (
               <>
                 <div className="flex items-center gap-2 mb-4">
@@ -286,6 +285,7 @@ export default function ContentCalendar() {
             )}
           </div>
         </div>
+
       </div>
     </div>
   );

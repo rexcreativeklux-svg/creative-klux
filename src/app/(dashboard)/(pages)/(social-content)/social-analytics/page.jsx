@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useParams } from 'next/navigation';
 import {
     BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -19,14 +18,14 @@ import {
 } from '../../../../../(lib)/integration';
 
 const PLATFORM_META = {
-    facebook: { label: 'Facebook', color: '#3b82f6', emoji: '🔵' },
-    instagram: { label: 'Instagram', color: '#ec4899', emoji: '📸' },
-    meta_ads: { label: 'Meta Ads', color: '#6366f1', emoji: '📢' },
+    facebook:   { label: 'Facebook',   color: '#3b82f6', emoji: '🔵' },
+    instagram:  { label: 'Instagram',  color: '#ec4899', emoji: '📸' },
+    meta_ads:   { label: 'Meta Ads',   color: '#6366f1', emoji: '📢' },
     google_ads: { label: 'Google Ads', color: '#22c55e', emoji: '🔍' },
-    tiktok: { label: 'TikTok', color: '#94a3b8', emoji: '🎵' },
-    tiktok_ads: { label: 'TT Ads', color: '#0891b2', emoji: '🎯' },
-    linkedin: { label: 'LinkedIn', color: '#2563eb', emoji: '💼' },
-    twitter: { label: 'X/Twitter', color: '#475569', emoji: '🐦' },
+    tiktok:     { label: 'TikTok',     color: '#94a3b8', emoji: '🎵' },
+    tiktok_ads: { label: 'TT Ads',     color: '#0891b2', emoji: '🎯' },
+    linkedin:   { label: 'LinkedIn',   color: '#2563eb', emoji: '💼' },
+    twitter:    { label: 'X/Twitter',  color: '#475569', emoji: '🐦' },
 };
 
 function StatCard({ icon: Icon, label, value, sub, accent = false }) {
@@ -59,12 +58,7 @@ const CUSTOM_TOOLTIP_STYLE = {
     itemStyle: { color: '#374151' },
 };
 
-export default function Analytics() {
-    const { type } = useParams();
-    const isAds = type === 'ads';
-    const typeLabel = isAds ? 'Ads' : 'Social';
-    const matchType = isAds ? 'ad' : 'social';
-
+export default function SocialAnalytics() {
     const [allPosts, setAllPosts] = useState([]);
     const [refreshingAll, setRefreshingAll] = useState(false);
     const [fetchingLive, setFetchingLive] = useState(false);
@@ -92,17 +86,17 @@ export default function Analytics() {
 
     useEffect(() => { fetchLive(true); }, [fetchLive]);
 
-    const posts = allPosts.filter(p => p.type === matchType);
+    const posts = allPosts.filter(p => p.type === 'social');
     const publishedPosts = posts.filter(p => p.status === 'published');
 
     const totals = publishedPosts.reduce((acc, p) => {
         const s = p.stats || {};
         acc.impressions += s.impressions || 0;
-        acc.reach += s.reach || 0;
-        acc.clicks += s.clicks || 0;
-        acc.likes += s.likes || 0;
-        acc.shares += s.shares || 0;
-        acc.comments += s.comments || 0;
+        acc.reach       += s.reach       || 0;
+        acc.clicks      += s.clicks      || 0;
+        acc.likes       += s.likes       || 0;
+        acc.shares      += s.shares      || 0;
+        acc.comments    += s.comments    || 0;
         return acc;
     }, { impressions: 0, reach: 0, clicks: 0, likes: 0, shares: 0, comments: 0 });
 
@@ -117,9 +111,9 @@ export default function Analytics() {
             platformMap[p.platform] = { platform: pm.label, color: pm.color, impressions: 0, clicks: 0, likes: 0, posts: 0 };
         }
         platformMap[p.platform].impressions += p.stats?.impressions || 0;
-        platformMap[p.platform].clicks += p.stats?.clicks || 0;
-        platformMap[p.platform].likes += p.stats?.likes || 0;
-        platformMap[p.platform].posts += 1;
+        platformMap[p.platform].clicks      += p.stats?.clicks      || 0;
+        platformMap[p.platform].likes       += p.stats?.likes       || 0;
+        platformMap[p.platform].posts       += 1;
     });
     const platformData = Object.values(platformMap);
 
@@ -134,16 +128,16 @@ export default function Analytics() {
         return {
             date: label,
             impressions: dayPosts.reduce((a, p) => a + (p.stats?.impressions || 0), 0),
-            clicks: dayPosts.reduce((a, p) => a + (p.stats?.clicks || 0), 0),
-            likes: dayPosts.reduce((a, p) => a + (p.stats?.likes || 0), 0),
+            clicks:      dayPosts.reduce((a, p) => a + (p.stats?.clicks      || 0), 0),
+            likes:       dayPosts.reduce((a, p) => a + (p.stats?.likes       || 0), 0),
         };
     });
 
     const engagementPie = [
-        { name: 'Likes', value: totals.likes, color: '#ec4899' },
-        { name: 'Shares', value: totals.shares, color: '#8b5cf6' },
+        { name: 'Likes',    value: totals.likes,    color: '#ec4899' },
+        { name: 'Shares',   value: totals.shares,   color: '#8b5cf6' },
         { name: 'Comments', value: totals.comments, color: '#f59e0b' },
-        { name: 'Clicks', value: totals.clicks, color: '#22c55e' },
+        { name: 'Clicks',   value: totals.clicks,   color: '#22c55e' },
     ].filter(e => e.value > 0);
 
     const handleRefreshAll = async () => {
@@ -171,19 +165,16 @@ export default function Analytics() {
     };
 
     const hasAnyStats = publishedPosts.some(p => p.stats && Object.keys(p.stats).length > 0);
-
     const xAxisProps = { tick: { fontSize: 10, fill: '#9ca3af' }, tickLine: false, axisLine: false };
     const yAxisProps = { tick: { fontSize: 10, fill: '#9ca3af' }, tickLine: false, axisLine: false };
 
     return (
-        <div className="">
+        <div>
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 mb-1">{typeLabel} Analytics</h1>
-                    <p className="text-gray-500 text-sm">
-                        Aggregated {typeLabel.toLowerCase()} performance across platforms
-                    </p>
+                    <h1 className="text-2xl font-bold text-gray-900 mb-1">Social Analytics</h1>
+                    <p className="text-gray-500 text-sm">Aggregated social performance across platforms</p>
                 </div>
                 <div className="flex gap-2">
                     <button
@@ -216,14 +207,14 @@ export default function Analytics() {
                 <div className="space-y-6">
                     {/* KPI Cards */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard icon={Eye} label="Total Impressions" value={totals.impressions.toLocaleString()} accent />
-                        <StatCard icon={Users} label="Total Reach" value={totals.reach.toLocaleString()} />
-                        <StatCard icon={MousePointer} label="Total Clicks" value={totals.clicks.toLocaleString()} />
-                        <StatCard icon={TrendingUp} label="Avg. CTR" value={`${avgCTR}%`} accent />
-                        <StatCard icon={Heart} label="Total Likes" value={totals.likes.toLocaleString()} />
-                        <StatCard icon={Share2} label="Total Shares" value={totals.shares.toLocaleString()} />
-                        <StatCard icon={CheckCircle2} label="Published Posts" value={publishedPosts.length} accent />
-                        <StatCard icon={Clock} label="Scheduled" value={posts.filter(p => p.status === 'scheduled').length} />
+                        <StatCard icon={Eye}          label="Total Impressions" value={totals.impressions.toLocaleString()} accent />
+                        <StatCard icon={Users}        label="Total Reach"       value={totals.reach.toLocaleString()} />
+                        <StatCard icon={MousePointer} label="Total Clicks"      value={totals.clicks.toLocaleString()} />
+                        <StatCard icon={TrendingUp}   label="Avg. CTR"          value={`${avgCTR}%`} accent />
+                        <StatCard icon={Heart}        label="Total Likes"       value={totals.likes.toLocaleString()} />
+                        <StatCard icon={Share2}       label="Total Shares"      value={totals.shares.toLocaleString()} />
+                        <StatCard icon={CheckCircle2} label="Published Posts"   value={publishedPosts.length} accent />
+                        <StatCard icon={Clock}        label="Scheduled"         value={posts.filter(p => p.status === 'scheduled').length} />
                     </div>
 
                     {!hasAnyStats && (
@@ -244,8 +235,8 @@ export default function Analytics() {
                                 <Tooltip {...CUSTOM_TOOLTIP_STYLE} />
                                 <Legend wrapperStyle={{ fontSize: 11, color: '#6b7280' }} />
                                 <Line type="monotone" dataKey="impressions" stroke="#003dda" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="clicks" stroke="#22c55e" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="likes" stroke="#ec4899" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="clicks"      stroke="#22c55e" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="likes"       stroke="#ec4899" strokeWidth={2} dot={false} />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
@@ -280,13 +271,7 @@ export default function Analytics() {
                             ) : (
                                 <ResponsiveContainer width="100%" height={200}>
                                     <PieChart>
-                                        <Pie
-                                            data={engagementPie}
-                                            cx="50%" cy="50%"
-                                            innerRadius={50} outerRadius={80}
-                                            paddingAngle={3}
-                                            dataKey="value"
-                                        >
+                                        <Pie data={engagementPie} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
                                             {engagementPie.map((entry, i) => (
                                                 <Cell key={i} fill={entry.color} />
                                             ))}
@@ -337,9 +322,9 @@ export default function Analytics() {
                                                 </td>
                                                 <td className="px-3 py-2.5 text-xs text-gray-500">{meta.emoji} {meta.label}</td>
                                                 <td className="px-3 py-2.5 text-center text-xs text-gray-800">{s.impressions?.toLocaleString() || '—'}</td>
-                                                <td className="px-3 py-2.5 text-center text-xs text-gray-800">{s.reach?.toLocaleString() || '—'}</td>
-                                                <td className="px-3 py-2.5 text-center text-xs text-gray-800">{s.clicks?.toLocaleString() || '—'}</td>
-                                                <td className="px-3 py-2.5 text-center text-xs text-gray-800">{s.likes?.toLocaleString() || '—'}</td>
+                                                <td className="px-3 py-2.5 text-center text-xs text-gray-800">{s.reach?.toLocaleString()       || '—'}</td>
+                                                <td className="px-3 py-2.5 text-center text-xs text-gray-800">{s.clicks?.toLocaleString()      || '—'}</td>
+                                                <td className="px-3 py-2.5 text-center text-xs text-gray-800">{s.likes?.toLocaleString()       || '—'}</td>
                                                 <td className="px-3 py-2.5 text-center text-xs text-gray-800">{s.ctr ? `${Number(s.ctr).toFixed(2)}%` : '—'}</td>
                                                 <td className="px-4 py-2.5 text-right text-[10px] text-gray-400">
                                                     {s.last_updated ? format(new Date(s.last_updated), 'MMM d HH:mm') : '—'}

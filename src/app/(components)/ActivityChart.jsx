@@ -2,40 +2,43 @@
 
 import React, { useMemo } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { TrendingUp } from "lucide-react";
 
-/* Build last-N-days buckets from a list of designs */
 function buildChartData(designs = [], days = 14) {
   const buckets = {};
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const key = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    buckets[key] = { date: key, ads: 0, social: 0, other: 0, total: 0 };
+    buckets[key] = { date: key, all: 0, ads: 0, social: 0, designer: 0, magic: 0 };
   }
 
   designs.forEach((design) => {
-    const created = design.created_at
-      ? new Date(design.created_at)
-      : null;
+    const created = design.created_at ? new Date(design.created_at) : null;
     if (!created) return;
-
     const key = created.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     if (!buckets[key]) return;
 
     const type = (design.type || "").toLowerCase();
-    if (type === "ads") buckets[key].ads += 1;
-    else if (type === "social") buckets[key].social += 1;
-    else buckets[key].other += 1;
-
-    buckets[key].total += 1;
+    buckets[key].all += 1;
+    if (type === "ads")          buckets[key].ads      += 1;
+    else if (type === "social")  buckets[key].social   += 1;
+    else if (type === "designer") buckets[key].designer += 1;
+    else if (type === "magic")   buckets[key].magic    += 1;
   });
 
   return Object.values(buckets);
 }
+
+const LINES = [
+  { key: "all",      color: "#8b5cf6", label: "All Designs" },
+  { key: "ads",      color: "#f97316", label: "Ads"         },
+  { key: "social",   color: "#06b6d4", label: "Social"      },
+  { key: "designer", color: "#ec4899", label: "Designer"    },
+  { key: "magic",    color: "#10b981", label: "Magic"       },
+];
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -45,7 +48,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       {payload.map((p) => (
         <div key={p.dataKey} className="flex items-center gap-2 mb-0.5">
           <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          <span className="text-gray-500 capitalize">{p.dataKey}</span>
+          <span className="text-gray-500 capitalize">{p.name}</span>
           <span className="font-semibold text-gray-800 ml-auto pl-3">{p.value}</span>
         </div>
       ))}
@@ -53,60 +56,40 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
+const CustomLegend = () => (
+  <div className="flex items-center justify-center gap-5 mt-3">
+    {LINES.map(({ key, color, label }) => (
+      <div key={key} className="flex items-center gap-1.5">
+        <svg width="24" height="10">
+          <line x1="0" y1="5" x2="16" y2="5" stroke={color} strokeWidth="2" strokeDasharray="none" />
+          <circle cx="8" cy="5" r="2.5" fill={color} />
+        </svg>
+        <span className="text-xs text-gray-500">{label}</span>
+      </div>
+    ))}
+  </div>
+);
+
 export default function ActivityChart({ designs = [] }) {
   const data = useMemo(() => buildChartData(designs, 14), [designs]);
-  const totalThisWeek = useMemo(
-    () => data.slice(-7).reduce((acc, d) => acc + d.total, 0),
-    [data]
-  );
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-start justify-between mb-5 shrink-0">
-        <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Activity</p>
-          <h3 className="text-sm font-bold text-gray-900">Design Output — Last 14 Days</h3>
-        </div>
-        <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg">
-          <TrendingUp className="w-3 h-3 text-blue-500" />
-          <span className="text-xs font-semibold text-blue-600">{totalThisWeek} this week</span>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 mb-4 shrink-0">
-        {[
-          { key: "ads",    color: "#2563eb", label: "Ads"    },
-          { key: "social", color: "#7c3aed", label: "Social" },
-          { key: "other",  color: "#0891b2", label: "Other"  },
-        ].map(({ key, color, label }) => (
-          <div key={key} className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
-            <span className="text-xs text-gray-500">{label}</span>
-          </div>
-        ))}
+      <div className="mb-1 shrink-0">
+        <h3 className="text-base font-bold text-gray-900">Weekly Activity</h3>
+        <p className="text-xs text-gray-400 mt-0.5">Designs created over the last 14 days</p>
       </div>
 
       {/* Chart */}
-      <div className="flex-1 min-h-0" style={{ minHeight: 160 }}>
+      <div className="flex-1 min-h-0 mt-4" style={{ minHeight: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-            <defs>
-              <linearGradient id="gradAds" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#2563eb" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#2563eb" stopOpacity={0}    />
-              </linearGradient>
-              <linearGradient id="gradSocial" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#7c3aed" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#7c3aed" stopOpacity={0}    />
-              </linearGradient>
-              <linearGradient id="gradOther" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#0891b2" stopOpacity={0.12} />
-                <stop offset="95%" stopColor="#0891b2" stopOpacity={0}    />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+          <LineChart data={data} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
+            <CartesianGrid
+              strokeDasharray="4 4"
+              stroke="#e2e8f0"
+              vertical={false}
+            />
             <XAxis
               dataKey="date"
               tick={{ fontSize: 10, fill: "#94a3b8" }}
@@ -119,14 +102,27 @@ export default function ActivityChart({ designs = [] }) {
               tickLine={false}
               axisLine={false}
               allowDecimals={false}
+              tickCount={5}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Area type="monotone" dataKey="ads"    stroke="#2563eb" strokeWidth={2} fill="url(#gradAds)"    dot={false} />
-            <Area type="monotone" dataKey="social" stroke="#7c3aed" strokeWidth={2} fill="url(#gradSocial)" dot={false} />
-            <Area type="monotone" dataKey="other"  stroke="#0891b2" strokeWidth={2} fill="url(#gradOther)"  dot={false} />
-          </AreaChart>
+            {LINES.map(({ key, color, label }) => (
+              <Line
+                key={key}
+                type="monotone"
+                dataKey={key}
+                name={label}
+                stroke={color}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+              />
+            ))}
+          </LineChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Legend */}
+      <CustomLegend />
     </div>
   );
 }

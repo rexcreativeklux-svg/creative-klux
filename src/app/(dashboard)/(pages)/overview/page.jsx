@@ -70,22 +70,24 @@ export default function Dashboard() {
       {/* ── Welcome header ── */}
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Dashboard</p>
+          {/* <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Dashboard</p> */}
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
             Welcome back, {firstName} 👋
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {activeBrand
+            {/* {activeBrand
               ? <>Viewing <span className="font-semibold text-gray-700">{activeBrand.name}</span></>
               : brands.length > 0
                 ? "Select a brand to see your designs"
                 : "Here's your CreativeKlux overview"
-            }
+            } */}
+
+            Here's your CreativeKlux overview
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {/* <button
+        {/* <div className="flex items-center gap-2 shrink-0">
+          <button
             onClick={loadDesigns}
             disabled={isLoading}
             className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition cursor-pointer disabled:opacity-40"
@@ -94,7 +96,7 @@ export default function Dashboard() {
               ? <Loader2 className="w-4 h-4 animate-spin" />
               : <RefreshCw className="w-4 h-4" />
             }
-          </button> */}
+          </button>
 
           <Link
             href="/studio/select"
@@ -102,7 +104,7 @@ export default function Dashboard() {
           >
             <Plus className="w-4 h-4" /> New Creative
           </Link>
-        </div>
+        </div> */}
       </div>
 
       {/* ── No active brand notice ── */}

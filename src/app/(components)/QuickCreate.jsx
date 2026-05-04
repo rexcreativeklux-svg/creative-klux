@@ -48,12 +48,12 @@ export default function QuickCreate() {
       <div className="h-px bg-gray-100 mx-5 shrink-0" />
 
       {/* Action rows */}
-      <div className="flex flex-col flex-1 px-3 py-3 gap-0.5">
+      <div className="flex flex-col flex-1 px-3 py-3 gap-2">
         {QUICK_ACTIONS.map(({ href, icon: Icon, label, description, iconBg, iconColor }) => (
           <Link
             key={href}
             href={href}
-            className="group flex items-center gap-3.5 px-2 py-3 rounded-xl hover:bg-gray-50 transition-all duration-150 cursor-pointer"
+            className="group border border-gray-100 bg-gray-50 flex items-center gap-3 px-2 py-3 rounded-xl hover:bg-gray-50 transition-all duration-150 cursor-pointer"
           >
             {/* Icon box */}
             <div
@@ -81,8 +81,8 @@ export default function QuickCreate() {
       <div className="px-5 pb-5 pt-2 shrink-0">
         <Link
           href="/studio/ai-select"
-          className="w-full py-3 rounded-xl text-sm font-semibold text-white text-center flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] duration-150"
-          style={{ background: "#2563eb" }}
+          className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-sm font-semibold text-white text-center flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] duration-150"
+        //   style={{ background: "#2563eb" }}
         >
           <Sparkles className="w-4 h-4" />
           Open Full Studio

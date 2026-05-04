@@ -155,12 +155,11 @@ export default function DashboardRecentProjects({ designs = [], isLoading = fals
   const normalized = designs.map(normalizeDesign);
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+    <div className=" py-4 ">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Library</p>
-          <h3 className="text-sm font-bold text-gray-900">Recent Designs</h3>
+          <h3 className="text-md font-bold text-gray-900">Recent Designs</h3>
         </div>
         <Link
           href="/creatives"
@@ -201,7 +200,7 @@ export default function DashboardRecentProjects({ designs = [], isLoading = fals
               <Link
                 key={design.id}
                 href="/creatives"
-                className="group bg-white border border-gray-100 rounded-2xl overflow-hidden transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 cursor-pointer"
+                className="group bg-white border border-gray-200 rounded-xl overflow-hidden transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 cursor-pointer"
               >
                 {/* Preview */}
                 <div

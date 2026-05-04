@@ -23,6 +23,7 @@ import {
   User,
   Globe,
   Calendar,
+  LayoutDashboard,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -114,6 +115,16 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { id: "brand", label: "BrandKits", href: "/brand/reuse", icon: FaTrello },
     { id: "creatives", label: "Creatives", href: "/creatives", icon: PackagePlus },
   ];
+
+  const overviewItems = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    href: "/",
+    icon: LayoutDashboard,
+  },
+];
+
 
   const insightsItems = [
     // { id: "brandPulse", label: "Brand Pulse", href: "/brandPulse", icon: Activity },
@@ -325,6 +336,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
         {/* Scrollable nav area */}
         <div className={`flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-3 ${isOpen ? "px-3" : "px-2"}`}>
+         {renderSection("Overview", overviewItems)}  
           {renderSection("Create", createItems)}
           {renderSection("Manage", manageItems)}
           {renderSection("Insights", insightsItems)}
@@ -404,7 +416,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
       {/* ── Mobile Bottom Nav ──────────────────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 flex justify-around items-center py-2 md:hidden">
-        {[...createItems, ...manageItems.slice(0, 2), ...insightsItems]
+        {[...overviewItems, ...createItems, ...manageItems.slice(0, 2), ...insightsItems]
+
           .map((item) => {
             const { id, label, icon: Icon, href, type, children } = item;
             const isDropOpen = openDropdown === id;

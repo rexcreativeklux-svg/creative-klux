@@ -818,9 +818,18 @@ export function AuthProvider({ children }) {
       let selectedBrand = null;
 
       if (storedBrandId) {
-        selectedBrand = brandsList.find(
+        const selectedBrand = brandsList.find(
           (brand) => brand.id === Number(storedBrandId)
         );
+        if (selectedBrand) {
+          setActiveBrandState(selectedBrand); // ✅ actually restore it
+        } else {
+          // Stored ID no longer exists (brand was deleted), clear it
+          localStorage.removeItem("activeBrandId");
+          setActiveBrandState(null);
+        }
+      } else {
+        setActiveBrandState(null);
       }
 
       const hasStoredBrand = !!storedBrandId;

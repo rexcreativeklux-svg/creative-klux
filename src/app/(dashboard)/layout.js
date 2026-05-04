@@ -27,7 +27,7 @@ export default function DashboardLayout({ children }) {
         !pathname.startsWith("/brand/create");
 
     const [isPending, startTransition] = useTransition();
-    
+
 
     const noPadding = NO_PADDING_ROUTES.some(route => pathname.startsWith(route));
 
@@ -64,19 +64,24 @@ export default function DashboardLayout({ children }) {
     //     setShowModal(shouldShowModal);
     // }, [shouldShowModal]);
 
+    // const handleSelectBrand = (brand) => {
+    //     router.push("/projects/create");
+    //     queueMicrotask(() => {
+    //         startTransition(() => {
+    //             setActiveBrand(brand);
+    //             try {
+    //                 localStorage.setItem("activeBrandId", brand.id);
+    //             } catch (error) {
+    //                 console.error("Error saving brand:", error);
+    //             }
+    //             // setShowModal(false);
+    //         });
+    //     });
+    // };
+
     const handleSelectBrand = (brand) => {
-        router.push("/projects/create");
-        queueMicrotask(() => {
-            startTransition(() => {
-                setActiveBrand(brand);
-                try {
-                    localStorage.setItem("activeBrandId", brand.id);
-                } catch (error) {
-                    console.error("Error saving brand:", error);
-                }
-                // setShowModal(false);
-            });
-        });
+        setActiveBrand(brand); // context already saves to localStorage
+       
     };
 
     return (
@@ -89,7 +94,7 @@ export default function DashboardLayout({ children }) {
                     <Header
                         sidebarOpen={sidebarOpen}
                         toggleSidebar={toggleSidebar}
-                        // setShowModal={() => { }}
+                    // setShowModal={() => { }}
 
                     />
                     <div className="flex-1 bg-[#f7f8fc] h-full overflow-y-auto">
@@ -101,7 +106,7 @@ export default function DashboardLayout({ children }) {
 
                 {showModal && (
                     <ModalPage
-                         onClose={() => {}}
+                        onClose={() => { }}
                         onSelectBrand={handleSelectBrand}
                     />
                 )}

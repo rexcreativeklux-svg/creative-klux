@@ -14,7 +14,7 @@ const QUICK_ACTIONS = [
     iconColor: "#7c3aed",
   },
   {
-    href: "/studio/create-from-url",
+    href: "/",
     icon: Link2,
     label: "Create from URL",
     description: "Enter a website URL to generate brand-matched creatives",

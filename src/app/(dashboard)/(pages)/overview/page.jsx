@@ -85,7 +85,7 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
+          {/* <button
             onClick={loadDesigns}
             disabled={isLoading}
             className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition cursor-pointer disabled:opacity-40"
@@ -94,7 +94,7 @@ export default function Dashboard() {
               ? <Loader2 className="w-4 h-4 animate-spin" />
               : <RefreshCw className="w-4 h-4" />
             }
-          </button>
+          </button> */}
 
           <Link
             href="/studio/select"

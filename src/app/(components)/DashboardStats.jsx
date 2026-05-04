@@ -1,7 +1,6 @@
 "use client";
-
 import React from "react";
-import { Layers, Megaphone, Users, Share2, Image, Loader2 } from "lucide-react";
+import { Layers, Megaphone, Users, Share2, Image, Loader2, Paintbrush, Sparkles, Link2, Send } from "lucide-react";
 
 const STAT_CARDS = [
   {
@@ -33,22 +32,40 @@ const STAT_CARDS = [
     getValue: ({ statsByCategory }) => statsByCategory.social ?? 0,
   },
   {
-    key: "images",
-    label: "Image Gallery",
-    icon: Image,
+    key: "designer",
+    label: "Designer Assets",
+    icon: Paintbrush,
     color: "#d97706",
     bgColor: "#fffbeb",
     borderColor: "#fde68a",
-    getValue: ({ imageCount }) => imageCount ?? 0,
+    getValue: ({ statsByCategory }) => statsByCategory.designer ?? 0,
   },
   {
-    key: "teams",
-    label: "Team Members",
-    icon: Users,
-    color: "#059669",
-    bgColor: "#ecfdf5",
-    borderColor: "#a7f3d0",
-    getValue: ({ teamCount }) => teamCount ?? 0,
+    key: "magic",
+    label: "Magic Studio",
+    icon: Sparkles,
+    color: "#0d9488",
+    bgColor: "#f0fdfa",
+    borderColor: "#99f6e4",
+    getValue: ({ magicCount }) => magicCount ?? 0,
+  },
+  {
+    key: "platforms",
+    label: "Connected Platforms",
+    icon: Link2,
+    color: "#16a34a",
+    bgColor: "#f0fdf4",
+    borderColor: "#bbf7d0",
+    getValue: ({ platformCount }) => platformCount ?? 0,
+  },
+  {
+    key: "published",
+    label: "Published Posts",
+    icon: Send,
+    color: "#1d4ed8",
+    bgColor: "#eff6ff",
+    borderColor: "#bfdbfe",
+    getValue: ({ publishedCount }) => publishedCount ?? 0,
   },
 ];
 
@@ -56,16 +73,19 @@ export default function DashboardStats({
   statsByCategory = {},
   imageCount = 0,
   teamCount = 0,
+  magicCount = 0,
+  platformCount = 0,
+  publishedCount = 0,
   isLoading = false,
 }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
       {STAT_CARDS.map(({ key, label, icon: Icon, color, bgColor, borderColor, getValue }) => {
-        const value = getValue({ statsByCategory, imageCount, teamCount });
+        const value = getValue({ statsByCategory, imageCount, teamCount, magicCount, platformCount, publishedCount });
         return (
           <div
             key={key}
-            className="bg-white rounded-2xl border p-4 flex flex-col gap-3 transition-all hover:shadow-md hover:-translate-y-0.5 duration-200"
+            className="bg-white cursor-pointer rounded-xl border p-4 flex flex-col gap-3 transition-all hover:shadow-md hover:-translate-y-0.5 duration-200"
             style={{ borderColor }}
           >
             <div
@@ -74,13 +94,11 @@ export default function DashboardStats({
             >
               <Icon className="w-4 h-4" style={{ color }} />
             </div>
-
             {isLoading ? (
               <div className="h-7 w-10 bg-gray-100 animate-pulse rounded-lg" />
             ) : (
               <p className="text-2xl font-bold text-gray-900 leading-none">{value}</p>
             )}
-
             <p className="text-xs font-medium text-gray-500 leading-tight">{label}</p>
           </div>
         );

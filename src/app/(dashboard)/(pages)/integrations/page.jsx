@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Info, AlertCircle } from "lucide-react";
+import { Info, AlertCircle, Check, X } from "lucide-react";
 import { openOAuthPopup } from "@/(lib)/oauth/page";
 import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
 
-// ── SVG brand icons (unchanged from your original) ─────────────────────────────
+// ── SVG brand icons ─────────────────────────────────────────────────────────────
 const FacebookIcon = () => (
     <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
         <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
@@ -57,139 +57,137 @@ const GoogleAdsIcon = () => (
         <path d="M2.678 11.338L8.648.816a2.717 2.717 0 0 1 3.762-.966 2.717 2.717 0 0 1 .966 3.762l-5.97 10.522a2.717 2.717 0 0 1-3.762.966 2.717 2.717 0 0 1-.966-3.762zm14.889 7.669a2.717 2.717 0 1 1-2.717-2.717 2.717 2.717 0 0 1 2.717 2.717zm3.267-7.687l-5.97-10.51A2.717 2.717 0 0 1 18.626.844l5.97 10.51a2.717 2.717 0 0 1-3.762 1.966z" />
     </svg>
 );
-const TikTokAdsIcon = () => (
-    <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
-        <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
-    </svg>
-);
-const LinkedInAdsIcon = () => (
-    <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
-        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-    </svg>
-);
-const SnapchatAdsIcon = () => (
-    <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
-        <path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.023.358-.032.535.45.24 1.597.772 2.745.772.272 0 .538-.033.792-.099.146-.04.286-.06.42-.06.134 0 .263.02.383.06.26.087.381.28.381.472 0 .558-.722.977-2.44 1.378-.202.047-.43.1-.641.163.08.224.217.567.36.875.497 1.088 1.263 1.744 2.362 1.744h.2c.127 0 .249.022.362.072.31.139.47.44.47.748 0 .668-.653 1.155-1.59 1.396-.467.12-.95.213-1.44.277-.23.03-.452.056-.67.09-.133.022-.271.048-.409.104-.138.056-.304.142-.5.254-.394.227-.93.537-1.716.537-.286 0-.576-.047-.862-.14-.564-.185-1.095-.367-1.594-.367-.49 0-.978.178-1.45.365-.277.104-.56.18-.848.18-.706 0-1.235-.307-1.626-.532-.195-.112-.362-.198-.5-.254-.138-.056-.276-.082-.409-.104-.218-.034-.44-.06-.67-.09-.49-.064-.973-.157-1.44-.277-.937-.241-1.59-.728-1.59-1.396 0-.308.16-.609.47-.748.113-.05.235-.072.362-.072h.2c1.1 0 1.865-.656 2.362-1.744.143-.308.28-.651.36-.875-.211-.063-.439-.116-.641-.163-1.718-.401-2.44-.82-2.44-1.378 0-.192.12-.385.382-.472.12-.04.248-.06.383-.06.134 0 .273.02.42.06.254.066.52.099.792.099 1.135 0 2.273-.522 2.737-.768l-.033-.535c-.104-1.628-.23-3.654.299-4.847C7.854 1.07 11.21.793 12.206.793z" />
-    </svg>
-);
-const PinterestAdsIcon = () => (
-    <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
-        <path d="M12 0C5.373 0 0 5.372 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 0 1 .083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.632-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z" />
-    </svg>
-);
+const TikTokAdsIcon = TikTokIcon;
+const LinkedInAdsIcon = LinkedInIcon;
+const SnapchatAdsIcon = SnapchatIcon;
+const PinterestAdsIcon = PinterestIcon;
 
-// ── Platform config ────────────────────────────────────────────────────────────
+// ── Platform config ─────────────────────────────────────────────────────────────
 const SOCIAL_PLATFORMS = [
-    {
-        id: "facebook",
-        name: "Facebook Pages",
-        description: "Publish posts & images to your Facebook Pages.",
-        Icon: FacebookIcon,
-        iconBg: "linear-gradient(135deg, #1877F2, #0C5FCA)",
-    },
-    {
-        id: "instagram",
-        name: "Instagram Business",
-        description: "Publish photos & reels to Instagram Business accounts.",
-        Icon: InstagramIcon,
-        iconBg: "linear-gradient(135deg, #F58529, #DD2A7B, #8134AF)",
-    },
-    {
-        id: "twitter",
-        name: "X / Twitter",
-        description: "Post tweets, images, and videos to X (Twitter).",
-        Icon: TwitterXIcon,
-        iconBg: "linear-gradient(135deg, #14171A, #333)",
-    },
-    {
-        id: "linkedin",
-        name: "LinkedIn",
-        description: "Share posts and articles on LinkedIn personal & company pages.",
-        Icon: LinkedInIcon,
-        iconBg: "linear-gradient(135deg, #0A66C2, #004182)",
-    },
-    {
-        id: "youtube",
-        name: "YouTube",
-        description: "Upload videos and manage your YouTube channel.",
-        Icon: YouTubeIcon,
-        iconBg: "linear-gradient(135deg, #FF0000, #CC0000)",
-    },
-    {
-        id: "pinterest",
-        name: "Pinterest",
-        description: "Create pins and manage Pinterest boards for your brand.",
-        Icon: PinterestIcon,
-        iconBg: "linear-gradient(135deg, #E60023, #ad081b)",
-    },
-    {
-        id: "snapchat",
-        name: "Snapchat",
-        description: "Publish Stories and Spotlight content to Snapchat.",
-        Icon: SnapchatIcon,
-        iconBg: "linear-gradient(135deg, #FFFC00, #f0ed00)",
-    },
-    {
-        id: "tiktok",
-        name: "TikTok",
-        description: "Publish videos and create TikTok content.",
-        Icon: TikTokIcon,
-        iconBg: "linear-gradient(135deg, #161823, #010101)",
-    },
+    { id: "facebook", name: "Facebook Pages", description: "Publish posts & images to your Facebook Pages.", Icon: FacebookIcon, iconBg: "linear-gradient(135deg, #1877F2, #0C5FCA)" },
+    { id: "instagram", name: "Instagram Business", description: "Publish photos & reels to Instagram Business accounts.", Icon: InstagramIcon, iconBg: "linear-gradient(135deg, #F58529, #DD2A7B, #8134AF)" },
+    { id: "twitter", name: "X / Twitter", description: "Post tweets, images, and videos to X (Twitter).", Icon: TwitterXIcon, iconBg: "linear-gradient(135deg, #14171A, #333)" },
+    { id: "linkedin", name: "LinkedIn", description: "Share posts and articles on LinkedIn personal & company pages.", Icon: LinkedInIcon, iconBg: "linear-gradient(135deg, #0A66C2, #004182)" },
+    { id: "youtube", name: "YouTube", description: "Upload videos and manage your YouTube channel.", Icon: YouTubeIcon, iconBg: "linear-gradient(135deg, #FF0000, #CC0000)" },
+    { id: "pinterest", name: "Pinterest", description: "Create pins and manage Pinterest boards for your brand.", Icon: PinterestIcon, iconBg: "linear-gradient(135deg, #E60023, #ad081b)" },
+    { id: "snapchat", name: "Snapchat", description: "Publish Stories and Spotlight content to Snapchat.", Icon: SnapchatIcon, iconBg: "linear-gradient(135deg, #FFFC00, #f0ed00)" },
+    { id: "tiktok", name: "TikTok", description: "Publish videos and create TikTok content.", Icon: TikTokIcon, iconBg: "linear-gradient(135deg, #161823, #010101)" },
 ];
 
 const AD_PLATFORMS = [
-    {
-        id: "meta_ads",
-        name: "Meta Ads Manager",
-        description: "Create & manage Facebook and Instagram ad campaigns.",
-        Icon: MetaIcon,
-        iconBg: "linear-gradient(135deg, #0668E1, #1877F2)",
-    },
-    {
-        id: "google_ads",
-        name: "Google Ads",
-        description: "Manage Google Search, Display & YouTube ad campaigns.",
-        Icon: GoogleAdsIcon,
-        iconBg: "linear-gradient(135deg, #4285F4, #34A853)",
-    },
-    {
-        id: "tiktok_ads",
-        name: "TikTok Ads",
-        description: "Launch and manage TikTok ad campaigns.",
-        Icon: TikTokAdsIcon,
-        iconBg: "linear-gradient(135deg, #161823, #010101)",
-    },
-    {
-        id: "linkedin_ads",
-        name: "LinkedIn Campaign Manager",
-        description: "Run B2B ad campaigns on LinkedIn.",
-        Icon: LinkedInAdsIcon,
-        iconBg: "linear-gradient(135deg, #0A66C2, #004182)",
-    },
-    {
-        id: "snapchat_ads",
-        name: "Snapchat Ads",
-        description: "Create and manage Snapchat advertising campaigns.",
-        Icon: SnapchatAdsIcon,
-        iconBg: "linear-gradient(135deg, #FFFC00, #f0ed00)",
-    },
-    {
-        id: "pinterest_ads",
-        name: "Pinterest Ads",
-        description: "Run Pinterest ad campaigns and promoted pins.",
-        Icon: PinterestAdsIcon,
-        iconBg: "linear-gradient(135deg, #E60023, #ad081b)",
-    },
+    { id: "meta_ads", name: "Meta Ads Manager", description: "Create & manage Facebook and Instagram ad campaigns.", Icon: MetaIcon, iconBg: "linear-gradient(135deg, #0668E1, #1877F2)" },
+    { id: "google_ads", name: "Google Ads", description: "Manage Google Search, Display & YouTube ad campaigns.", Icon: GoogleAdsIcon, iconBg: "linear-gradient(135deg, #4285F4, #34A853)" },
+    { id: "tiktok_ads", name: "TikTok Ads", description: "Launch and manage TikTok ad campaigns.", Icon: TikTokAdsIcon, iconBg: "linear-gradient(135deg, #161823, #010101)" },
+    { id: "linkedin_ads", name: "LinkedIn Campaign Manager", description: "Run B2B ad campaigns on LinkedIn.", Icon: LinkedInAdsIcon, iconBg: "linear-gradient(135deg, #0A66C2, #004182)" },
+    { id: "snapchat_ads", name: "Snapchat Ads", description: "Create and manage Snapchat advertising campaigns.", Icon: SnapchatAdsIcon, iconBg: "linear-gradient(135deg, #FFFC00, #f0ed00)" },
+    { id: "pinterest_ads", name: "Pinterest Ads", description: "Run Pinterest ad campaigns and promoted pins.", Icon: PinterestAdsIcon, iconBg: "linear-gradient(135deg, #E60023, #ad081b)" },
 ];
 
-// ── Platform Card ──────────────────────────────────────────────────────────────
-const PlatformCard = ({ platform, integrations, onConnect, onDisconnect, isLoading }) => {
+// ── Facebook Page Selector Modal ─────────────────────────────────────────────
+const FacebookPageModal = ({ pages, onSelect, onClose, loading, selectedPageId }) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)" }}>
+        <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4 border-b border-gray-100">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <h3 className="font-semibold text-gray-900 text-sm">Select a Facebook Page</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            Choose which page to connect to this brand.
+                        </p>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors flex-shrink-0 mt-0.5"
+                    >
+                        <X className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Page list */}
+            <div className="p-3 flex flex-col gap-2 max-h-72 overflow-y-auto">
+                {pages.map((page) => {
+                    const isSelected = selectedPageId === page.id;
+                    const isLoading = loading === page.id;
+                    return (
+                        <button
+                            key={page.id}
+                            onClick={() => onSelect(page)}
+                            disabled={!!loading}
+                            className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border text-left transition-all disabled:opacity-60 disabled:cursor-not-allowed ${isSelected
+                                    ? "border-blue-500 bg-blue-50"
+                                    : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/50"
+                                }`}
+                        >
+                            {/* Page avatar */}
+                            {page.picture?.data?.url ? (
+                                <img
+                                    src={page.picture.data.url}
+                                    alt={page.name}
+                                    className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-gray-100"
+                                />
+                            ) : (
+                                <div
+                                    className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
+                                    style={{ background: "linear-gradient(135deg, #1877F2, #0C5FCA)" }}
+                                >
+                                    {page.name?.charAt(0)?.toUpperCase() || "F"}
+                                </div>
+                            )}
+
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{page.name}</p>
+                                <p className="text-[11px] text-gray-400 mt-0.5 truncate">ID: {page.id}</p>
+                            </div>
+
+                            {isLoading ? (
+                                <div className="w-5 h-5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin flex-shrink-0" />
+                            ) : isSelected ? (
+                                <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                                    <Check className="w-3 h-3 text-white" />
+                                </div>
+                            ) : (
+                                <div className="w-5 h-5 rounded-full border-2 border-gray-200 flex-shrink-0" />
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 pb-4 pt-2">
+                <button
+                    onClick={onClose}
+                    disabled={!!loading}
+                    className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-40"
+                >
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+);
+
+// ── Platform Card ─────────────────────────────────────────────────────────────
+const PlatformCard = ({
+    platform,
+    integrations,
+    onConnect,
+    onDisconnect,
+    loadingPlatformId,
+    loadingIntegrationId,
+}) => {
     const { Icon } = platform;
     const isConnected = integrations.length > 0;
+    const integration = integrations[0]; // first connected integration
 
-    const isPending = integrations.some(i => i.id === isLoading);
+    const isPending =
+        loadingPlatformId === platform.id ||
+        integrations.some(i => i.id === loadingIntegrationId);
 
+    // Display name: use int_name if stored, else int_id, else nothing
+    const connectedLabel = integration?.int_name || integration?.int_id || null;
 
     return (
         <div className="rounded-xl border bg-white border-gray-200 hover:shadow transition-all">
@@ -205,8 +203,9 @@ const PlatformCard = ({ platform, integrations, onConnect, onDisconnect, isLoadi
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-sm">{platform.name}</span>
                         {isConnected ? (
-                            <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
-                                Connected
+                            <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
+                                <Check className="w-3 h-3" />
+                                {connectedLabel ? connectedLabel : "Connected"}
                             </span>
                         ) : (
                             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border">
@@ -220,8 +219,7 @@ const PlatformCard = ({ platform, integrations, onConnect, onDisconnect, isLoadi
                 <div className="flex gap-2 flex-shrink-0">
                     {isConnected ? (
                         <button
-                            onClick={() => onDisconnect(integrations[0].id)}
-
+                            onClick={() => onDisconnect(integration.id)}
                             disabled={isPending}
                             className="px-3 py-1.5 cursor-pointer text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
@@ -243,231 +241,109 @@ const PlatformCard = ({ platform, integrations, onConnect, onDisconnect, isLoadi
     );
 };
 
-// ── Section Header ─────────────────────────────────────────────────────────────
+// ── Section Header ────────────────────────────────────────────────────────────
 const SectionHeader = ({ title }) => (
     <h2 className="text-base font-bold text-gray-900 tracking-tight mb-3">{title}</h2>
 );
 
-// ── Main Page ──────────────────────────────────────────────────────────────────
+// ── Main Page ─────────────────────────────────────────────────────────────────
 const IntegrationsPage = () => {
     const { saveIntegration, disconnectIntegration, fetchIntegrations, activeBrandId } = useAuth();
+
+    // Facebook page selection state
     const [fbPages, setFbPages] = useState([]);
     const [showPageModal, setShowPageModal] = useState(false);
-    const [loadingPages, setLoadingPages] = useState(false);
+    const [fbLoadingPageId, setFbLoadingPageId] = useState(null); // which page button is loading
+    // We stash the oauth result here so handleSelectFacebookPage can use it
+    const [pendingFbOauth, setPendingFbOauth] = useState(null);
 
-
-    // Map of platformId → true/false
-    // const [connected, setConnected] = useState({});
-    // Which platform is currently in a loading/pending state
-    const [loadingPlatform, setLoadingPlatform] = useState(null);
-    // Page-level loading while we fetch existing integrations
+    const [loadingPlatformId, setLoadingPlatformId] = useState(null);
+    const [loadingIntegrationId, setLoadingIntegrationId] = useState(null);
     const [fetching, setFetching] = useState(true);
-
     const [integrations, setIntegrations] = useState([]);
 
-
-    // Toast state
     const [toast, setToast] = useState({ isOpen: false, message: "", type: "success" });
-
-    const showToast = (message, type = "success") => {
-        setToast({ isOpen: true, message, type });
-    };
-
-    const closeToast = () => {
-        setToast((prev) => ({ ...prev, isOpen: false }));
-    };
+    const showToast = (message, type = "success") => setToast({ isOpen: true, message, type });
+    const closeToast = () => setToast((prev) => ({ ...prev, isOpen: false }));
 
     // ── Fetch existing integrations on mount ──
     useEffect(() => {
-        const loadIntegrations = async () => {
+        const load = async () => {
             setFetching(true);
             try {
                 const data = await fetchIntegrations();
-                if (Array.isArray(data)) {
-                    // Build a map of { platformId: true } from the response.
-                    // Adjust the field name ("platform") to match your API response shape.
-                    setIntegrations(data);
-
-                }
+                if (Array.isArray(data)) setIntegrations(data);
             } catch (err) {
                 console.error("Failed to load integrations:", err);
             } finally {
                 setFetching(false);
             }
         };
-
-        loadIntegrations();
+        load();
     }, [fetchIntegrations]);
 
-    // const platformIntegrations = integrations.filter(
-    //     (i) => i.platform === platform.id
-    // );
-
-    // ── Fetch platform account ID (int_id) using the access token ────────────
-    // int_id = the user's own ID on that platform (NOT your app's client ID).
-    // For code-flow platforms (TikTok, Twitter) the backend resolves it server-side.
-    const resolvePlatformIntId = async (platformId, access_token) => {
-        try {
-            switch (platformId) {
-                case "facebook":
-                case "instagram":
-                case "meta_ads": {
-                    const res = await fetch(
-                        `https://graph.facebook.com/v19.0/me?access_token=${access_token}&fields=id,name`
-                    );
-                    const data = await res.json();
-                    if (data.error) throw new Error(data.error.message);
-                    return data.id;
-                }
-                case "google_ads":
-                case "youtube": {
-                    const res = await fetch(
-                        `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`
-                    );
-                    const data = await res.json();
-                    if (data.error) throw new Error(data.error.message);
-                    return data.id;
-                }
-                case "linkedin":
-                case "linkedin_ads": {
-                    const res = await fetch(
-                        `https://api.linkedin.com/v2/userinfo`,
-                        { headers: { Authorization: `Bearer ${access_token}` } }
-                    );
-                    const data = await res.json();
-                    return data.sub;
-                }
-                case "pinterest":
-                case "pinterest_ads": {
-                    const res = await fetch(
-                        `https://api.pinterest.com/v5/user_account`,
-                        { headers: { Authorization: `Bearer ${access_token}` } }
-                    );
-                    const data = await res.json();
-                    return data.username || data.id;
-                }
-                case "snapchat":
-                case "snapchat_ads": {
-                    const res = await fetch(
-                        `https://adsapi.snapchat.com/v1/me`,
-                        { headers: { Authorization: `Bearer ${access_token}` } }
-                    );
-                    const data = await res.json();
-                    return data.me?.id;
-                }
-                // Code-flow platforms: backend exchanges the code and resolves ID server-side
-                case "tiktok":
-                case "tiktok_ads":
-                case "twitter":
-                default:
-                    return null;
-            }
-        } catch (err) {
-            console.warn(`Could not resolve int_id for ${platformId}:`, err.message);
-            return null;
-        }
-    };
-
+    // ── Resolve platform int_id from access token ──
     async function resolveIntegrationCredentials(platformId, oauthResult) {
         const { access_token } = oauthResult;
 
-        // ─────────────────────────────────────────────
-        // FACEBOOK / INSTAGRAM / META ADS FLOW
-        // ─────────────────────────────────────────────
-        if (
-            platformId === "facebook" ||
-            platformId === "instagram" ||
-            platformId === "meta_ads"
-        ) {
+        // Facebook / Instagram / Meta Ads → show page picker
+        if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
             const pagesRes = await fetch(
                 `https://graph.facebook.com/v19.0/me/accounts` +
                 `?access_token=${access_token}` +
                 `&fields=id,name,access_token,picture`
             );
-
             const pagesData = await pagesRes.json();
-
-            if (pagesData.error) {
-                throw new Error(pagesData.error.message);
-            }
-
+            if (pagesData.error) throw new Error(pagesData.error.message);
             const pages = pagesData.data || [];
+            if (pages.length === 0) throw new Error("No Facebook Pages found on this account.");
 
-            if (pages.length === 0) {
-                throw new Error("No Facebook Pages found on this account.");
-            }
-
-            // 🚨 Stop flow here → UI takes over
+            // Stop flow — UI takes over
             setFbPages(pages);
+            setPendingFbOauth(oauthResult);
             setShowPageModal(true);
-
-            // IMPORTANT:
-            // We intentionally STOP execution here.
-            // handleSelectFacebookPage(page) will continue the flow.
-            return null;
+            return null; // signal UI takeover
         }
 
-        // ─────────────────────────────────────────────
-        // OTHER PLATFORMS
-        // ─────────────────────────────────────────────
         let int_id = null;
-
         try {
             switch (platformId) {
                 case "google_ads":
                 case "youtube": {
-                    const res = await fetch(
-                        `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`
-                    );
+                    const res = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`);
                     const data = await res.json();
                     int_id = data.id;
                     break;
                 }
-
                 case "linkedin":
                 case "linkedin_ads": {
-                    const res = await fetch("https://api.linkedin.com/v2/userinfo", {
-                        headers: { Authorization: `Bearer ${access_token}` },
-                    });
+                    const res = await fetch("https://api.linkedin.com/v2/userinfo", { headers: { Authorization: `Bearer ${access_token}` } });
                     const data = await res.json();
                     int_id = data.sub;
                     break;
                 }
-
                 case "pinterest":
                 case "pinterest_ads": {
-                    const res = await fetch("https://api.pinterest.com/v5/user_account", {
-                        headers: { Authorization: `Bearer ${access_token}` },
-                    });
+                    const res = await fetch("https://api.pinterest.com/v5/user_account", { headers: { Authorization: `Bearer ${access_token}` } });
                     const data = await res.json();
                     int_id = data.username || data.id;
                     break;
                 }
-
                 case "snapchat":
                 case "snapchat_ads": {
-                    const res = await fetch("https://adsapi.snapchat.com/v1/me", {
-                        headers: { Authorization: `Bearer ${access_token}` },
-                    });
+                    const res = await fetch("https://adsapi.snapchat.com/v1/me", { headers: { Authorization: `Bearer ${access_token}` } });
                     const data = await res.json();
                     int_id = data.me?.id;
                     break;
                 }
-
                 default:
                     int_id = null;
             }
         } catch (err) {
-            console.warn(
-                `Could not resolve int_id for ${platformId}:`,
-                err.message
-            );
+            console.warn(`Could not resolve int_id for ${platformId}:`, err.message);
         }
 
-        return {
-            int_token: access_token,
-            int_id,
-        };
+        return { int_token: access_token, int_id };
     }
 
     // ── Connect handler ──
@@ -476,21 +352,18 @@ const IntegrationsPage = () => {
             showToast("Please select an active brand before connecting.", "error");
             return;
         }
-
-        setLoadingPlatform(platformId);
+        setLoadingPlatformId(platformId);
         try {
-            const result = await openOAuthPopup(platformId);
-            console.log("OAuth success:", result);
+            const oauthResult = await openOAuthPopup(platformId);
+            const creds = await resolveIntegrationCredentials(platformId, oauthResult);
 
-            // ← NEW: resolves the right token + id for each platform
-            const { int_token, int_id, label } = await resolveIntegrationCredentials(platformId, result);
-            console.log("Resolved credentials:", { int_token: "***", int_id, label });
+            if (!creds) return; // Facebook UI takeover
 
             const saved = await saveIntegration({
                 platform: platformId,
-                access_token: int_token,
+                access_token: creds.int_token,
                 brand_id: activeBrandId,
-                int_id,
+                int_id: creds.int_id,
             });
 
             if (!saved.ok) {
@@ -498,46 +371,43 @@ const IntegrationsPage = () => {
                 return;
             }
 
-            // setConnected((prev) => ({ ...prev, [platformId]: true }));
-            showToast(`${label || getPlatformName(platformId)} connected successfully!`, "success");
+            showToast(`${getPlatformName(platformId)} connected successfully!`, "success");
+            setIntegrations((prev) => [
+                ...prev,
+                { id: saved.data?.id || saved.id, platform: platformId, int_id: creds.int_id },
+            ]);
         } catch (err) {
             if (err.message === "cancelled") return;
             console.error("Connect error:", err);
             showToast(err.message || "Connection failed", "error");
         } finally {
-            setLoadingPlatform(null);
+            setLoadingPlatformId(null);
         }
     }, [saveIntegration, activeBrandId]);
 
     // ── Disconnect handler ──
     const handleDisconnect = useCallback(async (integrationId) => {
-        setLoadingPlatform(integrationId);
-
+        setLoadingIntegrationId(integrationId);
         try {
             const result = await disconnectIntegration(integrationId);
-
             if (!result.ok) {
                 showToast(result.message || "Failed to disconnect", "error");
                 return;
             }
-
-            setIntegrations((prev) =>
-                prev.filter((i) => i.id !== integrationId)
-            );
-
+            setIntegrations((prev) => prev.filter((i) => i.id !== integrationId));
             showToast("Integration disconnected.", "success");
         } catch (err) {
             console.error("Disconnect error:", err);
             showToast(err.message || "Disconnect failed", "error");
         } finally {
-            setLoadingPlatform(null);
+            setLoadingIntegrationId(null);
         }
     }, [disconnectIntegration]);
 
+    // ── Facebook page selection ──
     const handleSelectFacebookPage = async (page) => {
+        setFbLoadingPageId(page.id);
         try {
-            setLoadingPlatform("facebook");
-
             const saved = await saveIntegration({
                 platform: "facebook",
                 access_token: page.access_token,
@@ -553,44 +423,39 @@ const IntegrationsPage = () => {
             setIntegrations((prev) => [
                 ...prev,
                 {
-                    id: saved.id,
+                    id: saved.data?.id || saved.id,
                     platform: "facebook",
                     int_id: page.id,
+                    int_name: page.name, // store the page name for display
                 },
             ]);
 
             setShowPageModal(false);
-            showToast("Facebook page connected successfully", "success");
+            setPendingFbOauth(null);
+            showToast(`"${page.name}" connected successfully!`, "success");
         } catch (err) {
             console.error(err);
             showToast("Failed to connect page", "error");
         } finally {
-            setLoadingPlatform(null);
+            setFbLoadingPageId(null);
+            setLoadingPlatformId(null);
         }
     };
 
+    const handleClosePageModal = () => {
+        setShowPageModal(false);
+        setPendingFbOauth(null);
+        setLoadingPlatformId(null);
+    };
 
-    // ── Helper: get display name from id ──
     const getPlatformName = (platformId) => {
         const all = [...SOCIAL_PLATFORMS, ...AD_PLATFORMS];
         return all.find((p) => p.id === platformId)?.name || platformId;
     };
 
-    const cardProps = {
-        onConnect: handleConnect,
-        onDisconnect: handleDisconnect,
-        isLoading: loadingPlatform,
-    };
-
     return (
         <div className="flex flex-col min-h-full" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-            {/* Toast */}
-            <Toast
-                isOpen={toast.isOpen}
-                message={toast.message}
-                type={toast.type}
-                onClose={closeToast}
-            />
+            <Toast isOpen={toast.isOpen} message={toast.message} type={toast.type} onClose={closeToast} />
 
             <div className="flex-1">
                 {/* Page header */}
@@ -619,47 +484,37 @@ const IntegrationsPage = () => {
                     </div>
                 ) : (
                     <>
-                        {/* ── Social Media Section ── */}
                         <div className="mb-8">
                             <SectionHeader title="Social Media" />
                             <div className="flex flex-col gap-3">
-                                {SOCIAL_PLATFORMS.map((platform) => {
-                                    const platformIntegrations = integrations.filter(
-                                        (i) => i.platform === platform.id
-                                    );
-
-                                    return (
-                                        <PlatformCard
-                                            key={platform.id}
-                                            platform={platform}
-                                            integrations={platformIntegrations}
-                                            {...cardProps}
-                                        />
-                                    );
-                                })}
-
+                                {SOCIAL_PLATFORMS.map((platform) => (
+                                    <PlatformCard
+                                        key={platform.id}
+                                        platform={platform}
+                                        integrations={integrations.filter(i => i.platform === platform.id)}
+                                        onConnect={handleConnect}
+                                        onDisconnect={handleDisconnect}
+                                        loadingPlatformId={loadingPlatformId}
+                                        loadingIntegrationId={loadingIntegrationId}
+                                    />
+                                ))}
                             </div>
                         </div>
 
-                        {/* ── Advertising Platforms Section ── */}
                         <div className="mb-8">
                             <SectionHeader title="Advertising Platforms" />
                             <div className="flex flex-col gap-3">
-                                {AD_PLATFORMS.map((platform) => {
-                                    const platformIntegrations = integrations.filter(
-                                        (i) => i.platform === platform.id
-                                    );
-
-                                    return (
-                                        <PlatformCard
-                                            key={platform.id}
-                                            platform={platform}
-                                            integrations={platformIntegrations}
-                                            {...cardProps}
-                                        />
-                                    );
-                                })}
-
+                                {AD_PLATFORMS.map((platform) => (
+                                    <PlatformCard
+                                        key={platform.id}
+                                        platform={platform}
+                                        integrations={integrations.filter(i => i.platform === platform.id)}
+                                        onConnect={handleConnect}
+                                        onDisconnect={handleDisconnect}
+                                        loadingPlatformId={loadingPlatformId}
+                                        loadingIntegrationId={loadingIntegrationId}
+                                    />
+                                ))}
                             </div>
                         </div>
                     </>
@@ -678,33 +533,16 @@ const IntegrationsPage = () => {
                 </div>
             </div>
 
+            {/* Facebook page selector modal */}
             {showPageModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl w-full max-w-md p-4">
-                        <h3 className="font-semibold mb-3">Select Facebook Page</h3>
-
-                        <div className="flex flex-col gap-2">
-                            {fbPages.map((page) => (
-                                <button
-                                    key={page.id}
-                                    onClick={() => handleSelectFacebookPage(page)}
-                                    className="text-left px-3 py-2 rounded-lg border hover:bg-gray-50"
-                                >
-                                    {page.name}
-                                </button>
-                            ))}
-                        </div>
-
-                        <button
-                            onClick={() => setShowPageModal(false)}
-                            className="mt-4 text-sm text-gray-500"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </div>
+                <FacebookPageModal
+                    pages={fbPages}
+                    onSelect={handleSelectFacebookPage}
+                    onClose={handleClosePageModal}
+                    loading={fbLoadingPageId}
+                    selectedPageId={null}
+                />
             )}
-
         </div>
     );
 };

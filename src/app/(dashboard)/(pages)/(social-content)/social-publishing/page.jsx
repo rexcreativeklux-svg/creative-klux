@@ -15,8 +15,9 @@ import {
   updatePostCaptionOnPlatform,
 } from '../../../../../(lib)/integration';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 
-const BRAND       = '#003dda';
+const BRAND = '#003dda';
 const BRAND_LIGHT = '#003dda14';
 
 /* ─── Helpers ─── */
@@ -32,44 +33,44 @@ function isAfterNow(iso) {
 
 /* ─── Platform config ─── */
 const PLATFORM_META = {
-  facebook:      { label: 'Facebook',      icon: '🔵', cls: 'bg-blue-50 text-blue-700 border border-blue-200',        group: 'social' },
-  instagram:     { label: 'Instagram',     icon: '📸', cls: 'bg-pink-50 text-pink-700 border border-pink-200',        group: 'social' },
-  twitter:       { label: 'X / Twitter',   icon: '🐦', cls: 'bg-slate-50 text-slate-700 border border-slate-200',     group: 'social' },
-  linkedin:      { label: 'LinkedIn',      icon: '💼', cls: 'bg-blue-50 text-blue-800 border border-blue-200',        group: 'social' },
-  tiktok:        { label: 'TikTok',        icon: '🎵', cls: 'bg-gray-50 text-gray-700 border border-gray-200',        group: 'social' },
-  youtube:       { label: 'YouTube',       icon: '▶️',  cls: 'bg-red-50 text-red-700 border border-red-200',           group: 'social' },
-  pinterest:     { label: 'Pinterest',     icon: '📌', cls: 'bg-rose-50 text-rose-700 border border-rose-200',        group: 'social' },
-  snapchat:      { label: 'Snapchat',      icon: '👻', cls: 'bg-yellow-50 text-yellow-700 border border-yellow-200',  group: 'social' },
-  meta_ads:      { label: 'Meta Ads',      icon: '📢', cls: 'bg-indigo-50 text-indigo-700 border border-indigo-200',  group: 'ads'    },
-  google_ads:    { label: 'Google Ads',    icon: '🔍', cls: 'bg-green-50 text-green-700 border border-green-200',     group: 'ads'    },
-  tiktok_ads:    { label: 'TikTok Ads',    icon: '🎯', cls: 'bg-cyan-50 text-cyan-700 border border-cyan-200',        group: 'ads'    },
-  linkedin_ads:  { label: 'LinkedIn Ads',  icon: '📊', cls: 'bg-blue-50 text-blue-800 border border-blue-200',        group: 'ads'    },
-  snapchat_ads:  { label: 'Snapchat Ads',  icon: '💥', cls: 'bg-yellow-50 text-yellow-700 border border-yellow-200',  group: 'ads'    },
-  pinterest_ads: { label: 'Pinterest Ads', icon: '🎯', cls: 'bg-rose-50 text-rose-700 border border-rose-200',        group: 'ads'    },
+  facebook: { label: 'Facebook', icon: '🔵', cls: 'bg-blue-50 text-blue-700 border border-blue-200', group: 'social' },
+  instagram: { label: 'Instagram', icon: '📸', cls: 'bg-pink-50 text-pink-700 border border-pink-200', group: 'social' },
+  twitter: { label: 'X / Twitter', icon: '🐦', cls: 'bg-slate-50 text-slate-700 border border-slate-200', group: 'social' },
+  linkedin: { label: 'LinkedIn', icon: '💼', cls: 'bg-blue-50 text-blue-800 border border-blue-200', group: 'social' },
+  tiktok: { label: 'TikTok', icon: '🎵', cls: 'bg-gray-50 text-gray-700 border border-gray-200', group: 'social' },
+  youtube: { label: 'YouTube', icon: '▶️', cls: 'bg-red-50 text-red-700 border border-red-200', group: 'social' },
+  pinterest: { label: 'Pinterest', icon: '📌', cls: 'bg-rose-50 text-rose-700 border border-rose-200', group: 'social' },
+  snapchat: { label: 'Snapchat', icon: '👻', cls: 'bg-yellow-50 text-yellow-700 border border-yellow-200', group: 'social' },
+  meta_ads: { label: 'Meta Ads', icon: '📢', cls: 'bg-indigo-50 text-indigo-700 border border-indigo-200', group: 'ads' },
+  google_ads: { label: 'Google Ads', icon: '🔍', cls: 'bg-green-50 text-green-700 border border-green-200', group: 'ads' },
+  tiktok_ads: { label: 'TikTok Ads', icon: '🎯', cls: 'bg-cyan-50 text-cyan-700 border border-cyan-200', group: 'ads' },
+  linkedin_ads: { label: 'LinkedIn Ads', icon: '📊', cls: 'bg-blue-50 text-blue-800 border border-blue-200', group: 'ads' },
+  snapchat_ads: { label: 'Snapchat Ads', icon: '💥', cls: 'bg-yellow-50 text-yellow-700 border border-yellow-200', group: 'ads' },
+  pinterest_ads: { label: 'Pinterest Ads', icon: '🎯', cls: 'bg-rose-50 text-rose-700 border border-rose-200', group: 'ads' },
 };
 
 const SOCIAL_PLATFORMS = Object.entries(PLATFORM_META).filter(([, v]) => v.group === 'social').map(([k, v]) => ({ id: k, ...v }));
-const ADS_PLATFORMS    = Object.entries(PLATFORM_META).filter(([, v]) => v.group === 'ads').map(([k, v]) => ({ id: k, ...v }));
+const ADS_PLATFORMS = Object.entries(PLATFORM_META).filter(([, v]) => v.group === 'ads').map(([k, v]) => ({ id: k, ...v }));
 
 const TABLE_COLS = [
-  { label: 'Creative', align: 'left'   },
-  { label: 'Platform', align: 'left'   },
-  { label: 'Status',   align: 'left'   },
-  { label: 'Date',     align: 'left'   },
-  { label: 'Impr.',    align: 'center', Icon: Eye          },
-  { label: 'Reach',    align: 'center', Icon: Users        },
-  { label: 'Clicks',   align: 'center', Icon: MousePointer },
-  { label: 'Likes',    align: 'center', Icon: Heart        },
-  { label: 'Shares',   align: 'center', Icon: Share2       },
-  { label: 'CTR',      align: 'center', Icon: TrendingUp   },
-  { label: 'Actions',  align: 'right'  },
+  { label: 'Creative', align: 'left' },
+  { label: 'Platform', align: 'left' },
+  { label: 'Status', align: 'left' },
+  { label: 'Date', align: 'left' },
+  { label: 'Impr.', align: 'center', Icon: Eye },
+  { label: 'Reach', align: 'center', Icon: Users },
+  { label: 'Clicks', align: 'center', Icon: MousePointer },
+  { label: 'Likes', align: 'center', Icon: Heart },
+  { label: 'Shares', align: 'center', Icon: Share2 },
+  { label: 'CTR', align: 'center', Icon: TrendingUp },
+  { label: 'Actions', align: 'right' },
 ];
 
 const TABS = [
-  { key: 'all',       label: 'All'       },
+  { key: 'all', label: 'All' },
   { key: 'published', label: 'Published' },
   { key: 'scheduled', label: 'Scheduled' },
-  { key: 'failed',    label: 'Failed'    },
+  { key: 'failed', label: 'Failed' },
 ];
 
 /* ─── Sub-components ─── */
@@ -127,26 +128,31 @@ export default function SocialPublishing() {
   const typeLabel = 'Social';
   const matchType = 'social';
 
-  const [allPosts,       setAllPosts]       = useState([]);
-  const [refreshing,     setRefreshing]     = useState(null);
-  const [fetchingLive,   setFetchingLive]   = useState(false);
+  const [allPosts, setAllPosts] = useState([]);
+  const [refreshing, setRefreshing] = useState(null);
+  const [fetchingLive, setFetchingLive] = useState(false);
   const [editingCaption, setEditingCaption] = useState(null);
-  const [captionDraft,   setCaptionDraft]   = useState('');
-  const [publishingNow,  setPublishingNow]  = useState(null);
-  const [statusFilter,   setStatusFilter]   = useState('all');
+  const [captionDraft, setCaptionDraft] = useState('');
+  const [publishingNow, setPublishingNow] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
   const [platformFilter, setPlatformFilter] = useState('all');
-  const [search,         setSearch]         = useState('');
-  const [page,           setPage]           = useState(1);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
+
+  const { fetchIntegrations } = useAuth();
+  const [integrations, setIntegrations] = useState([]);
+
 
   const mergeLiveIntoLocal = useCallback(async (silent = false) => {
     setFetchingLive(true);
     try {
-      const livePosts = await fetchLivePostsFromConnectedAccounts();
-      const local     = getPublishedPosts();
-      const localIds  = new Set(local.map(p => p.id));
-      const newPosts  = livePosts.filter(lp => !localIds.has(lp.id));
-      const merged    = [...newPosts, ...local];
+     const livePosts = await fetchLivePostsFromConnectedAccounts(integrations);
+
+      const local = getPublishedPosts();
+      const localIds = new Set(local.map(p => p.id));
+      const newPosts = livePosts.filter(lp => !localIds.has(lp.id));
+      const merged = [...newPosts, ...local];
       localStorage.setItem('creativeklux_published_posts', JSON.stringify(merged));
       setAllPosts(merged);
       if (!silent && newPosts.length > 0) toast.success(`Fetched ${newPosts.length} live post(s) from connected accounts`);
@@ -159,14 +165,24 @@ export default function SocialPublishing() {
     }
   }, []);
 
+  useEffect(() => {
+    const loadIntegrations = async () => {
+      const data = await fetchIntegrations();
+      setIntegrations(data || []);
+    };
+
+    loadIntegrations();
+  }, [fetchIntegrations]);
+
+
   useEffect(() => { mergeLiveIntoLocal(true); }, [mergeLiveIntoLocal]);
 
   const reload = useCallback(() => setAllPosts(getPublishedPosts()), []);
-  const posts  = allPosts.filter(p => p.type === matchType);
+  const posts = allPosts.filter(p => p.type === matchType);
 
   const filteredPosts = useMemo(() => {
     let result = posts;
-    if (statusFilter !== 'all')   result = result.filter(p => p.status === statusFilter);
+    if (statusFilter !== 'all') result = result.filter(p => p.status === statusFilter);
     if (platformFilter !== 'all') result = result.filter(p => p.platform === platformFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -177,6 +193,16 @@ export default function SocialPublishing() {
     }
     return result;
   }, [posts, statusFilter, platformFilter, search]);
+
+  const integrationsMap = useMemo(() => {
+    if (!Array.isArray(integrations)) return {};
+
+    return integrations.reduce((acc, item) => {
+      acc[item.platform] = item;
+      return acc;
+    }, {});
+  }, [integrations]);
+
 
   const totalPages = Math.max(1, Math.ceil(filteredPosts.length / PAGE_SIZE));
   const pagedPosts = filteredPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -195,7 +221,7 @@ export default function SocialPublishing() {
   };
 
   const handleSaveCaption = async (post) => {
-    try { await updatePostCaptionOnPlatform(post, captionDraft); } catch {}
+    try { await updatePostCaptionOnPlatform(post, captionDraft); } catch { }
     savePublishedPost({ ...post, caption: captionDraft });
     setEditingCaption(null);
     reload();
@@ -204,8 +230,8 @@ export default function SocialPublishing() {
 
   const handlePublishNow = async (post) => {
     setPublishingNow(post.id);
-    const accounts = getConnectedAccounts();
-    const account  = accounts[post.platform];
+    const account = integrationsMap[post.platform];
+
     if (!account) {
       toast.error(`No connected account for ${post.platform}`);
       setPublishingNow(null);
@@ -238,13 +264,20 @@ export default function SocialPublishing() {
   const handleRefreshStats = async (post) => {
     setRefreshing(post.id);
     try {
-      const accounts = getConnectedAccounts();
-      let newStats   = null;
-      if (post.platform === 'facebook' && accounts.facebook && post.post_id) {
-        newStats = await getFacebookPostStats({ access_token: accounts.facebook.access_token, post_id: post.post_id });
-      } else if (post.platform === 'instagram' && accounts.instagram && post.post_id) {
-        newStats = await getInstagramPostStats({ access_token: accounts.instagram.access_token, post_id: post.post_id });
+      let newStats = null;
+      if (post.platform === 'facebook' && integrationsMap.facebook && post.post_id) {
+        newStats = await getFacebookPostStats({
+          access_token: integrationsMap.facebook.access_token,
+          post_id: post.post_id
+        });
       }
+      else if (post.platform === 'instagram' && integrationsMap.instagram && post.post_id) {
+        newStats = await getInstagramPostStats({
+          access_token: integrationsMap.instagram.access_token,
+          post_id: post.post_id
+        });
+      }
+
       if (newStats) {
         const all = getPublishedPosts();
         const idx = all.findIndex(p => p.id === post.id);
@@ -264,14 +297,14 @@ export default function SocialPublishing() {
     }
   };
 
-  const connected      = getConnectedAccounts();
-  const hasConnections = Object.keys(connected).length > 0;
+  const hasConnections = Object.keys(integrationsMap).length > 0;
+
 
   const TAB_COUNTS = {
-    all:       posts.length,
+    all: posts.length,
     published: posts.filter(p => p.status === 'published').length,
     scheduled: posts.filter(p => p.status === 'scheduled').length,
-    failed:    posts.filter(p => p.status === 'failed').length,
+    failed: posts.filter(p => p.status === 'failed').length,
   };
 
   return (
@@ -309,10 +342,10 @@ export default function SocialPublishing() {
       {/* ── Summary Cards ── */}
       {posts.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-          <SummaryCard label="Total Posts"       value={posts.length}                                                                Icon={BarChart3}    />
-          <SummaryCard label="Published"         value={TAB_COUNTS.published}                                                       Icon={CheckCircle2} />
-          <SummaryCard label="Scheduled"         value={TAB_COUNTS.scheduled}                                                       Icon={Calendar}     />
-          <SummaryCard label="Total Impressions" value={posts.reduce((s, p) => s + (p.stats?.impressions || 0), 0).toLocaleString()} Icon={Eye}          />
+          <SummaryCard label="Total Posts" value={posts.length} Icon={BarChart3} />
+          <SummaryCard label="Published" value={TAB_COUNTS.published} Icon={CheckCircle2} />
+          <SummaryCard label="Scheduled" value={TAB_COUNTS.scheduled} Icon={Calendar} />
+          <SummaryCard label="Total Impressions" value={posts.reduce((s, p) => s + (p.stats?.impressions || 0), 0).toLocaleString()} Icon={Eye} />
         </div>
       )}
 
@@ -323,11 +356,10 @@ export default function SocialPublishing() {
             <button
               key={tab.key}
               onClick={() => setStatusFilter(tab.key)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
-                statusFilter === tab.key
-                  ? 'border-[#003dda] text-[#003dda]'
-                  : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
-              }`}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${statusFilter === tab.key
+                ? 'border-[#003dda] text-[#003dda]'
+                : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+                }`}
             >
               {tab.label}
               <span
@@ -426,9 +458,8 @@ export default function SocialPublishing() {
                   {TABLE_COLS.map(col => (
                     <th
                       key={col.label}
-                      className={`px-4 py-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wide ${
-                        col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
-                      }`}
+                      className={`px-4 py-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wide ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
+                        }`}
                     >
                       {col.Icon
                         ? <span className="inline-flex items-center gap-1"><col.Icon className="w-3 h-3" />{col.label}</span>
@@ -439,7 +470,7 @@ export default function SocialPublishing() {
               </thead>
               <tbody>
                 {pagedPosts.map((post, i) => {
-                  const meta  = PLATFORM_META[post.platform] || { label: post.platform, icon: '🌐', cls: 'bg-gray-50 text-gray-700 border border-gray-200' };
+                  const meta = PLATFORM_META[post.platform] || { label: post.platform, icon: '🌐', cls: 'bg-gray-50 text-gray-700 border border-gray-200' };
                   const stats = post.stats || {};
                   return (
                     <tr

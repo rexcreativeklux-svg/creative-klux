@@ -2022,7 +2022,7 @@ export function AuthProvider({ children }) {
       const text = await res.text();
       let data;
       try { data = JSON.parse(text); } catch { data = {}; }
-
+console.log(data)
       if (!res.ok) {
         return { ok: false, message: data?.message || "Failed to save integration" };
       }
@@ -2074,7 +2074,7 @@ export function AuthProvider({ children }) {
       const text = await res.text();
       let data;
       try { data = JSON.parse(text); } catch { return null; }
-
+console.log(data)
       if (!res.ok) return null;
 
       // Normalize: expects array or { data: [...] }

@@ -295,9 +295,9 @@ const IntegrationsPage = () => {
         loadIntegrations();
     }, [fetchIntegrations]);
 
-    const platformIntegrations = integrations.filter(
-        (i) => i.platform === platform.id
-    );
+    // const platformIntegrations = integrations.filter(
+    //     (i) => i.platform === platform.id
+    // );
 
     // ── Fetch platform account ID (int_id) using the access token ────────────
     // int_id = the user's own ID on that platform (NOT your app's client ID).
@@ -516,7 +516,7 @@ const IntegrationsPage = () => {
                 return;
             }
 
-            setConnected((prev) => ({ ...prev, [platformId]: true }));
+            // setConnected((prev) => ({ ...prev, [platformId]: true }));
             showToast(`${label || getPlatformName(platformId)} connected successfully!`, "success");
         } catch (err) {
             if (err.message === "cancelled") return;
@@ -560,7 +560,6 @@ const IntegrationsPage = () => {
     };
 
     const cardProps = {
-        connected,
         onConnect: handleConnect,
         onDisconnect: handleDisconnect,
         isLoading: loadingPlatform,
@@ -607,9 +606,21 @@ const IntegrationsPage = () => {
                         <div className="mb-8">
                             <SectionHeader title="Social Media" />
                             <div className="flex flex-col gap-3">
-                                {SOCIAL_PLATFORMS.map((platform) => (
-                                    <PlatformCard key={platform.id} platform={platform} {...cardProps} />
-                                ))}
+                              {SOCIAL_PLATFORMS.map((platform) => {
+    const platformIntegrations = integrations.filter(
+        (i) => i.platform === platform.id
+    );
+
+    return (
+        <PlatformCard
+            key={platform.id}
+            platform={platform}
+            integrations={platformIntegrations}
+            {...cardProps}
+        />
+    );
+})}
+
                             </div>
                         </div>
 
@@ -617,14 +628,21 @@ const IntegrationsPage = () => {
                         <div className="mb-8">
                             <SectionHeader title="Advertising Platforms" />
                             <div className="flex flex-col gap-3">
-                                {AD_PLATFORMS.map((platform) => (
-                                    <PlatformCard
-                                        key={platform.id}
-                                        platform={platform}
-                                        integrations={platformIntegrations}
-                                        {...cardProps}
-                                    />
-                                ))}
+                            {AD_PLATFORMS.map((platform) => {
+    const platformIntegrations = integrations.filter(
+        (i) => i.platform === platform.id
+    );
+
+    return (
+        <PlatformCard
+            key={platform.id}
+            platform={platform}
+            integrations={platformIntegrations}
+            {...cardProps}
+        />
+    );
+})}
+
                             </div>
                         </div>
                     </>

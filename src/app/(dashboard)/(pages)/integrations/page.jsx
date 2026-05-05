@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Info, AlertCircle } from "lucide-react";
 import { openOAuthPopup } from "@/(lib)/oauth/page";
-import { useAuth } from "@/context/AuthContext"; // adjust path as needed
-import Toast from "@/components/Toast"; // adjust path as needed
+import { useAuth } from "@/context/AuthContext"; 
+import Toast from "@/app/(components)/Toast";
 
 // ── SVG brand icons (unchanged from your original) ─────────────────────────────
 const FacebookIcon = () => (

@@ -75,7 +75,7 @@ export function AuthProvider({ children }) {
   const API_AI_CHAT_URL = `${BASE_URL}/creatives/ai-creative`;
   const SAVE_DESIGN_URL = `${BASE_URL}/creative-designs`;
   const FETCH_DESIGN_URL = `${BASE_URL}/creative-designs`;
-
+  const API_INTEGRATIONS_URL = `${BASE_URL}/integrations`;
 
 
   // Load token on mount and fetch profile and brands
@@ -2000,6 +2000,90 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
+  const saveIntegration = useCallback(async ({ platform, access_token, code }) => {
+    if (!token) return { ok: false, message: "Not authenticated" };
+    if (!activeBrandId) return { ok: false, message: "No active brand selected" };
+
+    try {
+      const res = await authFetch(API_INTEGRATIONS_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          brand_id: activeBrandId,
+          platform,
+          access_token: access_token || null,
+          code: code || null,
+        }),
+      });
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = {}; }
+
+      if (!res.ok) {
+        return { ok: false, message: data?.message || "Failed to save integration" };
+      }
+
+      return { ok: true, data };
+    } catch (err) {
+      return { ok: false, message: err.message || "Network error" };
+    }
+  }, [token, activeBrandId]);
+
+  const disconnectIntegration = useCallback(async (platform) => {
+    if (!token) return { ok: false, message: "Not authenticated" };
+
+    try {
+      const res = await authFetch(`${API_INTEGRATIONS_URL}/${platform}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = {}; }
+
+      if (!res.ok) {
+        return { ok: false, message: data?.message || "Failed to disconnect integration" };
+      }
+
+      return { ok: true, data };
+    } catch (err) {
+      return { ok: false, message: err.message || "Network error" };
+    }
+  }, [token]);
+
+  const fetchIntegrations = useCallback(async () => {
+    if (!token) return null;
+
+    try {
+      const res = await authFetch(API_INTEGRATIONS_URL, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { return null; }
+
+      if (!res.ok) return null;
+
+      // Normalize: expects array or { data: [...] }
+      return Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : data;
+    } catch (err) {
+      console.error("fetchIntegrations error:", err);
+      return null;
+    }
+  }, [token]);
 
   return (
     <AuthContext.Provider
@@ -2012,10 +2096,13 @@ export function AuthProvider({ children }) {
         // brandId,
         setActiveBrand,
         checkCompliance,
+        saveIntegration,
         creativeInsights,
         deleteDesignById,
+        disconnectIntegration,
         creativeScoring,
         getCompetitorInsights,
+        fetchIntegrations,
         bulkDeleteDesigns,
         updateDesignById,
         fetchDesigns,

@@ -2000,38 +2000,43 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-  const saveIntegration = useCallback(async ({ platform, access_token, code }) => {
-    if (!token) return { ok: false, message: "Not authenticated" };
-    if (!activeBrandId) return { ok: false, message: "No active brand selected" };
+ const saveIntegration = useCallback(async ({ platform, access_token, code, brand_id }) => {
+  if (!token) return { ok: false, message: "Not authenticated" };
 
-    try {
-      const res = await authFetch(API_INTEGRATIONS_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          brand_id: activeBrandId,
-          platform,
-          access_token: access_token || null,
-          code: code || null,
-        }),
-      });
+  // Accept explicit brand_id from caller (avoids stale closure),
+  // then fall back to activeBrandId from context.
+  const resolvedBrandId = brand_id || activeBrandId;
+  if (!resolvedBrandId) return { ok: false, message: "No active brand selected. Please select a brand first." };
 
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { data = {}; }
-console.log('fetch: ',data)
-      if (!res.ok) {
-        return { ok: false, message: data?.message || "Failed to save integration" };
-      }
+  try {
+    const res = await authFetch(API_INTEGRATIONS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        brand_id: resolvedBrandId,
+        platform,
+        access_token: access_token || null,
+        code: code || null,
+      }),
+    });
 
-      return { ok: true, data };
-    } catch (err) {
-      return { ok: false, message: err.message || "Network error" };
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = {}; }
+    console.log("saveIntegration response:", data);
+
+    if (!res.ok) {
+      return { ok: false, message: data?.message || "Failed to save integration" };
     }
-  }, [token, activeBrandId]);
+
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, message: err.message || "Network error" };
+  }
+}, [token, activeBrandId]);
 
   const disconnectIntegration = useCallback(async (platform) => {
     if (!token) return { ok: false, message: "Not authenticated" };

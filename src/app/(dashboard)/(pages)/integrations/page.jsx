@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Info, AlertCircle } from "lucide-react";
 import { openOAuthPopup } from "@/(lib)/oauth/page";
-import { useAuth } from "@/context/AuthContext"; 
-import Toast from "@/app/(components)/Toast";
+import { useAuth } from "@/context/AuthContext"; // adjust path as needed
+import Toast from "@/components/Toast"; // adjust path as needed
 
 // ── SVG brand icons (unchanged from your original) ─────────────────────────────
 const FacebookIcon = () => (
@@ -247,7 +247,7 @@ const SectionHeader = ({ title }) => (
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 const IntegrationsPage = () => {
-    const { saveIntegration, disconnectIntegration, fetchIntegrations } = useAuth();
+    const { saveIntegration, disconnectIntegration, fetchIntegrations, activeBrandId } = useAuth();
 
     // Map of platformId → true/false
     const [connected, setConnected] = useState({});
@@ -295,19 +295,28 @@ const IntegrationsPage = () => {
 
     // ── Connect handler ──
     const handleConnect = useCallback(async (platformId) => {
+        // Guard: must have an active brand before even opening the popup
+        if (!activeBrandId) {
+            showToast("Please select an active brand before connecting.", "error");
+            return;
+        }
+
         setLoadingPlatform(platformId);
         try {
-            // 1. Open OAuth popup — this now correctly returns { access_token, platform }
-            //    (platform is fixed via the OAuthCallback hash.get("state") patch)
+            // 1. Open OAuth popup — returns { access_token, platform } or { code, platform }
             const result = await openOAuthPopup(platformId);
             console.log("OAuth success:", result);
 
-            // 2. Save to backend
+            // 2. Save to backend — pass activeBrandId explicitly so the
+            //    useCallback closure value is always fresh (avoids stale null)
             const saved = await saveIntegration({
-                platform: platformId,          // use the id we clicked, as a safe fallback
+                platform: platformId,
                 access_token: result.access_token || null,
                 code: result.code || null,
+                brand_id: activeBrandId,   // ← explicit, bypasses stale closure
             });
+
+            console.log("saveIntegration result:", saved);
 
             if (!saved.ok) {
                 showToast(saved.message || "Failed to save integration", "error");
@@ -319,7 +328,7 @@ const IntegrationsPage = () => {
             showToast(`${getPlatformName(platformId)} connected successfully!`, "success");
         } catch (err) {
             if (err.message === "cancelled") {
-                // User closed the popup — silent, no toast needed
+                // User closed the popup — silent
                 return;
             }
             console.error("Connect error:", err);
@@ -327,7 +336,7 @@ const IntegrationsPage = () => {
         } finally {
             setLoadingPlatform(null);
         }
-    }, [saveIntegration]);
+    }, [saveIntegration, activeBrandId]);
 
     // ── Disconnect handler ──
     const handleDisconnect = useCallback(async (platformId) => {

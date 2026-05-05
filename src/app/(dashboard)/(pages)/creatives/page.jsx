@@ -398,13 +398,13 @@ export default function CreativesPage() {
                 <div className="flex flex-row gap-3 items-center">
                     <Link
                         href="/studio/create-from-url"
-                        className="flex items-center gap-2 bg-black hover:bg-gray-100 hover:text-black text-white border border-gray-200 text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
+                        className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800  text-white border border-gray-200 text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
                     >
                         <Plus className="w-4 h-4" /> Create from URL
                     </Link>
                     <Link
                         href="/studio/ai-select"
-                        className="flex items-center gap-2 border border-gray-400 hover:bg-gray-200 text-black text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
+                        className="flex items-center gap-2 border border-gray-300 hover:bg-gray-200 text-black text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
                     >
                         <Plus className="w-4 h-4" /> Instant Creation
                     </Link>

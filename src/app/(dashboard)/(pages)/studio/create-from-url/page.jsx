@@ -51,11 +51,11 @@ const CREATION_TYPES = [
     icon: Megaphone,
     label: 'Create Ads',
     description: 'Generate paid ad creatives for Meta, Google, TikTok, LinkedIn and more.',
-    iconBg: 'bg-purple-100',
-    iconColor: 'text-purple-600',
-    selectedBorder: 'border-purple-500',
-    selectedBg: 'bg-purple-50',
-    badgeBg: 'bg-purple-600',
+    iconBg: 'bg-blue-100',
+    iconColor: 'text-blue-600',
+    selectedBorder: 'border-blue-500',
+    selectedBg: 'bg-blue-50',
+    badgeBg: 'bg-blue-600',
     color: '#9333ea',
   },
   {
@@ -75,7 +75,7 @@ const CREATION_TYPES = [
 const STEPS_ADS    = ['URL', 'Type', 'Brand Details', 'Size, Goals & Audience'];
 const STEPS_SOCIAL = ['URL', 'Type', 'Post Details',  'Size, Goals & Audience'];
 
-const adsSelected    = 'border-purple-500 bg-purple-50 text-purple-700';
+const adsSelected    = 'border-blue-500 bg-blue-50 text-blue-700';
 const socialSelected = 'border-teal-500 bg-teal-50 text-teal-700';
 
 export default function CreateFromUrl() {
@@ -224,7 +224,7 @@ export default function CreateFromUrl() {
   // ── RESULT VIEW ──────────────────────────────────────────────────────────
   if (result) {
     return (
-      <div className="min-h-screen bg-[#f7f8fc] py-1 ">
+      <div className="min-h-screen py-1 ">
         {/* Toast */}
         {toast && (
           <div className="fixed top-5 right-5 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in">
@@ -250,7 +250,7 @@ export default function CreateFromUrl() {
 
   // ── FORM VIEW ────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#f7f8fc] py-10 px-4">
+    <div className="min-h-screen  py-10 px-4">
       {/* Toast */}
       {toast && (
         <div className="fixed top-5 right-5 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
@@ -269,7 +269,7 @@ export default function CreateFromUrl() {
               <React.Fragment key={n}>
                 <div className="flex items-center gap-2 shrink-0">
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-all
-                    ${done ? 'bg-green-500 text-white' : active ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                    ${done ? 'bg-green-500 text-white' : active ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
                     {done ? <Check className="w-3.5 h-3.5" /> : n}
                   </div>
                   <span className={`text-xs font-medium hidden sm:block ${active ? 'text-gray-900' : 'text-gray-400'}`}>
@@ -284,7 +284,7 @@ export default function CreateFromUrl() {
 
         {/* ── STEP 1: URL ── */}
         {step === 1 && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-6">
+          <div className="bg-white rounded-2xl border border-gray-200  p-8 space-y-6">
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">Enter your website URL</h2>
               <p className="text-sm text-gray-500">We'll automatically extract your brand details to get started.</p>
@@ -310,7 +310,7 @@ export default function CreateFromUrl() {
                     value={urlInput}
                     onChange={e => { setUrlInput(e.target.value); setImported(false); setImportError(''); }}
                     placeholder="https://yourwebsite.com"
-                    className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white
                       ${imported ? 'border-green-300 pr-8' : 'border-gray-200'}`}
                     onKeyDown={e => e.key === 'Enter' && handleImport()}
                   />
@@ -319,7 +319,7 @@ export default function CreateFromUrl() {
                 <button
                   onClick={handleImport}
                   disabled={importing || !urlInput.trim()}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 flex items-center gap-2 shrink-0
+                  className={`px-5 py-2 cursor-pointer rounded-lg text-sm font-semibold text-white transition-all disabled:opacity-50 flex items-center gap-2 shrink-0
                     ${imported ? 'bg-green-500 hover:bg-green-600' : 'bg-blue-600 hover:bg-blue-700'}`}
                 >
                   {importing
@@ -359,7 +359,7 @@ export default function CreateFromUrl() {
               <button
                 onClick={() => setStep(2)}
                 disabled={!imported}
-                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-xl hover:from-purple-500 hover:to-pink-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-5 py-2 cursor-pointer bg-blue-700 text-white text-sm font-semibold rounded-lg hover:bg-blue-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 Continue <ArrowRight className="w-4 h-4" />
               </button>
@@ -382,7 +382,7 @@ export default function CreateFromUrl() {
                   <button
                     key={type.id}
                     onClick={() => setCreationType(type.id)}
-                    className={`text-left p-6 rounded-2xl border-2 transition-all cursor-pointer
+                    className={`text-left p-6 rounded-xl border-2 transition-all cursor-pointer
                       ${selected ? `${type.selectedBorder} ${type.selectedBg}` : 'border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-gray-100'}`}
                   >
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${type.iconBg}`}>
@@ -390,24 +390,24 @@ export default function CreateFromUrl() {
                     </div>
                     <h3 className="font-bold text-gray-900 text-lg mb-1">{type.label}</h3>
                     <p className="text-sm text-gray-500 leading-relaxed">{type.description}</p>
-                    {selected && (
+                    {/* {selected && (
                       <div className={`mt-4 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full text-white ${type.badgeBg}`}>
                         <Check className="w-3 h-3" /> Selected
                       </div>
-                    )}
+                    )} */}
                   </button>
                 );
               })}
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <button onClick={() => setStep(1)} className="px-4 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 transition flex items-center gap-2">
+              <button onClick={() => setStep(1)} className="px-4 py-2 cursor-pointer border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
                 <ArrowLeft className="w-4 h-4" /> Back
               </button>
               <button
                 onClick={() => setStep(3)}
                 disabled={!creationType}
-                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-xl hover:from-purple-500 hover:to-pink-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-5 py-2 cursor-pointer bg-blue-700 rounded-lg hover:bg-blue-800 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 Continue <ArrowRight className="w-4 h-4" />
               </button>
@@ -417,7 +417,7 @@ export default function CreateFromUrl() {
 
         {/* ── STEP 3: Brand / Post Details ── */}
         {step === 3 && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 space-y-6">
+          <div className="bg-white rounded-2xl border border-gray-200  p-7 space-y-6">
             <h2 className="text-xl font-bold text-gray-900">
               {isAds ? 'Brand Details' : 'Post Details'}
             </h2>
@@ -456,7 +456,7 @@ export default function CreateFromUrl() {
                       key={style}
                       onClick={() => setVisualStyle(style)}
                       className={`px-3 py-1.5 rounded-lg text-sm border transition-all cursor-pointer
-                        ${visualStyle === style ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                        ${visualStyle === style ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
                     >
                       {style}
                     </button>
@@ -559,13 +559,13 @@ export default function CreateFromUrl() {
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <button onClick={() => setStep(2)} className="px-4 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 transition flex items-center gap-2">
+              <button onClick={() => setStep(2)} className="px-4 py-2 cursor-pointer border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
                 <ArrowLeft className="w-4 h-4" /> Back
               </button>
               <button
                 onClick={() => setStep(4)}
                 disabled={!brandName.trim()}
-                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-xl hover:from-purple-500 hover:to-pink-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-5 py-2 cursor-pointer bg-blue-700 rounded-lg hover:bg-blue-800 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 Continue <ArrowRight className="w-4 h-4" />
               </button>
@@ -575,7 +575,7 @@ export default function CreateFromUrl() {
 
         {/* ── STEP 4: Size, Goals & Audience ── */}
         {step === 4 && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 space-y-7">
+          <div className="bg-white rounded-2xl border border-gray-200  p-7 space-y-7">
             <h2 className="text-xl font-bold text-gray-900">Size, Goals & Audience</h2>
 
             {generateError && (
@@ -663,13 +663,13 @@ export default function CreateFromUrl() {
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <button onClick={() => setStep(3)} className="px-4 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 transition flex items-center gap-2">
+              <button onClick={() => setStep(3)} className="px-4 cursor-pointer py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
                 <ArrowLeft className="w-4 h-4" /> Back
               </button>
               <button
                 onClick={handleGenerate}
                 disabled={generating}
-                className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-xl hover:from-purple-500 hover:to-pink-500 transition-all disabled:opacity-60 flex items-center gap-2 min-w-[160px] justify-center"
+                className="px-6 cursor-pointer py-2 bg-blue-700 rounded-lg hover:bg-blue-800 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center gap-2 min-w-[160px] justify-center"
               >
                 {generating
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>

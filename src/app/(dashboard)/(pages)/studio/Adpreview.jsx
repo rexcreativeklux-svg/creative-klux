@@ -159,7 +159,7 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
       }}>
         {/* left */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{
+          <button className="hover:scale-95 transition-all duration-200" onClick={onBack} style={{
             display: "flex", alignItems: "center", gap: 5,
             padding: "5px 10px", borderRadius: 8,
             border: "1px solid #e5e7eb", background: "#fafafa",
@@ -175,7 +175,7 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
 
         {/* right */}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button onClick={selectAll} style={{
+          <button className="hover:scale-95 transition-all duration-200" onClick={selectAll} style={{
             padding: "5px 10px", borderRadius: 8,
             border: "1px solid #e5e7eb", background: "#fff",
             fontSize: 11, fontWeight: 500, color: "#555", cursor: "pointer",
@@ -222,7 +222,7 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
       {/* ── scrollable 3-col masonry ── */}
       <div style={{
         flex: 1, overflowY: "auto", padding: 12,
-        columnCount: 2, columnGap: 10,
+        columnCount: 3, columnGap: 10,
         scrollbarWidth: "thin", scrollbarColor: "rgba(0,0,0,0.08) transparent",
       }}>
         {variations.map((v) => {

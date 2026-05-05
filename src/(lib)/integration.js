@@ -340,19 +340,58 @@ export function updatePostStats(id, stats) {
  * Publish an image to Facebook Page as a post.
  * Requires: pages_manage_posts, pages_read_engagement scope.
  */
+// export async function publishToFacebook({ access_token, page_id, image_url, caption }) {
+//   // Step 1: Upload photo to Facebook
+//   const uploadRes = await fetch(
+//     `https://graph.facebook.com/v19.0/${page_id}/photos`,
+//     {
+//       method: 'POST',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify({ url: image_url, caption, access_token, published: true }),
+//     }
+//   );
+//   const uploadData = await uploadRes.json();
+//   if (uploadData.error) throw new Error(uploadData.error.message);
+//   return { post_id: uploadData.post_id || uploadData.id };
+// }
 export async function publishToFacebook({ access_token, page_id, image_url, caption }) {
-  // Step 1: Upload photo to Facebook
-  const uploadRes = await fetch(
-    `https://graph.facebook.com/v19.0/${page_id}/photos`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: image_url, caption, access_token, published: true }),
+    if (!page_id)      throw new Error("No Facebook Page ID — reconnect your Facebook account.");
+    if (!access_token) throw new Error("No access token — reconnect your Facebook account.");
+ 
+    // For text-only posts (no image)
+    if (!image_url) {
+        const res = await fetch(
+            `https://graph.facebook.com/v19.0/${page_id}/feed` +
+            `?access_token=${encodeURIComponent(access_token)}`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: caption }),
+            }
+        );
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        return { post_id: data.id };
     }
-  );
-  const uploadData = await uploadRes.json();
-  if (uploadData.error) throw new Error(uploadData.error.message);
-  return { post_id: uploadData.post_id || uploadData.id };
+ 
+    // For posts with an image — token must be a query param, NOT in the body
+    const res = await fetch(
+        `https://graph.facebook.com/v19.0/${page_id}/photos` +
+        `?access_token=${encodeURIComponent(access_token)}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                url:       image_url,
+                caption:   caption,
+                published: true,
+                // access_token intentionally NOT here — it's in the query param above
+            }),
+        }
+    );
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return { post_id: data.post_id || data.id };
 }
 
 /**

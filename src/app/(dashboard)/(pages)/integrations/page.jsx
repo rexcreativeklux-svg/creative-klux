@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Info, AlertCircle } from "lucide-react";
 import { openOAuthPopup } from "@/(lib)/oauth/page";
-import { useAuth } from "@/context/AuthContext"; 
+import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
 
 // ── SVG brand icons (unchanged from your original) ─────────────────────────────
@@ -220,7 +220,7 @@ const PlatformCard = ({ platform, connected, onConnect, onDisconnect, isLoading 
                         <button
                             onClick={() => onDisconnect(platform.id)}
                             disabled={isPending}
-                            className="px-3 py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-1.5 cursor-pointer text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {isPending ? "Disconnecting…" : "Disconnect"}
                         </button>
@@ -228,7 +228,7 @@ const PlatformCard = ({ platform, connected, onConnect, onDisconnect, isLoading 
                         <button
                             onClick={() => onConnect(platform.id)}
                             disabled={isPending}
-                            className="px-3 py-1.5 text-xs text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-1.5 hover:scale-105 cursor-pointer text-xs text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                             style={{ background: "linear-gradient(135deg, #155dfc, #3b82f6)" }}
                         >
                             {isPending ? "Connecting…" : "Connect"}
@@ -358,6 +358,130 @@ const IntegrationsPage = () => {
         }
     };
 
+    async function resolveIntegrationCredentials(platformId, oauthResult) {
+        const { access_token } = oauthResult;
+
+        if (platformId === "facebook" || platformId === "instagram" || platformId === "meta_ads") {
+            // 1. Fetch pages the user manages
+            const pagesRes = await fetch(
+                `https://graph.facebook.com/v19.0/me/accounts` +
+                `?access_token=${access_token}` +
+                `&fields=id,name,access_token,picture`
+            );
+            const pagesData = await pagesRes.json();
+            if (pagesData.error) throw new Error(pagesData.error.message);
+
+            const pages = pagesData.data || [];
+            if (pages.length === 0) {
+                throw new Error(
+                    "No Facebook Pages found on this account. " +
+                    "You need to be an admin of at least one Page to connect."
+                );
+            }
+
+            if (platformId === "facebook") {
+                // Use first page (or implement a picker modal for multi-page accounts)
+                const page = pages[0];
+                return {
+                    int_token: page.access_token,   // ← Page Access Token (long-lived after exchange)
+                    int_id: page.id,             // ← Page ID
+                    label: page.name,
+                };
+            }
+
+            if (platformId === "instagram") {
+                // Find the IG Business account linked to any of the pages
+                for (const page of pages) {
+                    const igRes = await fetch(
+                        `https://graph.facebook.com/v19.0/${page.id}` +
+                        `?fields=instagram_business_account{id,name,username}` +
+                        `&access_token=${page.access_token}`
+                    );
+                    const igData = await igRes.json();
+                    if (igData.instagram_business_account) {
+                        return {
+                            int_token: page.access_token,                      // ← Page token (used for IG publish)
+                            int_id: igData.instagram_business_account.id,   // ← IG User ID
+                            label: igData.instagram_business_account.username || page.name,
+                        };
+                    }
+                }
+                throw new Error(
+                    "No Instagram Business account found. " +
+                    "Link an Instagram Business account to your Facebook Page first."
+                );
+            }
+
+            if (platformId === "meta_ads") {
+                // Fetch ad accounts
+                const adsRes = await fetch(
+                    `https://graph.facebook.com/v19.0/me/adaccounts` +
+                    `?fields=id,name,account_status` +
+                    `&access_token=${access_token}`
+                );
+                const adsData = await adsRes.json();
+                if (adsData.error) throw new Error(adsData.error.message);
+                const adAccounts = adsData.data || [];
+                if (adAccounts.length === 0) throw new Error("No Meta Ad Accounts found.");
+                const adAccount = adAccounts[0];
+                return {
+                    int_token: access_token,
+                    int_id: adAccount.id.replace("act_", ""), // strip "act_" prefix
+                    label: adAccount.name,
+                };
+            }
+        }
+
+        // ── All other platforms: keep existing logic ──────────────────────────────
+        let int_id = null;
+        try {
+            switch (platformId) {
+                case "google_ads":
+                case "youtube": {
+                    const res = await fetch(
+                        `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`
+                    );
+                    const data = await res.json();
+                    int_id = data.id;
+                    break;
+                }
+                case "linkedin":
+                case "linkedin_ads": {
+                    const res = await fetch("https://api.linkedin.com/v2/userinfo", {
+                        headers: { Authorization: `Bearer ${access_token}` },
+                    });
+                    const data = await res.json();
+                    int_id = data.sub;
+                    break;
+                }
+                case "pinterest":
+                case "pinterest_ads": {
+                    const res = await fetch("https://api.pinterest.com/v5/user_account", {
+                        headers: { Authorization: `Bearer ${access_token}` },
+                    });
+                    const data = await res.json();
+                    int_id = data.username || data.id;
+                    break;
+                }
+                case "snapchat":
+                case "snapchat_ads": {
+                    const res = await fetch("https://adsapi.snapchat.com/v1/me", {
+                        headers: { Authorization: `Bearer ${access_token}` },
+                    });
+                    const data = await res.json();
+                    int_id = data.me?.id;
+                    break;
+                }
+                default:
+                    int_id = null;
+            }
+        } catch (err) {
+            console.warn(`Could not resolve int_id for ${platformId}:`, err.message);
+        }
+
+        return { int_token: access_token, int_id };
+    }
+
     // ── Connect handler ──
     const handleConnect = useCallback(async (platformId) => {
         if (!activeBrandId) {
@@ -367,27 +491,19 @@ const IntegrationsPage = () => {
 
         setLoadingPlatform(platformId);
         try {
-            // 1. Open OAuth popup
             const result = await openOAuthPopup(platformId);
             console.log("OAuth success:", result);
 
-            // 2. Fetch the platform account ID required by the backend as `int_id`
-            let int_id = null;
-            if (result.access_token) {
-                int_id = await resolvePlatformIntId(platformId, result.access_token);
-                console.log("Resolved int_id:", int_id);
-            }
+            // ← NEW: resolves the right token + id for each platform
+            const { int_token, int_id, label } = await resolveIntegrationCredentials(platformId, result);
+            console.log("Resolved credentials:", { int_token: "***", int_id, label });
 
-            // 3. Save to backend
             const saved = await saveIntegration({
                 platform: platformId,
-                access_token: result.access_token || null,
-                code: result.code || null,
+                access_token: int_token,
                 brand_id: activeBrandId,
                 int_id,
             });
-
-            console.log("saveIntegration result:", saved);
 
             if (!saved.ok) {
                 showToast(saved.message || "Failed to save integration", "error");
@@ -395,7 +511,7 @@ const IntegrationsPage = () => {
             }
 
             setConnected((prev) => ({ ...prev, [platformId]: true }));
-            showToast(`${getPlatformName(platformId)} connected successfully!`, "success");
+            showToast(`${label || getPlatformName(platformId)} connected successfully!`, "success");
         } catch (err) {
             if (err.message === "cancelled") return;
             console.error("Connect error:", err);

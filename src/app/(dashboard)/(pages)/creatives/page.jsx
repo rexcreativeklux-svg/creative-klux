@@ -6,10 +6,12 @@ import {
     Pencil, X, Check, Clock, ChevronLeft, ChevronRight,
     Send, CalendarClock, ScanSearch, TrendingUp, Wand2, RefreshCw, CheckSquare,
     Square, AlertTriangle, Loader2, Edit2, FileText,
+    Download,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
+import PublishModal from "@/app/(components)/PublishModal";
 
 // ── DesignCanvas ──────────────────────────────────────────────────────────────
 function DesignCanvas({ variation, maxW = 320, maxH = 240 }) {
@@ -220,6 +222,7 @@ export default function CreativesPage() {
     const [bulkSelected, setBulkSelected] = useState([]);
     const [isBulkMode, setIsBulkMode] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
+    const [publishTarget, setPublishTarget] = useState(null);
 
     // Toast state
     const [toast, setToast] = useState({ open: false, message: "", type: "success" });
@@ -548,6 +551,10 @@ export default function CreativesPage() {
                         copied={copied}
                         onDeleteRequest={setDeleteConfirm}
                         onEdit={setEditTarget}
+                        onPublish={() => {
+                            setPublishTarget(selected);   // capture the creative
+                            setSelectedId(null);          // close the sidebar
+                        }}
                     />
                 )}
             </div>
@@ -558,6 +565,15 @@ export default function CreativesPage() {
                     creative={editTarget}
                     onClose={() => setEditTarget(null)}
                     onSave={updateDesignCopy}
+                />
+            )}
+
+            {/* ── Publish Modal ── */}
+            {publishTarget && (
+                <PublishModal
+                    creative={publishTarget}
+                    onClose={() => setPublishTarget(null)}
+                    showToast={showToast}
                 />
             )}
 
@@ -795,7 +811,7 @@ const TableView = ({ creatives, selectedId, bulkSelected, isBulkMode, onSelect, 
 );
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
-const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied, onDeleteRequest, onEdit }) => {
+const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied, onDeleteRequest, onEdit, onPublish }) => {
     const tc = TYPE_COLOR[c.type?.toLowerCase()] || DEFAULT_COLOR;
     const [expandedCopy, setExpandedCopy] = useState(false);
 
@@ -913,11 +929,17 @@ const Sidebar = ({ creative: c, onClose, onToggleFavorite, onCopy, copied, onDel
                     {/* Action buttons */}
                     <div className="flex flex-col gap-2">
                         <div className="flex gap-2">
-                            <Link href="/" className="flex-1 cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded-lg transition-all shadow-sm">
-                                <Send className="w-3 h-3" /> Post Now
-                            </Link>
+                            <button
+                                onClick={onPublish}
+                                className="flex-1 cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded-lg transition-all shadow-sm"
+                            >
+                                <Send className="w-3 h-3" /> Publish
+                            </button>
                             <Link href="/" className="flex-1 cursor-pointer flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold py-2 rounded-lg transition-all">
                                 <CalendarClock className="w-3 h-3" /> Schedule
+                            </Link>
+                            <Link href="/" className="flex-1 cursor-pointer flex items-center justify-center gap-2 border border-gray-200  hover:bg-gray-100 text-gray-800 text-xs font-semibold py-2 rounded-lg transition-all">
+                                <Download className="w-3 h-3" /> Download
                             </Link>
                         </div>
                         <div className="flex gap-2">

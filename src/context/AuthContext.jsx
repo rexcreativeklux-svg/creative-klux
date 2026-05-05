@@ -2039,31 +2039,31 @@ export function AuthProvider({ children }) {
     }
   }, [token, activeBrandId]);
 
-  const disconnectIntegration = useCallback(async (platform) => {
-    if (!token) return { ok: false, message: "Not authenticated" };
+const disconnectIntegration = useCallback(async (id) => {
+  if (!token) return { ok: false, message: "Not authenticated" };
 
-    try {
-      const res = await authFetch(`${API_INTEGRATIONS_URL}/${platform}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+  try {
+    const res = await authFetch(`${API_INTEGRATIONS_URL}/${id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { data = {}; }
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = {}; }
 
-      if (!res.ok) {
-        return { ok: false, message: data?.message || "Failed to disconnect integration" };
-      }
-
-      return { ok: true, data };
-    } catch (err) {
-      return { ok: false, message: err.message || "Network error" };
+    if (!res.ok) {
+      return { ok: false, message: data?.message || "Failed to disconnect integration" };
     }
-  }, [token]);
+
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, message: err.message || "Network error" };
+  }
+}, [token]);
+
 
   const fetchIntegrations = useCallback(async () => {
     if (!token) return null;

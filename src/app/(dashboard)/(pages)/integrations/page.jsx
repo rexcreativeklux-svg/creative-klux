@@ -184,10 +184,12 @@ const AD_PLATFORMS = [
 ];
 
 // ── Platform Card ──────────────────────────────────────────────────────────────
-const PlatformCard = ({ platform, connected, onConnect, onDisconnect, isLoading }) => {
+const PlatformCard = ({ platform, integrations, onConnect, onDisconnect, isLoading }) => {
     const { Icon } = platform;
-    const isConnected = !!connected[platform.id];
-    const isPending = isLoading === platform.id;
+    const isConnected = integrations.length > 0;
+
+    const isPending = integrations.some(i => i.id === isLoading);
+
 
     return (
         <div className="rounded-xl border bg-white border-gray-200 hover:shadow transition-all">
@@ -218,7 +220,8 @@ const PlatformCard = ({ platform, connected, onConnect, onDisconnect, isLoading 
                 <div className="flex gap-2 flex-shrink-0">
                     {isConnected ? (
                         <button
-                            onClick={() => onDisconnect(platform.id)}
+                           onClick={() => onDisconnect(integrations[0].id)}
+
                             disabled={isPending}
                             className="px-3 py-1.5 cursor-pointer text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
@@ -250,11 +253,14 @@ const IntegrationsPage = () => {
     const { saveIntegration, disconnectIntegration, fetchIntegrations, activeBrandId } = useAuth();
 
     // Map of platformId → true/false
-    const [connected, setConnected] = useState({});
+    // const [connected, setConnected] = useState({});
     // Which platform is currently in a loading/pending state
     const [loadingPlatform, setLoadingPlatform] = useState(null);
     // Page-level loading while we fetch existing integrations
     const [fetching, setFetching] = useState(true);
+
+    const [integrations, setIntegrations] = useState([]);
+
 
     // Toast state
     const [toast, setToast] = useState({ isOpen: false, message: "", type: "success" });
@@ -276,12 +282,8 @@ const IntegrationsPage = () => {
                 if (Array.isArray(data)) {
                     // Build a map of { platformId: true } from the response.
                     // Adjust the field name ("platform") to match your API response shape.
-                    const map = {};
-                    data.forEach((item) => {
-                        const pid = item.platform || item.platform_id || item.id;
-                        if (pid) map[pid] = true;
-                    });
-                    setConnected(map);
+                    setIntegrations(data);
+
                 }
             } catch (err) {
                 console.error("Failed to load integrations:", err);
@@ -292,6 +294,10 @@ const IntegrationsPage = () => {
 
         loadIntegrations();
     }, [fetchIntegrations]);
+
+    const platformIntegrations = integrations.filter(
+        (i) => i.platform === platform.id
+    );
 
     // ── Fetch platform account ID (int_id) using the access token ────────────
     // int_id = the user's own ID on that platform (NOT your app's client ID).
@@ -522,25 +528,30 @@ const IntegrationsPage = () => {
     }, [saveIntegration, activeBrandId]);
 
     // ── Disconnect handler ──
-    const handleDisconnect = useCallback(async (platformId) => {
-        setLoadingPlatform(platformId);
-        try {
-            const result = await disconnectIntegration(platformId);
+ const handleDisconnect = useCallback(async (integrationId) => {
+    setLoadingPlatform(integrationId);
 
-            if (!result.ok) {
-                showToast(result.message || "Failed to disconnect", "error");
-                return;
-            }
+    try {
+        const result = await disconnectIntegration(integrationId);
 
-            setConnected((prev) => ({ ...prev, [platformId]: false }));
-            showToast(`${getPlatformName(platformId)} disconnected.`, "success");
-        } catch (err) {
-            console.error("Disconnect error:", err);
-            showToast(err.message || "Disconnect failed", "error");
-        } finally {
-            setLoadingPlatform(null);
+        if (!result.ok) {
+            showToast(result.message || "Failed to disconnect", "error");
+            return;
         }
-    }, [disconnectIntegration]);
+
+        setIntegrations((prev) =>
+            prev.filter((i) => i.id !== integrationId)
+        );
+
+        showToast("Integration disconnected.", "success");
+    } catch (err) {
+        console.error("Disconnect error:", err);
+        showToast(err.message || "Disconnect failed", "error");
+    } finally {
+        setLoadingPlatform(null);
+    }
+}, [disconnectIntegration]);
+
 
     // ── Helper: get display name from id ──
     const getPlatformName = (platformId) => {
@@ -607,7 +618,12 @@ const IntegrationsPage = () => {
                             <SectionHeader title="Advertising Platforms" />
                             <div className="flex flex-col gap-3">
                                 {AD_PLATFORMS.map((platform) => (
-                                    <PlatformCard key={platform.id} platform={platform} {...cardProps} />
+                                    <PlatformCard
+                                        key={platform.id}
+                                        platform={platform}
+                                        integrations={platformIntegrations}
+                                        {...cardProps}
+                                    />
                                 ))}
                             </div>
                         </div>

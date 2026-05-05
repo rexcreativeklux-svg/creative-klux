@@ -425,8 +425,10 @@ export default function ReusePage({ setActiveTab }) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Your Brands</h1>
-          <p className="text-sm text-gray-500 mt-1">{brands.length} brand{brands.length !== 1 ? "s" : ""} in your workspace</p>
+          <h1 className="text-2xl font-bold text-gray-900">Brand Kits</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Save your brand assets — colors, fonts, logos — and apply them instantly to any design
+          </p>
         </div>
         <button
           onClick={() => router.push("/brand/create")}

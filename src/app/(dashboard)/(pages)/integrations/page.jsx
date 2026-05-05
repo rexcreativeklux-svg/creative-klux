@@ -220,7 +220,7 @@ const PlatformCard = ({ platform, integrations, onConnect, onDisconnect, isLoadi
                 <div className="flex gap-2 flex-shrink-0">
                     {isConnected ? (
                         <button
-                           onClick={() => onDisconnect(integrations[0].id)}
+                            onClick={() => onDisconnect(integrations[0].id)}
 
                             disabled={isPending}
                             className="px-3 py-1.5 cursor-pointer text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -251,6 +251,10 @@ const SectionHeader = ({ title }) => (
 // ── Main Page ──────────────────────────────────────────────────────────────────
 const IntegrationsPage = () => {
     const { saveIntegration, disconnectIntegration, fetchIntegrations, activeBrandId } = useAuth();
+    const [fbPages, setFbPages] = useState([]);
+    const [showPageModal, setShowPageModal] = useState(false);
+    const [loadingPages, setLoadingPages] = useState(false);
+
 
     // Map of platformId → true/false
     // const [connected, setConnected] = useState({});
@@ -367,79 +371,47 @@ const IntegrationsPage = () => {
     async function resolveIntegrationCredentials(platformId, oauthResult) {
         const { access_token } = oauthResult;
 
-        if (platformId === "facebook" || platformId === "instagram" || platformId === "meta_ads") {
-            // 1. Fetch pages the user manages
+        // ─────────────────────────────────────────────
+        // FACEBOOK / INSTAGRAM / META ADS FLOW
+        // ─────────────────────────────────────────────
+        if (
+            platformId === "facebook" ||
+            platformId === "instagram" ||
+            platformId === "meta_ads"
+        ) {
             const pagesRes = await fetch(
                 `https://graph.facebook.com/v19.0/me/accounts` +
                 `?access_token=${access_token}` +
                 `&fields=id,name,access_token,picture`
             );
+
             const pagesData = await pagesRes.json();
-            if (pagesData.error) throw new Error(pagesData.error.message);
+
+            if (pagesData.error) {
+                throw new Error(pagesData.error.message);
+            }
 
             const pages = pagesData.data || [];
+
             if (pages.length === 0) {
-                throw new Error(
-                    "No Facebook Pages found on this account. " +
-                    "You need to be an admin of at least one Page to connect."
-                );
+                throw new Error("No Facebook Pages found on this account.");
             }
 
-            if (platformId === "facebook") {
-                // Use first page (or implement a picker modal for multi-page accounts)
-                const page = pages[0];
-                return {
-                    int_token: page.access_token,   // ← Page Access Token (long-lived after exchange)
-                    int_id: page.id,             // ← Page ID
-                    label: page.name,
-                };
-            }
+            // 🚨 Stop flow here → UI takes over
+            setFbPages(pages);
+            setShowPageModal(true);
 
-            if (platformId === "instagram") {
-                // Find the IG Business account linked to any of the pages
-                for (const page of pages) {
-                    const igRes = await fetch(
-                        `https://graph.facebook.com/v19.0/${page.id}` +
-                        `?fields=instagram_business_account{id,name,username}` +
-                        `&access_token=${page.access_token}`
-                    );
-                    const igData = await igRes.json();
-                    if (igData.instagram_business_account) {
-                        return {
-                            int_token: page.access_token,                      // ← Page token (used for IG publish)
-                            int_id: igData.instagram_business_account.id,   // ← IG User ID
-                            label: igData.instagram_business_account.username || page.name,
-                        };
-                    }
-                }
-                throw new Error(
-                    "No Instagram Business account found. " +
-                    "Link an Instagram Business account to your Facebook Page first."
-                );
-            }
-
-            if (platformId === "meta_ads") {
-                // Fetch ad accounts
-                const adsRes = await fetch(
-                    `https://graph.facebook.com/v19.0/me/adaccounts` +
-                    `?fields=id,name,account_status` +
-                    `&access_token=${access_token}`
-                );
-                const adsData = await adsRes.json();
-                if (adsData.error) throw new Error(adsData.error.message);
-                const adAccounts = adsData.data || [];
-                if (adAccounts.length === 0) throw new Error("No Meta Ad Accounts found.");
-                const adAccount = adAccounts[0];
-                return {
-                    int_token: access_token,
-                    int_id: adAccount.id.replace("act_", ""), // strip "act_" prefix
-                    label: adAccount.name,
-                };
-            }
+            // IMPORTANT:
+            // We intentionally STOP execution here.
+            // handleSelectFacebookPage(page) will continue the flow.
+            return null;
         }
 
-        // ── All other platforms: keep existing logic ──────────────────────────────
+        // ─────────────────────────────────────────────
+        // OTHER PLATFORMS
+        // ─────────────────────────────────────────────
         let int_id = null;
+
         try {
             switch (platformId) {
                 case "google_ads":
@@ -451,6 +423,7 @@ const IntegrationsPage = () => {
                     int_id = data.id;
                     break;
                 }
+
                 case "linkedin":
                 case "linkedin_ads": {
                     const res = await fetch("https://api.linkedin.com/v2/userinfo", {
@@ -460,6 +433,7 @@ const IntegrationsPage = () => {
                     int_id = data.sub;
                     break;
                 }
+
                 case "pinterest":
                 case "pinterest_ads": {
                     const res = await fetch("https://api.pinterest.com/v5/user_account", {
@@ -469,6 +443,7 @@ const IntegrationsPage = () => {
                     int_id = data.username || data.id;
                     break;
                 }
+
                 case "snapchat":
                 case "snapchat_ads": {
                     const res = await fetch("https://adsapi.snapchat.com/v1/me", {
@@ -478,14 +453,21 @@ const IntegrationsPage = () => {
                     int_id = data.me?.id;
                     break;
                 }
+
                 default:
                     int_id = null;
             }
         } catch (err) {
-            console.warn(`Could not resolve int_id for ${platformId}:`, err.message);
+            console.warn(
+                `Could not resolve int_id for ${platformId}:`,
+                err.message
+            );
         }
 
-        return { int_token: access_token, int_id };
+        return {
+            int_token: access_token,
+            int_id,
+        };
     }
 
     // ── Connect handler ──
@@ -528,29 +510,64 @@ const IntegrationsPage = () => {
     }, [saveIntegration, activeBrandId]);
 
     // ── Disconnect handler ──
- const handleDisconnect = useCallback(async (integrationId) => {
-    setLoadingPlatform(integrationId);
+    const handleDisconnect = useCallback(async (integrationId) => {
+        setLoadingPlatform(integrationId);
 
-    try {
-        const result = await disconnectIntegration(integrationId);
+        try {
+            const result = await disconnectIntegration(integrationId);
 
-        if (!result.ok) {
-            showToast(result.message || "Failed to disconnect", "error");
-            return;
+            if (!result.ok) {
+                showToast(result.message || "Failed to disconnect", "error");
+                return;
+            }
+
+            setIntegrations((prev) =>
+                prev.filter((i) => i.id !== integrationId)
+            );
+
+            showToast("Integration disconnected.", "success");
+        } catch (err) {
+            console.error("Disconnect error:", err);
+            showToast(err.message || "Disconnect failed", "error");
+        } finally {
+            setLoadingPlatform(null);
         }
+    }, [disconnectIntegration]);
 
-        setIntegrations((prev) =>
-            prev.filter((i) => i.id !== integrationId)
-        );
+    const handleSelectFacebookPage = async (page) => {
+        try {
+            setLoadingPlatform("facebook");
 
-        showToast("Integration disconnected.", "success");
-    } catch (err) {
-        console.error("Disconnect error:", err);
-        showToast(err.message || "Disconnect failed", "error");
-    } finally {
-        setLoadingPlatform(null);
-    }
-}, [disconnectIntegration]);
+            const saved = await saveIntegration({
+                platform: "facebook",
+                access_token: page.access_token,
+                int_id: page.id,
+                brand_id: activeBrandId,
+            });
+
+            if (!saved.ok) {
+                showToast(saved.message || "Failed to save page", "error");
+                return;
+            }
+
+            setIntegrations((prev) => [
+                ...prev,
+                {
+                    id: saved.id,
+                    platform: "facebook",
+                    int_id: page.id,
+                },
+            ]);
+
+            setShowPageModal(false);
+            showToast("Facebook page connected successfully", "success");
+        } catch (err) {
+            console.error(err);
+            showToast("Failed to connect page", "error");
+        } finally {
+            setLoadingPlatform(null);
+        }
+    };
 
 
     // ── Helper: get display name from id ──
@@ -606,20 +623,20 @@ const IntegrationsPage = () => {
                         <div className="mb-8">
                             <SectionHeader title="Social Media" />
                             <div className="flex flex-col gap-3">
-                              {SOCIAL_PLATFORMS.map((platform) => {
-    const platformIntegrations = integrations.filter(
-        (i) => i.platform === platform.id
-    );
+                                {SOCIAL_PLATFORMS.map((platform) => {
+                                    const platformIntegrations = integrations.filter(
+                                        (i) => i.platform === platform.id
+                                    );
 
-    return (
-        <PlatformCard
-            key={platform.id}
-            platform={platform}
-            integrations={platformIntegrations}
-            {...cardProps}
-        />
-    );
-})}
+                                    return (
+                                        <PlatformCard
+                                            key={platform.id}
+                                            platform={platform}
+                                            integrations={platformIntegrations}
+                                            {...cardProps}
+                                        />
+                                    );
+                                })}
 
                             </div>
                         </div>
@@ -628,20 +645,20 @@ const IntegrationsPage = () => {
                         <div className="mb-8">
                             <SectionHeader title="Advertising Platforms" />
                             <div className="flex flex-col gap-3">
-                            {AD_PLATFORMS.map((platform) => {
-    const platformIntegrations = integrations.filter(
-        (i) => i.platform === platform.id
-    );
+                                {AD_PLATFORMS.map((platform) => {
+                                    const platformIntegrations = integrations.filter(
+                                        (i) => i.platform === platform.id
+                                    );
 
-    return (
-        <PlatformCard
-            key={platform.id}
-            platform={platform}
-            integrations={platformIntegrations}
-            {...cardProps}
-        />
-    );
-})}
+                                    return (
+                                        <PlatformCard
+                                            key={platform.id}
+                                            platform={platform}
+                                            integrations={platformIntegrations}
+                                            {...cardProps}
+                                        />
+                                    );
+                                })}
 
                             </div>
                         </div>
@@ -660,6 +677,34 @@ const IntegrationsPage = () => {
                     </p>
                 </div>
             </div>
+
+            {showPageModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl w-full max-w-md p-4">
+                        <h3 className="font-semibold mb-3">Select Facebook Page</h3>
+
+                        <div className="flex flex-col gap-2">
+                            {fbPages.map((page) => (
+                                <button
+                                    key={page.id}
+                                    onClick={() => handleSelectFacebookPage(page)}
+                                    className="text-left px-3 py-2 rounded-lg border hover:bg-gray-50"
+                                >
+                                    {page.name}
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={() => setShowPageModal(false)}
+                            className="mt-4 text-sm text-gray-500"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };

@@ -1,11 +1,16 @@
 "use client";
 // forms/PosterForm.jsx
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Image, Loader2, X, ChevronRight, FileUp, Wand2, Target, LayoutTemplate,
+  Globe, Image, Loader2, X, ChevronRight, FileUp, Wand2, Target,
+  LayoutTemplate, CheckCircle2, Images,
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
+
+import ImageCropperModal from "@/app/(components)/ImageCropperModal";
+import MediaPickerModal from "@/app/(components)/MediaPickerModal";
+import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -67,10 +72,15 @@ const INSPIRE_PROMPTS = [
   "A retro-style film festival poster inspired by vintage movie art",
 ];
 
+const BRAND_COLORS = [
+  "#7c3aed", "#2563eb", "#059669", "#db2777", "#ef4444",
+  "#f59e0b", "#0ea5e9", "#111827",
+];
+
 const STEPS = [
-  { id: 1, label: "Brand Details",   icon: Image },
-  { id: 2, label: "Goals & Format",  icon: Target },
-  { id: 3, label: "Style & Output",  icon: LayoutTemplate },
+  { id: 1, label: "Brand Details",  icon: Image },
+  { id: 2, label: "Goals & Format", icon: Target },
+  { id: 3, label: "Style & Images", icon: LayoutTemplate },
 ];
 
 // ── theme: violet ─────────────────────────────────────────────────────────────
@@ -92,7 +102,17 @@ const T = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult }) => {
+const PosterForm = ({
+  formData,
+  setFormData,
+  activeBrand,
+  sendUrl,
+  showToast,
+  onResult,
+  generateCustomCreative,
+  creative,
+  categoryId,
+}) => {
   const [step,       setStep]      = useState(1);
   const [error,      setError]     = useState("");
   const [generating, setGenerating]= useState(false);
@@ -101,25 +121,69 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
   const [brandName,      setBrandName]      = useState(activeBrand?.name || "");
   const [projectName,    setProjectName]    = useState(activeBrand?.name || "");
   const [description,    setDescription]    = useState(activeBrand?.description || "");
-  const [primaryColor,   setPrimaryColor]   = useState(activeBrand?.primary_color || "#000000");
-  const [secondaryColor, setSecondaryColor] = useState(activeBrand?.secondary_color || "#7c3aed");
+  const [brandColor,     setBrandColor]     = useState(activeBrand?.primary_color || "#7c3aed");
   const [font,           setFont]           = useState(activeBrand?.font || "Inter");
   const [logo,           setLogo]           = useState(activeBrand?.logo || null);
   const [caption,        setCaption]        = useState(`Check out ${activeBrand?.name || "our brand"}!`);
   const [hashtags,       setHashtags]       = useState("#Poster #Design #Brand");
+  const [brandUrl,       setBrandUrl]       = useState(activeBrand?.url || activeBrand?.source_url || "");
+  const [importingBrand, setImportingBrand] = useState(false);
 
   // Goals & format
-  const [campaignGoal,   setCampaignGoal]   = useState("");
-  const [audience,       setAudience]       = useState("");
-  const [fileFormat,     setFileFormat]     = useState("PNG");
+  const [campaignGoal, setCampaignGoal] = useState("");
+  const [audience,     setAudience]     = useState("");
+  const [fileFormat,   setFileFormat]   = useState("PNG");
 
   // Style & output
-  const [size,           setSize]           = useState("816x1056");
-  const [orientation,    setOrientation]    = useState("Portrait");
-  const [posterStyle,    setPosterStyle]    = useState("");
-  const [count,          setCount]          = useState(4);
+  const [size,        setSize]        = useState("816x1056");
+  const [orientation, setOrientation] = useState("Portrait");
+  const [posterStyle, setPosterStyle] = useState("");
+  const [count,       setCount]       = useState(4);
 
+  // ── image / crop state ────────────────────────────────────────────────────
+  const [imageSrc,         setImageSrc]         = useState([]);
+  const [croppedImages,    setCroppedImages]    = useState([]);
+  const [currentCropIndex, setCurrentCropIndex] = useState(0);
+  const [showCropper,      setShowCropper]      = useState(false);
+  const [crop,             setCrop]             = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
+  const [completedCrop,    setCompletedCrop]    = useState(null);
+  const [imageSrcMeta,     setImageSrcMeta]     = useState([]);
+
+  const cropperRef   = useRef(null);
   const logoInputRef = useRef(null);
+
+  // ── media picker modal ────────────────────────────────────────────────────
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+
+  useEffect(() => { setCompletedCrop(null); }, [currentCropIndex]);
+
+  // Sync first cropped image → live preview
+  useEffect(() => {
+    const first = croppedImages.find(Boolean);
+    if (first?.previewUrl) setFormData?.((p) => ({ ...p, backgroundImage: first.previewUrl }));
+  }, [croppedImages]);
+
+  // ── URL import ────────────────────────────────────────────────────────────
+  const handleImportBrand = async () => {
+    if (!brandUrl.trim()) return setError("Please enter a valid brand URL.");
+    setImportingBrand(true);
+    try {
+      const r = await sendUrl(brandUrl);
+      if (!r?.data) throw new Error();
+      const d = r.data;
+      setBrandName(d.name           || "");
+      setDescription(d.description  || "");
+      setBrandColor(d.primary_color || "#7c3aed");
+      setFont(d.font                || "Inter");
+      setLogo(d.logo                || null);
+      setFormData?.((p) => ({
+        ...p,
+        importedImages: d.images?.map((i) => i.url).filter(Boolean) || [],
+      }));
+      showToast("Brand imported!");
+    } catch { setError("Failed to import brand. Check the URL."); }
+    finally { setImportingBrand(false); }
+  };
 
   // ── Inspire ───────────────────────────────────────────────────────────────
   const handleInspire = () => {
@@ -135,6 +199,164 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
     reader.onload = () => setLogo(reader.result);
     reader.readAsDataURL(file);
   }, []);
+
+  // ── Save crop ─────────────────────────────────────────────────────────────
+  const saveCroppedImage = useCallback(async () => {
+    if (!completedCrop || !cropperRef.current) return;
+    const image = cropperRef.current.cropper?.getImage?.();
+    if (!image) return;
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+    canvas.width  = completedCrop.width;
+    canvas.height = completedCrop.height;
+    ctx.drawImage(
+      image,
+      completedCrop.x * scaleX, completedCrop.y * scaleY,
+      completedCrop.width * scaleX, completedCrop.height * scaleY,
+      0, 0, canvas.width, canvas.height
+    );
+
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
+    const file  = new File([blob], `cropped-${currentCropIndex}.png`, { type: "image/png" });
+    file.previewUrl = URL.createObjectURL(blob);
+    file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
+
+    setCroppedImages((prev) => { const u = [...prev]; u[currentCropIndex] = file; return u; });
+
+    if (currentCropIndex < imageSrc.length - 1) {
+      setCurrentCropIndex((prev) => prev + 1);
+      setCrop({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
+      setCompletedCrop(null);
+    } else {
+      setShowCropper(false);
+    }
+  }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta]);
+
+  // ── Skip crop ─────────────────────────────────────────────────────────────
+  const handleSkipCrop = () => {
+    const url = imageSrc[currentCropIndex];
+    fetch(url).then((r) => r.blob()).then((blob) => {
+      const file = new File([blob], `original-${currentCropIndex}.png`, { type: blob.type });
+      file.previewUrl = url;
+      file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
+      setCroppedImages((prev) => { const u = [...prev]; u[currentCropIndex] = file; return u; });
+      if (currentCropIndex < imageSrc.length - 1) {
+        setCurrentCropIndex((prev) => prev + 1);
+        setCrop({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
+      } else {
+        setShowCropper(false);
+      }
+    });
+  };
+
+  // ── Remove a cropped image ────────────────────────────────────────────────
+  const removeCroppedImage = (idx) => {
+    const next  = croppedImages.filter((_, i) => i !== idx);
+    const first = next.find(Boolean);
+    setCroppedImages(next);
+    setFormData?.((p) => ({ ...p, backgroundImage: first?.previewUrl || null }));
+    if (idx <= currentCropIndex && currentCropIndex > 0) setCurrentCropIndex((prev) => prev - 1);
+  };
+
+  const handlePreviousCrop = () => {
+    if (currentCropIndex > 0) {
+      setCurrentCropIndex((prev) => prev - 1);
+      setCrop({ unit: "%", width: 80, height: 80, x: 10, y: 10 });
+      setCompletedCrop(null);
+    }
+  };
+
+  // ── Unified apply handler from MediaPickerModal ───────────────────────────
+  const handleApplyFromPicker = async (images, media) => {
+    if (images.length > 0) {
+      try {
+        const processedFiles = await Promise.all(
+          images.map(async (item, idx) => {
+            if (item.file instanceof File) {
+              item.file.previewUrl = item.src;
+              item.file.sourceUrl  = null;
+              return item.file;
+            }
+            const url      = item.large || item.src;
+            const fetchUrl = url.startsWith("http")
+              ? `/api/proxy-image?url=${encodeURIComponent(url)}`
+              : url;
+            const res  = await fetch(fetchUrl);
+            const blob = await res.blob();
+            const file = new File([blob], `selected-${Date.now()}-${idx}`, { type: blob.type || "image/png" });
+            file.previewUrl = URL.createObjectURL(blob);
+            file.sourceUrl  = item.large || item.src || null;
+            return file;
+          })
+        );
+
+        const previewUrls = processedFiles.map((f) => f.previewUrl);
+        const sourceUrls  = processedFiles.map((f) => f.sourceUrl || null);
+
+        if (!showCropper) {
+          setImageSrc(previewUrls);
+          setImageSrcMeta(sourceUrls);
+          setCroppedImages(Array(previewUrls.length).fill(null));
+          setCurrentCropIndex(0);
+        } else {
+          setImageSrc((prev)      => [...prev, ...previewUrls]);
+          setImageSrcMeta((prev)  => [...prev, ...sourceUrls]);
+          setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
+          setCurrentCropIndex(imageSrc.length);
+        }
+
+        setShowCropper(true);
+        showToast(`Added ${images.length} image(s) — crop them`);
+      } catch (err) {
+        console.error("Image loading failed:", err);
+        showToast("Some images couldn't be loaded.");
+      }
+    }
+
+    if (media.length > 0) {
+      const videoObjects = media.map((src, i) => ({
+        id: `video-${Date.now()}-${i}`, previewUrl: src, thumbnail: src, type: "video",
+      }));
+      setCroppedImages((prev) => [...prev, ...videoObjects]);
+      showToast(`Added ${media.length} media item(s)`);
+    }
+
+    setMediaPickerOpen(false);
+  };
+
+  // ── BrandImagesStrip handlers ─────────────────────────────────────────────
+  const handleBrandImageUse = (imageObjs) => {
+    const pseudos = imageObjs.map((imageObj) => ({
+      previewUrl: imageObj.src,
+      sourceUrl:  imageObj.src,
+      name:       imageObj.alt || "brand-image",
+      type:       "image/jpeg",
+    }));
+    setCroppedImages((prev) => [...prev, ...pseudos]);
+    showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+  };
+
+  const handleBrandImageCrop = async (imageObjs) => {
+    for (const imageObj of imageObjs) {
+      const originalUrl = imageObj.src;
+      let cropperUrl = originalUrl;
+      try {
+        const res  = await fetch(`/api/proxy-image?url=${encodeURIComponent(originalUrl)}`);
+        const blob = await res.blob();
+        cropperUrl = URL.createObjectURL(blob);
+      } catch (err) {
+        console.warn("Proxy failed, falling back to original URL", err);
+      }
+      setImageSrc((prev)      => [...prev, cropperUrl]);
+      setImageSrcMeta((prev)  => [...prev, originalUrl]);
+      setCroppedImages((prev) => [...prev, null]);
+    }
+    if (!showCropper) setCurrentCropIndex(0);
+    setShowCropper(true);
+  };
 
   // ── Step nav ──────────────────────────────────────────────────────────────
   const handleContinue = () => {
@@ -152,50 +374,63 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
     setError("");
     setGenerating(true);
 
-    try {
-      await new Promise((res) => setTimeout(res, 2000));
+    const validImages = croppedImages.filter(Boolean);
 
-      const styleQuery = posterStyle ? posterStyle.replace("_", " ") : "";
-      const res  = await fetch(`/api/pexels?query=${encodeURIComponent(`${brandName} ${campaignGoal} ${styleQuery} poster`)}&per_page=${count * 2}`);
-      const data = await res.json();
+    const payload = {
+      creativeType:  creative?.id,
+      categoryType:  categoryId,
+      brandName:     brandName     || null,
+      projectName:   projectName   || null,
+      description:   description   || null,
+      brandColor:    brandColor    || null,
+      primaryColor:  brandColor    || null,
+      font:          font          || null,
+      logo:          logo          || null,
+      caption:       caption       || null,
+      hashtags:      hashtags      || null,
+      campaignGoal:  campaignGoal  || null,
+      audience:      audience      || null,
+      fileFormat:    fileFormat    || null,
+      size:          size          || null,
+      orientation:   orientation   || null,
+      posterStyle:   posterStyle   || null,
+      count:         count         || 4,
+      sourceUrl:     brandUrl      || null,
+      images: validImages
+        .map((f) => f?.sourceUrl || f?.previewUrl)
+        .filter(Boolean),
+      generatedAt: new Date().toISOString(),
+    };
 
-      const generated = (data.photos || []).slice(0, count).map((photo, i) => ({
-        id:      `poster-${photo.id}-${i}`,
-        src:     photo.src.large2x || photo.src.large || photo.src.medium,
-        preview: photo.src.large2x || photo.src.large || photo.src.medium,
-        alt:     photo.alt || `Poster variation ${i + 1}`,
-        type:    "image",
-      }));
+    const result = await generateCustomCreative(payload);
 
-      if (onResult) onResult({ assets: generated });
-    } catch (err) {
-      console.error("Generation failed:", err);
-      setError("Poster generation failed. Please try again.");
-    } finally {
+    if (!result.ok) {
+      setError(result.message || "Generation failed. Please try again.");
       setGenerating(false);
+      return;
     }
-  };
 
-  // ── Color field helper ────────────────────────────────────────────────────
-  const ColorField = ({ label, value, onChange }) => (
-    <Field label={label}>
-      <div className="flex gap-2 items-center">
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer shrink-0"
-        />
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="#000000"
-          className={inputCls}
-        />
-      </div>
-    </Field>
-  );
+    const data = result.data;
+
+    if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
+      onResult({
+        type: "design",
+        variations: data.variations,
+        reply:  data.reply  || "",
+        meta:   data.meta   || {},
+        payload,
+        raw: data,
+      });
+    } else {
+      onResult({
+        assets: data?.assets || [],
+        payload,
+        raw: data,
+      });
+    }
+
+    setGenerating(false);
+  };
 
   const selectedSize = SIZE_OPTIONS.find((s) => s.value === size);
 
@@ -218,14 +453,7 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
                     : step === s.id ? T.stepCurrent
                     : "border-gray-200 text-gray-300"
                   }`}>
-                    {step > s.id
-                      ? (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                          <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )
-                      : <Icon className="w-4 h-4" />
-                    }
+                    {step > s.id ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
                   </div>
                   <span className={`hidden sm:block text-xs font-medium truncate ${step >= s.id ? "text-gray-700" : "text-gray-300"}`}>
                     {s.label}
@@ -254,9 +482,35 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
           <div className="flex flex-col gap-5">
             <SectionTitle>Brand Details</SectionTitle>
 
+            {/* URL import */}
+            <div className={`border ${T.importBorder} rounded-xl p-4 ${T.importBg}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <Globe className="w-4 h-4 text-violet-600" />
+                <span className="text-sm font-medium text-gray-700">Import from URL</span>
+                <span className="text-xs text-gray-400 ml-auto">Auto-fills brand info</span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={brandUrl}
+                  onChange={(e) => setBrandUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleImportBrand()}
+                  placeholder="https://yourdomain.com/"
+                  className={inputCls}
+                />
+                <button
+                  onClick={handleImportBrand}
+                  disabled={importingBrand || !brandUrl.trim()}
+                  className={`px-5 py-1.5 ${T.bg} cursor-pointer text-white text-sm font-medium rounded-lg ${T.bgHover} disabled:opacity-50 flex items-center gap-2 shrink-0`}
+                >
+                  {importingBrand ? <Loader2 className="w-4 h-4 animate-spin" /> : "Import"}
+                </button>
+              </div>
+            </div>
+
             {/* Brand Name + Project Name */}
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Brand Name" required>
+              <Field label="Brand / Project Name" required>
                 <input
                   type="text"
                   value={brandName}
@@ -265,7 +519,7 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
                   className={inputCls}
                 />
               </Field>
-              <Field label="Project Name">
+              {/* <Field label="Project Name">
                 <input
                   type="text"
                   value={projectName}
@@ -273,7 +527,7 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
                   placeholder="e.g. Summer Event 2025"
                   className={inputCls}
                 />
-              </Field>
+              </Field> */}
             </div>
 
             {/* Description */}
@@ -296,14 +550,72 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
               </div>
             </Field>
 
-            {/* Colors */}
-            <div className="grid grid-cols-2 gap-3">
-              <ColorField label="Primary Color"   value={primaryColor}   onChange={setPrimaryColor} />
-              <ColorField label="Secondary Color" value={secondaryColor} onChange={setSecondaryColor} />
+            {/* Brand Color + Logo — single row matching ImageAdsForm */}
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Brand Color">
+                <div className="flex items-center gap-2">
+                  {/* Swatches */}
+                  <div className="flex items-center gap-1.5 flex-wrap ">
+                    {BRAND_COLORS.map((hex) => (
+                      <button
+                        key={hex}
+                        onClick={() => setBrandColor(hex)}
+                        className={`w-6 h-6 rounded-md cursor-pointer border-2 transition-transform hover:scale-110 ${brandColor === hex ? "border-gray-800 scale-110" : "border-transparent"}`}
+                        style={{ background: hex }}
+                        title={hex}
+                      />
+                    ))}
+                  </div>
+                  {/* Picker + hex input */}
+                  <div className="flex items-center gap-2 flex-none">
+                    <label
+                      className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer overflow-hidden shrink-0 transition hover:scale-105"
+                      style={{ background: brandColor }}
+                    >
+                      <input
+                        type="color"
+                        value={brandColor}
+                        onChange={(e) => setBrandColor(e.target.value)}
+                        className="opacity-0 w-full h-full cursor-pointer"
+                      />
+                    </label>
+                    <input
+                      type="text"
+                      value={brandColor}
+                      onChange={(e) => /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) && setBrandColor(e.target.value)}
+                      className={`${inputCls} w-[5.5rem]! flex-none px-2 text-sm font-mono`}
+                      maxLength={7}
+                    />
+                  </div>
+                </div>
+              </Field>
+
+              <Field label="Logo">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => logoInputRef.current?.click()}
+                    className="flex-1 px-3 py-2.5 border cursor-pointer border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-violet-500 hover:text-violet-600 flex items-center gap-2 transition"
+                  >
+                    <FileUp className="w-4 h-4" /> {logo ? "Replace" : "Upload"}
+                  </button>
+                  <input type="file" accept="image/*" className="hidden" ref={logoInputRef} onChange={handleLogoUpload} />
+                  {logo && (
+                    <div className="relative group w-10 h-10 border border-gray-200 rounded-lg overflow-hidden shrink-0">
+                      <img src={logo} alt="logo" className="w-full h-full object-contain" />
+                      <button
+                        onClick={() => setLogo(null)}
+                        className="absolute inset-0 bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </Field>
             </div>
 
             {/* Font */}
-            <Field label="Font">
+            {/* <Field label="Font">
               <div className="flex flex-wrap gap-2">
                 {FONT_OPTIONS.map((f) => (
                   <button
@@ -318,37 +630,10 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
                   </button>
                 ))}
               </div>
-            </Field>
-
-            {/* Logo */}
-            <Field label="Logo">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => logoInputRef.current?.click()}
-                  className={`flex items-center gap-2 px-3 py-2 border-2 border-dashed rounded-xl cursor-pointer text-xs font-semibold transition-all ${
-                    logo ? `${T.border} ${T.bgLight} ${T.textDark}` : "border-gray-300 text-gray-500 hover:border-violet-400 hover:text-violet-600 hover:bg-violet-50/40"
-                  }`}
-                >
-                  <FileUp className="w-4 h-4" />
-                  {logo ? "Replace Logo" : "Upload Logo"}
-                </button>
-                {logo && (
-                  <div className="relative group">
-                    <img src={logo} alt="Logo" className="w-10 h-10 object-contain rounded-md border border-gray-200" />
-                    <button
-                      onClick={() => setLogo(null)}
-                      className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                )}
-                <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-              </div>
-            </Field>
+            </Field> */}
 
             {/* Caption + Hashtags */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* <div className="grid grid-cols-2 gap-3">
               <Field label="Caption">
                 <div className="relative">
                   <input
@@ -373,7 +658,7 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
                   className={inputCls}
                 />
               </Field>
-            </div>
+            </div> */}
           </div>
         )}
 
@@ -397,9 +682,7 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
                     {g.label}
                     {campaignGoal === g.value && (
                       <div className="w-3.5 h-3.5 bg-violet-600 rounded-full flex items-center justify-center ml-0.5">
-                        <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                          <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                        <CheckCircle2 className="w-2.5 h-2.5 text-white" />
                       </div>
                     )}
                   </button>
@@ -444,23 +727,22 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
             </Field>
 
             {/* Brand summary */}
-            <div className={`rounded-xl p-3 ${T.importBg} border ${T.importBorder}`}>
+            {/* <div className={`rounded-xl p-3 ${T.importBg} border ${T.importBorder}`}>
               <p className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider mb-1">Your Brand</p>
               <p className="text-xs text-gray-700 font-medium">{brandName}</p>
               {description && <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-2">{description}</p>}
               <div className="flex items-center gap-2 mt-1.5">
-                <span className="w-3.5 h-3.5 rounded-full border border-gray-200 shrink-0" style={{ background: primaryColor }} />
-                <span className="w-3.5 h-3.5 rounded-full border border-gray-200 shrink-0" style={{ background: secondaryColor }} />
+                <span className="w-3.5 h-3.5 rounded-full border border-gray-200 shrink-0" style={{ background: brandColor }} />
                 <span className="text-[10px] text-violet-500" style={{ fontFamily: font }}>{font}</span>
               </div>
-            </div>
+            </div> */}
           </div>
         )}
 
-        {/* ═══ STEP 3 — Style & Output ═════════════════════════════════════ */}
+        {/* ═══ STEP 3 — Style & Images ═════════════════════════════════════ */}
         {step === 3 && (
           <div className="flex flex-col gap-5">
-            <SectionTitle>Style &amp; Output</SectionTitle>
+            <SectionTitle>Style &amp; Images</SectionTitle>
 
             {/* Poster Style */}
             <Field label="Poster Style">
@@ -480,7 +762,7 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
               </div>
             </Field>
 
-            {/* Paper Size */}
+            {/* Poster Size */}
             <Field label="Poster Size">
               <div className="grid grid-cols-2 gap-2">
                 {SIZE_OPTIONS.map((s) => (
@@ -540,6 +822,77 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
               </div>
             </Field>
 
+            {/* ── Brand images strip ── */}
+            <BrandImagesStrip
+              onSelect={handleBrandImageUse}
+              onCrop={handleBrandImageCrop}
+              selectedUrls={croppedImages
+                .filter(Boolean)
+                .map((f) => f?.sourceUrl || f?.previewUrl)
+                .filter(Boolean)}
+            />
+
+            {/* ── Already-selected previews ── */}
+            {croppedImages.filter(Boolean).length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-2">
+                  Selected ({croppedImages.filter(Boolean).length})
+                </p>
+                <div className="grid grid-cols-5 gap-2">
+                  {croppedImages.map((item, index) => {
+                    if (!item) return null;
+                    const url     = item?.previewUrl;
+                    const isVideo = item?.type?.includes?.("video");
+                    return (
+                      <div key={index} className="relative group">
+                        {isVideo ? (
+                          <video
+                            src={url} poster={item.thumbnail}
+                            className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
+                            muted loop playsInline preload="metadata"
+                            onMouseEnter={(e) => e.target.play().catch(() => {})}
+                            onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
+                          />
+                        ) : url ? (
+                          <img src={url} alt={`Selected ${index + 1}`} className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm" />
+                        ) : (
+                          <div className="w-full h-24 bg-gray-100 border-2 border-dashed rounded-xl flex items-center justify-center">
+                            <span className="text-xs text-gray-400">No media</span>
+                          </div>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeCroppedImage(index); }}
+                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition bg-red-500 text-white rounded-full p-1 hover:bg-red-600 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── Upload / picker zone ── */}
+            <div
+              className="border-2 border-dashed border-violet-200 rounded-2xl p-8 bg-violet-50/30 flex flex-col items-center gap-3 cursor-pointer hover:border-violet-400 hover:bg-violet-50/60 transition-all"
+              onClick={() => setMediaPickerOpen(true)}
+            >
+              <div className="w-10 h-10 bg-white border border-violet-200 rounded-xl flex items-center justify-center shadow-sm">
+                <FileUp className="w-5 h-5 text-violet-400" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-gray-700">Upload or Search Images</p>
+                <p className="text-xs text-gray-400 mt-1">Search web, magic studio, or upload from device</p>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); setMediaPickerOpen(true); }}
+                className="px-5 py-2 bg-violet-600 text-white text-sm font-semibold rounded-xl hover:bg-violet-700 transition cursor-pointer flex items-center gap-2"
+              >
+                <Images className="w-4 h-4" /> Choose Media
+              </button>
+            </div>
+
             {/* Full summary */}
             <div className={`rounded-xl p-3 ${T.importBg} border ${T.importBorder}`}>
               <p className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider mb-1">Summary</p>
@@ -560,7 +913,7 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
           {step > 1 && (
             <button
               onClick={() => setStep((p) => p - 1)}
-              className="px-3 py-2 border border-gray-200 hover:scale-105 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+              className="px-3 py-2 border border-gray-200 hover:scale-105 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer"
             >
               ← Back
             </button>
@@ -575,7 +928,8 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
           ) : (
             <button
               onClick={handleGenerate}
-              className={`px-3 py-2 ${T.bg} ${T.bgHover} cursor-pointer text-white rounded-lg text-sm font-semibold hover:scale-105 flex items-center gap-2 transition`}
+              disabled={generating}
+              className={`px-3 py-2 ${T.bg} ${T.bgHover} cursor-pointer text-white rounded-lg text-sm font-semibold hover:scale-105 flex items-center gap-2 transition disabled:opacity-70`}
             >
               {generating
                 ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -585,6 +939,38 @@ const PosterForm = ({ formData, setFormData, activeBrand, showToast, onResult })
           )}
         </div>
       </div>
+
+      {/* ══ MODALS ════════════════════════════════════════════════════════ */}
+      <ImageCropperModal
+        isOpen={showCropper}
+        ref={cropperRef}
+        imageSrc={imageSrc[currentCropIndex]}
+        currentIndex={currentCropIndex}
+        totalImages={imageSrc.length}
+        crop={crop}
+        onCropChange={setCrop}
+        onCropComplete={setCompletedCrop}
+        aspectRatio={undefined}
+        onSave={saveCroppedImage}
+        onSkip={handleSkipCrop}
+        onCancel={() => {
+          setShowCropper(false);
+          setImageSrc([]);
+          setImageSrcMeta([]);
+          setCroppedImages([]);
+        }}
+        onPrevious={handlePreviousCrop}
+      />
+
+      <MediaPickerModal
+        isOpen={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        onCancel={() => setMediaPickerOpen(false)}
+        onApply={handleApplyFromPicker}
+        postData={formData}
+        activeBrand={activeBrand}
+        showToast={showToast}
+      />
 
       {/* ── Fullscreen loading overlay ────────────────────────────────────── */}
       {generating && (

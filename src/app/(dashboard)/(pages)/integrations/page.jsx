@@ -293,9 +293,73 @@ const IntegrationsPage = () => {
         loadIntegrations();
     }, [fetchIntegrations]);
 
+    // ── Fetch platform account ID (int_id) using the access token ────────────
+    // int_id = the user's own ID on that platform (NOT your app's client ID).
+    // For code-flow platforms (TikTok, Twitter) the backend resolves it server-side.
+    const resolvePlatformIntId = async (platformId, access_token) => {
+        try {
+            switch (platformId) {
+                case "facebook":
+                case "instagram":
+                case "meta_ads": {
+                    const res = await fetch(
+                        `https://graph.facebook.com/v19.0/me?access_token=${access_token}&fields=id,name`
+                    );
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error.message);
+                    return data.id;
+                }
+                case "google_ads":
+                case "youtube": {
+                    const res = await fetch(
+                        `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`
+                    );
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error.message);
+                    return data.id;
+                }
+                case "linkedin":
+                case "linkedin_ads": {
+                    const res = await fetch(
+                        `https://api.linkedin.com/v2/userinfo`,
+                        { headers: { Authorization: `Bearer ${access_token}` } }
+                    );
+                    const data = await res.json();
+                    return data.sub;
+                }
+                case "pinterest":
+                case "pinterest_ads": {
+                    const res = await fetch(
+                        `https://api.pinterest.com/v5/user_account`,
+                        { headers: { Authorization: `Bearer ${access_token}` } }
+                    );
+                    const data = await res.json();
+                    return data.username || data.id;
+                }
+                case "snapchat":
+                case "snapchat_ads": {
+                    const res = await fetch(
+                        `https://adsapi.snapchat.com/v1/me`,
+                        { headers: { Authorization: `Bearer ${access_token}` } }
+                    );
+                    const data = await res.json();
+                    return data.me?.id;
+                }
+                // Code-flow platforms: backend exchanges the code and resolves ID server-side
+                case "tiktok":
+                case "tiktok_ads":
+                case "twitter":
+                default:
+                    return null;
+            }
+        } catch (err) {
+            console.warn(`Could not resolve int_id for ${platformId}:`, err.message);
+            return null;
+        }
+    };
+
     // ── Connect handler ──
     const handleConnect = useCallback(async (platformId) => {
-        // Guard: must have an active brand before even opening the popup
         if (!activeBrandId) {
             showToast("Please select an active brand before connecting.", "error");
             return;
@@ -303,17 +367,24 @@ const IntegrationsPage = () => {
 
         setLoadingPlatform(platformId);
         try {
-            // 1. Open OAuth popup — returns { access_token, platform } or { code, platform }
+            // 1. Open OAuth popup
             const result = await openOAuthPopup(platformId);
             console.log("OAuth success:", result);
 
-            // 2. Save to backend — pass activeBrandId explicitly so the
-            //    useCallback closure value is always fresh (avoids stale null)
+            // 2. Fetch the platform account ID required by the backend as `int_id`
+            let int_id = null;
+            if (result.access_token) {
+                int_id = await resolvePlatformIntId(platformId, result.access_token);
+                console.log("Resolved int_id:", int_id);
+            }
+
+            // 3. Save to backend
             const saved = await saveIntegration({
                 platform: platformId,
                 access_token: result.access_token || null,
                 code: result.code || null,
-                brand_id: activeBrandId,   // ← explicit, bypasses stale closure
+                brand_id: activeBrandId,
+                int_id,
             });
 
             console.log("saveIntegration result:", saved);
@@ -323,14 +394,10 @@ const IntegrationsPage = () => {
                 return;
             }
 
-            // 3. Mark as connected in local state
             setConnected((prev) => ({ ...prev, [platformId]: true }));
             showToast(`${getPlatformName(platformId)} connected successfully!`, "success");
         } catch (err) {
-            if (err.message === "cancelled") {
-                // User closed the popup — silent
-                return;
-            }
+            if (err.message === "cancelled") return;
             console.error("Connect error:", err);
             showToast(err.message || "Connection failed", "error");
         } finally {

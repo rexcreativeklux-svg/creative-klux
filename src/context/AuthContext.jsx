@@ -2000,43 +2000,44 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
- const saveIntegration = useCallback(async ({ platform, access_token, code, brand_id }) => {
-  if (!token) return { ok: false, message: "Not authenticated" };
+  const saveIntegration = useCallback(async ({ platform, access_token, code, brand_id, int_id }) => {
+    if (!token) return { ok: false, message: "Not authenticated" };
 
-  // Accept explicit brand_id from caller (avoids stale closure),
-  // then fall back to activeBrandId from context.
-  const resolvedBrandId = brand_id || activeBrandId;
-  if (!resolvedBrandId) return { ok: false, message: "No active brand selected. Please select a brand first." };
+    // Explicit brand_id from caller wins over the closure value (avoids stale null)
+    const resolvedBrandId = brand_id || activeBrandId;
+    if (!resolvedBrandId) return { ok: false, message: "No active brand selected. Please select a brand first." };
 
-  try {
-    const res = await authFetch(API_INTEGRATIONS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        brand_id: resolvedBrandId,
-        platform,
-        access_token: access_token || null,
-        code: code || null,
-      }),
-    });
+    try {
+      const res = await authFetch(API_INTEGRATIONS_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          brand_id: resolvedBrandId,
+          platform,
+          int_token: access_token || null,
+          // code: code || null,
+          int_id: int_id || null,   // ← platform account ID e.g. Facebook User ID
+        }),
+      });
 
-    const text = await res.text();
-    let data;
-    try { data = JSON.parse(text); } catch { data = {}; }
-    console.log("saveIntegration response:", data);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = {}; }
+      console.log("saveIntegration response:", data);
 
-    if (!res.ok) {
-      return { ok: false, message: data?.message || "Failed to save integration" };
+      if (!res.ok) {
+        return { ok: false, message: data?.message || "Failed to save integration" };
+      }
+
+      return { ok: true, data };
+    } catch (err) {
+      console.error("saveIntegration error:", err);
+      return { ok: false, message: err.message || "Network error" };
     }
-
-    return { ok: true, data };
-  } catch (err) {
-    return { ok: false, message: err.message || "Network error" };
-  }
-}, [token, activeBrandId]);
+  }, [token, activeBrandId]);
 
   const disconnectIntegration = useCallback(async (platform) => {
     if (!token) return { ok: false, message: "Not authenticated" };
@@ -2079,7 +2080,7 @@ export function AuthProvider({ children }) {
       const text = await res.text();
       let data;
       try { data = JSON.parse(text); } catch { return null; }
-console.log('fetch: ',data)
+      console.log('fetch: ', data)
       if (!res.ok) return null;
 
       // Normalize: expects array or { data: [...] }

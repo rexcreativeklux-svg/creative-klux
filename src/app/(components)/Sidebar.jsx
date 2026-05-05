@@ -24,6 +24,8 @@ import {
   Globe,
   Calendar,
   LayoutDashboard,
+  Palette,
+  Folder,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -90,53 +92,53 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   }, [pathname]);
 
   // ── Close bottom menu on outside click ──
-// useEffect(() => {
-//   const handleClickOutside = (e) => {
-//     if (showLogoutModal) return;
-//     const desktopEl = bottomMenuRef.current;
-//     const mobileEl = mobileBottomMenuRef.current;
-//     const clickedInsideDesktop = desktopEl?.contains(e.target);
-//     const clickedInsideMobile = mobileEl?.contains(e.target);
-//     if (!clickedInsideDesktop && !clickedInsideMobile) {
-//       setShowBottomMenu(false);
-//     }
-//   };
+  // useEffect(() => {
+  //   const handleClickOutside = (e) => {
+  //     if (showLogoutModal) return;
+  //     const desktopEl = bottomMenuRef.current;
+  //     const mobileEl = mobileBottomMenuRef.current;
+  //     const clickedInsideDesktop = desktopEl?.contains(e.target);
+  //     const clickedInsideMobile = mobileEl?.contains(e.target);
+  //     if (!clickedInsideDesktop && !clickedInsideMobile) {
+  //       setShowBottomMenu(false);
+  //     }
+  //   };
 
-//   if (showBottomMenu) {
-//     document.addEventListener("mousedown", handleClickOutside);
-//   }
-//   return () => document.removeEventListener("mousedown", handleClickOutside);
-// }, [showBottomMenu, showLogoutModal]);
+  //   if (showBottomMenu) {
+  //     document.addEventListener("mousedown", handleClickOutside);
+  //   }
+  //   return () => document.removeEventListener("mousedown", handleClickOutside);
+  // }, [showBottomMenu, showLogoutModal]);
 
 
 
   // ── Nav sections ───────────────────────────────────────────────
   const createItems = [
-    { id: "brand", label: "BrandKits", href: "/brand/reuse", icon: FaTrello },
-    { id: "creatives", label: "Creatives", href: "/creatives", icon: PackagePlus },
+    { id: "brand", label: "Brand Kits", href: "/brand/reuse", icon: Palette },
+    { id: "creatives", label: "Creative Studio", href: "/creatives", icon: Folder },
   ];
 
   const overviewItems = [
-  {
-    id: "dashboard",
-    label: "Dashboard",
-    href: "/",
-    icon: LayoutDashboard,
-  },
-];
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      href: "/",
+      icon: LayoutDashboard,
+    },
+  ];
 
 
   const insightsItems = [
     // { id: "brandPulse", label: "Brand Pulse", href: "/brandPulse", icon: Activity },
     // { id: "creativeIQ", label: "Creative IQ", href: "/creativeIQ", icon: Brain },
-    { id: "creative-insights", label: "Creative Insights", href: "/creative-insights", icon: Activity },
-    { id: "competitor", label: "Competitor Insights", href: "/competitor-insights", icon: Radar },
+
   ];
 
   const toolsItems = [
     // { id: "adGuard", label: "AdGuard", href: "/adGuard", icon: ShieldCheck },
     // { id: "rivalLens", label: "Rival Lens", href: "/rivalLens", icon: Radar },
-
+    { id: "creative-insights", label: "Creative Insights", href: "/creative-insights", icon: Activity },
+    { id: "competitor", label: "Competitor Insights", href: "/competitor-insights", icon: Radar },
     { id: "compliance", label: "Compliance Checker", href: "/compliance-checker", icon: ShieldCheck },
     { id: "creative-scoring", label: "Creative Scoring AI", href: "/creative-scoring-ai", icon: Brain },
 
@@ -336,82 +338,82 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
         {/* Scrollable nav area */}
         <div className={`flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-3 ${isOpen ? "px-3" : "px-2"}`}>
-         {renderSection("Overview", overviewItems)}  
+          {renderSection("Overview", overviewItems)}
           {renderSection("Create", createItems)}
           {renderSection("Manage", manageItems)}
-          {renderSection("Insights", insightsItems)}
-          {renderSection("Tools", toolsItems)}
+          {/* {renderSection("Insights", insightsItems)} */}
+          {renderSection("Ai Tools", toolsItems)}
 
         </div>
 
-      
-    {/* Bottom user area */}
-<div ref={bottomMenuRef} className={`flex-shrink-0 border-t border-gray-100 relative ${isOpen ? "px-3 py-3" : "px-2 py-3"}`}>
-  
-  {/* Backdrop — closes menu when clicking outside */}
-  {showBottomMenu && (
-    <div
-      className="fixed inset-0 z-40"
-      onClick={() => setShowBottomMenu(false)}
-    />
-  )}
 
-  {/* Bottom popup menu */}
-  {showBottomMenu && (
-    <div className="absolute bottom-full left-3 right-3 mb-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50">
-      {/* remove overflow-hidden here ^ */}
-      <div className="py-1.5">
-        {bottomMenuLinks.map(({ label, href, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            onClick={() => setShowBottomMenu(false)}
-            className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-gray-50
+        {/* Bottom user area */}
+        <div ref={bottomMenuRef} className={`flex-shrink-0 border-t border-gray-100 relative ${isOpen ? "px-3 py-3" : "px-2 py-3"}`}>
+
+          {/* Backdrop — closes menu when clicking outside */}
+          {showBottomMenu && (
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setShowBottomMenu(false)}
+            />
+          )}
+
+          {/* Bottom popup menu */}
+          {showBottomMenu && (
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50">
+              {/* remove overflow-hidden here ^ */}
+              <div className="py-1.5">
+                {bottomMenuLinks.map(({ label, href, icon: Icon }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setShowBottomMenu(false)}
+                    className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-gray-50
               ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-700"}`}
-          >
-            <Icon className="h-4 w-4 flex-shrink-0 text-gray-500" />
-            {label}
-          </Link>
-        ))}
-        <div className="border-t border-gray-100 mt-1 pt-1">
-          <button
-            onClick={() => {
-              setShowBottomMenu(false);
-              setShowLogoutModal(true);
-            }}
-            className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 w-full transition-colors"
-          >
-            <Power className="h-4 w-4 flex-shrink-0" />
-            Logout
-          </button>
-        </div>
-      </div>
-    </div>
-  )}
+                  >
+                    <Icon className="h-4 w-4 flex-shrink-0 text-gray-500" />
+                    {label}
+                  </Link>
+                ))}
+                <div className="border-t border-gray-100 mt-1 pt-1">
+                  <button
+                    onClick={() => {
+                      setShowBottomMenu(false);
+                      setShowLogoutModal(true);
+                    }}
+                    className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 w-full transition-colors"
+                  >
+                    <Power className="h-4 w-4 flex-shrink-0" />
+                    Logout
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
-  {/* User button */}
-  <button
-    onClick={() => setShowBottomMenu((p) => !p)}
-    className={`
+          {/* User button */}
+          <button
+            onClick={() => setShowBottomMenu((p) => !p)}
+            className={`
       flex items-center w-full rounded-xl transition-all duration-150 cursor-pointer
       ${showBottomMenu ? "bg-gray-100" : "hover:bg-gray-50"}
       ${isOpen ? "gap-3 px-3 py-2.5" : "justify-center px-0 py-2.5"}
     `}
-  >
-    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold shadow-sm">
-      CK
-    </div>
-    {isOpen && (
-      <div className="flex-1 text-left overflow-hidden">
-        <p className="text-sm font-semibold text-gray-900 truncate leading-tight">Creative Klux</p>
-        <p className="text-xs text-blue-500 font-medium truncate leading-tight">Pro Plan</p>
-      </div>
-    )}
-    {isOpen && (
-      <ChevronRight className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${showBottomMenu ? "rotate-90" : "-rotate-90"}`} />
-    )}
-  </button>
-</div>
+          >
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold shadow-sm">
+              CK
+            </div>
+            {isOpen && (
+              <div className="flex-1 text-left overflow-hidden">
+                <p className="text-sm font-semibold text-gray-900 truncate leading-tight">Creative Klux</p>
+                <p className="text-xs text-blue-500 font-medium truncate leading-tight">Pro Plan</p>
+              </div>
+            )}
+            {isOpen && (
+              <ChevronRight className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${showBottomMenu ? "rotate-90" : "-rotate-90"}`} />
+            )}
+          </button>
+        </div>
       </nav>
 
       {/* ── Mobile Bottom Nav ──────────────────────────────────── */}
@@ -469,49 +471,49 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             );
           })}
 
-    <div ref={mobileBottomMenuRef} className="relative">
-  {showBottomMenu && (
-    <div
-      className="fixed inset-0 z-40"
-      onClick={() => setShowBottomMenu(false)}
-    />
-  )}
-  <button
-    onClick={() => setShowBottomMenu((p) => !p)}
-    className="flex flex-col items-center text-xs p-2 rounded-lg text-gray-500"
-  >
-    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[8px] font-bold">
-      CK
-    </div>
-    <span className="mt-0.5 font-medium">Account</span>
-  </button>
+        <div ref={mobileBottomMenuRef} className="relative">
+          {showBottomMenu && (
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setShowBottomMenu(false)}
+            />
+          )}
+          <button
+            onClick={() => setShowBottomMenu((p) => !p)}
+            className="flex flex-col items-center text-xs p-2 rounded-lg text-gray-500"
+          >
+            <div className="h-5 w-5 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[8px] font-bold">
+              CK
+            </div>
+            <span className="mt-0.5 font-medium">Account</span>
+          </button>
 
-  {showBottomMenu && (
-    <div className="absolute bottom-14 right-0 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50">
-      {/* same links, no onMouseDown needed */}
-      {bottomMenuLinks.map(({ label, href, icon: Icon }) => (
-        <Link
-          key={href}
-          href={href}
-          onClick={() => setShowBottomMenu(false)}
-          className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-50 ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-700"}`}
-        >
-          <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-          {label}
-        </Link>
-      ))}
-      <div className="border-t border-gray-100 mt-1 pt-1">
-        <button
-          onClick={() => { setShowBottomMenu(false); setShowLogoutModal(true); }}
-          className="flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 w-full"
-        >
-          <Power className="h-3.5 w-3.5 flex-shrink-0" />
-          Logout
-        </button>
-      </div>
-    </div>
-  )}
-</div>
+          {showBottomMenu && (
+            <div className="absolute bottom-14 right-0 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50">
+              {/* same links, no onMouseDown needed */}
+              {bottomMenuLinks.map(({ label, href, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setShowBottomMenu(false)}
+                  className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-50 ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-700"}`}
+                >
+                  <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                  {label}
+                </Link>
+              ))}
+              <div className="border-t border-gray-100 mt-1 pt-1">
+                <button
+                  onClick={() => { setShowBottomMenu(false); setShowLogoutModal(true); }}
+                  className="flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 w-full"
+                >
+                  <Power className="h-3.5 w-3.5 flex-shrink-0" />
+                  Logout
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </nav>
 
       <LogoutModal

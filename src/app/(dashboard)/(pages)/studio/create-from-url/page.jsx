@@ -191,6 +191,7 @@ export default function CreateFromUrl() {
         brandColor,
         logo: logoUrl || null,
         visualStyle,
+          font: 'Montserrat', 
         sourceUrl: urlInput || null,
         size: selectedSize,
         campaignGoal,
@@ -223,14 +224,14 @@ export default function CreateFromUrl() {
   // ── RESULT VIEW ──────────────────────────────────────────────────────────
   if (result) {
     return (
-      <div className="min-h-screen bg-[#f7f8fc] py-10 px-4">
+      <div className="min-h-screen bg-[#f7f8fc] py-1 ">
         {/* Toast */}
         {toast && (
           <div className="fixed top-5 right-5 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in">
             {toast}
           </div>
         )}
-        <div className="max-w-3xl mx-auto">
+        <div className="">
           <AdPreview
             creative={activeType}
             category={{ label: isAds ? 'Ad Creative' : 'Social Content' }}

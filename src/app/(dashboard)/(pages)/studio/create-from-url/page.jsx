@@ -185,7 +185,7 @@ export default function CreateFromUrl() {
 
       const res = await generateCustomCreative({
         creativeType: isAds ? 'ads_creative' : 'social_creative',
-        categoryType: isAds ? adSize : socialSize,
+        categoryType: isAds ? 'image' : 'posts',
         brandName,
         description,
         brandColor,
@@ -196,7 +196,7 @@ export default function CreateFromUrl() {
         campaignGoal,
         audience,
         fileFormat,
-        ...(isAds ? {} : { postTone, targetPlatform }),
+        ...(isAds ? {} : { tone: postTone, platforms: targetPlatform }),
         generatedAt: new Date().toISOString(),
       });
 

@@ -4,25 +4,14 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Globe, Loader2, FileUp, X, CheckCircle2, ChevronRight,
-  Sparkles, FileSearch, FolderOpen, Images, Layers,
+  Sparkles, Images, Layers,
   Palette, Wand2, LayoutTemplate, Monitor, Printer,
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
-import SearchMediaModal from "@/app/(components)/SearchMediaModal";
-import LibraryMediaModal from "@/app/(components)/LibraryMediaModal";
-import MagicMediaModal from "@/app/(components)/MagicMediaModal";
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
-import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSection";
-import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSection";
-
-import TextToImageTab from "../../old-studio/designer-creatives/create/tabs/text-to-image/page";
-import TextToAudioTab from "../../old-studio/designer-creatives/create/tabs/text-to-audio/page";
-import TextToVideoTab from "../../old-studio/designer-creatives/create/tabs/text-to-video/page";
-import ImageToVariationsTab from "../../old-studio/designer-creatives/create/tabs/image-to-variations/page";
-import ScriptToVoiceoverToVideoTab from "../../old-studio/designer-creatives/create/tabs/script-to-voiceover/page";
-import AudioToTextTab from "../../old-studio/ai-studio/create/audio-to-text/page";
-import PersonaBasedGeneratorTab from "../../old-studio/designer-creatives/create/tabs/persona-based-generator/page";
+import MediaPickerModal from "@/app/(components)/MediaPickerModal";
+import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 
 // ── Designer Creative theme color ─────────────────────────────────────────────
 const THEME = "#7c3aed";
@@ -35,24 +24,24 @@ const BANNER_MEDIUM = [
 ];
 
 const DIGITAL_SIZES = [
-  { value: "2560x1440", label: "YouTube Banner",      desc: "2560 × 1440 px" },
-  { value: "1920x1080", label: "Facebook Banner",     desc: "1920 × 1080 px" },
-  { value: "1600x400",  label: "LinkedIn Banner",     desc: "1600 × 400 px" },
-  { value: "820x312",   label: "Twitter Banner",      desc: "820 × 312 px" },
-  { value: "1200x628",  label: "Display Ad Landscape",desc: "1200 × 628 px" },
-  { value: "300x250",   label: "Display Ad Rectangle",desc: "300 × 250 px" },
-  { value: "728x90",    label: "Leaderboard Ad",      desc: "728 × 90 px" },
-  { value: "160x600",   label: "Wide Skyscraper",     desc: "160 × 600 px" },
+  { value: "2560x1440", label: "YouTube Banner",       desc: "2560 × 1440 px" },
+  { value: "1920x1080", label: "Facebook Banner",      desc: "1920 × 1080 px" },
+  { value: "1600x400",  label: "LinkedIn Banner",      desc: "1600 × 400 px" },
+  { value: "820x312",   label: "Twitter Banner",       desc: "820 × 312 px" },
+  { value: "1200x628",  label: "Display Ad Landscape", desc: "1200 × 628 px" },
+  { value: "300x250",   label: "Display Ad Rectangle", desc: "300 × 250 px" },
+  { value: "728x90",    label: "Leaderboard Ad",       desc: "728 × 90 px" },
+  { value: "160x600",   label: "Wide Skyscraper",      desc: "160 × 600 px" },
 ];
 
 const PRINT_SIZES = [
-  { value: "2x6ft",    label: "Step & Repeat",   desc: "2 × 6 ft" },
-  { value: "3x6ft",    label: "Retractable",      desc: "3 × 6 ft" },
-  { value: "4x8ft",    label: "Trade Show",       desc: "4 × 8 ft" },
-  { value: "8x2ft",    label: "Outdoor Horizontal",desc: "8 × 2 ft" },
-  { value: "24x36in",  label: "Poster / Yard Sign",desc: "24 × 36 in" },
-  { value: "18x24in",  label: "Medium Poster",    desc: "18 × 24 in" },
-  { value: "custom",   label: "Custom Size",      desc: "Enter dimensions" },
+  { value: "2x6ft",   label: "Step & Repeat",    desc: "2 × 6 ft" },
+  { value: "3x6ft",   label: "Retractable",       desc: "3 × 6 ft" },
+  { value: "4x8ft",   label: "Trade Show",        desc: "4 × 8 ft" },
+  { value: "8x2ft",   label: "Outdoor Horizontal",desc: "8 × 2 ft" },
+  { value: "24x36in", label: "Poster / Yard Sign",desc: "24 × 36 in" },
+  { value: "18x24in", label: "Medium Poster",     desc: "18 × 24 in" },
+  { value: "custom",  label: "Custom Size",       desc: "Enter dimensions" },
 ];
 
 const VISUAL_STYLES = [
@@ -95,7 +84,7 @@ const FONT_OPTIONS = [
 
 const BRAND_COLORS = [
   "#7c3aed", "#2563eb", "#059669", "#db2777", "#ef4444",
-  "#f59e0b", "#0ea5e9", "#111827",
+  "#f59e0b", 
 ];
 
 const STEPS = [
@@ -106,7 +95,17 @@ const STEPS = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onResult }) => {
+const BannersPrintDigitalForm = ({
+  formData,
+  setFormData,
+  activeBrand,
+  sendUrl,
+  showToast,
+  onResult,
+  generateCustomCreative,
+  creative,
+  categoryId,
+}) => {
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [brandUrl, setBrandUrl] = useState(activeBrand?.url || activeBrand?.source_url || "");
@@ -120,22 +119,14 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
   const [showCropper, setShowCropper] = useState(false);
   const [crop, setCrop] = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
   const [completedCrop, setCompletedCrop] = useState(null);
+  const [imageSrcMeta, setImageSrcMeta] = useState([]); // tracks original URLs parallel to imageSrc
 
   const cropperRef   = useRef(null);
   const fileInputRef = useRef(null);
   const logoInputRef = useRef(null);
 
-  // ── modal state ───────────────────────────────────────────────────────────
-  const [searchModalOpen,  setSearchModalOpen]  = useState(false);
-  const [libraryModalOpen, setLibraryModalOpen] = useState(false);
-  const [magicModalOpen,   setMagicModalOpen]   = useState(false);
-  const [selectedImages,   setSelectedImages]   = useState([]);
-  const [selectedMedia,    setSelectedMedia]    = useState([]);
-  const [magicTab,         setMagicTab]         = useState("Text to Image");
-
-  // ── recommended images ────────────────────────────────────────────────────
-  const [recommendedImages,  setRecommendedImages]  = useState([]);
-  const [loadingRecommended, setLoadingRecommended] = useState(false);
+  // ── media picker modal ────────────────────────────────────────────────────
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
 
   // derive which size list and file formats to show based on medium
   const medium        = formData.bannerMedium || "digital";
@@ -146,13 +137,11 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
   useEffect(() => {
     if (!formData.brandName?.trim()) return;
     const t = setTimeout(async () => {
-      setLoadingRecommended(true);
       try {
         const res = await fetch(`/api/pexels?query=${encodeURIComponent(formData.brandName + " banner design")}&per_page=8`);
         const d = await res.json();
-        setRecommendedImages((d.photos || []).map((p) => ({ id: p.id, src: p.src.medium, large: p.src.large2x, alt: p.alt || "" })));
-      } catch { setRecommendedImages([]); }
-      finally { setLoadingRecommended(false); }
+        // stored but not displayed — available if needed
+      } catch { /* silent */ }
     }, 800);
     return () => clearTimeout(t);
   }, [formData.brandName]);
@@ -189,7 +178,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
         brandName:      d.name        || "",
         tagline:        d.tagline     || "",
         description:    d.description || "",
-        brandColor:     d.primary_color   || "#7c3aed",
+        brandColor:     d.primary_color   || THEME,
         font:           d.font            || "Montserrat",
         logo:           d.logo            || "",
         importedImages: d.images?.map((i) => i.url).filter(Boolean) || [],
@@ -207,82 +196,6 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
     reader.readAsDataURL(file);
   };
 
-  // ── Apply selected ────────────────────────────────────────────────────────
-  const handleApplySelected = async () => {
-    const sources = magicModalOpen ? selectedMedia : selectedImages;
-    if (sources.length === 0) return;
-
-    const images = sources.filter(
-      (item) =>
-        !item.type ||
-        item.type === "image" ||
-        (typeof item.src === "string" && !item.src.includes(".mp4") && !item.videoSrc)
-    );
-    const videos = sources.filter(
-      (item) =>
-        item.type === "video" ||
-        item.videoSrc ||
-        (typeof item.src === "string" && item.src.includes(".mp4"))
-    );
-
-    if (images.length > 0) {
-      try {
-        const processedFiles = await Promise.all(
-          images.map(async (item, idx) => {
-            let url = item.src || item.large || item;
-            const shouldProxy = typeof url === "string" && url.startsWith("http");
-            const fetchUrl = shouldProxy ? `/api/proxy-image?url=${encodeURIComponent(url)}` : url;
-            const res = await fetch(fetchUrl);
-            if (!res.ok) throw new Error(`Failed to load image: ${url}`);
-            const blob = await res.blob();
-            const file = new File([blob], `selected-image-${Date.now()}-${idx}`, { type: blob.type || "image/png" });
-            file.previewUrl = URL.createObjectURL(blob);
-            return file;
-          })
-        );
-
-        const previewUrls = processedFiles.map((f) => f.previewUrl);
-
-        if (!showCropper) {
-          setImageSrc(previewUrls);
-          setCroppedImages(Array(previewUrls.length).fill(null));
-          setCurrentCropIndex(0);
-        } else {
-          setImageSrc((prev) => [...prev, ...previewUrls]);
-          setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
-          setCurrentCropIndex(imageSrc.length);
-        }
-
-        setShowCropper(true);
-        showToast(`Added ${images.length} image${images.length > 1 ? "s" : ""} — now crop them`);
-      } catch (err) {
-        console.error("Image loading failed:", err);
-        showToast("Some images couldn't be loaded. Please try again.");
-      }
-    }
-
-    if (videos.length > 0) {
-      const videoObjects = videos.map((video, i) => ({
-        id: `video-${Date.now()}-${i}`,
-        previewUrl: video.videoSrc || video.src || video.large,
-        thumbnail: video.thumbnail || video.image || video.src,
-        type: "video",
-        alt: video.alt || "Selected video",
-        original: video,
-      }));
-      setCroppedImages((prev) => [...prev, ...videoObjects]);
-      showToast(`Added ${videos.length} video${videos.length > 1 ? "s" : ""}`);
-    }
-
-    if (images.length === 0 && videos.length > 0) setShowCropper(false);
-
-    setSearchModalOpen(false);
-    setLibraryModalOpen(false);
-    setMagicModalOpen(false);
-    setSelectedImages([]);
-    setSelectedMedia([]);
-  };
-
   // ── File input ────────────────────────────────────────────────────────────
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -291,10 +204,12 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
 
     if (!showCropper) {
       setImageSrc(urls);
+      setImageSrcMeta(Array(urls.length).fill(null));
       setCroppedImages(Array(urls.length).fill(null));
       setCurrentCropIndex(0);
     } else {
       setImageSrc((prev) => [...prev, ...urls]);
+      setImageSrcMeta((prev) => [...prev, ...Array(urls.length).fill(null)]);
       setCroppedImages((prev) => [...prev, ...Array(urls.length).fill(null)]);
       setCurrentCropIndex(imageSrc.length);
     }
@@ -325,6 +240,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
     const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
     const file  = new File([blob], `cropped-${currentCropIndex}.png`, { type: "image/png" });
     file.previewUrl = URL.createObjectURL(blob);
+    file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
 
     setCroppedImages((prev) => { const u = [...prev]; u[currentCropIndex] = file; return u; });
 
@@ -335,7 +251,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
     } else {
       setShowCropper(false);
     }
-  }, [completedCrop, currentCropIndex, imageSrc.length]);
+  }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta]);
 
   // ── Skip crop ─────────────────────────────────────────────────────────────
   const handleSkipCrop = () => {
@@ -343,6 +259,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
     fetch(url).then((r) => r.blob()).then((blob) => {
       const file = new File([blob], `original-${currentCropIndex}.png`, { type: blob.type });
       file.previewUrl = url;
+      file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
       setCroppedImages((prev) => { const u = [...prev]; u[currentCropIndex] = file; return u; });
       if (currentCropIndex < imageSrc.length - 1) {
         setCurrentCropIndex((prev) => prev + 1);
@@ -374,29 +291,72 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
   };
 
   // ── Generate ──────────────────────────────────────────────────────────────
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setGenerating(true);
-    setTimeout(() => {
-      const valid = croppedImages.filter(Boolean);
-      const assets = Array.from({ length: 6 }, (_, i) => {
-        const src = valid[i % Math.max(valid.length, 1)];
-        const url = src?.previewUrl || recommendedImages[i]?.large || "/placeholder.png";
-        return { id: `banner_${i}`, preview: url, alt: `Banner Design ${i + 1}` };
-      });
-      onResult({ assets });
+    setError("");
+
+    const validImages = croppedImages.filter(Boolean);
+
+    const payload = {
+      creativeType:     creative?.id,
+      categoryType:     categoryId,
+      brandName:        formData.brandName        || null,
+      bannerHeadline:   formData.bannerHeadline   || null,
+      bannerSubheadline:formData.bannerSubheadline|| null,
+      bannerCta:        formData.bannerCta        || null,
+      bannerCtaUrl:     formData.bannerCtaUrl     || null,
+      description:      formData.description      || null,
+      brandColor:       formData.brandColor       ?? null,
+      logo:             formData.logo             || null,
+      font:             formData.font             || null,
+      visualStyle:      formData.visualStyle      || null,
+      bannerMedium:     formData.bannerMedium     || null,
+      bannerSize:       formData.bannerSize       || null,
+      bannerPurpose:    formData.bannerPurpose    || null,
+      audience:         formData.audience         || null,
+      fileFormat:       formData.fileFormat       || null,
+      bleedMargin:      formData.bleedMargin      || null,
+      printDpi:         formData.printDpi         || null,
+      customWidth:      formData.customWidth      || null,
+      customHeight:     formData.customHeight     || null,
+      bannerNotes:      formData.bannerNotes      || null,
+      sourceUrl:        brandUrl                  || null,
+      images: validImages
+        .map((f) => f?.sourceUrl || f?.previewUrl)
+        .filter(Boolean),
+      generatedAt: new Date().toISOString(),
+    };
+
+    const result = await generateCustomCreative(payload);
+
+    if (!result.ok) {
+      setError(result.message || "Generation failed. Please try again.");
       setGenerating(false);
-    }, 3000);
-  };
+      return;
+    }
 
-  const handleMagicSelect = (src) =>
-    setSelectedMedia((p) => p.includes(src) ? p.filter((m) => m !== src) : p.length < 5 ? [...p, src] : p);
+    const data = result.data;
 
-  const handleCancelSelection = () => {
-    setSelectedImages([]);
-    setSelectedMedia([]);
-    setSearchModalOpen(false);
-    setLibraryModalOpen(false);
-    setMagicModalOpen(false);
+    // ── canvas-based design response
+    if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
+      onResult({
+        type: "design",
+        variations: data.variations,
+        reply:  data.reply  || "",
+        meta:   data.meta   || {},
+        payload,
+        raw: data,
+      });
+    } else {
+      // ── fallback: image/video asset response
+      onResult({
+        assets: data?.assets || [],
+        payload,
+        raw: data,
+      });
+    }
+
+    setGenerating(false);
   };
 
   const handlePreviousCrop = () => {
@@ -407,21 +367,96 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
     }
   };
 
-  const renderTabContent = () => {
-    const shared = { selectedMedia, handleSelectMedia: handleMagicSelect };
-    const map = {
-      "Text to Image":           <TextToImageTab {...shared} postData={formData} activeBrand={activeBrand} />,
-      "Text to Audio":           <TextToAudioTab {...shared} />,
-      "Text to Video":           <TextToVideoTab {...shared} />,
-      "Image to Variations":     <ImageToVariationsTab {...shared} brandName={formData.brandName} postData={formData} activeBrand={activeBrand}
-                                    onClose={() => setMagicModalOpen(false)}
-                                    openSearchModal={() => { setSearchModalOpen(true); setMagicModalOpen(false); }}
-                                    openLibraryModal={() => { setLibraryModalOpen(true); setMagicModalOpen(false); }} />,
-      "Script to Voiceover to Video": <ScriptToVoiceoverToVideoTab {...shared} />,
-      "Audio to Text":           <AudioToTextTab {...shared} />,
-      "Persona-based Generator": <PersonaBasedGeneratorTab {...shared} />,
-    };
-    return map[magicTab] ?? <div className="p-4 text-sm text-gray-500">Select a tab</div>;
+  // ── Unified apply handler from MediaPickerModal ───────────────────────────
+  const handleApplyFromPicker = async (images, media) => {
+    if (images.length > 0) {
+      try {
+        const processedFiles = await Promise.all(
+          images.map(async (item, idx) => {
+            if (item.file instanceof File) {
+              item.file.previewUrl = item.src;
+              item.file.sourceUrl  = null;
+              return item.file;
+            }
+            const url      = item.large || item.src;
+            const fetchUrl = url.startsWith("http")
+              ? `/api/proxy-image?url=${encodeURIComponent(url)}`
+              : url;
+            const res  = await fetch(fetchUrl);
+            const blob = await res.blob();
+            const file = new File([blob], `selected-${Date.now()}-${idx}`, { type: blob.type || "image/png" });
+            file.previewUrl = URL.createObjectURL(blob);
+            file.sourceUrl  = item.large || item.src || null;
+            return file;
+          })
+        );
+
+        const previewUrls = processedFiles.map((f) => f.previewUrl);
+        const sourceUrls  = processedFiles.map((f) => f.sourceUrl || null);
+
+        if (!showCropper) {
+          setImageSrc(previewUrls);
+          setImageSrcMeta(sourceUrls);
+          setCroppedImages(Array(previewUrls.length).fill(null));
+          setCurrentCropIndex(0);
+        } else {
+          setImageSrc((prev)      => [...prev, ...previewUrls]);
+          setImageSrcMeta((prev)  => [...prev, ...sourceUrls]);
+          setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
+          setCurrentCropIndex(imageSrc.length);
+        }
+
+        setShowCropper(true);
+        showToast(`Added ${images.length} image(s) — crop them`);
+      } catch (err) {
+        console.error("Image loading failed:", err);
+        showToast("Some images couldn't be loaded.");
+      }
+    }
+
+    if (media.length > 0) {
+      const videoObjects = media.map((src, i) => ({
+        id:         `video-${Date.now()}-${i}`,
+        previewUrl: src,
+        thumbnail:  src,
+        type:       "video",
+      }));
+      setCroppedImages((prev) => [...prev, ...videoObjects]);
+      showToast(`Added ${media.length} media item(s)`);
+    }
+
+    setMediaPickerOpen(false);
+  };
+
+  // ── BrandImagesStrip handlers ─────────────────────────────────────────────
+  const handleBrandImageUse = (imageObjs) => {
+    const pseudos = imageObjs.map((imageObj) => ({
+      previewUrl: imageObj.src,
+      sourceUrl:  imageObj.src,
+      name:       imageObj.alt || "brand-image",
+      type:       "image/jpeg",
+    }));
+    setCroppedImages((prev) => [...prev, ...pseudos]);
+    showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+  };
+
+  const handleBrandImageCrop = async (imageObjs) => {
+    for (const imageObj of imageObjs) {
+      const originalUrl = imageObj.src;
+      let cropperUrl = originalUrl;
+      try {
+        const res  = await fetch(`/api/proxy-image?url=${encodeURIComponent(originalUrl)}`);
+        const blob = await res.blob();
+        cropperUrl = URL.createObjectURL(blob);
+      } catch (err) {
+        console.warn("Proxy failed, falling back to original URL", err);
+      }
+      setImageSrc((prev)      => [...prev, cropperUrl]);
+      setImageSrcMeta((prev)  => [...prev, originalUrl]);
+      setCroppedImages((prev) => [...prev, null]);
+    }
+    if (!showCropper) setCurrentCropIndex(0);
+    setShowCropper(true);
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -439,7 +474,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
                   className={`flex flex-1 items-center gap-2 min-w-0 ${step > s.id ? "cursor-pointer" : "cursor-default"}`}
                 >
                   <div className={`shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all
-                    ${step > s.id  ? "border-violet-600 bg-violet-600 text-white"
+                    ${step > s.id   ? "border-violet-600 bg-violet-600 text-white"
                     : step === s.id ? "border-violet-600 text-violet-600 bg-white"
                     : "border-gray-200 text-gray-300"}`}>
                     {step > s.id ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
@@ -508,7 +543,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
               />
             </Field>
 
-            {/* Headline + Subheadline — the most banner-specific fields */}
+            {/* Headline + Subheadline */}
             <div className="grid grid-cols-1 gap-4">
               <Field label="Banner Headline" required>
                 <input
@@ -623,7 +658,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
             </div>
 
             {/* Font */}
-            <Field label="Preferred Font">
+            {/* <Field label="Preferred Font">
               <select
                 value={formData.font || "Montserrat"}
                 onChange={(e) => field("font", e.target.value)}
@@ -633,7 +668,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
                   <option key={f} value={f}>{f}</option>
                 ))}
               </select>
-            </Field>
+            </Field> */}
           </div>
         )}
 
@@ -642,7 +677,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
           <div className="flex flex-col gap-6">
             <SectionTitle>Size, Medium &amp; Purpose</SectionTitle>
 
-            {/* Medium toggle — print vs digital is the key differentiator */}
+            {/* Medium toggle */}
             <Field label="Banner Medium" required>
               <div className="grid grid-cols-3 gap-2">
                 {BANNER_MEDIUM.map((m) => {
@@ -773,7 +808,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
               </div>
             </Field>
 
-            {/* Output Format — changes based on medium */}
+            {/* Output Format */}
             <Field label="Output Format">
               <div className="flex gap-2 flex-wrap">
                 {formatList.map((f) => (
@@ -795,7 +830,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
               )}
             </Field>
 
-            {/* Print-specific: bleed + resolution note */}
+            {/* Print-specific specs */}
             {(medium === "print" || medium === "both") && (
               <div className="border border-violet-100 bg-violet-50/40 rounded-xl px-4 py-3 flex flex-col gap-2">
                 <p className="text-xs font-semibold text-violet-700">Print Specifications</p>
@@ -827,7 +862,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
             )}
 
             {/* Additional notes */}
-            <Field label="Additional Notes">
+            {/* <Field label="Additional Notes">
               <textarea
                 value={formData.bannerNotes || ""}
                 onChange={(e) => field("bannerNotes", e.target.value)}
@@ -835,91 +870,63 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
                 rows={2}
                 className={`${inputCls} resize-none`}
               />
-            </Field>
+            </Field> */}
           </div>
         )}
 
         {/* ═══ STEP 3 — Reference Images ══════════════════════════════════ */}
         {step === 3 && (
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <SectionTitle>Reference Images</SectionTitle>
-              {selectedImages.length > 0 && (
-                <button
-                  onClick={handleApplySelected}
-                  className="px-4 py-2 bg-violet-600 cursor-pointer text-white text-xs font-semibold rounded-lg flex items-center gap-2 hover:bg-violet-700"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Apply ({selectedImages.length})
-                </button>
-              )}
-            </div>
+            <SectionTitle>Reference Images</SectionTitle>
 
-            <p className="text-xs text-gray-400 -mt-2">
-              Optionally upload background images, brand photos, or design inspiration for your banner.
-            </p>
-
-            {(formData.importedImages || []).length > 0 && (
-              <ImportedBrandImagesSection
-                importedImages={formData.importedImages}
-                selectedImages={selectedImages}
-                setSelectedImages={setSelectedImages}
-                showToast={showToast}
-              />
-            )}
-
-            <RecommendedImagesSection
-              recommendedImages={recommendedImages}
-              isLoadingRecommended={loadingRecommended}
-              selectedImages={selectedImages}
-              setSelectedImages={setSelectedImages}
-              showToast={showToast}
+            {/* ── Brand images strip ── */}
+            <BrandImagesStrip
+              onSelect={handleBrandImageUse}
+              onCrop={handleBrandImageCrop}
+              selectedUrls={croppedImages
+                .filter(Boolean)
+                .map((f) => f?.sourceUrl || f?.previewUrl)
+                .filter(Boolean)}
             />
 
-            {/* Selected media grid */}
-            {croppedImages.length > 0 && (
-              <div className="py-2">
+            {/* ── Already-selected previews ── */}
+            {croppedImages.filter(Boolean).length > 0 && (
+              <div>
                 <p className="text-xs font-medium text-gray-500 mb-2">
-                  Selected references ({croppedImages.filter(Boolean).length}/5)
+                  Selected ({croppedImages.filter(Boolean).length})
                 </p>
                 <div className="grid grid-cols-5 gap-2">
                   {croppedImages.map((item, index) => {
-                    const url =
-                      item?.previewUrl ||
-                      (item instanceof File || item instanceof Blob ? URL.createObjectURL(item) : null);
-                    const isVideo = item?.videoSrc || item?.type?.includes?.("video");
-
+                    if (!item) return null;
+                    const url     = item?.previewUrl;
+                    const isVideo = item?.type?.includes?.("video");
                     return (
                       <div key={index} className="relative group">
-                        {url ? (
-                          isVideo ? (
-                            <video
-                              src={item.videoSrc || url}
-                              poster={item.thumbnail}
-                              className="w-full h-auto object-cover rounded-md border border-gray-200 shadow"
-                              muted loop playsInline preload="metadata"
-                              onMouseEnter={(e) => e.target.play().catch(() => {})}
-                              onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
-                            />
-                          ) : (
-                            <img
-                              src={url}
-                              alt={`Reference ${index + 1}`}
-                              className="w-full h-auto object-cover rounded-md border border-gray-200 shadow"
-                            />
-                          )
+                        {isVideo ? (
+                          <video
+                            src={url}
+                            poster={item.thumbnail}
+                            className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
+                            muted loop playsInline preload="metadata"
+                            onMouseEnter={(e) => e.target.play().catch(() => {})}
+                            onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
+                          />
+                        ) : url ? (
+                          <img
+                            src={url}
+                            alt={`Reference ${index + 1}`}
+                            className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
+                          />
                         ) : (
-                          <div className="w-full h-24 bg-gray-100 border-2 border-dashed rounded-lg flex items-center justify-center">
-                            <span className="text-xs text-gray-500">No media</span>
+                          <div className="w-full h-24 bg-gray-100 border-2 border-dashed rounded-xl flex items-center justify-center">
+                            <span className="text-xs text-gray-400">No media</span>
                           </div>
                         )}
                         <button
                           onClick={(e) => { e.stopPropagation(); removeCroppedImage(index); }}
-                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full p-1 hover:bg-red-600 cursor-pointer"
+                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition bg-red-500 text-white rounded-full p-1 hover:bg-red-600 cursor-pointer"
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          <X className="w-3 h-3" />
                         </button>
                       </div>
                     );
@@ -928,22 +935,24 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
               </div>
             )}
 
-            {/* Upload zone */}
-            <div className="border-2 border-dashed border-violet-200 rounded-2xl p-6 bg-violet-50/30 flex flex-col items-center gap-3">
+            {/* ── Upload / picker zone ── */}
+            <div
+              className="border-2 border-dashed border-violet-200 rounded-2xl p-8 bg-violet-50/30 flex flex-col items-center gap-3 cursor-pointer hover:border-violet-400 hover:bg-violet-50/60 transition-all"
+              onClick={() => setMediaPickerOpen(true)}
+            >
               <div className="w-10 h-10 bg-white border border-violet-200 rounded-xl flex items-center justify-center shadow-sm">
-                <Wand2 className="w-5 h-5 text-violet-400" />
+                <FileUp className="w-5 h-5 text-violet-400" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-semibold text-gray-700">Add Background or Reference</p>
+                <p className="text-sm font-semibold text-gray-700">Upload or Search Reference Images</p>
                 <p className="text-xs text-gray-400 mt-1">Brand photos, textures, or design inspiration</p>
               </div>
-              <div className="flex flex-wrap gap-2 justify-center">
-                <MediaBtn icon={FileSearch} label="Search Media"  onClick={() => setSearchModalOpen(true)} />
-                <MediaBtn icon={FolderOpen}  label="Your Library" onClick={() => setLibraryModalOpen(true)} />
-                <MediaBtn icon={Sparkles}    label="Magic Media"  onClick={() => setMagicModalOpen(true)} />
-                <MediaBtn icon={FileUp}      label="Upload File"  onClick={() => fileInputRef.current?.click()} />
-              </div>
-              <input type="file" accept="image/*" multiple className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+              <button
+                onClick={(e) => { e.stopPropagation(); setMediaPickerOpen(true); }}
+                className="px-5 py-2 bg-violet-600 text-white text-sm font-semibold rounded-xl hover:bg-violet-700 transition cursor-pointer flex items-center gap-2"
+              >
+                <Images className="w-4 h-4" /> Choose Media
+              </button>
             </div>
           </div>
         )}
@@ -953,7 +962,7 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
           {step > 1 && (
             <button
               onClick={() => setStep((p) => p - 1)}
-              className="px-3 py-2 border border-gray-200 hover:scale-105 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+              className="px-3 py-2 cursor-pointer border border-gray-200 hover:scale-105 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
             >
               ← Back
             </button>
@@ -968,7 +977,8 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
           ) : (
             <button
               onClick={handleGenerate}
-              className="px-3 py-2 bg-violet-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-violet-700 hover:scale-105 flex items-center gap-2 transition"
+              disabled={generating}
+              className="px-3 py-2 bg-violet-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-violet-700 hover:scale-105 flex items-center gap-2 transition disabled:opacity-70"
             >
               {generating
                 ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -992,40 +1002,24 @@ const BannersPrintDigitalForm = ({ formData, setFormData, activeBrand, sendUrl, 
         aspectRatio={undefined}
         onSave={saveCroppedImage}
         onSkip={handleSkipCrop}
-        onCancel={() => { setShowCropper(false); setImageSrc([]); setCroppedImages([]); }}
+        onCancel={() => {
+          setShowCropper(false);
+          setImageSrc([]);
+          setImageSrcMeta([]);
+          setCroppedImages([]);
+        }}
         onPrevious={handlePreviousCrop}
       />
 
-      <SearchMediaModal
-        isOpen={searchModalOpen}
-        onClose={() => setSearchModalOpen(false)}
-        selectedImages={selectedImages}
-        onSelectImage={(src) => setSelectedImages((p) => p.includes(src) ? p.filter((s) => s !== src) : [...p, src])}
-        onApply={handleApplySelected}
-        onCancel={handleCancelSelection}
+      <MediaPickerModal
+        isOpen={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        onCancel={() => setMediaPickerOpen(false)}
+        onApply={handleApplyFromPicker}
+        postData={formData}
+        activeBrand={activeBrand}
+        showToast={showToast}
       />
-
-      <LibraryMediaModal
-        isOpen={libraryModalOpen}
-        onClose={() => setLibraryModalOpen(false)}
-        selectedImages={selectedImages}
-        onSelectImage={(src) => setSelectedImages((p) => p.includes(src) ? p.filter((s) => s !== src) : [...p, src])}
-        onApply={handleApplySelected}
-        onCancel={handleCancelSelection}
-      />
-
-      <MagicMediaModal
-        isOpen={magicModalOpen}
-        onClose={() => { setMagicModalOpen(false); setSelectedMedia([]); }}
-        activeTab={magicTab}
-        onTabChange={setMagicTab}
-        selectedMedia={selectedMedia}
-        onSelectMedia={handleMagicSelect}
-        onApply={handleApplySelected}
-        onCancel={handleCancelSelection}
-      >
-        {renderTabContent()}
-      </MagicMediaModal>
 
       {generating && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/60 flex items-center justify-center z-50">
@@ -1054,19 +1048,6 @@ const Field = ({ label, required, children }) => (
     </label>
     {children}
   </div>
-);
-
-const MediaBtn = ({ icon: Icon, label, onClick, primary }) => (
-  <button
-    onClick={onClick}
-    className={`flex items-center gap-1.5 px-4 py-2 cursor-pointer rounded-lg text-xs font-semibold transition-all
-      ${primary
-        ? "bg-violet-600 text-white hover:bg-violet-700"
-        : "bg-white border border-gray-200 text-gray-600 hover:border-violet-400 hover:text-violet-600"
-      }`}
-  >
-    <Icon className="w-4 h-4" /> {label}
-  </button>
 );
 
 export default BannersPrintDigitalForm;

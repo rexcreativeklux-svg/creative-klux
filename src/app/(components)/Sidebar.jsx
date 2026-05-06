@@ -26,6 +26,10 @@ import {
   LayoutDashboard,
   Palette,
   Folder,
+  Search,
+  Star,
+  Lightbulb,
+  GitCompareArrows,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -137,13 +141,11 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const toolsItems = [
     // { id: "adGuard", label: "AdGuard", href: "/adGuard", icon: ShieldCheck },
     // { id: "rivalLens", label: "Rival Lens", href: "/rivalLens", icon: Radar },
-    { id: "creative-insights", label: "Creative Insights", href: "/creative-insights", icon: Activity },
-    { id: "competitor", label: "Competitor Insights", href: "/competitor-insights", icon: Radar },
-    { id: "compliance", label: "Compliance Checker", href: "/compliance-checker", icon: ShieldCheck },
-    { id: "creative-scoring", label: "Creative Scoring AI", href: "/creative-scoring-ai", icon: Brain },
-
-
-
+    { id: "ad-performance", label: "Ad Performance", href: "/ad-performance", icon: Lightbulb },
+    { id: "market-spy", label: "Market Spy", href: "/market-spy", icon: Search },
+    { id: "ad-guard", label: "Ad Guard AI", href: "/ad-guard-ai", icon: ShieldCheck },
+    { id: "ad-scorer", label: "Ad Scorer AI", href: "/ad-scorer-ai", icon: Star },
+    { id: "creative-comparison", label: "Creative Comparison", href: "/creative-comparison", icon: GitCompareArrows },
 
 
   ];

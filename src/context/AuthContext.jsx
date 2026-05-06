@@ -2039,31 +2039,30 @@ export function AuthProvider({ children }) {
     }
   }, [token, activeBrandId]);
 
-const disconnectIntegration = useCallback(async (id) => {
-  if (!token) return { ok: false, message: "Not authenticated" };
+  const disconnectIntegration = useCallback(async (id) => {
+    if (!token) return { ok: false, message: "Not authenticated" };
 
-  try {
-    const res = await authFetch(`${API_INTEGRATIONS_URL}/${id}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    try {
+      const res = await authFetch(`${API_INTEGRATIONS_URL}/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    const text = await res.text();
-    let data;
-    try { data = JSON.parse(text); } catch { data = {}; }
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = {}; }
 
-    if (!res.ok) {
-      return { ok: false, message: data?.message || "Failed to disconnect integration" };
+      if (!res.ok) {
+        return { ok: false, message: data?.message || "Failed to disconnect integration" };
+      }
+
+      return { ok: true, data };
+    } catch (err) {
+      return { ok: false, message: err.message || "Network error" };
     }
-
-    return { ok: true, data };
-  } catch (err) {
-    return { ok: false, message: err.message || "Network error" };
-  }
-}, [token]);
-
+  }, [token]);
 
   const fetchIntegrations = useCallback(async () => {
     if (!token) return null;
@@ -2091,6 +2090,72 @@ const disconnectIntegration = useCallback(async (id) => {
     }
   }, [token]);
 
+  const runComparison = useCallback(async ({ mode, creativeA, creativeB, urlA, urlB }) => {
+    if (!token) return { ok: false, message: "Not authenticated" };
+
+    try {
+      let body;
+      let headers = {
+        Authorization: `Bearer ${token}`,
+      };
+
+      if (mode === "creatives") {
+        // Multipart: send both image files + labels
+        const formData = new FormData();
+        formData.append("mode", "creatives");
+        formData.append("label_a", creativeA.label || "Creative A");
+        formData.append("label_b", creativeB.label || "Creative B");
+
+        // creativeA.file is a File object; creativeA.url is a remote URL string
+        if (creativeA.file) {
+          formData.append("image_a", creativeA.file);
+        } else if (creativeA.url) {
+          formData.append("image_url_a", creativeA.url);
+        }
+
+        if (creativeB.file) {
+          formData.append("image_b", creativeB.file);
+        } else if (creativeB.url) {
+          formData.append("image_url_b", creativeB.url);
+        }
+
+        body = formData;
+        // No Content-Type header — browser sets multipart boundary automatically
+      } else {
+        // JSON: send both URLs
+        body = JSON.stringify({
+          mode: "websites",
+          url_a: urlA,
+          url_b: urlB,
+        });
+        headers["Content-Type"] = "application/json";
+      }
+
+      const res = await authFetch(`${BASE_URL}/creative-comparison`, {
+        method: "POST",
+        headers,
+        body,
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return { ok: false, message: "Invalid server response" };
+      }
+
+      if (!res.ok) {
+        return { ok: false, message: data?.message || "Comparison failed" };
+      }
+
+      return { ok: true, data };
+    } catch (err) {
+      console.error("runComparison error:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  }, [token]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -2101,6 +2166,7 @@ const disconnectIntegration = useCallback(async (id) => {
         teamsLoading,
         // brandId,
         setActiveBrand,
+        runComparison,
         checkCompliance,
         saveIntegration,
         creativeInsights,

@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import {
   MoreVertical, Edit2, Trash2, ExternalLink,
   Globe, Palette, Type, Tag, Building2, Calendar,
-  Plus, Search, Loader2, AlertCircle, X, ChevronRight
+  Plus, Search, Loader2, AlertCircle, X,
+  LayoutGrid, List
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -50,8 +51,7 @@ const BrandMenu = ({ brand, onEdit, onDelete, light }) => {
     <div className="relative" ref={ref} onClick={(e) => e.stopPropagation()}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((p) => !p); }}
-        className={`w-7 h-7 flex items-center justify-center rounded-lg transition cursor-pointer ${light ? "text-black/40 hover:text-black/70 hover:bg-black/10" : "text-white/70 hover:text-white hover:bg-white/20"
-          }`}
+        className={`w-7 h-7 flex items-center justify-center rounded-lg transition cursor-pointer ${light ? "text-black/40 hover:text-black/70 hover:bg-black/10" : "text-white/70 hover:text-white hover:bg-white/20"}`}
       >
         <MoreVertical className="w-4 h-4" />
       </button>
@@ -86,7 +86,7 @@ const BrandMenu = ({ brand, onEdit, onDelete, light }) => {
   );
 };
 
-// ── brand card (compact, no expansion) ───────────────────────────────────────
+// ── brand card (grid view) ────────────────────────────────────────────────────
 const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect }) => {
   const primary = cleanColor(brand.primary_color);
   const secondary = cleanColor(brand.secondary_color);
@@ -109,18 +109,13 @@ const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect }) => {
       >
         <div className="absolute inset-0 opacity-[0.07]"
           style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "16px 16px" }} />
-
-        {/* Status + menu */}
         <div className="relative flex items-center justify-between mb-3">
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${light ? "border-black/20 bg-black/10 text-black/60" : "border-white/25 bg-white/15 text-white"
-            }`}>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${light ? "border-black/20 bg-black/10 text-black/60" : "border-white/25 bg-white/15 text-white"}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${brand.status === 1 ? "bg-emerald-400" : "bg-amber-300"}`} />
             {brand.status === 1 ? "Active" : "Draft"}
           </span>
           <BrandMenu brand={brand} onEdit={onEdit} onDelete={onDelete} light={light} />
         </div>
-
-        {/* Logo */}
         <div className="w-12 h-12 rounded-xl border-2 border-white/80 shadow-lg bg-white flex items-center justify-center overflow-hidden">
           {logo && !logoErr
             ? <img src={logo} alt={brand.name} className="w-full h-full object-contain" onError={() => setLogoErr(true)} />
@@ -131,7 +126,6 @@ const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect }) => {
 
       {/* Body */}
       <div className="flex flex-col flex-1 px-3 pb-3">
-        {/* Name card */}
         <div className="bg-white py-2 mb-2.5 select-none">
           <h3 className="font-bold text-gray-900 text-sm truncate">{brand.name}</h3>
           {brand.tagline
@@ -139,8 +133,6 @@ const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect }) => {
             : <p className="text-xs text-gray-300 mt-0.5">No tagline</p>
           }
         </div>
-
-        {/* Tags */}
         <div className="flex flex-wrap gap-1 mb-2.5">
           {brand.industry && (
             <span className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-lg bg-gray-50 border border-gray-200 text-gray-500">
@@ -153,8 +145,6 @@ const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect }) => {
             </span>
           )}
         </div>
-
-        {/* Color swatches */}
         <div className="flex items-center gap-2">
           <div className="flex -space-x-1.5">
             <div className="w-4 h-4 rounded-full border-2 border-white shadow-sm" style={{ background: primary }} />
@@ -164,15 +154,87 @@ const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect }) => {
         </div>
       </div>
 
-      {/* Selected indicator strip */}
-      {isSelected && (
-        <div className="h-0.5 w-full bg-blue-500" />
-      )}
+      {isSelected && <div className="h-0.5 w-full bg-blue-500" />}
     </div>
   );
 };
 
-// ── detail panel (renders below the grid) ────────────────────────────────────
+// ── brand row (list view) ─────────────────────────────────────────────────────
+const BrandRow = ({ brand, onEdit, onDelete, isSelected, onSelect }) => {
+  const primary = cleanColor(brand.primary_color);
+  const secondary = cleanColor(brand.secondary_color);
+  const logo = getLogoSrc(brand.logo);
+  const [logoErr, setLogoErr] = useState(false);
+
+  return (
+    <div
+      onClick={onSelect}
+      className={`bg-white rounded-xl border transition-all duration-200 cursor-pointer flex items-center gap-4 px-4 py-3 hover:shadow-md ${isSelected
+        ? "border-blue-500 ring-2 ring-blue-100"
+        : "border-gray-100 hover:border-gray-200"
+        }`}
+    >
+      {/* Color strip + logo */}
+      <div
+        className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center border-2 border-white shadow-md overflow-hidden"
+        style={{ background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)` }}
+      >
+        {logo && !logoErr
+          ? <img src={logo} alt={brand.name} className="w-full h-full object-contain" onError={() => setLogoErr(true)} />
+          : <span className="text-base font-black text-white">{brand.name?.[0]?.toUpperCase()}</span>
+        }
+      </div>
+
+      {/* Name + tagline */}
+      <div className="flex-1  max-w-[46rem]">
+        <p className="font-bold text-gray-900 text-sm truncate">{brand.name}</p>
+        <p className="text-xs text-gray-400 truncate">{brand.tagline || <span className="italic text-gray-300">No tagline</span>}</p>
+      </div>
+
+      {/* Industry */}
+      <div className="hidden sm:block w-28 flex-shrink-0">
+        {brand.industry
+          ? <span className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-lg bg-gray-50 border border-gray-200 text-gray-500 w-fit">
+            <Building2 className="w-2.5 h-2.5" /> {brand.industry}
+          </span>
+          : <span className="text-xs text-gray-300">—</span>
+        }
+      </div>
+
+      {/* Colors */}
+      <div className="hidden md:flex items-center pr-12 gap-1.5 flex-shrink-0">
+        <div className="w-4 h-4 rounded-full border-2 border-white shadow-sm" style={{ background: primary }} />
+        <div className="w-4 h-4 rounded-full border-2 border-white shadow-sm" style={{ background: secondary }} />
+        <span className="text-[10px] font-mono text-gray-400 ml-1">{primary}</span>
+      </div>
+
+      {/* Status */}
+      <div className="flex-shrink-0">
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${brand.status === 1
+          ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+          : "bg-amber-50 border-amber-200 text-amber-700"
+          }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${brand.status === 1 ? "bg-emerald-400" : "bg-amber-300"}`} />
+          {brand.status === 1 ? "Active" : "Draft"}
+        </span>
+      </div>
+
+      {/* Date */}
+      <div className="hidden lg:block flex-shrink-0 text-xs text-gray-400 w-24 text-right">
+        {formatDate(brand.created_at)}
+      </div>
+
+      {/* Menu */}
+      <div onClick={(e) => e.stopPropagation()}>
+        <BrandMenu brand={brand} onEdit={onEdit} onDelete={onDelete} light={false} />
+      </div>
+
+      {isSelected && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500 rounded-l-xl" />}
+    </div>
+  );
+};
+
+// ── detail panel ──────────────────────────────────────────────────────────────
 const BrandDetailPanel = ({ brand, onEdit, onClose }) => {
   const primary = cleanColor(brand.primary_color);
   const secondary = cleanColor(brand.secondary_color);
@@ -182,15 +244,12 @@ const BrandDetailPanel = ({ brand, onEdit, onClose }) => {
 
   return (
     <div className="bg-white border border-gray-100 mt-10 rounded-2xl shadow-sm overflow-hidden">
-      {/* Panel header */}
       <div
         className="relative px-6 pt-3 pb-6"
         style={{ background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)` }}
       >
         <div className="absolute inset-0 opacity-[0.06]"
           style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "20px 20px" }} />
-
-        {/* Top controls */}
         <div className="relative flex items-center justify-between mb-4">
           <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Brand Details</span>
           <button
@@ -200,8 +259,6 @@ const BrandDetailPanel = ({ brand, onEdit, onClose }) => {
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Logo + name */}
         <div className="relative flex items-end gap-4">
           <div className="w-16 h-16 rounded-full border-2 border-white/80 shadow-xl bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
             {logo && !logoErr
@@ -216,13 +273,8 @@ const BrandDetailPanel = ({ brand, onEdit, onClose }) => {
         </div>
       </div>
 
-      {/* Panel body */}
       <div className="px-6 py-2 pb-6">
-
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-
-          {/* Left: about + meta */}
           <div className="md:col-span-2 flex flex-col gap-4">
             <div className="flex flex-row justify-between py-2">
               {brand.description && (
@@ -231,19 +283,11 @@ const BrandDetailPanel = ({ brand, onEdit, onClose }) => {
                   <p className="text-sm text-gray-600 leading-relaxed">{brand.description}</p>
                 </div>
               )}
-
-              {/* Status */}
-              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg border text-xs font-medium self-start ${brand.status === 1
-                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                : "bg-amber-50 border-amber-200 text-amber-700"
-                }`}>
+              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg border text-xs font-medium self-start ${brand.status === 1 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-amber-50 border-amber-200 text-amber-700"}`}>
                 <span className={`w-2 h-2 rounded-full ${brand.status === 1 ? "bg-emerald-500" : "bg-amber-400"}`} />
                 {brand.status === 1 ? "Active" : "Draft"}
               </div>
             </div>
-
-
-
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { icon: Building2, label: "Industry", value: brand.industry },
@@ -260,47 +304,21 @@ const BrandDetailPanel = ({ brand, onEdit, onClose }) => {
                 </div>
               ))}
             </div>
-
-
-            {/* Quick action bar */}
             <div className="flex gap-2 mb-4">
-
               {brand.url && (
-                <a
-                  href={brand.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 px-3 py-1 
-      text-sm font-semibold rounded-md
-      bg-white border border-gray-200 text-gray-700
-      hover:bg-gray-50 hover:border-gray-200 
-      active:scale-[0.98]
-      transition-all duration-200"
-                >
-                  <Globe className="w-3.5 h-3.5" />
-                  Visit Site
+                <a href={brand.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 px-3 py-1 text-sm font-semibold rounded-md bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all duration-200">
+                  <Globe className="w-3.5 h-3.5" /> Visit Site
                 </a>
               )}
-
-              <button
-                onClick={() => onEdit(brand)}
-                className="flex items-center justify-center gap-2 px-3 py-1 
-    text-sm font-medium rounded-md
-    bg-black text-white shadow-sm cursor-pointer
-    hover:bg-gray-700 
-    active:scale-[0.98]
-    transition-all duration-200"
-              >
-                <Edit2 className="w-3.5 h-3.5" />
-                Edit Brand
+              <button onClick={() => onEdit(brand)}
+                className="flex items-center justify-center gap-2 px-3 py-1 text-sm font-medium rounded-md bg-black text-white shadow-sm cursor-pointer hover:bg-gray-700 active:scale-[0.98] transition-all duration-200">
+                <Edit2 className="w-3.5 h-3.5" /> Edit Brand
               </button>
             </div>
-
           </div>
 
-          {/* Right: palette + URL + status */}
           <div className="flex flex-col gap-3">
-            {/* Colors */}
             <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-1.5">
                 <Palette className="w-3 h-3" /> Brand Colors
@@ -317,8 +335,6 @@ const BrandDetailPanel = ({ brand, onEdit, onClose }) => {
                 ))}
               </div>
             </div>
-
-            {/* Website */}
             {brand.url && (
               <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5 flex items-center gap-1.5">
@@ -331,8 +347,6 @@ const BrandDetailPanel = ({ brand, onEdit, onClose }) => {
                 </a>
               </div>
             )}
-
-
           </div>
         </div>
       </div>
@@ -362,7 +376,6 @@ const DeleteModal = ({ brand, onConfirm, onCancel }) => (
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function ReusePage({ setActiveTab }) {
   const router = useRouter();
-  // const { fetchBrands, deleteBrandById } = useAuth();
 
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -370,13 +383,13 @@ export default function ReusePage({ setActiveTab }) {
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [viewMode, setViewMode] = useState("grid"); // "grid" | "list"
   const detailRef = useRef(null);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        // Replace with real: const res = await fetchBrands(); setBrands(res.data);
         const mock = { "data": [{ "id": 45, "name": "index", "description": "vcx", "tagline": "cvx", "logo": "https://images.weviy.com/uploads/images/weviy-photo-1776421088-69e208e00c289.", "primary_color": "#1e3a8a", "secondary_color": "#333", "fonts": "Inter", "url": "https://clarity-academy12.woxelosites.com", "industry": "Healthcare", "status": 0, "created_at": "2026-04-17T10:18:08.000000Z", "updated_at": "2026-04-17T10:18:08.000000Z" }, { "id": 44, "name": "Envato", "description": "Access unlimited downloads across the broadest range of categories.", "tagline": "Creative assets for everyone", "logo": "https://images.weviy.com/uploads/images/weviy-photo-1765453471-693aae9fc4772.ico", "primary_color": "#00a651", "secondary_color": "#969695", "fonts": "Inter", "url": "https://elements.envato.com", "industry": "Finance", "status": 1, "created_at": "2025-12-11T11:44:31.000000Z", "updated_at": "2025-12-11T11:44:31.000000Z" }, { "id": 43, "name": "Creative Klux", "description": "Creative Klux is the all-in-one platform for creators, managers & brands.", "tagline": "All-in-one creator platform", "logo": "https://images.weviy.com/uploads/images/weviy-photo-1765452821-693aac1589c09.ico", "primary_color": "#1447e6", "secondary_color": "#10b981", "fonts": "Poppins", "url": "https://www.creativeklux.com/", "industry": "Technology", "status": 0, "created_at": "2025-12-11T11:33:41.000000Z", "updated_at": "2025-12-11T11:33:41.000000Z" }, { "id": 42, "name": "Weviyyyy", "description": "Weviy helps you build websites, mobile apps — all from one dashboard.", "tagline": "weviyyy", "logo": "https://images.weviy.com/uploads/images/weviy-photo-1765442649-693a84590d58e.png", "primary_color": "#7c3aed", "secondary_color": "#10b981", "fonts": "Montserrat", "url": "https://weviy.com/", "industry": "Education", "status": 1, "created_at": "2025-12-11T08:44:09.000000Z", "updated_at": "2025-12-11T11:31:31.000000Z" }] };
         setBrands(mock.data || []);
       } catch {
@@ -396,12 +409,8 @@ export default function ReusePage({ setActiveTab }) {
   const selectedBrand = brands.find((b) => b.id === selectedId) || null;
 
   const handleSelect = (brand) => {
-    if (selectedId === brand.id) {
-      setSelectedId(null);
-      return;
-    }
+    if (selectedId === brand.id) { setSelectedId(null); return; }
     setSelectedId(brand.id);
-    // Scroll to detail panel after state update
     setTimeout(() => {
       detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 50);
@@ -410,7 +419,6 @@ export default function ReusePage({ setActiveTab }) {
   const handleEdit = (brand) => router.push(`/brand/edit/${brand.id}`);
 
   const handleDeleteConfirm = async (id) => {
-    // await deleteBrandById(id);
     setBrands((p) => p.filter((b) => b.id !== id));
     if (selectedId === id) setSelectedId(null);
     setDeleteTarget(null);
@@ -438,20 +446,47 @@ export default function ReusePage({ setActiveTab }) {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or industry…"
-          className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-        />
-        {search && (
-          <button onClick={() => setSearch("")} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
-            <X className="w-4 h-4" />
+      {/* Search + View Toggle */}
+      <div className="flex items-center justify-between gap-2 mb-6">
+        {/* Search — shorter, max-w constrained */}
+        <div className="relative w-full max-w-xl">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search brands…"
+            className="w-full pl-9 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* View toggle */}
+        <div className="flex items-center bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
+          <button
+            onClick={() => setViewMode("grid")}
+            title="Grid view"
+            className={`w-8 h-8 flex items-center justify-center rounded-md transition-all duration-150 cursor-pointer ${viewMode === "grid"
+              ? "bg-white text-gray-800 shadow-sm"
+              : "text-gray-400 hover:text-gray-600"
+              }`}
+          >
+            <LayoutGrid className="w-4 h-4" />
           </button>
-        )}
+          <button
+            onClick={() => setViewMode("list")}
+            title="List view"
+            className={`w-8 h-8 flex items-center justify-center rounded-md transition-all duration-150 cursor-pointer ${viewMode === "list"
+              ? "bg-white text-gray-800 shadow-sm"
+              : "text-gray-400 hover:text-gray-600"
+              }`}
+          >
+            <List className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Loading */}
@@ -487,23 +522,66 @@ export default function ReusePage({ setActiveTab }) {
         </div>
       )}
 
-      {/* Cards grid */}
+      {/* Content */}
       {!loading && !error && filtered.length > 0 && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
-            {filtered.map((brand) => (
-              <BrandCard
-                key={brand.id}
-                brand={brand}
-                isSelected={selectedId === brand.id}
-                onSelect={() => handleSelect(brand)}
-                onEdit={handleEdit}
-                onDelete={(b) => setDeleteTarget(b)}
-              />
-            ))}
-          </div>
+          {viewMode === "grid" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+              {filtered.map((brand) => (
+                <BrandCard
+                  key={brand.id}
+                  brand={brand}
+                  isSelected={selectedId === brand.id}
+                  onSelect={() => handleSelect(brand)}
+                  onEdit={handleEdit}
+                  onDelete={(b) => setDeleteTarget(b)}
+                />
+              ))}
+            </div>
+          ) : (
+            /* List view — header row + rows */
+            <div className="flex flex-col gap-1.5 mb-6">
+              {/* Column headers — mirrors BrandRow flex layout */}
+              <div className="hidden sm:flex items-center gap-4 px-4 pb-1">
+                {/* Logo placeholder */}
+                <div className="w-10 flex-shrink-0" />
+                {/* Brand */}
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Brand</span>
+                </div>
+                {/* Industry */}
+                <div className="w-28 flex-shrink-0">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Industry</span>
+                </div>
+                {/* Colors — hidden below md */}
+                <div className="hidden md:block flex-shrink-0 w-32">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Colors</span>
+                </div>
+                {/* Status */}
+                <div className="flex-shrink-0 w-16">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Status</span>
+                </div>
+                {/* Date — hidden below lg */}
+                <div className="hidden lg:block flex-shrink-0 w-24 text-right">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Created</span>
+                </div>
+                {/* Menu placeholder */}
+                <div className="w-7 flex-shrink-0" />
+              </div>
+              {filtered.map((brand) => (
+                <BrandRow
+                  key={brand.id}
+                  brand={brand}
+                  isSelected={selectedId === brand.id}
+                  onSelect={() => handleSelect(brand)}
+                  onEdit={handleEdit}
+                  onDelete={(b) => setDeleteTarget(b)}
+                />
+              ))}
+            </div>
+          )}
 
-          {/* Detail panel — below the grid */}
+          {/* Detail panel */}
           {selectedBrand && (
             <div ref={detailRef}>
               <BrandDetailPanel

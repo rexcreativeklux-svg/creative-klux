@@ -258,7 +258,7 @@ export default function CreateFromUrl() {
         </div>
       )}
 
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {/* Step indicator */}
         <div className="flex items-center gap-2 mb-8">
           {STEPS.map((label, i) => {

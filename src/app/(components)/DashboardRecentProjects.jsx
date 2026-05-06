@@ -172,7 +172,7 @@ export default function DashboardRecentProjects({ designs = [], isLoading = fals
       {/* Grid */}
       {isLoading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : normalized.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
@@ -191,7 +191,7 @@ export default function DashboardRecentProjects({ designs = [], isLoading = fals
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {normalized.map((design) => {
             const tc = TYPE_COLORS[design.type?.toLowerCase()] || DEFAULT_TYPE;
             const hasCanvas = design.canvasData && design.elements?.length > 0;

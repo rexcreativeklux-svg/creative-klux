@@ -137,7 +137,7 @@ export default function Dashboard() {
 
       {/* ── Recent designs ── */}
       <DashboardRecentProjects
-        designs={designs.slice(0, 6)}
+        designs={designs.slice(0, 8)}
         isLoading={isLoading}
       />
     </div>

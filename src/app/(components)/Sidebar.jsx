@@ -148,7 +148,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { id: "creative-comparison", label: "Creative Comparison", href: "/creative-comparison", icon: GitCompareArrows },
 
 
-  ];
+  ]; 
 
   const manageItems = [
     {

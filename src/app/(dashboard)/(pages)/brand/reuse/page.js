@@ -186,7 +186,7 @@ const BrandRow = ({ brand, onEdit, onDelete, isSelected, onSelect }) => {
       </div>
 
       {/* Name + tagline */}
-      <div className="flex-1  max-w-[46rem]">
+      <div className="flex-1  ">
         <p className="font-bold text-gray-900 text-sm truncate">{brand.name}</p>
         <p className="text-xs text-gray-400 truncate">{brand.tagline || <span className="italic text-gray-300">No tagline</span>}</p>
       </div>
@@ -202,14 +202,14 @@ const BrandRow = ({ brand, onEdit, onDelete, isSelected, onSelect }) => {
       </div>
 
       {/* Colors */}
-      <div className="hidden md:flex items-center pr-12 gap-1.5 flex-shrink-0">
+      <div className="hidden md:flex items-center gap-1.5 flex-shrink-0 w-40 pr-12">
         <div className="w-4 h-4 rounded-full border-2 border-white shadow-sm" style={{ background: primary }} />
         <div className="w-4 h-4 rounded-full border-2 border-white shadow-sm" style={{ background: secondary }} />
         <span className="text-[10px] font-mono text-gray-400 ml-1">{primary}</span>
       </div>
 
       {/* Status */}
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0 w-20">
         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${brand.status === 1
           ? "bg-emerald-50 border-emerald-200 text-emerald-700"
           : "bg-amber-50 border-amber-200 text-amber-700"
@@ -225,7 +225,7 @@ const BrandRow = ({ brand, onEdit, onDelete, isSelected, onSelect }) => {
       </div>
 
       {/* Menu */}
-      <div onClick={(e) => e.stopPropagation()}>
+      <div className="w-7 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
         <BrandMenu brand={brand} onEdit={onEdit} onDelete={onDelete} light={false} />
       </div>
 
@@ -554,11 +554,11 @@ export default function ReusePage({ setActiveTab }) {
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Industry</span>
                 </div>
                 {/* Colors — hidden below md */}
-                <div className="hidden md:block flex-shrink-0 w-32">
+                <div className="hidden md:flex items-center pr-12 flex-shrink-0 w-40">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Colors</span>
                 </div>
                 {/* Status */}
-                <div className="flex-shrink-0 w-16">
+                <div className="flex-shrink-0 w-20">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Status</span>
                 </div>
                 {/* Date — hidden below lg */}

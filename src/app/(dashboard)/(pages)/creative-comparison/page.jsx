@@ -268,12 +268,106 @@ function CreativeUpload({ label, value, onChange }) {
         setSelectedDesignId(null);
     };
 
-    const handleSelectDesign = (design) => {
+    // const handleSelectDesign = (design) => {
+    //     setSelectedDesignId(design.id);
+    //     // Use the canvas background color as a data URL isn't available,
+    //     // so we pass the design metadata and let the parent use it for labeling.
+    //     // For actual image passing, you'd need to render to a canvas and export.
+    //     onChange({ ...value, label: design.name, designId: design.id, url: "canvas://" + design.id, file: null, design });
+    // };
+
+    const handleSelectDesign = async (design) => {
         setSelectedDesignId(design.id);
-        // Use the canvas background color as a data URL isn't available,
-        // so we pass the design metadata and let the parent use it for labeling.
-        // For actual image passing, you'd need to render to a canvas and export.
-        onChange({ ...value, label: design.name, designId: design.id, url: "canvas://" + design.id, file: null, design });
+
+        // Render the design to an offscreen canvas and export as a File
+        const offscreen = document.createElement("canvas");
+        offscreen.width = design.canvas?.width || 800;
+        offscreen.height = design.canvas?.height || 450;
+        const ctx = offscreen.getContext("2d");
+
+        // Fill background
+        ctx.fillStyle = design.canvas?.background || "#ffffff";
+        ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+
+        // Draw elements (same logic as MiniDesignCanvas but full size)
+        const drawElements = (elements) => {
+            (elements || []).forEach((el) => {
+                ctx.save();
+                ctx.globalAlpha = el.opacity ?? 1;
+                if (el.rotation) {
+                    const cx = el.x + (el.width || 0) / 2;
+                    const cy = el.y + (el.height || 0) / 2;
+                    ctx.translate(cx, cy);
+                    ctx.rotate((el.rotation * Math.PI) / 180);
+                    ctx.translate(-cx, -cy);
+                }
+                if (el.type === "shape") {
+                    ctx.fillStyle = el.fill || "transparent";
+                    if (el.shape === "circle") {
+                        const r = (el.width || 0) / 2;
+                        ctx.beginPath();
+                        ctx.arc(el.x + r, el.y + r, r, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        const r = el.borderRadius || 0;
+                        if (r) {
+                            ctx.beginPath();
+                            ctx.roundRect(el.x, el.y, el.width, el.height, r);
+                            ctx.fill();
+                        } else {
+                            ctx.fillRect(el.x, el.y, el.width, el.height);
+                        }
+                    }
+                }
+                if (el.type === "text") {
+                    ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 14}px sans-serif`;
+                    ctx.fillStyle = el.fill || "#000";
+                    ctx.textAlign = el.textAlign || "left";
+                    const x = el.textAlign === "center" ? el.x + (el.width || 0) / 2 : el.x;
+                    ctx.fillText(el.content || el.text || "", x, el.y + (el.fontSize || 14));
+                }
+                ctx.restore();
+            });
+        };
+
+        // Images need to be loaded async — collect promises
+        const imagePromises = (design.elements || [])
+            .filter((el) => el.type === "image" && el.src)
+            .map(
+                (el) =>
+                    new Promise((resolve) => {
+                        const img = new Image();
+                        img.crossOrigin = "anonymous";
+                        img.onload = () => {
+                            ctx.drawImage(img, el.x, el.y, el.width, el.height);
+                            resolve();
+                        };
+                        img.onerror = resolve; // skip failed images
+                        img.src = el.src;
+                    })
+            );
+
+        drawElements(design.elements);
+        await Promise.all(imagePromises);
+
+        // Export canvas to a File
+        offscreen.toBlob((blob) => {
+            if (!blob) {
+                // Fallback: just pass label without a file (will show error on compare)
+                onChange({ ...value, label: design.name, designId: design.id, url: "", file: null, design });
+                return;
+            }
+            const file = new File([blob], `${design.name || "design"}.png`, { type: "image/png" });
+            const previewUrl = URL.createObjectURL(blob);
+            onChange({
+                ...value,
+                label: design.name,
+                designId: design.id,
+                url: previewUrl,   // local blob URL for preview
+                file,              // actual File for FormData upload
+                design,
+            });
+        }, "image/png");
     };
 
     return (
@@ -641,8 +735,8 @@ export default function Comparison() {
                                 key={m.id}
                                 onClick={() => switchMode(m.id)}
                                 className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl border text-left transition-all duration-200 flex-1 max-w-xs cursor-pointer ${active
-                                        ? "border-indigo-300 bg-indigo-50 "
-                                        : "border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50/40"
+                                    ? "border-indigo-300 bg-indigo-50 "
+                                    : "border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50/40"
                                     }`}
                             >
                                 <m.icon className={`w-5 h-5 shrink-0 ${active ? "text-indigo-600" : "text-gray-400"}`} />

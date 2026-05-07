@@ -116,8 +116,8 @@ const FacebookPageModal = ({ pages, onSelect, onClose, loading, selectedPageId }
                             onClick={() => onSelect(page)}
                             disabled={!!loading}
                             className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border text-left transition-all disabled:opacity-60 disabled:cursor-not-allowed ${isSelected
-                                    ? "border-blue-500 bg-blue-50"
-                                    : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/50"
+                                ? "border-blue-500 bg-blue-50"
+                                : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/50"
                                 }`}
                         >
                             {/* Page avatar */}
@@ -284,66 +284,121 @@ const IntegrationsPage = () => {
 
     // ── Resolve platform int_id from access token ──
     async function resolveIntegrationCredentials(platformId, oauthResult) {
-        const { access_token } = oauthResult;
+        let { access_token } = oauthResult;
 
-        // Facebook / Instagram / Meta Ads → show page picker
+        // ─────────────────────────────────────────────
+        // META UNIFIED TOKEN NORMALIZATION (IMPORTANT)
+        // Facebook / Instagram / Meta Ads all use Graph API
+        // ─────────────────────────────────────────────
+        if (
+            ["facebook", "instagram", "meta_ads"].includes(platformId)
+        ) {
+            const exchangeRes = await fetch("/api/meta/exchange", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ access_token }),
+            });
+
+            const exchangeData = await exchangeRes.json();
+
+            if (!exchangeRes.ok) {
+                throw new Error(exchangeData.error || "Meta token exchange failed");
+            }
+
+            access_token = exchangeData.access_token;
+        }
+
+        // ─────────────────────────────────────────────
+        // FACEBOOK / INSTAGRAM / META ADS → PAGE PICKER
+        // ─────────────────────────────────────────────
         if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
             const pagesRes = await fetch(
                 `https://graph.facebook.com/v19.0/me/accounts` +
                 `?access_token=${access_token}` +
                 `&fields=id,name,access_token,picture`
             );
-            const pagesData = await pagesRes.json();
-            if (pagesData.error) throw new Error(pagesData.error.message);
-            const pages = pagesData.data || [];
-            if (pages.length === 0) throw new Error("No Facebook Pages found on this account.");
 
-            // Stop flow — UI takes over
+            const pagesData = await pagesRes.json();
+
+            if (pagesData.error) {
+                throw new Error(pagesData.error.message);
+            }
+
+            const pages = pagesData.data || [];
+
+            if (pages.length === 0) {
+                throw new Error("No Facebook Pages found on this account.");
+            }
+
+            // Stop flow — UI takes over page selection
             setFbPages(pages);
-            setPendingFbOauth(oauthResult);
+            setPendingFbOauth({ ...oauthResult, access_token });
             setShowPageModal(true);
+
             return null; // signal UI takeover
         }
 
         let int_id = null;
+
         try {
             switch (platformId) {
                 case "google_ads":
                 case "youtube": {
-                    const res = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`);
+                    const res = await fetch(
+                        `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`
+                    );
                     const data = await res.json();
                     int_id = data.id;
                     break;
                 }
+
                 case "linkedin":
                 case "linkedin_ads": {
-                    const res = await fetch("https://api.linkedin.com/v2/userinfo", { headers: { Authorization: `Bearer ${access_token}` } });
+                    const res = await fetch(
+                        "https://api.linkedin.com/v2/userinfo",
+                        { headers: { Authorization: `Bearer ${access_token}` } }
+                    );
                     const data = await res.json();
                     int_id = data.sub;
                     break;
                 }
+
                 case "pinterest":
                 case "pinterest_ads": {
-                    const res = await fetch("https://api.pinterest.com/v5/user_account", { headers: { Authorization: `Bearer ${access_token}` } });
+                    const res = await fetch(
+                        "https://api.pinterest.com/v5/user_account",
+                        { headers: { Authorization: `Bearer ${access_token}` } }
+                    );
                     const data = await res.json();
                     int_id = data.username || data.id;
                     break;
                 }
+
                 case "snapchat":
                 case "snapchat_ads": {
-                    const res = await fetch("https://adsapi.snapchat.com/v1/me", { headers: { Authorization: `Bearer ${access_token}` } });
+                    const res = await fetch(
+                        "https://adsapi.snapchat.com/v1/me",
+                        { headers: { Authorization: `Bearer ${access_token}` } }
+                    );
                     const data = await res.json();
                     int_id = data.me?.id;
                     break;
                 }
+
                 default:
                     int_id = null;
             }
         } catch (err) {
-            console.warn(`Could not resolve int_id for ${platformId}:`, err.message);
+            console.warn(
+                `Could not resolve int_id for ${platformId}:`,
+                err.message
+            );
         }
 
-        return { int_token: access_token, int_id };
+        return {
+            int_token: access_token,
+            int_id,
+        };
     }
 
     // ── Connect handler ──

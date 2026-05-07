@@ -979,35 +979,55 @@ export async function fetchLivePostsFromConnectedAccounts(
     try {
       const account = accounts.facebook;
 
-      if (account?.access_token && account?.page_id) {
-        const res = await fetch(
-          `${META_GRAPH_BASE}/${account.page_id}/posts?fields=id,message,story,created_time,full_picture,permalink_url&limit=20&access_token=${account.access_token}`
-        );
+      if (accounts.facebook?.access_token) {
+        try {
+          const account = accounts.facebook;
 
-        const data = await res.json();
+          // 🔥 STEP 1: resolve page from user token
+          const page = await fetchFacebookPageId(account.access_token);
 
-        if (!data.error && data.data) {
-          data.data.forEach((post) => {
-            livePosts.push({
-              id: `fb_${post.id}`,
-              project_id: null,
-              project_title:
-                post.message?.slice(0, 60) ||
-                post.story ||
-                'Facebook Post',
-              caption: post.message || '',
-              image_url: post.full_picture || null,
-              platform: 'facebook',
-              type: 'social',
-              status: 'published',
-              published_at: post.created_time,
-              scheduled_at: null,
-              post_id: post.id,
-              permalink_url: post.permalink_url,
-              live: true,
-              stats: {},
+          if (!page) {
+            console.warn("No Facebook page found for this account");
+            return;
+          }
+
+          const resolvedPageId = page.page_id;
+          const resolvedToken = page.page_access_token;
+
+          // 🔥 STEP 2: use PAGE token for graph calls
+          const res = await fetch(
+            `${META_GRAPH_BASE}/${resolvedPageId}/posts?fields=id,message,story,created_time,full_picture,permalink_url&limit=20&access_token=${encodeURIComponent(
+              resolvedToken
+            )}`
+          );
+
+          const data = await res.json();
+
+          if (!data.error && data.data) {
+            data.data.forEach((post) => {
+              livePosts.push({
+                id: `fb_${post.id}`,
+                project_id: null,
+                project_title:
+                  post.message?.slice(0, 60) ||
+                  post.story ||
+                  "Facebook Post",
+                caption: post.message || "",
+                image_url: post.full_picture || null,
+                platform: "facebook",
+                type: "social",
+                status: "published",
+                published_at: post.created_time,
+                scheduled_at: null,
+                post_id: post.id,
+                permalink_url: post.permalink_url,
+                live: true,
+                stats: {},
+              });
             });
-          });
+          }
+        } catch (err) {
+          console.warn("Facebook live posts fetch failed:", err.message);
         }
       }
     } catch (err) {

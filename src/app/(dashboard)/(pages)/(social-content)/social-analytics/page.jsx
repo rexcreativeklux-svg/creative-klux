@@ -198,8 +198,14 @@ export default function SocialAnalytics() {
                 let newStats = null;
 
                 if (post.platform === 'facebook' && accounts.facebook) {
+                    const account = accounts.facebook;
+
+                    const page = await fetchFacebookPageId(account.access_token);
+
+                    if (!page) return;
+
                     newStats = await getFacebookPostStats({
-                        access_token: accounts.facebook.access_token,
+                        access_token: page.page_access_token,
                         post_id: post.post_id,
                     });
                 }

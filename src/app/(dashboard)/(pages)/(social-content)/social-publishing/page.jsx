@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   BarChart3, Calendar, CheckCircle2, Clock, Trash2,
   RefreshCw, Eye, MousePointer, Users, Heart, Share2,
@@ -143,19 +143,27 @@ export default function SocialPublishing() {
   const { fetchIntegrations } = useAuth();
   const [integrations, setIntegrations] = useState([]);
 
+  // 1. Load integrations first
+  useEffect(() => {
+    const loadIntegrations = async () => {
+      const data = await fetchIntegrations();
+      setIntegrations(data || []);
+    };
+    loadIntegrations();
+  }, [fetchIntegrations]);
 
+  // 2. Fix the stale closure by adding integrations to deps
   const mergeLiveIntoLocal = useCallback(async (silent = false) => {
     setFetchingLive(true);
     try {
-     const livePosts = await fetchLivePostsFromConnectedAccounts(integrations);
-
+      const livePosts = await fetchLivePostsFromConnectedAccounts(integrations);
       const local = getPublishedPosts();
       const localIds = new Set(local.map(p => p.id));
       const newPosts = livePosts.filter(lp => !localIds.has(lp.id));
       const merged = [...newPosts, ...local];
       localStorage.setItem('creativeklux_published_posts', JSON.stringify(merged));
       setAllPosts(merged);
-      if (!silent && newPosts.length > 0) toast.success(`Fetched ${newPosts.length} live post(s) from connected accounts`);
+      if (!silent && newPosts.length > 0) toast.success(`Fetched ${newPosts.length} live post(s)`);
       else if (!silent) toast.info('No new posts found from connected accounts');
     } catch {
       if (!silent) toast.error('Failed to fetch live posts');
@@ -163,19 +171,15 @@ export default function SocialPublishing() {
     } finally {
       setFetchingLive(false);
     }
-  }, []);
+  }, [integrations]); // ← integrations now in deps
 
+  // 3. Only auto-fetch once integrations have actually loaded
+  const integrationsLoaded = useRef(false);
   useEffect(() => {
-    const loadIntegrations = async () => {
-      const data = await fetchIntegrations();
-      setIntegrations(data || []);
-    };
-
-    loadIntegrations();
-  }, [fetchIntegrations]);
-
-
-  useEffect(() => { mergeLiveIntoLocal(true); }, [mergeLiveIntoLocal]);
+    if (integrations.length === 0 && !integrationsLoaded.current) return;
+    integrationsLoaded.current = true;
+    mergeLiveIntoLocal(true);
+  }, [integrations]); // ← runs when integrations changes from [] to real data
 
   const reload = useCallback(() => setAllPosts(getPublishedPosts()), []);
   const posts = allPosts.filter(p => p.type === matchType);
@@ -308,7 +312,7 @@ export default function SocialPublishing() {
   };
 
   return (
-    <div className="">
+    <div className="pb-5">
 
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
@@ -450,7 +454,7 @@ export default function SocialPublishing() {
 
       {/* ── Table ── */}
       {pagedPosts.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden ">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

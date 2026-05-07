@@ -43,12 +43,12 @@ function PostPill({ post, onDelete }) {
   const meta = PLATFORM_META[post.platform] || { label: post.platform, emoji: '🌐' };
   const borderColor = STATUS_BORDER[post.status] || 'border-l-gray-300';
   return (
-    <div className={'group flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] border-l-2 bg-white hover:bg-gray-50 transition-all cursor-default ' + borderColor}>
+    <div className={'group flex cursor-pointer items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] border-l-2 bg-white hover:bg-gray-50 transition-all cursor-default ' + borderColor}>
       <span>{meta.emoji}</span>
       <span className="text-gray-700 truncate flex-1 min-w-0">{post.project_title}</span>
       <button
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity ml-auto flex-shrink-0"
+        className="opacity-0 cursor-pointer group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity ml-auto flex-shrink-0"
       >
         <Trash2 className="w-2.5 h-2.5" />
       </button>
@@ -187,7 +187,7 @@ export default function SocialContentCalendar() {
                     key={idx}
                     onClick={() => setSelectedDay(isSameDay(day, selectedDay) ? null : day)}
                     className={
-                      'min-h-[90px] p-1.5 border-b border-r border-gray-100 cursor-pointer transition-colors ' +
+                      'min-h-[90px] p-1.5 border-b cursor-pointer border-r border-gray-100 cursor-pointer transition-colors ' +
                       (!inMonth    ? 'opacity-30 '      : '') +
                       (isSelected  ? 'bg-blue-50 '      : 'hover:bg-gray-50 ') +
                       (idx % 7 === 6 ? 'border-r-0'     : '')

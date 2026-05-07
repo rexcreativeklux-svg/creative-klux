@@ -973,68 +973,47 @@ export async function fetchLivePostsFromConnectedAccounts(
 
   const livePosts = [];
 
-  // ── Facebook ─────────────────────────
 
+  // ── Facebook ─────────────────────────
   if (accounts.facebook?.access_token) {
     try {
       const account = accounts.facebook;
+      const pageId = account.page_id; // int_id stored at connect time = page ID
+      const pageToken = account.access_token; // int_token stored at connect time = page token
 
-      if (accounts.facebook?.access_token) {
-        try {
-          const account = accounts.facebook;
+      // Skip /me/accounts entirely — use the page token directly
+      const postsRes = await fetch(
+        `${META_GRAPH_BASE}/${pageId}/posts` +
+        `?fields=id,message,story,created_time,full_picture,permalink_url` +
+        `&limit=20&access_token=${pageToken}`
+      );
 
-          // 🔥 STEP 1: resolve page from user token
-          const page = await fetchFacebookPageId(account.access_token);
+      const postsData = await postsRes.json();
 
-          if (!page) {
-            console.warn("No Facebook page found for this account");
-            return;
-          }
-
-          const resolvedPageId = page.page_id;
-          const resolvedToken = page.page_access_token;
-
-          // 🔥 STEP 2: use PAGE token for graph calls
-          const res = await fetch(
-            `${META_GRAPH_BASE}/${resolvedPageId}/posts?fields=id,message,story,created_time,full_picture,permalink_url&limit=20&access_token=${encodeURIComponent(
-              resolvedToken
-            )}`
-          );
-
-          const data = await res.json();
-
-          if (!data.error && data.data) {
-            data.data.forEach((post) => {
-              livePosts.push({
-                id: `fb_${post.id}`,
-                project_id: null,
-                project_title:
-                  post.message?.slice(0, 60) ||
-                  post.story ||
-                  "Facebook Post",
-                caption: post.message || "",
-                image_url: post.full_picture || null,
-                platform: "facebook",
-                type: "social",
-                status: "published",
-                published_at: post.created_time,
-                scheduled_at: null,
-                post_id: post.id,
-                permalink_url: post.permalink_url,
-                live: true,
-                stats: {},
-              });
-            });
-          }
-        } catch (err) {
-          console.warn("Facebook live posts fetch failed:", err.message);
-        }
+      if (postsData.error) {
+        console.warn("Facebook posts error:", postsData.error);
+      } else {
+        (postsData.data || []).forEach((post) => {
+          livePosts.push({
+            id: `fb_${post.id}`,
+            project_id: null,
+            project_title: post.message?.slice(0, 60) || post.story || "Facebook Post",
+            caption: post.message || "",
+            image_url: post.full_picture || null,
+            platform: "facebook",
+            type: "social",
+            status: "published",
+            published_at: post.created_time,
+            scheduled_at: null,
+            post_id: post.id,
+            permalink_url: post.permalink_url,
+            live: true,
+            stats: {},
+          });
+        });
       }
     } catch (err) {
-      console.warn(
-        'Facebook live posts fetch failed:',
-        err.message
-      );
+      console.warn("Facebook live posts fetch failed:", err.message);
     }
   }
 

@@ -31,7 +31,7 @@ const PLATFORM_META = {
 
 function StatCard({ icon: Icon, label, value, sub, accent = false }) {
     return (
-        <div className="rounded-xl bg-white border border-gray-200 p-5 shadow-sm">
+        <div className="rounded-xl bg-white border border-gray-200 p-5 ">
             <div className="flex items-center justify-between mb-3">
                 <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">{label}</span>
                 <div
@@ -204,14 +204,8 @@ export default function SocialAnalytics() {
                 let newStats = null;
 
                 if (post.platform === 'facebook' && accounts.facebook) {
-                    const account = accounts.facebook;
-
-                    const page = await fetchFacebookPageId(account.access_token);
-
-                    if (!page) return;
-
                     newStats = await getFacebookPostStats({
-                        access_token: page.page_access_token,
+                        access_token: accounts.facebook.access_token, // already a page token
                         post_id: post.post_id,
                     });
                 }
@@ -273,7 +267,7 @@ export default function SocialAnalytics() {
                         {fetchingLive ? 'Syncing...' : 'Sync Live Posts'}
                     </button>
                     <button
-                        className="inline-flex items-center cursor-pointer hover:scale-95 gap-2 px-3 py-2 rounded-lg border text-sm font-medium shadow-sm disabled:opacity-50 transition-all duration-200 text-white"
+                        className="inline-flex items-center cursor-pointer hover:scale-95 gap-2 px-3 py-2 rounded-lg border text-sm font-medium  disabled:opacity-50 transition-all duration-200 text-white"
                         style={{ background: '#003dda', borderColor: '#003dda' }}
                         onClick={handleRefreshAll}
                         disabled={refreshingAll}
@@ -312,7 +306,7 @@ export default function SocialAnalytics() {
                     )}
 
                     {/* Timeline chart */}
-                    <div className="rounded-xl bg-white border border-gray-200 p-5 shadow-sm">
+                    <div className="rounded-xl bg-white border border-gray-200 p-5 ">
                         <h3 className="font-semibold text-gray-800 text-sm mb-4">Performance — Last 14 Days</h3>
                         <ResponsiveContainer width="100%" height={220}>
                             <LineChart data={timelineData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
@@ -330,7 +324,7 @@ export default function SocialAnalytics() {
 
                     {/* Platform breakdown + Engagement pie */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="rounded-xl bg-white border border-gray-200 p-5 shadow-sm">
+                        <div className="rounded-xl bg-white border border-gray-200 p-5 ">
                             <h3 className="font-semibold text-gray-800 text-sm mb-4">Impressions by Platform</h3>
                             {platformData.length === 0 ? (
                                 <p className="text-xs text-gray-400 text-center py-8">No data</p>
@@ -351,7 +345,7 @@ export default function SocialAnalytics() {
                             )}
                         </div>
 
-                        <div className="rounded-xl bg-white border border-gray-200 p-5 shadow-sm">
+                        <div className="rounded-xl bg-white border border-gray-200 p-5 ">
                             <h3 className="font-semibold text-gray-800 text-sm mb-4">Engagement Breakdown</h3>
                             {engagementPie.length === 0 ? (
                                 <p className="text-xs text-gray-400 text-center py-8">No engagement data yet</p>
@@ -372,7 +366,7 @@ export default function SocialAnalytics() {
                     </div>
 
                     {/* Post-level table */}
-                    <div className="rounded-xl bg-white border border-gray-200 overflow-hidden shadow-sm">
+                    <div className="rounded-xl bg-white border border-gray-200 overflow-hidden ">
                         <div className="px-5 py-3 border-b border-gray-100">
                             <h3 className="font-semibold text-gray-800 text-sm">Post Performance</h3>
                         </div>

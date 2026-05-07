@@ -282,221 +282,94 @@ const IntegrationsPage = () => {
         load();
     }, [fetchIntegrations]);
 
-    // ── Resolve platform int_id from access token ──
-    async function resolveIntegrationCredentials(platformId, oauthResult) {
-        let { access_token } = oauthResult;
+    async function resolveMetaIntegration(platformId, oauthResult) {
+        const res = await fetch("/api/meta/exchange", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                access_token: oauthResult.access_token,
+                code: oauthResult.code,
+            }),
+        });
 
-        // // ─────────────────────────────────────────────
-        // // META UNIFIED TOKEN NORMALIZATION (IMPORTANT)
-        // // Facebook / Instagram / Meta Ads all use Graph API
-        // // ─────────────────────────────────────────────
-        // if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
-        //     const exchangeRes = await fetch("/api/meta/exchange", {
-        //         method: "POST",
-        //         headers: { "Content-Type": "application/json" },
-        //         body: JSON.stringify({
-        //             // Pass whichever one we have — backend handles both
-        //             access_token: oauthResult.access_token ?? undefined,
-        //             code: oauthResult.code ?? undefined,
-        //         }),
-        //     });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Meta exchange failed");
 
-        //     const exchangeData = await exchangeRes.json();
+        const userToken = data.access_token;
 
-        //     if (!exchangeRes.ok) {
-        //         throw new Error(exchangeData.error || "Meta token exchange failed");
-        //     }
+        const pagesRes = await fetch(
+            `https://graph.facebook.com/v23.0/me/accounts?access_token=${userToken}&fields=id,name,access_token,picture,instagram_business_account{id,username}`
+        );
 
-        //     access_token = exchangeData.access_token;
-        // }
+        const pagesData = await pagesRes.json();
+        if (pagesData.error) throw new Error(pagesData.error.message);
 
-        // // ─────────────────────────────────────────────
-        // // FACEBOOK / INSTAGRAM / META ADS → PAGE PICKER
-        // // ─────────────────────────────────────────────
-        // if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
-        //     const pagesRes = await fetch(
-        //         `https://graph.facebook.com/v19.0/me/accounts` +
-        //         `?access_token=${access_token}` +
-        //         `&fields=id,name,access_token,picture`
-        //     );
+        const pages = pagesData.data || [];
 
-        //     const pagesData = await pagesRes.json();
-
-        //     if (pagesData.error) {
-        //         throw new Error(pagesData.error.message);
-        //     }
-
-        //     const pages = pagesData.data || [];
-
-        //     if (pages.length === 0) {
-        //         throw new Error("No Facebook Pages found on this account.");
-        //     }
-
-        //     // Stop flow — UI takes over page selection
-        //     setFbPages(pages);
-        //     setPendingFbOauth({ ...oauthResult, access_token });
-        //     setShowPageModal(true);
-
-        //     return null; // signal UI takeover
-        // }
-
-        if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
-            const exchangeRes = await fetch("/api/meta/exchange", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    access_token: oauthResult.access_token ?? undefined,
-                    code: oauthResult.code ?? undefined,
-                }),
-            });
-            const exchangeData = await exchangeRes.json();
-            if (!exchangeRes.ok) throw new Error(exchangeData.error || "Meta token exchange failed");
-            const userToken = exchangeData.access_token;
-
-            // ── FACEBOOK: pick a page, store page token + page ID
-            if (platformId === "facebook") {
-                const pagesRes = await fetch(
-                    `https://graph.facebook.com/v23.0/me/accounts?access_token=${userToken}&fields=id,name,access_token,picture`
-                );
-                const pagesData = await pagesRes.json();
-                if (pagesData.error) throw new Error(pagesData.error.message);
-                const pages = pagesData.data || [];
-                if (!pages.length) throw new Error("No Facebook Pages found on this account.");
-
-                setFbPages(pages);
-                setPendingFbOauth({ userToken, platformId: "facebook" });
-                setShowPageModal(true);
-                return null; // UI takes over
-            }
-
-            // ── INSTAGRAM: pick a page, then resolve its linked IG Business Account
-            if (platformId === "instagram") {
-                const pagesRes = await fetch(
-                    `https://graph.facebook.com/v23.0/me/accounts?access_token=${userToken}&fields=id,name,access_token,instagram_business_account{id,username}`
-                );
-                const pagesData = await pagesRes.json();
-                if (pagesData.error) throw new Error(pagesData.error.message);
-
-                // Filter to only pages that have a linked IG account
-                const pagesWithIg = (pagesData.data || []).filter(p => p.instagram_business_account);
-                if (!pagesWithIg.length) throw new Error("No Instagram Business accounts found. Make sure your Instagram is linked to a Facebook Page.");
-
-                setFbPages(pagesWithIg.map(p => ({
-                    ...p,
-                    // Annotate so the modal can show IG username
-                    name: `${p.name} (@${p.instagram_business_account.username})`,
-                    // We'll need both page token and ig_user_id at save time
-                    _ig_user_id: p.instagram_business_account.id,
-                })));
-                setPendingFbOauth({ userToken, platformId: "instagram" });
-                setShowPageModal(true);
-                return null;
-            }
-
-            // ── META ADS: pick a Facebook Page first
-            if (platformId === "meta_ads") {
-                const pagesRes = await fetch(
-                    `https://graph.facebook.com/v23.0/me/accounts` +
-                    `?access_token=${userToken}` +
-                    `&fields=id,name,access_token,picture`
-                );
-
-                const pagesData = await pagesRes.json();
-
-                if (pagesData.error) {
-                    throw new Error(pagesData.error.message);
-                }
-
-                const pages = pagesData.data || [];
-
-                if (!pages.length) {
-                    throw new Error("No Facebook Pages found on this account.");
-                }
-
-                setFbPages(
-                    pages.map((p) => ({
-                        ...p,
-                        _platform: "meta_ads",
-                    }))
-                );
-
-                setPendingFbOauth({
-                    userToken,
-                    platformId: "meta_ads",
-                });
-
-                setShowPageModal(true);
-
-                return null;
-            }
+        if (!pages.length) {
+            throw new Error("No pages found");
         }
 
+        return {
+            type: "meta_pages",
+            userToken,
+            pages,
+        };
+    }
+
+    async function resolveLinkedInIntegration(oauthResult) {
+        const res = await fetch("/api/linkedin/exchange", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                code: oauthResult.code,
+            }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "LinkedIn failed");
+
+        return {
+            type: "linkedin",
+            int_token: data.access_token,
+            int_id: data.int_id,
+        };
+    }
+
+    async function resolveGenericIntegration(platformId, oauthResult) {
+        let access_token = oauthResult.access_token;
         let int_id = null;
 
-        try {
-            switch (platformId) {
-                case "google_ads":
-                case "youtube": {
-                    const res = await fetch(
-                        `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`
-                    );
-                    const data = await res.json();
-                    int_id = data.id;
-                    break;
-                }
-
-                case "linkedin":
-                case "linkedin_ads": {
-                    const res = await fetch("/api/linkedin/exchange", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            code: oauthResult.code, // ONLY source of truth
-                        }),
-                    });
-
-                    const data = await res.json();
-
-                    if (!res.ok) {
-                        throw new Error(data.error || "LinkedIn failed");
-                    }
-
-                    return {
-                        int_token: data.access_token, // backend-generated
-                        int_id: data.int_id,
-                    };
-                }
-
-                case "pinterest":
-                case "pinterest_ads": {
-                    const res = await fetch(
-                        "https://api.pinterest.com/v5/user_account",
-                        { headers: { Authorization: `Bearer ${access_token}` } }
-                    );
-                    const data = await res.json();
-                    int_id = data.username || data.id;
-                    break;
-                }
-
-                case "snapchat":
-                case "snapchat_ads": {
-                    const res = await fetch(
-                        "https://adsapi.snapchat.com/v1/me",
-                        { headers: { Authorization: `Bearer ${access_token}` } }
-                    );
-                    const data = await res.json();
-                    int_id = data.me?.id;
-                    break;
-                }
-
-                default:
-                    int_id = null;
+        switch (platformId) {
+            case "google_ads":
+            case "youtube": {
+                const res = await fetch(
+                    `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`
+                );
+                const data = await res.json();
+                int_id = data.id;
+                break;
             }
-        } catch (err) {
-            console.warn(
-                `Could not resolve int_id for ${platformId}:`,
-                err.message
-            );
+
+            case "pinterest":
+            case "pinterest_ads": {
+                const res = await fetch("https://api.pinterest.com/v5/user_account", {
+                    headers: { Authorization: `Bearer ${access_token}` },
+                });
+                const data = await res.json();
+                int_id = data.username || data.id;
+                break;
+            }
+
+            case "snapchat":
+            case "snapchat_ads": {
+                const res = await fetch("https://adsapi.snapchat.com/v1/me", {
+                    headers: { Authorization: `Bearer ${access_token}` },
+                });
+                const data = await res.json();
+                int_id = data.me?.id;
+                break;
+            }
         }
 
         return {
@@ -504,6 +377,265 @@ const IntegrationsPage = () => {
             int_id,
         };
     }
+
+    async function resolveIntegrationCredentials(platformId, oauthResult) {
+        // META family
+        if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
+            return await resolveMetaIntegration(platformId, oauthResult);
+        }
+
+        // LINKEDIN (isolated behavior)
+        if (["linkedin", "linkedin_ads"].includes(platformId)) {
+            return await resolveLinkedInIntegration(oauthResult);
+        }
+
+        // OTHERS
+        return await resolveGenericIntegration(platformId, oauthResult);
+    }
+
+    // ── Resolve platform int_id from access token ──
+    // async function resolveIntegrationCredentials(platformId, oauthResult) {
+    //     let { access_token } = oauthResult;
+
+    //     // // ─────────────────────────────────────────────
+    //     // // META UNIFIED TOKEN NORMALIZATION (IMPORTANT)
+    //     // // Facebook / Instagram / Meta Ads all use Graph API
+    //     // // ─────────────────────────────────────────────
+    //     // if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
+    //     //     const exchangeRes = await fetch("/api/meta/exchange", {
+    //     //         method: "POST",
+    //     //         headers: { "Content-Type": "application/json" },
+    //     //         body: JSON.stringify({
+    //     //             // Pass whichever one we have — backend handles both
+    //     //             access_token: oauthResult.access_token ?? undefined,
+    //     //             code: oauthResult.code ?? undefined,
+    //     //         }),
+    //     //     });
+
+    //     //     const exchangeData = await exchangeRes.json();
+
+    //     //     if (!exchangeRes.ok) {
+    //     //         throw new Error(exchangeData.error || "Meta token exchange failed");
+    //     //     }
+
+    //     //     access_token = exchangeData.access_token;
+    //     // }
+
+    //     // // ─────────────────────────────────────────────
+    //     // // FACEBOOK / INSTAGRAM / META ADS → PAGE PICKER
+    //     // // ─────────────────────────────────────────────
+    //     // if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
+    //     //     const pagesRes = await fetch(
+    //     //         `https://graph.facebook.com/v19.0/me/accounts` +
+    //     //         `?access_token=${access_token}` +
+    //     //         `&fields=id,name,access_token,picture`
+    //     //     );
+
+    //     //     const pagesData = await pagesRes.json();
+
+    //     //     if (pagesData.error) {
+    //     //         throw new Error(pagesData.error.message);
+    //     //     }
+
+    //     //     const pages = pagesData.data || [];
+
+    //     //     if (pages.length === 0) {
+    //     //         throw new Error("No Facebook Pages found on this account.");
+    //     //     }
+
+    //     //     // Stop flow — UI takes over page selection
+    //     //     setFbPages(pages);
+    //     //     setPendingFbOauth({ ...oauthResult, access_token });
+    //     //     setShowPageModal(true);
+
+    //     //     return null; // signal UI takeover
+    //     // }
+
+    //     if (platformId === "linkedin" || platformId === "linkedin_ads") {
+    //         const res = await fetch("/api/linkedin/exchange", {
+    //             method: "POST",
+    //             headers: { "Content-Type": "application/json" },
+    //             body: JSON.stringify({
+    //                 code: oauthResult.code,
+    //             }),
+    //         });
+
+    //         const data = await res.json();
+
+    //         if (!res.ok) {
+    //             throw new Error(data.error || "LinkedIn failed");
+    //         }
+
+    //         return {
+    //             int_token: data.access_token,
+    //             int_id: data.int_id,
+    //         };
+    //     }
+
+    //     if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
+    //         const exchangeRes = await fetch("/api/meta/exchange", {
+    //             method: "POST",
+    //             headers: { "Content-Type": "application/json" },
+    //             body: JSON.stringify({
+    //                 access_token: oauthResult.access_token ?? undefined,
+    //                 code: oauthResult.code ?? undefined,
+    //             }),
+    //         });
+    //         const exchangeData = await exchangeRes.json();
+    //         if (!exchangeRes.ok) throw new Error(exchangeData.error || "Meta token exchange failed");
+    //         const userToken = exchangeData.access_token;
+
+    //         // ── FACEBOOK: pick a page, store page token + page ID
+    //         if (platformId === "facebook") {
+    //             const pagesRes = await fetch(
+    //                 `https://graph.facebook.com/v23.0/me/accounts?access_token=${userToken}&fields=id,name,access_token,picture`
+    //             );
+    //             const pagesData = await pagesRes.json();
+    //             if (pagesData.error) throw new Error(pagesData.error.message);
+    //             const pages = pagesData.data || [];
+    //             if (!pages.length) throw new Error("No Facebook Pages found on this account.");
+
+    //             setFbPages(pages);
+    //             setPendingFbOauth({ userToken, platformId: "facebook" });
+    //             setShowPageModal(true);
+    //             return null; // UI takes over
+    //         }
+
+    //         // ── INSTAGRAM: pick a page, then resolve its linked IG Business Account
+    //         if (platformId === "instagram") {
+    //             const pagesRes = await fetch(
+    //                 `https://graph.facebook.com/v23.0/me/accounts?access_token=${userToken}&fields=id,name,access_token,instagram_business_account{id,username}`
+    //             );
+    //             const pagesData = await pagesRes.json();
+    //             if (pagesData.error) throw new Error(pagesData.error.message);
+
+    //             // Filter to only pages that have a linked IG account
+    //             const pagesWithIg = (pagesData.data || []).filter(p => p.instagram_business_account);
+    //             if (!pagesWithIg.length) throw new Error("No Instagram Business accounts found. Make sure your Instagram is linked to a Facebook Page.");
+
+    //             setFbPages(pagesWithIg.map(p => ({
+    //                 ...p,
+    //                 // Annotate so the modal can show IG username
+    //                 name: `${p.name} (@${p.instagram_business_account.username})`,
+    //                 // We'll need both page token and ig_user_id at save time
+    //                 _ig_user_id: p.instagram_business_account.id,
+    //             })));
+    //             setPendingFbOauth({ userToken, platformId: "instagram" });
+    //             setShowPageModal(true);
+    //             return null;
+    //         }
+
+    //         // ── META ADS: pick a Facebook Page first
+    //         if (platformId === "meta_ads") {
+    //             const pagesRes = await fetch(
+    //                 `https://graph.facebook.com/v23.0/me/accounts` +
+    //                 `?access_token=${userToken}` +
+    //                 `&fields=id,name,access_token,picture`
+    //             );
+
+    //             const pagesData = await pagesRes.json();
+
+    //             if (pagesData.error) {
+    //                 throw new Error(pagesData.error.message);
+    //             }
+
+    //             const pages = pagesData.data || [];
+
+    //             if (!pages.length) {
+    //                 throw new Error("No Facebook Pages found on this account.");
+    //             }
+
+    //             setFbPages(
+    //                 pages.map((p) => ({
+    //                     ...p,
+    //                     _platform: "meta_ads",
+    //                 }))
+    //             );
+
+    //             setPendingFbOauth({
+    //                 userToken,
+    //                 platformId: "meta_ads",
+    //             });
+
+    //             setShowPageModal(true);
+
+    //             return null;
+    //         }
+    //     }
+
+    //     let int_id = null;
+
+    //     try {
+    //         switch (platformId) {
+    //             case "google_ads":
+    //             case "youtube": {
+    //                 const res = await fetch(
+    //                     `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`
+    //                 );
+    //                 const data = await res.json();
+    //                 int_id = data.id;
+    //                 break;
+    //             }
+
+    //             // case "linkedin":
+    //             // case "linkedin_ads": {
+    //             //     const res = await fetch("/api/linkedin/exchange", {
+    //             //         method: "POST",
+    //             //         headers: { "Content-Type": "application/json" },
+    //             //         body: JSON.stringify({
+    //             //             code: oauthResult.code, // ONLY source of truth
+    //             //         }),
+    //             //     });
+
+    //             //     const data = await res.json();
+
+    //             //     if (!res.ok) {
+    //             //         throw new Error(data.error || "LinkedIn failed");
+    //             //     }
+
+    //             //     return {
+    //             //         int_token: data.access_token, // backend-generated
+    //             //         int_id: data.int_id,
+    //             //     };
+    //             // }
+
+    //             case "pinterest":
+    //             case "pinterest_ads": {
+    //                 const res = await fetch(
+    //                     "https://api.pinterest.com/v5/user_account",
+    //                     { headers: { Authorization: `Bearer ${access_token}` } }
+    //                 );
+    //                 const data = await res.json();
+    //                 int_id = data.username || data.id;
+    //                 break;
+    //             }
+
+    //             case "snapchat":
+    //             case "snapchat_ads": {
+    //                 const res = await fetch(
+    //                     "https://adsapi.snapchat.com/v1/me",
+    //                     { headers: { Authorization: `Bearer ${access_token}` } }
+    //                 );
+    //                 const data = await res.json();
+    //                 int_id = data.me?.id;
+    //                 break;
+    //             }
+
+    //             default:
+    //                 int_id = null;
+    //         }
+    //     } catch (err) {
+    //         console.warn(
+    //             `Could not resolve int_id for ${platformId}:`,
+    //             err.message
+    //         );
+    //     }
+
+    //     return {
+    //         int_token: access_token,
+    //         int_id,
+    //     };
+    // }
 
     // ── Connect handler ──
     const handleConnect = useCallback(async (platformId) => {

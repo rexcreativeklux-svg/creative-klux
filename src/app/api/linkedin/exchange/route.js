@@ -1,7 +1,6 @@
 export async function POST(req) {
     const { code } = await req.json();
 
-    // STEP 1: exchange
     const tokenRes = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
         method: "POST",
         headers: {
@@ -18,12 +17,16 @@ export async function POST(req) {
 
     const tokenData = await tokenRes.json();
 
+    if (!tokenData.access_token) {
+        return Response.json({ error: "No access token returned", details: tokenData }, { status: 400 });
+    }
+
     const access_token = tokenData.access_token;
 
-    // STEP 2: fetch user profile
-    const profileRes = await fetch("https://api.linkedin.com/v2/userinfo", {
+    const profileRes = await fetch("https://api.linkedin.com/v2/me", {
         headers: {
             Authorization: `Bearer ${access_token}`,
+            "X-Restli-Protocol-Version": "2.0.0",
         },
     });
 
@@ -31,6 +34,6 @@ export async function POST(req) {
 
     return Response.json({
         access_token,
-        int_id: profile.sub || profile.id || null,
+        int_id: profile.id,
     });
 }

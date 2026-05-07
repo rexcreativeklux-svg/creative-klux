@@ -447,26 +447,24 @@ const IntegrationsPage = () => {
 
                 case "linkedin":
                 case "linkedin_ads": {
-
                     const res = await fetch("/api/linkedin/exchange", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
-                            code: oauthResult.code,
+                            code: oauthResult.code, // ONLY source of truth
                         }),
                     });
 
                     const data = await res.json();
-                    console.log('data :', data)
 
                     if (!res.ok) {
                         throw new Error(data.error || "LinkedIn failed");
                     }
 
-                    int_id = data.int_id;
-                    access_token = data.access_token;
-
-                    break;
+                    return {
+                        int_token: data.access_token, // backend-generated
+                        int_id: data.int_id,
+                    };
                 }
 
                 case "pinterest":

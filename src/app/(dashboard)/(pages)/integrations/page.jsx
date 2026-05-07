@@ -412,18 +412,17 @@ const IntegrationsPage = () => {
         setLoadingPlatformId(platformId);
         try {
             const oauthResult = await openOAuthPopup(platformId);
-           console.log("oauth:", oauthResult);
+            console.log("oauth:", oauthResult);
             const creds = await resolveIntegrationCredentials(platformId, oauthResult);
-             console.log(" result:", creds);
+            console.log(" result:", creds);
 
-            if (!creds) return; // Facebook UI takeover
+            if (!creds) return;
 
             const saved = await saveIntegration({
                 platform: platformId,
                 access_token: creds.int_token,
                 brand_id: activeBrandId,
                 int_id: creds.int_id,
-                int_name: creds.int_id,
             });
 
             if (!saved.ok) {
@@ -487,6 +486,7 @@ const IntegrationsPage = () => {
             const saved = await saveIntegration({
                 platform: "facebook",
                 access_token: page.access_token,
+                int_name: page.name,
                 int_id: page.id,
                 brand_id: activeBrandId,
             });

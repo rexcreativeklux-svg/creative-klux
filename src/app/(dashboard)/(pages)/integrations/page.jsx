@@ -412,7 +412,7 @@ const IntegrationsPage = () => {
         setLoadingPlatformId(platformId);
         try {
             const oauthResult = await openOAuthPopup(platformId);
-           
+           console.log("oauth:", oauthResult);
             const creds = await resolveIntegrationCredentials(platformId, oauthResult);
              console.log(" result:", creds);
 

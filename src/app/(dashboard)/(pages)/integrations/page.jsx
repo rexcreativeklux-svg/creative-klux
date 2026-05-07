@@ -448,7 +448,7 @@ const IntegrationsPage = () => {
                 case "linkedin":
                 case "linkedin_ads": {
 
-                    const res = await fetch("/api/linkedin/userinfo", {
+                    const res = await fetch("/api/linkedin/exchange", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({

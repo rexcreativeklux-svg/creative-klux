@@ -447,18 +447,23 @@ const IntegrationsPage = () => {
 
                 case "linkedin":
                 case "linkedin_ads": {
-                    const res = await fetch(
-                        "https://api.linkedin.com/v2/userinfo",
-                        { headers: { Authorization: `Bearer ${access_token}` } }
-                    );
+
+                    const res = await fetch("/api/linkedin/userinfo", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            code: oauthResult.code,
+                        }),
+                    });
 
                     const data = await res.json();
 
-                    console.log("LinkedIn raw userinfo response:", data);
+                    if (!res.ok) {
+                        throw new Error(data.error || "LinkedIn failed");
+                    }
 
-                    int_id = data.sub;
-
-                    console.log(" LinkedIn extracted int_id:", int_id);
+                    int_id = data.int_id;
+                    access_token = data.access_token;
 
                     break;
                 }

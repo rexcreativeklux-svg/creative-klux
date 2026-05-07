@@ -116,7 +116,13 @@ export default function SocialAnalytics() {
     useEffect(() => { fetchLive(true); }, [fetchLive]);
 
     const posts = allPosts.filter(p => p.type === 'social');
-    const publishedPosts = posts.filter(p => p.status === 'published');
+    const connectedPlatforms = new Set(integrations.map(i => i.platform));
+
+    const publishedPosts = integrations.length === 0
+        ? []
+        : posts.filter(p => p.status === 'published' && (
+            !p.live || connectedPlatforms.has(p.platform)
+        ));
 
     const totals = publishedPosts.reduce((acc, p) => {
         const s = p.stats || {};

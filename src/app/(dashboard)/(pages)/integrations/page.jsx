@@ -452,7 +452,23 @@ const IntegrationsPage = () => {
                 showToast(result.message || "Failed to disconnect", "error");
                 return;
             }
+
+            // Find the platform being disconnected before removing it
+            const disconnectedPlatform = integrations.find(i => i.id === integrationId)?.platform;
+
             setIntegrations((prev) => prev.filter((i) => i.id !== integrationId));
+
+            // Purge live posts for this platform from localStorage
+            if (disconnectedPlatform) {
+                try {
+                    const stored = JSON.parse(localStorage.getItem('creativeklux_published_posts') || '[]');
+                    const cleaned = stored.filter(p => !(p.live && p.platform === disconnectedPlatform));
+                    localStorage.setItem('creativeklux_published_posts', JSON.stringify(cleaned));
+                } catch (e) {
+                    console.warn('Failed to clean localStorage posts:', e);
+                }
+            }
+
             showToast("Integration disconnected.", "success");
         } catch (err) {
             console.error("Disconnect error:", err);
@@ -460,7 +476,7 @@ const IntegrationsPage = () => {
         } finally {
             setLoadingIntegrationId(null);
         }
-    }, [disconnectIntegration]);
+    }, [disconnectIntegration, integrations]);
 
     // ── Facebook page selection ──
     const handleSelectFacebookPage = async (page) => {

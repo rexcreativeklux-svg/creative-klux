@@ -410,6 +410,7 @@ const IntegrationsPage = () => {
         setLoadingPlatformId(platformId);
         try {
             const oauthResult = await openOAuthPopup(platformId);
+            console.log("OAuth result:", oauthResult);
             const creds = await resolveIntegrationCredentials(platformId, oauthResult);
 
             if (!creds) return; // Facebook UI takeover

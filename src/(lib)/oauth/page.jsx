@@ -512,16 +512,13 @@ const META_OAUTH_BASE =
 
 const CLIENT_IDS = {
   facebook:
-    process.env.NEXT_PUBLIC_FACEBOOK_APP_ID ||
-    '415385890784940',
+    process.env.NEXT_PUBLIC_FACEBOOK_APP_ID,
 
   instagram:
-    process.env.NEXT_PUBLIC_FACEBOOK_APP_ID ||
-    '415385890784940',
+    process.env.NEXT_PUBLIC_FACEBOOK_APP_ID,
 
   meta_ads:
-    process.env.NEXT_PUBLIC_FACEBOOK_APP_ID ||
-    '415385890784940',
+    process.env.NEXT_PUBLIC_FACEBOOK_APP_ID,
 
   google_ads:
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
@@ -1173,7 +1170,7 @@ export async function fetchLinkedInAdAccounts(
   if (data.status >= 400) {
     throw new Error(
       data.message ||
-        'LinkedIn API error'
+      'LinkedIn API error'
     );
   }
 
@@ -1317,7 +1314,7 @@ export async function fetchTikTokUser(
   ) {
     throw new Error(
       data.error?.message ||
-        'TikTok API error'
+      'TikTok API error'
     );
   }
 

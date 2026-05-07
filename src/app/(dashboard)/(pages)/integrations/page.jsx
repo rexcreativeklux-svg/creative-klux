@@ -84,14 +84,14 @@ const AD_PLATFORMS = [
 ];
 
 // ── Facebook Page Selector Modal ─────────────────────────────────────────────
-const FacebookPageModal = ({ pages, onSelect, onClose, loading, selectedPageId }) => (
+const PlatformPageModal = ({ pages, onSelect, onClose, loading, selectedPageId }) => (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)" }}>
         <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
             {/* Header */}
             <div className="px-5 pt-5 pb-4 border-b border-gray-100">
                 <div className="flex items-start justify-between gap-3">
                     <div>
-                        <h3 className="font-semibold text-gray-900 text-sm">Select a Facebook Page</h3>
+                        <h3 className="font-semibold text-gray-900 text-sm">Select a Page</h3>
                         <p className="text-xs text-gray-500 mt-0.5">
                             Choose which page to connect to this brand.
                         </p>
@@ -393,23 +393,41 @@ const IntegrationsPage = () => {
                 return null;
             }
 
-            // ── META ADS: fetch ad accounts, store user token + first ad account ID
+            // ── META ADS: pick a Facebook Page first
             if (platformId === "meta_ads") {
-                const adRes = await fetch(
-                    `https://graph.facebook.com/v23.0/me/adaccounts?fields=id,name,account_status&access_token=${userToken}`
+                const pagesRes = await fetch(
+                    `https://graph.facebook.com/v23.0/me/accounts` +
+                    `?access_token=${userToken}` +
+                    `&fields=id,name,access_token,picture`
                 );
-                const adData = await adRes.json();
-                if (adData.error) throw new Error(adData.error.message);
-                const accounts = adData.data || [];
-                if (!accounts.length) throw new Error("No Meta Ad Accounts found.");
 
-                // Use first active account — you could show a picker like Facebook pages
-                const adAccount = accounts[0];
-                return {
-                    int_token: userToken,
-                    int_id: adAccount.id, // e.g. "act_123456789"
-                    int_name: adAccount.name,
-                };
+                const pagesData = await pagesRes.json();
+
+                if (pagesData.error) {
+                    throw new Error(pagesData.error.message);
+                }
+
+                const pages = pagesData.data || [];
+
+                if (!pages.length) {
+                    throw new Error("No Facebook Pages found on this account.");
+                }
+
+                setFbPages(
+                    pages.map((p) => ({
+                        ...p,
+                        _platform: "meta_ads",
+                    }))
+                );
+
+                setPendingFbOauth({
+                    userToken,
+                    platformId: "meta_ads",
+                });
+
+                setShowPageModal(true);
+
+                return null;
             }
         }
 
@@ -592,22 +610,14 @@ const IntegrationsPage = () => {
     // };
     const handleSelectPlatformPage = async (page) => {
         setFbLoadingPageId(page.id);
-        const { platformId } = pendingFbOauth;
+
+        const { platformId, userToken } = pendingFbOauth;
 
         try {
             let savePayload;
 
-            if (platformId === "instagram") {
-                // Store page token as int_token, IG Business Account ID as int_id
-                savePayload = {
-                    platform: "instagram",
-                    access_token: page.access_token, // page token — required for IG Graph API
-                    int_id: page._ig_user_id,        // Instagram Business Account ID
-                    int_name: page.name,
-                    brand_id: activeBrandId,
-                };
-            } else {
-                // Facebook: page token + page ID
+            // ───────────────── FACEBOOK ─────────────────
+            if (platformId === "facebook") {
                 savePayload = {
                     platform: "facebook",
                     access_token: page.access_token,
@@ -617,20 +627,83 @@ const IntegrationsPage = () => {
                 };
             }
 
-            const saved = await saveIntegration(savePayload);
-            if (!saved.ok) { showToast(saved.message || "Failed to save", "error"); return; }
+            // ───────────────── INSTAGRAM ─────────────────
+            else if (platformId === "instagram") {
+                savePayload = {
+                    platform: "instagram",
+                    access_token: page.access_token,
+                    int_id: page._ig_user_id,
+                    int_name: page.name,
+                    brand_id: activeBrandId,
+                };
+            }
 
-            setIntegrations(prev => [...prev, {
-                id: saved.data?.id || saved.id,
-                platform: platformId,
-                int_id: savePayload.int_id,
-                int_name: page.name,
-            }]);
+            // ───────────────── META ADS ─────────────────
+            else if (platformId === "meta_ads") {
+                // Fetch ad accounts
+                const adRes = await fetch(
+                    `https://graph.facebook.com/v23.0/me/adaccounts` +
+                    `?fields=id,name,account_status` +
+                    `&access_token=${userToken}`
+                );
+
+                const adData = await adRes.json();
+
+                if (adData.error) {
+                    throw new Error(adData.error.message);
+                }
+
+                const accounts = adData.data || [];
+
+                if (!accounts.length) {
+                    throw new Error("No Meta ad accounts found.");
+                }
+
+                const adAccount = accounts[0];
+
+                savePayload = {
+                    platform: "meta_ads",
+
+                    // use USER TOKEN for ads api
+                    access_token: userToken,
+
+                    // save ad account id
+                    int_id: adAccount.id,
+
+                    // display page + ad account
+                    int_name: `${page.name} • ${adAccount.name}`,
+
+                    // OPTIONAL:
+                    // save selected page id too
+                    page_id: page.id,
+
+                    brand_id: activeBrandId,
+                };
+            }
+
+            const saved = await saveIntegration(savePayload);
+
+            if (!saved.ok) {
+                showToast(saved.message || "Failed to save", "error");
+                return;
+            }
+
+            setIntegrations(prev => [
+                ...prev,
+                {
+                    id: saved.data?.id || saved.id,
+                    platform: platformId,
+                    int_id: savePayload.int_id,
+                    int_name: savePayload.int_name,
+                },
+            ]);
 
             setShowPageModal(false);
             setPendingFbOauth(null);
+
             showToast(`Connected successfully!`, "success");
         } catch (err) {
+            console.error(err);
             showToast(err.message || "Failed to connect", "error");
         } finally {
             setFbLoadingPageId(null);
@@ -731,7 +804,7 @@ const IntegrationsPage = () => {
 
             {/* Facebook page selector modal */}
             {showPageModal && (
-                <FacebookPageModal
+                <PlatformPageModal
                     pages={fbPages}
                     onSelect={handleSelectPlatformPage}
                     onClose={handleClosePageModal}

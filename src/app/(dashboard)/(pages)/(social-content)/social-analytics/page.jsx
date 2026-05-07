@@ -64,6 +64,7 @@ export default function SocialAnalytics() {
     const [refreshingAll, setRefreshingAll] = useState(false);
     const [fetchingLive, setFetchingLive] = useState(false);
     const { fetchIntegrations } = useAuth();
+    const initializedRef = useRef(false);
 
     const [integrations, setIntegrations] = useState([]);
 
@@ -113,7 +114,98 @@ export default function SocialAnalytics() {
         }
     }, [reload, integrations]);
 
-    useEffect(() => { fetchLive(true); }, [fetchLive]);
+    useEffect(() => {
+        if (initializedRef.current) return;
+        initializedRef.current = true;
+
+        const initializeAnalytics = async () => {
+            // sync latest live posts first
+            await fetchLive(true);
+
+            // wait until integrations exist
+            if (!integrations.length) return;
+
+            // auto-fetch stats
+            setRefreshingAll(true);
+
+            try {
+                const accounts = accountsMap();
+                const localPosts = getPublishedPosts();
+
+                const socialPosts = localPosts.filter(
+                    (p) => p.type === 'social' && p.status === 'published'
+                );
+
+                let updated = 0;
+
+                for (const post of socialPosts) {
+                    if (!post.post_id) continue;
+
+                    try {
+                        let newStats = null;
+
+                        // FACEBOOK
+                        if (
+                            post.platform === 'facebook' &&
+                            accounts.facebook
+                        ) {
+                            newStats = await getFacebookPostStats({
+                                access_token:
+                                    accounts.facebook.access_token,
+                                post_id: post.post_id,
+                            });
+                        }
+
+                        // INSTAGRAM
+                        if (
+                            post.platform === 'instagram' &&
+                            accounts.instagram
+                        ) {
+                            newStats = await getInstagramPostStats({
+                                access_token:
+                                    accounts.instagram.access_token,
+                                post_id: post.post_id,
+                            });
+                        }
+
+                        if (newStats) {
+                            savePublishedPost({
+                                ...post,
+                                stats: {
+                                    ...post.stats,
+                                    ...newStats,
+                                    last_updated:
+                                        new Date().toISOString(),
+                                },
+                            });
+
+                            updated++;
+                        }
+                    } catch (err) {
+                        console.warn(
+                            `Failed stats refresh for ${post.id}`,
+                            err
+                        );
+                    }
+                }
+
+                // reload local state
+                reload();
+
+                if (updated > 0) {
+                    toast.success(
+                        `Loaded analytics for ${updated} post(s)`
+                    );
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setRefreshingAll(false);
+            }
+        };
+
+        initializeAnalytics();
+    }, [fetchLive, integrations, accountsMap, reload]);
 
     const posts = allPosts.filter(p => p.type === 'social');
     const connectedPlatforms = new Set(integrations.map(i => i.platform));

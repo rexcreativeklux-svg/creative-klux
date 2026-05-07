@@ -12,7 +12,7 @@ export async function POST(req) {
         body: new URLSearchParams({
             grant_type: "authorization_code",
             code,
-            redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+            redirect_uri: process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID,
             client_id: process.env.LINKEDIN_CLIENT_ID,
             client_secret: process.env.LINKEDIN_CLIENT_SECRET,
         }),

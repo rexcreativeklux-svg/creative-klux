@@ -114,16 +114,27 @@ export default function SocialAnalytics() {
         }
     }, [reload, integrations]);
 
+    const accountsMap = useCallback(() => {
+        const map = {};
+
+        integrations.forEach(i => {
+            map[i.platform] = {
+                access_token: i.int_token,
+                page_id: i.int_id,
+                ig_user_id: i.int_id,
+                ad_account_id: i.int_id,
+            };
+        });
+
+        return map;
+    }, [integrations]);
+
     useEffect(() => {
-        if (initializedRef.current) return;
-        initializedRef.current = true;
+        if (!integrations.length) return;
 
         const initializeAnalytics = async () => {
             // sync latest live posts first
             await fetchLive(true);
-
-            // wait until integrations exist
-            if (!integrations.length) return;
 
             // auto-fetch stats
             setRefreshingAll(true);
@@ -189,7 +200,6 @@ export default function SocialAnalytics() {
                     }
                 }
 
-                // reload local state
                 reload();
 
                 if (updated > 0) {
@@ -205,7 +215,7 @@ export default function SocialAnalytics() {
         };
 
         initializeAnalytics();
-    }, [fetchLive, integrations, accountsMap, reload]);
+    }, [integrations, fetchLive, accountsMap, reload]);
 
     const posts = allPosts.filter(p => p.type === 'social');
     const connectedPlatforms = new Set(integrations.map(i => i.platform));
@@ -267,20 +277,7 @@ export default function SocialAnalytics() {
         { name: 'Clicks', value: totals.clicks, color: '#22c55e' },
     ].filter(e => e.value > 0);
 
-    const accountsMap = useCallback(() => {
-        const map = {};
 
-        integrations.forEach(i => {
-            map[i.platform] = {
-                access_token: i.int_token,
-                page_id: i.int_id,
-                ig_user_id: i.int_id,
-                ad_account_id: i.int_id,
-            };
-        });
-
-        return map;
-    }, [integrations]);
 
 
     const handleRefreshAll = async () => {

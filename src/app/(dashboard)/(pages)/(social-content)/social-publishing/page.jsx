@@ -8,8 +8,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  getPublishedPosts, savePublishedPost,
-  getConnectedAccounts, getFacebookPostStats, getInstagramPostStats,
+  getPublishedPosts, savePublishedPost, getFacebookPostStats, getInstagramPostStats,
   publishToFacebook, publishToInstagram, publishToMetaAds,
   fetchLivePostsFromConnectedAccounts, deletePostFromPlatform,
   updatePostCaptionOnPlatform,

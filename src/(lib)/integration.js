@@ -525,6 +525,8 @@ const POSTS_KEY = 'creativeklux_published_posts';
 const META_API_VERSION = 'v23.0';
 
 const META_GRAPH_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
+
+
 const META_OAUTH_BASE = `https://www.facebook.com/${META_API_VERSION}`;
 
 // ─────────────────────────────────────────────────────────────
@@ -841,7 +843,11 @@ export async function publishToMetaAds({
   image_url,
   campaign_name,
 }) {
-  const base = `${META_GRAPH_BASE}/act_${ad_account_id}`;
+  const normalizedAccountId = ad_account_id.startsWith('act_')
+    ? ad_account_id
+    : `act_${ad_account_id}`;
+
+  const base = `${META_GRAPH_BASE}/${normalizedAccountId}`;
 
   // Upload image
   const imgRes = await fetch(`${base}/adimages`, {
@@ -962,6 +968,30 @@ export async function getInstagramPostStats({
   };
 }
 
+export async function getMetaAdsCampaignStats({
+  access_token,
+  campaign_id,
+}) {
+  const res = await fetch(
+    `${META_GRAPH_BASE}/${campaign_id}/insights?fields=impressions,reach,clicks,ctr&access_token=${access_token}`
+  );
+
+  const data = await res.json();
+
+  if (data.error) {
+    throw new Error(data.error.message);
+  }
+
+  const insight = data.data?.[0] || {};
+
+  return {
+    impressions: Number(insight.impressions || 0),
+    reach: Number(insight.reach || 0),
+    clicks: Number(insight.clicks || 0),
+    ctr: Number(insight.ctr || 0),
+  };
+}
+
 // ─────────────────────────────────────────────────────────────
 // Fetch Live Posts
 // ─────────────────────────────────────────────────────────────
@@ -1070,8 +1100,14 @@ export async function fetchLivePostsFromConnectedAccounts(
     accounts.meta_ads?.ad_account_id
   ) {
     try {
+      const rawAccountId = accounts.meta_ads.ad_account_id;
+
+      const normalizedAccountId = rawAccountId.startsWith('act_')
+        ? rawAccountId
+        : `act_${rawAccountId}`;
+
       const res = await fetch(
-        `${META_GRAPH_BASE}/act_${accounts.meta_ads.ad_account_id}/campaigns?fields=id,name,status,created_time,objective&limit=20&access_token=${accounts.meta_ads.access_token}`
+        `${META_GRAPH_BASE}/${normalizedAccountId}/campaigns?fields=id,name,status,created_time,objective&limit=20&access_token=${accounts.meta_ads.access_token}`
       );
 
       const data = await res.json();

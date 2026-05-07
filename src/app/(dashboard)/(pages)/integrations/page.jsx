@@ -451,8 +451,15 @@ const IntegrationsPage = () => {
                         "https://api.linkedin.com/v2/userinfo",
                         { headers: { Authorization: `Bearer ${access_token}` } }
                     );
+
                     const data = await res.json();
+
+                    console.log("LinkedIn raw userinfo response:", data);
+
                     int_id = data.sub;
+
+                    console.log(" LinkedIn extracted int_id:", int_id);
+
                     break;
                 }
 

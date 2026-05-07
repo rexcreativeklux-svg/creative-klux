@@ -254,7 +254,7 @@ const IntegrationsPage = () => {
     const [fbPages, setFbPages] = useState([]);
     const [showPageModal, setShowPageModal] = useState(false);
     const [fbLoadingPageId, setFbLoadingPageId] = useState(null); // which page button is loading
-    // We stash the oauth result here so handleSelectFacebookPage can use it
+    // We stash the oauth result here so handleSelectPlatformPage can use it
     const [pendingFbOauth, setPendingFbOauth] = useState(null);
 
     const [loadingPlatformId, setLoadingPlatformId] = useState(null);
@@ -286,58 +286,131 @@ const IntegrationsPage = () => {
     async function resolveIntegrationCredentials(platformId, oauthResult) {
         let { access_token } = oauthResult;
 
-        // ─────────────────────────────────────────────
-        // META UNIFIED TOKEN NORMALIZATION (IMPORTANT)
-        // Facebook / Instagram / Meta Ads all use Graph API
-        // ─────────────────────────────────────────────
+        // // ─────────────────────────────────────────────
+        // // META UNIFIED TOKEN NORMALIZATION (IMPORTANT)
+        // // Facebook / Instagram / Meta Ads all use Graph API
+        // // ─────────────────────────────────────────────
+        // if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
+        //     const exchangeRes = await fetch("/api/meta/exchange", {
+        //         method: "POST",
+        //         headers: { "Content-Type": "application/json" },
+        //         body: JSON.stringify({
+        //             // Pass whichever one we have — backend handles both
+        //             access_token: oauthResult.access_token ?? undefined,
+        //             code: oauthResult.code ?? undefined,
+        //         }),
+        //     });
+
+        //     const exchangeData = await exchangeRes.json();
+
+        //     if (!exchangeRes.ok) {
+        //         throw new Error(exchangeData.error || "Meta token exchange failed");
+        //     }
+
+        //     access_token = exchangeData.access_token;
+        // }
+
+        // // ─────────────────────────────────────────────
+        // // FACEBOOK / INSTAGRAM / META ADS → PAGE PICKER
+        // // ─────────────────────────────────────────────
+        // if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
+        //     const pagesRes = await fetch(
+        //         `https://graph.facebook.com/v19.0/me/accounts` +
+        //         `?access_token=${access_token}` +
+        //         `&fields=id,name,access_token,picture`
+        //     );
+
+        //     const pagesData = await pagesRes.json();
+
+        //     if (pagesData.error) {
+        //         throw new Error(pagesData.error.message);
+        //     }
+
+        //     const pages = pagesData.data || [];
+
+        //     if (pages.length === 0) {
+        //         throw new Error("No Facebook Pages found on this account.");
+        //     }
+
+        //     // Stop flow — UI takes over page selection
+        //     setFbPages(pages);
+        //     setPendingFbOauth({ ...oauthResult, access_token });
+        //     setShowPageModal(true);
+
+        //     return null; // signal UI takeover
+        // }
+
         if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
             const exchangeRes = await fetch("/api/meta/exchange", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    // Pass whichever one we have — backend handles both
                     access_token: oauthResult.access_token ?? undefined,
                     code: oauthResult.code ?? undefined,
                 }),
             });
-
             const exchangeData = await exchangeRes.json();
+            if (!exchangeRes.ok) throw new Error(exchangeData.error || "Meta token exchange failed");
+            const userToken = exchangeData.access_token;
 
-            if (!exchangeRes.ok) {
-                throw new Error(exchangeData.error || "Meta token exchange failed");
+            // ── FACEBOOK: pick a page, store page token + page ID
+            if (platformId === "facebook") {
+                const pagesRes = await fetch(
+                    `https://graph.facebook.com/v23.0/me/accounts?access_token=${userToken}&fields=id,name,access_token,picture`
+                );
+                const pagesData = await pagesRes.json();
+                if (pagesData.error) throw new Error(pagesData.error.message);
+                const pages = pagesData.data || [];
+                if (!pages.length) throw new Error("No Facebook Pages found on this account.");
+
+                setFbPages(pages);
+                setPendingFbOauth({ userToken, platformId: "facebook" });
+                setShowPageModal(true);
+                return null; // UI takes over
             }
 
-            access_token = exchangeData.access_token;
-        }
+            // ── INSTAGRAM: pick a page, then resolve its linked IG Business Account
+            if (platformId === "instagram") {
+                const pagesRes = await fetch(
+                    `https://graph.facebook.com/v23.0/me/accounts?access_token=${userToken}&fields=id,name,access_token,instagram_business_account{id,username}`
+                );
+                const pagesData = await pagesRes.json();
+                if (pagesData.error) throw new Error(pagesData.error.message);
 
-        // ─────────────────────────────────────────────
-        // FACEBOOK / INSTAGRAM / META ADS → PAGE PICKER
-        // ─────────────────────────────────────────────
-        if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
-            const pagesRes = await fetch(
-                `https://graph.facebook.com/v19.0/me/accounts` +
-                `?access_token=${access_token}` +
-                `&fields=id,name,access_token,picture`
-            );
+                // Filter to only pages that have a linked IG account
+                const pagesWithIg = (pagesData.data || []).filter(p => p.instagram_business_account);
+                if (!pagesWithIg.length) throw new Error("No Instagram Business accounts found. Make sure your Instagram is linked to a Facebook Page.");
 
-            const pagesData = await pagesRes.json();
-
-            if (pagesData.error) {
-                throw new Error(pagesData.error.message);
+                setFbPages(pagesWithIg.map(p => ({
+                    ...p,
+                    // Annotate so the modal can show IG username
+                    name: `${p.name} (@${p.instagram_business_account.username})`,
+                    // We'll need both page token and ig_user_id at save time
+                    _ig_user_id: p.instagram_business_account.id,
+                })));
+                setPendingFbOauth({ userToken, platformId: "instagram" });
+                setShowPageModal(true);
+                return null;
             }
 
-            const pages = pagesData.data || [];
+            // ── META ADS: fetch ad accounts, store user token + first ad account ID
+            if (platformId === "meta_ads") {
+                const adRes = await fetch(
+                    `https://graph.facebook.com/v23.0/me/adaccounts?fields=id,name,account_status&access_token=${userToken}`
+                );
+                const adData = await adRes.json();
+                if (adData.error) throw new Error(adData.error.message);
+                const accounts = adData.data || [];
+                if (!accounts.length) throw new Error("No Meta Ad Accounts found.");
 
-            if (pages.length === 0) {
-                throw new Error("No Facebook Pages found on this account.");
+                // Use first active account — you could show a picker like Facebook pages
+                const adAccount = accounts[0];
+                return {
+                    int_token: userToken,
+                    int_id: adAccount.id, // e.g. "act_123456789"
+                    int_name: adAccount.name,
+                };
             }
-
-            // Stop flow — UI takes over page selection
-            setFbPages(pages);
-            setPendingFbOauth({ ...oauthResult, access_token });
-            setShowPageModal(true);
-
-            return null; // signal UI takeover
         }
 
         let int_id = null;
@@ -480,38 +553,85 @@ const IntegrationsPage = () => {
     }, [disconnectIntegration, integrations]);
 
     // ── Facebook page selection ──
-    const handleSelectFacebookPage = async (page) => {
-        setFbLoadingPageId(page.id);
-        try {
-            const saved = await saveIntegration({
-                platform: "facebook",
-                access_token: page.access_token,
-                int_name: page.name,
-                int_id: page.id,
-                brand_id: activeBrandId,
-            });
+    // const handleSelectPlatformPage = async (page) => {
+    //     setFbLoadingPageId(page.id);
+    //     try {
+    //         const saved = await saveIntegration({
+    //             platform: "facebook",
+    //             access_token: page.access_token,
+    //             int_name: page.name,
+    //             int_id: page.id,
+    //             brand_id: activeBrandId,
+    //         });
 
-            if (!saved.ok) {
-                showToast(saved.message || "Failed to save page", "error");
-                return;
+    //         if (!saved.ok) {
+    //             showToast(saved.message || "Failed to save page", "error");
+    //             return;
+    //         }
+
+    //         setIntegrations((prev) => [
+    //             ...prev,
+    //             {
+    //                 id: saved.data?.id || saved.id,
+    //                 platform: "facebook",
+    //                 int_id: page.id,
+    //                 int_name: page.name, // store the page name for display
+    //             },
+    //         ]);
+
+    //         setShowPageModal(false);
+    //         setPendingFbOauth(null);
+    //         showToast(`"${page.name}" connected successfully!`, "success");
+    //     } catch (err) {
+    //         console.error(err);
+    //         showToast("Failed to connect page", "error");
+    //     } finally {
+    //         setFbLoadingPageId(null);
+    //         setLoadingPlatformId(null);
+    //     }
+    // };
+    const handleSelectPlatformPage = async (page) => {
+        setFbLoadingPageId(page.id);
+        const { platformId } = pendingFbOauth;
+
+        try {
+            let savePayload;
+
+            if (platformId === "instagram") {
+                // Store page token as int_token, IG Business Account ID as int_id
+                savePayload = {
+                    platform: "instagram",
+                    access_token: page.access_token, // page token — required for IG Graph API
+                    int_id: page._ig_user_id,        // Instagram Business Account ID
+                    int_name: page.name,
+                    brand_id: activeBrandId,
+                };
+            } else {
+                // Facebook: page token + page ID
+                savePayload = {
+                    platform: "facebook",
+                    access_token: page.access_token,
+                    int_id: page.id,
+                    int_name: page.name,
+                    brand_id: activeBrandId,
+                };
             }
 
-            setIntegrations((prev) => [
-                ...prev,
-                {
-                    id: saved.data?.id || saved.id,
-                    platform: "facebook",
-                    int_id: page.id,
-                    int_name: page.name, // store the page name for display
-                },
-            ]);
+            const saved = await saveIntegration(savePayload);
+            if (!saved.ok) { showToast(saved.message || "Failed to save", "error"); return; }
+
+            setIntegrations(prev => [...prev, {
+                id: saved.data?.id || saved.id,
+                platform: platformId,
+                int_id: savePayload.int_id,
+                int_name: page.name,
+            }]);
 
             setShowPageModal(false);
             setPendingFbOauth(null);
-            showToast(`"${page.name}" connected successfully!`, "success");
+            showToast(`Connected successfully!`, "success");
         } catch (err) {
-            console.error(err);
-            showToast("Failed to connect page", "error");
+            showToast(err.message || "Failed to connect", "error");
         } finally {
             setFbLoadingPageId(null);
             setLoadingPlatformId(null);
@@ -613,7 +733,7 @@ const IntegrationsPage = () => {
             {showPageModal && (
                 <FacebookPageModal
                     pages={fbPages}
-                    onSelect={handleSelectFacebookPage}
+                    onSelect={handleSelectPlatformPage}
                     onClose={handleClosePageModal}
                     loading={fbLoadingPageId}
                     selectedPageId={null}

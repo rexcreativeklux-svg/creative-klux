@@ -2000,7 +2000,7 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-  const saveIntegration = useCallback(async ({ platform, access_token, code, brand_id, int_id }) => {
+  const saveIntegration = useCallback(async ({ platform, access_token, code, brand_id, int_id, int_name }) => {
     if (!token) return { ok: false, message: "Not authenticated" };
 
     // Explicit brand_id from caller wins over the closure value (avoids stale null)
@@ -2020,6 +2020,7 @@ export function AuthProvider({ children }) {
           int_token: access_token || null,
           // code: code || null,
           int_id: int_id || null,   // ← platform account ID e.g. Facebook User ID
+          int_name: int_name,
         }),
       });
 

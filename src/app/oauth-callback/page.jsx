@@ -11,11 +11,13 @@ export default function OAuthCallback() {
       const access_token = hash.get("access_token");
       const code = params.get("code");
 
-      // ✅ FIX: state lives in the HASH for implicit flows (Facebook, etc.)
-      const platform =
-        hash.get("state") ||        // implicit flow: state is in the hash
-        params.get("state") ||      // code flow: state is in query params
+      const rawState =
+        hash.get("state") ||
+        params.get("state") ||
         params.get("platform");
+
+      // Strip the _timestamp suffix added in buildAuthUrl (e.g. "facebook_1234567890" → "facebook")
+      const platform = rawState?.replace(/_\d+$/, "") ?? null;
 
       const error = params.get("error");
 

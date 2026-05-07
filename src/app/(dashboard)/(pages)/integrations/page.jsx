@@ -290,13 +290,15 @@ const IntegrationsPage = () => {
         // META UNIFIED TOKEN NORMALIZATION (IMPORTANT)
         // Facebook / Instagram / Meta Ads all use Graph API
         // ─────────────────────────────────────────────
-        if (
-            ["facebook", "instagram", "meta_ads"].includes(platformId)
-        ) {
+        if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
             const exchangeRes = await fetch("/api/meta/exchange", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ access_token }),
+                body: JSON.stringify({
+                    // Pass whichever one we have — backend handles both
+                    access_token: oauthResult.access_token ?? undefined,
+                    code: oauthResult.code ?? undefined,
+                }),
             });
 
             const exchangeData = await exchangeRes.json();

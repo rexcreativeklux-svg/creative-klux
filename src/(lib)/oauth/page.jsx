@@ -617,26 +617,57 @@ async function buildAuthUrl(platform, clientId) {
   );
 
   switch (platform) {
-    // ────────────────────────────────────────────────────────
-    // Meta Platforms
-    // ────────────────────────────────────────────────────────
 
-    case 'facebook':
-    case 'instagram':
-    case 'meta_ads': {
+    // ────────────────────────────────────────────────────────
+    // FACEBOOK (basic Pages access only)
+    // ────────────────────────────────────────────────────────
+    case 'facebook': {
       const scope = encodeURIComponent([
         'pages_show_list',
-        'pages_manage_posts',
         'pages_read_engagement',
-        'instagram_basic',
-        'instagram_content_publish',
-        'ads_management',
-        'business_management',
+        'pages_manage_posts',
         'read_insights',
       ].join(','));
 
-      // Modern recommendation:
-      // use CODE flow instead of token implicit flow
+      return (
+        `${META_OAUTH_BASE}/dialog/oauth` +
+        `?client_id=${clientId}` +
+        `&redirect_uri=${redirect}` +
+        `&scope=${scope}` +
+        `&response_type=code` +
+        `&state=${state}`
+      );
+    }
+
+    // ────────────────────────────────────────────────────────
+    // INSTAGRAM (Graph API via Facebook login)
+    // ────────────────────────────────────────────────────────
+    case 'instagram': {
+      const scope = encodeURIComponent([
+        'pages_show_list',
+        'instagram_basic',
+        'pages_read_engagement',
+      ].join(','));
+
+      return (
+        `${META_OAUTH_BASE}/dialog/oauth` +
+        `?client_id=${clientId}` +
+        `&redirect_uri=${redirect}` +
+        `&scope=${scope}` +
+        `&response_type=code` +
+        `&state=${state}`
+      );
+    }
+
+    // ────────────────────────────────────────────────────────
+    // META ADS (business / ads permissions only)
+    // ────────────────────────────────────────────────────────
+    case 'meta_ads': {
+      const scope = encodeURIComponent([
+        'business_management',
+        'ads_read',
+        'read_insights',
+      ].join(','));
 
       return (
         `${META_OAUTH_BASE}/dialog/oauth` +
@@ -651,14 +682,12 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // Twitter / X
     // ────────────────────────────────────────────────────────
-
     case 'twitter': {
       const scope = encodeURIComponent(
         'tweet.read tweet.write users.read offline.access'
       );
 
-      const challenge =
-        await generatePKCEChallenge();
+      const challenge = await generatePKCEChallenge();
 
       return (
         `https://twitter.com/i/oauth2/authorize` +
@@ -675,7 +704,6 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // LinkedIn Organic
     // ────────────────────────────────────────────────────────
-
     case 'linkedin': {
       const scope = encodeURIComponent(
         'openid profile email w_member_social'
@@ -694,7 +722,6 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // LinkedIn Ads
     // ────────────────────────────────────────────────────────
-
     case 'linkedin_ads': {
       const scope = encodeURIComponent(
         'r_ads r_ads_reporting rw_ads openid profile email'
@@ -713,7 +740,6 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // YouTube
     // ────────────────────────────────────────────────────────
-
     case 'youtube': {
       const scope = encodeURIComponent([
         'https://www.googleapis.com/auth/youtube',
@@ -737,7 +763,6 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // Google Ads
     // ────────────────────────────────────────────────────────
-
     case 'google_ads': {
       const scope = encodeURIComponent([
         'https://www.googleapis.com/auth/adwords',
@@ -760,7 +785,6 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // Pinterest Organic
     // ────────────────────────────────────────────────────────
-
     case 'pinterest': {
       const scope = encodeURIComponent(
         'boards:read,pins:read,pins:write,user_accounts:read'
@@ -779,7 +803,6 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // Pinterest Ads
     // ────────────────────────────────────────────────────────
-
     case 'pinterest_ads': {
       const scope = encodeURIComponent(
         'boards:read,pins:read,pins:write,user_accounts:read,ads:read,ads:write'
@@ -796,13 +819,10 @@ async function buildAuthUrl(platform, clientId) {
     }
 
     // ────────────────────────────────────────────────────────
-    // Snapchat
+    // SNAPCHAT
     // ────────────────────────────────────────────────────────
-
     case 'snapchat': {
-      const scope = encodeURIComponent(
-        'snapchat-marketing-api'
-      );
+      const scope = encodeURIComponent('snapchat-marketing-api');
 
       return (
         `https://accounts.snapchat.com/login/oauth2/authorize` +
@@ -830,9 +850,8 @@ async function buildAuthUrl(platform, clientId) {
     }
 
     // ────────────────────────────────────────────────────────
-    // TikTok Organic
+    // TIKTOK
     // ────────────────────────────────────────────────────────
-
     case 'tiktok': {
       const scope = encodeURIComponent(
         'user.info.basic,video.upload,video.list'
@@ -849,9 +868,8 @@ async function buildAuthUrl(platform, clientId) {
     }
 
     // ────────────────────────────────────────────────────────
-    // TikTok Ads
+    // TIKTOK ADS
     // ────────────────────────────────────────────────────────
-
     case 'tiktok_ads': {
       return (
         `https://business-api.tiktok.com/portal/auth` +
@@ -862,9 +880,7 @@ async function buildAuthUrl(platform, clientId) {
     }
 
     default:
-      throw new Error(
-        `Unknown platform: ${platform}`
-      );
+      throw new Error(`Unknown platform: ${platform}`);
   }
 }
 

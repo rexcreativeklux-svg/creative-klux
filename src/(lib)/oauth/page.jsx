@@ -590,11 +590,32 @@ function base64urlencode(buffer) {
     .replace(/=+$/, '');
 }
 
+// async function generatePKCEChallenge() {
+//   const verifier = crypto.randomUUID().replace(/-/g, '');
+
+//   const hashed = await sha256(verifier);
+
+//   const challenge = base64urlencode(hashed);
+
+//   sessionStorage.setItem(
+//     'creativeklux_pkce_verifier',
+//     verifier
+//   );
+
+//   return challenge;
+// }
+
+// ─────────────────────────────────────────────────────────────
+// OAuth URL Builders
+// ─────────────────────────────────────────────────────────────
+
 async function generatePKCEChallenge() {
-  const verifier = crypto.randomUUID().replace(/-/g, '');
+  // Generate a proper 48-byte random verifier (base64url = ~64 chars, within Twitter's 43–128 requirement)
+  const array = new Uint8Array(48);
+  crypto.getRandomValues(array);
+  const verifier = base64urlencode(array.buffer);
 
   const hashed = await sha256(verifier);
-
   const challenge = base64urlencode(hashed);
 
   sessionStorage.setItem(
@@ -604,10 +625,6 @@ async function generatePKCEChallenge() {
 
   return challenge;
 }
-
-// ─────────────────────────────────────────────────────────────
-// OAuth URL Builders
-// ─────────────────────────────────────────────────────────────
 
 async function buildAuthUrl(platform, clientId) {
   const redirect = encodeURIComponent(REDIRECT_URI);

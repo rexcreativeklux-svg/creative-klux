@@ -704,7 +704,8 @@ async function buildAuthUrl(platform, clientId) {
         'tweet.read tweet.write users.read offline.access'
       );
 
-      const challenge = await generatePKCEChallenge();
+      const challenge =
+        await generatePKCEChallenge();
 
       return (
         `https://twitter.com/i/oauth2/authorize` +

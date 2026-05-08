@@ -746,7 +746,7 @@ const IntegrationsPage = () => {
                     id: saved.data?.id || saved.id,
                     platform: platformId,
                     int_id: creds.int_id,
-                    int_name: creds.int_name, // ← ADD THIS
+                    int_name: creds.int_name,
                 },
             ]);
         } catch (err) {

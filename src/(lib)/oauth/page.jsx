@@ -1191,21 +1191,20 @@ export async function fetchLinkedInAdAccounts(
   access_token
 ) {
   const res = await fetch(
-    `https://api.linkedin.com/v2/adAccountsV2?q=search&search.type.values[0]=BUSINESS`,
+    `https://api.linkedin.com/v2/adAccountsV2?q=search&search.type.values=List(BUSINESS)`,
     {
       headers: {
         Authorization: `Bearer ${access_token}`,
-      },
+        'X-Restli-Protocol-Version': '2.0.0',
+      }
     }
   );
 
   const data = await res.json();
 
-  if (data.status >= 400) {
-    throw new Error(
-      data.message ||
-      'LinkedIn API error'
-    );
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || 'LinkedIn API error');
   }
 
   return (data.elements || []).map(

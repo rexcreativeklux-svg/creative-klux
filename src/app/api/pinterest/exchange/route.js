@@ -1,7 +1,7 @@
 // app/api/pinterest/exchange/route.js
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_PINTEREST_CLIENT_ID;         // 1568756
-const APP_ACCESS_TOKEN = process.env.NEXT_PUBLIC_PINTEREST_ACCESS_TOKEN; // pina_...
+const APP_ACCESS_TOKEN = process.env.PINTEREST_ACCESS_TOKEN; // pina_...
 const REDIRECT_URI = "https://app.creativeklux.com/oauth-callback";
 
 export async function POST(req) {

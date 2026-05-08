@@ -336,6 +336,52 @@ const IntegrationsPage = () => {
         };
     }
 
+    async function resolveTwitterIntegration(oauthResult) {
+        // Read the PKCE verifier that was stored before the popup opened
+        const code_verifier = sessionStorage.getItem("creativeklux_pkce_verifier");
+        if (!code_verifier) throw new Error("Missing PKCE verifier — please try connecting again.");
+
+        const res = await fetch("/api/twitter/exchange", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                code: oauthResult.code,
+                code_verifier,
+            }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Twitter exchange failed");
+
+        // Clean up the verifier
+        sessionStorage.removeItem("creativeklux_pkce_verifier");
+
+        return {
+            type: "twitter",
+            int_token: data.access_token,
+            int_id: data.int_id,
+            int_name: data.username ? `@${data.username}` : data.name,
+        };
+    }
+
+    async function resolvePinterestIntegration(oauthResult) {
+        const res = await fetch("/api/pinterest/exchange", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: oauthResult.code }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Pinterest exchange failed");
+
+        return {
+            type: "pinterest",
+            int_token: data.access_token,
+            int_id: data.int_id,
+            int_name: data.name,
+        };
+    }
+
     async function resolveGenericIntegration(platformId, oauthResult) {
         let access_token = oauthResult.access_token;
         let int_id = null;
@@ -379,17 +425,45 @@ const IntegrationsPage = () => {
     }
 
     async function resolveIntegrationCredentials(platformId, oauthResult) {
-        // META family
         if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
             return await resolveMetaIntegration(platformId, oauthResult);
         }
 
-        // LINKEDIN (isolated behavior)
         if (["linkedin", "linkedin_ads"].includes(platformId)) {
             return await resolveLinkedInIntegration(oauthResult);
         }
 
-        // OTHERS
+        if (platformId === "twitter") {
+            return await resolveTwitterIntegration(oauthResult);
+        }
+
+        // Pinterest organic — use backend exchange for long-lived token
+        if (platformId === "pinterest") {
+            return await resolvePinterestIntegration(oauthResult);
+        }
+
+        // Pinterest ads — exchange token first, then show ad account picker
+        if (platformId === "pinterest_ads") {
+            // First exchange the code for a real token via backend
+            const tokenData = await resolvePinterestIntegration(oauthResult);
+
+            const result = await resolvePinterestAdsIntegration({
+                access_token: tokenData.int_token,
+            });
+
+            setFbPages(result.adAccounts.map(acc => ({
+                id: acc.id,
+                name: acc.name,
+            })));
+            setPendingFbOauth({
+                platformId: "pinterest_ads",
+                access_token: tokenData.int_token,
+                userName: tokenData.int_name,
+            });
+            setShowPageModal(true);
+            return null;
+        }
+
         return await resolveGenericIntegration(platformId, oauthResult);
     }
 
@@ -766,6 +840,17 @@ const IntegrationsPage = () => {
                     access_token: page.access_token,
                     int_id: page.id,
                     int_name: page.name,
+                    brand_id: activeBrandId,
+                };
+            }
+
+            // ───────────────── PINTEREST ADS ─────────────────
+            else if (platformId === "pinterest_ads") {
+                savePayload = {
+                    platform: "pinterest_ads",
+                    access_token: pendingFbOauth.access_token,
+                    int_id: page.id,           // ad account ID
+                    int_name: `${pendingFbOauth.userName} • ${page.name}`,
                     brand_id: activeBrandId,
                 };
             }

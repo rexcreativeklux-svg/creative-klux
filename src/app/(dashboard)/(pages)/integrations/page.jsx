@@ -731,6 +731,7 @@ const IntegrationsPage = () => {
                 access_token: creds.int_token,
                 brand_id: activeBrandId,
                 int_id: creds.int_id,
+                int_name: creds.int_name, // ← ADD THIS
             });
 
             if (!saved.ok) {
@@ -741,7 +742,12 @@ const IntegrationsPage = () => {
             showToast(`${getPlatformName(platformId)} connected successfully!`, "success");
             setIntegrations((prev) => [
                 ...prev,
-                { id: saved.data?.id || saved.id, platform: platformId, int_id: creds.int_id },
+                {
+                    id: saved.data?.id || saved.id,
+                    platform: platformId,
+                    int_id: creds.int_id,
+                    int_name: creds.int_name, // ← ADD THIS
+                },
             ]);
         } catch (err) {
             if (err.message === "cancelled") return;

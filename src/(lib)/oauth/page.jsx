@@ -816,26 +816,26 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // Google Ads
     // ────────────────────────────────────────────────────────
-    case 'google_ads': {
-      const scope = encodeURIComponent([
-        'https://www.googleapis.com/auth/adwords',
-        'openid',
-        'email',
-        'profile',
-      ].join(' '));
+   case 'google_ads': {
+  const scope = encodeURIComponent([
+    'openid',
+    'email',
+    'profile',
+    'https://www.googleapis.com/auth/adwords',
+  ].join(' '));
 
-      return (
-        `https://accounts.google.com/o/oauth2/v2/auth` +
-        `?client_id=${clientId}` +
-        `&redirect_uri=${redirect}` +
-        `&response_type=code` +
-        `&scope=${scope}` +
-        `&access_type=offline` +
-        `&prompt=consent` +
-        `&include_granted_scopes=true` +
-        `&state=${state}`
-      );
-    }
+  return (
+    `https://accounts.google.com/o/oauth2/v2/auth` +
+    `?client_id=${clientId}` +
+    `&redirect_uri=${redirect}` +
+    `&response_type=code` +
+    `&scope=${scope}` +
+    `&access_type=offline` +
+    `&prompt=consent` +
+    `&include_granted_scopes=true` +
+    `&state=${state}`
+  );
+}
 
     // ────────────────────────────────────────────────────────
     // Pinterest Organic

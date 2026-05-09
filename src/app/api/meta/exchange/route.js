@@ -18,6 +18,7 @@ export async function POST(req) {
 
     let shortLivedToken = access_token;
 
+
     // ── Step 1: If we got a code, exchange it for a short-lived token first ──
     if (code) {
       const codeExchangeUrl =
@@ -38,6 +39,17 @@ export async function POST(req) {
       }
 
       shortLivedToken = codeData.access_token;
+
+      // ✅ ADD DEBUG HERE (RIGHT AFTER TOKEN EXCHANGE)
+      const debugRes = await fetch(
+        `https://graph.facebook.com/debug_token?input_token=${shortLivedToken}&access_token=${APP_ID}|${APP_SECRET}`
+      );
+
+      const debugData = await debugRes.json();
+
+      console.log("Granted scopes:", debugData.data?.scopes);
+      console.log("App ID:", debugData.data?.app_id);
+      console.log("User ID:", debugData.data?.user_id);
     }
 
     // ── Step 2: Exchange short-lived token for long-lived token (~60 days) ──

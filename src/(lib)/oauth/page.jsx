@@ -724,7 +724,7 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     case 'linkedin': {
       const scope = encodeURIComponent(
-        'openid profile email w_member_social'
+        'openid profile email'
       );
 
       return (
@@ -1203,8 +1203,9 @@ export async function fetchLinkedInAdAccounts(
   const data = await res.json();
 
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.message || 'LinkedIn API error');
+    throw new Error(
+      data.message || 'LinkedIn API error'
+    );
   }
 
   return (data.elements || []).map(

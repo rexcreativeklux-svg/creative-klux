@@ -740,9 +740,23 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // LinkedIn Ads
     // ────────────────────────────────────────────────────────
+    // case 'linkedin_ads': {
+    //   const scope = encodeURIComponent(
+    //     'r_ads r_ads_reporting rw_ads openid profile email'
+    //   );
+
+    //   return (
+    //     `https://www.linkedin.com/oauth/v2/authorization` +
+    //     `?response_type=code` +
+    //     `&client_id=${clientId}` +
+    //     `&redirect_uri=${redirect}` +
+    //     `&scope=${scope}` +
+    //     `&state=${state}`
+    //   );
+    // }
     case 'linkedin_ads': {
       const scope = encodeURIComponent(
-        'r_ads r_ads_reporting rw_ads openid profile email'
+        'openid profile email'
       );
 
       return (

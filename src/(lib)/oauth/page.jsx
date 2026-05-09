@@ -740,23 +740,9 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // LinkedIn Ads
     // ────────────────────────────────────────────────────────
-    // case 'linkedin_ads': {
-    //   const scope = encodeURIComponent(
-    //     'r_ads r_ads_reporting rw_ads openid profile email'
-    //   );
-
-    //   return (
-    //     `https://www.linkedin.com/oauth/v2/authorization` +
-    //     `?response_type=code` +
-    //     `&client_id=${clientId}` +
-    //     `&redirect_uri=${redirect}` +
-    //     `&scope=${scope}` +
-    //     `&state=${state}`
-    //   );
-    // }
     case 'linkedin_ads': {
       const scope = encodeURIComponent(
-        'openid profile email'
+        'r_ads r_ads_reporting rw_ads openid profile email'
       );
 
       return (
@@ -768,6 +754,20 @@ async function buildAuthUrl(platform, clientId) {
         `&state=${state}`
       );
     }
+    // case 'linkedin_ads': {
+    //   const scope = encodeURIComponent(
+    //     'openid profile email'
+    //   );
+
+    //   return (
+    //     `https://www.linkedin.com/oauth/v2/authorization` +
+    //     `?response_type=code` +
+    //     `&client_id=${clientId}` +
+    //     `&redirect_uri=${redirect}` +
+    //     `&scope=${scope}` +
+    //     `&state=${state}`
+    //   );
+    // }
 
     // ────────────────────────────────────────────────────────
     // YouTube
@@ -795,22 +795,45 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // Google Ads
     // ────────────────────────────────────────────────────────
+    // case 'google_ads': {
+    //   const scope = encodeURIComponent([
+    //     'https://www.googleapis.com/auth/adwords',
+    //     'https://www.googleapis.com/auth/userinfo.email',
+    //     'https://www.googleapis.com/auth/userinfo.profile',
+    //   ].join(' '));
+
+    //   return (
+    //     `https://accounts.google.com/o/oauth2/v2/auth` +
+    //     `?client_id=${clientId}` +
+    //     `&redirect_uri=${redirect}` +
+    //     `&scope=${scope}` +
+    //     `&response_type=code` +
+    //     `&state=${state}` +
+    //     `&access_type=offline` +
+    //     `&prompt=consent`
+    //   );
+    // }
+    // ────────────────────────────────────────────────────────
+    // Google Ads
+    // ────────────────────────────────────────────────────────
     case 'google_ads': {
       const scope = encodeURIComponent([
         'https://www.googleapis.com/auth/adwords',
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile',
+        'openid',
+        'email',
+        'profile',
       ].join(' '));
 
       return (
         `https://accounts.google.com/o/oauth2/v2/auth` +
         `?client_id=${clientId}` +
         `&redirect_uri=${redirect}` +
-        `&scope=${scope}` +
         `&response_type=code` +
-        `&state=${state}` +
+        `&scope=${scope}` +
         `&access_type=offline` +
-        `&prompt=consent`
+        `&prompt=consent` +
+        `&include_granted_scopes=true` +
+        `&state=${state}`
       );
     }
 

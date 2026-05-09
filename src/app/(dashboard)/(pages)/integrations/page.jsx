@@ -382,6 +382,68 @@ const IntegrationsPage = () => {
         };
     }
 
+    async function resolveGoogleAdsIntegration(
+        oauthResult
+    ) {
+        const res = await fetch(
+            "/api/google/exchange",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json",
+                },
+                body: JSON.stringify({
+                    code: oauthResult.code,
+                }),
+            }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(
+                data.error ||
+                "Google exchange failed"
+            );
+        }
+
+        return {
+            access_token: data.access_token,
+            refresh_token:
+                data.refresh_token,
+        };
+    }
+
+    async function fetchGoogleAdAccounts(
+        access_token
+    ) {
+        const res = await fetch(
+            "/api/google/ad-accounts",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json",
+                },
+                body: JSON.stringify({
+                    access_token,
+                }),
+            }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(
+                data.error ||
+                "Failed to fetch Google ad accounts"
+            );
+        }
+
+        return data.accounts || [];
+    }
+
     async function resolveGenericIntegration(platformId, oauthResult) {
         let access_token = oauthResult.access_token;
         let int_id = null;
@@ -435,6 +497,36 @@ const IntegrationsPage = () => {
 
         if (platformId === "twitter") {
             return await resolveTwitterIntegration(oauthResult);
+        }
+
+        if (platformId === "google_ads") {
+
+            const tokenData =
+                await resolveGoogleAdsIntegration(
+                    oauthResult
+                );
+
+            const adAccounts =
+                await fetchGoogleAdAccounts(
+                    tokenData.access_token
+                );
+
+            setFbPages(
+                adAccounts.map(acc => ({
+                    id: acc.id,
+                    name: acc.name,
+                }))
+            );
+
+            setPendingFbOauth({
+                platformId: "google_ads",
+                access_token:
+                    tokenData.access_token,
+            });
+
+            setShowPageModal(true);
+
+            return null;
         }
 
         // Pinterest organic — use backend exchange for long-lived token
@@ -575,6 +667,22 @@ const IntegrationsPage = () => {
                     access_token: pendingFbOauth.access_token,
                     int_id: page.id,           // ad account ID
                     int_name: `${pendingFbOauth.userName} • ${page.name}`,
+                    brand_id: activeBrandId,
+                };
+            }
+
+            else if (platformId === "google_ads") {
+
+                savePayload = {
+                    platform: "google_ads",
+
+                    access_token:
+                        pendingFbOauth.access_token,
+
+                    int_id: page.id,
+
+                    int_name: page.name,
+
                     brand_id: activeBrandId,
                 };
             }

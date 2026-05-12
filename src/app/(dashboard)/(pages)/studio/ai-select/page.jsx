@@ -44,19 +44,19 @@ const PIPELINE_OPTIONS = [
     borderActive: "rgba(139,92,246,0.8)",
     tags: ["Logos", "Business Cards", "Banners"],
   },
-  {
-    type: "magic_studio",
-    name: "Magic Studio",
-    tagline: "AI Generation",
-    description: "Text to image, video, audio & variations",
-    Icon: Wand2,
-    color: "#f43f5e",
-    colorRgb: "244,63,94",
-    cardBg: "#fff",
-    borderIdle: "rgba(244,63,94,0.18)",
-    borderActive: "rgba(244,63,94,0.8)",
-    tags: ["Text to Image", "Text to Video", "Voiceover"],
-  },
+  // {
+  //   type: "magic_studio",
+  //   name: "Magic Studio",
+  //   tagline: "AI Generation",
+  //   description: "Text to image, video, audio & variations",
+  //   Icon: Wand2,
+  //   color: "#f43f5e",
+  //   colorRgb: "244,63,94",
+  //   cardBg: "#fff",
+  //   borderIdle: "rgba(244,63,94,0.18)",
+  //   borderActive: "rgba(244,63,94,0.8)",
+  //   tags: ["Text to Image", "Text to Video", "Voiceover"],
+  // },
 ];
 
 /* ── Soft light canvas background ── */
@@ -82,11 +82,11 @@ function LightCanvas() {
     const H = () => canvas.offsetHeight;
 
     const orbs = [
-      { x: 0.12, y: 0.2,  r: 0.42, rgb: "59,130,246",  spd: 0.00006, ang: 0.5 },
-      { x: 0.82, y: 0.5,  r: 0.36, rgb: "139,92,246",  spd: 0.00004, ang: 2.2 },
-      { x: 0.5,  y: 0.85, r: 0.3,  rgb: "244,63,94",   spd: 0.00008, ang: 4.8 },
-      { x: 0.05, y: 0.75, r: 0.24, rgb: "16,185,129",  spd: 0.00005, ang: 1.2 },
-      { x: 0.9,  y: 0.1,  r: 0.22, rgb: "139,92,246",  spd: 0.00007, ang: 3.3 },
+      { x: 0.12, y: 0.2, r: 0.42, rgb: "59,130,246", spd: 0.00006, ang: 0.5 },
+      { x: 0.82, y: 0.5, r: 0.36, rgb: "139,92,246", spd: 0.00004, ang: 2.2 },
+      { x: 0.5, y: 0.85, r: 0.3, rgb: "244,63,94", spd: 0.00008, ang: 4.8 },
+      { x: 0.05, y: 0.75, r: 0.24, rgb: "16,185,129", spd: 0.00005, ang: 1.2 },
+      { x: 0.9, y: 0.1, r: 0.22, rgb: "139,92,246", spd: 0.00007, ang: 3.3 },
     ];
 
     const dots = Array.from({ length: 40 }, () => ({
@@ -96,7 +96,7 @@ function LightCanvas() {
       base: Math.random() * 0.18 + 0.06,
       phase: Math.random() * Math.PI * 2,
       freq: Math.random() * 0.006 + 0.002,
-      rgb: ["59,130,246","139,92,246","244,63,94","16,185,129"][Math.floor(Math.random()*4)],
+      rgb: ["59,130,246", "139,92,246", "244,63,94", "16,185,129"][Math.floor(Math.random() * 4)],
     }));
 
     const draw = (ts) => {
@@ -238,9 +238,9 @@ export default function StudioSelectPage() {
           }}
         >
           What will you{" "}
-        <span className="bg-gradient-to-r from-[#003dda] via-blue-300 to-blue-600 bg-clip-text text-transparent">
-                        create
-                    </span>{" "}
+          <span className="bg-gradient-to-r from-[#003dda] via-blue-300 to-blue-600 bg-clip-text text-transparent">
+            create
+          </span>{" "}
           today?
         </h1>
 
@@ -257,14 +257,15 @@ export default function StudioSelectPage() {
         </p>
 
         {/* Cards */}
-        <div
-          className="pt-6 px-4"
+        <div className="py-5 pt-10"
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
+            display: "flex",
             gap: 12,
             width: "100%",
-            maxWidth: 900,
+            maxWidth: 1400,
+            justifyContent: "center",
+            flexWrap: "nowrap",
+            overflowX: "auto",
           }}
         >
           {PIPELINE_OPTIONS.map((opt) => {
@@ -285,9 +286,8 @@ export default function StudioSelectPage() {
                   textAlign: "left",
                   padding: "18px 18px",
                   borderRadius: 16,
-                  border: `1.5px solid ${
-                    isHov ? opt.borderActive : opt.borderIdle
-                  }`,
+                  border: `1.5px solid ${isHov ? opt.borderActive : opt.borderIdle
+                    }`,
                   background: isHov
                     ? `rgba(${opt.colorRgb}, 0.04)`
                     : "#ffffff",
@@ -489,21 +489,19 @@ export default function StudioSelectPage() {
               alignItems: "center",
               gap: 10,
               borderRadius: 14,
-              border: `1.5px solid ${
-                inputFocused && selectedConfig
+              border: `1.5px solid ${inputFocused && selectedConfig
                   ? `rgba(${selectedConfig.colorRgb}, 0.65)`
                   : inputFocused
-                  ? "rgba(99,102,241,0.45)"
-                  : "#e2e8f0"
-              }`,
+                    ? "rgba(99,102,241,0.45)"
+                    : "#e2e8f0"
+                }`,
               padding: "11px 12px",
               background: "#fff",
               boxShadow: inputFocused
-                ? `0 0 0 3px ${
-                    selectedConfig
-                      ? `rgba(${selectedConfig.colorRgb},0.1)`
-                      : "rgba(99,102,241,0.08)"
-                  }, 0 4px 16px rgba(0,0,0,0.06)`
+                ? `0 0 0 3px ${selectedConfig
+                  ? `rgba(${selectedConfig.colorRgb},0.1)`
+                  : "rgba(99,102,241,0.08)"
+                }, 0 4px 16px rgba(0,0,0,0.06)`
                 : "0 2px 8px rgba(0,0,0,0.05)",
               transition: "all 0.2s",
             }}

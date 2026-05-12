@@ -35,16 +35,16 @@ const PIPELINE_OPTIONS = [
         colorRgb: "124,58,237",
         tags: ["Logos", "Business Cards", "Banners"],
     },
-    {
-        type: "magic_studio",
-        name: "Magic Studio",
-        tagline: "AI Generation",
-        description: "Generate images, videos, variations, voiceovers & more",
-        Icon: Sparkles,
-        color: "#db2777",
-        colorRgb: "219,39,119",
-        tags: ["Text to Image", "Text to Video", "Image Variations"],
-    },
+    // {
+    //     type: "magic_studio",
+    //     name: "Magic Studio",
+    //     tagline: "AI Generation",
+    //     description: "Generate images, videos, variations, voiceovers & more",
+    //     Icon: Sparkles,
+    //     color: "#db2777",
+    //     colorRgb: "219,39,119",
+    //     tags: ["Text to Image", "Text to Video", "Image Variations"],
+    // },
 ];
 
 /* ── Soft light canvas background ── */
@@ -204,14 +204,15 @@ export default function StudioSelectPage() {
                 </p>
 
                 {/* Cards */}
-                <div
+                <div className=" py-5"
                     style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(2, 1fr)",
+                        display: "flex",
                         gap: 12,
                         width: "100%",
-                        maxWidth: 860,
-                        padding: "0 16px",
+                        maxWidth: 1200,
+                        justifyContent: "center",
+                        flexWrap: "nowrap",
+                        overflowX: "auto",
                     }}
                 >
                     {PIPELINE_OPTIONS.map((opt) => {

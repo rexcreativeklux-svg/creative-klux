@@ -24,7 +24,7 @@ function Toggle({ enabled, onChange }) {
   return (
     <button
       onClick={e => { e.stopPropagation(); onChange(!enabled); }}
-      className={`relative w-10 h-5 rounded-full transition-all flex-shrink-0 ${enabled ? 'bg-violet-600' : 'bg-gray-200'}`}
+      className={`relative w-10 h-5 rounded-full transition-all flex-shrink-0 ${enabled ? 'bg-blue-600' : 'bg-gray-200'}`}
     >
       <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${enabled ? 'left-5' : 'left-0.5'}`} />
     </button>
@@ -38,7 +38,7 @@ function Slider({ label, value, min, max, onChange, unit = '' }) {
       <input
         type="range" min={min} max={max} value={value}
         onChange={e => onChange(Number(e.target.value))}
-        className="flex-1 h-1.5 accent-violet-600"
+        className="flex-1 h-1.5 accent-blue-600"
       />
       <span className="text-xs text-gray-500 w-8 text-right">{value}{unit}</span>
     </div>
@@ -210,7 +210,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   const filters = ['none', 'grayscale', 'sepia', 'warm', 'cool', 'invert'];
 
   return (
-    <div className="h-screen bg-[#efefef] flex flex-col overflow-hidden text-gray-800" onClick={() => setSelected(false)}>
+    <div className=" bg-[#efefef] flex flex-col overflow-hidden text-gray-800" onClick={() => setSelected(false)}>
       {/* Top Bar */}
       <div className="bg-white border-b border-gray-200 flex items-center px-4 py-2 gap-4 z-10" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-1">
@@ -236,11 +236,11 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center text-white text-xs font-bold">D</div>
-          <button onClick={handleDownload} disabled={!displayImage} className="flex items-center gap-2 border border-violet-500 text-violet-600 text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-violet-50 transition-colors disabled:opacity-40">
+          <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">D</div>
+          <button onClick={handleDownload} disabled={!displayImage} className="flex items-center gap-2 border border-blue-500 text-blue-600 text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-40">
             <Download className="w-4 h-4" /> Download
           </button>
-          <button className="flex items-center gap-2 bg-violet-600 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-violet-700 transition-colors">
+          <button className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors">
             <Share2 className="w-4 h-4" /> Share
           </button>
         </div>
@@ -265,8 +265,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
           >
             {!displayImage && !processing ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-black/5 transition-colors">
-                <div className="w-16 h-16 rounded-2xl bg-violet-100 flex items-center justify-center mb-4">
-                  <ImageIcon className="w-8 h-8 text-violet-500" />
+                <div className="w-16 h-16 rounded-2xl bg-blue-100 flex items-center justify-center mb-4">
+                  <ImageIcon className="w-8 h-8 text-blue-500" />
                 </div>
                 <p className="text-gray-600 font-medium">Click to upload a photo</p>
                 <p className="text-gray-400 text-sm mt-1">PNG, JPG, WEBP supported</p>
@@ -275,13 +275,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
               <div className="absolute inset-0 flex items-center justify-center">
                 {processing ? (
                   <div className="flex flex-col items-center gap-3 w-48">
-                    <Loader2 className="w-10 h-10 text-violet-500 animate-spin" />
+                    <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
                     <p className="text-gray-500 text-sm font-medium">Removing background…</p>
                     {processingProgress > 0 && (
                       <>
                         <div className="w-full bg-gray-200 rounded-full h-1.5">
                           <div
-                            className="bg-violet-500 h-1.5 rounded-full transition-all duration-300"
+                            className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
                             style={{ width: `${processingProgress}%` }}
                           />
                         </div>
@@ -294,14 +294,14 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   </div>
                 ) : displayImage && (
                   <div
-                    className={`relative cursor-move ${selected ? 'outline outline-2 outline-violet-500' : ''}`}
+                    className={`relative cursor-move ${selected ? 'outline outline-2 outline-blue-500' : ''}`}
                     onClick={e => { e.stopPropagation(); setSelected(true); }}
                     style={{ maxWidth: '78%', maxHeight: '82%', position: 'relative' }}
                   >
                     {selected && (
                       <>
                         {[[-1,-1,'tl'],['50%',-1,'tc'],['100%',-1,'tr'],[-1,'50%','ml'],['100%','50%','mr'],[-1,'100%','bl'],['50%','100%','bc'],['100%','100%','br']].map(([l,t,k]) => (
-                          <div key={k} className="absolute w-3 h-3 bg-white border-2 border-violet-500 rounded-sm z-10"
+                          <div key={k} className="absolute w-3 h-3 bg-white border-2 border-blue-500 rounded-sm z-10"
                             style={{ left: typeof l === 'number' ? `${l}px` : l, top: typeof t === 'number' ? `${t}px` : t, transform: 'translate(-50%,-50%)' }} />
                         ))}
                         <div className="absolute -top-10 left-0 flex items-center gap-1 bg-white rounded-lg shadow px-2 py-1 z-10">
@@ -311,8 +311,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                             className="p-1 hover:bg-gray-100 rounded text-gray-400 text-xs font-medium">Replace</button>
                           <button className="p-1 hover:bg-gray-100 rounded text-gray-500 text-sm">···</button>
                         </div>
-                        <div className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border-2 border-violet-500 rounded-full z-10 flex items-center justify-center cursor-e-resize">
-                          <div className="w-1 h-1 rounded-full bg-violet-500" />
+                        <div className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border-2 border-blue-500 rounded-full z-10 flex items-center justify-center cursor-e-resize">
+                          <div className="w-1 h-1 rounded-full bg-blue-500" />
                         </div>
                       </>
                     )}
@@ -355,7 +355,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
             <button
               onClick={handleAiApply}
               disabled={applyingAi || !aiPrompt.trim() || !displayImage}
-              className="w-8 h-8 bg-violet-600 rounded-full flex items-center justify-center hover:bg-violet-700 transition-colors disabled:opacity-40"
+              className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-40"
             >
               {applyingAi ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <span className="text-white font-bold text-sm">↑</span>}
             </button>
@@ -363,7 +363,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         </div>
 
         {/* Right Panel */}
-        <div className="w-64 bg-white border-l border-gray-200 flex flex-col overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="w-84 bg-white border-l border-gray-200 flex flex-col overflow-y-auto" onClick={e => e.stopPropagation()}>
           <div className="p-4 border-b border-gray-100">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -372,23 +372,23 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   {originalUrl ? 'Image' : 'No image'}
                 </span>
               </div>
-              <button onClick={handleDownload} disabled={!displayImage} className="text-sm text-violet-600 hover:text-violet-700 font-medium disabled:opacity-40">Save</button>
+              <button onClick={handleDownload} disabled={!displayImage} className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-40">Save</button>
             </div>
 
             <div className="grid grid-cols-3 gap-1 mb-3">
-              <button className="flex flex-col items-center gap-1 py-2 border border-gray-200 rounded-lg hover:border-violet-400 text-xs text-gray-600 transition-colors"
+              <button className="flex flex-col items-center gap-1 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-600 transition-colors"
                 onClick={() => fileInputRef.current?.click()}>
                 <Undo className="w-4 h-4" /> Replace
               </button>
               <button
-                className="flex flex-col items-center gap-1 py-2 border border-gray-200 rounded-lg hover:border-violet-400 text-xs text-gray-600 transition-colors disabled:opacity-40"
+                className="flex flex-col items-center gap-1 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-600 transition-colors disabled:opacity-40"
                 disabled={!displayImage || applyingAi}
                 onClick={() => handleRetouchRelight('retouch')}>
                 <Sparkles className="w-4 h-4" />
                 {applyingAi ? '...' : 'Retouch'}
               </button>
               <button
-                className="flex flex-col items-center gap-1 py-2 border border-gray-200 rounded-lg hover:border-violet-400 text-xs text-gray-600 transition-colors disabled:opacity-40"
+                className="flex flex-col items-center gap-1 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-600 transition-colors disabled:opacity-40"
                 disabled={!displayImage || applyingAi}
                 onClick={() => handleRetouchRelight('light')}>
                 <Sun className="w-4 h-4" /> Light On
@@ -397,10 +397,10 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
             <p className="text-xs text-gray-400 mb-2">Align to canvas</p>
             <div className="grid grid-cols-2 gap-1 mb-4">
-              <button className="flex items-center justify-center gap-1.5 py-2 border border-gray-200 rounded-lg hover:border-violet-400 text-xs text-gray-600 transition-colors">
+              <button className="flex items-center justify-center gap-1.5 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-600 transition-colors">
                 <AlignCenter className="w-3.5 h-3.5" /> Center
               </button>
-              <button className="flex items-center justify-center gap-1.5 py-2 border border-gray-200 rounded-lg hover:border-violet-400 text-xs text-gray-600 transition-colors">
+              <button className="flex items-center justify-center gap-1.5 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-600 transition-colors">
                 <AlignVerticalJustifyCenter className="w-3.5 h-3.5" /> Middle
               </button>
             </div>
@@ -417,7 +417,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
               </div>
             </div>
 
-            <div className="w-full flex items-center justify-center gap-2 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-violet-400 transition-colors cursor-pointer">
+            <div className="w-full flex items-center justify-center gap-2 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-blue-400 transition-colors cursor-pointer">
               <Pencil className="w-3.5 h-3.5" /> Edit Cutout
             </div>
           </div>
@@ -476,7 +476,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   <Slider label="Contrast" value={contrast} min={0} max={200} onChange={setContrast} unit="%" />
                   <Slider label="Saturation" value={saturation} min={0} max={200} onChange={setSaturation} unit="%" />
                   <button onClick={() => { setBrightness(100); setContrast(100); setSaturation(100); }}
-                    className="mt-2 text-xs text-violet-600 hover:text-violet-700">Reset adjustments</button>
+                    className="mt-2 text-xs text-blue-600 hover:text-blue-700">Reset adjustments</button>
                 </div>
               )}
             </div>
@@ -503,7 +503,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   <Slider label="Rotation" value={rotation} min={-180} max={180} onChange={setRotation} unit="°" />
                   <Slider label="Scale" value={scale} min={20} max={200} onChange={setScale} unit="%" />
                   <button onClick={() => setFlipH(f => !f)}
-                    className="mt-2 flex items-center gap-2 text-xs text-violet-600 hover:text-violet-700">
+                    className="mt-2 flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700">
                     <FlipHorizontal className="w-3.5 h-3.5" /> Flip horizontal
                   </button>
                   <button onClick={() => { setRotation(0); setScale(100); setFlipH(false); }}
@@ -550,7 +550,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   <div className="flex flex-wrap gap-1.5 mt-1">
                     {filters.map(f => (
                       <button key={f} onClick={() => setSelectedFilter(f)}
-                        className={`px-2.5 py-1 rounded-md text-xs capitalize border transition-all ${selectedFilter === f ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-gray-200 text-gray-600 hover:border-violet-300'}`}>
+                        className={`px-2.5 py-1 rounded-md text-xs capitalize border transition-all ${selectedFilter === f ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}>
                         {f === 'none' ? 'None' : f}
                       </button>
                     ))}

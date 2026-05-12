@@ -31,6 +31,7 @@ import {
   Lightbulb,
   GitCompareArrows,
   BookImage,
+  Sparkles,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -148,6 +149,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { id: "ad-guard", label: "Ad Guard AI", href: "/ad-guard-ai", icon: ShieldCheck },
     { id: "ad-scorer", label: "Ad Scorer AI", href: "/ad-scorer-ai", icon: Star },
     { id: "creative-comparison", label: "Creative Comparison", href: "/creative-comparison", icon: GitCompareArrows },
+    { id: "magic-studio", label: "Magic Studio", href: "/magic-studio", icon: Sparkles },
 
 
   ];

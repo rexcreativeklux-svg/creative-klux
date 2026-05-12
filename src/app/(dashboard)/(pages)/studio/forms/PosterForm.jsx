@@ -49,20 +49,6 @@ const ORIENTATION_OPTIONS = [
   { value: "Landscape", label: "Landscape", w: 44, h: 30 },
 ];
 
-const FONT_OPTIONS = [
-  "Arial", "Helvetica", "Times New Roman", "Inter",
-  "Roboto", "Playfair Display", "Poppins",
-];
-
-const POSTER_STYLE_OPTIONS = [
-  { value: "bold",        label: "Bold",        desc: "High contrast, big type" },
-  { value: "minimalist",  label: "Minimalist",  desc: "Clean lines, white space" },
-  { value: "cinematic",   label: "Cinematic",   desc: "Dark, dramatic, filmic" },
-  { value: "vintage",     label: "Vintage",     desc: "Retro textures and tones" },
-  { value: "illustrated", label: "Illustrated", desc: "Hand-drawn or artistic" },
-  { value: "typographic", label: "Typographic", desc: "Text-as-hero design" },
-];
-
 const INSPIRE_PROMPTS = [
   "A vibrant concert poster for a summer music festival with bold neon typography",
   "A minimalist poster for a modern tech conference with clean geometric shapes",
@@ -80,7 +66,7 @@ const BRAND_COLORS = [
 const STEPS = [
   { id: 1, label: "Brand Details",  icon: Image },
   { id: 2, label: "Goals & Format", icon: Target },
-  { id: 3, label: "Style & Images", icon: LayoutTemplate },
+  { id: 3, label: "Images",         icon: LayoutTemplate },
 ];
 
 // ── theme: violet ─────────────────────────────────────────────────────────────
@@ -97,7 +83,6 @@ const T = {
   connector:    "bg-violet-600",
   pill:         "border-violet-600 bg-violet-50 text-violet-700",
   accent:       "accent-violet-600",
-  ring:         "focus:ring-violet-500",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -129,16 +114,12 @@ const PosterForm = ({
   const [brandUrl,       setBrandUrl]       = useState(activeBrand?.url || activeBrand?.source_url || "");
   const [importingBrand, setImportingBrand] = useState(false);
 
-  // Goals & format
-  const [campaignGoal, setCampaignGoal] = useState("");
-  const [audience,     setAudience]     = useState("");
+  // Goals & format — with defaults
+  const [campaignGoal, setCampaignGoal] = useState("Brand Awareness");
+  const [audience,     setAudience]     = useState("B2C");
   const [fileFormat,   setFileFormat]   = useState("PNG");
-
-  // Style & output
-  const [size,        setSize]        = useState("816x1056");
-  const [orientation, setOrientation] = useState("Portrait");
-  const [posterStyle, setPosterStyle] = useState("");
-  const [count,       setCount]       = useState(4);
+  const [size,         setSize]         = useState("816x1056");
+  const [orientation,  setOrientation]  = useState("Portrait");
 
   // ── image / crop state ────────────────────────────────────────────────────
   const [imageSrc,         setImageSrc]         = useState([]);
@@ -360,10 +341,8 @@ const PosterForm = ({
 
   // ── Step nav ──────────────────────────────────────────────────────────────
   const handleContinue = () => {
-    if (step === 1 && !brandName.trim()) return setError("Please enter a brand name.");
-    if (step === 1 && !description.trim()) return setError("Please enter a poster description.");
-    if (step === 2 && !campaignGoal) return setError("Please select a campaign goal.");
-    if (step === 2 && !audience) return setError("Please select a target audience.");
+    if (step === 1 && !brandName.trim())    return setError("Please enter a brand name.");
+    if (step === 1 && !description.trim())  return setError("Please enter a poster description.");
     setError("");
     setStep((p) => p + 1);
   };
@@ -379,23 +358,22 @@ const PosterForm = ({
     const payload = {
       creativeType:  creative?.id,
       categoryType:  categoryId,
-      brandName:     brandName     || null,
-      projectName:   projectName   || null,
-      description:   description   || null,
-      brandColor:    brandColor    || null,
-      primaryColor:  brandColor    || null,
-      font:          font          || null,
-      logo:          logo          || null,
-      caption:       caption       || null,
-      hashtags:      hashtags      || null,
-      campaignGoal:  campaignGoal  || null,
-      audience:      audience      || null,
-      fileFormat:    fileFormat    || null,
-      size:          size          || null,
-      orientation:   orientation   || null,
-      posterStyle:   posterStyle   || null,
-      count:         count         || 4,
-      sourceUrl:     brandUrl      || null,
+      brandName:     brandName    || null,
+      projectName:   projectName  || null,
+      description:   description  || null,
+      brandColor:    brandColor   || null,
+      primaryColor:  brandColor   || null,
+      font:          font         || null,
+      logo:          logo         || null,
+      caption:       caption      || null,
+      hashtags:      hashtags     || null,
+      campaignGoal:  campaignGoal || null,
+      audience:      audience     || null,
+      fileFormat:    fileFormat   || null,
+      size:          size         || null,
+      orientation:   orientation  || null,
+      count:         4,
+      sourceUrl:     brandUrl     || null,
       images: validImages
         .map((f) => f?.sourceUrl || f?.previewUrl)
         .filter(Boolean),
@@ -423,7 +401,7 @@ const PosterForm = ({
       });
     } else {
       onResult({
-        assets: data?.assets || [],
+        assets:  data?.assets || [],
         payload,
         raw: data,
       });
@@ -431,8 +409,6 @@ const PosterForm = ({
 
     setGenerating(false);
   };
-
-  const selectedSize = SIZE_OPTIONS.find((s) => s.value === size);
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -508,27 +484,16 @@ const PosterForm = ({
               </div>
             </div>
 
-            {/* Brand Name + Project Name */}
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Brand / Project Name" required>
-                <input
-                  type="text"
-                  value={brandName}
-                  onChange={(e) => { setBrandName(e.target.value); setError(""); }}
-                  placeholder="e.g. Acme Corp"
-                  className={inputCls}
-                />
-              </Field>
-              {/* <Field label="Project Name">
-                <input
-                  type="text"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  placeholder="e.g. Summer Event 2025"
-                  className={inputCls}
-                />
-              </Field> */}
-            </div>
+            {/* Brand Name */}
+            <Field label="Brand / Project Name" required>
+              <input
+                type="text"
+                value={brandName}
+                onChange={(e) => { setBrandName(e.target.value); setError(""); }}
+                placeholder="e.g. Acme Corp"
+                className={inputCls}
+              />
+            </Field>
 
             {/* Description */}
             <Field label="Poster Description" required>
@@ -538,6 +503,7 @@ const PosterForm = ({
                   onChange={(e) => { setDescription(e.target.value); setError(""); }}
                   placeholder="Describe your poster… event name, headline message, mood, key details."
                   rows={4}
+                  maxLength={500}
                   className={`${inputCls} placeholder:text-xs placeholder:text-gray-400 resize-none`}
                 />
                 <button
@@ -550,12 +516,11 @@ const PosterForm = ({
               </div>
             </Field>
 
-            {/* Brand Color + Logo — single row matching ImageAdsForm */}
+            {/* Brand Color + Logo */}
             <div className="grid grid-cols-2 gap-4">
               <Field label="Brand Color">
                 <div className="flex items-center gap-2">
-                  {/* Swatches */}
-                  <div className="flex items-center gap-1.5 flex-wrap ">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     {BRAND_COLORS.map((hex) => (
                       <button
                         key={hex}
@@ -566,7 +531,6 @@ const PosterForm = ({
                       />
                     ))}
                   </div>
-                  {/* Picker + hex input */}
                   <div className="flex items-center gap-2 flex-none">
                     <label
                       className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer overflow-hidden shrink-0 transition hover:scale-105"
@@ -613,52 +577,6 @@ const PosterForm = ({
                 </div>
               </Field>
             </div>
-
-            {/* Font */}
-            {/* <Field label="Font">
-              <div className="flex flex-wrap gap-2">
-                {FONT_OPTIONS.map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setFont(f)}
-                    style={{ fontFamily: f }}
-                    className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
-                      font === f ? T.pill : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
-                    }`}
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
-            </Field> */}
-
-            {/* Caption + Hashtags */}
-            {/* <div className="grid grid-cols-2 gap-3">
-              <Field label="Caption">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={caption}
-                    onChange={(e) => setCaption(e.target.value)}
-                    placeholder="Your caption here!"
-                    maxLength={280}
-                    className={inputCls}
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">
-                    {280 - caption.length}
-                  </span>
-                </div>
-              </Field>
-              <Field label="Hashtags">
-                <input
-                  type="text"
-                  value={hashtags}
-                  onChange={(e) => setHashtags(e.target.value)}
-                  placeholder="#Poster #Event #Design"
-                  className={inputCls}
-                />
-              </Field>
-            </div> */}
           </div>
         )}
 
@@ -668,12 +586,12 @@ const PosterForm = ({
             <SectionTitle>Goals &amp; Format</SectionTitle>
 
             {/* Campaign Goal */}
-            <Field label="Campaign Goal" required>
+            <Field label="Campaign Goal">
               <div className="flex flex-wrap gap-2">
                 {CAMPAIGN_GOAL_OPTIONS.map((g) => (
                   <button
                     key={g.value}
-                    onClick={() => { setCampaignGoal(g.value); setError(""); }}
+                    onClick={() => setCampaignGoal(g.value)}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer text-xs font-semibold transition-all ${
                       campaignGoal === g.value ? T.pill : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
                     }`}
@@ -691,12 +609,12 @@ const PosterForm = ({
             </Field>
 
             {/* Audience */}
-            <Field label="Target Audience" required>
-              <div className="grid grid-cols-2 gap-2">
+            <Field label="Target Audience">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCE_OPTIONS.map((a) => (
                   <button
                     key={a.value}
-                    onClick={() => { setAudience(a.value); setError(""); }}
+                    onClick={() => setAudience(a.value)}
                     className={`text-left px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
                       audience === a.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
                     }`}
@@ -710,7 +628,7 @@ const PosterForm = ({
 
             {/* File Format */}
             <Field label="Export Format">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {FILE_FORMAT_OPTIONS.map((f) => (
                   <button
                     key={f.value}
@@ -726,45 +644,9 @@ const PosterForm = ({
               </div>
             </Field>
 
-            {/* Brand summary */}
-            {/* <div className={`rounded-xl p-3 ${T.importBg} border ${T.importBorder}`}>
-              <p className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider mb-1">Your Brand</p>
-              <p className="text-xs text-gray-700 font-medium">{brandName}</p>
-              {description && <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-2">{description}</p>}
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="w-3.5 h-3.5 rounded-full border border-gray-200 shrink-0" style={{ background: brandColor }} />
-                <span className="text-[10px] text-violet-500" style={{ fontFamily: font }}>{font}</span>
-              </div>
-            </div> */}
-          </div>
-        )}
-
-        {/* ═══ STEP 3 — Style & Images ═════════════════════════════════════ */}
-        {step === 3 && (
-          <div className="flex flex-col gap-5">
-            <SectionTitle>Style &amp; Images</SectionTitle>
-
-            {/* Poster Style */}
-            <Field label="Poster Style">
-              <div className="grid grid-cols-2 gap-2">
-                {POSTER_STYLE_OPTIONS.map((s) => (
-                  <button
-                    key={s.value}
-                    onClick={() => setPosterStyle(posterStyle === s.value ? "" : s.value)}
-                    className={`text-left px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
-                      posterStyle === s.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-bold ${posterStyle === s.value ? T.textDark : "text-gray-700"}`}>{s.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{s.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </Field>
-
             {/* Poster Size */}
             <Field label="Poster Size">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {SIZE_OPTIONS.map((s) => (
                   <button
                     key={s.value}
@@ -795,8 +677,8 @@ const PosterForm = ({
                       <div
                         className={`rounded border-2 transition-all ${orientation === o.value ? T.border : "border-gray-400"}`}
                         style={{
-                          width:  `${o.w * 0.9}px`,
-                          height: `${o.h * 0.9}px`,
+                          width:      `${o.w * 0.9}px`,
+                          height:     `${o.h * 0.9}px`,
                           background: orientation === o.value ? "#f5f3ff" : "#f9fafb",
                         }}
                       />
@@ -806,23 +688,15 @@ const PosterForm = ({
                 ))}
               </div>
             </Field>
+          </div>
+        )}
 
-            {/* Number of variations */}
-            <Field label={`Poster Variations: ${count}`}>
-              <input
-                type="range" min={1} max={8} step={1}
-                value={count}
-                onChange={(e) => setCount(Number(e.target.value))}
-                className={`w-full ${T.accent} cursor-pointer`}
-              />
-              <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-                {[1,2,3,4,5,6,7,8].map((n) => (
-                  <span key={n} className={count === n ? "text-violet-600 font-bold" : ""}>{n}</span>
-                ))}
-              </div>
-            </Field>
+        {/* ═══ STEP 3 — Images ═════════════════════════════════════════════ */}
+        {step === 3 && (
+          <div className="flex flex-col gap-5">
+            <SectionTitle>Images</SectionTitle>
 
-            {/* ── Brand images strip ── */}
+            {/* Brand images strip */}
             <BrandImagesStrip
               onSelect={handleBrandImageUse}
               onCrop={handleBrandImageCrop}
@@ -832,7 +706,7 @@ const PosterForm = ({
                 .filter(Boolean)}
             />
 
-            {/* ── Already-selected previews ── */}
+            {/* Already-selected previews */}
             {croppedImages.filter(Boolean).length > 0 && (
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-2">
@@ -873,7 +747,7 @@ const PosterForm = ({
               </div>
             )}
 
-            {/* ── Upload / picker zone ── */}
+            {/* Upload / picker zone */}
             <div
               className="border-2 border-dashed border-violet-200 rounded-2xl p-8 bg-violet-50/30 flex flex-col items-center gap-3 cursor-pointer hover:border-violet-400 hover:bg-violet-50/60 transition-all"
               onClick={() => setMediaPickerOpen(true)}
@@ -891,19 +765,6 @@ const PosterForm = ({
               >
                 <Images className="w-4 h-4" /> Choose Media
               </button>
-            </div>
-
-            {/* Full summary */}
-            <div className={`rounded-xl p-3 ${T.importBg} border ${T.importBorder}`}>
-              <p className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider mb-1">Summary</p>
-              <p className="text-xs text-gray-700 font-medium">{brandName} — {projectName || "Untitled Project"}</p>
-              <p className="text-[10px] text-violet-500 mt-1">
-                {campaignGoal && `Goal: ${campaignGoal}`}
-                {campaignGoal && audience  && " · "}
-                {audience     && `Audience: ${audience}`}
-                {posterStyle  && ` · Style: ${posterStyle.charAt(0).toUpperCase() + posterStyle.slice(1)}`}
-                {` · ${fileFormat} · ${selectedSize?.label} · ${orientation}`}
-              </p>
             </div>
           </div>
         )}

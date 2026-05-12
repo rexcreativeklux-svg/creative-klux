@@ -638,46 +638,22 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // FACEBOOK (basic Pages access only)
     // ────────────────────────────────────────────────────────
-    // case 'facebook': {
-    //   const scope = encodeURIComponent([
-    //     'pages_show_list',
-    //     'pages_read_engagement',
-    //     'pages_manage_posts',
-    //     'read_insights',
-    //   ].join(','));
+    case 'facebook': {
+      const scope = encodeURIComponent([
+        'pages_show_list',
+        'pages_read_engagement',
+        'pages_manage_posts',
+        'read_insights',
+      ].join(','));
 
-    //   return (
-    //     `${META_OAUTH_BASE}/dialog/oauth` +
-    //     `?client_id=${clientId}` +
-    //     `&redirect_uri=${redirect}` +
-    //     `&scope=${scope}` +
-    //     `&response_type=code` +
-    //     `&state=${state}`
-    //   );
-    // }
-    case "facebook": {
-      const scopes = [
-        "pages_show_list",
-        "pages_read_engagement",
-      ];
-
-      // Only add these if your app is approved
-      const advancedScopes = [
-        "pages_manage_posts",
-        "read_insights",
-      ];
-
-      const scope = [...scopes, ...advancedScopes].join(",");
-
-      const params = new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: REDIRECT_URI,
-        response_type: "code",
-        state,
-        scope,
-      });
-
-      return `${META_OAUTH_BASE}/dialog/oauth?${params.toString()}`;
+      return (
+        `${META_OAUTH_BASE}/dialog/oauth` +
+        `?client_id=${clientId}` +
+        `&redirect_uri=${redirect}` +
+        `&scope=${scope}` +
+        `&response_type=code` +
+        `&state=${state}`
+      );
     }
 
     // ────────────────────────────────────────────────────────
@@ -840,26 +816,26 @@ async function buildAuthUrl(platform, clientId) {
     // ────────────────────────────────────────────────────────
     // Google Ads
     // ────────────────────────────────────────────────────────
-    case 'google_ads': {
-      const scope = encodeURIComponent([
-        'openid',
-        'email',
-        'profile',
-        'https://www.googleapis.com/auth/adwords',
-      ].join(' '));
+   case 'google_ads': {
+  const scope = encodeURIComponent([
+    'openid',
+    'email',
+    'profile',
+    'https://www.googleapis.com/auth/adwords',
+  ].join(' '));
 
-      return (
-        `https://accounts.google.com/o/oauth2/v2/auth` +
-        `?client_id=${clientId}` +
-        `&redirect_uri=${redirect}` +
-        `&response_type=code` +
-        `&scope=${scope}` +
-        `&access_type=offline` +
-        `&prompt=consent` +
-        `&include_granted_scopes=true` +
-        `&state=${state}`
-      );
-    }
+  return (
+    `https://accounts.google.com/o/oauth2/v2/auth` +
+    `?client_id=${clientId}` +
+    `&redirect_uri=${redirect}` +
+    `&response_type=code` +
+    `&scope=${scope}` +
+    `&access_type=offline` +
+    `&prompt=consent` +
+    `&include_granted_scopes=true` +
+    `&state=${state}`
+  );
+}
 
     // ────────────────────────────────────────────────────────
     // Pinterest Organic

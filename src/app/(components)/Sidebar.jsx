@@ -30,6 +30,7 @@ import {
   Star,
   Lightbulb,
   GitCompareArrows,
+  BookImage,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -120,6 +121,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const createItems = [
     { id: "brand", label: "Brand Kits", href: "/brand/reuse", icon: Palette },
     { id: "creatives", label: "Creative Studio", href: "/creatives", icon: Folder },
+    { id: "product-photos", label: "Product Photos", href: "/product-photos", icon: BookImage },
   ];
 
   const overviewItems = [
@@ -148,7 +150,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { id: "creative-comparison", label: "Creative Comparison", href: "/creative-comparison", icon: GitCompareArrows },
 
 
-  ]; 
+  ];
 
   const manageItems = [
     {

@@ -142,7 +142,7 @@ const TextToVideoForm = ({ formData, setFormData, activeBrand, showToast, onResu
                             value={prompt}
                             onChange={(e) => { setPrompt(e.target.value); setError(""); }}
                             placeholder="Describe the video scene… include subject, movement, lighting, setting, and camera motion."
-                            rows={4}
+                            rows={8}
                             className={`${inputCls} placeholder:text-xs placeholder:text-gray-400 resize-none`}
                         />
                         <button

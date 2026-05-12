@@ -2,17 +2,10 @@
 
 import React from 'react';
 
-const Sh = ({ w, h, rounded = '4px', className = '', style = {} }) => (
+const Pulse = ({ w, h, rounded = '6px', className = '', style = {} }) => (
   <div
-    className={`animate-shimmer ${className}`}
-    style={{
-      width: w,
-      height: h,
-      borderRadius: rounded,
-      background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
-      backgroundSize: '600px 100%',
-      ...style,
-    }}
+    className={`animate-pulse bg-gray-200 ${className}`}
+    style={{ width: w, height: h, borderRadius: rounded, flexShrink: 0, ...style }}
   />
 );
 
@@ -20,172 +13,201 @@ export default function DashboardSkeleton() {
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50" style={{ fontFamily: 'var(--font-sans)' }}>
 
-      {/* Sidebar - matches 72px icon-only sidebar */}
-      <nav className="hidden md:flex flex-col justify-between h-screen w-[72px] bg-white border-r border-gray-100">
-        <div className="flex flex-col items-center pt-5 gap-1">
-          {/* Logo */}
-          <div className="w-9 h-9 rounded-lg bg-gray-200 animate-pulse mb-5" />
-          {/* Nav items */}
-          {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-            <div key={i} className="flex flex-col items-center px-1 py-2 w-full gap-1">
-              <div className="w-5 h-5 rounded bg-gray-200 animate-pulse" />
-              <div className="h-2 rounded bg-gray-200 animate-pulse" style={{ width: `${40 + (i % 3) * 10}px` }} />
+      {/* ── Sidebar: wide with label text, matching screenshot ── */}
+      <nav className="hidden md:flex flex-col justify-between h-screen bg-white border-r border-gray-100 shrink-0" style={{ width: 188 }}>
+        {/* Logo */}
+        <div>
+          <div className="flex items-center gap-2 px-5 py-5">
+            <Pulse w={24} h={24} rounded="6px" />
+            <Pulse w={90} h={14} />
+          </div>
+
+          {/* OVERVIEW label */}
+          <div className="px-5 mb-2">
+            <Pulse w={56} h={9} />
+          </div>
+          {/* Dashboard (active) */}
+          <div className="mx-3 mb-1 flex items-center gap-2.5 px-3 py-2 rounded-lg bg-blue-50">
+            <Pulse w={16} h={16} rounded="4px" style={{ background: '#c7d8fc' }} />
+            <Pulse w={64} h={11} style={{ background: '#c7d8fc' }} />
+          </div>
+
+          {/* CREATE label */}
+          <div className="px-5 mt-4 mb-2">
+            <Pulse w={44} h={9} />
+          </div>
+          {['Brand Kits', 'Creative Studio', 'Product Photos'].map((_, i) => (
+            <div key={i} className="mx-3 mb-0.5 flex items-center gap-2.5 px-3 py-2 rounded-lg">
+              <Pulse w={16} h={16} rounded="4px" />
+              <Pulse w={[60, 96, 84][i]} h={11} />
+            </div>
+          ))}
+
+          {/* MANAGE label */}
+          <div className="px-5 mt-4 mb-2">
+            <Pulse w={52} h={9} />
+          </div>
+          {[88, 76, 68].map((w, i) => (
+            <div key={i} className="mx-3 mb-0.5 flex items-center gap-2.5 px-3 py-2 rounded-lg">
+              <Pulse w={16} h={16} rounded="4px" />
+              <Pulse w={w} h={11} />
+            </div>
+          ))}
+
+          {/* AI TOOLS label */}
+          <div className="px-5 mt-4 mb-2">
+            <Pulse w={52} h={9} />
+          </div>
+          {[96, 60, 72, 72, 112, 72].map((w, i) => (
+            <div key={i} className="mx-3 mb-0.5 flex items-center gap-2.5 px-3 py-2 rounded-lg">
+              <Pulse w={16} h={16} rounded="4px" />
+              <Pulse w={w} h={11} />
             </div>
           ))}
         </div>
-        <div className="mb-6 flex flex-col items-center gap-0 w-full border-t border-gray-100 pt-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex flex-col items-center px-1 py-2 w-full gap-1">
-              <div className="w-5 h-5 rounded bg-gray-200 animate-pulse" />
-              <div className="h-2 w-10 rounded bg-gray-200 animate-pulse" />
-            </div>
-          ))}
+
+        {/* Bottom user */}
+        <div className="border-t border-gray-100 px-4 py-4 flex items-center gap-3">
+          <Pulse w={36} h={36} rounded="50%" />
+          <div className="flex flex-col gap-1.5">
+            <Pulse w={72} h={11} />
+            <Pulse w={52} h={9} />
+          </div>
         </div>
       </nav>
 
-      {/* Main content */}
+      {/* ── Main ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Header */}
+        {/* Top bar: back arrow left, workspace dropdown right */}
         <div className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
-          <div className="w-7 h-7 rounded-md bg-gray-200 animate-pulse" />
-          <div className="w-44 h-9 rounded-lg bg-gray-200 animate-pulse" />
+          <Pulse w={28} h={28} rounded="8px" />
+          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-1.5">
+            <Pulse w={24} h={24} rounded="50%" />
+            <Pulse w={60} h={12} />
+            <Pulse w={14} h={14} rounded="3px" />
+          </div>
         </div>
 
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
 
-          {/* Stat cards */}
-          <div className="grid grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white border border-gray-100 rounded-xl p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-3 w-14 rounded bg-gray-200 animate-pulse" />
-                  <div className="w-9 h-9 rounded-full bg-gray-200 animate-pulse" />
-                </div>
-                <div className="h-7 w-16 rounded bg-gray-200 animate-pulse mb-2" />
-                <div className="h-2.5 w-12 rounded bg-gray-200 animate-pulse" />
+          {/* Welcome heading */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Pulse w={180} h={22} rounded="6px" />
+              <Pulse w={24} h={24} rounded="4px" />
+            </div>
+            <Pulse w={220} h={13} />
+          </div>
+
+          {/* 7-column stat cards */}
+          <div className="grid grid-cols-7 gap-3">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 flex flex-col gap-2">
+                <Pulse w={28} h={28} rounded="8px" />
+                <Pulse w={24} h={20} rounded="4px" />
+                <Pulse w={64} h={11} />
               </div>
             ))}
           </div>
 
-          {/* Sales report + right panel */}
-          <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 300px' }}>
+          {/* Chart + Quick Create panel */}
+          <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 320px' }}>
 
-            {/* Sales report */}
+            {/* Weekly Activity line chart */}
             <div className="bg-white border border-gray-100 rounded-xl p-5">
-              <div className="flex items-center justify-between mb-5">
-                <div className="h-4 w-24 rounded bg-gray-200 animate-pulse" />
-                <div className="flex gap-2">
-                  {['Daily', 'Monthly', 'Yearly'].map((t) => (
-                    <div key={t} className="h-7 w-14 rounded-md bg-gray-200 animate-pulse" />
+              <div className="flex flex-col gap-1 mb-5">
+                <Pulse w={120} h={16} />
+                <Pulse w={180} h={11} />
+              </div>
+
+              {/* Y-axis + chart area */}
+              <div className="flex gap-3" style={{ height: 200 }}>
+                {/* Y labels */}
+                <div className="flex flex-col justify-between pb-5">
+                  {[8, 6, 4, 2, 0].map((v) => (
+                    <Pulse key={v} w={12} h={9} />
                   ))}
                 </div>
+                {/* Chart lines (fake) */}
+                <div className="flex-1 relative border-b border-l border-gray-100">
+                  {/* Horizontal grid lines */}
+                  {[20, 40, 60, 80].map((top) => (
+                    <div key={top} className="absolute left-0 right-0 border-t border-gray-100" style={{ top: `${top}%` }} />
+                  ))}
+                  {/* Fake orange curve via gradient bar */}
+                  <div className="absolute inset-0 flex items-end pb-1 px-4">
+                    <Pulse w="100%" h="55%" rounded="6px" style={{ opacity: 0.25 }} />
+                  </div>
+                </div>
               </div>
-              {/* Bar chart */}
-              <div className="flex items-end gap-1.5 h-36">
-                {[70, 90, 65, 95, 75, 85, 60, 80, 90, 70, 85, 95].map((h, i) => (
-                  <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 h-full">
-                    <div
-                      className="w-full rounded-t bg-gray-200 animate-pulse"
-                      style={{ height: `${h}%` }}
-                    />
-                    <div className="h-2 w-8 rounded bg-gray-200 animate-pulse mt-1" />
+
+              {/* X-axis labels */}
+              <div className="flex justify-between mt-2 pl-8">
+                {Array.from({ length: 15 }).map((_, i) => (
+                  <Pulse key={i} w={28} h={9} />
+                ))}
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center gap-4 mt-4 justify-center">
+                {[80, 28, 44, 52, 40].map((w, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <Pulse w={24} h={9} rounded="4px" />
+                    <Pulse w={w} h={9} />
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Right stats */}
-            <div className="flex flex-col gap-3">
-              {/* Earning */}
-              <div className="bg-white border border-gray-100 rounded-xl p-4 flex-1">
-                <div className="h-3 w-14 rounded bg-gray-200 animate-pulse mb-2" />
-                <div className="h-6 w-16 rounded bg-gray-200 animate-pulse mb-3" />
-                <div className="flex items-end gap-1 h-14">
-                  {[50, 80, 40, 90, 30, 70, 60].map((h, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 rounded-t bg-gray-200 animate-pulse"
-                      style={{ height: `${h}%` }}
-                    />
-                  ))}
+            {/* Quick Create panel */}
+            <div className="bg-white border border-gray-100 rounded-xl p-5 flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <Pulse w={20} h={20} rounded="4px" />
+                  <Pulse w={90} h={15} />
                 </div>
+                <Pulse w={140} h={11} />
               </div>
-              {/* Current Rating */}
-              <div className="bg-white border border-gray-100 rounded-xl p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gray-200 animate-pulse shrink-0" />
-                  <div>
-                    <div className="h-3 w-24 rounded bg-gray-200 animate-pulse mb-2" />
-                    <div className="h-5 w-16 rounded bg-gray-200 animate-pulse" />
+
+              {/* 3 quick-create options */}
+              {[
+                [120, 160],
+                [96, 176],
+                [80, 152],
+              ].map(([lw, rw], i) => (
+                <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200">
+                  <Pulse w={36} h={36} rounded="10px" />
+                  <div className="flex flex-col gap-1.5 flex-1">
+                    <Pulse w={lw} h={12} />
+                    <Pulse w={rw} h={10} />
+                  </div>
+                  <Pulse w={14} h={14} rounded="3px" />
+                </div>
+              ))}
+
+              {/* Open Full Studio CTA */}
+              <Pulse w="100%" h={48} rounded="12px" style={{ background: '#e5c5f5', marginTop: 'auto' }} />
+            </div>
+          </div>
+
+          {/* Recent Designs */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <Pulse w={120} h={16} />
+              <Pulse w={56} h={12} />
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-xl overflow-hidden border border-gray-100 bg-white">
+                  <Pulse w="100%" h={180} rounded="0" />
+                  <div className="p-3 flex flex-col gap-1.5">
+                    <Pulse w="70%" h={12} />
                   </div>
                 </div>
-              </div>
-              {/* Orders */}
-              <div className="bg-white border border-gray-100 rounded-xl p-4">
-                <div className="h-3 w-12 rounded bg-gray-200 animate-pulse mb-2" />
-                <div className="h-5 w-16 rounded bg-gray-200 animate-pulse" />
-              </div>
-            </div>
-          </div>
-
-          {/* Closed Orders + Balance card */}
-          <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 300px' }}>
-            <div className="bg-white border border-gray-100 rounded-xl p-4 flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-gray-200 animate-pulse shrink-0" />
-              <div className="h-3 w-28 rounded bg-gray-200 animate-pulse" />
-            </div>
-            <div className="bg-gray-200 rounded-xl p-4 flex flex-col gap-3">
-              <div className="h-7 w-20 rounded bg-gray-200 animate-pulse" />
-              <div className="h-3 w-28 rounded bg-gray-200 animate-pulse" />
-              <div className="h-10 w-full rounded-lg bg-gray-200 animate-pulse mt-1" />
-            </div>
-          </div>
-
-          {/* Products Table */}
-          <div className="bg-white border border-gray-100 rounded-xl p-5">
-            {/* Table header row */}
-            <div className="flex items-center justify-between mb-5">
-              <div className="h-4 w-28 rounded bg-gray-200 animate-pulse" />
-              <div className="flex gap-2">
-                <div className="h-8 w-24 rounded-lg bg-gray-200 animate-pulse" />
-                <div className="h-8 w-28 rounded-lg bg-gray-200 animate-pulse" />
-                <div className="h-8 w-40 rounded-lg bg-gray-200 animate-pulse" />
-                <div className="h-8 w-8 rounded bg-gray-200 animate-pulse" />
-                <div className="h-8 w-8 rounded bg-gray-200 animate-pulse" />
-              </div>
-            </div>
-            {/* Column headers */}
-            <div className="grid gap-3 pb-3 border-b border-gray-100 mb-2"
-              style={{ gridTemplateColumns: '24px 2fr 1fr 48px 1fr 1fr 1fr 32px' }}>
-              {[24, 80, 70, 48, 40, 60, 70, 24].map((w, i) => (
-                <div key={i} className="h-2.5 rounded bg-gray-200 animate-pulse" style={{ width: `${w}px`, maxWidth: '100%' }} />
               ))}
             </div>
-            {/* Rows */}
-            {[1, 2, 3].map((row) => (
-              <div
-                key={row}
-                className="grid gap-3 items-center py-3 border-b border-gray-50"
-                style={{ gridTemplateColumns: '24px 2fr 1fr 48px 1fr 1fr 1fr 32px' }}
-              >
-                <div className="w-4 h-4 rounded bg-gray-200 animate-pulse" />
-                <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-lg bg-gray-200 animate-pulse shrink-0" />
-                  <div>
-                    <div className="h-3 w-24 rounded bg-gray-200 animate-pulse mb-1.5" />
-                    <div className="h-2.5 w-6 rounded bg-gray-200 animate-pulse" />
-                  </div>
-                </div>
-                <div className="h-3 w-16 rounded bg-gray-200 animate-pulse" />
-                <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
-                <div className="h-3 w-10 rounded bg-gray-200 animate-pulse" />
-                <div className="h-5 w-14 rounded-full bg-gray-200 animate-pulse" />
-                <div className="h-3 w-12 rounded bg-gray-200 animate-pulse" />
-                <div className="w-6 h-6 rounded bg-gray-200 animate-pulse" />
-              </div>
-            ))}
           </div>
 
         </div>

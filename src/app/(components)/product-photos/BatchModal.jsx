@@ -7,12 +7,12 @@ import { toast } from 'sonner';
 // ── Color data ────────────────────────────────────────────────────────────────
 const STANDARD_COLORS = ['#ffffff', '#000000', '#f5f5f5', '#1a1a2e'];
 const NEUTRAL_TONES = [
-  '#faf9f6','#f0ede6','#e8e4db','#ddd9d0','#d0ccc4','#c4c0b8',
-  '#f0f2f5','#e0e4ea','#d0d6df','#c0c9d5','#b0bcc9','#a0acbc',
+  '#faf9f6', '#f0ede6', '#e8e4db', '#ddd9d0', '#d0ccc4', '#c4c0b8',
+  '#f0f2f5', '#e0e4ea', '#d0d6df', '#c0c9d5', '#b0bcc9', '#a0acbc',
 ];
 const SOFT_PASTELS = [
-  '#fef9f0','#f0f9f0','#f0f0f9','#f9f0f9','#f9f0f0','#f0f5f9',
-  '#fdecd0','#d0f0e0','#d0e0f0','#e8d0f0','#f0d0d8','#d0ece0',
+  '#fef9f0', '#f0f9f0', '#f0f0f9', '#f9f0f9', '#f9f0f0', '#f0f5f9',
+  '#fdecd0', '#d0f0e0', '#d0e0f0', '#e8d0f0', '#f0d0d8', '#d0ece0',
 ];
 
 const IMAGE_BACKGROUNDS = [
@@ -32,61 +32,61 @@ const IMAGE_BACKGROUNDS = [
 ];
 
 const TEMPLATES = [
-  { id: 'clean_white',    name: 'Clean White',     category: 'Essentials',   bg: '#ffffff',  padding: { top:10,bottom:10,left:10,right:10 },  align:'center',        scale:'fit',  preview:'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&q=70' },
-  { id: 'clean_grey',     name: 'Soft Grey',       category: 'Essentials',   bg: '#f0ede6',  padding: { top:12,bottom:12,left:12,right:12 },  align:'center',        scale:'fit',  preview:'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&q=70' },
-  { id: 'clean_black',    name: 'Deep Black',      category: 'Essentials',   bg: '#111111',  padding: { top:10,bottom:10,left:10,right:10 },  align:'center',        scale:'fit',  preview:'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&q=70' },
-  { id: 'bottom_heavy',   name: 'Bottom Heavy',    category: 'Essentials',   bg: '#faf9f6',  padding: { top:5, bottom:20,left:10,right:10 },  align:'bottom-center', scale:'fit',  preview:'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&q=70' },
-  { id: 'studio_warm',    name: 'Warm Studio',     category: 'Studio',       bg: '#f5e6d3',  padding: { top:8, bottom:18,left:8, right:8  },  align:'bottom-center', scale:'fit',  preview:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&q=70' },
-  { id: 'studio_cool',    name: 'Cool Studio',     category: 'Studio',       bg: '#d8e4f0',  padding: { top:8, bottom:18,left:8, right:8  },  align:'bottom-center', scale:'fit',  preview:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&q=70' },
-  { id: 'studio_minimal', name: 'Minimal Studio',  category: 'Studio',       bg: '#f8f8f8',  padding: { top:15,bottom:15,left:15,right:15 },  align:'center',        scale:'fit',  preview:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&q=70' },
-  { id: 'studio_shadow',  name: 'Studio Shadow',   category: 'Studio',       bg: '#e8e8e8',  padding: { top:5, bottom:20,left:10,right:10 },  align:'bottom-center', scale:'fit',  shadow:'floating', preview:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&q=70' },
-  { id: 'shopify_white',  name: 'Shopify White',   category: 'Shopify',      bg: '#ffffff',  padding: { top:8, bottom:8, left:8, right:8  },  align:'center',        scale:'fit',  preview:'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200&q=70' },
-  { id: 'shopify_off',    name: 'Off White',       category: 'Shopify',      bg: '#faf9f5',  padding: { top:10,bottom:10,left:10,right:10 },  align:'center',        scale:'fit',  preview:'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200&q=70' },
-  { id: 'shopify_life',   name: 'Lifestyle',       category: 'Shopify',      bg: '#ede8df',  padding: { top:12,bottom:12,left:12,right:12 },  align:'center',        scale:'fit',  preview:'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200&q=70' },
-  { id: 'shopify_bold',   name: 'Bold Display',    category: 'Shopify',      bg: '#1a1a1a',  padding: { top:8, bottom:8, left:8, right:8  },  align:'center',        scale:'fill', preview:'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200&q=70' },
-  { id: 'classic_white',  name: 'White',           category: 'Classics',     bg: '#ffffff',  padding: { top:10,bottom:10,left:10,right:10 },  align:'center',        scale:'fit',  preview:'https://images.unsplash.com/photo-1559629819-638a8f0a4303?w=200&q=70' },
-  { id: 'classic_black',  name: 'Black',           category: 'Classics',     bg: '#000000',  padding: { top:10,bottom:10,left:10,right:10 },  align:'center',        scale:'fit',  preview:'https://images.unsplash.com/photo-1559629819-638a8f0a4303?w=200&q=70' },
-  { id: 'classic_trans',  name: 'Transparent',     category: 'Classics',     bg: 'transparent', padding: { top:10,bottom:10,left:10,right:10 }, align:'center',       scale:'fit',  preview:'https://images.unsplash.com/photo-1559629819-638a8f0a4303?w=200&q=70' },
-  { id: 'profile_vib',    name: 'Vibrant',         category: 'Profile Pics', bg: 'linear-gradient(135deg,#f093fb,#f5a623)', padding: { top:5,bottom:5,left:5,right:5 }, align:'center', scale:'fill', preview:'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=70' },
-  { id: 'profile_ocean',  name: 'Ocean',           category: 'Profile Pics', bg: 'linear-gradient(135deg,#0099f7,#f11712)', padding: { top:5,bottom:5,left:5,right:5 }, align:'center', scale:'fill', preview:'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=70' },
-  { id: 'profile_min',    name: 'Minimal',         category: 'Profile Pics', bg: '#f0ede6',  padding: { top:5, bottom:5, left:5, right:5  },  align:'center',        scale:'fill', preview:'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=70' },
-  { id: 'marble_light',   name: 'Light Marble',    category: 'Marble & Wood',bgImage:'marble_white', bg:'#f5f5f5', padding:{top:10,bottom:20,left:10,right:10}, align:'bottom-center', scale:'fit', preview:'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=200&q=70' },
-  { id: 'wood_natural',   name: 'Natural Wood',    category: 'Marble & Wood',bgImage:'wood_light',   bg:'#c8a874', padding:{top:10,bottom:20,left:10,right:10}, align:'bottom-center', scale:'fit', preview:'https://images.unsplash.com/photo-1542621334-a254cf47733d?w=200&q=70' },
-  { id: 'minimal_cream',  name: 'Cream',           category: 'Minimal Shop', bg: '#f7f3ec',  padding: { top:12,bottom:18,left:12,right:12 },  align:'bottom-center', scale:'fit',  preview:'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=200&q=70' },
-  { id: 'minimal_rose',   name: 'Rose',            category: 'Minimal Shop', bg: '#f9ede8',  padding: { top:12,bottom:18,left:12,right:12 },  align:'bottom-center', scale:'fit',  preview:'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=200&q=70' },
-  { id: 'minimal_sage',   name: 'Sage',            category: 'Minimal Shop', bg: '#e8ede8',  padding: { top:12,bottom:18,left:12,right:12 },  align:'bottom-center', scale:'fit',  preview:'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=200&q=70' },
-  { id: 'minimal_slate',  name: 'Slate',           category: 'Minimal Shop', bg: '#e0e4ea',  padding: { top:12,bottom:18,left:12,right:12 },  align:'bottom-center', scale:'fit',  preview:'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=200&q=70' },
+  { id: 'clean_white', name: 'Clean White', category: 'Essentials', bg: '#ffffff', padding: { top: 10, bottom: 10, left: 10, right: 10 }, align: 'center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&q=70' },
+  { id: 'clean_grey', name: 'Soft Grey', category: 'Essentials', bg: '#f0ede6', padding: { top: 12, bottom: 12, left: 12, right: 12 }, align: 'center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&q=70' },
+  { id: 'clean_black', name: 'Deep Black', category: 'Essentials', bg: '#111111', padding: { top: 10, bottom: 10, left: 10, right: 10 }, align: 'center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&q=70' },
+  { id: 'bottom_heavy', name: 'Bottom Heavy', category: 'Essentials', bg: '#faf9f6', padding: { top: 5, bottom: 20, left: 10, right: 10 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&q=70' },
+  { id: 'studio_warm', name: 'Warm Studio', category: 'Studio', bg: '#f5e6d3', padding: { top: 8, bottom: 18, left: 8, right: 8 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&q=70' },
+  { id: 'studio_cool', name: 'Cool Studio', category: 'Studio', bg: '#d8e4f0', padding: { top: 8, bottom: 18, left: 8, right: 8 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&q=70' },
+  { id: 'studio_minimal', name: 'Minimal Studio', category: 'Studio', bg: '#f8f8f8', padding: { top: 15, bottom: 15, left: 15, right: 15 }, align: 'center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&q=70' },
+  { id: 'studio_shadow', name: 'Studio Shadow', category: 'Studio', bg: '#e8e8e8', padding: { top: 5, bottom: 20, left: 10, right: 10 }, align: 'bottom-center', scale: 'fit', shadow: 'floating', preview: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&q=70' },
+  { id: 'shopify_white', name: 'Shopify White', category: 'Shopify', bg: '#ffffff', padding: { top: 8, bottom: 8, left: 8, right: 8 }, align: 'center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200&q=70' },
+  { id: 'shopify_off', name: 'Off White', category: 'Shopify', bg: '#faf9f5', padding: { top: 10, bottom: 10, left: 10, right: 10 }, align: 'center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200&q=70' },
+  { id: 'shopify_life', name: 'Lifestyle', category: 'Shopify', bg: '#ede8df', padding: { top: 12, bottom: 12, left: 12, right: 12 }, align: 'center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200&q=70' },
+  { id: 'shopify_bold', name: 'Bold Display', category: 'Shopify', bg: '#1a1a1a', padding: { top: 8, bottom: 8, left: 8, right: 8 }, align: 'center', scale: 'fill', preview: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200&q=70' },
+  { id: 'classic_white', name: 'White', category: 'Classics', bg: '#ffffff', padding: { top: 10, bottom: 10, left: 10, right: 10 }, align: 'center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1559629819-638a8f0a4303?w=200&q=70' },
+  { id: 'classic_black', name: 'Black', category: 'Classics', bg: '#000000', padding: { top: 10, bottom: 10, left: 10, right: 10 }, align: 'center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1559629819-638a8f0a4303?w=200&q=70' },
+  { id: 'classic_trans', name: 'Transparent', category: 'Classics', bg: 'transparent', padding: { top: 10, bottom: 10, left: 10, right: 10 }, align: 'center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1559629819-638a8f0a4303?w=200&q=70' },
+  { id: 'profile_vib', name: 'Vibrant', category: 'Profile Pics', bg: 'linear-gradient(135deg,#f093fb,#f5a623)', padding: { top: 5, bottom: 5, left: 5, right: 5 }, align: 'center', scale: 'fill', preview: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=70' },
+  { id: 'profile_ocean', name: 'Ocean', category: 'Profile Pics', bg: 'linear-gradient(135deg,#0099f7,#f11712)', padding: { top: 5, bottom: 5, left: 5, right: 5 }, align: 'center', scale: 'fill', preview: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=70' },
+  { id: 'profile_min', name: 'Minimal', category: 'Profile Pics', bg: '#f0ede6', padding: { top: 5, bottom: 5, left: 5, right: 5 }, align: 'center', scale: 'fill', preview: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=70' },
+  { id: 'marble_light', name: 'Light Marble', category: 'Marble & Wood', bgImage: 'marble_white', bg: '#f5f5f5', padding: { top: 10, bottom: 20, left: 10, right: 10 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=200&q=70' },
+  { id: 'wood_natural', name: 'Natural Wood', category: 'Marble & Wood', bgImage: 'wood_light', bg: '#c8a874', padding: { top: 10, bottom: 20, left: 10, right: 10 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1542621334-a254cf47733d?w=200&q=70' },
+  { id: 'minimal_cream', name: 'Cream', category: 'Minimal Shop', bg: '#f7f3ec', padding: { top: 12, bottom: 18, left: 12, right: 12 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=200&q=70' },
+  { id: 'minimal_rose', name: 'Rose', category: 'Minimal Shop', bg: '#f9ede8', padding: { top: 12, bottom: 18, left: 12, right: 12 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=200&q=70' },
+  { id: 'minimal_sage', name: 'Sage', category: 'Minimal Shop', bg: '#e8ede8', padding: { top: 12, bottom: 18, left: 12, right: 12 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=200&q=70' },
+  { id: 'minimal_slate', name: 'Slate', category: 'Minimal Shop', bg: '#e0e4ea', padding: { top: 12, bottom: 18, left: 12, right: 12 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=200&q=70' },
 ];
 
 const TEMPLATE_CATEGORIES = ['Essentials', 'Studio', 'Shopify', 'Classics', 'Profile Pics', 'Marble & Wood', 'Minimal Shop'];
 
 const RESIZE_STANDARD = [
   { id: 'landscape', name: 'Landscape', dims: '2016 × 1512', w: 4, h: 3 },
-  { id: 'portrait',  name: 'Portrait',  dims: '1512 × 2016', w: 3, h: 4 },
-  { id: 'square',    name: 'Square',    dims: '1512 × 1512', w: 1, h: 1 },
+  { id: 'portrait', name: 'Portrait', dims: '1512 × 2016', w: 3, h: 4 },
+  { id: 'square', name: 'Square', dims: '1512 × 1512', w: 1, h: 1 },
 ];
 const RESIZE_SOCIAL = [
-  { id: 'ig_story',     name: 'Instagram Story',    dims: '1080 × 1920', icon: '📷', w: 9,  h: 16 },
-  { id: 'ig_post',      name: 'Instagram Post',      dims: '1080 × 1080', icon: '📷', w: 1,  h: 1  },
-  { id: 'ig_post_45',   name: 'Instagram (4:5)',     dims: '1080 × 1350', icon: '📷', w: 4,  h: 5  },
-  { id: 'ig_reel',      name: 'Instagram Reel',      dims: '1080 × 1920', icon: '📷', w: 9,  h: 16 },
-  { id: 'tiktok',       name: 'TikTok Post',         dims: '1080 × 1920', icon: '♪',  w: 9,  h: 16 },
-  { id: 'tiktok_thumb', name: 'TikTok Thumbnail',    dims: '1080 × 1340', icon: '♪',  w: 3,  h: 4  },
-  { id: 'yt_cover',     name: 'YouTube Cover',       dims: '1280 × 720',  icon: '▶',  w: 16, h: 9  },
-  { id: 'fb_post',      name: 'Facebook Post',       dims: '1200 × 630',  icon: 'f',  w: 16, h: 9  },
-  { id: 'twitter',      name: 'Twitter Header',      dims: '1500 × 500',  icon: '𝕏',  w: 3,  h: 1  },
-  { id: 'linkedin',     name: 'LinkedIn Post',       dims: '1200 × 627',  icon: 'in', w: 2,  h: 1  },
-  { id: 'pinterest',    name: 'Pinterest Pin',       dims: '1000 × 1500', icon: '📌', w: 2,  h: 3  },
-  { id: 'amazon',       name: 'Amazon Product',      dims: '2000 × 2000', icon: '🛒', w: 1,  h: 1  },
+  { id: 'ig_story', name: 'Instagram Story', dims: '1080 × 1920', icon: '📷', w: 9, h: 16 },
+  { id: 'ig_post', name: 'Instagram Post', dims: '1080 × 1080', icon: '📷', w: 1, h: 1 },
+  { id: 'ig_post_45', name: 'Instagram (4:5)', dims: '1080 × 1350', icon: '📷', w: 4, h: 5 },
+  { id: 'ig_reel', name: 'Instagram Reel', dims: '1080 × 1920', icon: '📷', w: 9, h: 16 },
+  { id: 'tiktok', name: 'TikTok Post', dims: '1080 × 1920', icon: '♪', w: 9, h: 16 },
+  { id: 'tiktok_thumb', name: 'TikTok Thumbnail', dims: '1080 × 1340', icon: '♪', w: 3, h: 4 },
+  { id: 'yt_cover', name: 'YouTube Cover', dims: '1280 × 720', icon: '▶', w: 16, h: 9 },
+  { id: 'fb_post', name: 'Facebook Post', dims: '1200 × 630', icon: 'f', w: 16, h: 9 },
+  { id: 'twitter', name: 'Twitter Header', dims: '1500 × 500', icon: '𝕏', w: 3, h: 1 },
+  { id: 'linkedin', name: 'LinkedIn Post', dims: '1200 × 627', icon: 'in', w: 2, h: 1 },
+  { id: 'pinterest', name: 'Pinterest Pin', dims: '1000 × 1500', icon: '📌', w: 2, h: 3 },
+  { id: 'amazon', name: 'Amazon Product', dims: '2000 × 2000', icon: '🛒', w: 1, h: 1 },
 ];
 
 const SHADOW_PRESETS = [
-  { id: 'none',     name: 'None',     style: {} },
-  { id: 'soft',     name: 'Soft',     style: { filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.25))' } },
-  { id: 'hard',     name: 'Hard',     style: { filter: 'drop-shadow(4px 4px 0px rgba(0,0,0,0.5))' } },
+  { id: 'none', name: 'None', style: {} },
+  { id: 'soft', name: 'Soft', style: { filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.25))' } },
+  { id: 'hard', name: 'Hard', style: { filter: 'drop-shadow(4px 4px 0px rgba(0,0,0,0.5))' } },
   { id: 'floating', name: 'Floating', style: { filter: 'drop-shadow(0 20px 30px rgba(0,0,0,0.35))' } },
-  { id: 'glow',     name: 'Glow',     style: { filter: 'drop-shadow(0 0 20px rgba(139,92,246,0.5))' } },
-  { id: 'subtle',   name: 'Subtle',   style: { filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.15))' } },
+  { id: 'glow', name: 'Glow', style: { filter: 'drop-shadow(0 0 20px rgba(139,92,246,0.5))' } },
+  { id: 'subtle', name: 'Subtle', style: { filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.15))' } },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -105,9 +105,8 @@ function ColorSwatch({ color, selected, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`w-8 h-8 rounded-full border-2 transition-all cursor-pointer hover:scale-110 ${
-        selected ? 'border-blue-500 scale-110' : color === '#ffffff' ? 'border-gray-300 hover:border-gray-400' : 'border-transparent hover:border-gray-300'
-      }`}
+      className={`w-8 h-8 rounded-full border-2 transition-all cursor-pointer hover:scale-110 ${selected ? 'border-blue-500 scale-110' : color === '#ffffff' ? 'border-gray-300 hover:border-gray-400' : 'border-transparent hover:border-gray-300'
+        }`}
       style={{ backgroundColor: color }}
     />
   );
@@ -117,9 +116,8 @@ function SidebarIcon({ icon, label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 py-3 px-1 w-full transition-colors cursor-pointer ${
-        active ? 'text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-      }`}
+      className={`flex flex-col items-center gap-1 py-3 px-1 w-full transition-colors cursor-pointer ${active ? 'text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+        }`}
     >
       <div className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${active ? 'bg-blue-100' : ''}`}>
         {icon}
@@ -131,43 +129,43 @@ function SidebarIcon({ icon, label, active, onClick }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function BatchModal({ onClose, initialFile }) {
-  const fileInputRef    = useRef(null);
-  const bgFileInputRef  = useRef(null);
+  const fileInputRef = useRef(null);
+  const bgFileInputRef = useRef(null);
 
-  const [originalFile, setOriginalFile]   = useState(initialFile || null);
-  const [originalUrl, setOriginalUrl]     = useState(initialFile ? URL.createObjectURL(initialFile) : null);
-  const [removedUrl, setRemovedUrl]       = useState(null);
-  const [removing, setRemoving]           = useState(false);
+  const [originalFile, setOriginalFile] = useState(initialFile || null);
+  const [originalUrl, setOriginalUrl] = useState(initialFile ? URL.createObjectURL(initialFile) : null);
+  const [removedUrl, setRemovedUrl] = useState(null);
+  const [removing, setRemoving] = useState(false);
   const [removingProgress, setRemovingProgress] = useState(0);
-  const [aiResultUrl, setAiResultUrl]     = useState(null);
-  const [applyingAiBg, setApplyingAiBg]   = useState(false);
+  const [aiResultUrl, setAiResultUrl] = useState(null);
+  const [applyingAiBg, setApplyingAiBg] = useState(false);
 
-  const [activePanel, setActivePanel]     = useState('templates');
-  const [showBefore, setShowBefore]       = useState(false);
-  const [zoom, setZoom]                   = useState(100);
+  const [activePanel, setActivePanel] = useState('templates');
+  const [showBefore, setShowBefore] = useState(false);
+  const [zoom, setZoom] = useState(100);
 
   // Templates
-  const [activeTemplate, setActiveTemplate]       = useState(null);
-  const [showAllTemplates, setShowAllTemplates]   = useState(false);
+  const [activeTemplate, setActiveTemplate] = useState(null);
+  const [showAllTemplates, setShowAllTemplates] = useState(false);
 
   // Background
-  const [bgTab, setBgTab]                 = useState('color');
+  const [bgTab, setBgTab] = useState('color');
   const [selectedColor, setSelectedColor] = useState('#ffffff');
-  const [customColor, setCustomColor]     = useState('#ffffff');
+  const [customColor, setCustomColor] = useState('#ffffff');
   const [selectedBgImage, setSelectedBgImage] = useState(null);
-  const [bgImageUrl, setBgImageUrl]       = useState(null);
-  const [removeOrigBg, setRemoveOrigBg]   = useState(true);
-  const [aiPrompt, setAiPrompt]           = useState('');
+  const [bgImageUrl, setBgImageUrl] = useState(null);
+  const [removeOrigBg, setRemoveOrigBg] = useState(true);
+  const [aiPrompt, setAiPrompt] = useState('');
 
   // Position
-  const [posTab, setPosTab]               = useState('center');
-  const [padding, setPadding]             = useState({ top: 10, bottom: 10, left: 10, right: 10 });
-  const [align, setAlign]                 = useState('center');
-  const [scale, setScale]                 = useState('fit');
+  const [posTab, setPosTab] = useState('center');
+  const [padding, setPadding] = useState({ top: 10, bottom: 10, left: 10, right: 10 });
+  const [align, setAlign] = useState('center');
+  const [scale, setScale] = useState('fit');
 
   // Resize
   const [selectedResize, setSelectedResize] = useState(null);
-  const [canvasRatio, setCanvasRatio]       = useState({ w: 1, h: 1 });
+  const [canvasRatio, setCanvasRatio] = useState({ w: 1, h: 1 });
 
   // Shadows
   const [selectedShadow, setSelectedShadow] = useState('none');
@@ -269,7 +267,7 @@ export default function BatchModal({ onClose, initialFile }) {
       const bg = IMAGE_BACKGROUNDS.find(b => b.id === tpl.bgImage);
       if (bg) { setBgImageUrl(bg.url); setSelectedBgImage(bg.id); setBgTab('image'); }
     }
-   
+
     toast.success(`Template "${tpl.name}" applied!`);
   };
 
@@ -279,16 +277,81 @@ export default function BatchModal({ onClose, initialFile }) {
     toast.success(`Resized to ${preset.name}`);
   };
 
-  const handleDownload = () => {
-    const url = aiResultUrl || removedUrl || originalUrl;
-    if (!url) return;
-    const a = document.createElement('a');
-    a.href = url; a.download = 'product-photo.png'; a.target = '_blank'; a.click();
+  const exportToImage = async () => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const ratio = canvasRatio.w / canvasRatio.h;
+    const width = 1200;
+    const height = Math.round(width / ratio);
+
+    canvas.width = width;
+    canvas.height = height;
+
+    // 1. Draw background
+    if (bgTab === 'color') {
+      if (selectedColor.startsWith('linear-gradient')) {
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, '#7c3aed'); // fallback approximation
+        gradient.addColorStop(1, '#a855f7');
+        ctx.fillStyle = gradient;
+      } else {
+        ctx.fillStyle = selectedColor;
+      }
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    // 2. Load product image
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = aiResultUrl || removedUrl || originalUrl;
+
+    await new Promise(res => (img.onload = res));
+
+    // 3. Calculate scale
+    const paddingX = (padding.left + padding.right) / 100 * width;
+    const paddingY = (padding.top + padding.bottom) / 100 * height;
+
+    const maxW = width - paddingX;
+    const maxH = height - paddingY;
+
+    let drawW = maxW;
+    let drawH = (img.height / img.width) * drawW;
+
+    if (drawH > maxH) {
+      drawH = maxH;
+      drawW = (img.width / img.height) * drawH;
+    }
+
+    const x = (width - drawW) / 2;
+    const y = (height - drawH) / 2;
+
+    // 4. Draw image
+    ctx.drawImage(img, x, y, drawW, drawH);
+
+    // 5. Export
+    const link = document.createElement('a');
+    link.download = 'product-photo.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   };
 
+  // const handleDownload = () => {
+  //   const url = aiResultUrl || removedUrl || originalUrl;
+  //   if (!url) return;
+  //   const a = document.createElement('a');
+  //   a.href = url; a.download = 'product-photo.png'; a.target = '_blank'; a.click();
+  // };
+
   // ── Canvas sizing: max 500px in either direction ──────────────────────────
+
+  const handleDownload = async () => {
+    if (!originalUrl) return;
+    await exportToImage();
+  };
+
   const MAX_DIM = 500;
-  const ratio   = canvasRatio.w / canvasRatio.h;
+  const ratio = canvasRatio.w / canvasRatio.h;
   const canvasW = ratio >= 1 ? MAX_DIM : Math.round(MAX_DIM * ratio);
   const canvasH = ratio >= 1 ? Math.round(MAX_DIM / ratio) : MAX_DIM;
 
@@ -297,14 +360,14 @@ export default function BatchModal({ onClose, initialFile }) {
     const justifyMap = {
       'center': 'center', 'bottom-center': 'center', 'top-center': 'center',
       'bottom-left': 'flex-start', 'bottom-right': 'flex-end',
-      'top-left': 'flex-start',    'top-right': 'flex-end',
+      'top-left': 'flex-start', 'top-right': 'flex-end',
       'center-left': 'flex-start', 'center-right': 'flex-end',
     };
     const alignMap = {
       'center': 'center', 'bottom-center': 'flex-end', 'top-center': 'flex-start',
-      'bottom-left': 'flex-end',  'bottom-right': 'flex-end',
-      'top-left': 'flex-start',   'top-right': 'flex-start',
-      'center-left': 'center',    'center-right': 'center',
+      'bottom-left': 'flex-end', 'bottom-right': 'flex-end',
+      'top-left': 'flex-start', 'top-right': 'flex-start',
+      'center-left': 'center', 'center-right': 'center',
     };
     return {
       containerStyle: {
@@ -318,7 +381,7 @@ export default function BatchModal({ onClose, initialFile }) {
       imgStyle: {
         maxWidth: '100%', maxHeight: '100%',
         objectFit: scale === 'fill' ? 'cover' : scale === 'stretch' ? 'fill' : 'contain',
-        width:  scale === 'fill' || scale === 'stretch' ? '100%' : undefined,
+        width: scale === 'fill' || scale === 'stretch' ? '100%' : undefined,
         height: scale === 'fill' || scale === 'stretch' ? '100%' : undefined,
         ...SHADOW_PRESETS.find(s => s.id === selectedShadow)?.style,
       },
@@ -364,26 +427,26 @@ export default function BatchModal({ onClose, initialFile }) {
         {/* ── Icon sidebar ── */}
         <div className="w-[64px] border-r border-gray-100 flex flex-col items-center py-2 bg-white flex-shrink-0">
           <SidebarIcon active={activePanel === 'templates'} onClick={() => setActivePanel('templates')}
-            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><rect x="2" y="2" width="7" height="7" rx="1"/><rect x="11" y="2" width="7" height="7" rx="1"/><rect x="2" y="11" width="7" height="7" rx="1"/><rect x="11" y="11" width="7" height="7" rx="1"/></svg>}
+            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><rect x="2" y="2" width="7" height="7" rx="1" /><rect x="11" y="2" width="7" height="7" rx="1" /><rect x="2" y="11" width="7" height="7" rx="1" /><rect x="11" y="11" width="7" height="7" rx="1" /></svg>}
             label="Templates" />
           <SidebarIcon active={activePanel === 'resize'} onClick={() => setActivePanel('resize')}
-            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><rect x="3" y="3" width="14" height="14" rx="1"/><path d="M7 3v14M3 7h14"/></svg>}
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><rect x="3" y="3" width="14" height="14" rx="1" /><path d="M7 3v14M3 7h14" /></svg>}
             label="Resize" />
           <SidebarIcon active={activePanel === 'position'} onClick={() => setActivePanel('position')}
-            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M10 2v16M2 10h16"/><circle cx="10" cy="10" r="3"/></svg>}
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M10 2v16M2 10h16" /><circle cx="10" cy="10" r="3" /></svg>}
             label="Position" />
           <SidebarIcon active={activePanel === 'background'} onClick={() => setActivePanel('background')}
-            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><circle cx="10" cy="10" r="8"/></svg>}
+            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><circle cx="10" cy="10" r="8" /></svg>}
             label="Background" />
           <SidebarIcon active={activePanel === 'shadows'} onClick={() => setActivePanel('shadows')}
-            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 opacity-70"><rect x="3" y="3" width="10" height="10" rx="1" opacity="0.5"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>}
+            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 opacity-70"><rect x="3" y="3" width="10" height="10" rx="1" opacity="0.5" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg>}
             label="AI Shadows" />
           <div className="flex-1" />
           <SidebarIcon active={false} onClick={() => fileInputRef.current?.click()}
             icon={<Upload className="w-5 h-5" />}
             label="Upload" />
-          <SidebarIcon active={false} onClick={() => {}}
-            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 3"/></svg>}
+          <SidebarIcon active={false} onClick={() => { }}
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><circle cx="10" cy="10" r="7" /><path d="M10 6v4l3 3" /></svg>}
             label="Usage" />
         </div>
 
@@ -400,7 +463,7 @@ export default function BatchModal({ onClose, initialFile }) {
                 </button>
               </div>
               <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
-            
+
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                   <input placeholder="Search templates" className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 outline-none bg-gray-50 cursor-text focus:border-blue-400 transition-colors" />
@@ -432,7 +495,7 @@ export default function BatchModal({ onClose, initialFile }) {
                           {tpl.preview && <img src={tpl.preview} alt={tpl.name} className="absolute inset-0 w-full h-full object-cover opacity-70 mix-blend-multiply" />}
                           {activeTemplate === tpl.id && (
                             <div className="absolute top-1 right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                              <svg viewBox="0 0 8 8" fill="white" className="w-2.5 h-2.5"><path d="M1 4l2 2 4-4"/></svg>
+                              <svg viewBox="0 0 8 8" fill="white" className="w-2.5 h-2.5"><path d="M1 4l2 2 4-4" /></svg>
                             </div>
                           )}
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/40 to-transparent px-1 py-1">
@@ -474,7 +537,7 @@ export default function BatchModal({ onClose, initialFile }) {
                           {tpl.preview && <img src={tpl.preview} alt={tpl.name} className="absolute inset-0 w-full h-full object-cover opacity-70 mix-blend-multiply" />}
                           {activeTemplate === tpl.id && (
                             <div className="absolute top-1 right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                              <svg viewBox="0 0 8 8" fill="white" className="w-2.5 h-2.5"><path d="M1 4l2 2 4-4"/></svg>
+                              <svg viewBox="0 0 8 8" fill="white" className="w-2.5 h-2.5"><path d="M1 4l2 2 4-4" /></svg>
                             </div>
                           )}
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/40 to-transparent px-1 py-1">
@@ -556,8 +619,8 @@ export default function BatchModal({ onClose, initialFile }) {
                   {['original', 'center', 'custom'].map(t => (
                     <button key={t} onClick={() => {
                       setPosTab(t);
-                      if (t === 'center')   { setAlign('center');  setPadding({ top:10,bottom:10,left:10,right:10 }); setScale('fit'); }
-                      if (t === 'original') { setPadding({ top:0, bottom:0, left:0, right:0 }); setAlign('center'); setScale('fill'); }
+                      if (t === 'center') { setAlign('center'); setPadding({ top: 10, bottom: 10, left: 10, right: 10 }); setScale('fit'); }
+                      if (t === 'original') { setPadding({ top: 0, bottom: 0, left: 0, right: 0 }); setAlign('center'); setScale('fill'); }
                     }}
                       className={`flex-1 py-1.5 text-[11px] font-medium rounded-lg capitalize transition-all cursor-pointer ${posTab === t ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                       {t}
@@ -567,7 +630,7 @@ export default function BatchModal({ onClose, initialFile }) {
 
                 <p className="text-xs font-semibold text-gray-700 mb-2">Padding</p>
                 <div className="grid grid-cols-2 gap-2 mb-4">
-                  {[['↑','top','Top'],['↓','bottom','Bottom'],['←','left','Left'],['→','right','Right']].map(([arrow, key, label]) => (
+                  {[['↑', 'top', 'Top'], ['↓', 'bottom', 'Bottom'], ['←', 'left', 'Left'], ['→', 'right', 'Right']].map(([arrow, key, label]) => (
                     <div key={key}>
                       <p className="text-[9px] text-gray-400 mb-1">{label}</p>
                       <div className="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus-within:border-blue-400 transition-colors">
@@ -584,9 +647,9 @@ export default function BatchModal({ onClose, initialFile }) {
                 <p className="text-xs font-semibold text-gray-700 mb-2">Align</p>
                 <div className="grid grid-cols-3 gap-1.5 mb-4">
                   {[
-                    ['top-left','↖'],['top-center','↑'],['top-right','↗'],
-                    ['center-left','←'],['center','•'],['center-right','→'],
-                    ['bottom-left','↙'],['bottom-center','↓'],['bottom-right','↘'],
+                    ['top-left', '↖'], ['top-center', '↑'], ['top-right', '↗'],
+                    ['center-left', '←'], ['center', '•'], ['center-right', '→'],
+                    ['bottom-left', '↙'], ['bottom-center', '↓'], ['bottom-right', '↘'],
                   ].map(([a, icon]) => (
                     <button key={a} onClick={() => { setAlign(a); setPosTab('custom'); }}
                       className={`h-9 rounded-lg border flex items-center justify-center text-sm transition-all cursor-pointer ${align === a ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50 text-gray-400'}`}>
@@ -645,7 +708,7 @@ export default function BatchModal({ onClose, initialFile }) {
                 <Toggle enabled={removeOrigBg} onChange={v => { setRemoveOrigBg(v); if (v && originalFile) doRemoveBg(originalFile); }} />
               </div>
               <div className="flex border-b border-gray-100 flex-shrink-0">
-                {[['color','Color'],['image','Image'],['ai','AI']].map(([id, name]) => (
+                {[['color', 'Color'], ['image', 'Image'], ['ai', 'AI']].map(([id, name]) => (
                   <button key={id} onClick={() => setBgTab(id)}
                     className={`flex-1 py-2 text-[11px] font-medium transition-colors border-b-2 cursor-pointer ${bgTab === id ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
                     {name}
@@ -813,7 +876,7 @@ export default function BatchModal({ onClose, initialFile }) {
                 {removedUrl && (
                   <div className="mt-4 flex bg-white rounded-full shadow border border-gray-200 overflow-hidden text-xs font-medium">
                     <button onClick={() => setShowBefore(false)} className={`px-5 py-1.5 transition-colors cursor-pointer ${!showBefore ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>After</button>
-                    <button onClick={() => setShowBefore(true)}  className={`px-5 py-1.5 transition-colors cursor-pointer ${showBefore  ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Before</button>
+                    <button onClick={() => setShowBefore(true)} className={`px-5 py-1.5 transition-colors cursor-pointer ${showBefore ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Before</button>
                   </div>
                 )}
               </div>

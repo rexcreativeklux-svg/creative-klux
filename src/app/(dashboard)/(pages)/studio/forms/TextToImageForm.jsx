@@ -119,7 +119,7 @@ const TextToImageForm = ({ formData, setFormData, activeBrand, showToast, onResu
               value={prompt}
               onChange={(e) => { setPrompt(e.target.value); setError(""); }}
               placeholder="Describe the image you want to create… be specific about subject, setting, lighting, and mood."
-              rows={4}
+              rows={8}
               className={`${inputCls} placeholder:text-xs placeholder:text-gray-400 resize-none`}
             />
             <button

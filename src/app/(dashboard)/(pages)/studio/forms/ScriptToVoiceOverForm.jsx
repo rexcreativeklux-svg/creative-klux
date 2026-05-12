@@ -183,7 +183,7 @@ const ScriptToVoiceoverForm = ({
     // ─────────────────────────────────────────────────────────────────────
     return (
         <>
-            <div className="bg-white rounded-lg p-2 flex flex-col gap-6">
+            <div className="bg-white rounded-lg px-2 py-5 flex flex-col gap-6">
 
                 {error && (
                     <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
@@ -198,7 +198,7 @@ const ScriptToVoiceoverForm = ({
                             value={script}
                             onChange={(e) => { setScript(e.target.value); setError(""); }}
                             placeholder="Enter your script here… e.g. 'Welcome to our product launch, where innovation meets possibility…'"
-                            rows={5}
+                            rows={8}
                             maxLength={2000}
                             className={`${inputCls} placeholder:text-xs placeholder:text-gray-400 resize-none`}
                         />

@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { removeBackground } from '@imgly/background-removal';
 import { generateImage } from '@/(lib)/ai-helpers';
-import { X, Upload, Download, Loader2, Search, Minus, Plus, HelpCircle, ChevronLeft, RefreshCw } from 'lucide-react';
+import { X, Upload, Download, Loader2, Search, Minus, Plus, HelpCircle, ChevronLeft, RefreshCw, RotateCcw, FlipHorizontal2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ── Color data ────────────────────────────────────────────────────────────────
@@ -105,8 +105,7 @@ function ColorSwatch({ color, selected, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`w-8 h-8 rounded-full border-2 transition-all cursor-pointer hover:scale-110 ${selected ? 'border-blue-500 scale-110' : color === '#ffffff' ? 'border-gray-300 hover:border-gray-400' : 'border-transparent hover:border-gray-300'
-        }`}
+      className={`w-8 h-8 rounded-full border-2 transition-all cursor-pointer hover:scale-110 ${selected ? 'border-blue-500 scale-110' : color === '#ffffff' ? 'border-gray-300 hover:border-gray-400' : 'border-transparent hover:border-gray-300'}`}
       style={{ backgroundColor: color }}
     />
   );
@@ -116,8 +115,7 @@ function SidebarIcon({ icon, label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 py-3 px-1 w-full transition-colors cursor-pointer ${active ? 'text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-        }`}
+      className={`flex flex-col items-center gap-1 py-3 px-1 w-full transition-colors cursor-pointer ${active ? 'text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
     >
       <div className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${active ? 'bg-blue-100' : ''}`}>
         {icon}
@@ -127,59 +125,205 @@ function SidebarIcon({ icon, label, active, onClick }) {
   );
 }
 
+// ── Resize handle component ───────────────────────────────────────────────────
+const HANDLES = [
+  { id: 'nw', cursor: 'nw-resize', style: { top: -5, left: -5 } },
+  { id: 'n',  cursor: 'n-resize',  style: { top: -5, left: '50%', transform: 'translateX(-50%)' } },
+  { id: 'ne', cursor: 'ne-resize', style: { top: -5, right: -5 } },
+  { id: 'e',  cursor: 'e-resize',  style: { top: '50%', right: -5, transform: 'translateY(-50%)' } },
+  { id: 'se', cursor: 'se-resize', style: { bottom: -5, right: -5 } },
+  { id: 's',  cursor: 's-resize',  style: { bottom: -5, left: '50%', transform: 'translateX(-50%)' } },
+  { id: 'sw', cursor: 'sw-resize', style: { bottom: -5, left: -5 } },
+  { id: 'w',  cursor: 'w-resize',  style: { top: '50%', left: -5, transform: 'translateY(-50%)' } },
+];
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function BatchModal({ onClose, initialFile }) {
-  const fileInputRef = useRef(null);
-  const bgFileInputRef = useRef(null);
+  const fileInputRef    = useRef(null);
+  const bgFileInputRef  = useRef(null);
+  const canvasRef       = useRef(null);
 
   const [originalFile, setOriginalFile] = useState(initialFile || null);
-  const [originalUrl, setOriginalUrl] = useState(initialFile ? URL.createObjectURL(initialFile) : null);
-  const [removedUrl, setRemovedUrl] = useState(null);
-  const [removing, setRemoving] = useState(false);
+  const [originalUrl, setOriginalUrl]   = useState(initialFile ? URL.createObjectURL(initialFile) : null);
+  const [removedUrl, setRemovedUrl]     = useState(null);
+  const [removing, setRemoving]         = useState(false);
   const [removingProgress, setRemovingProgress] = useState(0);
-  const [aiResultUrl, setAiResultUrl] = useState(null);
+  const [aiResultUrl, setAiResultUrl]   = useState(null);
   const [applyingAiBg, setApplyingAiBg] = useState(false);
 
-  const [activePanel, setActivePanel] = useState('templates');
-  const [showBefore, setShowBefore] = useState(false);
-  const [zoom, setZoom] = useState(100);
+  const [activePanel, setActivePanel]   = useState('templates');
+  const [showBefore, setShowBefore]     = useState(false);
+  const [zoom, setZoom]                 = useState(100);
 
   // Templates
-  const [activeTemplate, setActiveTemplate] = useState(null);
+  const [activeTemplate, setActiveTemplate]     = useState(null);
   const [showAllTemplates, setShowAllTemplates] = useState(false);
 
   // Background
-  const [bgTab, setBgTab] = useState('color');
+  const [bgTab, setBgTab]               = useState('color');
   const [selectedColor, setSelectedColor] = useState('#ffffff');
-  const [customColor, setCustomColor] = useState('#ffffff');
+  const [customColor, setCustomColor]   = useState('#ffffff');
   const [selectedBgImage, setSelectedBgImage] = useState(null);
-  const [bgImageUrl, setBgImageUrl] = useState(null);
+  const [bgImageUrl, setBgImageUrl]     = useState(null);
   const [removeOrigBg, setRemoveOrigBg] = useState(true);
-  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiPrompt, setAiPrompt]         = useState('');
 
-  // Position
-  const [posTab, setPosTab] = useState('center');
-  const [padding, setPadding] = useState({ top: 10, bottom: 10, left: 10, right: 10 });
-  const [align, setAlign] = useState('center');
-  const [scale, setScale] = useState('fit');
-
-  // Resize
+  // Resize canvas ratio
   const [selectedResize, setSelectedResize] = useState(null);
-  const [canvasRatio, setCanvasRatio] = useState({ w: 1, h: 1 });
+  const [canvasRatio, setCanvasRatio]       = useState({ w: 1, h: 1 });
 
   // Shadows
   const [selectedShadow, setSelectedShadow] = useState('none');
+
+  // ── Interactive image state ──────────────────────────────────────────────
+  const [selected, setSelected]     = useState(false);
+  const [imgPos, setImgPos]         = useState({ x: 0, y: 0 });       // offset from canvas center
+  const [imgSize, setImgSize]       = useState({ w: 0, h: 0 });        // rendered px size
+  const [rotation, setRotation]     = useState(0);
+  const [flipped, setFlipped]       = useState(false);
+  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+  const [imgInitialized, setImgInitialized] = useState(false);
+
+  const dragRef   = useRef(null);   // { startX, startY, startPosX, startPosY }
+  const resizeRef = useRef(null);   // { handle, startX, startY, startW, startH, startPosX, startPosY }
+
+  // ── Canvas sizing ────────────────────────────────────────────────────────
+  const MAX_DIM = 500;
+  const ratio   = canvasRatio.w / canvasRatio.h;
+  const canvasW = ratio >= 1 ? MAX_DIM : Math.round(MAX_DIM * ratio);
+  const canvasH = ratio >= 1 ? Math.round(MAX_DIM / ratio) : MAX_DIM;
+
+  const displayUrl = showBefore ? originalUrl : (aiResultUrl || removedUrl);
+
+  // Initialize image position/size when displayUrl or canvas changes
+  useEffect(() => {
+    if (!displayUrl) { setImgInitialized(false); return; }
+    const img = new Image();
+    img.onload = () => {
+      const nw = img.naturalWidth;
+      const nh = img.naturalHeight;
+      setNaturalSize({ w: nw, h: nh });
+      // Fit inside 80% of canvas
+      const maxW = canvasW * 0.8;
+      const maxH = canvasH * 0.8;
+      const scale = Math.min(maxW / nw, maxH / nh);
+      setImgSize({ w: Math.round(nw * scale), h: Math.round(nh * scale) });
+      setImgPos({ x: 0, y: 0 });
+      setImgInitialized(true);
+    };
+    img.src = displayUrl;
+  }, [displayUrl, canvasW, canvasH]);
+
+  // ── Drag ────────────────────────────────────────────────────────────────
+  const onDragMouseDown = useCallback((e) => {
+    if (!selected) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = { startX: e.clientX, startY: e.clientY, startPosX: imgPos.x, startPosY: imgPos.y };
+
+    const onMove = (me) => {
+      const dx = me.clientX - dragRef.current.startX;
+      const dy = me.clientY - dragRef.current.startY;
+      setImgPos({ x: dragRef.current.startPosX + dx, y: dragRef.current.startPosY + dy });
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      dragRef.current = null;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [selected, imgPos]);
+
+  // ── Resize ──────────────────────────────────────────────────────────────
+  const onResizeMouseDown = useCallback((e, handleId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizeRef.current = {
+      handle: handleId,
+      startX: e.clientX, startY: e.clientY,
+      startW: imgSize.w,  startH: imgSize.h,
+      startPosX: imgPos.x, startPosY: imgPos.y,
+    };
+
+    const onMove = (me) => {
+      const { handle, startX, startY, startW, startH, startPosX, startPosY } = resizeRef.current;
+      const dx = me.clientX - startX;
+      const dy = me.clientY - startY;
+      const aspect = startW / startH;
+
+      let newW = startW;
+      let newH = startH;
+      let newX = startPosX;
+      let newY = startPosY;
+
+      // Corner handles: maintain aspect ratio
+      if (handle === 'se') {
+        newW = Math.max(40, startW + dx);
+        newH = Math.max(40, newW / aspect);
+      } else if (handle === 'sw') {
+        newW = Math.max(40, startW - dx);
+        newH = Math.max(40, newW / aspect);
+        newX = startPosX + (startW - newW);
+      } else if (handle === 'ne') {
+        newW = Math.max(40, startW + dx);
+        newH = Math.max(40, newW / aspect);
+        newY = startPosY + (startH - newH);
+      } else if (handle === 'nw') {
+        newW = Math.max(40, startW - dx);
+        newH = Math.max(40, newW / aspect);
+        newX = startPosX + (startW - newW);
+        newY = startPosY + (startH - newH);
+      }
+      // Edge handles: free resize
+      else if (handle === 'e') { newW = Math.max(40, startW + dx); }
+      else if (handle === 'w') { newW = Math.max(40, startW - dx); newX = startPosX + (startW - newW); }
+      else if (handle === 's') { newH = Math.max(40, startH + dy); }
+      else if (handle === 'n') { newH = Math.max(40, startH - dy); newY = startPosY + (startH - newH); }
+
+      setImgSize({ w: Math.round(newW), h: Math.round(newH) });
+      setImgPos({ x: Math.round(newX), y: Math.round(newY) });
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      resizeRef.current = null;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [imgSize, imgPos]);
+
+  // Deselect on canvas click
+  const onCanvasClick = (e) => {
+    if (e.target === canvasRef.current) setSelected(false);
+  };
+
+  // ── Keyboard shortcuts ───────────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!selected) return;
+      const step = e.shiftKey ? 10 : 1;
+      if (e.key === 'ArrowLeft')  setImgPos(p => ({ ...p, x: p.x - step }));
+      if (e.key === 'ArrowRight') setImgPos(p => ({ ...p, x: p.x + step }));
+      if (e.key === 'ArrowUp')    setImgPos(p => ({ ...p, y: p.y - step }));
+      if (e.key === 'ArrowDown')  setImgPos(p => ({ ...p, y: p.y + step }));
+      if (e.key === 'Escape')     setSelected(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected]);
 
   useEffect(() => {
     if (initialFile) doRemoveBg(initialFile);
   }, []);
 
-  // ── Uses @imgly/background-removal (same as ProductStagingModal) ─────────────
   const doRemoveBg = async (file) => {
     setRemoving(true);
     setRemovedUrl(null);
     setAiResultUrl(null);
     setRemovingProgress(0);
+    setImgInitialized(false);
     try {
       const objectUrl = URL.createObjectURL(file);
       const blob = await removeBackground(objectUrl, {
@@ -211,8 +355,7 @@ export default function BatchModal({ onClose, initialFile }) {
   const handleBgFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setBgImageUrl(url);
+    setBgImageUrl(URL.createObjectURL(file));
     setSelectedBgImage('custom_upload');
     setBgTab('image');
   };
@@ -255,9 +398,6 @@ export default function BatchModal({ onClose, initialFile }) {
 
   const applyTemplate = (tpl) => {
     setActiveTemplate(tpl.id);
-    setPadding({ ...tpl.padding });
-    setAlign(tpl.align);
-    setScale(tpl.scale);
     if (tpl.shadow) setSelectedShadow(tpl.shadow);
     if (tpl.bg && !tpl.bg.startsWith('linear-gradient')) {
       setSelectedColor(tpl.bg);
@@ -267,7 +407,6 @@ export default function BatchModal({ onClose, initialFile }) {
       const bg = IMAGE_BACKGROUNDS.find(b => b.id === tpl.bgImage);
       if (bg) { setBgImageUrl(bg.url); setSelectedBgImage(bg.id); setBgTab('image'); }
     }
-
     toast.success(`Template "${tpl.name}" applied!`);
   };
 
@@ -277,115 +416,45 @@ export default function BatchModal({ onClose, initialFile }) {
     toast.success(`Resized to ${preset.name}`);
   };
 
-  const exportToImage = async () => {
+  const handleDownload = async () => {
+    if (!originalUrl) return;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
+    const outW = 1200;
+    const outH = Math.round(outW / ratio);
+    canvas.width = outW;
+    canvas.height = outH;
 
-    const ratio = canvasRatio.w / canvasRatio.h;
-    const width = 1200;
-    const height = Math.round(width / ratio);
-
-    canvas.width = width;
-    canvas.height = height;
-
-    // 1. Draw background
-    if (bgTab === 'color') {
-      if (selectedColor.startsWith('linear-gradient')) {
-        const gradient = ctx.createLinearGradient(0, 0, width, height);
-        gradient.addColorStop(0, '#7c3aed'); // fallback approximation
-        gradient.addColorStop(1, '#a855f7');
-        ctx.fillStyle = gradient;
-      } else {
-        ctx.fillStyle = selectedColor;
-      }
-      ctx.fillRect(0, 0, width, height);
+    // Background
+    if (bgTab === 'color' && selectedColor !== 'transparent') {
+      ctx.fillStyle = selectedColor;
+      ctx.fillRect(0, 0, outW, outH);
     }
 
-    // 2. Load product image
+    // Image
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = aiResultUrl || removedUrl || originalUrl;
-
     await new Promise(res => (img.onload = res));
 
-    // 3. Calculate scale
-    const paddingX = (padding.left + padding.right) / 100 * width;
-    const paddingY = (padding.top + padding.bottom) / 100 * height;
+    const scaleX = outW / canvasW;
+    const scaleY = outH / canvasH;
+    const cx = outW / 2 + imgPos.x * scaleX;
+    const cy = outH / 2 + imgPos.y * scaleY;
+    const dw = imgSize.w * scaleX;
+    const dh = imgSize.h * scaleY;
 
-    const maxW = width - paddingX;
-    const maxH = height - paddingY;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate((rotation * Math.PI) / 180);
+    if (flipped) ctx.scale(-1, 1);
+    ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+    ctx.restore();
 
-    let drawW = maxW;
-    let drawH = (img.height / img.width) * drawW;
-
-    if (drawH > maxH) {
-      drawH = maxH;
-      drawW = (img.width / img.height) * drawH;
-    }
-
-    const x = (width - drawW) / 2;
-    const y = (height - drawH) / 2;
-
-    // 4. Draw image
-    ctx.drawImage(img, x, y, drawW, drawH);
-
-    // 5. Export
     const link = document.createElement('a');
     link.download = 'product-photo.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
-  };
-
-  // const handleDownload = () => {
-  //   const url = aiResultUrl || removedUrl || originalUrl;
-  //   if (!url) return;
-  //   const a = document.createElement('a');
-  //   a.href = url; a.download = 'product-photo.png'; a.target = '_blank'; a.click();
-  // };
-
-  // ── Canvas sizing: max 500px in either direction ──────────────────────────
-
-  const handleDownload = async () => {
-    if (!originalUrl) return;
-    await exportToImage();
-  };
-
-  const MAX_DIM = 500;
-  const ratio = canvasRatio.w / canvasRatio.h;
-  const canvasW = ratio >= 1 ? MAX_DIM : Math.round(MAX_DIM * ratio);
-  const canvasH = ratio >= 1 ? Math.round(MAX_DIM / ratio) : MAX_DIM;
-
-  // ── Image position / scale ────────────────────────────────────────────────
-  const getImageStyle = () => {
-    const justifyMap = {
-      'center': 'center', 'bottom-center': 'center', 'top-center': 'center',
-      'bottom-left': 'flex-start', 'bottom-right': 'flex-end',
-      'top-left': 'flex-start', 'top-right': 'flex-end',
-      'center-left': 'flex-start', 'center-right': 'flex-end',
-    };
-    const alignMap = {
-      'center': 'center', 'bottom-center': 'flex-end', 'top-center': 'flex-start',
-      'bottom-left': 'flex-end', 'bottom-right': 'flex-end',
-      'top-left': 'flex-start', 'top-right': 'flex-start',
-      'center-left': 'center', 'center-right': 'center',
-    };
-    return {
-      containerStyle: {
-        position: 'absolute',
-        top: `${padding.top}%`, bottom: `${padding.bottom}%`,
-        left: `${padding.left}%`, right: `${padding.right}%`,
-        display: 'flex',
-        justifyContent: justifyMap[align] || 'center',
-        alignItems: alignMap[align] || 'center',
-      },
-      imgStyle: {
-        maxWidth: '100%', maxHeight: '100%',
-        objectFit: scale === 'fill' ? 'cover' : scale === 'stretch' ? 'fill' : 'contain',
-        width: scale === 'fill' || scale === 'stretch' ? '100%' : undefined,
-        height: scale === 'fill' || scale === 'stretch' ? '100%' : undefined,
-        ...SHADOW_PRESETS.find(s => s.id === selectedShadow)?.style,
-      },
-    };
   };
 
   const checkerBg = {
@@ -404,20 +473,22 @@ export default function BatchModal({ onClose, initialFile }) {
     return checkerBg;
   };
 
-  const displayUrl = showBefore ? originalUrl : (aiResultUrl || removedUrl);
-  const { containerStyle, imgStyle } = getImageStyle();
+  const shadowStyle = SHADOW_PRESETS.find(s => s.id === selectedShadow)?.style || {};
 
   const grouped = TEMPLATE_CATEGORIES.reduce((acc, cat) => {
     acc[cat] = TEMPLATES.filter(t => t.category === cat);
     return acc;
   }, {});
 
+  // Image left/top in canvas (canvas is positioned with overflow:hidden, image centered)
+  const imgLeft = canvasW / 2 + imgPos.x - imgSize.w / 2;
+  const imgTop  = canvasH / 2 + imgPos.y - imgSize.h / 2;
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-3"
       onClick={onClose}
     >
-      {/* Modal: near-fullscreen using vh/vw with small padding from edges */}
       <div
         className="bg-white rounded-2xl shadow-2xl flex overflow-hidden w-full h-full"
         style={{ maxWidth: '1600px', maxHeight: '960px' }}
@@ -427,26 +498,26 @@ export default function BatchModal({ onClose, initialFile }) {
         {/* ── Icon sidebar ── */}
         <div className="w-[64px] border-r border-gray-100 flex flex-col items-center py-2 bg-white flex-shrink-0">
           <SidebarIcon active={activePanel === 'templates'} onClick={() => setActivePanel('templates')}
-            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><rect x="2" y="2" width="7" height="7" rx="1" /><rect x="11" y="2" width="7" height="7" rx="1" /><rect x="2" y="11" width="7" height="7" rx="1" /><rect x="11" y="11" width="7" height="7" rx="1" /></svg>}
+            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><rect x="2" y="2" width="7" height="7" rx="1"/><rect x="11" y="2" width="7" height="7" rx="1"/><rect x="2" y="11" width="7" height="7" rx="1"/><rect x="11" y="11" width="7" height="7" rx="1"/></svg>}
             label="Templates" />
           <SidebarIcon active={activePanel === 'resize'} onClick={() => setActivePanel('resize')}
-            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><rect x="3" y="3" width="14" height="14" rx="1" /><path d="M7 3v14M3 7h14" /></svg>}
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><rect x="3" y="3" width="14" height="14" rx="1"/><path d="M7 3v14M3 7h14"/></svg>}
             label="Resize" />
           <SidebarIcon active={activePanel === 'position'} onClick={() => setActivePanel('position')}
-            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M10 2v16M2 10h16" /><circle cx="10" cy="10" r="3" /></svg>}
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M10 2v16M2 10h16"/><circle cx="10" cy="10" r="3"/></svg>}
             label="Position" />
           <SidebarIcon active={activePanel === 'background'} onClick={() => setActivePanel('background')}
-            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><circle cx="10" cy="10" r="8" /></svg>}
+            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><circle cx="10" cy="10" r="8"/></svg>}
             label="Background" />
           <SidebarIcon active={activePanel === 'shadows'} onClick={() => setActivePanel('shadows')}
-            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 opacity-70"><rect x="3" y="3" width="10" height="10" rx="1" opacity="0.5" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg>}
+            icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 opacity-70"><rect x="3" y="3" width="10" height="10" rx="1" opacity="0.5"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>}
             label="AI Shadows" />
           <div className="flex-1" />
           <SidebarIcon active={false} onClick={() => fileInputRef.current?.click()}
             icon={<Upload className="w-5 h-5" />}
             label="Upload" />
-          <SidebarIcon active={false} onClick={() => { }}
-            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><circle cx="10" cy="10" r="7" /><path d="M10 6v4l3 3" /></svg>}
+          <SidebarIcon active={false} onClick={() => {}}
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 3"/></svg>}
             label="Usage" />
         </div>
 
@@ -458,12 +529,9 @@ export default function BatchModal({ onClose, initialFile }) {
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
                 <span className="font-semibold text-sm text-gray-800">Templates</span>
-                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors">
-                  <X className="w-4 h-4 text-gray-400" />
-                </button>
+                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-400" /></button>
               </div>
               <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
-
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                   <input placeholder="Search templates" className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 outline-none bg-gray-50 cursor-text focus:border-blue-400 transition-colors" />
@@ -474,28 +542,17 @@ export default function BatchModal({ onClose, initialFile }) {
                   <div key={cat} className="mb-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-semibold text-gray-700">{cat}</span>
-                      <button
-                        onClick={() => setShowAllTemplates(true)}
-                        className="text-xs text-blue-500 hover:text-blue-700 cursor-pointer transition-colors"
-                      >
-                        See all
-                      </button>
+                      <button onClick={() => setShowAllTemplates(true)} className="text-xs text-blue-500 hover:text-blue-700 cursor-pointer transition-colors">See all</button>
                     </div>
                     <div className="grid grid-cols-2 gap-1.5">
                       {grouped[cat].slice(0, 4).map(tpl => (
-                        <button
-                          key={tpl.id}
-                          onClick={() => applyTemplate(tpl)}
+                        <button key={tpl.id} onClick={() => applyTemplate(tpl)}
                           className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer hover:border-blue-400 hover:shadow-md ${activeTemplate === tpl.id ? 'border-blue-500' : 'border-gray-200'}`}
-                          style={{
-                            background: tpl.bg?.startsWith('linear') ? tpl.bg : tpl.bg === 'transparent' ? undefined : tpl.bg,
-                            ...(tpl.bg === 'transparent' ? checkerBg : {}),
-                          }}
-                        >
+                          style={{ background: tpl.bg?.startsWith('linear') ? tpl.bg : tpl.bg === 'transparent' ? undefined : tpl.bg, ...(tpl.bg === 'transparent' ? checkerBg : {}) }}>
                           {tpl.preview && <img src={tpl.preview} alt={tpl.name} className="absolute inset-0 w-full h-full object-cover opacity-70 mix-blend-multiply" />}
                           {activeTemplate === tpl.id && (
                             <div className="absolute top-1 right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                              <svg viewBox="0 0 8 8" fill="white" className="w-2.5 h-2.5"><path d="M1 4l2 2 4-4" /></svg>
+                              <svg viewBox="0 0 8 8" fill="white" className="w-2.5 h-2.5"><path d="M1 4l2 2 4-4"/></svg>
                             </div>
                           )}
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/40 to-transparent px-1 py-1">
@@ -510,13 +567,10 @@ export default function BatchModal({ onClose, initialFile }) {
             </div>
           )}
 
-          {/* ALL TEMPLATES drill-down */}
           {activePanel === 'templates' && showAllTemplates && (
             <div className="flex flex-col h-full">
               <div className="flex items-center gap-2 px-3 py-3 border-b border-gray-100 flex-shrink-0">
-                <button onClick={() => setShowAllTemplates(false)} className="p-1 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
-                  <ChevronLeft className="w-4 h-4 text-gray-600" />
-                </button>
+                <button onClick={() => setShowAllTemplates(false)} className="p-1 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"><ChevronLeft className="w-4 h-4 text-gray-600" /></button>
                 <span className="font-semibold text-sm text-gray-800">All Templates</span>
               </div>
               <div className="flex-1 overflow-y-auto px-3 py-2">
@@ -525,19 +579,13 @@ export default function BatchModal({ onClose, initialFile }) {
                     <p className="text-xs font-semibold text-gray-700 mb-2">{cat}</p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {grouped[cat].map(tpl => (
-                        <button
-                          key={tpl.id}
-                          onClick={() => { applyTemplate(tpl) }}
+                        <button key={tpl.id} onClick={() => applyTemplate(tpl)}
                           className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer hover:border-blue-400 hover:shadow-md ${activeTemplate === tpl.id ? 'border-blue-500' : 'border-gray-200'}`}
-                          style={{
-                            background: tpl.bg?.startsWith('linear') ? tpl.bg : tpl.bg === 'transparent' ? undefined : tpl.bg,
-                            ...(tpl.bg === 'transparent' ? checkerBg : {}),
-                          }}
-                        >
+                          style={{ background: tpl.bg?.startsWith('linear') ? tpl.bg : tpl.bg === 'transparent' ? undefined : tpl.bg, ...(tpl.bg === 'transparent' ? checkerBg : {}) }}>
                           {tpl.preview && <img src={tpl.preview} alt={tpl.name} className="absolute inset-0 w-full h-full object-cover opacity-70 mix-blend-multiply" />}
                           {activeTemplate === tpl.id && (
                             <div className="absolute top-1 right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                              <svg viewBox="0 0 8 8" fill="white" className="w-2.5 h-2.5"><path d="M1 4l2 2 4-4" /></svg>
+                              <svg viewBox="0 0 8 8" fill="white" className="w-2.5 h-2.5"><path d="M1 4l2 2 4-4"/></svg>
                             </div>
                           )}
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/40 to-transparent px-1 py-1">
@@ -573,10 +621,7 @@ export default function BatchModal({ onClose, initialFile }) {
                     <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
                       <div className={`border-2 rounded-sm transition-colors ${selectedResize === s.id ? 'border-blue-400' : 'border-gray-400'} ${s.w > s.h ? 'w-6 h-4' : s.h > s.w ? 'w-4 h-6' : 'w-5 h-5'}`} />
                     </div>
-                    <div className="text-left">
-                      <p className="text-xs font-medium text-gray-800">{s.name}</p>
-                      <p className="text-[10px] text-gray-400">{s.dims}</p>
-                    </div>
+                    <div className="text-left"><p className="text-xs font-medium text-gray-800">{s.name}</p><p className="text-[10px] text-gray-400">{s.dims}</p></div>
                   </button>
                 ))}
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-2">Advanced</p>
@@ -586,10 +631,7 @@ export default function BatchModal({ onClose, initialFile }) {
                     <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
                       <div className={`w-5 h-5 border-2 border-dashed rounded-sm ${selectedResize === s.id ? 'border-blue-400' : 'border-gray-400'}`} />
                     </div>
-                    <div className="text-left">
-                      <p className="text-xs font-medium text-gray-800">{s.name}</p>
-                      <p className="text-[10px] text-gray-400">{s.sub}</p>
-                    </div>
+                    <div className="text-left"><p className="text-xs font-medium text-gray-800">{s.name}</p><p className="text-[10px] text-gray-400">{s.sub}</p></div>
                   </button>
                 ))}
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-2">Social Media</p>
@@ -597,10 +639,7 @@ export default function BatchModal({ onClose, initialFile }) {
                   <button key={s.id} onClick={() => applyResize(s)}
                     className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg mb-0.5 transition-colors cursor-pointer ${selectedResize === s.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent hover:border-gray-200'}`}>
                     <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-600">{s.icon}</div>
-                    <div className="text-left">
-                      <p className="text-xs font-medium text-gray-800">{s.name}</p>
-                      <p className="text-[10px] text-gray-400">{s.dims}</p>
-                    </div>
+                    <div className="text-left"><p className="text-xs font-medium text-gray-800">{s.name}</p><p className="text-[10px] text-gray-400">{s.dims}</p></div>
                   </button>
                 ))}
               </div>
@@ -615,83 +654,51 @@ export default function BatchModal({ onClose, initialFile }) {
                 <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-400" /></button>
               </div>
               <div className="flex-1 overflow-y-auto px-3 py-3">
-                <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl">
-                  {['original', 'center', 'custom'].map(t => (
-                    <button key={t} onClick={() => {
-                      setPosTab(t);
-                      if (t === 'center') { setAlign('center'); setPadding({ top: 10, bottom: 10, left: 10, right: 10 }); setScale('fit'); }
-                      if (t === 'original') { setPadding({ top: 0, bottom: 0, left: 0, right: 0 }); setAlign('center'); setScale('fill'); }
-                    }}
-                      className={`flex-1 py-1.5 text-[11px] font-medium rounded-lg capitalize transition-all cursor-pointer ${posTab === t ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
-
-                <p className="text-xs font-semibold text-gray-700 mb-2">Padding</p>
+                <p className="text-xs font-semibold text-gray-700 mb-2">Size</p>
                 <div className="grid grid-cols-2 gap-2 mb-4">
-                  {[['↑', 'top', 'Top'], ['↓', 'bottom', 'Bottom'], ['←', 'left', 'Left'], ['→', 'right', 'Right']].map(([arrow, key, label]) => (
+                  {[['W', 'w'], ['H', 'h']].map(([label, key]) => (
                     <div key={key}>
                       <p className="text-[9px] text-gray-400 mb-1">{label}</p>
                       <div className="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus-within:border-blue-400 transition-colors">
-                        <span className="text-gray-400 text-xs">{arrow}</span>
-                        <input type="number" min="0" max="45" value={padding[key]}
-                          onChange={e => { setPadding(p => ({ ...p, [key]: Number(e.target.value) })); setPosTab('custom'); }}
+                        <input type="number" min="20" value={imgSize[key] || 0}
+                          onChange={e => setImgSize(s => ({ ...s, [key]: Number(e.target.value) }))}
                           className="w-full text-xs text-gray-700 outline-none bg-transparent cursor-text" />
-                        <span className="text-[10px] text-gray-400">%</span>
+                        <span className="text-[10px] text-gray-400">px</span>
                       </div>
                     </div>
                   ))}
                 </div>
-
-                <p className="text-xs font-semibold text-gray-700 mb-2">Align</p>
-                <div className="grid grid-cols-3 gap-1.5 mb-4">
-                  {[
-                    ['top-left', '↖'], ['top-center', '↑'], ['top-right', '↗'],
-                    ['center-left', '←'], ['center', '•'], ['center-right', '→'],
-                    ['bottom-left', '↙'], ['bottom-center', '↓'], ['bottom-right', '↘'],
-                  ].map(([a, icon]) => (
-                    <button key={a} onClick={() => { setAlign(a); setPosTab('custom'); }}
-                      className={`h-9 rounded-lg border flex items-center justify-center text-sm transition-all cursor-pointer ${align === a ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50 text-gray-400'}`}>
-                      {icon}
-                    </button>
-                  ))}
-                </div>
-
-                <p className="text-xs font-semibold text-gray-700 mb-2">Scale</p>
-                <div className="flex gap-1.5 mb-4">
-                  {['fit', 'fill', 'stretch'].map(s => (
-                    <button key={s} onClick={() => { setScale(s); setPosTab('custom'); }}
-                      className={`flex-1 py-2 rounded-lg border text-xs font-medium capitalize transition-all cursor-pointer ${scale === s ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-600 hover:border-gray-400 hover:bg-gray-50'}`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-
-                <p className="text-xs font-semibold text-gray-700 mb-2">Preview</p>
-                <div
-                  className="rounded-xl overflow-hidden border border-gray-200 aspect-square flex items-center justify-center relative"
-                  style={{ background: selectedColor === 'transparent' ? undefined : selectedColor, ...(selectedColor === 'transparent' ? checkerBg : {}) }}
-                >
-                  {displayUrl ? (
-                    <div style={{
-                      position: 'absolute',
-                      top: `${padding.top}%`, bottom: `${padding.bottom}%`,
-                      left: `${padding.left}%`, right: `${padding.right}%`,
-                      display: 'flex',
-                      justifyContent: align.includes('right') ? 'flex-end' : align.includes('left') ? 'flex-start' : 'center',
-                      alignItems: align.includes('bottom') ? 'flex-end' : align.includes('top') ? 'flex-start' : 'center',
-                    }}>
-                      <img src={displayUrl} alt="preview" className="max-w-full max-h-full object-contain" style={SHADOW_PRESETS.find(s => s.id === selectedShadow)?.style} />
+                <p className="text-xs font-semibold text-gray-700 mb-2">Position</p>
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  {[['X', 'x'], ['Y', 'y']].map(([label, key]) => (
+                    <div key={key}>
+                      <p className="text-[9px] text-gray-400 mb-1">{label}</p>
+                      <div className="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus-within:border-blue-400 transition-colors">
+                        <input type="number" value={imgPos[key] || 0}
+                          onChange={e => setImgPos(p => ({ ...p, [key]: Number(e.target.value) }))}
+                          className="w-full text-xs text-gray-700 outline-none bg-transparent cursor-text" />
+                        <span className="text-[10px] text-gray-400">px</span>
+                      </div>
                     </div>
-                  ) : <span className="text-gray-300 text-xs">No image</span>}
+                  ))}
                 </div>
-                <button
-                  onClick={() => toast.success('Position applied!')}
-                  className="mt-3 w-full py-2 rounded-xl bg-blue-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 hover:bg-blue-600 active:scale-95 transition-all cursor-pointer"
-                >
-                  Apply to image
-                </button>
+                <p className="text-xs font-semibold text-gray-700 mb-2">Rotation</p>
+                <div className="flex items-center gap-2 mb-4">
+                  <input type="range" min={-180} max={180} value={rotation}
+                    onChange={e => setRotation(Number(e.target.value))}
+                    className="flex-1 accent-blue-500" />
+                  <span className="text-xs text-gray-500 w-10 text-right">{rotation}°</span>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setFlipped(f => !f)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer ${flipped ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>
+                    <FlipHorizontal2 className="w-3.5 h-3.5" /> Flip
+                  </button>
+                  <button onClick={() => { setImgPos({ x: 0, y: 0 }); setRotation(0); setFlipped(false); }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:border-gray-400 transition-all cursor-pointer">
+                    <RotateCcw className="w-3.5 h-3.5" /> Reset
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -767,14 +774,12 @@ export default function BatchModal({ onClose, initialFile }) {
                   <div>
                     <p className="text-xs text-gray-500 mb-3">Describe any background and AI will generate it</p>
                     <textarea value={aiPrompt} onChange={e => setAiPrompt(e.target.value)}
-                      placeholder="e.g. luxury marble counter with soft studio lighting, outdoor garden with bokeh blur…"
+                      placeholder="e.g. luxury marble counter with soft studio lighting…"
                       className="w-full text-xs border border-gray-200 rounded-xl p-2.5 outline-none resize-none focus:border-blue-400 bg-gray-50 cursor-text transition-colors" rows={4} />
                     <button onClick={generateAiBg} disabled={applyingAiBg || !aiPrompt.trim()}
                       className="mt-2 w-full py-2.5 rounded-xl text-xs font-semibold text-white transition-all disabled:opacity-50 cursor-pointer active:scale-95 hover:opacity-90"
                       style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)' }}>
-                      {applyingAiBg
-                        ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</span>
-                        : '✨ Generate AI Background'}
+                      {applyingAiBg ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</span> : '✨ Generate AI Background'}
                     </button>
                     <p className="text-[9px] text-gray-400 mt-2 text-center">Uses AI image generation credits</p>
                   </div>
@@ -808,21 +813,18 @@ export default function BatchModal({ onClose, initialFile }) {
           )}
         </div>
 
-        {/* ── Canvas ── */}
+        {/* ── Canvas area ── */}
         <div className="flex-1 flex flex-col bg-[#e8e8e8] relative overflow-hidden">
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 z-20 w-8 h-8 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-300 hover:text-red-500 shadow-sm cursor-pointer transition-all"
-          >
+          <button onClick={onClose}
+            className="absolute top-3 right-3 z-20 w-8 h-8 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-300 hover:text-red-500 shadow-sm cursor-pointer transition-all">
             <X className="w-4 h-4 text-gray-600" />
           </button>
 
           <div className="absolute top-3.5 left-4 z-20 text-xs text-gray-500">
             {removing
               ? `Removing background… ${removingProgress > 0 ? `${removingProgress}%` : 'loading model'}`
-              : removedUrl
-                ? 'Background removed ✓'
-                : 'Upload an image to start'}
+              : removedUrl ? 'Background removed ✓'
+              : 'Upload an image to start'}
           </div>
 
           <div className="flex-1 flex items-center justify-center p-8">
@@ -840,51 +842,133 @@ export default function BatchModal({ onClose, initialFile }) {
                       </div>
                       <p className="text-gray-400 text-xs mt-1">{removingProgress}%</p>
                     </>
-                  ) : (
-                    <p className="text-gray-400 text-xs">Loading model…</p>
-                  )}
+                  ) : <p className="text-gray-400 text-xs">Loading model…</p>}
                 </div>
               </div>
             ) : originalUrl ? (
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center gap-4">
+                {/* ── Interactive Canvas ── */}
                 <div
-                  className="rounded-xl overflow-hidden shadow-2xl relative"
-                  style={{ width: canvasW, height: canvasH, ...getCanvasBg() }}
+                  ref={canvasRef}
+                  className="rounded-xl overflow-hidden shadow-2xl relative select-none"
+                  style={{
+                    width: canvasW,
+                    height: canvasH,
+                    ...getCanvasBg(),
+                    transform: `scale(${zoom / 100})`,
+                    transformOrigin: 'center',
+                  }}
+                  onClick={onCanvasClick}
                 >
                   {/* bg image layer */}
                   {bgTab === 'image' && bgImageUrl && !aiResultUrl && !showBefore && (
-                    <img src={bgImageUrl} alt="bg" className="absolute inset-0 w-full h-full object-cover" />
+                    <img src={bgImageUrl} alt="bg" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
                   )}
-                  {/* product layer */}
+
                   {applyingAiBg ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/20">
                       <Loader2 className="w-8 h-8 text-white animate-spin drop-shadow" />
                       <p className="text-white text-xs font-medium drop-shadow">Applying background…</p>
                     </div>
-                  ) : (
-                    <div style={containerStyle}>
+                  ) : imgInitialized && displayUrl ? (
+                    /* ── Draggable / resizable image ── */
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: imgLeft,
+                        top: imgTop,
+                        width: imgSize.w,
+                        height: imgSize.h,
+                        transform: `rotate(${rotation}deg) scaleX(${flipped ? -1 : 1})`,
+                        transformOrigin: 'center',
+                        cursor: selected ? 'move' : 'pointer',
+                        userSelect: 'none',
+                      }}
+                      onClick={e => { e.stopPropagation(); setSelected(true); }}
+                      onMouseDown={selected ? onDragMouseDown : undefined}
+                    >
+                      {/* The image */}
                       <img
-                        src={!showBefore && aiResultUrl ? aiResultUrl : (!showBefore && removedUrl ? removedUrl : originalUrl)}
+                        src={displayUrl}
                         alt="product"
-                        style={{ ...imgStyle, transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}
+                        draggable={false}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain',
+                          display: 'block',
+                          ...shadowStyle,
+                          pointerEvents: 'none',
+                        }}
                       />
+
+                      {/* Selection outline + handles */}
+                      {selected && (
+                        <>
+                          {/* Dashed border */}
+                          <div className="absolute inset-0 pointer-events-none"
+                            style={{ border: '2px solid #3b82f6', borderRadius: 2 }} />
+
+                          {/* Resize handles */}
+                          {HANDLES.map(h => (
+                            <div
+                              key={h.id}
+                              onMouseDown={e => { e.stopPropagation(); onResizeMouseDown(e, h.id); }}
+                              style={{
+                                position: 'absolute',
+                                width: 10,
+                                height: 10,
+                                background: 'white',
+                                border: '2px solid #3b82f6',
+                                borderRadius: 2,
+                                cursor: h.cursor,
+                                zIndex: 10,
+                                ...h.style,
+                              }}
+                            />
+                          ))}
+
+                          {/* Floating toolbar above image */}
+                          <div
+                            className="absolute flex items-center gap-0.5 bg-white rounded-lg shadow-lg border border-gray-100 px-1.5 py-1"
+                            style={{ bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: 8, whiteSpace: 'nowrap' }}
+                            onMouseDown={e => e.stopPropagation()}
+                          >
+                            <button
+                              onClick={e => { e.stopPropagation(); setRotation(r => r - 90); }}
+                              className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 transition-colors" title="Rotate -90°">
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); setFlipped(f => !f); }}
+                              className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 transition-colors" title="Flip horizontal">
+                              <FlipHorizontal2 className="w-3.5 h-3.5" />
+                            </button>
+                            <div className="w-px h-4 bg-gray-200 mx-0.5" />
+                            <span className="text-[10px] text-gray-400 px-1">{imgSize.w} × {imgSize.h}</span>
+                            <div className="w-px h-4 bg-gray-200 mx-0.5" />
+                            <button
+                              onClick={e => { e.stopPropagation(); setOriginalUrl(null); setRemovedUrl(null); setAiResultUrl(null); setSelected(false); setImgInitialized(false); }}
+                              className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-500 transition-colors" title="Remove image">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
-                {/* Before / After */}
+                {/* Before / After toggle */}
                 {removedUrl && (
-                  <div className="mt-4 flex bg-white rounded-full shadow border border-gray-200 overflow-hidden text-xs font-medium">
+                  <div className="flex bg-white rounded-full shadow border border-gray-200 overflow-hidden text-xs font-medium">
                     <button onClick={() => setShowBefore(false)} className={`px-5 py-1.5 transition-colors cursor-pointer ${!showBefore ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>After</button>
-                    <button onClick={() => setShowBefore(true)} className={`px-5 py-1.5 transition-colors cursor-pointer ${showBefore ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Before</button>
+                    <button onClick={() => setShowBefore(true)}  className={`px-5 py-1.5 transition-colors cursor-pointer ${showBefore ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Before</button>
                   </div>
                 )}
               </div>
             ) : (
-              <div
-                className="flex flex-col items-center gap-3 cursor-pointer group"
-                onClick={() => fileInputRef.current?.click()}
-              >
+              <div className="flex flex-col items-center gap-3 cursor-pointer group" onClick={() => fileInputRef.current?.click()}>
                 <div className="w-24 h-24 rounded-2xl bg-white shadow flex items-center justify-center group-hover:shadow-md group-hover:bg-blue-50 transition-all">
                   <Upload className="w-10 h-10 text-gray-300 group-hover:text-blue-400 transition-colors" />
                 </div>
@@ -897,20 +981,20 @@ export default function BatchModal({ onClose, initialFile }) {
           {/* Bottom toolbar */}
           <div className="flex items-center justify-between px-5 py-3 bg-white/90 backdrop-blur-sm border-t border-gray-100">
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleDownload}
-                disabled={!originalUrl || removing}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
+              <button onClick={handleDownload} disabled={!originalUrl || removing}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
                 <Download className="w-3.5 h-3.5" /> Download
               </button>
               {removedUrl && !removing && (
-                <button
-                  onClick={() => originalFile && doRemoveBg(originalFile)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-medium hover:bg-gray-50 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95"
-                >
+                <button onClick={() => originalFile && doRemoveBg(originalFile)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-medium hover:bg-gray-50 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95">
                   <RefreshCw className="w-3 h-3" /> Re-process
                 </button>
+              )}
+              {selected && (
+                <span className="text-xs text-gray-400 ml-2">
+                  Arrow keys to nudge · Shift+Arrow for 10px
+                </span>
               )}
             </div>
             <div className="flex items-center gap-1 bg-white rounded-full border border-gray-200 shadow-sm px-2 py-1">

@@ -61,7 +61,7 @@ const CategorySelector = ({ creative, selected, onChange }) => {
                     className="text-[10px] font-semibold uppercase tracking-widest"
                     style={{ color: creative.color }}
                 >
-                    {creative.label}
+                    Select a category to get started
                 </p>
             </div>
 

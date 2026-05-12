@@ -161,10 +161,6 @@ export default function ProductPhotos() {
     const filteredClassics = q ? classics.filter(c => c.label.toLowerCase().includes(q)) : classics;
     const filteredStudio = q ? [] : studioColors; // studio has no labels to match
 
-    if (editorOpen) {
-        return <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />;
-    }
-
     return (
         <div>
             {/* Hidden file input for bg remover */}
@@ -179,6 +175,7 @@ export default function ProductPhotos() {
             {virtualModelOpen && <VirtualModelModal onClose={() => setVirtualModelOpen(false)} />}
             {bgRemoverOpen && <BatchModal onClose={() => setBgRemoverOpen(false)} initialFile={bgRemoverFile} />}
             {stagingOpen && <ProductStagingModal onClose={() => setStagingOpen(false)} />}
+            {editorOpen && <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />}
 
             {/* ── Header ── */}
             <div className="flex items-center justify-between">

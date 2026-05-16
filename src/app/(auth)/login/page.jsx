@@ -91,7 +91,7 @@ function LeftPanel() {
                         src={slide.image}
                         alt={slide.tag}
                         fill
-                        className="object-cover object-center"
+                        className="object-center"
                         sizes="50vw"
                         priority
                     />
@@ -239,7 +239,7 @@ export default function LoginPage() {
 
     return (
         // Full viewport, no scroll
-        <div className="fixed inset-0 flex flexrow-reverse bg-white overflow-hidden">
+        <div className="fixed inset-0 flex flex-row-reverse bg-white overflow-hidden">
 
             {/* ── LEFT ── */}
             <LeftPanel />

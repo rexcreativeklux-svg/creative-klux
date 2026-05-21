@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 
 const AuthContext = createContext();
 
@@ -797,6 +798,7 @@ export function AuthProvider({ children }) {
         data = JSON.parse(text);
       } catch {
         console.error("Invalid JSON from brands endpoint");
+        toast.error("Couldn't load brands. Please try again later.");
         setBrands([]);
         setActiveBrandState(null);
         return [];
@@ -804,6 +806,7 @@ export function AuthProvider({ children }) {
 
       if (!res.ok) {
         console.error("Failed to fetch brands:", data.message || `HTTP ${res.status}`);
+        toast.error("Couldn't load brands. Please try again later.");
         setBrands([]);
         setActiveBrandState(null);
         return [];
@@ -842,6 +845,9 @@ export function AuthProvider({ children }) {
       return brandsList;
     } catch (err) {
       console.error("Fetching brands failed:", err.message);
+      if (err.message !== "Unauthorized") {
+        toast.error("Couldn't load brands. Please try again later.");
+      }
       setBrands([]);
       setActiveBrandState(null);
       return [];

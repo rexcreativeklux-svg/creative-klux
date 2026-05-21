@@ -2,7 +2,7 @@
 "use client";
 
 import "@/app/globals.css"; // Import global styles for Tailwind
-import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 
 // Optional: Component to handle auth loading state
 function AuthContent({ children }) {
@@ -23,9 +23,7 @@ export default function AuthLayout({ children }) {
   return (
   
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
-        <AuthProvider>
-          <AuthContent>{children}</AuthContent>
-        </AuthProvider>
+        <AuthContent>{children}</AuthContent>
       </div>
   );
 }

@@ -2,6 +2,7 @@ import { BrandProvider } from "@/context/BrandContext";
 import "@/app/globals.css";
 import { ReusableFunctionsProvider } from "@/context/ReusableFunctions";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { Toaster } from "sonner";
 
 
 export const metadata = {
@@ -33,6 +34,7 @@ export default function RootLayout({ children }) {
               </ReusableFunctionsProvider>
           </BrandProvider>
         </AuthProvider>
+        <Toaster position="top-right" richColors />
       </body>
     </html>
 

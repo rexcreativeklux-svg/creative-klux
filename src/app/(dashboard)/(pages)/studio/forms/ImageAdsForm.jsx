@@ -8,134 +8,103 @@ import {
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
-
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSection";
 import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSection";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 
-
 // ── constants ─────────────────────────────────────────────────────────────────
 const SIZE_OPTIONS = [
-  { value: "1200x627", label: "LinkedIn Horizontal" },
-  { value: "627x627", label: "LinkedIn Square" },
-  { value: "1200x628", label: "Google Landscape" },
-  { value: "1200x1200", label: "Google Square" },
-  { value: "1080x1920", label: "TikTok Vertical" },
-  { value: "1080x1080", label: "Meta Square" },
-  { value: "1080x1350", label: "Meta Vertical" },
-  { value: "1080x1921", label: "Meta Stories/Reels" },
+  { category: "LinkedIn Horizontal", type_size: "1200x627" },
+  { category: "LinkedIn Square",     type_size: "627x627"  },
+  { category: "Google Landscape",    type_size: "1200x628" },
+  { category: "Google Square",       type_size: "1200x1200"},
+  { category: "TikTok Vertical",     type_size: "1080x1920"},
+  { category: "Meta Square",         type_size: "1080x1080"},
+  { category: "Meta Vertical",       type_size: "1080x1350"},
+  { category: "Meta Stories/Reels",  type_size: "1080x1921"},
 ];
+
 const CAMPAIGN_GOALS = ["Brand Awareness", "Engagement", "Sales", "Lead Generation", "Website Traffic"];
 const AUDIENCES = [
-  { value: "B2B", label: "B2B", desc: "Business owners, startups, agencies" },
-  { value: "B2C", label: "B2C", desc: "End consumers, everyday users" },
-  { value: "Casual", label: "Casual", desc: "Broad social media audience" },
+  { value: "B2B",           label: "B2B",           desc: "Business owners, startups, agencies" },
+  { value: "B2C",           label: "B2C",           desc: "End consumers, everyday users" },
+  { value: "Casual",        label: "Casual",        desc: "Broad social media audience" },
   { value: "Inspirational", label: "Inspirational", desc: "Entrepreneurs & creators" },
-  { value: "Sales", label: "Sales", desc: "Hot leads, ad audiences" },
+  { value: "Sales",         label: "Sales",         desc: "Hot leads, ad audiences" },
 ];
 const FILE_FORMATS = ["PNG", "JPEG", "WEBP", "AVIF"];
 const FONT_OPTIONS = ["Montserrat", "Playfair Display", "Roboto", "Georgia", "Helvetica", "Arial"];
 const STEPS = [
-  { id: 1, label: "Brand Details", icon: ImageIcon },
-  { id: 2, label: "Size, Goals & Audience", icon: Scan },
-  { id: 3, label: "Background Image", icon: Images },
+  { id: 1, label: "Brand Details",        icon: ImageIcon },
+  { id: 2, label: "Size, Goals & Audience", icon: Scan    },
+  { id: 3, label: "Background Image",     icon: Images   },
 ];
 
 const VISUAL_STYLES = [
-  { value: "minimal", label: "Minimal" },
-  { value: "bold", label: "Bold" },
-  { value: "elegant", label: "Elegant" },
-  { value: "playful", label: "Playful" },
+  { value: "minimal",   label: "Minimal"   },
+  { value: "bold",      label: "Bold"      },
+  { value: "elegant",   label: "Elegant"   },
+  { value: "playful",   label: "Playful"   },
   { value: "corporate", label: "Corporate" },
-
-  // NEW OPTIONS
-  { value: "modern", label: "Modern" },
-  { value: "neon", label: "Neon" },
-  { value: "pastel", label: "Pastel" },
-  // { value: "luxury", label: "Luxury" },
-  // { value: "sunset", label: "Sunset" },
-  // { value: "ocean", label: "Ocean" },
-  // { value: "forest", label: "Forest" },
-  // { value: "candy", label: "Candy" },
-  // { value: "midnight", label: "Midnight" },
-  // { value: "retro", label: "Retro" },
-  // { value: "tech", label: "Tech" },
-  // { value: "earthy", label: "Earthy" },
-  // { value: "ice", label: "Ice" },
-  // { value: "grape", label: "Grape" },
-  // { value: "fire", label: "Fire" },
+  { value: "modern",    label: "Modern"    },
+  { value: "neon",      label: "Neon"      },
+  { value: "pastel",    label: "Pastel"    },
 ];
 
 const BRAND_COLORS = [
   "#2563eb", "#0ea5e9", "#8b5cf6", "#ec4899", "#ef4444",
 ];
 
-const STYLE_PREVIEWS = {
-  minimal: { bg: "#f8fafc", accent: "#e2e8f0", bar1: "#cbd5e1" },
-  bold: { bg: "#1e293b", accent: "#f59e0b", bar1: "#fff" },
-  elegant: { bg: "#fdf6ee", accent: "#c9a96e", bar1: "#a8a29e" },
-  playful: { bg: "#fef9c3", accent: "#f472b6", bar1: "#34d399" },
-  corporate: { bg: "#fff", accent: "#1d4ed8", bar1: "#1e293b" },
-  modern: { bg: "#0f172a", accent: "#22c55e", bar1: "#334155" },
-  neon: { bg: "#020617", accent: "#22d3ee", bar1: "#a21caf" },
-  pastel: { bg: "#fdf4ff", accent: "#f9a8d4", bar1: "#c4b5fd" },
-  luxury: { bg: "#0b0b0b", accent: "#d4af37", bar1: "#3f3f46" },
-  sunset: { bg: "#fff7ed", accent: "#fb923c", bar1: "#f43f5e" },
-  ocean: { bg: "#ecfeff", accent: "#06b6d4", bar1: "#0ea5e9" },
-  forest: { bg: "#f0fdf4", accent: "#16a34a", bar1: "#14532d" },
-  candy: { bg: "#fff1f2", accent: "#fb7185", bar1: "#f472b6" },
-  midnight: { bg: "#020617", accent: "#6366f1", bar1: "#1e293b" },
-  retro: { bg: "#fef3c7", accent: "#f97316", bar1: "#7c2d12" },
-  tech: { bg: "#0a0f1c", accent: "#3b82f6", bar1: "#1f2937" },
-  earthy: { bg: "#fafaf9", accent: "#a16207", bar1: "#78350f" },
-  ice: { bg: "#f0f9ff", accent: "#38bdf8", bar1: "#7dd3fc" },
-  grape: { bg: "#faf5ff", accent: "#9333ea", bar1: "#6b21a8" },
-  fire: { bg: "#fff7ed", accent: "#ef4444", bar1: "#7f1d1d" },
-};
+// ── helpers ───────────────────────────────────────────────────────────────────
+const inputCls =
+  "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
 
+const SectionTitle = ({ children }) => (
+  <h3 className="font-semibold text-gray-900 text-base">{children}</h3>
+);
 
-const StylePreview = ({ style, active }) => {
-  const s = STYLE_PREVIEWS[style] || STYLE_PREVIEWS.minimal;
-  return (
-    <div className="w-12 h-8 rounded overflow-hidden border border-gray-200 shrink-0" style={{ background: s.bg }}>
-      <div className="w-full h-2" style={{ background: s.accent }} />
-      <div className="px-1 pt-0.5 flex flex-col gap-0.5">
-        <div className="h-1 rounded-sm" style={{ background: s.bar1, width: "80%" }} />
-        <div className="h-1 rounded-sm" style={{ background: s.bar1, opacity: 0.5, width: "55%" }} />
-      </div>
-    </div>
-  );
-};
+const Field = ({ label, required, children }) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+      {label}{required && <span className="text-red-400">*</span>}
+    </label>
+    {children}
+  </div>
+);
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, onResult, generateCustomCreative, creative, categoryId, }) => {
-  const [step, setStep] = useState(1);
-  const [error, setError] = useState("");
-  const [brandUrl, setBrandUrl] = useState(activeBrand?.url || activeBrand?.source_url || "");
+// ── main component ────────────────────────────────────────────────────────────
+const ImageAdsForm = ({
+  formData, setFormData, activeBrand, sendUrl, showToast,
+  onResult, generateCustomCreative, creative, categoryId,
+  fetchDesignTemplates, // ← new prop passed from StudioPage via commonProps
+}) => {
+  const [step, setStep]               = useState(1);
+  const [error, setError]             = useState("");
+  const [brandUrl, setBrandUrl]       = useState(activeBrand?.url || activeBrand?.source_url || "");
   const [importingBrand, setImportingBrand] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [generating, setGenerating]   = useState(false);
 
-  // ── IMAGE STATE — mirrors Posts exactly ──────────────────────────────────
-  const [imageSrc, setImageSrc] = useState([]);        // raw URLs fed to cropper
-  const [croppedImages, setCroppedImages] = useState([]);        // finished Files with .previewUrl
+  // Tracks which size option is selected: { category, type_size }
+  const [selectedSize, setSelectedSize] = useState(null);
+
+  // ── IMAGE STATE ──────────────────────────────────────────────────────────
+  const [imageSrc, setImageSrc]               = useState([]);
+  const [croppedImages, setCroppedImages]     = useState([]);
   const [currentCropIndex, setCurrentCropIndex] = useState(0);
-  const [showCropper, setShowCropper] = useState(false);
-  const [crop, setCrop] = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
-  const [completedCrop, setCompletedCrop] = useState(null);
-  const [imageSrcMeta, setImageSrcMeta] = useState([]); // tracks original URLs parallel to imageSrc
+  const [showCropper, setShowCropper]         = useState(false);
+  const [crop, setCrop]                       = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
+  const [completedCrop, setCompletedCrop]     = useState(null);
+  const [imageSrcMeta, setImageSrcMeta]       = useState([]);
 
-  const cropperRef = useRef(null);
+  const cropperRef   = useRef(null);
   const fileInputRef = useRef(null);
   const logoInputRef = useRef(null);
 
-  // ── recommended images ────────────────────────────────────────────────────
   const [recommendedImages, setRecommendedImages] = useState([]);
   const [loadingRecommended, setLoadingRecommended] = useState(false);
-
-  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [mediaPickerOpen, setMediaPickerOpen]     = useState(false);
 
   useEffect(() => {
     if (!formData.brandName?.trim()) return;
@@ -143,46 +112,35 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       setLoadingRecommended(true);
       try {
         const res = await fetch(`/api/pexels?query=${encodeURIComponent(formData.brandName)}&per_page=8`);
-        const d = await res.json();
-        setRecommendedImages((d.photos || []).map((p) => ({ id: p.id, src: p.src.medium, large: p.src.large2x, alt: p.alt || "" })));
+        const d   = await res.json();
+        setRecommendedImages(
+          (d.photos || []).map((p) => ({ id: p.id, src: p.src.medium, large: p.src.large2x, alt: p.alt || "" }))
+        );
       } catch { setRecommendedImages([]); }
       finally { setLoadingRecommended(false); }
     }, 800);
     return () => clearTimeout(t);
   }, [formData.brandName]);
 
-  // Sync first cropped image → live preview (keep this from original)
   useEffect(() => {
     const first = croppedImages.find(Boolean);
     if (first?.previewUrl) setFormData((p) => ({ ...p, backgroundImage: first.previewUrl }));
   }, [croppedImages]);
 
-  useEffect(() => {
-    setCompletedCrop(null);
-  }, [currentCropIndex]);
+  useEffect(() => { setCompletedCrop(null); }, [currentCropIndex]);
 
-  // ── field helper ──────────────────────────────────────────────────────────
+  // ── field helper ─────────────────────────────────────────────────────────
   const field = (key, value) => {
-    if (key === "brandColor") {
-      value = value.startsWith("#") ? value : `#${value}`;
-    }
-
+    if (key === "brandColor") value = value.startsWith("#") ? value : `#${value}`;
     setFormData((prev) => ({
       ...prev,
-
-      // ✅ always update canonical
       [key]: value,
-
-      // ⚠️ keep legacy fields synced (temporary)
-      ...(key === "brandColor" && {
-        primaryColor: value,
-      }),
+      ...(key === "brandColor" && { primaryColor: value }),
     }));
-
     setError("");
   };
 
-  // ── URL import ────────────────────────────────────────────────────────────
+  // ── URL import ───────────────────────────────────────────────────────────
   const handleImportBrand = async () => {
     if (!brandUrl.trim()) return setError("Please enter a valid brand URL.");
     setImportingBrand(true);
@@ -200,7 +158,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       }));
       showToast("Brand imported!");
     } catch { setError("Failed to import brand. Check the URL."); }
-    finally { setImportingBrand(false); }
+    finally   { setImportingBrand(false); }
   };
 
   const handleLogoUpload = (e) => {
@@ -211,13 +169,11 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     reader.readAsDataURL(file);
   };
 
-  // ── File input — EXACT copy of Posts handleFileChange ────────────────────
+  // ── File / crop helpers (identical to original) ──────────────────────────
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
     const urls = files.map((f) => URL.createObjectURL(f));
-
-    // ← Reset instead of appending if cropper was closed
     if (!showCropper) {
       setImageSrc(urls);
       setImageSrcMeta(Array(urls.length).fill(null));
@@ -229,22 +185,19 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       setCroppedImages((prev) => [...prev, ...Array(urls.length).fill(null)]);
       setCurrentCropIndex(imageSrc.length);
     }
-
     setShowCropper(true);
     e.target.value = "";
   };
 
-  // ── Save crop — EXACT copy of Posts saveCroppedImage ─────────────────────
   const saveCroppedImage = useCallback(async () => {
     if (!completedCrop || !cropperRef.current) return;
     const image = cropperRef.current.cropper?.getImage?.();
     if (!image) return;
-
     const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    const scaleX = image.naturalWidth / image.width;
+    const ctx    = canvas.getContext("2d");
+    const scaleX = image.naturalWidth  / image.width;
     const scaleY = image.naturalHeight / image.height;
-    canvas.width = completedCrop.width;   // ← pixel values from user drag
+    canvas.width  = completedCrop.width;
     canvas.height = completedCrop.height;
     ctx.drawImage(
       image,
@@ -252,39 +205,27 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
       completedCrop.width * scaleX, completedCrop.height * scaleY,
       0, 0, canvas.width, canvas.height
     );
-
     const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
-    const file = new File([blob], `cropped-${currentCropIndex}.png`, { type: "image/png" });
+    const file  = new File([blob], `cropped-${currentCropIndex}.png`, { type: "image/png" });
     file.previewUrl = URL.createObjectURL(blob);
-    file.sourceUrl = imageSrcMeta[currentCropIndex] || null;
-
-    setCroppedImages((prev) => {
-      const updated = [...prev];
-      updated[currentCropIndex] = file;
-      return updated;
-    });
-
+    file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
+    setCroppedImages((prev) => { const u = [...prev]; u[currentCropIndex] = file; return u; });
     if (currentCropIndex < imageSrc.length - 1) {
       setCurrentCropIndex((prev) => prev + 1);
       setCrop({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
-      setCompletedCrop(null);  // ← reset to null like Posts
+      setCompletedCrop(null);
     } else {
       setShowCropper(false);
     }
   }, [completedCrop, currentCropIndex, imageSrc.length]);
 
-  // ── Skip crop — EXACT copy of Posts handleSkipCrop ───────────────────────
   const handleSkipCrop = () => {
     const url = imageSrc[currentCropIndex];
     fetch(url).then((r) => r.blob()).then((blob) => {
-      const file = new File([blob], `original-${currentCropIndex}.png`, { type: blob.type });
+      const file     = new File([blob], `original-${currentCropIndex}.png`, { type: blob.type });
       file.previewUrl = url;
-      file.sourceUrl = imageSrcMeta[currentCropIndex] || null;
-      setCroppedImages((prev) => {
-        const u = [...prev];
-        u[currentCropIndex] = file;
-        return u;
-      });
+      file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
+      setCroppedImages((prev) => { const u = [...prev]; u[currentCropIndex] = file; return u; });
       if (currentCropIndex < imageSrc.length - 1) {
         setCurrentCropIndex((prev) => prev + 1);
         setCrop({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
@@ -294,23 +235,27 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     });
   };
 
-  // ── Remove a cropped image ────────────────────────────────────────────────
   const removeCroppedImage = (idx) => {
-    const next = croppedImages.filter((_, i) => i !== idx);  // ← compute outside
+    const next  = croppedImages.filter((_, i) => i !== idx);
     const first = next.find(Boolean);
+    setCroppedImages(next);
+    setFormData((p) => ({ ...p, backgroundImage: first?.previewUrl || null }));
+    if (idx <= currentCropIndex && currentCropIndex > 0) setCurrentCropIndex((prev) => prev - 1);
+  };
 
-    setCroppedImages(next);  // ← update local state directly
-    setFormData((p) => ({ ...p, backgroundImage: first?.previewUrl || null }));  // ← update parent separately
-
-    if (idx <= currentCropIndex && currentCropIndex > 0) {
+  const handlePreviousCrop = () => {
+    if (currentCropIndex > 0) {
       setCurrentCropIndex((prev) => prev - 1);
+      setCrop({ unit: "%", width: 80, height: 80, x: 10, y: 10 });
+      setCompletedCrop(null);
     }
   };
 
-  // ── Step navigation ───────────────────────────────────────────────────────
+  // ── Step nav ─────────────────────────────────────────────────────────────
   const handleContinue = () => {
-    if (step === 1 && !formData.brandName) return setError("Brand name is required.");
-    if (step === 2 && (!formData.size || !formData.campaignGoal || !formData.audience || !formData.fileFormat))
+    if (step === 1 && !formData.brandName)
+      return setError("Brand name is required.");
+    if (step === 2 && (!selectedSize || !formData.campaignGoal || !formData.audience || !formData.fileFormat))
       return setError("Please complete all fields before continuing.");
     if (step === 3 && croppedImages.filter(Boolean).length === 0)
       return setError("Select at least one background image.");
@@ -318,60 +263,195 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     setStep((p) => p + 1);
   };
 
-  // ── Generate ──────────────────────────────────────────────────────────────
-  // const handleGenerate = () => {
+  // ── Generate: fetch templates first, then customGenerate ─────────────────
+  // const handleGenerate = async () => {
+  //   if (!selectedSize) return setError("Please select an ad size.");
+  //   const validImages = croppedImages.filter(Boolean);
+
   //   setGenerating(true);
-  //   setTimeout(() => {
-  //     const valid = croppedImages.filter(Boolean);
-  //     const assets = Array.from({ length: 4 }, (_, i) => {
-  //       const src = valid[i % Math.max(valid.length, 1)];
-  //       const url = src?.previewUrl || recommendedImages[i]?.large || "/placeholder.png";
-  //       return { id: `img_${i}`, preview: url, alt: `Generated Image ${i + 1}` };
-  //     });
-  //     onResult({ assets });
+  //   setError("");
+
+  //   // ── 1. Fetch canvas templates ──────────────────────────────────────────
+  //   const templateRes = await fetchDesignTemplates({
+  //     type:      "image",                  // always "image" for this form
+  //     category:  selectedSize.category,    // e.g. "Meta Square"
+  //     type_size: selectedSize.type_size,   // e.g. "1080x1080"
+  //   });
+
+  //   if (!templateRes.ok) {
+  //     setError(templateRes.message || "Could not fetch design templates. Please try again.");
   //     setGenerating(false);
-  //   }, 3000);
+  //     return;
+  //   }
+
+  //   const templates = templateRes.data; // array
+  //   if (!templates || templates.length === 0) {
+  //     setError("No templates found for the selected size. Try a different size.");
+  //     setGenerating(false);
+  //     return;
+  //   }
+
+  //   // Take first 2 templates to send downstream
+  //   const selectedTemplates = templates.slice(0, 2);
+
+  //   // ── 2. Call custom generate with templates + form data ─────────────────
+  //   const payload = {
+  //     creativeType:      creative?.id,
+  //     categoryType:      categoryId,
+  //     brandName:         formData.brandName    || null,
+  //     description:       formData.description  || null,
+  //     brandColor:        formData.brandColor   ?? null,
+  //     logo:              formData.logo         || null,
+  //     visualStyle:       formData.visualStyle  || null,
+  //     font:              formData.font         || null,
+  //     sourceUrl:         brandUrl              || null,
+  //     // ── size fields ──
+  //     category:          selectedSize.category,   // "Meta Square"
+  //     type_size:         selectedSize.type_size,  // "1080x1080"
+  //     // ── rest ──
+  //     campaignGoal:      formData.campaignGoal || null,
+  //     audience:          formData.audience     || null,
+  //     fileFormat:        formData.fileFormat   || null,
+  //     caption:           formData.caption      || null,
+  //     images: validImages
+  //       .map((f) => f?.sourceUrl || f?.previewUrl)
+  //       .filter(Boolean),
+  //     templates:         selectedTemplates,        // first 2 from fetch
+  //     generatedAt:       new Date().toISOString(),
+  //   };
+
+  //   const result = await generateCustomCreative(payload);
+
+  //   if (!result.ok) {
+  //     setError(result.message || "Generation failed. Please try again.");
+  //     setGenerating(false);
+  //     return;
+  //   }
+
+  //   const data = result.data;
+
+  //   if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
+  //     onResult({
+  //       type:       "design",
+  //       variations: data.variations,
+  //       reply:      data.reply || "",
+  //       meta:       data.meta  || {},
+  //       payload,
+  //       raw:        data,
+  //     });
+  //   } else {
+  //     onResult({
+  //       assets:  data?.assets || [],
+  //       payload,
+  //       raw:     data,
+  //     });
+  //   }
+
+  //   setGenerating(false);
   // };
 
   const handleGenerate = async () => {
-    setGenerating(true);
-    setError("");
+  if (!selectedSize) {
+    return setError("Please select an ad size.");
+  }
 
-    const validImages = croppedImages.filter(Boolean);
+  const validImages = croppedImages.filter(Boolean);
 
+  setGenerating(true);
+  setError("");
+
+  try {
+    // ─────────────────────────────────────────────
+    // 1. FETCH DESIGN TEMPLATES FIRST
+    // ─────────────────────────────────────────────
+    const templateRes = await fetchDesignTemplates({
+      type: "image",
+      category: selectedSize.category,   // "Meta Square"
+      type_size: selectedSize.type_size, // "1080x1080"
+    });
+
+    if (!templateRes.ok) {
+      setGenerating(false);
+      return setError(
+        templateRes.message || "Failed to fetch templates."
+      );
+    }
+
+    // API returns:
+    // { designs: [...] }
+
+  const templates = templateRes.data || [];
+
+    if (!templates.length) {
+      setGenerating(false);
+      return setError("No templates found for this size.");
+    }
+
+    // Take first 2 templates only
+    const selectedTemplates = templates.slice(0, 2);
+
+    console.log("🎨 Selected Templates:", selectedTemplates);
+
+    // ─────────────────────────────────────────────
+    // 2. SEND TO CUSTOM GENERATE ENDPOINT
+    // ─────────────────────────────────────────────
     const payload = {
       creativeType: creative?.id,
       categoryType: categoryId,
+
       brandName: formData.brandName || null,
       description: formData.description || null,
-      brandColor: formData.brandColor ?? null,
+
+      brandColor: formData.brandColor || null,
       logo: formData.logo || null,
-      visualStyle: formData.visualStyle || null,
+
+
       font: formData.font || null,
+
       sourceUrl: brandUrl || null,
-      size: formData.size || null,
+
       campaignGoal: formData.campaignGoal || null,
       audience: formData.audience || null,
       fileFormat: formData.fileFormat || null,
+
       caption: formData.caption || null,
+
+      category: selectedSize.category
+        ?.toLowerCase()
+        .replace(/\s+/g, "_"),
+
+      type_size: selectedSize.type_size,
+
       images: validImages
         .map((f) => f?.sourceUrl || f?.previewUrl)
         .filter(Boolean),
+
+      // 👇 FIRST 2 TEMPLATE OBJECTS
+      templates: selectedTemplates,
+
       generatedAt: new Date().toISOString(),
     };
 
+    console.log("🚀 Final Generate Payload:", payload);
+
     const result = await generateCustomCreative(payload);
+    console.log(" GENERATE RESULT:", result);
 
     if (!result.ok) {
-      setError(result.message || "Generation failed. Please try again.");
       setGenerating(false);
-      return;
+
+      return setError(
+        result.message || "Generation failed."
+      );
     }
 
     const data = result.data;
 
-    // ── canvas-based design response (AI returns { type: "design", variations: [...] })
-    if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
+    if (
+      data?.type === "design" &&
+      Array.isArray(data?.variations) &&
+      data.variations.length
+    ) {
       onResult({
         type: "design",
         variations: data.variations,
@@ -381,70 +461,55 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
         raw: data,
       });
     } else {
-      // ── fallback: image/video asset response
       onResult({
         assets: data?.assets || [],
         payload,
         raw: data,
       });
     }
+  } catch (err) {
+    console.error("handleGenerate error:", err);
 
+    setError(
+      err.message || "Something went wrong."
+    );
+  } finally {
     setGenerating(false);
-  };
+  }
+};
 
-  const handlePreviousCrop = () => {
-    if (currentCropIndex > 0) {
-      setCurrentCropIndex((prev) => prev - 1);
-      setCrop({ unit: "%", width: 80, height: 80, x: 10, y: 10 });
-      setCompletedCrop(null);  // ← was setting a value, now null
-    }
-  };
-
-  //  ADD this unified apply handler that matches handleApplySelected's logic:
+  // ── Media picker apply ────────────────────────────────────────────────────
   const handleApplyFromPicker = async (images, media) => {
-    // images = [{ src, large, file? }]  (search + upload items)
-    // media  = [src, ...]               (magic studio selections)
-
     if (images.length > 0) {
       try {
         const processedFiles = await Promise.all(
           images.map(async (item, idx) => {
-            // If it already has a File object (upload tab), use it directly
             if (item.file instanceof File) {
               item.file.previewUrl = item.src;
-              item.file.sourceUrl = null;
+              item.file.sourceUrl  = null;
               return item.file;
             }
-
-            // Otherwise proxy-fetch (search / library URLs)
-            const url = item.large || item.src;
-            const fetchUrl = url.startsWith("http")
-              ? `/api/proxy-image?url=${encodeURIComponent(url)}`
-              : url;
-            const res = await fetch(fetchUrl);
-            const blob = await res.blob();
-            const file = new File([blob], `selected-${Date.now()}-${idx}`, { type: blob.type || "image/png" });
+            const url      = item.large || item.src;
+            const fetchUrl = url.startsWith("http") ? `/api/proxy-image?url=${encodeURIComponent(url)}` : url;
+            const res      = await fetch(fetchUrl);
+            const blob     = await res.blob();
+            const file     = new File([blob], `selected-${Date.now()}-${idx}`, { type: blob.type || "image/png" });
             file.previewUrl = URL.createObjectURL(blob);
-            file.sourceUrl = item.large || item.src || null;
+            file.sourceUrl  = item.large || item.src || null;
             return file;
           })
         );
-
         const previewUrls = processedFiles.map((f) => f.previewUrl);
-        const sourceUrls = processedFiles.map((f) => f.sourceUrl || null);
-
+        const sourceUrls  = processedFiles.map((f) => f.sourceUrl || null);
         if (!showCropper) {
-          setImageSrc(previewUrls);
-          setImageSrcMeta(sourceUrls);
-          setCroppedImages(Array(previewUrls.length).fill(null));
-          setCurrentCropIndex(0);
+          setImageSrc(previewUrls); setImageSrcMeta(sourceUrls);
+          setCroppedImages(Array(previewUrls.length).fill(null)); setCurrentCropIndex(0);
         } else {
           setImageSrc((prev) => [...prev, ...previewUrls]);
           setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
           setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
           setCurrentCropIndex(imageSrc.length);
         }
-
         setShowCropper(true);
         showToast(`Added ${images.length} image(s) — crop them`);
       } catch (err) {
@@ -452,46 +517,34 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
         showToast("Some images couldn't be loaded.");
       }
     }
-
     if (media.length > 0) {
       const videoObjects = media.map((src, i) => ({
-        id: `video-${Date.now()}-${i}`,
-        previewUrl: src,
-        thumbnail: src,
-        type: "video",
+        id: `video-${Date.now()}-${i}`, previewUrl: src, thumbnail: src, type: "video",
       }));
       setCroppedImages((prev) => [...prev, ...videoObjects]);
       showToast(`Added ${media.length} media item(s)`);
     }
-
     setMediaPickerOpen(false);
   };
 
-  // Handles "Use" — just takes the original URL, no cropping
   const handleBrandImageUse = (imageObjs) => {
     const pseudos = imageObjs.map((imageObj) => ({
-      previewUrl: imageObj.src,
-      sourceUrl: imageObj.src,
-      name: imageObj.alt || "brand-image",
-      type: "image/jpeg",
+      previewUrl: imageObj.src, sourceUrl: imageObj.src,
+      name: imageObj.alt || "brand-image", type: "image/jpeg",
     }));
     setCroppedImages((prev) => [...prev, ...pseudos]);
     showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
   };
 
-  // Handles "Crop" — feeds the original URL into the existing cropper flow
-  // After crop, saveCroppedImage preserves imageSrcMeta[i] as the sourceUrl
   const handleBrandImageCrop = async (imageObjs) => {
     for (const imageObj of imageObjs) {
       const originalUrl = imageObj.src;
-      let cropperUrl = originalUrl;
+      let cropperUrl    = originalUrl;
       try {
         const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(originalUrl)}`);
         const blob = await res.blob();
         cropperUrl = URL.createObjectURL(blob);
-      } catch (err) {
-        console.warn("Proxy failed, falling back to original URL", err);
-      }
+      } catch (err) { console.warn("Proxy failed, falling back to original URL", err); }
       setImageSrc((prev) => [...prev, cropperUrl]);
       setImageSrcMeta((prev) => [...prev, originalUrl]);
       setCroppedImages((prev) => [...prev, null]);
@@ -500,11 +553,11 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     setShowCropper(true);
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── render ────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Step indicator ───────────────────────────────────────────────── */}
-      <div className=" rounded-2xl px-0 py-4">
+      {/* Step indicator */}
+      <div className="rounded-2xl px-0 py-4">
         <div className="flex items-center justify-between gap-2">
           {STEPS.map((s, idx) => {
             const Icon = s.icon;
@@ -514,10 +567,10 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
                   onClick={() => step > s.id && setStep(s.id)}
                   className={`flex flex-1 items-center gap-2 min-w-0 ${step > s.id ? "cursor-pointer" : "cursor-default"}`}
                 >
-                  <div className={`shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${step > s.id ? "border-blue-600 bg-blue-600 text-white"
+                  <div className={`shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all
+                    ${step > s.id  ? "border-blue-600 bg-blue-600 text-white"
                     : step === s.id ? "border-blue-600 text-blue-600 bg-white"
-                      : "border-gray-200 text-gray-300"
-                    }`}>
+                    : "border-gray-200 text-gray-300"}`}>
                     {step > s.id ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
                   </div>
                   <span className={`hidden sm:block text-xs font-medium truncate ${step >= s.id ? "text-gray-700" : "text-gray-300"}`}>
@@ -533,7 +586,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
         </div>
       </div>
 
-      {/* ── Step content card ────────────────────────────────────────────── */}
+      {/* Step content */}
       <div className="bg-white px-2 rounded-lg py-2 flex flex-col gap-6">
 
         {error && (
@@ -542,7 +595,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
           </div>
         )}
 
-        {/* ═══ STEP 1 ═══════════════════════════════════════════════════════ */}
+        {/* ═══ STEP 1 ════════════════════════════════════════════════════════ */}
         {step === 1 && (
           <div className="flex flex-col gap-5">
             <SectionTitle>Brand Details</SectionTitle>
@@ -564,88 +617,63 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
-              <Field label="Brand Name / Project Name" required>
-                <input type="text" value={formData.brandName} onChange={(e) => field("brandName", e.target.value)} placeholder="Your Brand" className={inputCls} />
-              </Field>
-            </div>
-
-            <Field label="Description">
-              <textarea value={formData.description} onChange={(e) => field("description", e.target.value)}
-                placeholder="Brief description of your brand or campaign…" rows={3} className={`${inputCls} resize-none`} />
+            <Field label="Brand Name / Project Name" required>
+              <input type="text" value={formData.brandName}
+                onChange={(e) => field("brandName", e.target.value)}
+                placeholder="Your Brand" className={inputCls} />
             </Field>
 
-            {/* Visual Style */}
-            <div className="grid grid-cols-1 gap-4">
-              <Field label="Visual Style">
-                <div className="flex py-1 gap-2">
-                  {VISUAL_STYLES.map((s) => (
-                    <button key={s.value} onClick={() => field("visualStyle", s.value)}
-                      className={`flex flex-col gap-2 px-3 py-1 rounded-md border cursor-pointer transition-all ${formData.visualStyle === s.value
-                        ? "border-blue-600 bg-blue-50"
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                        }`}>
+            <Field label="Description">
+              <textarea value={formData.description}
+                onChange={(e) => field("description", e.target.value)}
+                placeholder="Brief description of your brand or campaign…"
+                rows={3} className={`${inputCls} resize-none`} />
+            </Field>
 
-                      <span className={`text-xs font-semibold ${formData.visualStyle === s.value ? "text-blue-700" : "text-gray-500"}`}>
-                        {s.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </Field>
-            </div>
+            <Field label="Visual Style">
+              <div className="flex flex-wrap py-1 gap-2">
+                {VISUAL_STYLES.map((s) => (
+                  <button key={s.value} onClick={() => field("visualStyle", s.value)}
+                    className={`px-3 py-1 rounded-md border cursor-pointer transition-all
+                      ${formData.visualStyle === s.value
+                        ? "border-blue-600 bg-blue-50"
+                        : "border-gray-100 bg-gray-50 hover:border-gray-300"}`}>
+                    <span className={`text-xs font-semibold
+                      ${formData.visualStyle === s.value ? "text-blue-700" : "text-gray-500"}`}>
+                      {s.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </Field>
 
             <div className="grid grid-cols-2 gap-4">
-
-              {/* Brand Color — inline color picker + hex input + small swatches */}
               <Field label="Brand Color">
                 <div className="flex items-center gap-2">
-
-                  {/* Swatches */}
                   <div className="flex items-center gap-1.5 flex-wrap max-w-50">
                     {BRAND_COLORS.map((hex) => (
-                      <button
-                        key={hex}
-                        onClick={() => field("brandColor", hex)}
-                        className={`w-7 h-7 rounded-md cursor-pointer border-2 transition-transform hover:scale-110 ${formData.brandColor === hex
-                          ? "border-gray-800 scale-110"
-                          : "border-transparent"
-                          }`}
-                        style={{ background: hex }}
-                        title={hex}
-                      />
+                      <button key={hex} onClick={() => field("brandColor", hex)}
+                        className={`w-7 h-7 rounded-md cursor-pointer border-2 transition-transform hover:scale-110
+                          ${formData.brandColor === hex ? "border-gray-800 scale-110" : "border-transparent"}`}
+                        style={{ background: hex }} title={hex} />
                     ))}
                   </div>
-
-                  {/* Picker + Input */}
                   <div className="flex items-center gap-2 flex-none">
                     <label
                       className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer overflow-hidden shrink-0 transition hover:scale-105"
-                      style={{ background: formData.brandColor }}
-                    >
-                      <input
-                        type="color"
-                        value={formData.brandColor}
+                      style={{ background: formData.brandColor }}>
+                      <input type="color" value={formData.brandColor}
                         onChange={(e) => field("brandColor", e.target.value)}
-                        className="opacity-0 w-full h-full cursor-pointer"
-                      />
+                        className="opacity-0 w-full h-full cursor-pointer" />
                     </label>
-
-                    <input
-                      type="text"
-                      value={formData.brandColor}
+                    <input type="text" value={formData.brandColor}
                       onChange={(e) =>
-                        /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) &&
-                        field("brandColor", e.target.value)
-                      }
+                        /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) && field("brandColor", e.target.value)}
                       className={`${inputCls} w-22.5! flex-none px-2 text-sm font-mono`}
-                      maxLength={7}
-                    />
+                      maxLength={7} />
                   </div>
-
                 </div>
               </Field>
-
 
               <Field label="Logo">
                 <div className="flex items-center gap-2">
@@ -662,35 +690,50 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
                 </div>
               </Field>
             </div>
-
-
           </div>
         )}
 
-        {/* ═══ STEP 2 ═══════════════════════════════════════════════════════ */}
+        {/* ═══ STEP 2 ════════════════════════════════════════════════════════ */}
         {step === 2 && (
           <div className="flex flex-col gap-6">
             <SectionTitle>Size, Goals & Audience</SectionTitle>
 
+            {/* ── Size picker: shows both name and dimensions ── */}
             <Field label="Ad Size">
               <div className="grid grid-cols-4 gap-2">
-                {SIZE_OPTIONS.map((s) => (
-                  <button key={s.value} onClick={() => field("size", s.value)}
-                    className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${formData.size === s.value ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
-                      }`}>
-                    <p className="text-xs font-semibold">{s.label}</p>
-                    <p className={`text-[10px] mt-0.5 ${formData.size === s.value ? "text-blue-500" : "text-gray-400"}`}>{s.value}</p>
-                  </button>
-                ))}
+                {SIZE_OPTIONS.map((s) => {
+                  const active = selectedSize?.type_size === s.type_size;
+                  return (
+                    <button
+                      key={s.type_size}
+                      onClick={() => { setSelectedSize(s); setError(""); }}
+                      className={`text-left px-2 py-2.5 cursor-pointer rounded-lg border-2 transition-all
+                        ${active
+                          ? "border-blue-600 bg-blue-50 text-blue-700"
+                          : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"}`}>
+                      <p className="text-xs font-semibold leading-tight">{s.category}</p>
+                      <p className={`text-[10px] mt-1 font-mono ${active ? "text-blue-500" : "text-gray-400"}`}>
+                        {s.type_size}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
+              {selectedSize && (
+                <p className="text-xs text-blue-600 font-medium mt-1">
+                  Selected: {selectedSize.category} ({selectedSize.type_size})
+                </p>
+              )}
             </Field>
 
             <Field label="Campaign Goal">
               <div className="flex flex-wrap gap-2">
                 {CAMPAIGN_GOALS.map((g) => (
                   <button key={g} onClick={() => field("campaignGoal", g)}
-                    className={`px-4 py-2 rounded-lg cursor-pointer text-xs font-medium border-2 transition-all ${formData.campaignGoal === g ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
-                      }`}>
+                    className={`px-4 py-2 rounded-lg cursor-pointer text-xs font-medium border-2 transition-all
+                      ${formData.campaignGoal === g
+                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"}`}>
                     {g}
                   </button>
                 ))}
@@ -701,9 +744,13 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
               <div className="grid grid-cols-3 gap-2">
                 {AUDIENCES.map((a) => (
                   <button key={a.value} onClick={() => field("audience", a.value)}
-                    className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${formData.audience === a.value ? "border-blue-600 bg-blue-50" : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                      }`}>
-                    <p className={`text-xs font-semibold ${formData.audience === a.value ? "text-blue-700" : "text-gray-700"}`}>{a.label}</p>
+                    className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all
+                      ${formData.audience === a.value
+                        ? "border-blue-600 bg-blue-50"
+                        : "border-gray-100 bg-gray-50 hover:border-gray-300"}`}>
+                    <p className={`text-xs font-semibold ${formData.audience === a.value ? "text-blue-700" : "text-gray-700"}`}>
+                      {a.label}
+                    </p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{a.desc}</p>
                   </button>
                 ))}
@@ -714,8 +761,10 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
               <div className="flex gap-2">
                 {FILE_FORMATS.map((f) => (
                   <button key={f} onClick={() => field("fileFormat", f)}
-                    className={`px-4 py-2 rounded-lg cursor-pointer text-xs font-medium border-2 transition-all ${formData.fileFormat === f ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
-                      }`}>
+                    className={`px-4 py-2 rounded-lg cursor-pointer text-xs font-medium border-2 transition-all
+                      ${formData.fileFormat === f
+                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"}`}>
                     {f}{f === "PNG" && " ✓"}
                   </button>
                 ))}
@@ -724,12 +773,11 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
           </div>
         )}
 
-        {/* ═══ STEP 3 ═══════════════════════════════════════════════════════ */}
+        {/* ═══ STEP 3 ════════════════════════════════════════════════════════ */}
         {step === 3 && (
           <div className="flex flex-col gap-4">
             <SectionTitle>Select Images</SectionTitle>
 
-            {/* ── Brand images strip ── */}
             <BrandImagesStrip
               onSelect={handleBrandImageUse}
               onCrop={handleBrandImageCrop}
@@ -739,7 +787,6 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
                 .filter(Boolean)}
             />
 
-            {/* ── Already-selected previews ── */}
             {croppedImages.filter(Boolean).length > 0 && (
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-2">
@@ -748,33 +795,26 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
                 <div className="grid grid-cols-5 gap-2">
                   {croppedImages.map((item, index) => {
                     if (!item) return null;
-                    const url = item?.previewUrl;
+                    const url     = item?.previewUrl;
                     const isVideo = item?.type?.includes?.("video");
                     return (
                       <div key={index} className="relative group">
                         {isVideo ? (
-                          <video
-                            src={url} poster={item.thumbnail}
+                          <video src={url} poster={item.thumbnail}
                             className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
                             muted loop playsInline preload="metadata"
-                            onMouseEnter={(e) => e.target.play().catch(() => { })}
-                            onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
-                          />
+                            onMouseEnter={(e) => e.target.play().catch(() => {})}
+                            onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }} />
                         ) : url ? (
-                          <img
-                            src={url}
-                            alt={`Selected ${index + 1}`}
-                            className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
-                          />
+                          <img src={url} alt={`Selected ${index + 1}`}
+                            className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm" />
                         ) : (
                           <div className="w-full h-24 bg-gray-100 border-2 border-dashed rounded-xl flex items-center justify-center">
                             <span className="text-xs text-gray-400">No media</span>
                           </div>
                         )}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); removeCroppedImage(index); }}
-                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition bg-red-500 text-white rounded-full p-1 hover:bg-red-600 cursor-pointer"
-                        >
+                        <button onClick={(e) => { e.stopPropagation(); removeCroppedImage(index); }}
+                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition bg-red-500 text-white rounded-full p-1 hover:bg-red-600 cursor-pointer">
                           <X className="w-3 h-3" />
                         </button>
                       </div>
@@ -784,11 +824,9 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
               </div>
             )}
 
-            {/* ── Upload / picker zone ── */}
             <div
               className="border-2 border-dashed border-gray-200 rounded-2xl p-8 bg-gray-50 flex flex-col items-center gap-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
-              onClick={() => setMediaPickerOpen(true)}
-            >
+              onClick={() => setMediaPickerOpen(true)}>
               <div className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
                 <FileUp className="w-5 h-5 text-gray-400" />
               </div>
@@ -798,15 +836,14 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); setMediaPickerOpen(true); }}
-                className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition cursor-pointer flex items-center gap-2"
-              >
+                className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition cursor-pointer flex items-center gap-2">
                 <Images className="w-4 h-4" /> Choose Media
               </button>
             </div>
           </div>
         )}
 
-        {/* ── Navigation ── */}
+        {/* Navigation */}
         <div className={`flex gap-3 pt-2 ${step > 1 ? "justify-between" : "justify-end"}`}>
           {step > 1 && (
             <button onClick={() => setStep((p) => p - 1)}
@@ -820,16 +857,17 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
               Continue <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
-            <button onClick={handleGenerate}
-              className="px-3 py-2 bg-blue-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-blue-700 hover:scale-105 flex items-center gap-2 transition">
-              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate Ads</>}
+            <button onClick={handleGenerate} disabled={generating}
+              className="px-3 py-2 bg-blue-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-blue-700 hover:scale-105 flex items-center gap-2 transition disabled:opacity-60">
+              {generating
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
+                : <><Sparkles className="w-4 h-4" /> Generate Ads</>}
             </button>
           )}
         </div>
       </div>
 
-      {/* ══ MODALS ══════════════════════════════════════════════════════════ */}
-
+      {/* Modals */}
       <ImageCropperModal
         isOpen={showCropper}
         ref={cropperRef}
@@ -842,12 +880,7 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
         aspectRatio={undefined}
         onSave={saveCroppedImage}
         onSkip={handleSkipCrop}
-        onCancel={() => {
-          setShowCropper(false);
-          setImageSrc([]);
-          setImageSrcMeta([]);
-          setCroppedImages([]);
-        }}
+        onCancel={() => { setShowCropper(false); setImageSrc([]); setImageSrcMeta([]); setCroppedImages([]); }}
         onPrevious={handlePreviousCrop}
       />
 
@@ -873,31 +906,5 @@ const ImageAdsForm = ({ formData, setFormData, activeBrand, sendUrl, showToast, 
     </>
   );
 };
-
-// ── shared micro-components ───────────────────────────────────────────────────
-const inputCls = "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
-
-const SectionTitle = ({ children }) => (
-  <h3 className="font-semibold text-gray-900 text-base">{children}</h3>
-);
-
-const Field = ({ label, required, children }) => (
-  <div className="flex flex-col gap-1.5">
-    <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-      {label}{required && <span className="text-red-400">*</span>}
-    </label>
-    {children}
-  </div>
-);
-
-const MediaBtn = ({ icon: Icon, label, onClick, primary }) => (
-  <button onClick={onClick}
-    className={`flex items-center gap-1.5 px-4 py-2 cursor-pointer rounded-lg text-xs font-semibold transition-all ${primary
-      ? "bg-blue-600 text-white hover:bg-blue-700"
-      : "bg-white border border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600"
-      }`}>
-    <Icon className="w-4 h-4" /> {label}
-  </button>
-);
 
 export default ImageAdsForm;

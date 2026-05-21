@@ -1438,58 +1438,153 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-  const generateCustomCreative = async ({ creativeType, categoryType, ...formPayload }) => {
+  // const generateCustomCreative = async ({ creativeType, categoryType, ...formPayload }) => {
+  //   if (!token) {
+  //     console.error("No auth token found. User may not be logged in.");
+  //     return { ok: false, message: "Not authenticated" };
+  //   }
+
+  //   const url = `${BASE_URL}/creatives/redesign`;
+
+  //   // Strip "_creative" suffix: "ads_creative" → "ads", "magic_studio" → "magic_studio"
+  //   const creativeTypeShort = creativeType?.replace("_creative", "") || creativeType;
+
+  //   const generation_data = {
+  //     creative_type: creativeTypeShort,  // "ads", "social", "designer", "magic_studio"
+  //     create_sub_type: categoryType,
+  //     ...formPayload,
+  //   };
+
+  //   console.log("🚀 Generate Payload:", generation_data);
+
+  //   try {
+  //     const res = await authFetch(url, {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //         Authorization: `Bearer ${token}`,
+  //       },
+  //       body: JSON.stringify({
+  //         generation_data,
+  //       }),
+  //     });
+
+  //     const text = await res.text();
+
+  //     let data;
+
+  //     try {
+  //       data = JSON.parse(text);
+  //     } catch {
+  //       console.log("RAW RESPONSE:");
+  //       console.log(text);
+  //       return { ok: false, message: "Invalid server response" };
+  //     }
+
+  //     if (!res.ok) {
+  //       const firstError = data?.errors
+  //         ? Object.values(data.errors)[0]?.[0]
+  //         : null;
+  //       return { ok: false, message: firstError || data?.message || "Generation failed" };
+  //     }
+
+  //     return { ok: true, data };
+  //   } catch (err) {
+  //     console.error("Generation request failed:", err);
+  //     return { ok: false, message: err.message || "Network error" };
+  //   }
+  // };
+
+  const generateCustomCreative = async ({
+    creativeType,
+    categoryType,
+    ...formPayload
+  }) => {
     if (!token) {
-      console.error("No auth token found. User may not be logged in.");
-      return { ok: false, message: "Not authenticated" };
+      console.error("No auth token found.");
+      return {
+        ok: false,
+        message: "Not authenticated",
+      };
     }
 
-    const url = `${BASE_URL}/creatives/custom-creative`;
-
-    // Strip "_creative" suffix: "ads_creative" → "ads", "magic_studio" → "magic_studio"
-    const creativeTypeShort = creativeType?.replace("_creative", "") || creativeType;
-
-    const generation_data = {
-      creative_type: creativeTypeShort,  // "ads", "social", "designer", "magic_studio"
-      create_sub_type: categoryType,
-      ...formPayload,
-    };
-
-    console.log("🚀 Generate Payload:", generation_data);
-
     try {
-      const res = await authFetch(url, {
+      const url = `${BASE_URL}/creatives/redesign`;
+
+      // "ads_creative" -> "ads"
+      const creativeTypeShort =
+        creativeType?.replace("_creative", "") || creativeType;
+
+      const generation_data = {
+        creative_type: creativeTypeShort,
+        create_sub_type: categoryType,
+        ...formPayload,
+      };
+
+      console.log("🚀 FINAL PAYLOAD");
+      console.log(generation_data);
+
+      // ✅ USE NORMAL FETCH
+      const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
           Authorization: `Bearer ${token}`,
         },
+
+        // IMPORTANT
+        credentials: "include",
+
         body: JSON.stringify({
-          generation_data: JSON.stringify(generation_data),
+          generation_data,
         }),
       });
 
-      const text = await res.text();
-      let data;
+      console.log("STATUS:", res.status);
+      console.log("REDIRECTED:", res.redirected);
+      console.log("FINAL URL:", res.url);
+
+      // DEBUG RAW RESPONSE
+      const rawText = await res.text();
+
+      console.log("RAW RESPONSE:");
+      console.log(rawText);
+
+      let data = null;
+
       try {
-        data = JSON.parse(text);
-        console.log(data)
-      } catch {
-        console.error("Invalid JSON from generation endpoint:", text);
-        return { ok: false, message: "Invalid server response" };
+        data = JSON.parse(rawText);
+      } catch (e) {
+        return {
+          ok: false,
+          message: "Server did not return JSON",
+          raw: rawText,
+        };
       }
 
       if (!res.ok) {
-        const firstError = data?.errors
-          ? Object.values(data.errors)[0]?.[0]
-          : null;
-        return { ok: false, message: firstError || data?.message || "Generation failed" };
+        return {
+          ok: false,
+          message:
+            data?.message ||
+            data?.error ||
+            "Generation failed",
+          data,
+        };
       }
 
-      return { ok: true, data };
+      return {
+        ok: true,
+        data,
+      };
     } catch (err) {
-      console.error("Generation request failed:", err);
-      return { ok: false, message: err.message || "Network error" };
+      console.error("REQUEST FAILED:", err);
+
+      return {
+        ok: false,
+        message: err.message || "Network error",
+      };
     }
   };
 
@@ -2157,6 +2252,157 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
+  //   const fetchDesignTemplates = async ({
+  //   type,
+  //   category,
+  //   type_size,
+  // }) => {
+  //   if (!token) {
+  //     console.error("No auth token found. User may not be logged in.");
+  //     return { ok: false, message: "Not authenticated" };
+  //   }
+
+  //   const url = `https://api.scraive.com/api/scraive-userend/canvas-templates/public-fetch`;
+
+  //   const payload = {
+  //     type, // e.g "image", "video"
+  //     category, // e.g "meta square"
+  //     type_size, // e.g "1080x1080"
+  //   };
+
+  //   console.log("🎨 Fetch Design Templates Payload:", payload);
+
+  //   try {
+  //     const res = await authFetch(url, {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //         Authorization: `Bearer ${token}`,
+  //       },
+  //       body: JSON.stringify(payload),
+  //     });
+
+  //     const text = await res.text();
+
+  //     let data;
+  //     try {
+  //       data = JSON.parse(text);
+  //       console.log("🎨 Design Templates Response:", data);
+  //     } catch {
+  //       console.error("Invalid JSON from template endpoint:", text);
+  //       return { ok: false, message: "Invalid server response" };
+  //     }
+
+  //     if (!res.ok) {
+  //       const firstError = data?.errors
+  //         ? Object.values(data.errors)[0]?.[0]
+  //         : null;
+
+  //       return {
+  //         ok: false,
+  //         message:
+  //           firstError ||
+  //           data?.message ||
+  //           "Failed to fetch design templates",
+  //       };
+  //     }
+
+  //     return {
+  //       ok: true,
+  //       data,
+  //       templates:
+  //         data?.templates ||
+  //         data?.data ||
+  //         [],
+  //     };
+  //   } catch (err) {
+  //     console.error("fetchDesignTemplates failed:", err);
+
+  //     return {
+  //       ok: false,
+  //       message: err.message || "Network error",
+  //     };
+  //   }
+  // };
+
+  const fetchDesignTemplates = useCallback(async ({
+    type,
+    category,
+    type_size,
+  }) => {
+    if (!token) {
+      return { ok: false, message: "Not authenticated" };
+    }
+
+    const formattedCategory = category
+      ? category.toLowerCase().replace(/\s+/g, "_")
+      : "";
+
+    const payload = {
+      type,
+      category: formattedCategory,
+      type_size,
+    };
+
+    console.log("🎨 fetchDesignTemplates payload:", payload);
+
+    try {
+      const res = await authFetch(
+        `https://api.scraive.com/api/canvas-templates/public-fetch`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const text = await res.text();
+
+      let data;
+
+      try {
+        data = JSON.parse(text);
+        console.log("🎨 RAW TEMPLATE RESPONSE:", data);
+      } catch {
+        return {
+          ok: false,
+          message: "Invalid server response",
+        };
+      }
+
+      if (!res.ok) {
+        return {
+          ok: false,
+          message:
+            data?.message ||
+            `Failed to fetch templates (${res.status})`,
+        };
+      }
+
+      // IMPORTANT
+      const templates = Array.isArray(data?.designs)
+        ? data.designs
+        : [];
+
+      console.log("🎨 PARSED TEMPLATES:", templates);
+
+      return {
+        ok: true,
+        data: templates,
+      };
+    } catch (err) {
+      console.error("fetchDesignTemplates error:", err);
+
+      return {
+        ok: false,
+        message: err.message || "Network error",
+      };
+    }
+  }, [token]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -2167,6 +2413,7 @@ export function AuthProvider({ children }) {
         teamsLoading,
         // brandId,
         setActiveBrand,
+        fetchDesignTemplates,
         runComparison,
         checkCompliance,
         saveIntegration,

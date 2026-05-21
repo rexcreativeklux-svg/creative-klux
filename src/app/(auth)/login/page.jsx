@@ -91,7 +91,7 @@ function LeftPanel() {
                         src={slide.image}
                         alt={slide.tag}
                         fill
-                        className="object-center"
+                        className="object-contain"
                         sizes="50vw"
                         priority
                     />

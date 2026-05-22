@@ -50,6 +50,15 @@ export default function BrandImagesStrip({
     if (token && imagesProp === undefined) fetchMyImages();
   }, [token, fetchMyImages, imagesProp]);
 
+  // Trim local selections if external count grows past the cap (e.g., MediaPicker added items).
+  useEffect(() => {
+    setLocalSelected((prev) => {
+      const allowed = Math.max(0, maxSelect - selectedUrls.length);
+      if (prev.size <= allowed) return prev;
+      return new Set(Array.from(prev).slice(0, allowed));
+    });
+  }, [selectedUrls.length, maxSelect]);
+
   // Normalize an incoming entry — accepts either a URL string or an object { src/url/image_url, alt, id }.
   const normalize = (entry, i) => {
     if (entry == null) return null;
@@ -67,9 +76,16 @@ export default function BrandImagesStrip({
   };
 
   const source = imagesProp !== undefined ? imagesProp : myImages;
+  const seenSrc = new Set();
   const images = (Array.isArray(source) ? source : [])
     .map(normalize)
     .filter(Boolean)
+    .filter((img) => {
+      // Dedupe by src — backend sometimes returns duplicates.
+      if (seenSrc.has(img.src)) return false;
+      seenSrc.add(img.src);
+      return true;
+    })
     .slice(0, maxImages);
 
   // How many slots are still open? (cap - already used externally)

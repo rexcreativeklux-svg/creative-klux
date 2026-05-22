@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Globe, ArrowRight, ArrowLeft, Loader2, Upload, Check, Megaphone, Share2, Images, FileUp, X, Film } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { toast } from 'sonner';
 import AdPreview from '../Adpreview';
 
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
@@ -106,7 +107,7 @@ const socialSelected = 'border-teal-500 bg-teal-50 text-teal-700';
 
 export default function CreateFromUrl() {
   const router = useRouter();
-  const { sendUrl, generateCustomCreative, saveDesign, activeBrandId } = useAuth();
+  const { sendUrl, generateCustomCreative, saveDesign, activeBrandId, uploadImage } = useAuth();
 
   const [step, setStep] = useState(1);
   const [creationType, setCreationType] = useState(null);
@@ -137,7 +138,6 @@ export default function CreateFromUrl() {
   const [fileFormat, setFileFormat]       = useState('PNG');
   const [videoFormat, setVideoFormat]     = useState('MP4');
   const [generating, setGenerating]       = useState(false);
-  const [generateError, setGenerateError] = useState('');
 
   // ── Step 5 — Image state (mirrors ImageAdsForm exactly) ──────────────────
   const [imageSrc, setImageSrc]               = useState([]);   // raw URLs for cropper (current batch only)
@@ -160,19 +160,25 @@ export default function CreateFromUrl() {
   // Result
   const [result, setResult] = useState(null);
 
-  const [toast, setToast] = useState('');
+  const [localToast, setLocalToast] = useState('');
   const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
+    setLocalToast(msg);
+    setTimeout(() => setLocalToast(''), 3000);
   };
 
   const isAds  = creationType === 'ads';
   const STEPS  = isAds ? STEPS_ADS : STEPS_SOCIAL;
   const activeType = CREATION_TYPES.find(t => t.id === creationType) || CREATION_TYPES[0];
 
-  const getSelectedSize = () => isAds
-    ? AD_SIZES.find(s => s.label === adSize)?.size?.replace('×', 'x') || '1080x1080'
-    : SOCIAL_SIZES.find(s => s.label === socialSize)?.size?.replace('×', 'x') || '1080x1080';
+  const getSelectedSize = () => {
+    if (!isAds) {
+      return SOCIAL_SIZES.find(s => s.label === socialSize)?.size?.replace('×', 'x') || '1080x1080';
+    }
+    if (adSubType === 'video') {
+      return VIDEO_SIZES.find(s => s.label === videoSize)?.size?.replace('×', 'x') || '1080x1920';
+    }
+    return AD_SIZES.find(s => s.label === adSize)?.size?.replace('×', 'x') || '1080x1080';
+  };
 
   const previewFormData = {
     brandName,
@@ -207,7 +213,9 @@ export default function CreateFromUrl() {
       setScrapedImages(imgs);
       setImported(true);
     } catch (err) {
-      setImportError(err.message || 'Failed to import. Please fill in manually.');
+      const message = err.message || 'Failed to import. Please fill in manually.';
+      setImportError(message);
+      toast.error(message);
     } finally {
       setImporting(false);
     }
@@ -437,16 +445,50 @@ export default function CreateFromUrl() {
 
   // ── Generate ─────────────────────────────────────────────────────────────
   const handleGenerate = async () => {
-    if (!brandName.trim()) { setGenerateError('Please enter a brand name'); return; }
+    if (!brandName.trim()) { toast.error('Please enter a brand name'); return; }
     setGenerating(true);
-    setGenerateError('');
     try {
       const selectedSize = getSelectedSize();
       const validImages  = croppedImages.filter(Boolean);
+      const isVideo      = isAds && adSubType === 'video';
+
+      // ── Resolve image URLs ──────────────────────────────────────────────
+      // - Items with a real https sourceUrl → use as-is (no upload needed).
+      // - Items that are File objects (cropped, dropped, picker-cropped) → upload
+      //   to /image-gallery so the backend can fetch the cropped version.
+      // - Items with only a blob: previewUrl → drop (unreachable from backend).
+      const resolvedUrls = await Promise.all(
+        validImages.map(async (item) => {
+          // Existing real URL (brand-strip "Use", video picker, etc.)
+          if (typeof item?.sourceUrl === 'string' && item.sourceUrl.startsWith('http')) {
+            return item.sourceUrl;
+          }
+          // Cropped or uploaded File — push to image-gallery
+          if (item instanceof File) {
+            try {
+              const result = await uploadImage(item);
+              console.log('🔼 uploadImage response:', result);   // one-time: verify URL field name, remove after testing
+              const url = result?.image_url || result?.url || result?.data?.image_url || null;
+              return (typeof url === 'string' && url.startsWith('http')) ? url : null;
+            } catch (err) {
+              console.error('uploadImage failed for cropped item:', err);
+              return null;
+            }
+          }
+          // Last resort — only keep if previewUrl is a real http(s) URL.
+          if (typeof item?.previewUrl === 'string' && item.previewUrl.startsWith('http')) {
+            return item.previewUrl;
+          }
+          return null;
+        })
+      );
+
+      const imageUrls = resolvedUrls.filter(Boolean);
 
       const res = await generateCustomCreative({
         creativeType: isAds ? 'ads_creative' : 'social_creative',
-        categoryType: isAds ? 'image' : 'posts',
+        categoryType: isAds ? adSubType : 'posts',
+        brand_id: activeBrandId,
         brandName,
         description,
         brandColor,
@@ -457,11 +499,8 @@ export default function CreateFromUrl() {
         size: selectedSize,
         campaignGoal,
         audience,
-        fileFormat,
-        // ── image URLs included in payload ───────────────────────────────
-        images: validImages
-          .map(f => f?.sourceUrl || f?.previewUrl)
-          .filter(Boolean),
+        ...(isVideo ? { videoFormat } : { fileFormat }),
+        images: imageUrls,
         ...(isAds ? {} : { tone: postTone, platforms: targetPlatform }),
         generatedAt: new Date().toISOString(),
       });
@@ -478,7 +517,7 @@ export default function CreateFromUrl() {
         throw new Error('No results returned from generation');
       }
     } catch (err) {
-      setGenerateError(err.message || 'Generation failed. Please try again.');
+      toast.error(err.message || 'Generation failed. Please try again.');
     } finally {
       setGenerating(false);
     }
@@ -488,9 +527,9 @@ export default function CreateFromUrl() {
   if (result) {
     return (
       <div className="min-h-screen py-1">
-        {toast && (
+        {localToast && (
           <div className="fixed top-5 right-5 z-100 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in">
-            {toast}
+            {localToast}
           </div>
         )}
         <div>
@@ -513,9 +552,9 @@ export default function CreateFromUrl() {
   // ── FORM VIEW ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen py-10 px-4">
-      {toast && (
-        <div className="fixed top-5 right-5 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
-          {toast}
+      {localToast && (
+        <div className="fixed top-5 right-5 z-100 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
+          {localToast}
         </div>
       )}
 
@@ -994,12 +1033,6 @@ export default function CreateFromUrl() {
                   : 'Add background images for your creative. You can search, upload, or use brand images.'}
               </p>
             </div>
-
-            {generateError && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                <X className="w-4 h-4 shrink-0" /> {generateError}
-              </div>
-            )}
 
             {/* Brand images strip — shows images scraped from the imported URL */}
             <BrandImagesStrip

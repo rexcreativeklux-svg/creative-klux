@@ -37,17 +37,40 @@ export default function BrandImagesStrip({
   maxImages = 8,
   maxSelect = CAP,
   className = "",
+  images: imagesProp,        // optional: if provided, use this list instead of myImages
+  label,                     // optional: header label override (default "Your brand images")
 }) {
   const { fetchMyImages, myImages = [], myImagesLoading, token } = useAuth();
 
   // local selection state (URLs of images checked in THIS strip)
   const [localSelected, setLocalSelected] = useState(new Set());
 
+  // Only fetch user's library when we're falling back to it.
   useEffect(() => {
-    if (token) fetchMyImages();
-  }, [token, fetchMyImages]);
+    if (token && imagesProp === undefined) fetchMyImages();
+  }, [token, fetchMyImages, imagesProp]);
 
-  const images = myImages.slice(0, maxImages);
+  // Normalize an incoming entry — accepts either a URL string or an object { src/url/image_url, alt, id }.
+  const normalize = (entry, i) => {
+    if (entry == null) return null;
+    if (typeof entry === "string") {
+      return { id: `img-${i}`, src: entry, alt: `Image ${i + 1}`, filename: null };
+    }
+    const src = entry.src || entry.url || entry.image_url;
+    if (!src) return null;
+    return {
+      id: entry.id ?? `img-${i}`,
+      src,
+      alt: entry.alt ?? entry.filename ?? `Image ${i + 1}`,
+      filename: entry.filename ?? null,
+    };
+  };
+
+  const source = imagesProp !== undefined ? imagesProp : myImages;
+  const images = (Array.isArray(source) ? source : [])
+    .map(normalize)
+    .filter(Boolean)
+    .slice(0, maxImages);
 
   // How many slots are still open? (cap - already used externally)
   const externalCount = selectedUrls.length;
@@ -109,7 +132,8 @@ export default function BrandImagesStrip({
   // ─────────────────────────────────────────────────────────────────────
   if (!token) return null;
 
-  if (myImagesLoading) {
+  // Only show the "loading user library" state when we're actually using the user library.
+  if (imagesProp === undefined && myImagesLoading) {
     return (
       <div className={`flex items-center gap-2 py-3 text-xs text-gray-400 ${className}`}>
         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -129,7 +153,7 @@ export default function BrandImagesStrip({
       {/* ── Header row ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1.5">
         <ImageIcon className="w-3.5 h-3.5 text-gray-400" />
-        <span className="text-xs font-medium text-gray-500">Your brand images</span>
+        <span className="text-xs font-medium text-gray-500">{label ?? "Your brand images"}</span>
 
         {/* cap pill */}
         <span
@@ -142,11 +166,19 @@ export default function BrandImagesStrip({
           {totalPicked} / {maxSelect} selected
         </span>
 
-        {myImages.length > maxImages && (
-          <span className="text-[10px] text-gray-400">
-            Showing {maxImages} of {myImages.length}
-          </span>
-        )}
+        {(() => {
+          const total = imagesProp !== undefined
+            ? (Array.isArray(imagesProp) ? imagesProp.length : 0)
+            : myImages.length;
+          if (total > maxImages) {
+            return (
+              <span className="text-[10px] text-gray-400">
+                Showing {maxImages} of {total}
+              </span>
+            );
+          }
+          return null;
+        })()}
       </div>
 
       {/* ── Bulk action bar (visible when ≥1 locally selected) ─────────── */}

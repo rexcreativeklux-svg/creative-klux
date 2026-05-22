@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import NotificationModal from "@/app/(components)/NotificationModal";
+import { toast } from "sonner";
 
 export default function ImageGallery() {
     const {
@@ -61,7 +62,7 @@ export default function ImageGallery() {
 
     const copyLink = (url) => {
         navigator.clipboard.writeText(url);
-        showNotification("Link copied!", "URL copied to clipboard", "success");
+        toast.success("URL copied to clipboard");
         setOpenMenu(null);
     };
 
@@ -252,7 +253,7 @@ export default function ImageGallery() {
                                         return (
                                             <div
                                                 key={id}
-                                                className="relative group break-inside-avoid mb-6 rounded-lg cursor-pointer overflow-visible border border-gray-100 hover:scale-105 transition duration-200 shadow"
+                                                className={`relative group break-inside-avoid mb-6 rounded-lg cursor-pointer overflow-visible border border-gray-100 transition duration-200 shadow ${openMenu === id ? "" : "hover:scale-105"}`}
                                             >
                                                 {isVid ? (
                                                     <div className="aspect-[4/3]  bg-black">
@@ -327,6 +328,12 @@ export default function ImageGallery() {
                                                                     className="w-full cursor-pointer flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
                                                                 >
                                                                     <Download size={18} /> Download
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => { copyLink(isVid ? videoUrl : src); }}
+                                                                    className="w-full cursor-pointer flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
+                                                                >
+                                                                    <Link2 size={18} /> Copy URL
                                                                 </button>
                                                                 <button
                                                                     onClick={async () => {

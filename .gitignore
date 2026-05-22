@@ -2,3 +2,9 @@ node_modules
 .next/
 node_modules/
 .env
+
+# Claude Code local state (per-user, do not commit)
+.claude/
+.claude-code/
+CLAUDE.local.md
+.mcp.local.json

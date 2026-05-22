@@ -2346,7 +2346,7 @@ export function AuthProvider({ children }) {
 
     const payload = {
       type,
-      category: formattedCategory,
+      sub_category: formattedCategory,
       type_size,
     };
 

@@ -115,6 +115,64 @@ There used to be **two `AuthProvider` instances** — one in the root layout and
 - **No TypeScript** — don't introduce `.ts`/`.tsx` files unless asked.
 - **Don't bypass `authFetch`** — always use it for authenticated requests so 401 logout works.
 
+## Create-from-URL flow specifics (`/studio/create-from-url`)
+
+This page is now the most intricate generation flow. Worth a dedicated section.
+
+### Steps
+
+1. **URL** — user pastes a URL, clicks Import → `useAuth().sendUrl(url)` → `POST /brands/import`. Backend scrapes the site. Response shape:
+   ```js
+   { success, message, data: { name, description, logo, primary_color, secondary_color, images: [/* up to ~10 https URLs */] } }
+   ```
+   The frontend reads `name`, `description`, `primary_color`, `logo`, and **`images`** (sliced to 10, stored in `scrapedImages`).
+2. **Type** — Ads vs Social. Sub-types come in step 4, not step 2 (user wanted to allow late switching).
+3. **Brand Details** — auto-filled from import, editable.
+4. **Size, Goals & Audience** — for **Ads**, this also contains the sub-type pill row: **Image / Video / Interactive / Playable**. Default is **Image**. Interactive and Playable are visible but `disabled` with native `title="Coming soon…"` tooltip. The size grid and format selector swap based on sub-type (Image uses `AD_SIZES` + `FILE_FORMATS`; Video uses `VIDEO_SIZES` + `VIDEO_FORMATS` MP4/MOV).
+5. **Select Images / Background Media** — shows the scraped-image strip (`BrandImagesStrip` with `images={scrapedImages}`) above the media picker. Labels/icons change to "Background Media" when sub-type is Video.
+
+### Selection cap (max 5)
+
+Combined cap of 5 across both sources. Three add-paths enforce it:
+- `handleBrandImageUse` — trims to remaining slots
+- `handleBrandImageCrop` — trims to remaining slots, starts cropping batch
+- `handleApplyFromPicker` — caps total images + media combined
+
+`MediaPickerModal` receives `maxSelectable={MAX_IMAGES - croppedImages.length}` and enforces it on click (toggle handlers check the combined count and call `notify` before calling `setState`, never inside an updater).
+
+### Generate payload
+
+`handleGenerate` → `generateCustomCreative` → `POST /creatives/redesign`. The wire body looks like:
+
+```js
+{
+  generation_data: {
+    creative_type: "ads",          // or "social"
+    create_sub_type: "image",      // adSubType for ads, "posts" for social — NOT hardcoded
+    brand_id: 48,                  // from activeBrandId
+    brandName, description, brandColor, logo, visualStyle, font, sourceUrl,
+    size: "1080x1080",             // VIDEO_SIZES for video, AD_SIZES for image, SOCIAL_SIZES for social
+    campaignGoal, audience,
+    // Exactly one of:
+    fileFormat: "PNG",             // for image/social
+    videoFormat: "MP4",            // for video
+    images: [/* https URLs only */],
+    // social-only:
+    tone, platforms,
+    generatedAt,
+  }
+}
+```
+
+### Image URL resolution before generate
+
+Before calling the endpoint, `handleGenerate` walks through `croppedImages` and resolves each item to a real URL:
+- Has `sourceUrl` starting with `http` → use as-is (no upload).
+- Is a `File` instance (cropped or dropped) → `await uploadImage(file)`, use the returned URL. **Runs in `Promise.all` so all uploads parallelize.**
+- Only `blob:` `previewUrl` and nothing else → dropped (unreachable from backend).
+
+There's currently a temporary `console.log('🔼 uploadImage response:', result)` to verify the upload's URL field name — remove once confirmed.
+
 ## Confirmed brand object shape (from the API)
 
 ```js
@@ -141,16 +199,20 @@ Wrapper response: `{ success, message, data: [ ...brands ] }`.
 - Several `.DS_Store` files are committed in `src/` — macOS noise.
 - Some `useEffect`s in `AuthContext` use `[token]` deps; the mount effect uses `[]` and ONLY runs once on first render. Don't rely on it re-running.
 - `BASE_URL` is hardcoded in `AuthContext` — no env var. If switching environments, edit it directly.
+- **`/creatives/redesign` returns 500 with `"syntax error, unexpected identifier 'RULES'"`** — Laravel-side PHP parse error in the backend (likely a HEREDOC marker issue or unescaped quote in a prompt template). Frontend can't fix this; backend team needs to grep for `RULES` in the controller for `/creatives/redesign`. Until fixed, generation always fails — toast surfaces the message.
+- **Local `toast` state shadows the sonner `toast` import.** Pages like `studio/create-from-url/page.jsx` have a local `[localToast, setLocalToast]` state that used to be named `toast` — that collided with `import { toast } from "sonner"` and caused `toast.error is not a function` crashes. If you introduce sonner in another file, **don't** name a local state variable `toast`.
+- **`PEXELS_API_KEY` and other secrets live in `.env`** (gitignored). Without it, `/api/pexels` returns 500 and Search Media inside `MediaPickerModal` shows nothing. Next.js only reads `.env` at server startup — **restart `npm run dev` after editing `.env`**.
+- **Blob URLs are not fetchable by the backend.** Cropped images live in browser memory with `blob:` URLs that only work in the user's tab. Always upload via `useAuth().uploadImage(file)` first and send the returned URL. Note the side effect: every upload persists to the user's Image Gallery — there's no temporary-upload endpoint yet.
 
 ## Recent significant changes
 
 (Last updated 2026-05-22. Keep this short — a running 3–5 item list is fine.)
 
-- **Removed duplicate `AuthProvider`** from `(auth)/layout.jsx`. Fixed the brand-picker modal not appearing after login.
-- **Brand Kits page (`/brand/reuse`)** wired to the real API. It was previously rendering 4 hardcoded mock brands. Now uses `useAuth().brands` and `deleteBrandById` (real delete).
-- **Mounted `<Toaster />`** in the root layout. Several existing `toast.success/error` calls scattered across the app were previously silent because there was no host.
-- **`fetchBrands` shows a toast** on JSON-parse, non-2xx, and network errors (skipping 401 since user is being logged out anyway).
-- The "Active" badge on Brand Kits now reflects `brand.id === activeBrandId` instead of `brand.status === 1`.
+- **Create-from-URL (`/studio/create-from-url`)** got a major upgrade: step 4 now has an "Ad Format" sub-type picker (Image / Video / Interactive / Playable — last two disabled with "Coming soon…" tooltip); step 4's size/format fields swap based on sub-type; step 5 labels/icons mirror VideoAdsForm when sub-type is video; the scraped images from `/brands/import` populate the strip above the picker instead of the user's library; cropped images are now uploaded to `/image-gallery` before the generate call so the backend gets real URLs. Payload also now passes `adSubType` as `create_sub_type` and includes `brand_id`. See the dedicated section below.
+- **`BrandImagesStrip` extended** with optional `images` prop (use instead of `useAuth().myImages`), optional `label`, src-dedupe, and a trim effect that keeps `externalCount + localSelected` ≤ `maxSelect` (prevents the old "6/5 selected" bug).
+- **`MediaPickerModal`**: removed the "Upload File" tab entirely; added `maxSelectable` prop so the picker enforces the parent's remaining-slot count across images AND videos combined; fixed a React "setState during render" warning that was caused by toasting inside an updater function; renamed "Upload to Library" → "Upload from Library".
+- **Image Gallery (`/image-gallery`)**: added a "Copy URL" button to the My Images popup (Download / Copy URL / Delete), switched `copyLink` to a `sonner` toast, and fixed cursor-shake on card hover by disabling `hover:scale-105` while the popup menu is open.
+- **Creatives page (`/creatives`)**: removed the duplicate center "Instant Creation"/"Custom Creation" buttons in the empty state (kept the three buttons in the top-right). Added a `useEffect` guard so `loadDesigns` doesn't fire while `activeBrandId` is still hydrating (avoids the boot-race `fetchDesigns: no activeBrandId` log).
 
 ## Where the bodies are buried
 
@@ -159,6 +221,10 @@ Wrapper response: `{ success, message, data: [ ...brands ] }`.
 - **Brand-picker modal component** — `src/app/(components)/ModalPage.jsx`
 - **OAuth helpers** — `src/(lib)/oauth.js`, `src/(lib)/oauth/page.jsx`, `src/(lib)/integrations/platformResolvers.js`
 - **Mock data** still around — `src/data/mockBrands.js`, `mockProducts.js`, `assetsData.js`. Some pages may still use these; prefer real API.
+- **Create-from-URL flow** — `src/app/(dashboard)/(pages)/studio/create-from-url/page.jsx`. Big file (~1100 lines). Holds the sub-type picker, the cropping queue with `cropBatchStart`, and `handleGenerate` (which uploads cropped files and calls `generateCustomCreative`).
+- **Generate endpoint** — `POST /creatives/redesign` (via `useAuth().generateCustomCreative`, defined around `AuthContext.jsx:1498`). Note it uses plain `fetch` with `credentials: "include"`, not `authFetch`.
+- **Cropping coordinator state** lives on the create-from-url page: `imageSrc` (queue currently being cropped, resets per batch), `imageSrcMeta` (parallel original URLs), `croppedImages` (master list, never reset), `cropBatchStart` (where each cropper batch begins). Save/skip write to `croppedImages[cropBatchStart + currentCropIndex]`. Cancel rolls back only the current batch via `prev.slice(0, cropBatchStart)`.
+- **The scraped images strip** — `src/app/(components)/BrandImagesStrip.jsx`. Accepts an optional `images` prop. When provided, the strip uses it instead of `useAuth().myImages` and skips the library fetch.
 
 ## Running locally
 
@@ -169,4 +235,15 @@ npm run start    # next start
 npm run lint     # next lint
 ```
 
-There is no `.env.example`. The `BASE_URL` and other endpoints are hardcoded in `AuthContext.jsx`.
+There is no `.env.example`. The `BASE_URL` and other backend endpoints are hardcoded in `AuthContext.jsx`. But a `.env` IS required for a working setup — it holds third-party API keys consumed by `src/app/api/*` routes. Known keys:
+
+- `PEXELS_API_KEY` — required for Search Media inside `MediaPickerModal`. Without it, `/api/pexels` returns 500.
+- `NEXT_PUBLIC_FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`
+- `NEXT_PUBLIC_LINKEDIN_CLIENT_ID`, `LINKEDIN_REDIRECT_URI`, `LINKEDIN_CLIENT_SECRET`
+- `NEXT_PUBLIC_TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET`
+- `NEXT_PUBLIC_PINTEREST_CLIENT_ID`, `NEXT_PUBLIC_PINTEREST_ACCESS_TOKEN`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_ADS_DEVELOPER_TOKEN`
+- `NEXT_PUBLIC_YOUTUBE_CLIENT_KEY`, `YOUTUBE_CLIENT_SECRET`
+- `NEXT_PUBLIC_TIKTOK_CLIENT_KEY`
+
+Next.js only reads `.env` at server startup — **restart `npm run dev` after editing it**. The file is gitignored; new contributors need to get it from a teammate (and rotate any leaked keys before sharing).

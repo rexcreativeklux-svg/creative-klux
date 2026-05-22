@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Globe, ArrowRight, ArrowLeft, Loader2, Upload, Check, Megaphone, Share2, Images, FileUp, X } from 'lucide-react';
+import { Globe, ArrowRight, ArrowLeft, Loader2, Upload, Check, Megaphone, Share2, Images, FileUp, X, Film } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import AdPreview from '../Adpreview';
 
@@ -47,6 +47,28 @@ const AUDIENCES = [
 const POST_TONES = ['Professional', 'Casual', 'Humorous', 'Inspirational', 'Urgent', 'Educational'];
 const SOCIAL_PLATFORMS = ['Instagram', 'LinkedIn', 'Facebook', 'Twitter / X', 'TikTok', 'Pinterest'];
 const FILE_FORMATS = ['PNG', 'JPEG', 'WEBP', 'AVIF'];
+
+const VIDEO_SIZES = [
+  { label: 'TikTok / Reels',     size: '1080×1920' },
+  { label: 'Meta Square',        size: '1080×1080' },
+  { label: 'Meta Vertical',      size: '1080×1350' },
+  { label: 'YouTube / Landscape',size: '1920×1080' },
+  { label: 'Google Display',     size: '1200×628'  },
+  { label: 'LinkedIn',           size: '1200×627'  },
+  { label: 'Stories',            size: '720×1280'  },
+  { label: 'Pre-roll',           size: '1280×720'  },
+];
+
+const VIDEO_FORMATS = ['MP4', 'MOV'];
+
+const MAX_IMAGES = 5;
+
+const AD_SUB_TYPES = [
+  { id: 'image',       label: 'Image',       enabled: true  },
+  { id: 'video',       label: 'Video',       enabled: true  },
+  { id: 'interactive', label: 'Interactive', enabled: false },
+  { id: 'playable',    label: 'Playable',    enabled: false },
+];
 const DEFAULT_COLORS = ['#3b82f6', '#06b6d4', '#a855f7', '#ec4899', '#ef4444', '#1e3a8a'];
 
 const CREATION_TYPES = [
@@ -105,17 +127,21 @@ export default function CreateFromUrl() {
   const [targetPlatform, setTargetPlatform] = useState('Instagram');
 
   // Step 4
+  const [adSubType, setAdSubType]         = useState('image'); // 'image' | 'video' | 'interactive' | 'playable'
   const [adSize, setAdSize]               = useState('Meta Square');
   const [socialSize, setSocialSize]       = useState('Instagram Square');
+  const [videoSize, setVideoSize]         = useState('Meta Square');
   const [campaignGoal, setCampaignGoal]   = useState('Engagement');
   const [audience, setAudience]           = useState('B2C');
   const [fileFormat, setFileFormat]       = useState('PNG');
+  const [videoFormat, setVideoFormat]     = useState('MP4');
   const [generating, setGenerating]       = useState(false);
   const [generateError, setGenerateError] = useState('');
 
   // ── Step 5 — Image state (mirrors ImageAdsForm exactly) ──────────────────
-  const [imageSrc, setImageSrc]               = useState([]);   // raw URLs for cropper
-  const [croppedImages, setCroppedImages]     = useState([]);   // finished Files with .previewUrl
+  const [imageSrc, setImageSrc]               = useState([]);   // raw URLs for cropper (current batch only)
+  const [croppedImages, setCroppedImages]     = useState([]);   // master list — finished Files / pseudos / video objects
+  const [cropBatchStart, setCropBatchStart]   = useState(0);    // index in croppedImages where current cropping batch begins
   const [currentCropIndex, setCurrentCropIndex] = useState(0);
   const [showCropper, setShowCropper]         = useState(false);
   const [crop, setCrop]                       = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
@@ -218,7 +244,7 @@ export default function CreateFromUrl() {
 
     setCroppedImages((prev) => {
       const updated = [...prev];
-      updated[currentCropIndex] = file;
+      updated[cropBatchStart + currentCropIndex] = file;
       return updated;
     });
 
@@ -229,7 +255,7 @@ export default function CreateFromUrl() {
     } else {
       setShowCropper(false);
     }
-  }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta]);
+  }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta, cropBatchStart]);
 
   // ── Cropper: skip (mirrors ImageAdsForm handleSkipCrop) ─────────────────
   const handleSkipCrop = () => {
@@ -240,7 +266,7 @@ export default function CreateFromUrl() {
       file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
       setCroppedImages((prev) => {
         const u = [...prev];
-        u[currentCropIndex] = file;
+        u[cropBatchStart + currentCropIndex] = file;
         return u;
       });
       if (currentCropIndex < imageSrc.length - 1) {
@@ -272,10 +298,25 @@ export default function CreateFromUrl() {
 
   // ── MediaPicker apply (mirrors ImageAdsForm handleApplyFromPicker) ───────
   const handleApplyFromPicker = async (images, media) => {
-    if (images.length > 0) {
+    let remaining = MAX_IMAGES - croppedImages.length;
+
+    if (remaining <= 0) {
+      showToast(`Maximum of ${MAX_IMAGES} items reached.`);
+      setMediaPickerOpen(false);
+      return;
+    }
+
+    const imagesToAdd = images.slice(0, remaining);
+    remaining -= imagesToAdd.length;
+    const mediaToAdd = media.slice(0, remaining);
+
+    const skippedSome =
+      imagesToAdd.length < images.length || mediaToAdd.length < media.length;
+
+    if (imagesToAdd.length > 0) {
       try {
         const processedFiles = await Promise.all(
-          images.map(async (item, idx) => {
+          imagesToAdd.map(async (item, idx) => {
             if (item.file instanceof File) {
               item.file.previewUrl = item.src;
               item.file.sourceUrl  = null;
@@ -297,35 +338,34 @@ export default function CreateFromUrl() {
         const previewUrls = processedFiles.map(f => f.previewUrl);
         const sourceUrls  = processedFiles.map(f => f.sourceUrl || null);
 
-        if (!showCropper) {
-          setImageSrc(previewUrls);
-          setImageSrcMeta(sourceUrls);
-          setCroppedImages(Array(previewUrls.length).fill(null));
-          setCurrentCropIndex(0);
-        } else {
-          setImageSrc(prev => [...prev, ...previewUrls]);
-          setImageSrcMeta(prev => [...prev, ...sourceUrls]);
-          setCroppedImages(prev => [...prev, ...Array(previewUrls.length).fill(null)]);
-          setCurrentCropIndex(imageSrc.length);
-        }
-
+        // Always APPEND — never reset. Track where this batch begins.
+        setCropBatchStart(croppedImages.length);
+        setImageSrc(previewUrls);
+        setImageSrcMeta(sourceUrls);
+        setCroppedImages(prev => [...prev, ...Array(previewUrls.length).fill(null)]);
+        setCurrentCropIndex(0);
         setShowCropper(true);
-        showToast(`Added ${images.length} image(s) — crop them`);
+
+        showToast(`Added ${imagesToAdd.length} image(s) — crop them`);
       } catch (err) {
         console.error("Image loading failed:", err);
         showToast("Some images couldn't be loaded.");
       }
     }
 
-    if (media.length > 0) {
-      const videoObjects = media.map((src, i) => ({
+    if (mediaToAdd.length > 0) {
+      const videoObjects = mediaToAdd.map((src, i) => ({
         id: `video-${Date.now()}-${i}`,
         previewUrl: src,
         thumbnail: src,
         type: "video",
       }));
       setCroppedImages(prev => [...prev, ...videoObjects]);
-      showToast(`Added ${media.length} media item(s)`);
+      showToast(`Added ${mediaToAdd.length} media item(s)`);
+    }
+
+    if (skippedSome) {
+      showToast(`Only added what fits — max ${MAX_IMAGES}.`);
     }
 
     setMediaPickerOpen(false);
@@ -333,19 +373,38 @@ export default function CreateFromUrl() {
 
   // ── BrandImagesStrip: use without cropping ───────────────────────────────
   const handleBrandImageUse = (imageObjs) => {
-    const pseudos = imageObjs.map(obj => ({
+    const remaining = MAX_IMAGES - croppedImages.length;
+    if (remaining <= 0) {
+      showToast(`Maximum of ${MAX_IMAGES} items reached.`);
+      return;
+    }
+    const toAdd = imageObjs.slice(0, remaining);
+    const pseudos = toAdd.map(obj => ({
       previewUrl: obj.src,
       sourceUrl:  obj.src,
       name: obj.alt || "brand-image",
       type: "image/jpeg",
     }));
     setCroppedImages(prev => [...prev, ...pseudos]);
-    showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+    if (toAdd.length < imageObjs.length) {
+      showToast(`Only added ${toAdd.length} — max ${MAX_IMAGES} reached.`);
+    } else {
+      showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+    }
   };
 
   // ── BrandImagesStrip: crop ───────────────────────────────────────────────
   const handleBrandImageCrop = async (imageObjs) => {
-    for (const imageObj of imageObjs) {
+    const remaining = MAX_IMAGES - croppedImages.length;
+    if (remaining <= 0) {
+      showToast(`Maximum of ${MAX_IMAGES} items reached.`);
+      return;
+    }
+    const toAdd = imageObjs.slice(0, remaining);
+
+    const newUrls = [];
+    const newMetas = [];
+    for (const imageObj of toAdd) {
       const originalUrl = imageObj.src;
       let cropperUrl    = originalUrl;
       try {
@@ -355,12 +414,22 @@ export default function CreateFromUrl() {
       } catch (err) {
         console.warn("Proxy failed, falling back to original URL", err);
       }
-      setImageSrc(prev => [...prev, cropperUrl]);
-      setImageSrcMeta(prev => [...prev, originalUrl]);
-      setCroppedImages(prev => [...prev, null]);
+      newUrls.push(cropperUrl);
+      newMetas.push(originalUrl);
     }
-    if (!showCropper) setCurrentCropIndex(0);
+
+    if (newUrls.length === 0) return;
+
+    setCropBatchStart(croppedImages.length);
+    setImageSrc(newUrls);
+    setImageSrcMeta(newMetas);
+    setCroppedImages(prev => [...prev, ...Array(newUrls.length).fill(null)]);
+    setCurrentCropIndex(0);
     setShowCropper(true);
+
+    if (toAdd.length < imageObjs.length) {
+      showToast(`Only ${toAdd.length} queued for crop — max ${MAX_IMAGES} reached.`);
+    }
   };
 
   // ── Generate ─────────────────────────────────────────────────────────────
@@ -417,7 +486,7 @@ export default function CreateFromUrl() {
     return (
       <div className="min-h-screen py-1">
         {toast && (
-          <div className="fixed top-5 right-5 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in">
+          <div className="fixed top-5 right-5 z-100 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in">
             {toast}
           </div>
         )}
@@ -758,15 +827,67 @@ export default function CreateFromUrl() {
           <div className="bg-white rounded-2xl border border-gray-200 p-7 space-y-7">
             <h2 className="text-xl font-bold text-gray-900">Size, Goals & Audience</h2>
 
+            {isAds && (
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-gray-700">Ad Format</label>
+                <div className="flex flex-wrap gap-2">
+                  {AD_SUB_TYPES.map(t => {
+                    const isSelected = adSubType === t.id;
+                    const baseClasses = "px-4 py-2 rounded-lg text-sm font-medium border-2 transition-all flex items-center gap-2";
+                    if (!t.enabled) {
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          disabled
+                          title="Coming soon…"
+                          className={`${baseClasses} border-gray-100 bg-gray-50 text-gray-400 opacity-60 cursor-not-allowed`}
+                        >
+                          {t.label}
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setAdSubType(t.id)}
+                        className={`${baseClasses} cursor-pointer
+                          ${isSelected
+                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                            : 'border-gray-100 bg-gray-50 text-gray-700 hover:border-gray-300'}`}
+                      >
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700">{isAds ? 'Ad Size' : 'Post Size'}</label>
+              <label className="text-sm font-medium text-gray-700">
+                {isAds
+                  ? (adSubType === 'video' ? 'Video Size' : 'Ad Size')
+                  : 'Post Size'}
+              </label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {(isAds ? AD_SIZES : SOCIAL_SIZES).map(s => {
-                  const isSelected = isAds ? adSize === s.label : socialSize === s.label;
+                {(isAds
+                  ? (adSubType === 'video' ? VIDEO_SIZES : AD_SIZES)
+                  : SOCIAL_SIZES
+                ).map(s => {
+                  const isSelected = isAds
+                    ? (adSubType === 'video' ? videoSize === s.label : adSize === s.label)
+                    : socialSize === s.label;
+                  const handleClick = () => {
+                    if (!isAds) return setSocialSize(s.label);
+                    if (adSubType === 'video') return setVideoSize(s.label);
+                    return setAdSize(s.label);
+                  };
                   return (
                     <button
                       key={s.label}
-                      onClick={() => isAds ? setAdSize(s.label) : setSocialSize(s.label)}
+                      onClick={handleClick}
                       className={`text-left p-3 rounded-xl border-2 transition-all cursor-pointer
                         ${isSelected
                           ? isAds ? adsSelected : socialSelected
@@ -818,21 +939,28 @@ export default function CreateFromUrl() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700">File Format</label>
+              <label className="text-sm font-medium text-gray-700">
+                {isAds && adSubType === 'video' ? 'Video Format' : 'File Format'}
+              </label>
               <div className="flex gap-2">
-                {FILE_FORMATS.map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setFileFormat(f)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all cursor-pointer flex items-center gap-1.5
-                      ${fileFormat === f
-                        ? isAds ? adsSelected : socialSelected
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
-                  >
-                    {fileFormat === f && <Check className="w-3 h-3" />}
-                    {f}
-                  </button>
-                ))}
+                {(isAds && adSubType === 'video' ? VIDEO_FORMATS : FILE_FORMATS).map(f => {
+                  const isVideoFmt = isAds && adSubType === 'video';
+                  const currentValue = isVideoFmt ? videoFormat : fileFormat;
+                  const setValue = isVideoFmt ? setVideoFormat : setFileFormat;
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => setValue(f)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all cursor-pointer flex items-center gap-1.5
+                        ${currentValue === f
+                          ? isAds ? adsSelected : socialSelected
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                    >
+                      {currentValue === f && <Check className="w-3 h-3" />}
+                      {f}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -850,13 +978,17 @@ export default function CreateFromUrl() {
           </div>
         )}
 
-        {/* ── STEP 5: Select Images ── */}
+        {/* ── STEP 5: Select Images / Background Media ── */}
         {step === 5 && (
           <div className="bg-white rounded-2xl border border-gray-200 p-7 space-y-5">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Select Images</h2>
+              <h2 className="text-xl font-bold text-gray-900">
+                {isAds && adSubType === 'video' ? 'Select Background Media' : 'Select Images'}
+              </h2>
               <p className="text-sm text-gray-500 mt-1">
-                Add background images for your creative. You can search, upload, or use brand images.
+                {isAds && adSubType === 'video'
+                  ? 'Add background media (images or videos) for your video ad. You can search, upload, or use brand assets.'
+                  : 'Add background images for your creative. You can search, upload, or use brand images.'}
               </p>
             </div>
 
@@ -927,22 +1059,36 @@ export default function CreateFromUrl() {
               onClick={() => setMediaPickerOpen(true)}
             >
               <div className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
-                <FileUp className="w-5 h-5 text-gray-400" />
+                {isAds && adSubType === 'video'
+                  ? <Film className="w-5 h-5 text-gray-400" />
+                  : <FileUp className="w-5 h-5 text-gray-400" />}
               </div>
               <div className="text-center">
-                <p className="text-sm font-semibold text-gray-700">Upload or Search Images</p>
-                <p className="text-xs text-gray-400 mt-1">Search the web, magic studio, or upload from device</p>
+                <p className="text-sm font-semibold text-gray-700">
+                  {isAds && adSubType === 'video'
+                    ? 'Upload or Search Background Media'
+                    : 'Upload or Search Images'}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {isAds && adSubType === 'video'
+                    ? 'Images or videos — from library, web search, or AI generation'
+                    : 'Search the web, magic studio, or upload from device'}
+                </p>
               </div>
               <button
                 onClick={e => { e.stopPropagation(); setMediaPickerOpen(true); }}
                 className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition cursor-pointer flex items-center gap-2"
               >
-                <Images className="w-4 h-4" /> Choose Media
+                {isAds && adSubType === 'video'
+                  ? <><Film className="w-4 h-4" /> Choose Media</>
+                  : <><Images className="w-4 h-4" /> Choose Media</>}
               </button>
             </div>
 
             <p className="text-xs text-gray-400 text-center">
-              Images are optional — skip to generate with brand colors only.
+              {isAds && adSubType === 'video'
+                ? 'Background media is optional — skip to generate with brand colors only.'
+                : 'Images are optional — skip to generate with brand colors only.'}
             </p>
 
             <div className="flex items-center justify-between pt-2">
@@ -956,7 +1102,7 @@ export default function CreateFromUrl() {
               >
                 {generating
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
-                  : <>Generate Creative <ArrowRight className="w-4 h-4" /></>}
+                  : <>{isAds && adSubType === 'video' ? 'Generate Video Ads' : 'Generate Creative'} <ArrowRight className="w-4 h-4" /></>}
               </button>
             </div>
           </div>
@@ -980,7 +1126,8 @@ export default function CreateFromUrl() {
           setShowCropper(false);
           setImageSrc([]);
           setImageSrcMeta([]);
-          setCroppedImages([]);
+          // Roll back only the current cropping batch — preserve prior selections.
+          setCroppedImages(prev => prev.slice(0, cropBatchStart));
         }}
         onPrevious={handlePreviousCrop}
       />
@@ -990,6 +1137,7 @@ export default function CreateFromUrl() {
         onClose={() => setMediaPickerOpen(false)}
         onCancel={() => setMediaPickerOpen(false)}
         onApply={handleApplyFromPicker}
+        maxSelectable={Math.max(0, MAX_IMAGES - croppedImages.length)}
         postData={{
           brandName,
           description,

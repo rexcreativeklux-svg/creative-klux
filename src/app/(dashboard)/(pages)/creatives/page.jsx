@@ -253,7 +253,14 @@ export default function CreativesPage() {
         }
     }, [fetchDesigns, activeBrandId]);
 
-    useEffect(() => { loadDesigns(); }, [loadDesigns]);
+    useEffect(() => {
+        if (!activeBrandId) {
+            setCreatives([]);
+            setLoading(false);
+            return;
+        }
+        loadDesigns();
+    }, [loadDesigns, activeBrandId]);
 
     // ── CRUD wrappers using context ─────────────────────────────────────────────
     const deleteDesign = useCallback(async (id) => {

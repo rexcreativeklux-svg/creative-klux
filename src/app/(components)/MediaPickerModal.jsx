@@ -26,7 +26,6 @@ const MAIN_TABS = [
   { id: "search",  label: "Search Media",  icon: FileSearch },
   { id: "library", label: "My Library",  icon: FolderOpen },
   { id: "magic",   label: "Magic Studio",  icon: Sparkles   },
-  { id: "upload",  label: "Upload File",   icon: FileUp     },
 ];
 
 const MAGIC_SUBTABS = [
@@ -74,7 +73,10 @@ export default function MediaPickerModal({
   onAddToBrand,
   showToast: externalToast,
   initialTab = "search",
+  maxSelectable = MAX_SELECT,
 }) {
+  // Effective cap — never exceed the modal's own hard ceiling, and never go below 0.
+  const effectiveCap = Math.max(0, Math.min(maxSelectable, MAX_SELECT));
   // ── tab state ──────────────────────────────────────────────────────────────
   const [activeTab,      setActiveTab]      = useState(initialTab);
   const [activeMagicTab, setActiveMagicTab] = useState(MAGIC_SUBTABS[0]);
@@ -164,19 +166,28 @@ export default function MediaPickerModal({
 
   // ── selection helpers ─────────────────────────────────────────────────────
   const toggleImage = (src) => {
-    setSelectedImages((prev) =>
-      prev.includes(src)
-        ? prev.filter((s) => s !== src)
-        : prev.length >= MAX_SELECT ? (notify(`Max ${MAX_SELECT} images`), prev) : [...prev, src],
-    );
+    if (selectedImages.includes(src)) {
+      setSelectedImages((prev) => prev.filter((s) => s !== src));
+      return;
+    }
+    if (selectedImages.length + selectedMedia.length >= effectiveCap) {
+      notify(`You can only select ${effectiveCap} more item${effectiveCap === 1 ? "" : "s"}.`);
+      return;
+    }
+    setSelectedImages((prev) => [...prev, src]);
   };
 
-  const toggleMedia = (src) =>
-    setSelectedMedia((prev) =>
-      prev.includes(src)
-        ? prev.filter((s) => s !== src)
-        : prev.length >= MAX_SELECT ? (notify(`Max ${MAX_SELECT} items`), prev) : [...prev, src],
-    );
+  const toggleMedia = (src) => {
+    if (selectedMedia.includes(src)) {
+      setSelectedMedia((prev) => prev.filter((s) => s !== src));
+      return;
+    }
+    if (selectedImages.length + selectedMedia.length >= effectiveCap) {
+      notify(`You can only select ${effectiveCap} more item${effectiveCap === 1 ? "" : "s"}.`);
+      return;
+    }
+    setSelectedMedia((prev) => [...prev, src]);
+  };
 
   // ── apply ─────────────────────────────────────────────────────────────────
   const handleApply = () => {
@@ -384,7 +395,7 @@ export default function MediaPickerModal({
                     onClick={() => libFileRef.current?.click()}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition cursor-pointer"
                   >
-                    <FileUp className="w-4 h-4" /> Upload to Library
+                    <FileUp className="w-4 h-4" /> Upload from Library
                   </button>
                   <input ref={libFileRef} type="file" multiple accept="image/*" className="hidden" onChange={handleLibUpload} />
                   <span className="text-xs text-gray-400">{ctxMyImages.length} images in your library</span>
@@ -485,59 +496,6 @@ export default function MediaPickerModal({
               </div>
             )}
 
-            {/* ══ UPLOAD TAB ════════════════════════════════════════════════ */}
-            {activeTab === "upload" && (
-              <div className="flex flex-col flex-1 min-h-0 px-6 pt-6 gap-4">
-                {/* Drop zone */}
-                <div
-                  onDragOver={(e) => { e.preventDefault(); setUploadDragging(true); }}
-                  onDragLeave={() => setUploadDragging(false)}
-                  onDrop={(e) => { e.preventDefault(); setUploadDragging(false); handleUploadFiles(e.dataTransfer.files); }}
-                  onClick={() => uploadFileRef.current?.click()}
-                  className={`shrink-0 flex flex-col items-center justify-center gap-4 p-12 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
-                    uploadDragging
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 bg-gray-50 hover:border-blue-400 hover:bg-blue-50/40"
-                  }`}
-                >
-                  <div className="w-14 h-14 bg-white border border-gray-200 rounded-2xl flex items-center justify-center shadow-sm">
-                    <FileUp className="w-6 h-6 text-gray-400" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-gray-700">Drop images here or click to browse</p>
-                    <p className="text-xs text-gray-400 mt-1">PNG, JPG, WEBP, GIF — up to 5 files</p>
-                  </div>
-                  <input
-                    ref={uploadFileRef}
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => { handleUploadFiles(e.target.files); e.target.value = ""; }}
-                  />
-                </div>
-
-                {/* Preview uploaded */}
-                {uploadedFiles.length > 0 && (
-                  <div className="flex-1 overflow-y-auto pb-2">
-                    <p className="text-xs font-medium text-gray-500 mb-3">{uploadedFiles.length} file(s) ready to apply</p>
-                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
-                      {uploadedFiles.map((f, i) => (
-                        <div key={f.id} className="relative group">
-                          <img src={f.src} alt={`upload-${i}`} className="w-full h-24 object-cover rounded-xl border border-gray-100 shadow-sm" />
-                          <button
-                            onClick={() => setUploadedFiles((prev) => prev.filter((_, j) => j !== i))}
-                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition cursor-pointer"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* ── Footer ───────────────────────────────────────────────────── */}

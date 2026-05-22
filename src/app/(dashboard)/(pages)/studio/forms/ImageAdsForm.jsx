@@ -13,6 +13,9 @@ import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSectio
 import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSection";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
+import { useAuth } from "@/context/AuthContext";
+
+const MAX_IMAGES = 5;
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const SIZE_OPTIONS = [
@@ -80,6 +83,8 @@ const ImageAdsForm = ({
   onResult, generateCustomCreative, creative, categoryId,
   fetchDesignTemplates, // ← new prop passed from StudioPage via commonProps
 }) => {
+  const { uploadImage, activeBrandId } = useAuth();
+
   const [step, setStep]               = useState(1);
   const [error, setError]             = useState("");
   const [brandUrl, setBrandUrl]       = useState(activeBrand?.url || activeBrand?.source_url || "");
@@ -393,11 +398,43 @@ const ImageAdsForm = ({
     console.log("🎨 Selected Templates:", selectedTemplates);
 
     // ─────────────────────────────────────────────
-    // 2. SEND TO CUSTOM GENERATE ENDPOINT
+    // 2. RESOLVE IMAGE URLs — upload File items to /image-gallery
+    // ─────────────────────────────────────────────
+    const resolvedUrls = await Promise.all(
+      validImages.map(async (item) => {
+        if (typeof item?.sourceUrl === "string" && item.sourceUrl.startsWith("http")) {
+          return item.sourceUrl;
+        }
+        if (item instanceof File) {
+          try {
+            const result = await uploadImage(item);
+            const url =
+              result?.image_url ||
+              result?.url ||
+              result?.data?.image_url ||
+              null;
+            return typeof url === "string" && url.startsWith("http") ? url : null;
+          } catch (err) {
+            console.error("uploadImage failed:", err);
+            return null;
+          }
+        }
+        if (typeof item?.previewUrl === "string" && item.previewUrl.startsWith("http")) {
+          return item.previewUrl;
+        }
+        return null;
+      })
+    );
+
+    const imageUrls = resolvedUrls.filter(Boolean);
+
+    // ─────────────────────────────────────────────
+    // 3. SEND TO CUSTOM GENERATE ENDPOINT
     // ─────────────────────────────────────────────
     const payload = {
       creativeType: creative?.id,
       categoryType: categoryId,
+      brand_id: activeBrandId,
 
       brandName: formData.brandName || null,
       description: formData.description || null,
@@ -422,9 +459,7 @@ const ImageAdsForm = ({
 
       type_size: selectedSize.type_size,
 
-      images: validImages
-        .map((f) => f?.sourceUrl || f?.previewUrl)
-        .filter(Boolean),
+      images: imageUrls,
 
       // 👇 FIRST 2 TEMPLATE OBJECTS
       templates: selectedTemplates,
@@ -528,16 +563,32 @@ const ImageAdsForm = ({
   };
 
   const handleBrandImageUse = (imageObjs) => {
-    const pseudos = imageObjs.map((imageObj) => ({
+    const remaining = Math.max(0, MAX_IMAGES - croppedImages.filter(Boolean).length);
+    const toAdd = imageObjs.slice(0, remaining);
+    if (toAdd.length === 0) {
+      showToast(`Max ${MAX_IMAGES} items reached.`);
+      return;
+    }
+    const pseudos = toAdd.map((imageObj) => ({
       previewUrl: imageObj.src, sourceUrl: imageObj.src,
       name: imageObj.alt || "brand-image", type: "image/jpeg",
     }));
     setCroppedImages((prev) => [...prev, ...pseudos]);
-    showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+    if (toAdd.length < imageObjs.length) {
+      showToast(`Only ${toAdd.length} added — max ${MAX_IMAGES} reached.`);
+    } else {
+      showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+    }
   };
 
   const handleBrandImageCrop = async (imageObjs) => {
-    for (const imageObj of imageObjs) {
+    const remaining = Math.max(0, MAX_IMAGES - croppedImages.filter(Boolean).length);
+    const toAdd = imageObjs.slice(0, remaining);
+    if (toAdd.length === 0) {
+      showToast(`Max ${MAX_IMAGES} items reached.`);
+      return;
+    }
+    for (const imageObj of toAdd) {
       const originalUrl = imageObj.src;
       let cropperUrl    = originalUrl;
       try {
@@ -551,6 +602,9 @@ const ImageAdsForm = ({
     }
     if (!showCropper) setCurrentCropIndex(0);
     setShowCropper(true);
+    if (toAdd.length < imageObjs.length) {
+      showToast(`Only ${toAdd.length} queued — max ${MAX_IMAGES} reached.`);
+    }
   };
 
   // ── render ────────────────────────────────────────────────────────────────
@@ -892,6 +946,7 @@ const ImageAdsForm = ({
         postData={formData}
         activeBrand={activeBrand}
         showToast={showToast}
+        maxSelectable={Math.max(0, MAX_IMAGES - croppedImages.filter(Boolean).length)}
       />
 
       {generating && (

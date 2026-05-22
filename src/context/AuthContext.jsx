@@ -1521,10 +1521,17 @@ export function AuthProvider({ children }) {
       const creativeTypeShort =
         creativeType?.replace("_creative", "") || creativeType;
 
+      // Pull templates + generatedAt out; everything else goes inside brand_details
+      const { templates, generatedAt, ...rest } = formPayload || {};
+
       const generation_data = {
-        creative_type: creativeTypeShort,
-        create_sub_type: categoryType,
-        ...formPayload,
+        brand_details: {
+          creative_type: creativeTypeShort,
+          create_sub_type: categoryType,
+          ...rest,
+        },
+        templates,
+        generatedAt,
       };
 
       console.log("🚀 FINAL PAYLOAD");

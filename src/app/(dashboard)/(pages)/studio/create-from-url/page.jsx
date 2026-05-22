@@ -107,7 +107,7 @@ const socialSelected = 'border-teal-500 bg-teal-50 text-teal-700';
 
 export default function CreateFromUrl() {
   const router = useRouter();
-  const { sendUrl, generateCustomCreative, saveDesign, activeBrandId, uploadImage } = useAuth();
+  const { sendUrl, generateCustomCreative, saveDesign, activeBrandId, uploadImage, fetchDesignTemplates } = useAuth();
 
   const [step, setStep] = useState(1);
   const [creationType, setCreationType] = useState(null);
@@ -452,6 +452,33 @@ export default function CreateFromUrl() {
       const validImages  = croppedImages.filter(Boolean);
       const isVideo      = isAds && adSubType === 'video';
 
+      // Resolve the chosen size's label (for Scraive category + redesign payload)
+      const selectedSizeLabel = !isAds
+        ? socialSize
+        : (adSubType === 'video' ? videoSize : adSize);
+      const scraiveCategory = (selectedSizeLabel || '').toLowerCase().replace(/\s+/g, '_');
+
+      // ── Fetch Scraive templates first ────────────────────────────────────
+      const templateRes = await fetchDesignTemplates({
+        type: isVideo ? 'video' : 'image',
+        category: selectedSizeLabel,
+        type_size: selectedSize,
+      });
+
+      if (!templateRes?.ok) {
+        toast.error(templateRes?.message || 'Failed to fetch templates');
+        setGenerating(false);
+        return;
+      }
+
+      const templates = Array.isArray(templateRes.data) ? templateRes.data : [];
+      if (!templates.length) {
+        toast.error('No templates found for this size');
+        setGenerating(false);
+        return;
+      }
+      const selectedTemplates = templates.slice(0, 2);
+
       // ── Resolve image URLs ──────────────────────────────────────────────
       // - Items with a real https sourceUrl → use as-is (no upload needed).
       // - Items that are File objects (cropped, dropped, picker-cropped) → upload
@@ -501,6 +528,9 @@ export default function CreateFromUrl() {
         audience,
         ...(isVideo ? { videoFormat } : { fileFormat }),
         images: imageUrls,
+        category: scraiveCategory,
+        type_size: selectedSize,
+        templates: selectedTemplates,
         ...(isAds ? {} : { tone: postTone, platforms: targetPlatform }),
         generatedAt: new Date().toISOString(),
       });

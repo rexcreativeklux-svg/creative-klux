@@ -13,6 +13,9 @@ import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSectio
 import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSection";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
+import { useAuth } from "@/context/AuthContext";
+
+const MAX_IMAGES = 5;
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const SIZE_OPTIONS = [
@@ -71,8 +74,10 @@ const STEPS = [
 
 const VideoAdsForm = ({
     formData, setFormData, activeBrand, sendUrl, showToast, onResult,
-    generateCustomCreative, creative, categoryId,
+    generateCustomCreative, creative, categoryId, fetchDesignTemplates,
 }) => {
+    const { uploadImage, activeBrandId } = useAuth();
+
     const [step, setStep] = useState(1);
     const [error, setError] = useState("");
     const [brandUrl, setBrandUrl] = useState(activeBrand?.url || activeBrand?.source_url || "");
@@ -249,18 +254,34 @@ const VideoAdsForm = ({
 
     // ── Brand image strip handlers ────────────────────────────────────────────
     const handleBrandImageUse = (imageObjs) => {
-        const pseudos = imageObjs.map((imageObj) => ({
+        const remaining = Math.max(0, MAX_IMAGES - croppedImages.filter(Boolean).length);
+        const toAdd = imageObjs.slice(0, remaining);
+        if (toAdd.length === 0) {
+            showToast(`Max ${MAX_IMAGES} items reached.`);
+            return;
+        }
+        const pseudos = toAdd.map((imageObj) => ({
             previewUrl: imageObj.src,
             sourceUrl: imageObj.src,
             name: imageObj.alt || "brand-image",
             type: "image/jpeg",
         }));
         setCroppedImages((prev) => [...prev, ...pseudos]);
-        showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+        if (toAdd.length < imageObjs.length) {
+            showToast(`Only ${toAdd.length} added — max ${MAX_IMAGES} reached.`);
+        } else {
+            showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+        }
     };
 
     const handleBrandImageCrop = async (imageObjs) => {
-        for (const imageObj of imageObjs) {
+        const remaining = Math.max(0, MAX_IMAGES - croppedImages.filter(Boolean).length);
+        const toAdd = imageObjs.slice(0, remaining);
+        if (toAdd.length === 0) {
+            showToast(`Max ${MAX_IMAGES} items reached.`);
+            return;
+        }
+        for (const imageObj of toAdd) {
             const originalUrl = imageObj.src;
             let cropperUrl = originalUrl;
             try {
@@ -276,6 +297,9 @@ const VideoAdsForm = ({
         }
         if (!showCropper) setCurrentCropIndex(0);
         setShowCropper(true);
+        if (toAdd.length < imageObjs.length) {
+            showToast(`Only ${toAdd.length} queued — max ${MAX_IMAGES} reached.`);
+        }
     };
 
     // ── Save crop ─────────────────────────────────────────────────────────────
@@ -360,65 +384,134 @@ const VideoAdsForm = ({
         setStep((p) => p + 1);
     };
 
-    // ── Generate — mirrors ImageAdsForm.handleGenerate exactly ───────────────
+    // ── Generate — Scraive → upload images → Redesign ────────────────────────
     const handleGenerate = async () => {
         setGenerating(true);
         setError("");
 
-        const validMedia = croppedImages.filter(Boolean);
+        try {
+            const validMedia = croppedImages.filter(Boolean);
 
-        const payload = {
-            creativeType: creative?.id,
-            categoryType: categoryId,
-            brandName: formData.brandName || null,
-            description: formData.description || null,
-            brandColor: formData.brandColor ?? formData.primaryColor ?? null,
-            logo: formData.logo || null,
-            visualStyle: formData.visualStyle || null,
-            font: formData.font || null,
-            sourceUrl: brandUrl || null,
-            size: formData.size || null,
-            campaignGoal: formData.campaignGoal || null,
-            audience: formData.audience || null,
-            videoFormat: formData.videoFormat || null,
-            videoType: formData.videoType || null,
-            caption: formData.caption || null,
-            images: validMedia
-                .map((f) => f?.sourceUrl || f?.previewUrl)
-                .filter(Boolean),
-            generatedAt: new Date().toISOString(),
-        };
+            // Resolve the size's label (for Scraive category + Redesign payload)
+            const selectedSizeLabel =
+                SIZE_OPTIONS.find((s) => s.value === formData.size)?.label || "";
+            const scraiveCategory = selectedSizeLabel
+                .toLowerCase()
+                .replace(/\s+/g, "_");
 
-        const result = await generateCustomCreative(payload);
+            // 1) Scraive templates first
+            const templateRes = await fetchDesignTemplates?.({
+                type: "video",
+                category: selectedSizeLabel,
+                type_size: formData.size,
+            });
 
-        if (!result.ok) {
-            setError(result.message || "Generation failed. Please try again.");
+            if (!templateRes?.ok) {
+                setError(templateRes?.message || "Failed to fetch templates");
+                showToast(templateRes?.message || "Failed to fetch templates");
+                setGenerating(false);
+                return;
+            }
+
+            const templates = Array.isArray(templateRes.data) ? templateRes.data : [];
+            if (!templates.length) {
+                setError("No templates found for this size");
+                showToast("No templates found for this size");
+                setGenerating(false);
+                return;
+            }
+            const selectedTemplates = templates.slice(0, 2);
+
+            // 2) Resolve image URLs — upload File items to /image-gallery
+            const resolvedUrls = await Promise.all(
+                validMedia.map(async (item) => {
+                    if (typeof item?.sourceUrl === "string" && item.sourceUrl.startsWith("http")) {
+                        return item.sourceUrl;
+                    }
+                    if (item instanceof File) {
+                        try {
+                            const result = await uploadImage(item);
+                            const url =
+                                result?.image_url ||
+                                result?.url ||
+                                result?.data?.image_url ||
+                                null;
+                            return typeof url === "string" && url.startsWith("http")
+                                ? url
+                                : null;
+                        } catch (err) {
+                            console.error("uploadImage failed:", err);
+                            return null;
+                        }
+                    }
+                    if (typeof item?.previewUrl === "string" && item.previewUrl.startsWith("http")) {
+                        return item.previewUrl;
+                    }
+                    return null;
+                })
+            );
+
+            const imageUrls = resolvedUrls.filter(Boolean);
+
+            // 3) Redesign payload
+            const payload = {
+                creativeType: creative?.id,
+                categoryType: categoryId,
+                brand_id: activeBrandId,
+                brandName: formData.brandName || null,
+                description: formData.description || null,
+                brandColor: formData.brandColor ?? formData.primaryColor ?? null,
+                logo: formData.logo || null,
+                visualStyle: formData.visualStyle || null,
+                font: formData.font || null,
+                sourceUrl: brandUrl || null,
+                size: formData.size || null,
+                campaignGoal: formData.campaignGoal || null,
+                audience: formData.audience || null,
+                videoFormat: formData.videoFormat || null,
+                videoType: formData.videoType || null,
+                caption: formData.caption || null,
+                images: imageUrls,
+                category: scraiveCategory,
+                type_size: formData.size || null,
+                templates: selectedTemplates,
+                generatedAt: new Date().toISOString(),
+            };
+
+            const result = await generateCustomCreative(payload);
+
+            if (!result.ok) {
+                setError(result.message || "Generation failed. Please try again.");
+                showToast(result.message || "Generation failed. Please try again.");
+                setGenerating(false);
+                return;
+            }
+
+            const data = result.data;
+
+            if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
+                onResult({
+                    type: "design",
+                    variations: data.variations,
+                    reply: data.reply || "",
+                    meta: data.meta || {},
+                    payload,
+                    raw: data,
+                });
+            } else {
+                onResult({
+                    assets: data?.assets || [],
+                    payload,
+                    raw: data,
+                });
+            }
+        } catch (err) {
+            console.error("handleGenerate error:", err);
+            setError(err.message || "Something went wrong.");
+            showToast(err.message || "Something went wrong.");
+        } finally {
             setGenerating(false);
-            return;
         }
-
-        const data = result.data;
-
-        // Canvas-based design response
-        if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
-            onResult({
-                type: "design",
-                variations: data.variations,
-                reply: data.reply || "",
-                meta: data.meta || {},
-                payload,
-                raw: data,
-            });
-        } else {
-            // Fallback: image/video asset response
-            onResult({
-                assets: data?.assets || [],
-                payload,
-                raw: data,
-            });
-        }
-
-        setGenerating(false);
     };
 
     const handlePreviousCrop = () => {
@@ -804,6 +897,7 @@ const VideoAdsForm = ({
                 postData={formData}
                 activeBrand={activeBrand}
                 showToast={showToast}
+                maxSelectable={Math.max(0, MAX_IMAGES - croppedImages.filter(Boolean).length)}
             />
 
             {/* Generating overlay */}

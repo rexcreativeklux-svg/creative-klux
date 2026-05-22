@@ -1020,7 +1020,7 @@ const EmptyState = ({ hasCreatives }) => (
         </div>
         <div className="text-center">
             <p className="text-sm text-gray-500">{hasCreatives ? "No creatives match your search." : "No designs have been created yet."}</p>
-            {!hasCreatives && <p className="text-sm text-gray-400 mt-0.5">Click any of the buttons at the top to get started.</p>}
+            {!hasCreatives && <p className="text-sm text-gray-400 mt-0.5">Click any of the buttons at the top right to get started.</p>}
         </div>
     </div>
 );

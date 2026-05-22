@@ -116,6 +116,7 @@ export default function CreateFromUrl() {
   const [importing, setImporting]     = useState(false);
   const [imported, setImported]       = useState(false);
   const [importError, setImportError] = useState('');
+  const [scrapedImages, setScrapedImages] = useState([]); // images extracted from imported URL (max 10)
 
   // Step 3
   const [brandName, setBrandName]           = useState('');
@@ -202,6 +203,8 @@ export default function CreateFromUrl() {
       if (d.primary_color) setBrandColor(d.primary_color);
       const logo = d.logo || d.logo_url || d.logo?.url || null;
       if (logo && typeof logo === 'string') setLogoUrl(logo);
+      const imgs = Array.isArray(d.images) ? d.images.slice(0, 10) : [];
+      setScrapedImages(imgs);
       setImported(true);
     } catch (err) {
       setImportError(err.message || 'Failed to import. Please fill in manually.');
@@ -998,8 +1001,11 @@ export default function CreateFromUrl() {
               </div>
             )}
 
-            {/* Brand images strip */}
+            {/* Brand images strip — shows images scraped from the imported URL */}
             <BrandImagesStrip
+              images={scrapedImages}
+              label="Images from imported site"
+              maxImages={10}
               onSelect={handleBrandImageUse}
               onCrop={handleBrandImageCrop}
               selectedUrls={croppedImages

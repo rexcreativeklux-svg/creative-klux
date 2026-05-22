@@ -1020,24 +1020,8 @@ const EmptyState = ({ hasCreatives }) => (
         </div>
         <div className="text-center">
             <p className="text-sm text-gray-500">{hasCreatives ? "No creatives match your search." : "No designs have been created yet."}</p>
-            {!hasCreatives && <p className="text-sm text-gray-400 mt-0.5">Click the create button to kickstart your campaign!</p>}
+            {!hasCreatives && <p className="text-sm text-gray-400 mt-0.5">Click any of the buttons at the top to get started.</p>}
         </div>
-        {!hasCreatives && (
-            <div className="flex flex-row gap-3 items-center">
-                <Link
-                    href="/studio/ai-select"
-                    className="flex items-center gap-2 border border-gray-400 hover:bg-gray-200 text-black text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
-                >
-                    <Plus className="w-4 h-4" /> Instant Creation
-                </Link>
-                <Link
-                    href="/studio/select"
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
-                >
-                    <Plus className="w-4 h-4" /> Custom Creation
-                </Link>
-            </div>
-        )}
     </div>
 );
 

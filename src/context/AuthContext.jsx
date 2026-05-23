@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { classifyResult } from "@/utils/errorHelper";
 
 const AuthContext = createContext();
 
@@ -595,8 +596,9 @@ export function AuthProvider({ children }) {
   const sendUrl = async (url) => {
     if (!url || !token) return;
 
+    let response;
     try {
-      const res = await authFetch(API_SEND_URL, {
+      response = await authFetch(API_SEND_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -604,28 +606,15 @@ export function AuthProvider({ children }) {
         },
         body: JSON.stringify({ url }),
       });
-
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.error("Invalid JSON response:", text);
-        return { ok: false, message: "Invalid server response" };
-      }
-
-      if (!res.ok) {
-        // Extract first validation error if present, else fallback to message
-        const firstError = data?.errors
-          ? Object.values(data.errors)[0]?.[0]
-          : null;
-        return { ok: false, message: firstError || data?.message || "Import failed" };
-      }
-
-      return { ok: true, data };
-    } catch (err) {
-      return { ok: false, message: err.message || "Network error" };
+    } catch (error) {
+      const result = await classifyResult({ error });
+      console.warn(`[${result.source}] sendUrl:`, result.messageForDevs);
+      return result;
     }
+
+    const result = await classifyResult({ response });
+    if (!result.ok) console.warn(`[${result.source}] sendUrl:`, result.messageForDevs);
+    return result;
   };
 
   const createBrand = async (brandData) => {
@@ -1317,43 +1306,34 @@ export function AuthProvider({ children }) {
     const formData = new FormData();
     formData.append("image", file);
 
-    // DEBUG: Log what we're actually sending
-    console.log("Uploading file:", file.name, file.size, file.type);
-    for (let pair of formData.entries()) {
-      console.log("FormData contains:", pair[0], pair[1]);
-    }
-
+    let response;
     try {
-      const res = await authFetch(API_IMAGE_GALLERY_URL, {
+      response = await authFetch(API_IMAGE_GALLERY_URL, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-
-      const text = await res.text();
-      console.log("Raw server response:", text);
-      console.log("Response status:", res.status);
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        throw new Error("Server returned non-JSON: " + text);
-      }
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || "Upload failed");
-      }
-
-      await fetchMyImages();
-      return data;
-
-    } catch (err) {
-      console.error("Upload failed:", err);
-      throw err;
+    } catch (error) {
+      const result = await classifyResult({ error });
+      console.warn(`[${result.source}] uploadImage:`, result.messageForDevs);
+      const e = new Error(result.message);
+      e.source = result.source;
+      e.messageForDevs = result.messageForDevs;
+      throw e;
     }
+
+    const result = await classifyResult({ response });
+    if (!result.ok) {
+      console.warn(`[${result.source}] uploadImage:`, result.messageForDevs);
+      const e = new Error(result.message);
+      e.source = result.source;
+      e.messageForDevs = result.messageForDevs;
+      throw e;
+    }
+
+    await fetchMyImages();
+    // Caller expects the raw response shape (image_url/url/data.image_url)
+    return result.raw || result.data;
   }, [token, fetchMyImages]);
 
   const deleteImage = useCallback(async (imageId) => {
@@ -1548,9 +1528,10 @@ export function AuthProvider({ children }) {
       console.log(`🚀 BATCH ${i + 1}/${batches.length} PAYLOAD`);
       console.log(generation_data);
 
-      let res;
+      let response;
+      let batchResult;
       try {
-        res = await fetch(url, {
+        response = await fetch(url, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1560,50 +1541,23 @@ export function AuthProvider({ children }) {
           credentials: "include",
           body: JSON.stringify({ generation_data }),
         });
-      } catch (err) {
-        console.error("REQUEST FAILED:", err);
-        const message = err.message || "Network error";
+        batchResult = await classifyResult({ response });
+      } catch (error) {
+        batchResult = await classifyResult({ error });
+      }
+
+      if (!batchResult.ok) {
+        console.warn(`[${batchResult.source}] redesign batch ${i + 1}:`, batchResult.messageForDevs);
         onBatchResult?.({
-          ok: false,
-          message,
+          ...batchResult,
           batchIndex: i,
           totalBatches: batches.length,
         });
-        return { ok: false, message, data: aggregated };
+        return { ...batchResult, data: aggregated };
       }
 
-      console.log("STATUS:", res.status);
-      const rawText = await res.text();
-      console.log("RAW RESPONSE:", rawText);
-
-      let data = null;
-      try {
-        data = JSON.parse(rawText);
-      } catch {
-        const message = "Server did not return JSON";
-        onBatchResult?.({
-          ok: false,
-          message,
-          batchIndex: i,
-          totalBatches: batches.length,
-          raw: rawText,
-        });
-        return { ok: false, message, raw: rawText, data: aggregated };
-      }
-
-      if (!res.ok) {
-        const message =
-          data?.message || data?.error || "Generation failed";
-        onBatchResult?.({
-          ok: false,
-          message,
-          batchIndex: i,
-          totalBatches: batches.length,
-          data,
-        });
-        return { ok: false, message, data: aggregated };
-      }
-
+      // Success — data is the parsed JSON body
+      const data = batchResult.raw || batchResult.data;
       const batchVariations = Array.isArray(data?.variations) ? data.variations : [];
       const batchAssets = Array.isArray(data?.assets) ? data.assets : [];
       aggregated.variations.push(...batchVariations);
@@ -1612,6 +1566,7 @@ export function AuthProvider({ children }) {
 
       onBatchResult?.({
         ok: true,
+        source: "success",
         batchIndex: i,
         totalBatches: batches.length,
         variations: batchVariations,
@@ -1620,7 +1575,7 @@ export function AuthProvider({ children }) {
       });
     }
 
-    return { ok: true, data: aggregated };
+    return { ok: true, source: "success", data: aggregated };
   };
 
   const creativeAiChat = async ({ message, creativeType, history = [] }) => {
@@ -2381,8 +2336,9 @@ export function AuthProvider({ children }) {
 
     console.log("🎨 fetchDesignTemplates payload:", payload);
 
+    let response;
     try {
-      const res = await authFetch(
+      response = await authFetch(
         `https://api.scraive.com/api/canvas-templates/public-fetch`,
         {
           method: "POST",
@@ -2393,49 +2349,26 @@ export function AuthProvider({ children }) {
           body: JSON.stringify(payload),
         }
       );
-
-      const text = await res.text();
-
-      let data;
-
-      try {
-        data = JSON.parse(text);
-        console.log("🎨 RAW TEMPLATE RESPONSE:", data);
-      } catch {
-        return {
-          ok: false,
-          message: "Invalid server response",
-        };
-      }
-
-      if (!res.ok) {
-        return {
-          ok: false,
-          message:
-            data?.message ||
-            `Failed to fetch templates (${res.status})`,
-        };
-      }
-
-      // IMPORTANT
-      const templates = Array.isArray(data?.designs)
-        ? data.designs
-        : [];
-
-      console.log("🎨 PARSED TEMPLATES:", templates);
-
-      return {
-        ok: true,
-        data: templates,
-      };
-    } catch (err) {
-      console.error("fetchDesignTemplates error:", err);
-
-      return {
-        ok: false,
-        message: err.message || "Network error",
-      };
+    } catch (error) {
+      const result = await classifyResult({ error });
+      console.warn(`[${result.source}] fetchDesignTemplates:`, result.messageForDevs);
+      return result;
     }
+
+    const result = await classifyResult({ response });
+    if (!result.ok) {
+      console.warn(`[${result.source}] fetchDesignTemplates:`, result.messageForDevs);
+      return result;
+    }
+
+    // Caller expects `data` to be the templates array directly
+    const templates = Array.isArray(result.data?.designs)
+      ? result.data.designs
+      : Array.isArray(result.raw?.designs)
+        ? result.raw.designs
+        : [];
+    console.log("🎨 PARSED TEMPLATES:", templates);
+    return { ...result, data: templates };
   }, [token]);
 
   return (

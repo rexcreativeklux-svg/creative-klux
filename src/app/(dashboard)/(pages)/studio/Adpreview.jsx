@@ -111,13 +111,11 @@ function DesignCanvas({ variation, maxWidth = 220, maxHeight = 180 }) {
   }, [variation]);
 
   if (!variation) return null;
-  const { width, height } = variation.canvas;
-  const scale = Math.min(maxWidth / width, maxHeight / height, 1);
 
   return (
     <canvas
       ref={canvasRef}
-      style={{ width: width * scale, height: height * scale, borderRadius: 6, display: "block" }}
+      style={{ width: "100%", height: "auto", borderRadius: 6, display: "block" }}
     />
   );
 }

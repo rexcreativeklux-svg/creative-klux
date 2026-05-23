@@ -1501,11 +1501,10 @@ export function AuthProvider({ children }) {
   //   }
   // };
 
-  const generateCustomCreative = async ({
-    creativeType,
-    categoryType,
-    ...formPayload
-  }) => {
+  const generateCustomCreative = async (
+    { creativeType, categoryType, ...formPayload },
+    onBatchResult
+  ) => {
     if (!token) {
       console.error("No auth token found.");
       return {
@@ -1514,15 +1513,27 @@ export function AuthProvider({ children }) {
       };
     }
 
-    try {
-      const url = `${BASE_URL}/creatives/redesign`;
+    const url = `${BASE_URL}/creatives/redesign`;
 
-      // "ads_creative" -> "ads"
-      const creativeTypeShort =
-        creativeType?.replace("_creative", "") || creativeType;
+    // "ads_creative" -> "ads"
+    const creativeTypeShort =
+      creativeType?.replace("_creative", "") || creativeType;
 
-      // Pull templates + generatedAt out; everything else goes inside brand_details
-      const { templates, generatedAt, ...rest } = formPayload || {};
+    // Pull templates + generatedAt out; everything else goes inside brand_details
+    const { templates, generatedAt, ...rest } = formPayload || {};
+
+    // Chunk templates into batches of 2 (last batch may have 1)
+    const templateList = Array.isArray(templates) ? templates : [];
+    const batches = [];
+    for (let i = 0; i < templateList.length; i += 2) {
+      batches.push(templateList.slice(i, i + 2));
+    }
+    if (!batches.length) batches.push([]); // single empty batch fallback
+
+    const aggregated = { variations: [], assets: [], raw: [] };
+
+    for (let i = 0; i < batches.length; i++) {
+      const batchTemplates = batches[i];
 
       const generation_data = {
         brand_details: {
@@ -1530,75 +1541,86 @@ export function AuthProvider({ children }) {
           create_sub_type: categoryType,
           ...rest,
         },
-        templates,
+        templates: batchTemplates,
         generatedAt,
       };
 
-      console.log("🚀 FINAL PAYLOAD");
+      console.log(`🚀 BATCH ${i + 1}/${batches.length} PAYLOAD`);
       console.log(generation_data);
 
-      // ✅ USE NORMAL FETCH
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-
-        // IMPORTANT
-        credentials: "include",
-
-        body: JSON.stringify({
-          generation_data,
-        }),
-      });
+      let res;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: "include",
+          body: JSON.stringify({ generation_data }),
+        });
+      } catch (err) {
+        console.error("REQUEST FAILED:", err);
+        const message = err.message || "Network error";
+        onBatchResult?.({
+          ok: false,
+          message,
+          batchIndex: i,
+          totalBatches: batches.length,
+        });
+        return { ok: false, message, data: aggregated };
+      }
 
       console.log("STATUS:", res.status);
-      console.log("REDIRECTED:", res.redirected);
-      console.log("FINAL URL:", res.url);
-
-      // DEBUG RAW RESPONSE
       const rawText = await res.text();
-
-      console.log("RAW RESPONSE:");
-      console.log(rawText);
+      console.log("RAW RESPONSE:", rawText);
 
       let data = null;
-
       try {
         data = JSON.parse(rawText);
-      } catch (e) {
-        return {
+      } catch {
+        const message = "Server did not return JSON";
+        onBatchResult?.({
           ok: false,
-          message: "Server did not return JSON",
+          message,
+          batchIndex: i,
+          totalBatches: batches.length,
           raw: rawText,
-        };
+        });
+        return { ok: false, message, raw: rawText, data: aggregated };
       }
 
       if (!res.ok) {
-        return {
+        const message =
+          data?.message || data?.error || "Generation failed";
+        onBatchResult?.({
           ok: false,
-          message:
-            data?.message ||
-            data?.error ||
-            "Generation failed",
+          message,
+          batchIndex: i,
+          totalBatches: batches.length,
           data,
-        };
+        });
+        return { ok: false, message, data: aggregated };
       }
 
-      return {
-        ok: true,
-        data,
-      };
-    } catch (err) {
-      console.error("REQUEST FAILED:", err);
+      const batchVariations = Array.isArray(data?.variations) ? data.variations : [];
+      const batchAssets = Array.isArray(data?.assets) ? data.assets : [];
+      aggregated.variations.push(...batchVariations);
+      aggregated.assets.push(...batchAssets);
+      aggregated.raw.push(data);
 
-      return {
-        ok: false,
-        message: err.message || "Network error",
-      };
+      onBatchResult?.({
+        ok: true,
+        batchIndex: i,
+        totalBatches: batches.length,
+        variations: batchVariations,
+        assets: batchAssets,
+        data,
+      });
     }
+
+    return { ok: true, data: aggregated };
   };
 
   const creativeAiChat = async ({ message, creativeType, history = [] }) => {

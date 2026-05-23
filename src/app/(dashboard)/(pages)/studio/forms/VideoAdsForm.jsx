@@ -420,7 +420,8 @@ const VideoAdsForm = ({
                 setGenerating(false);
                 return;
             }
-            const selectedTemplates = templates.slice(0, 2);
+            // Use ALL templates — generateCustomCreative will batch them in pairs
+            const selectedTemplates = templates;
 
             // 2) Resolve image URLs — upload File items to /image-gallery
             const resolvedUrls = await Promise.all(
@@ -478,7 +479,32 @@ const VideoAdsForm = ({
                 generatedAt: new Date().toISOString(),
             };
 
-            const result = await generateCustomCreative(payload);
+            let isFirstBatch = true;
+            const result = await generateCustomCreative(payload, (batch) => {
+                if (!batch.ok) return; // failure handled below
+                const variations = batch.variations || [];
+                const assets = batch.assets || [];
+                if (isFirstBatch) {
+                    isFirstBatch = false;
+                    setGenerating(false); // hide overlay so user sees first batch
+                    onResult({
+                        type: "design",
+                        variations,
+                        assets,
+                        reply: batch.data?.reply || "",
+                        meta: batch.data?.meta || {},
+                        payload,
+                        raw: batch.data,
+                    });
+                } else {
+                    onResult({
+                        type: "design",
+                        variations,
+                        assets,
+                        append: true,
+                    });
+                }
+            });
 
             if (!result.ok) {
                 setError(result.message || "Generation failed. Please try again.");
@@ -487,24 +513,7 @@ const VideoAdsForm = ({
                 return;
             }
 
-            const data = result.data;
-
-            if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
-                onResult({
-                    type: "design",
-                    variations: data.variations,
-                    reply: data.reply || "",
-                    meta: data.meta || {},
-                    payload,
-                    raw: data,
-                });
-            } else {
-                onResult({
-                    assets: data?.assets || [],
-                    payload,
-                    raw: data,
-                });
-            }
+            setGenerating(false);
         } catch (err) {
             console.error("handleGenerate error:", err);
             setError(err.message || "Something went wrong.");

@@ -313,7 +313,6 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
         {isLoadingMore && Array.from({ length: pendingCount }).map((_, i) => (
           <div
             key={`skeleton-${i}`}
-            className="animate-pulse"
             style={{
               breakInside: "avoid",
               marginBottom: 10,
@@ -325,11 +324,11 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
             }}
           >
             <div style={{ background: "#f4f5f8", padding: 8 }}>
-              <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#e5e7eb", borderRadius: 6 }} />
+              <div className="shimmer" style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 6 }} />
             </div>
             <div style={{ padding: "8px 10px 10px" }}>
-              <div style={{ height: 10, background: "#e5e7eb", borderRadius: 4, marginBottom: 6, width: "60%" }} />
-              <div style={{ height: 8, background: "#eef0f3", borderRadius: 4, width: "90%" }} />
+              <div className="shimmer" style={{ height: 10, borderRadius: 4, marginBottom: 6, width: "60%" }} />
+              <div className="shimmer" style={{ height: 8, borderRadius: 4, width: "90%" }} />
             </div>
           </div>
         ))}
@@ -373,8 +372,10 @@ const AdPreview = ({ creative, category, formData, result, onBack, onOpenModal, 
     else video.pause();
   };
 
-  /* ── canvas design result ── */
-  if (result?.variations?.length) {
+  /* ── canvas design result (also shown during initial wait when expectedCount > 0) ── */
+  const hasVariations = Array.isArray(result?.variations) && result.variations.length > 0;
+  const hasPendingDesigns = (result?.expectedCount ?? 0) > 0 && !result?.done;
+  if (hasVariations || hasPendingDesigns) {
     return (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#fafafa", borderRadius: 16, overflow: "hidden", border: "1px solid #e5e7eb" }}>
         <DesignResultPanel
@@ -412,7 +413,7 @@ const AdPreview = ({ creative, category, formData, result, onBack, onOpenModal, 
           )}
         </AnimatePresence>
 
-        <div className="columns-2 gap-3 flex-1">
+        <div className="columns-3 gap-3 flex-1">
           {result.assets.map((asset) => {
             const isVideo = asset.type === "video" || asset.src?.toLowerCase().endsWith(".mp4") || asset.videoSrc || asset.preview?.toLowerCase().endsWith(".mp4");
             return (
@@ -423,7 +424,7 @@ const AdPreview = ({ creative, category, formData, result, onBack, onOpenModal, 
                 className={`relative border rounded-xl overflow-hidden cursor-pointer transition duration-200 mb-3 break-inside-avoid group ${selectedAsset === asset.id ? "border-blue-600 ring-2 ring-blue-600 ring-offset-1" : "border-gray-200 hover:border-blue-400"}`}
               >
                 {isVideo ? (
-                  <video ref={(el) => (videoRefs.current[asset.id] = el)} src={asset.videoSrc || asset.src || asset.preview} poster={asset.thumbnail || asset.preview} className="w-full h-auto rounded-xl object-cover" muted loop playsInline preload="metadata" />
+                  <video ref={(el) => (videoRefs.current[asset.id] = el)} src={asset.videoSrc || asset.src || asset.preview} poster={asset.thumbnail || asset.preview} className="w-full h-auto rounded-xl" muted loop playsInline preload="metadata" />
                 ) : (
                   <img src={asset.preview || asset.src} alt={asset.alt} className="w-full h-auto rounded-xl" />
                 )}

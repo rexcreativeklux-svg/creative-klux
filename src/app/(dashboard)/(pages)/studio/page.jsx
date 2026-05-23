@@ -304,7 +304,7 @@ const StudioInner = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 16 }}
             transition={{ duration: 0.18 }}
-            className="flex flex-1 overflow-y-auto hide-scrollbar min-h-0"
+            className="flex-1 overflow-hidden min-h-0 min-w-0 w-full"
           >
             <AdPreview
               creative={creative}

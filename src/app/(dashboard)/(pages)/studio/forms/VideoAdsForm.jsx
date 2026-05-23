@@ -86,7 +86,8 @@ const VideoAdsForm = ({
 
     // ── IMAGE / VIDEO MEDIA STATE ─────────────────────────────────────────────
     const [imageSrc, setImageSrc] = useState([]);
-    const [croppedImages, setCroppedImages] = useState([]);
+    const [croppedImages, setCroppedImages] = useState([]);   // master list — never wiped; new batches APPEND
+    const [cropBatchStart, setCropBatchStart] = useState(0);  // index in croppedImages where current cropping batch begins
     const [currentCropIndex, setCurrentCropIndex] = useState(0);
     const [showCropper, setShowCropper] = useState(false);
     const [crop, setCrop] = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
@@ -244,11 +245,12 @@ const VideoAdsForm = ({
                 const previewUrls = processedFiles.map((f) => f.previewUrl);
                 const sourceUrls = processedFiles.map((f) => f.sourceUrl || null);
 
-                // Always APPEND — never wipe existing croppedImages
-                setImageSrc((prev) => [...prev, ...previewUrls]);
-                setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
+                // Start a new cropping batch. Master croppedImages gets nulls APPENDED.
+                setCropBatchStart(croppedImages.length);
+                setImageSrc(previewUrls);
+                setImageSrcMeta(sourceUrls);
                 setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
-                setCurrentCropIndex(imageSrc.length);
+                setCurrentCropIndex(0);
 
                 setShowCropper(true);
                 showToast(`Added ${imagesToProcess.length} image(s) — crop to fit`);
@@ -307,6 +309,8 @@ const VideoAdsForm = ({
             showToast(`Max ${MAX_IMAGES} items reached.`);
             return;
         }
+        const newUrls = [];
+        const newMetas = [];
         for (const imageObj of toAdd) {
             const originalUrl = imageObj.src;
             let cropperUrl = originalUrl;
@@ -317,11 +321,16 @@ const VideoAdsForm = ({
             } catch (err) {
                 console.warn("Proxy failed, falling back to original URL", err);
             }
-            setImageSrc((prev) => [...prev, cropperUrl]);
-            setImageSrcMeta((prev) => [...prev, originalUrl]);
-            setCroppedImages((prev) => [...prev, null]);
+            newUrls.push(cropperUrl);
+            newMetas.push(originalUrl);
         }
-        if (!showCropper) setCurrentCropIndex(0);
+        if (newUrls.length === 0) return;
+        // Always APPEND to master croppedImages — start a new cropping batch
+        setCropBatchStart(croppedImages.length);
+        setImageSrc(newUrls);
+        setImageSrcMeta(newMetas);
+        setCroppedImages((prev) => [...prev, ...Array(newUrls.length).fill(null)]);
+        setCurrentCropIndex(0);
         setShowCropper(true);
         if (toAdd.length < imageObjs.length) {
             showToast(`Only ${toAdd.length} queued — max ${MAX_IMAGES} reached.`);
@@ -354,7 +363,7 @@ const VideoAdsForm = ({
 
         setCroppedImages((prev) => {
             const updated = [...prev];
-            updated[currentCropIndex] = file;
+            updated[cropBatchStart + currentCropIndex] = file;
             return updated;
         });
 
@@ -365,7 +374,7 @@ const VideoAdsForm = ({
         } else {
             setShowCropper(false);
         }
-    }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta]);
+    }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta, cropBatchStart]);
 
     // ── Skip crop ─────────────────────────────────────────────────────────────
     const handleSkipCrop = () => {
@@ -376,7 +385,7 @@ const VideoAdsForm = ({
             file.sourceUrl = imageSrcMeta[currentCropIndex] || null;
             setCroppedImages((prev) => {
                 const u = [...prev];
-                u[currentCropIndex] = file;
+                u[cropBatchStart + currentCropIndex] = file;
                 return u;
             });
             if (currentCropIndex < imageSrc.length - 1) {
@@ -933,7 +942,8 @@ const VideoAdsForm = ({
                     setShowCropper(false);
                     setImageSrc([]);
                     setImageSrcMeta([]);
-                    setCroppedImages([]);
+                    // Roll back only the current cropping batch — preserve prior selections
+                    setCroppedImages((prev) => prev.slice(0, cropBatchStart));
                 }}
                 onPrevious={handlePreviousCrop}
             />

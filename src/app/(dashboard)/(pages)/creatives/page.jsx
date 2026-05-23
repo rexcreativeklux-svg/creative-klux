@@ -120,13 +120,10 @@ function DesignCanvas({ variation, maxW = 320, maxH = 240 }) {
 
     if (!variation?.canvas) return null;
 
-    const { width, height } = variation.canvas;
-    const scale = Math.min(maxW / width, maxH / height, 1);
-
     return (
         <canvas
             ref={canvasRef}
-            style={{ width: width * scale, height: height * scale, borderRadius: 8, display: "block" }}
+            style={{ width: "100%", height: "auto", borderRadius: 8, display: "block" }}
         />
     );
 }
@@ -657,15 +654,13 @@ const CreativeCard = ({ creative: c, selected, bulkChecked, isBulkMode, onSelect
             {/* Canvas / image preview area */}
             <div className="relative overflow-hidden bg-gray-100 flex items-center justify-center" style={{ aspectRatio: "16/9", minHeight: 120 }}>
                 {hasCanvas ? (
-                    <div className="w-full h-full flex items-center justify-center p-2 bg-gray-50">
+                    <div className="w-full flex items-center justify-center p-2 bg-gray-50">
                         <DesignCanvas
                             variation={{ canvas: c.canvas, elements: c.elements }}
-                            maxW={280}
-                            maxH={160}
                         />
                     </div>
                 ) : c.image ? (
-                    <img src={c.image} alt={c.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" onError={(e) => { e.target.style.display = "none"; }} />
+                    <img src={c.image} alt={c.name} className="w-full h-auto block transition-transform duration-500 group-hover:scale-[1.04]" onError={(e) => { e.target.style.display = "none"; }} />
                 ) : (
                     <div className="flex flex-col items-center gap-2 text-gray-300">
                         <Wand2 className="w-8 h-8" />

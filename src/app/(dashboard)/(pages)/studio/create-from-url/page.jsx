@@ -477,7 +477,8 @@ export default function CreateFromUrl() {
         setGenerating(false);
         return;
       }
-      const selectedTemplates = templates.slice(0, 2);
+      // Use ALL templates — generateCustomCreative will batch them in pairs
+      const selectedTemplates = templates;
 
       // ── Resolve image URLs ──────────────────────────────────────────────
       // - Items with a real https sourceUrl → use as-is (no upload needed).
@@ -512,7 +513,7 @@ export default function CreateFromUrl() {
 
       const imageUrls = resolvedUrls.filter(Boolean);
 
-      const res = await generateCustomCreative({
+      const payload = {
         creativeType: isAds ? 'ads_creative' : 'social_creative',
         categoryType: isAds ? adSubType : 'posts',
         brand_id: activeBrandId,
@@ -533,17 +534,46 @@ export default function CreateFromUrl() {
         templates: selectedTemplates,
         ...(isAds ? {} : { tone: postTone, platforms: targetPlatform }),
         generatedAt: new Date().toISOString(),
+      };
+
+      let isFirstBatch = true;
+      const res = await generateCustomCreative(payload, (batch) => {
+        if (!batch.ok) return; // failure handled below
+        const variations = batch.variations || [];
+        const assets = batch.assets || [];
+
+        if (isFirstBatch) {
+          isFirstBatch = false;
+          setGenerating(false); // hide overlay so user sees first batch
+          if (variations.length) {
+            setResult({
+              type: 'design',
+              variations,
+              assets,
+              reply: batch.data?.reply || '',
+              meta: batch.data?.meta || {},
+            });
+          } else if (assets.length) {
+            setResult({ assets });
+          }
+        } else {
+          // Append subsequent batches to whatever's already showing
+          setResult((prev) => {
+            if (!prev) return { type: 'design', variations, assets };
+            return {
+              ...prev,
+              variations: [...(prev.variations || []), ...variations],
+              assets: [...(prev.assets || []), ...assets],
+            };
+          });
+        }
       });
 
       if (!res.ok) throw new Error(res.message || 'Generation failed');
 
       const data = res.data;
-
-      if (data?.type === 'design' && Array.isArray(data?.variations) && data.variations.length) {
-        setResult({ type: 'design', variations: data.variations, reply: data.reply || '', meta: data.meta || {} });
-      } else if (data?.assets?.length) {
-        setResult({ assets: data.assets });
-      } else {
+      // If onBatchResult never produced a result (e.g. zero variations/assets), error out
+      if (!data?.variations?.length && !data?.assets?.length) {
         throw new Error('No results returned from generation');
       }
     } catch (err) {

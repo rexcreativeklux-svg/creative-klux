@@ -392,8 +392,8 @@ const ImageAdsForm = ({
       return setError("No templates found for this size.");
     }
 
-    // Take first 2 templates only
-    const selectedTemplates = templates.slice(0, 2);
+    // Use ALL templates — generateCustomCreative will batch them in pairs
+    const selectedTemplates = templates;
 
     console.log("🎨 Selected Templates:", selectedTemplates);
 
@@ -469,39 +469,43 @@ const ImageAdsForm = ({
 
     console.log("🚀 Final Generate Payload:", payload);
 
-    const result = await generateCustomCreative(payload);
+    let isFirstBatch = true;
+    const result = await generateCustomCreative(payload, (batch) => {
+      if (!batch.ok) return; // failure handled below
+      const variations = batch.variations || [];
+      const assets = batch.assets || [];
+      if (isFirstBatch) {
+        isFirstBatch = false;
+        // Hide overlay so user sees first batch immediately
+        setGenerating(false);
+        onResult({
+          type: "design",
+          variations,
+          assets,
+          reply: batch.data?.reply || "",
+          meta: batch.data?.meta || {},
+          payload,
+          raw: batch.data,
+        });
+      } else {
+        onResult({
+          type: "design",
+          variations,
+          assets,
+          append: true,
+        });
+      }
+    });
     console.log(" GENERATE RESULT:", result);
 
     if (!result.ok) {
       setGenerating(false);
-
-      return setError(
-        result.message || "Generation failed."
-      );
+      showToast(result.message || "Generation failed.");
+      return setError(result.message || "Generation failed.");
     }
 
-    const data = result.data;
-
-    if (
-      data?.type === "design" &&
-      Array.isArray(data?.variations) &&
-      data.variations.length
-    ) {
-      onResult({
-        type: "design",
-        variations: data.variations,
-        reply: data.reply || "",
-        meta: data.meta || {},
-        payload,
-        raw: data,
-      });
-    } else {
-      onResult({
-        assets: data?.assets || [],
-        payload,
-        raw: data,
-      });
-    }
+    // Make sure overlay is hidden if it never got dismissed (e.g., zero variations)
+    setGenerating(false);
   } catch (err) {
     console.error("handleGenerate error:", err);
 

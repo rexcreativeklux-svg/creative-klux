@@ -94,6 +94,23 @@ const StudioInner = () => {
   const closeToast = () => setToast({ isOpen: false, message: "" });
 
   const handleResult = (res) => {
+    if (res?.append) {
+      setResult((prev) => {
+        if (!prev) return { ...res, append: undefined };
+        return {
+          ...prev,
+          variations: [
+            ...(prev.variations || []),
+            ...(res.variations || []),
+          ],
+          assets: [
+            ...(prev.assets || []),
+            ...(res.assets || []),
+          ],
+        };
+      });
+      return;
+    }
     setResult(res);
     setStep("result");
   };

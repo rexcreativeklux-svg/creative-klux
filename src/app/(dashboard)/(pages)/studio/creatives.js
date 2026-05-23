@@ -24,8 +24,8 @@ export const CREATIVES = [
     categories: [
       { id: "image", label: "Image" },
       { id: "video", label: "Video" },
-      { id: "interactive", label: "Interactive" },
-      { id: "playable", label: "Playable" },
+      { id: "interactive", label: "Interactive", disabled: true, comingSoonLabel: "Coming soon…" },
+      { id: "playable", label: "Playable", disabled: true, comingSoonLabel: "Coming soon…" },
     ],
   },
   {

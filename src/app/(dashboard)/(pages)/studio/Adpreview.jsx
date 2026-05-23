@@ -123,7 +123,12 @@ function DesignCanvas({ variation, maxWidth = 220, maxHeight = 180 }) {
 /* ─── DesignResultPanel ─────────────────────────────────────── */
 function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToast }) {
   const [selectedIds, setSelectedIds] = useState([]);
-  const [variations] = useState(result.variations || []);
+  // Read variations directly from result so progressive batches re-render
+  const variations = result?.variations || [];
+  const expectedCount = Number.isFinite(result?.expectedCount) ? result.expectedCount : 0;
+  const done = Boolean(result?.done);
+  const pendingCount = Math.max(0, expectedCount - variations.length);
+  const isLoadingMore = !done && pendingCount > 0;
   const [saving, setSaving] = useState(false);
 
   const toggleSelect = (id) =>
@@ -166,8 +171,18 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
             <ChevronLeft size={13} /> Back
           </button>
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 0 3px rgba(34,197,94,0.18)" }} />
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#555" }}>{variations.length} designs ready</span>
+            <div style={{
+              width: 6, height: 6, borderRadius: "50%",
+              background: isLoadingMore ? "#f59e0b" : "#22c55e",
+              boxShadow: isLoadingMore
+                ? "0 0 0 3px rgba(245,158,11,0.18)"
+                : "0 0 0 3px rgba(34,197,94,0.18)",
+            }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#555" }}>
+              {isLoadingMore
+                ? `Generating ${variations.length} of ${expectedCount} designs…`
+                : `${variations.length} designs ready`}
+            </span>
           </div>
         </div>
 
@@ -293,6 +308,31 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
             </div>
           );
         })}
+
+        {/* ── skeleton placeholders for designs still being generated ── */}
+        {isLoadingMore && Array.from({ length: pendingCount }).map((_, i) => (
+          <div
+            key={`skeleton-${i}`}
+            className="animate-pulse"
+            style={{
+              breakInside: "avoid",
+              marginBottom: 10,
+              borderRadius: 12,
+              overflow: "hidden",
+              border: "1.5px solid #e5e7eb",
+              background: "#fff",
+              position: "relative",
+            }}
+          >
+            <div style={{ background: "#f4f5f8", padding: 8 }}>
+              <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#e5e7eb", borderRadius: 6 }} />
+            </div>
+            <div style={{ padding: "8px 10px 10px" }}>
+              <div style={{ height: 10, background: "#e5e7eb", borderRadius: 4, marginBottom: 6, width: "60%" }} />
+              <div style={{ height: 8, background: "#eef0f3", borderRadius: 4, width: "90%" }} />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

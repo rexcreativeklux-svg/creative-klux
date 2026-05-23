@@ -147,23 +147,45 @@ const ImageAdsForm = ({
 
   // ── URL import ───────────────────────────────────────────────────────────
   const handleImportBrand = async () => {
-    if (!brandUrl.trim()) return setError("Please enter a valid brand URL.");
+    if (!brandUrl.trim()) {
+      setError("Please enter a valid brand URL.");
+      showToast("Please enter a valid brand URL.");
+      return;
+    }
     setImportingBrand(true);
     try {
       const r = await sendUrl(brandUrl);
-      if (!r?.data) throw new Error();
-      const d = r.data;
+      console.log("🌐 scrape response (ImageAdsForm):", r);
+      if (!r?.ok) throw new Error(r?.message || "Import failed");
+      // Backend wraps payload twice: r.data = { success, message, data: {...} }
+      const d = r.data?.data || r.data || {};
+      // Images may come back as ["url", ...] or [{ url, alt }, ...] — normalize to URL strings
+      const normalizedImages = Array.isArray(d.images)
+        ? d.images
+            .map((i) => (typeof i === "string" ? i : i?.url))
+            .filter((u) => typeof u === "string" && u.startsWith("http"))
+        : [];
       setFormData((p) => ({
         ...p,
-        brandName: d.name || "", description: d.description || "",
-        primaryColor: d.primary_color, secondaryColor: d.secondary_color || "#0ea5e9",
-        font: d.font || "Montserrat", caption: `Discover ${d.name}!`,
-        hashtags: ["#ImageAd", "#Brand"], logo: d.logo || "",
-        importedImages: d.images?.map((i) => i.url).filter(Boolean) || [],
+        // Use scraped value if present, else keep what user already had
+        brandName:      d.name           || p.brandName,
+        description:    d.description    || p.description,
+        primaryColor:   d.primary_color  || p.primaryColor,
+        brandColor:     d.primary_color  || p.brandColor,
+        secondaryColor: d.secondary_color|| p.secondaryColor,
+        font:           d.font           || p.font,
+        logo:           d.logo           || p.logo,
+        caption:        d.name ? `Discover ${d.name}!` : p.caption,
+        hashtags:       p.hashtags?.length ? p.hashtags : ["#ImageAd", "#Brand"],
+        importedImages: normalizedImages.length ? normalizedImages : p.importedImages || [],
       }));
       showToast("Brand imported!");
-    } catch { setError("Failed to import brand. Check the URL."); }
-    finally   { setImportingBrand(false); }
+    } catch (err) {
+      const msg = err?.message || "Failed to import brand. Check the URL.";
+      setError(msg);
+      showToast(msg);
+    }
+    finally { setImportingBrand(false); }
   };
 
   const handleLogoUpload = (e) => {
@@ -258,12 +280,18 @@ const ImageAdsForm = ({
 
   // ── Step nav ─────────────────────────────────────────────────────────────
   const handleContinue = () => {
-    if (step === 1 && !formData.brandName)
-      return setError("Brand name is required.");
-    if (step === 2 && (!selectedSize || !formData.campaignGoal || !formData.audience || !formData.fileFormat))
-      return setError("Please complete all fields before continuing.");
-    if (step === 3 && croppedImages.filter(Boolean).length === 0)
-      return setError("Select at least one background image.");
+    if (step === 1 && (!formData.brandName || !formData.description)) {
+      const msg = "Brand name and description are required.";
+      setError(msg); showToast(msg); return;
+    }
+    if (step === 2 && (!selectedSize || !formData.campaignGoal || !formData.audience || !formData.fileFormat)) {
+      const msg = "Please complete all fields before continuing.";
+      setError(msg); showToast(msg); return;
+    }
+    if (step === 3 && croppedImages.filter(Boolean).length === 0) {
+      const msg = "Select at least one background image.";
+      setError(msg); showToast(msg); return;
+    }
     setError("");
     setStep((p) => p + 1);
   };
@@ -357,7 +385,9 @@ const ImageAdsForm = ({
 
   const handleGenerate = async () => {
   if (!selectedSize) {
-    return setError("Please select an ad size.");
+    const msg = "Please select an ad size.";
+    setError(msg); showToast(msg);
+    return;
   }
 
   const validImages = croppedImages.filter(Boolean);
@@ -377,9 +407,9 @@ const ImageAdsForm = ({
 
     if (!templateRes.ok) {
       setGenerating(false);
-      return setError(
-        templateRes.message || "Failed to fetch templates."
-      );
+      const msg = templateRes.message || "Failed to fetch templates.";
+      setError(msg); showToast(msg);
+      return;
     }
 
     // API returns:
@@ -389,7 +419,9 @@ const ImageAdsForm = ({
 
     if (!templates.length) {
       setGenerating(false);
-      return setError("No templates found for this size.");
+      const msg = "No templates found for this size.";
+      setError(msg); showToast(msg);
+      return;
     }
 
     // Use ALL templates — generateCustomCreative will batch them in pairs
@@ -469,6 +501,7 @@ const ImageAdsForm = ({
 
     console.log("🚀 Final Generate Payload:", payload);
 
+    const expectedCount = selectedTemplates.length;
     let isFirstBatch = true;
     const result = await generateCustomCreative(payload, (batch) => {
       if (!batch.ok) return; // failure handled below
@@ -482,6 +515,8 @@ const ImageAdsForm = ({
           type: "design",
           variations,
           assets,
+          expectedCount,
+          done: false,
           reply: batch.data?.reply || "",
           meta: batch.data?.meta || {},
           payload,
@@ -500,18 +535,20 @@ const ImageAdsForm = ({
 
     if (!result.ok) {
       setGenerating(false);
+      // Mark done so skeletons clear; keep whatever already arrived
+      onResult({ append: true, done: true });
       showToast(result.message || "Generation failed.");
       return setError(result.message || "Generation failed.");
     }
 
-    // Make sure overlay is hidden if it never got dismissed (e.g., zero variations)
+    // All batches succeeded — mark done so skeletons clear
+    onResult({ append: true, done: true });
     setGenerating(false);
   } catch (err) {
     console.error("handleGenerate error:", err);
-
-    setError(
-      err.message || "Something went wrong."
-    );
+    const msg = err.message || "Something went wrong.";
+    setError(msg);
+    showToast(msg);
   } finally {
     setGenerating(false);
   }
@@ -519,10 +556,18 @@ const ImageAdsForm = ({
 
   // ── Media picker apply ────────────────────────────────────────────────────
   const handleApplyFromPicker = async (images, media) => {
-    if (images.length > 0) {
+    // Combined cap of 5 across both sources
+    const remaining = Math.max(0, MAX_IMAGES - croppedImages.filter(Boolean).length);
+    const imagesToProcess = images.slice(0, remaining);
+    const overflowImages = images.length - imagesToProcess.length;
+    const mediaRemaining = Math.max(0, remaining - imagesToProcess.length);
+    const mediaToAdd = media.slice(0, mediaRemaining);
+    const overflowMedia = media.length - mediaToAdd.length;
+
+    if (imagesToProcess.length > 0) {
       try {
         const processedFiles = await Promise.all(
-          images.map(async (item, idx) => {
+          imagesToProcess.map(async (item, idx) => {
             if (item.file instanceof File) {
               item.file.previewUrl = item.src;
               item.file.sourceUrl  = null;
@@ -540,28 +585,28 @@ const ImageAdsForm = ({
         );
         const previewUrls = processedFiles.map((f) => f.previewUrl);
         const sourceUrls  = processedFiles.map((f) => f.sourceUrl || null);
-        if (!showCropper) {
-          setImageSrc(previewUrls); setImageSrcMeta(sourceUrls);
-          setCroppedImages(Array(previewUrls.length).fill(null)); setCurrentCropIndex(0);
-        } else {
-          setImageSrc((prev) => [...prev, ...previewUrls]);
-          setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
-          setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
-          setCurrentCropIndex(imageSrc.length);
-        }
+        // Always APPEND — never wipe the existing croppedImages
+        setImageSrc((prev) => [...prev, ...previewUrls]);
+        setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
+        setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
+        // Jump cropper to the first slot of this new batch
+        setCurrentCropIndex(imageSrc.length);
         setShowCropper(true);
-        showToast(`Added ${images.length} image(s) — crop them`);
+        showToast(`Added ${imagesToProcess.length} image(s) — crop them`);
       } catch (err) {
         console.error("Image loading failed:", err);
         showToast("Some images couldn't be loaded.");
       }
     }
-    if (media.length > 0) {
-      const videoObjects = media.map((src, i) => ({
+    if (mediaToAdd.length > 0) {
+      const videoObjects = mediaToAdd.map((src, i) => ({
         id: `video-${Date.now()}-${i}`, previewUrl: src, thumbnail: src, type: "video",
       }));
       setCroppedImages((prev) => [...prev, ...videoObjects]);
-      showToast(`Added ${media.length} media item(s)`);
+      showToast(`Added ${mediaToAdd.length} media item(s)`);
+    }
+    if (overflowImages + overflowMedia > 0) {
+      showToast(`Max ${MAX_IMAGES} items reached — some skipped.`);
     }
     setMediaPickerOpen(false);
   };
@@ -837,6 +882,7 @@ const ImageAdsForm = ({
             <SectionTitle>Select Images</SectionTitle>
 
             <BrandImagesStrip
+              images={formData.importedImages?.length ? formData.importedImages : undefined}
               onSelect={handleBrandImageUse}
               onCrop={handleBrandImageCrop}
               selectedUrls={croppedImages
@@ -911,7 +957,8 @@ const ImageAdsForm = ({
           )}
           {step < 3 ? (
             <button onClick={handleContinue}
-              className="px-3 py-2 bg-blue-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-blue-700 hover:scale-105 flex items-center gap-2 transition">
+              disabled={step === 1 && (!formData.brandName?.trim() || !formData.description?.trim())}
+              className="px-3 py-2 bg-blue-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-blue-700 hover:scale-105 flex items-center gap-2 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100">
               Continue <ChevronRight className="w-4 h-4" />
             </button>
           ) : (

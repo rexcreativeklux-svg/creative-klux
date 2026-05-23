@@ -107,6 +107,9 @@ const StudioInner = () => {
             ...(prev.assets || []),
             ...(res.assets || []),
           ],
+          // Update done / expectedCount only if explicitly provided in this update
+          ...(res.done !== undefined ? { done: res.done } : {}),
+          ...(res.expectedCount !== undefined ? { expectedCount: res.expectedCount } : {}),
         };
       });
       return;
@@ -348,11 +351,16 @@ const CategorySelector = ({ creative, selected, onChange }) => (
     <div className="flex flex-wrap gap-2">
       {creative.categories.map((cat) => {
         const active = selected === cat.id;
+        const isDisabled = !!cat.disabled;
         return (
           <button
             key={cat.id}
-            onClick={() => onChange(cat.id)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-all duration-200 hover:scale-105"
+            onClick={() => { if (!isDisabled) onChange(cat.id); }}
+            disabled={isDisabled}
+            title={isDisabled ? (cat.comingSoonLabel || "Coming soon…") : undefined}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-all duration-200 ${
+              isDisabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:scale-105"
+            }`}
             style={{
               borderColor: active ? creative.color : `${creative.color}30`,
               background: active ? creative.color : "white",

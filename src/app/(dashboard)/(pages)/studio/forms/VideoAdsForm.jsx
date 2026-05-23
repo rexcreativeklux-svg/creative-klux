@@ -158,23 +158,43 @@ const VideoAdsForm = ({
 
     // ── URL import ────────────────────────────────────────────────────────────
     const handleImportBrand = async () => {
-        if (!brandUrl.trim()) return setError("Please enter a valid brand URL.");
+        if (!brandUrl.trim()) {
+            setError("Please enter a valid brand URL.");
+            showToast("Please enter a valid brand URL.");
+            return;
+        }
         setImportingBrand(true);
         try {
             const r = await sendUrl(brandUrl);
-            if (!r?.data) throw new Error();
-            const d = r.data;
+            console.log("🌐 scrape response (VideoAdsForm):", r);
+            if (!r?.ok) throw new Error(r?.message || "Import failed");
+            // Backend wraps payload twice: r.data = { success, message, data: {...} }
+            const d = r.data?.data || r.data || {};
+            // Images may come back as ["url", ...] or [{ url, alt }, ...] — normalize to URL strings
+            const normalizedImages = Array.isArray(d.images)
+                ? d.images
+                    .map((i) => (typeof i === "string" ? i : i?.url))
+                    .filter((u) => typeof u === "string" && u.startsWith("http"))
+                : [];
             setFormData((p) => ({
                 ...p,
-                brandName: d.name || "", description: d.description || "",
-                primaryColor: d.primary_color || "#2563eb", secondaryColor: d.secondary_color || "#0ea5e9",
-                brandColor: d.primary_color || "#2563eb",
-                font: d.font || "Montserrat", caption: `Discover ${d.name}!`,
-                hashtags: ["#VideoAd", "#Brand"], logo: d.logo || "",
-                importedImages: d.images?.map((i) => i.url).filter(Boolean) || [],
+                brandName:      d.name           || p.brandName,
+                description:    d.description    || p.description,
+                primaryColor:   d.primary_color  || p.primaryColor,
+                brandColor:     d.primary_color  || p.brandColor,
+                secondaryColor: d.secondary_color|| p.secondaryColor,
+                font:           d.font           || p.font,
+                logo:           d.logo           || p.logo,
+                caption:        d.name ? `Discover ${d.name}!` : p.caption,
+                hashtags:       p.hashtags?.length ? p.hashtags : ["#VideoAd", "#Brand"],
+                importedImages: normalizedImages.length ? normalizedImages : p.importedImages || [],
             }));
             showToast("Brand imported!");
-        } catch { setError("Failed to import brand. Check the URL."); }
+        } catch (err) {
+            const msg = err?.message || "Failed to import brand. Check the URL.";
+            setError(msg);
+            showToast(msg);
+        }
         finally { setImportingBrand(false); }
     };
 
@@ -191,10 +211,18 @@ const VideoAdsForm = ({
         // images = [{ src, large, file? }]  (search + upload items)
         // media  = [src, ...]               (magic studio selections — videos)
 
-        if (images.length > 0) {
+        // Combined cap of 5 across both sources
+        const remaining = Math.max(0, MAX_IMAGES - croppedImages.filter(Boolean).length);
+        const imagesToProcess = images.slice(0, remaining);
+        const overflowImages = images.length - imagesToProcess.length;
+        const mediaRemaining = Math.max(0, remaining - imagesToProcess.length);
+        const mediaToAdd = media.slice(0, mediaRemaining);
+        const overflowMedia = media.length - mediaToAdd.length;
+
+        if (imagesToProcess.length > 0) {
             try {
                 const processedFiles = await Promise.all(
-                    images.map(async (item, idx) => {
+                    imagesToProcess.map(async (item, idx) => {
                         if (item.file instanceof File) {
                             item.file.previewUrl = item.src;
                             item.file.sourceUrl = null;
@@ -216,20 +244,14 @@ const VideoAdsForm = ({
                 const previewUrls = processedFiles.map((f) => f.previewUrl);
                 const sourceUrls = processedFiles.map((f) => f.sourceUrl || null);
 
-                if (!showCropper) {
-                    setImageSrc(previewUrls);
-                    setImageSrcMeta(sourceUrls);
-                    setCroppedImages(Array(previewUrls.length).fill(null));
-                    setCurrentCropIndex(0);
-                } else {
-                    setImageSrc((prev) => [...prev, ...previewUrls]);
-                    setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
-                    setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
-                    setCurrentCropIndex(imageSrc.length);
-                }
+                // Always APPEND — never wipe existing croppedImages
+                setImageSrc((prev) => [...prev, ...previewUrls]);
+                setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
+                setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
+                setCurrentCropIndex(imageSrc.length);
 
                 setShowCropper(true);
-                showToast(`Added ${images.length} image(s) — crop to fit`);
+                showToast(`Added ${imagesToProcess.length} image(s) — crop to fit`);
             } catch (err) {
                 console.error("Image loading failed:", err);
                 showToast("Some images couldn't be loaded.");
@@ -237,8 +259,8 @@ const VideoAdsForm = ({
         }
 
         // Video items from magic studio
-        if (media.length > 0) {
-            const videoObjects = media.map((src, i) => ({
+        if (mediaToAdd.length > 0) {
+            const videoObjects = mediaToAdd.map((src, i) => ({
                 id: `video-${Date.now()}-${i}`,
                 previewUrl: src,
                 videoSrc: src,
@@ -246,7 +268,11 @@ const VideoAdsForm = ({
                 type: "video",
             }));
             setCroppedImages((prev) => [...prev, ...videoObjects]);
-            showToast(`Added ${media.length} video(s)`);
+            showToast(`Added ${mediaToAdd.length} video(s)`);
+        }
+
+        if (overflowImages + overflowMedia > 0) {
+            showToast(`Max ${MAX_IMAGES} items reached — some skipped.`);
         }
 
         setMediaPickerOpen(false);
@@ -375,11 +401,18 @@ const VideoAdsForm = ({
 
     // ── Step navigation ───────────────────────────────────────────────────────
     const handleContinue = () => {
-        if (step === 1 && !formData.brandName) return setError("Brand name is required.");
-        if (step === 2 && (!formData.size || !formData.campaignGoal || !formData.audience || !formData.videoFormat))
-            return setError("Please complete all fields before continuing.");
-        if (step === 3 && croppedImages.filter(Boolean).length === 0)
-            return setError("Select at least one background image or video.");
+        if (step === 1 && (!formData.brandName || !formData.description)) {
+            const msg = "Brand name and description are required.";
+            setError(msg); showToast(msg); return;
+        }
+        if (step === 2 && (!formData.size || !formData.campaignGoal || !formData.audience || !formData.videoFormat)) {
+            const msg = "Please complete all fields before continuing.";
+            setError(msg); showToast(msg); return;
+        }
+        if (step === 3 && croppedImages.filter(Boolean).length === 0) {
+            const msg = "Select at least one background image or video.";
+            setError(msg); showToast(msg); return;
+        }
         setError("");
         setStep((p) => p + 1);
     };
@@ -479,6 +512,7 @@ const VideoAdsForm = ({
                 generatedAt: new Date().toISOString(),
             };
 
+            const expectedCount = selectedTemplates.length;
             let isFirstBatch = true;
             const result = await generateCustomCreative(payload, (batch) => {
                 if (!batch.ok) return; // failure handled below
@@ -491,6 +525,8 @@ const VideoAdsForm = ({
                         type: "design",
                         variations,
                         assets,
+                        expectedCount,
+                        done: false,
                         reply: batch.data?.reply || "",
                         meta: batch.data?.meta || {},
                         payload,
@@ -510,9 +546,11 @@ const VideoAdsForm = ({
                 setError(result.message || "Generation failed. Please try again.");
                 showToast(result.message || "Generation failed. Please try again.");
                 setGenerating(false);
+                onResult({ append: true, done: true });
                 return;
             }
 
+            onResult({ append: true, done: true });
             setGenerating(false);
         } catch (err) {
             console.error("handleGenerate error:", err);
@@ -769,6 +807,7 @@ const VideoAdsForm = ({
 
                         {/* ── Brand images strip ── */}
                         <BrandImagesStrip
+                            images={formData.importedImages?.length ? formData.importedImages : undefined}
                             onSelect={handleBrandImageUse}
                             onCrop={handleBrandImageCrop}
                             selectedUrls={croppedImages
@@ -863,7 +902,8 @@ const VideoAdsForm = ({
                     )}
                     {step < 3 ? (
                         <button onClick={handleContinue}
-                            className="px-3 py-2 bg-blue-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-blue-700 hover:scale-105 flex items-center gap-2 transition">
+                            disabled={step === 1 && (!formData.brandName?.trim() || !formData.description?.trim())}
+                            className="px-3 py-2 bg-blue-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-blue-700 hover:scale-105 flex items-center gap-2 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100">
                             Continue <ChevronRight className="w-4 h-4" />
                         </button>
                     ) : (

@@ -536,6 +536,7 @@ export default function CreateFromUrl() {
         generatedAt: new Date().toISOString(),
       };
 
+      const expectedCount = selectedTemplates.length;
       let isFirstBatch = true;
       const res = await generateCustomCreative(payload, (batch) => {
         if (!batch.ok) return; // failure handled below
@@ -545,21 +546,21 @@ export default function CreateFromUrl() {
         if (isFirstBatch) {
           isFirstBatch = false;
           setGenerating(false); // hide overlay so user sees first batch
-          if (variations.length) {
+          if (variations.length || assets.length) {
             setResult({
               type: 'design',
               variations,
               assets,
+              expectedCount,
+              done: false,
               reply: batch.data?.reply || '',
               meta: batch.data?.meta || {},
             });
-          } else if (assets.length) {
-            setResult({ assets });
           }
         } else {
           // Append subsequent batches to whatever's already showing
           setResult((prev) => {
-            if (!prev) return { type: 'design', variations, assets };
+            if (!prev) return { type: 'design', variations, assets, expectedCount, done: false };
             return {
               ...prev,
               variations: [...(prev.variations || []), ...variations],
@@ -569,13 +570,20 @@ export default function CreateFromUrl() {
         }
       });
 
-      if (!res.ok) throw new Error(res.message || 'Generation failed');
+      if (!res.ok) {
+        // Mark done so skeletons clear; keep what we have on screen
+        setResult((prev) => prev ? { ...prev, done: true } : prev);
+        throw new Error(res.message || 'Generation failed');
+      }
 
       const data = res.data;
       // If onBatchResult never produced a result (e.g. zero variations/assets), error out
       if (!data?.variations?.length && !data?.assets?.length) {
         throw new Error('No results returned from generation');
       }
+
+      // All batches succeeded — mark done so skeletons clear
+      setResult((prev) => prev ? { ...prev, done: true } : prev);
     } catch (err) {
       toast.error(err.message || 'Generation failed. Please try again.');
     } finally {
@@ -915,7 +923,7 @@ export default function CreateFromUrl() {
               </button>
               <button
                 onClick={() => setStep(4)}
-                disabled={!brandName.trim()}
+                disabled={!brandName.trim() || !description.trim()}
                 className="px-5 py-2 cursor-pointer bg-blue-700 rounded-lg hover:bg-blue-800 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 Continue <ArrowRight className="w-4 h-4" />

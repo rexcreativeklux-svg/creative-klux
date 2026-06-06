@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 import { toast } from "sonner";
 import { classifyResult } from "@/utils/errorHelper";
 
@@ -27,31 +33,32 @@ export function AuthProvider({ children }) {
   const activeBrandId = activeBrand?.id || null;
   const [brandsInitialized, setBrandsInitialized] = useState(false);
 
+  const authFetch = useCallback(
+    async (url, options = {}) => {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-  const authFetch = useCallback(async (url, options = {}) => {
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
-      },
-    });
+      if (res.status === 401) {
+        console.warn("401 detected globally → logging out");
 
-    if (res.status === 401) {
-      console.warn("401 detected globally → logging out");
+        setUser(null);
+        setToken(null);
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+        localStorage.removeItem("activeBrandId");
 
-      setUser(null);
-      setToken(null);
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
-      localStorage.removeItem("activeBrandId");
+        throw new Error("Unauthorized");
+      }
 
-      throw new Error("Unauthorized");
-    }
-
-    return res;
-  }, [token]);
-
+      return res;
+    },
+    [token],
+  );
 
   const BASE_URL = "https://api.creativeklux.com/api/creativeklux-userend";
 
@@ -79,7 +86,6 @@ export function AuthProvider({ children }) {
   const FETCH_DESIGN_URL = `${BASE_URL}/creative-designs`;
   const API_INTEGRATIONS_URL = `${BASE_URL}/integrations`;
 
-
   // Load token on mount and fetch profile and brands
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
@@ -96,7 +102,6 @@ export function AuthProvider({ children }) {
       setBrandsLoading(false);
     }
   }, []);
-
 
   const saveAuth = (token) => {
     console.log("Saving token:", token);
@@ -147,7 +152,6 @@ export function AuthProvider({ children }) {
 
       setUser(data);
       localStorage.setItem("user", JSON.stringify(data));
-
     } catch (err) {
       console.error("Profile fetch failed:", err.message);
 
@@ -164,8 +168,6 @@ export function AuthProvider({ children }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-
-
 
     const text = await res.text();
     console.log("Login Raw Response:", text);
@@ -214,9 +216,7 @@ export function AuthProvider({ children }) {
     if (!res.ok) {
       // Handle validation errors from backend
       if (data.errors) {
-        const errorMessages = Object.values(data.errors)
-          .flat()
-          .join(", ");
+        const errorMessages = Object.values(data.errors).flat().join(", ");
         throw new Error(errorMessages || data.message || "Registration failed");
       }
       throw new Error(data.message || "Registration failed");
@@ -261,7 +261,7 @@ export function AuthProvider({ children }) {
 
     try {
       const payload = {
-        user_id: userId,  // This is what the backend requires
+        user_id: userId, // This is what the backend requires
         code: code,
       };
 
@@ -474,7 +474,10 @@ export function AuthProvider({ children }) {
       }
 
       if (!res.ok) {
-        console.error("Failed to fetch resells:", data.message || "Unknown error");
+        console.error(
+          "Failed to fetch resells:",
+          data.message || "Unknown error",
+        );
         return null;
       }
 
@@ -485,49 +488,55 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const handleDeleteTeam = useCallback(async (id) => {
-    if (!token || !id) {
-      console.error("No auth token or team ID provided.");
-      throw new Error("Authentication or team ID missing.");
-    }
+  const handleDeleteTeam = useCallback(
+    async (id) => {
+      if (!token || !id) {
+        console.error("No auth token or team ID provided.");
+        throw new Error("Authentication or team ID missing.");
+      }
 
-    const url = `${BASE_URL}/teams/${id}`;
+      const url = `${BASE_URL}/teams/${id}`;
 
-    try {
-      const res = await authFetch(url, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const text = await res.text();
-      console.log("Delete Team Raw Response:", text);
-
-      let data;
       try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error("Invalid response from delete team endpoint");
+        const res = await authFetch(url, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const text = await res.text();
+        console.log("Delete Team Raw Response:", text);
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Invalid response from delete team endpoint");
+        }
+
+        if (!res.ok) {
+          throw new Error(data.message || "Failed to delete team");
+        }
+
+        // Optimistic UI update: remove from state immediately
+        setTeams((prev) => prev.filter((team) => team.id !== id));
+
+        // Optional: refresh from server to ensure sync
+        // await fetchTeams();
+
+        return {
+          success: true,
+          message: data.message || "Team member removed successfully",
+        };
+      } catch (err) {
+        console.error("Error deleting team:", err.message);
+        throw err;
       }
-
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to delete team");
-      }
-
-      // Optimistic UI update: remove from state immediately
-      setTeams((prev) => prev.filter((team) => team.id !== id));
-
-      // Optional: refresh from server to ensure sync
-      // await fetchTeams();
-
-      return { success: true, message: data.message || "Team member removed successfully" };
-    } catch (err) {
-      console.error("Error deleting team:", err.message);
-      throw err;
-    }
-  }, [token]);
+    },
+    [token],
+  );
 
   const createResell = async (email) => {
     if (!token) {
@@ -613,7 +622,8 @@ export function AuthProvider({ children }) {
     }
 
     const result = await classifyResult({ response });
-    if (!result.ok) console.warn(`[${result.source}] sendUrl:`, result.messageForDevs);
+    if (!result.ok)
+      console.warn(`[${result.source}] sendUrl:`, result.messageForDevs);
     return result;
   };
 
@@ -633,24 +643,37 @@ export function AuthProvider({ children }) {
         formData.append("logo", brandData.logo);
       }
       formData.append("primary_color", brandData.colors?.primary || "#1e3a8a");
-      formData.append("secondary_color", brandData.colors?.secondary || "#10b981");
-      formData.append("social_accounts", JSON.stringify(brandData.socialAccounts || []));
-      formData.append("ad_accounts", JSON.stringify(brandData.adAccounts || []));
+      formData.append(
+        "secondary_color",
+        brandData.colors?.secondary || "#10b981",
+      );
+      formData.append(
+        "social_accounts",
+        JSON.stringify(brandData.socialAccounts || []),
+      );
+      formData.append(
+        "ad_accounts",
+        JSON.stringify(brandData.adAccounts || []),
+      );
       formData.append("url", brandData.url || "");
       formData.append("source_url", brandData.sourceUrl || "");
       formData.append("industry", brandData.industry || "");
-      formData.append("landing_page_flag", brandData.createLandingPage ? "1" : "0");
-
-
+      formData.append(
+        "landing_page_flag",
+        brandData.createLandingPage ? "1" : "0",
+      );
 
       if (brandData.landingPage) {
         formData.append("landing_page_id", brandData.landingPage.id || "");
-        formData.append("landing_page_token", brandData.landingPage.token || "");
+        formData.append(
+          "landing_page_token",
+          brandData.landingPage.token || "",
+        );
         formData.append("landing_page_name", brandData.landingPage.name || "");
         formData.append("landing_page_url", brandData.landingPage.url || "");
       }
 
-      console.log("brandData:", brandData)
+      console.log("brandData:", brandData);
       const res = await authFetch(API_CREATE_BRAND_URL, {
         method: "POST",
         headers: {
@@ -702,11 +725,20 @@ export function AuthProvider({ children }) {
 
       // Colors – always sent as separate fields
       formData.append("primary_color", brandData.colors?.primary || "#1e3a8a");
-      formData.append("secondary_color", brandData.colors?.secondary || "#10b981");
+      formData.append(
+        "secondary_color",
+        brandData.colors?.secondary || "#10b981",
+      );
 
       // Arrays as JSON strings
-      formData.append("social_accounts", JSON.stringify(brandData.socialAccounts || []));
-      formData.append("ad_accounts", JSON.stringify(brandData.adAccounts || []));
+      formData.append(
+        "social_accounts",
+        JSON.stringify(brandData.socialAccounts || []),
+      );
+      formData.append(
+        "ad_accounts",
+        JSON.stringify(brandData.adAccounts || []),
+      );
 
       // Source URL
       formData.append("source_url", brandData.sourceUrl || "");
@@ -724,7 +756,7 @@ export function AuthProvider({ children }) {
         name: brandData.name,
         industry: brandData.industry,
         hasLogo: !!brandData.logo,
-        landing_page_flag: "0"
+        landing_page_flag: "0",
       });
 
       const res = await authFetch(API_CREATE_BRAND_URL, {
@@ -753,7 +785,6 @@ export function AuthProvider({ children }) {
       // Success – refresh brands
       await fetchBrands();
       return data; // usually { data: { id, ... }, message, success }
-
     } catch (err) {
       console.error("Manual brand creation failed:", err);
       throw err;
@@ -794,7 +825,10 @@ export function AuthProvider({ children }) {
       }
 
       if (!res.ok) {
-        console.error("Failed to fetch brands:", data.message || `HTTP ${res.status}`);
+        console.error(
+          "Failed to fetch brands:",
+          data.message || `HTTP ${res.status}`,
+        );
         toast.error("Couldn't load brands. Please try again later.");
         setBrands([]);
         setActiveBrandState(null);
@@ -811,7 +845,7 @@ export function AuthProvider({ children }) {
 
       if (storedBrandId) {
         const selectedBrand = brandsList.find(
-          (brand) => brand.id === Number(storedBrandId)
+          (brand) => brand.id === Number(storedBrandId),
         );
         if (selectedBrand) {
           setActiveBrandState(selectedBrand); // ✅ actually restore it
@@ -830,7 +864,6 @@ export function AuthProvider({ children }) {
         setActiveBrandState(null);
       }
 
-
       return brandsList;
     } catch (err) {
       console.error("Fetching brands failed:", err.message);
@@ -844,7 +877,6 @@ export function AuthProvider({ children }) {
       setBrandsLoading(false);
     }
   };
-
 
   useEffect(() => {
     if (!token) return;
@@ -865,16 +897,11 @@ export function AuthProvider({ children }) {
       //   }
       // }
 
-      await Promise.all([
-        fetchTeams(),
-        fetchMyImages(),
-        fetchTutorialVideos(),
-      ]);
+      await Promise.all([fetchTeams(), fetchMyImages(), fetchTutorialVideos()]);
     };
 
     init();
   }, [token]);
-
 
   const setActiveBrand = (brandOrId) => {
     if (brandOrId === null) {
@@ -897,7 +924,6 @@ export function AuthProvider({ children }) {
     setActiveBrandState(selectedBrand);
     localStorage.setItem("activeBrandId", selectedBrand.id);
   };
-
 
   const fetchBrandById = async (id) => {
     if (!token) {
@@ -930,7 +956,10 @@ export function AuthProvider({ children }) {
       }
 
       if (!res.ok) {
-        console.error("Failed to fetch brand:", data?.message || "Unknown error");
+        console.error(
+          "Failed to fetch brand:",
+          data?.message || "Unknown error",
+        );
         return null;
       }
 
@@ -991,7 +1020,9 @@ export function AuthProvider({ children }) {
       }
 
       const updateResult = await res.json();
-      console.log("Brand updated successfully:", updateResult);
+      // Refresh the cached brand list so the edit is reflected immediately
+
+      await fetchBrands();
       return updateResult;
     } catch (err) {
       console.error("Error updating brand:", err);
@@ -1043,16 +1074,13 @@ export function AuthProvider({ children }) {
       formData.append("token", socialData.token);
       formData.append("platform_id", socialData.platform_id);
 
-      const res = await authFetch(
-        API_CONNECT_SOCIAL_ACCOUNT_URL,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+      const res = await authFetch(API_CONNECT_SOCIAL_ACCOUNT_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
       if (!res.ok) throw new Error(`Failed to update brand: ${res.status}`);
 
@@ -1073,17 +1101,14 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const res = await authFetch(
-        API_DELETE_SOCIAL_ACCOUNT_URL,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ id: socialId }),
-        }
-      );
+      const res = await authFetch(API_DELETE_SOCIAL_ACCOUNT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: socialId }),
+      });
 
       if (!res.ok) throw new Error(`Failed to disconnect: ${res.status}`);
       const data = await res.json();
@@ -1101,16 +1126,13 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const res = await authFetch(
-        API_FETCH_SOCIAL_ACCOUNTS_URL,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Accept": "application/json",
-          },
-        }
-      );
+      const res = await authFetch(API_FETCH_SOCIAL_ACCOUNTS_URL, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
 
       if (!res.ok) {
         throw new Error(`Failed to fetch social accounts: ${res.status}`);
@@ -1133,16 +1155,13 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const res = await authFetch(
-        API_FETCH_AD_ACCOUNTS_URL,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Accept": "application/json",
-          },
-        }
-      );
+      const res = await authFetch(API_FETCH_AD_ACCOUNTS_URL, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
 
       if (!res.ok) {
         throw new Error(`Failed to fetch ads accounts: ${res.status}`);
@@ -1171,16 +1190,13 @@ export function AuthProvider({ children }) {
       formData.append("token", adsData.token);
       formData.append("platform_id", adsData.platform_id);
 
-      const res = await authFetch(
-        API_CONNECT_AD_ACCOUNTS_URL,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+      const res = await authFetch(API_CONNECT_AD_ACCOUNTS_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
       if (!res.ok) throw new Error(`Failed to update brand: ${res.status}`);
 
@@ -1203,20 +1219,17 @@ export function AuthProvider({ children }) {
     const url = `${BASE_URL}/social-accounts/${platform.toLowerCase()}`;
 
     try {
-      const res = await authFetch(
-        url,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const res = await authFetch(url, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!res.ok) throw new Error("Failed to disconnect account");
 
       setSocialAccounts((prev) =>
-        prev.filter((acc) => acc.platform !== platform.toLowerCase())
+        prev.filter((acc) => acc.platform !== platform.toLowerCase()),
       );
 
       return true;
@@ -1235,20 +1248,17 @@ export function AuthProvider({ children }) {
     const url = `${BASE_URL}/ad-accounts/${platform.toLowerCase()}`;
 
     try {
-      const res = await authFetch(
-        url,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const res = await authFetch(url, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!res.ok) throw new Error("Failed to disconnect account");
 
       setSocialAccounts((prev) =>
-        prev.filter((acc) => acc.platform !== platform.toLowerCase())
+        prev.filter((acc) => acc.platform !== platform.toLowerCase()),
       );
 
       return true;
@@ -1283,14 +1293,13 @@ export function AuthProvider({ children }) {
 
       // Transform to format your gallery expects
       setMyImages(
-        images.map(img => ({
+        images.map((img) => ({
           id: img.id,
-          src: img.image_url,        // ← This is the correct URL field
+          src: img.image_url, // ← This is the correct URL field
           alt: img.image_name,
           filename: img.image_name,
-        }))
+        })),
       );
-
     } catch (err) {
       console.error("Failed to fetch images:", err);
       setMyImages([]);
@@ -1299,76 +1308,81 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-  const uploadImage = useCallback(async (file) => {
-    if (!token) throw new Error("Not authenticated");
-    if (!file) throw new Error("No file provided");
+  const uploadImage = useCallback(
+    async (file) => {
+      if (!token) throw new Error("Not authenticated");
+      if (!file) throw new Error("No file provided");
 
-    const formData = new FormData();
-    formData.append("image", file);
+      const formData = new FormData();
+      formData.append("image", file);
 
-    let response;
-    try {
-      response = await authFetch(API_IMAGE_GALLERY_URL, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-    } catch (error) {
-      const result = await classifyResult({ error });
-      console.warn(`[${result.source}] uploadImage:`, result.messageForDevs);
-      const e = new Error(result.message);
-      e.source = result.source;
-      e.messageForDevs = result.messageForDevs;
-      throw e;
-    }
-
-    const result = await classifyResult({ response });
-    if (!result.ok) {
-      console.warn(`[${result.source}] uploadImage:`, result.messageForDevs);
-      const e = new Error(result.message);
-      e.source = result.source;
-      e.messageForDevs = result.messageForDevs;
-      throw e;
-    }
-
-    await fetchMyImages();
-    // Caller expects the raw response shape (image_url/url/data.image_url)
-    return result.raw || result.data;
-  }, [token, fetchMyImages]);
-
-  const deleteImage = useCallback(async (imageId) => {
-    if (!token) throw new Error("Not authenticated");
-    if (!imageId) throw new Error("Image ID is required");
-
-    try {
-      const res = await authFetch(`${BASE_URL}/image-gallery/${imageId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      // Try to parse JSON error even if failed
-      let errorMessage = "Failed to delete image";
-      if (!res.ok) {
-        try {
-          const errData = await res.json();
-          errorMessage = errData.message || errorMessage;
-        } catch { }
-        throw new Error(errorMessage);
+      let response;
+      try {
+        response = await authFetch(API_IMAGE_GALLERY_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+      } catch (error) {
+        const result = await classifyResult({ error });
+        console.warn(`[${result.source}] uploadImage:`, result.messageForDevs);
+        const e = new Error(result.message);
+        e.source = result.source;
+        e.messageForDevs = result.messageForDevs;
+        throw e;
       }
 
-      // Success — remove from UI immediately
-      setMyImages((prev) => prev.filter((img) => img.id !== imageId));
+      const result = await classifyResult({ response });
+      if (!result.ok) {
+        console.warn(`[${result.source}] uploadImage:`, result.messageForDevs);
+        const e = new Error(result.message);
+        e.source = result.source;
+        e.messageForDevs = result.messageForDevs;
+        throw e;
+      }
 
-      return { success: true, message: "Image deleted successfully" };
+      await fetchMyImages();
+      // Caller expects the raw response shape (image_url/url/data.image_url)
+      return result.raw || result.data;
+    },
+    [token, fetchMyImages],
+  );
 
-    } catch (err) {
-      console.error("Delete failed:", err);
-      throw err; // Let UI handle showing error
-    }
-  }, [token]);
+  const deleteImage = useCallback(
+    async (imageId) => {
+      if (!token) throw new Error("Not authenticated");
+      if (!imageId) throw new Error("Image ID is required");
+
+      try {
+        const res = await authFetch(`${BASE_URL}/image-gallery/${imageId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        // Try to parse JSON error even if failed
+        let errorMessage = "Failed to delete image";
+        if (!res.ok) {
+          try {
+            const errData = await res.json();
+            errorMessage = errData.message || errorMessage;
+          } catch {}
+          throw new Error(errorMessage);
+        }
+
+        // Success — remove from UI immediately
+        setMyImages((prev) => prev.filter((img) => img.id !== imageId));
+
+        return { success: true, message: "Image deleted successfully" };
+      } catch (err) {
+        console.error("Delete failed:", err);
+        throw err; // Let UI handle showing error
+      }
+    },
+    [token],
+  );
 
   const fetchTutorialVideos = useCallback(async () => {
     if (!token) {
@@ -1413,7 +1427,6 @@ export function AuthProvider({ children }) {
 
       setTutorialVideos(videos);
       return videos;
-
     } catch (err) {
       console.error("Error fetching tutorial videos:", err.message);
       setTutorialVideosError(err.message);
@@ -1483,7 +1496,7 @@ export function AuthProvider({ children }) {
 
   const generateCustomCreative = async (
     { creativeType, categoryType, ...formPayload },
-    onBatchResult
+    onBatchResult,
   ) => {
     if (!token) {
       console.error("No auth token found.");
@@ -1547,7 +1560,10 @@ export function AuthProvider({ children }) {
       }
 
       if (!batchResult.ok) {
-        console.warn(`[${batchResult.source}] redesign batch ${i + 1}:`, batchResult.messageForDevs);
+        console.warn(
+          `[${batchResult.source}] redesign batch ${i + 1}:`,
+          batchResult.messageForDevs,
+        );
         onBatchResult?.({
           ...batchResult,
           batchIndex: i,
@@ -1558,7 +1574,9 @@ export function AuthProvider({ children }) {
 
       // Success — data is the parsed JSON body
       const data = batchResult.raw || batchResult.data;
-      const batchVariations = Array.isArray(data?.variations) ? data.variations : [];
+      const batchVariations = Array.isArray(data?.variations)
+        ? data.variations
+        : [];
       const batchAssets = Array.isArray(data?.assets) ? data.assets : [];
       aggregated.variations.push(...batchVariations);
       aggregated.assets.push(...batchAssets);
@@ -1602,7 +1620,7 @@ export function AuthProvider({ children }) {
       let data;
       try {
         data = JSON.parse(text);
-        console.log(data)
+        console.log(data);
       } catch {
         console.error("Invalid JSON from ai-creative-chat:", text);
         return { ok: false, message: "Invalid server response" };
@@ -1626,529 +1644,633 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const saveDesign = useCallback(async (brandId, variations, creativeType = "ads") => {
-    if (!token) {
-      console.error("saveDesign: no auth token.");
-      return { ok: false, message: "Not authenticated" };
-    }
-    if (!brandId) {
-      console.error("saveDesign: no brand ID provided.");
-      return { ok: false, message: "No active brand selected" };
-    }
-    if (!Array.isArray(variations) || variations.length === 0) {
-      return { ok: false, message: "No designs selected to save" };
-    }
-
-    // Derive a short type string — strip "_creative" suffix if present
-    const typeShort = creativeType?.replace("_creative", "") || "ads";
-
-    const payload = {
-      brand_id: brandId,
-      creativedesigns: variations.map((v) => ({
-        name: v.name || "Untitled Design",
-        score: v.copy?.performance_score
-          ? parseInt(v.copy.performance_score.split("/")[0], 10) || 0
-          : 0,
-        copy: JSON.stringify(v.copy || {}),
-        canvas: { canvas: v.canvas, elements: v.elements },
-        type: typeShort,
-        sub_type: v.category?.toLowerCase() || "image",
-      })),
-    };
-
-    console.log("saveDesign payload:", payload);
-
-    try {
-      const res = await authFetch(SAVE_DESIGN_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-        console.log(data)
-      } catch {
-        console.error("saveDesign: invalid JSON response", text);
-        return { ok: false, message: "Invalid server response" };
+  const saveDesign = useCallback(
+    async (brandId, variations, creativeType = "ads") => {
+      if (!token) {
+        console.error("saveDesign: no auth token.");
+        return { ok: false, message: "Not authenticated" };
+      }
+      if (!brandId) {
+        console.error("saveDesign: no brand ID provided.");
+        return { ok: false, message: "No active brand selected" };
+      }
+      if (!Array.isArray(variations) || variations.length === 0) {
+        return { ok: false, message: "No designs selected to save" };
       }
 
-      if (!res.ok) {
-        const firstError =
-          data?.errors
+      // Derive a short type string — strip "_creative" suffix if present
+      const typeShort = creativeType?.replace("_creative", "") || "ads";
+
+      const payload = {
+        brand_id: brandId,
+        creativedesigns: variations.map((v) => ({
+          name: v.name || "Untitled Design",
+          score: v.copy?.performance_score
+            ? parseInt(v.copy.performance_score.split("/")[0], 10) || 0
+            : 0,
+          copy: JSON.stringify(v.copy || {}),
+          canvas: { canvas: v.canvas, elements: v.elements },
+          type: typeShort,
+          sub_type: v.category?.toLowerCase() || "image",
+        })),
+      };
+
+      console.log("saveDesign payload:", payload);
+
+      try {
+        const res = await authFetch(SAVE_DESIGN_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+          console.log(data);
+        } catch {
+          console.error("saveDesign: invalid JSON response", text);
+          return { ok: false, message: "Invalid server response" };
+        }
+
+        if (!res.ok) {
+          const firstError = data?.errors
             ? Object.values(data.errors)[0]?.[0]
             : data?.error
               ? Object.values(data.error)[0]?.[0]
               : null;
 
-        return {
-          ok: false,
-          message: firstError || data?.message || "Failed to save designs",
-        };
-      }
-
-
-      console.log("saveDesign success:", data);
-      return { ok: true, data };
-    } catch (err) {
-      console.error("saveDesign error:", err);
-      return { ok: false, message: err.message || "Network error" };
-    }
-  }, [token]);
-
-  const fetchDesigns = useCallback(async (perPage = 9) => {
-    if (!token) {
-      console.error("fetchDesigns: no auth token.");
-      return null;
-    }
-
-    if (!activeBrandId) {
-      console.error("fetchDesigns: no activeBrandId.");
-      return null;
-    }
-
-    const url = `${FETCH_DESIGN_URL}?brand_id=${activeBrandId}&per_page=${perPage}`;
-
-    try {
-      const res = await authFetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const text = await res.text();
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.error("fetchDesigns: invalid JSON response", text);
-        return null;
-      }
-
-      if (!res.ok) {
-        console.error("fetchDesigns failed:", data?.message || `HTTP ${res.status}`);
-        return null;
-      }
-
-      // console.log("fetchDesigns success:", data);
-
-      return Array.isArray(data)
-        ? data
-        : Array.isArray(data.data)
-          ? data.data
-          : data;
-
-    } catch (err) {
-      console.error("fetchDesigns error:", err);
-      return null;
-    }
-  }, [token, activeBrandId]);
-
-  const deleteDesignById = useCallback(async (id) => {
-    if (!token) return { ok: false, message: "Not authenticated" };
-    if (!id) return { ok: false, message: "No design ID provided" };
-
-    try {
-      const res = await authFetch(`${BASE_URL}/creative-designs/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { data = {}; }
-
-      if (!res.ok) {
-        return { ok: false, message: data?.message || `Delete failed (${res.status})` };
-      }
-
-      return { ok: true, message: data?.message || "Design deleted" };
-    } catch (err) {
-      console.error("deleteDesignById error:", err);
-      return { ok: false, message: err.message || "Network error" };
-    }
-  }, [token]);
-
-  const bulkDeleteDesigns = useCallback(async (ids) => {
-    if (!token) return { ok: false, message: "Not authenticated" };
-    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, message: "No IDs provided" };
-
-    try {
-      const res = await authFetch(`${BASE_URL}/creative-designs/bulk-delete`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ ids }),
-      });
-
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { data = {}; }
-
-      if (!res.ok) {
-        return { ok: false, message: data?.message || `Bulk delete failed (${res.status})` };
-      }
-
-      return { ok: true, message: data?.message || `${ids.length} design(s) deleted` };
-    } catch (err) {
-      console.error("bulkDeleteDesigns error:", err);
-      return { ok: false, message: err.message || "Network error" };
-    }
-  }, [token]);
-
-  const updateDesignById = useCallback(async (id, updates) => {
-    if (!token) return { ok: false, message: "Not authenticated" };
-    if (!id) return { ok: false, message: "No design ID provided" };
-
-    // `updates` can include any subset of: { name, score, copy, canvas, type, sub_type }
-    try {
-      const res = await authFetch(`${BASE_URL}/creative-designs/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(updates),
-      });
-
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { data = {}; }
-
-      if (!res.ok) {
-        return { ok: false, message: data?.message || `Update failed (${res.status})` };
-      }
-
-      console.log("updateDesignById success:", data);
-      return { ok: true, data };
-    } catch (err) {
-      console.error("updateDesignById error:", err);
-      return { ok: false, message: err.message || "Network error" };
-    }
-  }, [token]);
-
-  const analyzeRival = useCallback(async ({ url, period = "last_30_days" }) => {
-    if (!token) {
-      console.error("analyzeRival: no auth token.");
-      return null;
-    }
-
-    if (!url) {
-      console.error("analyzeRival: url is required.");
-      return null;
-    }
-
-    try {
-      const res = await authFetch(`${BASE_URL}/rival-lens/analyze`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          url,
-          period,
-        }),
-      });
-
-      const text = await res.text();
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.error("analyzeRival: invalid JSON response", text);
-        return null;
-      }
-
-      if (!res.ok) {
-        console.error("analyzeRival failed:", data?.message || `HTTP ${res.status}`);
-        return null;
-      }
-
-      console.log("analyzeRival success:", data);
-
-      return data;
-    } catch (err) {
-      console.error("analyzeRival error:", err);
-      return null;
-    }
-  }, [token]);
-
-  const getCompetitorInsights = useCallback(async ({ url }) => {
-    if (!token) {
-      console.error("getCompetitorInsights: no auth token.");
-      return { ok: false, message: "Not authenticated" };
-    }
-
-    if (!url) {
-      console.error("getCompetitorInsights: url is required.");
-      return { ok: false, message: "URL is required" };
-    }
-
-    try {
-      const normalizedUrl = url
-        .replace(/^https?:\/\//, "")
-        .split("/")[0];
-
-      const res = await authFetch(`${BASE_URL}/competitor-insights`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          url: normalizedUrl,
-        }),
-      });
-
-      const text = await res.text();
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.error("Invalid JSON:", text);
-        return { ok: false, message: "Invalid server response" };
-      }
-
-      if (!res.ok) {
-        return {
-          ok: false,
-          message: data?.message || "Failed to fetch competitor insights",
-        };
-      }
-
-      return { ok: true, data };
-    } catch (err) {
-      console.error("getCompetitorInsights error:", err);
-      return { ok: false, message: err.message || "Network error" };
-    }
-  }, [token]);
-
-  const checkCompliance = useCallback(async ({ image, canvas, platforms }) => {
-    if (!token) return { ok: false, message: "Not authenticated" };
-
-    if (!image && !canvas) {
-      return { ok: false, message: "An image file or canvas data is required" };
-    }
-
-    try {
-      let res;
-
-      if (image) {
-        // ── Image mode: multipart/form-data ──────────────────────────────────
-        const formData = new FormData();
-        formData.append("image", image);
-
-        if (Array.isArray(platforms)) {
-          platforms.forEach((p) => formData.append("platforms[]", p));
+          return {
+            ok: false,
+            message: firstError || data?.message || "Failed to save designs",
+          };
         }
 
-        res = await authFetch(`${BASE_URL}/compliance-checker`, {
-          method: "POST",
+        console.log("saveDesign success:", data);
+        return { ok: true, data };
+      } catch (err) {
+        console.error("saveDesign error:", err);
+        return { ok: false, message: err.message || "Network error" };
+      }
+    },
+    [token],
+  );
+
+  const fetchDesigns = useCallback(
+    async (perPage = 9) => {
+      if (!token) {
+        console.error("fetchDesigns: no auth token.");
+        return null;
+      }
+
+      if (!activeBrandId) {
+        console.error("fetchDesigns: no activeBrandId.");
+        return null;
+      }
+
+      const url = `${FETCH_DESIGN_URL}?brand_id=${activeBrandId}&per_page=${perPage}`;
+
+      try {
+        const res = await authFetch(url, {
+          method: "GET",
           headers: {
-            // No Content-Type — browser sets multipart boundary automatically
+            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: formData,
         });
-      } else {
-        // ── Canvas mode: JSON body ────────────────────────────────────────────
-        const canvasString =
-          typeof canvas === "string" ? canvas : JSON.stringify(canvas);
 
-        res = await authFetch(`${BASE_URL}/compliance-checker`, {
+        const text = await res.text();
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          console.error("fetchDesigns: invalid JSON response", text);
+          return null;
+        }
+
+        if (!res.ok) {
+          console.error(
+            "fetchDesigns failed:",
+            data?.message || `HTTP ${res.status}`,
+          );
+          return null;
+        }
+
+        // console.log("fetchDesigns success:", data);
+
+        return Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : data;
+      } catch (err) {
+        console.error("fetchDesigns error:", err);
+        return null;
+      }
+    },
+    [token, activeBrandId],
+  );
+
+  const deleteDesignById = useCallback(
+    async (id) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
+      if (!id) return { ok: false, message: "No design ID provided" };
+
+      try {
+        const res = await authFetch(`${BASE_URL}/creative-designs/${id}`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = {};
+        }
+
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: data?.message || `Delete failed (${res.status})`,
+          };
+        }
+
+        return { ok: true, message: data?.message || "Design deleted" };
+      } catch (err) {
+        console.error("deleteDesignById error:", err);
+        return { ok: false, message: err.message || "Network error" };
+      }
+    },
+    [token],
+  );
+
+  const bulkDeleteDesigns = useCallback(
+    async (ids) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
+      if (!Array.isArray(ids) || ids.length === 0)
+        return { ok: false, message: "No IDs provided" };
+
+      try {
+        const res = await authFetch(
+          `${BASE_URL}/creative-designs/bulk-delete`,
+          {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ ids }),
+          },
+        );
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = {};
+        }
+
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: data?.message || `Bulk delete failed (${res.status})`,
+          };
+        }
+
+        return {
+          ok: true,
+          message: data?.message || `${ids.length} design(s) deleted`,
+        };
+      } catch (err) {
+        console.error("bulkDeleteDesigns error:", err);
+        return { ok: false, message: err.message || "Network error" };
+      }
+    },
+    [token],
+  );
+
+  const updateDesignById = useCallback(
+    async (id, updates) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
+      if (!id) return { ok: false, message: "No design ID provided" };
+
+      // `updates` can include any subset of: { name, score, copy, canvas, type, sub_type }
+      try {
+        const res = await authFetch(`${BASE_URL}/creative-designs/${id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(updates),
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = {};
+        }
+
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: data?.message || `Update failed (${res.status})`,
+          };
+        }
+
+        console.log("updateDesignById success:", data);
+        return { ok: true, data };
+      } catch (err) {
+        console.error("updateDesignById error:", err);
+        return { ok: false, message: err.message || "Network error" };
+      }
+    },
+    [token],
+  );
+
+  const analyzeRival = useCallback(
+    async ({ url, period = "last_30_days" }) => {
+      if (!token) {
+        console.error("analyzeRival: no auth token.");
+        return null;
+      }
+
+      if (!url) {
+        console.error("analyzeRival: url is required.");
+        return null;
+      }
+
+      try {
+        const res = await authFetch(`${BASE_URL}/rival-lens/analyze`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            canvas: canvasString,
-            platforms: platforms || [],
+            url,
+            period,
           }),
         });
+
+        const text = await res.text();
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          console.error("analyzeRival: invalid JSON response", text);
+          return null;
+        }
+
+        if (!res.ok) {
+          console.error(
+            "analyzeRival failed:",
+            data?.message || `HTTP ${res.status}`,
+          );
+          return null;
+        }
+
+        console.log("analyzeRival success:", data);
+
+        return data;
+      } catch (err) {
+        console.error("analyzeRival error:", err);
+        return null;
+      }
+    },
+    [token],
+  );
+
+  const getCompetitorInsights = useCallback(
+    async ({ url }) => {
+      if (!token) {
+        console.error("getCompetitorInsights: no auth token.");
+        return { ok: false, message: "Not authenticated" };
       }
 
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch {
-        return { ok: false, message: "Invalid server response" };
+      if (!url) {
+        console.error("getCompetitorInsights: url is required.");
+        return { ok: false, message: "URL is required" };
       }
 
-      if (!res.ok) {
-        return { ok: false, message: data?.message || "Compliance check failed" };
-      }
+      try {
+        const normalizedUrl = url.replace(/^https?:\/\//, "").split("/")[0];
 
-      return { ok: true, data };
-    } catch (err) {
-      return { ok: false, message: err.message || "Network error" };
-    }
-  }, [token]);
-
-  const creativeScoring = useCallback(async ({ image, canvas }) => {
-    if (!token) return { ok: false, message: "Not authenticated" };
-
-    // Must provide one or the other
-    if (!image && !canvas) {
-      return { ok: false, message: "An image file or canvas data is required" };
-    }
-
-    try {
-      let res;
-
-      if (image) {
-        // ── Image mode: multipart/form-data ──────────────────────────────────
-        const formData = new FormData();
-        formData.append("image", image);
-
-        res = await authFetch(`${BASE_URL}/creative-scoring`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            // Do NOT set Content-Type — browser sets multipart boundary automatically
-          },
-          body: formData,
-        });
-      } else {
-        // ── Canvas mode: JSON body ────────────────────────────────────────────
-        // canvas may already be a string or an object — normalise to string
-        const canvasString =
-          typeof canvas === "string" ? canvas : JSON.stringify(canvas);
-
-        res = await authFetch(`${BASE_URL}/creative-scoring`, {
+        const res = await authFetch(`${BASE_URL}/competitor-insights`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ canvas: canvasString }),
+          body: JSON.stringify({
+            url: normalizedUrl,
+          }),
         });
+
+        const text = await res.text();
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          console.error("Invalid JSON:", text);
+          return { ok: false, message: "Invalid server response" };
+        }
+
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: data?.message || "Failed to fetch competitor insights",
+          };
+        }
+
+        return { ok: true, data };
+      } catch (err) {
+        console.error("getCompetitorInsights error:", err);
+        return { ok: false, message: err.message || "Network error" };
+      }
+    },
+    [token],
+  );
+
+  const checkCompliance = useCallback(
+    async ({ image, canvas, platforms }) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
+
+      if (!image && !canvas) {
+        return {
+          ok: false,
+          message: "An image file or canvas data is required",
+        };
       }
 
-      const text = await res.text();
-      let data;
       try {
-        data = JSON.parse(text);
-      } catch {
-        return { ok: false, message: "Invalid server response" };
+        let res;
+
+        if (image) {
+          // ── Image mode: multipart/form-data ──────────────────────────────────
+          const formData = new FormData();
+          formData.append("image", image);
+
+          if (Array.isArray(platforms)) {
+            platforms.forEach((p) => formData.append("platforms[]", p));
+          }
+
+          res = await authFetch(`${BASE_URL}/compliance-checker`, {
+            method: "POST",
+            headers: {
+              // No Content-Type — browser sets multipart boundary automatically
+              Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+          });
+        } else {
+          // ── Canvas mode: JSON body ────────────────────────────────────────────
+          const canvasString =
+            typeof canvas === "string" ? canvas : JSON.stringify(canvas);
+
+          res = await authFetch(`${BASE_URL}/compliance-checker`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              canvas: canvasString,
+              platforms: platforms || [],
+            }),
+          });
+        }
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          return { ok: false, message: "Invalid server response" };
+        }
+
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: data?.message || "Compliance check failed",
+          };
+        }
+
+        return { ok: true, data };
+      } catch (err) {
+        return { ok: false, message: err.message || "Network error" };
+      }
+    },
+    [token],
+  );
+
+  const creativeScoring = useCallback(
+    async ({ image, canvas }) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
+
+      // Must provide one or the other
+      if (!image && !canvas) {
+        return {
+          ok: false,
+          message: "An image file or canvas data is required",
+        };
       }
 
-      if (!res.ok) {
-        return { ok: false, message: data?.message || "Creative scoring failed" };
+      try {
+        let res;
+
+        if (image) {
+          // ── Image mode: multipart/form-data ──────────────────────────────────
+          const formData = new FormData();
+          formData.append("image", image);
+
+          res = await authFetch(`${BASE_URL}/creative-scoring`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              // Do NOT set Content-Type — browser sets multipart boundary automatically
+            },
+            body: formData,
+          });
+        } else {
+          // ── Canvas mode: JSON body ────────────────────────────────────────────
+          // canvas may already be a string or an object — normalise to string
+          const canvasString =
+            typeof canvas === "string" ? canvas : JSON.stringify(canvas);
+
+          res = await authFetch(`${BASE_URL}/creative-scoring`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ canvas: canvasString }),
+          });
+        }
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          return { ok: false, message: "Invalid server response" };
+        }
+
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: data?.message || "Creative scoring failed",
+          };
+        }
+
+        return { ok: true, data };
+      } catch (err) {
+        return { ok: false, message: err.message || "Network error" };
       }
+    },
+    [token],
+  );
 
-      return { ok: true, data };
-    } catch (err) {
-      return { ok: false, message: err.message || "Network error" };
-    }
-  }, [token]);
+  const creativeInsights = useCallback(
+    async ({ brand }) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
+      if (!brand?.trim())
+        return { ok: false, message: "Brand name is required" };
 
-  const creativeInsights = useCallback(async ({ brand }) => {
-    if (!token) return { ok: false, message: "Not authenticated" };
-    if (!brand?.trim()) return { ok: false, message: "Brand name is required" };
+      try {
+        const res = await authFetch(`${BASE_URL}/creative-insights`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ brand }),
+        });
 
-    try {
-      const res = await authFetch(`${BASE_URL}/creative-insights`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ brand }),
-      });
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          return { ok: false, message: "Invalid server response" };
+        }
 
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch {
-        return { ok: false, message: "Invalid server response" };
+        if (!res.ok)
+          return {
+            ok: false,
+            message: data?.message || "Creative insights failed",
+          };
+        return { ok: true, data };
+      } catch (err) {
+        return { ok: false, message: err.message || "Network error" };
       }
+    },
+    [token],
+  );
 
-      if (!res.ok) return { ok: false, message: data?.message || "Creative insights failed" };
-      return { ok: true, data };
-    } catch (err) {
-      return { ok: false, message: err.message || "Network error" };
-    }
-  }, [token]);
+  const saveIntegration = useCallback(
+    async ({ platform, access_token, code, brand_id, int_id, int_name }) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
 
-  const saveIntegration = useCallback(async ({ platform, access_token, code, brand_id, int_id, int_name }) => {
-    if (!token) return { ok: false, message: "Not authenticated" };
+      // Explicit brand_id from caller wins over the closure value (avoids stale null)
+      const resolvedBrandId = brand_id || activeBrandId;
+      if (!resolvedBrandId)
+        return {
+          ok: false,
+          message: "No active brand selected. Please select a brand first.",
+        };
 
-    // Explicit brand_id from caller wins over the closure value (avoids stale null)
-    const resolvedBrandId = brand_id || activeBrandId;
-    if (!resolvedBrandId) return { ok: false, message: "No active brand selected. Please select a brand first." };
+      try {
+        const res = await authFetch(API_INTEGRATIONS_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            brand_id: resolvedBrandId,
+            platform,
+            int_token: access_token || null,
+            // code: code || null,
+            int_id: int_id || null, // ← platform account ID e.g. Facebook User ID
+            int_name: int_name,
+          }),
+        });
 
-    try {
-      const res = await authFetch(API_INTEGRATIONS_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          brand_id: resolvedBrandId,
-          platform,
-          int_token: access_token || null,
-          // code: code || null,
-          int_id: int_id || null,   // ← platform account ID e.g. Facebook User ID
-          int_name: int_name,
-        }),
-      });
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = {};
+        }
+        console.log("saveIntegration response:", data);
 
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { data = {}; }
-      console.log("saveIntegration response:", data);
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: data?.message || "Failed to save integration",
+          };
+        }
 
-      if (!res.ok) {
-        return { ok: false, message: data?.message || "Failed to save integration" };
+        return { ok: true, data };
+      } catch (err) {
+        console.error("saveIntegration error:", err);
+        return { ok: false, message: err.message || "Network error" };
       }
+    },
+    [token, activeBrandId],
+  );
 
-      return { ok: true, data };
-    } catch (err) {
-      console.error("saveIntegration error:", err);
-      return { ok: false, message: err.message || "Network error" };
-    }
-  }, [token, activeBrandId]);
+  const disconnectIntegration = useCallback(
+    async (id) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
 
-  const disconnectIntegration = useCallback(async (id) => {
-    if (!token) return { ok: false, message: "Not authenticated" };
+      try {
+        const res = await authFetch(`${API_INTEGRATIONS_URL}/${id}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-    try {
-      const res = await authFetch(`${API_INTEGRATIONS_URL}/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = {};
+        }
 
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { data = {}; }
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: data?.message || "Failed to disconnect integration",
+          };
+        }
 
-      if (!res.ok) {
-        return { ok: false, message: data?.message || "Failed to disconnect integration" };
+        return { ok: true, data };
+      } catch (err) {
+        return { ok: false, message: err.message || "Network error" };
       }
-
-      return { ok: true, data };
-    } catch (err) {
-      return { ok: false, message: err.message || "Network error" };
-    }
-  }, [token]);
+    },
+    [token],
+  );
 
   const fetchIntegrations = useCallback(async () => {
     if (!token) return null;
@@ -2164,83 +2286,94 @@ export function AuthProvider({ children }) {
 
       const text = await res.text();
       let data;
-      try { data = JSON.parse(text); } catch { return null; }
-      console.log('fetch: ', data)
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return null;
+      }
+      console.log("fetch: ", data);
       if (!res.ok) return null;
 
       // Normalize: expects array or { data: [...] }
-      return Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : data;
+      return Array.isArray(data)
+        ? data
+        : Array.isArray(data.data)
+          ? data.data
+          : data;
     } catch (err) {
       console.error("fetchIntegrations error:", err);
       return null;
     }
   }, [token]);
 
-  const runComparison = useCallback(async ({ mode, creativeA, creativeB, urlA, urlB }) => {
-    if (!token) return { ok: false, message: "Not authenticated" };
+  const runComparison = useCallback(
+    async ({ mode, creativeA, creativeB, urlA, urlB }) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
 
-    try {
-      let body;
-      let headers = {
-        Authorization: `Bearer ${token}`,
-      };
-
-      if (mode === "creatives") {
-        // Multipart: send both image files + labels
-        const formData = new FormData();
-        formData.append("mode", "creatives");
-        formData.append("label_a", creativeA.label || "Creative A");
-        formData.append("label_b", creativeB.label || "Creative B");
-
-        // creativeA.file is a File object; creativeA.url is a remote URL string
-        if (creativeA.file) {
-          formData.append("image_a", creativeA.file);
-        } else if (creativeA.url) {
-          formData.append("image_url_a", creativeA.url);
-        }
-
-        if (creativeB.file) {
-          formData.append("image_b", creativeB.file);
-        } else if (creativeB.url) {
-          formData.append("image_url_b", creativeB.url);
-        }
-
-        body = formData;
-        // No Content-Type header — browser sets multipart boundary automatically
-      } else {
-        // JSON: send both URLs
-        body = JSON.stringify({
-          mode: "websites",
-          url_a: urlA,
-          url_b: urlB,
-        });
-        headers["Content-Type"] = "application/json";
-      }
-
-      const res = await authFetch(`${BASE_URL}/creative-comparison`, {
-        method: "POST",
-        headers,
-        body,
-      });
-
-      const text = await res.text();
-      let data;
       try {
-        data = JSON.parse(text);
-      } catch {
-        return { ok: false, message: "Invalid server response" };
-      }
+        let body;
+        let headers = {
+          Authorization: `Bearer ${token}`,
+        };
 
-      if (!res.ok) {
-        return { ok: false, message: data?.message || "Comparison failed" };
-      }
+        if (mode === "creatives") {
+          // Multipart: send both image files + labels
+          const formData = new FormData();
+          formData.append("mode", "creatives");
+          formData.append("label_a", creativeA.label || "Creative A");
+          formData.append("label_b", creativeB.label || "Creative B");
 
-      return { ok: true, data };
-    } catch (err) {
-      console.error("runComparison error:", err);
-      return { ok: false, message: err.message || "Network error" };
-    }
-  }, [token]);
+          // creativeA.file is a File object; creativeA.url is a remote URL string
+          if (creativeA.file) {
+            formData.append("image_a", creativeA.file);
+          } else if (creativeA.url) {
+            formData.append("image_url_a", creativeA.url);
+          }
+
+          if (creativeB.file) {
+            formData.append("image_b", creativeB.file);
+          } else if (creativeB.url) {
+            formData.append("image_url_b", creativeB.url);
+          }
+
+          body = formData;
+          // No Content-Type header — browser sets multipart boundary automatically
+        } else {
+          // JSON: send both URLs
+          body = JSON.stringify({
+            mode: "websites",
+            url_a: urlA,
+            url_b: urlB,
+          });
+          headers["Content-Type"] = "application/json";
+        }
+
+        const res = await authFetch(`${BASE_URL}/creative-comparison`, {
+          method: "POST",
+          headers,
+          body,
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          return { ok: false, message: "Invalid server response" };
+        }
+
+        if (!res.ok) {
+          return { ok: false, message: data?.message || "Comparison failed" };
+        }
+
+        return { ok: true, data };
+      } catch (err) {
+        console.error("runComparison error:", err);
+        return { ok: false, message: err.message || "Network error" };
+      }
+    },
+    [token],
+  );
 
   //   const fetchDesignTemplates = async ({
   //   type,
@@ -2315,61 +2448,66 @@ export function AuthProvider({ children }) {
   //   }
   // };
 
-  const fetchDesignTemplates = useCallback(async ({
-    type,
-    category,
-    type_size,
-  }) => {
-    if (!token) {
-      return { ok: false, message: "Not authenticated" };
-    }
+  const fetchDesignTemplates = useCallback(
+    async ({ type, category, type_size }) => {
+      if (!token) {
+        return { ok: false, message: "Not authenticated" };
+      }
 
-    const formattedCategory = category
-      ? category.toLowerCase().replace(/\s+/g, "_")
-      : "";
+      const formattedCategory = category
+        ? category.toLowerCase().replace(/\s+/g, "_")
+        : "";
 
-    const payload = {
-      type,
-      sub_category: formattedCategory,
-      type_size,
-    };
+      const payload = {
+        type,
+        sub_category: formattedCategory,
+        type_size,
+      };
 
-    console.log("🎨 fetchDesignTemplates payload:", payload);
+      console.log("🎨 fetchDesignTemplates payload:", payload);
 
-    let response;
-    try {
-      response = await authFetch(
-        `https://api.scraive.com/api/canvas-templates/public-fetch`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+      let response;
+      try {
+        response = await authFetch(
+          `https://api.scraive.com/api/canvas-templates/public-fetch`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
           },
-          body: JSON.stringify(payload),
-        }
-      );
-    } catch (error) {
-      const result = await classifyResult({ error });
-      console.warn(`[${result.source}] fetchDesignTemplates:`, result.messageForDevs);
-      return result;
-    }
+        );
+      } catch (error) {
+        const result = await classifyResult({ error });
+        console.warn(
+          `[${result.source}] fetchDesignTemplates:`,
+          result.messageForDevs,
+        );
+        return result;
+      }
 
-    const result = await classifyResult({ response });
-    if (!result.ok) {
-      console.warn(`[${result.source}] fetchDesignTemplates:`, result.messageForDevs);
-      return result;
-    }
+      const result = await classifyResult({ response });
+      if (!result.ok) {
+        console.warn(
+          `[${result.source}] fetchDesignTemplates:`,
+          result.messageForDevs,
+        );
+        return result;
+      }
 
-    // Caller expects `data` to be the templates array directly
-    const templates = Array.isArray(result.data?.designs)
-      ? result.data.designs
-      : Array.isArray(result.raw?.designs)
-        ? result.raw.designs
-        : [];
-    console.log("🎨 PARSED TEMPLATES:", templates);
-    return { ...result, data: templates };
-  }, [token]);
+      // Caller expects `data` to be the templates array directly
+      const templates = Array.isArray(result.data?.designs)
+        ? result.data.designs
+        : Array.isArray(result.raw?.designs)
+          ? result.raw.designs
+          : [];
+      console.log("🎨 PARSED TEMPLATES:", templates);
+      return { ...result, data: templates };
+    },
+    [token],
+  );
 
   return (
     <AuthContext.Provider

@@ -313,22 +313,17 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
         {isLoadingMore && Array.from({ length: pendingCount }).map((_, i) => (
           <div
             key={`skeleton-${i}`}
-            style={{
-              breakInside: "avoid",
-              marginBottom: 10,
-              borderRadius: 12,
-              overflow: "hidden",
-              border: "1.5px solid #e5e7eb",
-              background: "#fff",
-              position: "relative",
-            }}
+            className="mb-2.5 overflow-hidden rounded-xl border border-gray-200 bg-white"
+            style={{ breakInside: "avoid" }}
           >
-            <div style={{ background: "#f4f5f8", padding: 8 }}>
-              <div className="shimmer" style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 6 }} />
+            <div className="bg-[#f4f5f8] p-2">
+              {/* image placeholder — animated shimmer */}
+              <div className="w-full aspect-square rounded-md bg-gray-200 animate-pulse" />
             </div>
-            <div style={{ padding: "8px 10px 10px" }}>
-              <div className="shimmer" style={{ height: 10, borderRadius: 4, marginBottom: 6, width: "60%" }} />
-              <div className="shimmer" style={{ height: 8, borderRadius: 4, width: "90%" }} />
+            <div className="px-2.5 pb-2.5 pt-2">
+              {/* text line placeholders */}
+              <div className="mb-1.5 h-2.5 w-3/5 rounded bg-gray-200 animate-pulse" />
+              <div className="h-2 w-[90%] rounded bg-gray-200 animate-pulse" />
             </div>
           </div>
         ))}

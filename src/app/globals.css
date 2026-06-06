@@ -141,3 +141,9 @@
   background-size: 800px 100%;
   animation: shimmer-sweep 1.6s infinite linear;
 }
+
+/* Left-to-right sweep for an overlay band (used by skeleton loader cards) */
+@keyframes shimmer-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}

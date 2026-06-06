@@ -317,13 +317,19 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
             style={{ breakInside: "avoid" }}
           >
             <div className="bg-[#f4f5f8] p-2">
-              {/* image placeholder — animated shimmer */}
-              <div className="w-full aspect-square rounded-md bg-gray-200 animate-pulse" />
+              {/* image placeholder — left-to-right shimmer sweep */}
+              <div className="relative w-full aspect-square overflow-hidden rounded-md bg-gray-300">
+                <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.9)_50%,transparent_100%)] animate-[shimmer-slide_1.5s_ease-in-out_infinite]" />
+              </div>
             </div>
             <div className="px-2.5 pb-2.5 pt-2">
               {/* text line placeholders */}
-              <div className="mb-1.5 h-2.5 w-3/5 rounded bg-gray-200 animate-pulse" />
-              <div className="h-2 w-[90%] rounded bg-gray-200 animate-pulse" />
+              <div className="relative mb-1.5 h-2.5 w-3/5 overflow-hidden rounded bg-gray-300">
+                <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.9)_50%,transparent_100%)] animate-[shimmer-slide_1.5s_ease-in-out_infinite]" />
+              </div>
+              <div className="relative h-2 w-[90%] overflow-hidden rounded bg-gray-300">
+                <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.9)_50%,transparent_100%)] animate-[shimmer-slide_1.5s_ease-in-out_infinite]" />
+              </div>
             </div>
           </div>
         ))}

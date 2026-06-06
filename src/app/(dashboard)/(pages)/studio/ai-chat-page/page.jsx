@@ -201,16 +201,12 @@ function DesignCanvas({ variation }) {
 
   if (!variation) return null;
 
-  const { width, height } = variation.canvas;
-  const MAX_W = 340, MAX_H = 340;
-  const scale = Math.min(MAX_W / width, MAX_H / height, 1);
-
   return (
     <canvas
       ref={canvasRef}
       style={{
-        width: width * scale,
-        height: height * scale,
+        width: "100%",
+        height: "auto",
         borderRadius: 10,
         boxShadow: "0 4px 24px rgba(0,0,0,0.10)",
         display: "block",
@@ -310,28 +306,21 @@ function PreviewPanel({ result,
         </div>
       )}
 
-      {/* ── masonry grid of all designs ── */}
+      {/* ── responsive grid: 1 design = full width, 2–3 = boxes side by side ── */}
       <div
         style={{
           flex: 1,
           overflowY: "auto",
           padding: 12,
-          display: "flex",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 10,
-          alignItems: "flex-start",
+          alignItems: "start",
           scrollbarWidth: "thin",
           scrollbarColor: "rgba(0,0,0,0.08) transparent",
         }}
       >
-        {/* split into two columns manually */}
-        {[0, 1].map((colIdx) => (
-          <div
-            key={colIdx}
-            style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}
-          >
-            {variations
-              .filter((_, i) => i % 2 === colIdx)
-              .map((v) => {
+        {variations.map((v) => {
                 const score = v.copy?.performance_score || "";
                 const scoreNum = score.split("/")[0];
                 const scoreLabel = score.split("—")[1]?.trim() || "";
@@ -470,8 +459,6 @@ function PreviewPanel({ result,
                   </div>
                 );
               })}
-          </div>
-        ))}
       </div>
 
       {/* ── footer ── */}

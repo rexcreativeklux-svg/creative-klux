@@ -154,6 +154,14 @@ export default function ProductPhotos() {
         e.target.value = '';
     };
 
+    // Central tool router — used by the tool grid AND the in-modal tool switcher.
+    const openTool = (id) => {
+        if (id === 'virtual') { setVirtualModelOpen(true); return; }
+        if (id === 'batch') { openBgRemover(); return; }
+        if (id === 'staging') { setStagingOpen(true); return; }
+        openEditor('start');
+    };
+
     // Search filtering — matches tools and getStarted items
     const q = search.toLowerCase().trim();
     const filteredTools = q ? tools.filter(t => t.label.toLowerCase().includes(q)) : tools;
@@ -172,7 +180,12 @@ export default function ProductPhotos() {
                 onChange={handleBgFileSelect}
             />
 
-            {virtualModelOpen && <VirtualModelModal onClose={() => setVirtualModelOpen(false)} />}
+            {virtualModelOpen && (
+                <VirtualModelModal
+                    onClose={() => setVirtualModelOpen(false)}
+                    onSwitchTool={(id) => { setVirtualModelOpen(false); openTool(id); }}
+                />
+            )}
             {bgRemoverOpen && <BatchModal onClose={() => setBgRemoverOpen(false)} initialFile={bgRemoverFile} />}
             {stagingOpen && <ProductStagingModal onClose={() => setStagingOpen(false)} />}
             {editorOpen && <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />}
@@ -201,12 +214,7 @@ export default function ProductPhotos() {
                             return (
                                 <button
                                     key={tool.id}
-                                    onClick={() => {
-                                        if (tool.id === 'virtual') { setVirtualModelOpen(true); return; }
-                                        if (tool.id === 'batch') { openBgRemover(); return; }
-                                        if (tool.id === 'staging') { setStagingOpen(true); return; }
-                                        openEditor('start');
-                                    }}
+                                    onClick={() => openTool(tool.id)}
                                     className={`flex items-center gap-2 px-3 py-3 rounded-lg text-sm font-medium border transition-all cursor-pointer hover:border-blue-400 hover:bg-blue-50 ${tool.primary
                                         ? 'border-blue-500 bg-blue-50 text-blue-700'
                                         : 'border-gray-200 bg-white text-gray-700'

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Search, Image, Scissors, User, Package, Shirt, Sparkles, LayoutGrid, Video, Zap, Grid2x2, ChevronRight, Layers } from 'lucide-react';
 import { motion } from 'framer-motion';
 import PhotoEditor from '@/app/(components)/product-photos/PhotoEditor';
 import VirtualModelModal from '@/app/(components)/product-photos/VirtualModelModal';
-import BatchModal from '@/app/(components)/product-photos/BatchModal';
 import ProductToolModal from '@/app/(components)/product-photos/ProductToolModal';
 
 // Tools that use the shared ProductToolModal (Virtual Model has its own modal).
@@ -81,6 +82,12 @@ const tools = [
         Icon: Video,
         color: 'bg-indigo-100 text-indigo-600'
     },
+    {
+        id: 'all',
+        label: 'See all tools...',
+        Icon: Grid2x2,
+        color: 'bg-gray-100 text-gray-600'
+    },
 ];
 
 const getStarted = [
@@ -133,34 +140,20 @@ export default function ProductPhotos() {
     const [search, setSearch] = useState('');
     const [editorOpen, setEditorOpen] = useState(false);
     const [editorMode, setEditorMode] = useState('start');
+    const router = useRouter();
     const [virtualModelOpen, setVirtualModelOpen] = useState(false);
-    const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
-    const [bgRemoverFile, setBgRemoverFile] = useState(null);
     const [toolModalId, setToolModalId] = useState(null); // shared ProductToolModal (staging/mannequin/beautifier/flatlay)
-    const bgFileInputRef = useRef(null);
 
     const openEditor = (mode = 'start') => {
         setEditorMode(mode);
         setEditorOpen(true);
     };
 
-    const openBgRemover = () => {
-        setBgRemoverFile(null);
-        bgFileInputRef.current?.click();
-    };
-
-    const handleBgFileSelect = (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setBgRemoverFile(file);
-        setBgRemoverOpen(true);
-        e.target.value = '';
-    };
-
     // Central tool router — used by the tool grid AND the in-modal tool switcher.
     const openTool = (id) => {
         if (id === 'virtual') { setVirtualModelOpen(true); return; }
-        if (id === 'batch') { openBgRemover(); return; }
+        if (id === 'batch') { router.push('/product-photos/batch'); return; }
+        if (id === 'all') { toast('All available tools are shown above.'); return; }
         if (PRODUCT_TOOL_IDS.includes(id)) { setToolModalId(id); return; }
         openEditor('start');
     };
@@ -174,22 +167,12 @@ export default function ProductPhotos() {
 
     return (
         <div>
-            {/* Hidden file input for bg remover */}
-            <input
-                ref={bgFileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleBgFileSelect}
-            />
-
             {virtualModelOpen && (
                 <VirtualModelModal
                     onClose={() => setVirtualModelOpen(false)}
                     onSwitchTool={(id) => { setVirtualModelOpen(false); openTool(id); }}
                 />
             )}
-            {bgRemoverOpen && <BatchModal onClose={() => setBgRemoverOpen(false)} initialFile={bgRemoverFile} />}
             {toolModalId && (
                 <ProductToolModal
                     toolId={toolModalId}

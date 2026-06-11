@@ -6,7 +6,10 @@ import { motion } from 'framer-motion';
 import PhotoEditor from '@/app/(components)/product-photos/PhotoEditor';
 import VirtualModelModal from '@/app/(components)/product-photos/VirtualModelModal';
 import BatchModal from '@/app/(components)/product-photos/BatchModal';
-import ProductStagingModal from '@/app/(components)/product-photos/ProductStagingModal';
+import ProductToolModal from '@/app/(components)/product-photos/ProductToolModal';
+
+// Tools that use the shared ProductToolModal (Virtual Model has its own modal).
+const PRODUCT_TOOL_IDS = ['staging', 'mannequin', 'beautifier', 'flatlay'];
 
 // const tools = [
 //     { id: 'start',      label: 'Start from a photo',    Icon: Image,      primary: true },
@@ -133,7 +136,7 @@ export default function ProductPhotos() {
     const [virtualModelOpen, setVirtualModelOpen] = useState(false);
     const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
     const [bgRemoverFile, setBgRemoverFile] = useState(null);
-    const [stagingOpen, setStagingOpen] = useState(false);
+    const [toolModalId, setToolModalId] = useState(null); // shared ProductToolModal (staging/mannequin/beautifier/flatlay)
     const bgFileInputRef = useRef(null);
 
     const openEditor = (mode = 'start') => {
@@ -158,7 +161,7 @@ export default function ProductPhotos() {
     const openTool = (id) => {
         if (id === 'virtual') { setVirtualModelOpen(true); return; }
         if (id === 'batch') { openBgRemover(); return; }
-        if (id === 'staging') { setStagingOpen(true); return; }
+        if (PRODUCT_TOOL_IDS.includes(id)) { setToolModalId(id); return; }
         openEditor('start');
     };
 
@@ -187,7 +190,13 @@ export default function ProductPhotos() {
                 />
             )}
             {bgRemoverOpen && <BatchModal onClose={() => setBgRemoverOpen(false)} initialFile={bgRemoverFile} />}
-            {stagingOpen && <ProductStagingModal onClose={() => setStagingOpen(false)} />}
+            {toolModalId && (
+                <ProductToolModal
+                    toolId={toolModalId}
+                    onClose={() => setToolModalId(null)}
+                    onSwitchTool={(id) => { setToolModalId(null); openTool(id); }}
+                />
+            )}
             {editorOpen && <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />}
 
             {/* ── Header ── */}

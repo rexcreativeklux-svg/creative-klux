@@ -90,11 +90,10 @@ function MiniCanvas({ canvasData, elements, maxW = 160, maxH = 100 }) {
   }, [canvasData, elements]);
 
   if (!canvasData) return null;
-  const scale = Math.min(maxW / canvasData.width, maxH / canvasData.height, 1);
   return (
     <canvas
       ref={ref}
-      style={{ width: canvasData.width * scale, height: canvasData.height * scale, borderRadius: 6, display: "block" }}
+      style={{ width: "100%", height: "auto", borderRadius: 6, display: "block" }}
     />
   );
 }

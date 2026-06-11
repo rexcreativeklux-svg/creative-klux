@@ -204,6 +204,22 @@ Wrapper response: `{ success, message, data: [ ...brands ] }`.
 - **`PEXELS_API_KEY` and other secrets live in `.env`** (gitignored). Without it, `/api/pexels` returns 500 and Search Media inside `MediaPickerModal` shows nothing. Next.js only reads `.env` at server startup — **restart `npm run dev` after editing `.env`**.
 - **Blob URLs are not fetchable by the backend.** Cropped images live in browser memory with `blob:` URLs that only work in the user's tab. Always upload via `useAuth().uploadImage(file)` first and send the returned URL. Note the side effect: every upload persists to the user's Image Gallery — there's no temporary-upload endpoint yet.
 
+## TEST: create-from-url uses `/creatives/createdesign` (not redesign)
+
+(Added 2026-06-11. **This is a test override scoped to create-from-url only.**) The create-from-url page currently generates via **`/creatives/createdesign`** instead of the normal Scraive → `/creatives/redesign` flow. Everything else (Custom Creation forms, `generateCustomCreative`) is **unchanged** and still uses Scraive → redesign.
+
+What's in place:
+- **`createDesign(payload)`** — a function in `AuthContext.jsx` (right after `generateCustomCreative`, exposed in the context value). POSTs `brand_details` only (no templates) to `/creatives/createdesign`, single request, and `console.log`s the payload + result for debugging.
+- **`src/app/(dashboard)/(pages)/studio/create-from-url/page.jsx` → `handleGenerate`:** the Scraive `fetchDesignTemplates` block, the `templates:` payload line, and the whole `generateCustomCreative`/redesign block are **commented out** (`/* ... */`). It now calls `createDesign(payload)` and logs the output.
+- **Response-shape adapter** (in the same `handleGenerate`): createdesign returns a **single** design `{ design: { canvas, elements }, copy }`, whereas redesign returns `{ variations: [...] }`. The adapter wraps createdesign's `design` + `copy` into a **one-item `variations` array** so the existing `AdPreview`/`DesignResultPanel` can render it. Without the adapter the UI shows nothing ("No results returned").
+
+**To REVERT (back to Scraive → redesign in create-from-url):**
+1. In `create-from-url/page.jsx` `handleGenerate`: un-comment the Scraive fetch block, the `templates: selectedTemplates,` payload line, and the `generateCustomCreative` block; delete the "TEST" `createDesign` call **and the ADAPTER block**.
+2. Remove `createDesign` from the `useAuth()` destructure in that file.
+3. (Optional) Remove the `createDesign` function + its context-value entry from `AuthContext.jsx` — or leave it; it's harmless and unused once create-from-url stops calling it.
+
+Note: `/creatives/createdesign` needed a backend CORS fix (its `OPTIONS` preflight was 500; now 204). The endpoint generates ONE design per call from brand details alone.
+
 ## Recent significant changes
 
 (Last updated 2026-05-22. Keep this short — a running 3–5 item list is fine.)

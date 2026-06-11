@@ -316,6 +316,7 @@ export default function CreativesPage() {
     deleteDesignById,
     bulkDeleteDesigns,
     updateDesignById,
+    toggleDesignFavorite,
   } = useAuth();
 
   const [creatives, setCreatives] = useState([]);
@@ -446,12 +447,32 @@ export default function CreativesPage() {
     [updateDesignById],
   );
 
-  const toggleFavorite = useCallback((id, e) => {
-    e?.stopPropagation();
-    setCreatives((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, favorite: !c.favorite } : c)),
-    );
-  }, []);
+  const toggleFavorite = useCallback(
+    async (id, e) => {
+      e?.stopPropagation();
+
+      const target = creatives.find((c) => c.id === id);
+      if (!target) return;
+      const nextFavorite = !target.favorite;
+
+      // Optimistic flip so the star reacts instantly.
+      setCreatives((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, favorite: nextFavorite } : c)),
+      );
+
+      const res = await toggleDesignFavorite(id, nextFavorite);
+      if (!res?.ok) {
+        // Revert on failure and let the user know.
+        setCreatives((prev) =>
+          prev.map((c) =>
+            c.id === id ? { ...c, favorite: !nextFavorite } : c,
+          ),
+        );
+        showToast(res?.message || "Could not update favorite", "error");
+      }
+    },
+    [creatives, toggleDesignFavorite],
+  );
 
   // ── Filtering ────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {

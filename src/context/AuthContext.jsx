@@ -1901,6 +1901,49 @@ export function AuthProvider({ children }) {
     [token],
   );
 
+  // Mark/unmark a design as favorite. Send 1 to favorite, 0 to remove.
+  const toggleDesignFavorite = useCallback(
+    async (id, favorite) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
+      if (!id) return { ok: false, message: "No design ID provided" };
+
+      try {
+        const res = await authFetch(
+          `${BASE_URL}/creative-designs/${id}/favorite`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ fav: favorite ? 1 : 0 }),
+          },
+        );
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = {};
+        }
+
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: data?.message || `Favorite failed (${res.status})`,
+          };
+        }
+
+        return { ok: true, data };
+      } catch (err) {
+        console.error("toggleDesignFavorite error:", err);
+        return { ok: false, message: err.message || "Network error" };
+      }
+    },
+    [token],
+  );
+
   const analyzeRival = useCallback(
     async ({ url, period = "last_30_days" }) => {
       if (!token) {
@@ -2449,7 +2492,7 @@ export function AuthProvider({ children }) {
   // };
 
   const fetchDesignTemplates = useCallback(
-    async ({ type, category, type_size }) => {
+    async ({ type, category, type_size, num_template = 3 }) => {
       if (!token) {
         return { ok: false, message: "Not authenticated" };
       }
@@ -2462,6 +2505,7 @@ export function AuthProvider({ children }) {
         type,
         sub_category: formattedCategory,
         type_size,
+        num_template,
       };
 
       console.log("🎨 fetchDesignTemplates payload:", payload);
@@ -2531,6 +2575,7 @@ export function AuthProvider({ children }) {
         fetchIntegrations,
         bulkDeleteDesigns,
         updateDesignById,
+        toggleDesignFavorite,
         fetchDesigns,
         saveDesign,
         analyzeRival,

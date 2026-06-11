@@ -314,6 +314,7 @@ export default function CreativesPage() {
   const {
     fetchDesigns,
     activeBrandId,
+    brandsLoading,
     deleteDesignById,
     bulkDeleteDesigns,
     updateDesignById,
@@ -371,12 +372,19 @@ export default function CreativesPage() {
 
   useEffect(() => {
     if (!activeBrandId) {
+      // The active brand may still be hydrating from localStorage (fetchBrands).
+      // Keep showing the loading state until brands finish resolving — otherwise
+      // we briefly flash the "No designs" empty state before the brand loads.
+      if (brandsLoading) {
+        setLoading(true);
+        return;
+      }
       setCreatives([]);
       setLoading(false);
       return;
     }
     loadDesigns();
-  }, [loadDesigns, activeBrandId]);
+  }, [loadDesigns, activeBrandId, brandsLoading]);
 
   // ── CRUD wrappers using context ─────────────────────────────────────────────
   const deleteDesign = useCallback(

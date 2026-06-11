@@ -58,60 +58,67 @@ function DropdownBelow({ anchorRef, children, width = 460 }) {
     );
 }
 
+// Real model/pose reference photos from Pexels (free license, stable CDN URLs).
+// No fit=crop — resize by height only so the full figure (head included) is preserved.
+const px = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=600`;
+// Landscape thumbnails for background swatches.
+const pxbg = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=320&h=240&fit=crop`;
+const CLOTHING_IMG = px(45982); // folded sweater — empty-state product placeholder
+
 const MODELS = [
-    { id: 'avery', name: 'Avery', emoji: '👩', desc: 'Woman, straight hair, jeans' },
-    { id: 'sam', name: 'Sam', emoji: '👨', desc: 'Man, black tee, grey pants' },
-    { id: 'taylor', name: 'Taylor', emoji: '👨', desc: 'Man, white tee, khaki' },
-    { id: 'kendall', name: 'Kendall', emoji: '👩', desc: 'Woman, white tee, jeans' },
-    { id: 'jordan', name: 'Jordan', emoji: '👨', desc: 'Man, beige outfit' },
-    { id: 'casey', name: 'Casey', emoji: '👩', desc: 'Woman, all white' },
-    { id: 'alex', name: 'Alex', emoji: '👩', desc: 'Woman, beige set' },
-    { id: 'maya', name: 'Maya', emoji: '👩', desc: 'Woman, black outfit' },
-    { id: 'reece', name: 'Reece', emoji: '👨', desc: 'Man, casual jeans' },
-    { id: 'lara', name: 'Lara', emoji: '👩', desc: 'Woman, violet jeans' },
-    { id: 'julia', name: 'Julia', emoji: '👩', desc: 'Woman, light jeans' },
+    { id: 'avery', name: 'Avery', emoji: '👩', desc: 'Woman, straight hair, jeans', img: px(6780091) },
+    { id: 'sam', name: 'Sam', emoji: '👨', desc: 'Man, black tee, grey pants', img: px(29727777) },
+    { id: 'taylor', name: 'Taylor', emoji: '👨', desc: 'Man, white tee, khaki', img: px(37741914) },
+    { id: 'kendall', name: 'Kendall', emoji: '👩', desc: 'Woman, white tee, jeans', img: px(6780038) },
+    { id: 'jordan', name: 'Jordan', emoji: '👨', desc: 'Man, beige outfit', img: px(37218533) },
+    { id: 'casey', name: 'Casey', emoji: '👩', desc: 'Woman, all white', img: px(31215272) },
+    { id: 'alex', name: 'Alex', emoji: '👩', desc: 'Woman, beige set', img: px(6780036) },
+    { id: 'maya', name: 'Maya', emoji: '👩', desc: 'Woman, black outfit', img: px(5421296) },
+    { id: 'reece', name: 'Reece', emoji: '👨', desc: 'Man, casual jeans', img: px(18516993) },
+    { id: 'lara', name: 'Lara', emoji: '👩', desc: 'Woman, blue jeans', img: px(5112737) },
+    { id: 'julia', name: 'Julia', emoji: '👩', desc: 'Woman, light jeans', img: px(31042871) },
 ];
 
 const POSES = [
-    { id: 'random', name: 'Random' },
-    { id: 'standing', name: 'Standing' },
-    { id: '3_4_turn', name: '3/4 Turn' },
-    { id: 'power_stance', name: 'Power Stance' },
-    { id: 'walking', name: 'Walking Forward' },
-    { id: 'hand_pocket', name: 'Hand in Pocket' },
-    { id: 'crossed_arms', name: 'Crossed Arms' },
-    { id: 'back', name: 'Back' },
-    { id: 'over_shoulder', name: 'Over-the-Shoulder' },
-    { id: 'seated', name: 'Seated Casual' },
-    { id: 'adjusting', name: 'Adjusting Clothing' },
-    { id: 'playful', name: 'Playful Spin' },
+    { id: 'random', name: 'Random', img: px(31046827) },
+    { id: 'standing', name: 'Standing', img: px(27542891) },
+    { id: '3_4_turn', name: '3/4 Turn', img: px(31046829) },
+    { id: 'power_stance', name: 'Power Stance', img: px(32325987) },
+    { id: 'walking', name: 'Walking Forward', img: px(1803779) },
+    { id: 'hand_pocket', name: 'Hand in Pocket', img: px(36759684) },
+    { id: 'crossed_arms', name: 'Crossed Arms', img: px(33821631) },
+    { id: 'back', name: 'Back', img: px(31894858) },
+    { id: 'over_shoulder', name: 'Over-the-Shoulder', img: px(5413902) },
+    { id: 'seated', name: 'Seated Casual', img: px(5412379) },
+    { id: 'adjusting', name: 'Adjusting Clothing', img: px(36322478) },
+    { id: 'playful', name: 'Playful Spin', img: px(7209534) },
 ];
 
 const BACKGROUNDS = [
-    { id: 'custom', name: 'Custom', color: '#e0e0e0' },
-    { id: 'random', name: 'Random', color: '#c8d8c8' },
-    { id: 'street', name: 'Street', color: '#d0c8b8' },
-    { id: 'bedroom', name: 'Bedroom', color: '#e8d8c8' },
-    { id: 'sunset', name: 'Sunset', color: '#f0c060' },
-    { id: 'factory', name: 'Factory', color: '#888' },
-    { id: 'studio', name: 'Studio', color: '#f0f0f0' },
-    { id: 'colored_studio', name: 'Colored Studio', color: '#a0c0e0' },
-    { id: 'concrete_studio', name: 'Concrete Studio', color: '#b0b0b0' },
-    { id: 'beach', name: 'Beach', color: '#70b8e0' },
-    { id: 'tropical', name: 'Tropical', color: '#40a860' },
-    { id: 'library', name: 'Library', color: '#c8a870' },
-    { id: 'forest', name: 'Forest', color: '#508040' },
-    { id: 'business', name: 'Business District', color: '#708090' },
-    { id: 'countryside', name: 'Countryside', color: '#90b860' },
-    { id: 'flowers', name: 'Flowers', color: '#e080a0' },
-    { id: 'golden_light', name: 'Golden Light', color: '#e0a840' },
-    { id: 'mountain', name: 'Mountain', color: '#8090a8' },
-    { id: 'pool', name: 'Pool', color: '#40a8d0' },
-    { id: 'latin_city', name: 'Latin City', color: '#c09060' },
-    { id: 'cafe', name: 'Cafe', color: '#a07850' },
-    { id: 'asian_city', name: 'Asian City', color: '#f060a0' },
-    { id: 'night_lights', name: 'Night Lights', color: '#2030a0' },
-    { id: 'desert', name: 'Desert', color: '#d0a860' },
+    { id: 'custom', name: 'Custom', color: '#e0e0e0' }, // no image — shows a "+" tile
+    { id: 'random', name: 'Random', color: '#c8d8c8', img: pxbg(20002520) },
+    { id: 'street', name: 'Street', color: '#d0c8b8', img: pxbg(12497049) },
+    { id: 'bedroom', name: 'Bedroom', color: '#e8d8c8', img: pxbg(31488380) },
+    { id: 'sunset', name: 'Sunset', color: '#f0c060', img: pxbg(709573) },
+    { id: 'factory', name: 'Factory', color: '#888', img: pxbg(236709) },
+    { id: 'studio', name: 'Studio', color: '#f0f0f0', img: pxbg(1932666) },
+    { id: 'colored_studio', name: 'Colored Studio', color: '#a0c0e0', img: pxbg(36789468) },
+    { id: 'concrete_studio', name: 'Concrete Studio', color: '#b0b0b0', img: pxbg(2463329) },
+    { id: 'beach', name: 'Beach', color: '#70b8e0', img: pxbg(5232809) },
+    { id: 'tropical', name: 'Tropical', color: '#40a860', img: pxbg(6910147) },
+    { id: 'library', name: 'Library', color: '#c8a870', img: pxbg(5225982) },
+    { id: 'forest', name: 'Forest', color: '#508040', img: pxbg(1437601) },
+    { id: 'business', name: 'Business District', color: '#708090', img: pxbg(13012283) },
+    { id: 'countryside', name: 'Countryside', color: '#90b860', img: pxbg(4268073) },
+    { id: 'flowers', name: 'Flowers', color: '#e080a0', img: pxbg(16563299) },
+    { id: 'golden_light', name: 'Golden Light', color: '#e0a840', img: pxbg(30608651) },
+    { id: 'mountain', name: 'Mountain', color: '#8090a8', img: pxbg(2734347) },
+    { id: 'pool', name: 'Pool', color: '#40a8d0', img: pxbg(10739637) },
+    { id: 'latin_city', name: 'Latin City', color: '#c09060', img: pxbg(16215575) },
+    { id: 'cafe', name: 'Cafe', color: '#a07850', img: pxbg(17104305) },
+    { id: 'asian_city', name: 'Asian City', color: '#f060a0', img: pxbg(33901684) },
+    { id: 'night_lights', name: 'Night Lights', color: '#2030a0', img: pxbg(18462155) },
+    { id: 'desert', name: 'Desert', color: '#d0a860', img: pxbg(8869381) },
 ];
 
 const SIZES = [
@@ -128,20 +135,59 @@ const SIZES = [
 // Resolution badge shown next to the selected quality (matches Photoroom's 1K/2K/4K chip)
 const QUALITY_RES = { Standard: '1K', High: '2K', Ultra: '4K' };
 
-// Floating panel rendered at fixed position to escape sidebar overflow clipping
+// Quality tiers shown as rich cards in the Quality dropdown (id matches the `quality` state).
+const QUALITY_TIERS = [
+    {
+        id: 'Ultra', name: 'Premium', tag: 'Ultra', tagColor: 'bg-violet-100 text-violet-700',
+        img: px(6780091),
+        features: ['4k+ resolution', 'Best product accuracy', 'Most realistic models', 'Highest quality', 'Consumes most credits'],
+    },
+    {
+        id: 'High', name: 'Advanced', tag: 'Max', tagColor: 'bg-indigo-100 text-indigo-700',
+        img: px(6780038),
+        features: ['2k resolution', 'Better product accuracy', 'Realistic models', 'High quality', 'Consumes more credits'],
+    },
+    {
+        id: 'Standard', name: 'Standard', tag: 'Pro', tagColor: 'bg-emerald-100 text-emerald-700',
+        img: px(6780036),
+        features: ['1k resolution', 'Good product accuracy', 'Fast generations', 'Consumes less credits'],
+    },
+];
+
+// Floating panel rendered at fixed position to escape sidebar overflow clipping.
+// Anchors to the right of the trigger, then clamps into the viewport so it never
+// runs off the bottom/right edge (flips to the left side if there's no room).
 function FloatingPanel({ anchorRef, children, width = 320 }) {
-    const [pos, setPos] = useState({ top: 0, left: 0 });
+    const panelRef = useRef(null);
+    const [pos, setPos] = useState({ top: -9999, left: -9999 });
 
     useEffect(() => {
-        if (anchorRef?.current) {
-            const rect = anchorRef.current.getBoundingClientRect();
-            setPos({ top: rect.top, left: rect.right + 4 });
-        }
-    }, [anchorRef]);
+        const a = anchorRef?.current;
+        const p = panelRef.current;
+        if (!a || !p) return;
+        const r = a.getBoundingClientRect();
+        const pw = p.offsetWidth || width;
+        const ph = p.offsetHeight;
+        const margin = 12;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        let left = r.right + 4;
+        if (left + pw > vw - margin) left = r.left - pw - 4;      // flip to the left of the trigger
+        if (left < margin) left = vw - pw - margin;               // last resort: pin to right edge
+        left = Math.max(margin, left);
+
+        let top = r.top;
+        if (top + ph > vh - margin) top = vh - ph - margin;       // lift up so the bottom stays visible
+        top = Math.max(margin, top);
+
+        setPos({ top, left });
+    }, [anchorRef, width]);
 
     return (
         <div
-            className="fixed z-[200] bg-white rounded-xl shadow-2xl border border-gray-100 max-h-[480px] overflow-y-auto"
+            ref={panelRef}
+            className="fixed z-[200] bg-white rounded-xl shadow-2xl border border-gray-100 max-h-[85vh] overflow-y-auto"
             style={{ top: pos.top, left: pos.left, width }}
             onClick={e => e.stopPropagation()}
         >
@@ -150,13 +196,14 @@ function FloatingPanel({ anchorRef, children, width = 320 }) {
     );
 }
 
-export default function VirtualModelModal({ onClose }) {
+export default function VirtualModelModal({ onClose, onSwitchTool }) {
     const fileInputRef = useRef(null);
     const qualityRef = useRef(null);
     const backgroundRef = useRef(null);
     const sizeRef = useRef(null);
     const modelRef = useRef(null);
     const poseRef = useRef(null);
+    const headerRef = useRef(null);
 
     const [uploadedImage, setUploadedImage] = useState(null);
     const [uploadedFile, setUploadedFile] = useState(null);
@@ -172,6 +219,15 @@ export default function VirtualModelModal({ onClose }) {
     const [openDropdown, setOpenDropdown] = useState(null);
     const [imageMenu, setImageMenu] = useState(null); // { idx, x, y }
     const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // cached cloud URL
+    const [toolMenuOpen, setToolMenuOpen] = useState(false); // header tool switcher
+
+    // Header tool switcher: clicking the current tool just closes; any other tool
+    // tells the parent to swap modals (parent opens the right one + closes this).
+    const handleToolClick = (id) => {
+        setToolMenuOpen(false);
+        if (id === 'virtual') return; // already here
+        onSwitchTool?.(id);
+    };
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -222,7 +278,7 @@ export default function VirtualModelModal({ onClose }) {
     const bgObj = BACKGROUNDS.find(b => b.id === background);
     const sizeObj = SIZES.find(s => s.id === size);
 
-    const closeAll = () => { setOpenDropdown(null); setImageMenu(null); };
+    const closeAll = () => { setOpenDropdown(null); setImageMenu(null); setToolMenuOpen(false); };
 
     const handleDownload = (url) => {
         const a = document.createElement('a');
@@ -237,82 +293,92 @@ export default function VirtualModelModal({ onClose }) {
                 onClick={e => e.stopPropagation()}
             >
                 {/* ── Left sidebar ── */}
-                {/* overflow-visible so floating panels escape; use a relative wrapper for internal layout */}
-                <div className="w-84 border-r border-gray-100 flex flex-col flex-shrink-0 overflow-y-auto overflow-x-visible" style={{ position: 'relative' }}>
+                {/* Column with a scrollable body and a pinned Generate footer. */}
+                <div className="w-84 border-r border-gray-100 flex flex-col flex-shrink-0">
 
-                    {/* Header */}
-                    <div className="flex items-center px-4 py-3 border-b border-gray-100">
-                        <span className="flex items-center gap-1.5 font-semibold text-sm text-gray-800">
-                            Virtual Model <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                        </span>
+                    {/* Scrollable content (Generate button stays pinned below) */}
+                    <div className="flex-1 overflow-y-auto min-h-0">
+
+                    {/* Header — click the title to open the tool switcher */}
+                    <div className="px-5 pt-5 pb-1">
+                        <button
+                            ref={headerRef}
+                            onClick={() => setToolMenuOpen(o => !o)}
+                            className="flex items-center gap-2 font-bold text-2xl text-gray-900 hover:opacity-70 transition-opacity"
+                        >
+                            Virtual Model
+                            <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${toolMenuOpen ? 'rotate-180' : ''}`} />
+                        </button>
                     </div>
 
                     {/* Upload */}
-                    <div className="px-3 py-3 border-b border-gray-100">
+                    <div className="px-4 pt-4">
                         <button
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-full border border-dashed border-gray-300 rounded-lg py-2.5 flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors"
+                            className="w-full border border-dashed border-gray-300 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors"
                         >
-                            <Upload className="w-3.5 h-3.5" />
-                            Drop files or <span className="text-violet-600 font-medium">select images</span>
+                            <Upload className="w-4 h-4" />
+                            Drop files or <span className="text-violet-600 font-semibold">select images</span>
                         </button>
                         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                     </div>
 
                     {/* Uploaded thumb */}
                     {uploadedImage && (
-                        <div className="px-3 py-2 border-b border-gray-100">
-                            <div className="w-16 h-16 rounded-lg overflow-hidden border-2 border-violet-500">
+                        <div className="px-4 pt-3">
+                            <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-violet-500">
                                 <img src={uploadedImage} alt="product" className="w-full h-full object-cover" />
                             </div>
                         </div>
                     )}
 
                     {/* Model & Pose */}
-                    <div className="px-3 py-3 border-b border-gray-100">
-                        <div className="grid grid-cols-2 gap-2">
+                    <div className="px-4 pt-4">
+                        <div className="grid grid-cols-2 gap-3">
                             {/* Model button */}
                             <button
                                 ref={modelRef}
                                 onClick={() => toggle('model')}
-                                className={`w-full flex flex-col items-center p-2 rounded-xl border-2 transition-colors ${openDropdown === 'model' ? 'border-violet-500' : 'border-gray-200 hover:border-violet-300'}`}
+                                className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === 'model' ? 'bg-violet-50 ring-2 ring-violet-500' : 'bg-gray-100/70 hover:bg-gray-100'}`}
                             >
-                                <div className="w-14 h-16 bg-gray-100 rounded-lg flex items-center justify-center text-3xl mb-1">
-                                    {modelObj?.emoji}
+                                <div className="w-full h-40 rounded-xl overflow-hidden mb-2.5 bg-white">
+                                    <img src={modelObj?.img} alt={modelObj?.name} className="w-full h-full object-contain" />
                                 </div>
-                                <span className="text-[10px] text-gray-400">Model</span>
-                                <span className="text-xs font-semibold text-gray-700">{modelObj?.name}</span>
+                                <span className="text-[11px] text-gray-400">Model</span>
+                                <span className="text-sm font-semibold text-gray-800">{modelObj?.name}</span>
                             </button>
 
                             {/* Pose button */}
                             <button
                                 ref={poseRef}
                                 onClick={() => toggle('pose')}
-                                className={`w-full flex flex-col items-center p-2 rounded-xl border-2 transition-colors ${openDropdown === 'pose' ? 'border-violet-500' : 'border-gray-200 hover:border-violet-300'}`}
+                                className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === 'pose' ? 'bg-violet-50 ring-2 ring-violet-500' : 'bg-gray-100/70 hover:bg-gray-100'}`}
                             >
-                                <div className="w-14 h-16 bg-amber-50 rounded-lg flex items-center justify-center text-3xl mb-1">🪆</div>
-                                <span className="text-[10px] text-gray-400">Pose</span>
-                                <span className="text-xs font-semibold text-gray-700">{poseObj?.name}</span>
+                                <div className="w-full h-40 rounded-xl overflow-hidden mb-2.5 bg-white">
+                                    <img src={poseObj?.img} alt={poseObj?.name} className="w-full h-full object-contain" />
+                                </div>
+                                <span className="text-[11px] text-gray-400">Pose</span>
+                                <span className="text-sm font-semibold text-gray-800">{poseObj?.name}</span>
                             </button>
                         </div>
                     </div>
 
-                    {/* Option rows — each a rounded card (Photoroom style) */}
-                    <div className="flex-1 px-3 py-3 space-y-2">
+                    {/* Option rows — light gray cards (Photoroom style) */}
+                    <div className="px-4 pt-3 pb-3 space-y-2.5">
                         {/* Quality */}
                         <button ref={qualityRef} onClick={() => toggle('quality')}
-                            className="w-full flex items-center justify-between px-3.5 py-3 rounded-2xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-sm transition-colors">
-                            <span className="text-gray-700 font-medium">Quality</span>
+                            className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-50 hover:bg-gray-100 text-sm transition-colors">
+                            <span className="text-gray-800 font-medium">Quality</span>
                             <span className="text-gray-400 flex items-center gap-2">
                                 {quality}
-                                <span className="text-[10px] font-semibold text-gray-600 bg-gray-100 border border-gray-200 rounded-md px-1.5 py-0.5">{QUALITY_RES[quality]}</span>
+                                <span className="text-[11px] font-bold text-gray-700 bg-white border border-gray-200 shadow-sm rounded-md px-1.5 py-0.5">{QUALITY_RES[quality]}</span>
                             </span>
                         </button>
 
                         {/* Background */}
                         <button ref={backgroundRef} onClick={() => toggle('background')}
-                            className="w-full flex items-center justify-between px-3.5 py-3 rounded-2xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-sm transition-colors">
-                            <span className="text-gray-700 font-medium">Background</span>
+                            className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-50 hover:bg-gray-100 text-sm transition-colors">
+                            <span className="text-gray-800 font-medium">Background</span>
                             <span className="flex items-center gap-2 text-gray-400">
                                 {bgObj?.name}
                                 <div className="w-7 h-7 rounded-md border border-gray-200" style={{ backgroundColor: bgObj?.color }} />
@@ -321,37 +387,39 @@ export default function VirtualModelModal({ onClose }) {
 
                         {/* Size */}
                         <button ref={sizeRef} onClick={() => toggle('size')}
-                            className="w-full flex items-center justify-between px-3.5 py-3 rounded-2xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-sm transition-colors">
-                            <span className="text-gray-700 font-medium">Size</span>
+                            className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-50 hover:bg-gray-100 text-sm transition-colors">
+                            <span className="text-gray-800 font-medium">Size</span>
                             <span className="text-gray-400">{sizeObj?.name}</span>
                         </button>
 
                         {/* Brand style */}
                         <button onClick={() => setApplyBrandStyle(p => !p)}
-                            className="w-full flex items-center justify-between px-3.5 py-3 rounded-2xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-sm transition-colors">
-                            <span className="text-gray-700 font-medium">Apply brand style</span>
+                            className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-50 hover:bg-gray-100 text-sm transition-colors">
+                            <span className="text-gray-800 font-medium">Apply brand style</span>
                             <span className={applyBrandStyle ? 'text-violet-600 font-semibold' : 'text-gray-400'}>{applyBrandStyle ? 'On' : 'Off'}</span>
                         </button>
 
                         {/* Prompt */}
-                        <div className="rounded-2xl border border-gray-200 px-3.5 py-3">
+                        <div className="rounded-2xl bg-gray-50 px-4 py-3">
                             <textarea
                                 value={prompt}
                                 onChange={e => setPrompt(e.target.value)}
                                 placeholder="Describe the image you want (optional)"
-                                className="w-full text-xs text-gray-600 placeholder:text-gray-400 bg-transparent outline-none resize-none leading-relaxed"
+                                className="w-full text-sm text-gray-600 placeholder:text-gray-400 bg-transparent outline-none resize-none leading-relaxed"
                                 rows={4}
                             />
                         </div>
                     </div>
+                    {/* end scrollable content */}
+                    </div>
 
-                    {/* Generate */}
-                    <div className="px-3 pb-4">
+                    {/* Generate — pinned to the bottom of the sidebar */}
+                    <div className="px-4 pb-5 pt-3 border-t border-gray-100 bg-white">
                         <button
                             onClick={handleGenerate}
                             disabled={generating}
                             className={`
-    w-full py-2.5 rounded-xl text-sm cursor-pointer font-semibold text-white
+    w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white
     transition-all flex items-center justify-center gap-2
     disabled:opacity-60
     ${generating
@@ -379,22 +447,29 @@ export default function VirtualModelModal({ onClose }) {
                     </button>
 
                     {generatedImages.length === 0 && !generating ? (
-                        <div className="flex-1 flex flex-col items-center justify-center">
-                            <div className="flex items-center gap-6 mb-8">
-                                <div className="w-32 h-40 bg-gray-100 rounded-2xl overflow-hidden flex items-center justify-center shadow">
-                                    {uploadedImage
-                                        ? <img src={uploadedImage} alt="product" className="w-full h-full object-cover" />
-                                        : <span className="text-5xl">👕</span>
-                                    }
+                        <div className="flex-1 flex flex-col items-center justify-center px-6">
+                            <div className="flex items-center gap-3 mb-9">
+                                <div className="w-44 h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
+                                    <img
+                                        src={uploadedImage || CLOTHING_IMG}
+                                        alt="product"
+                                        className="w-full h-full object-cover"
+                                    />
                                 </div>
-                                <div className="text-gray-300 text-3xl">→</div>
-                                <div className="w-32 h-40 bg-white rounded-2xl shadow flex items-center justify-center text-5xl border border-gray-100">
-                                    🧍‍♀️
+                                {/* stylish curved arrow */}
+                                <svg width="72" height="60" viewBox="0 0 72 60" fill="none" className="text-violet-500 flex-shrink-0 -mt-6">
+                                    <path d="M6 44 C 24 8, 50 8, 62 32" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                                    <path d="M62 32 L51 28 M62 32 L55 42" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                <div className="w-44 h-56 bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 rotate-3">
+                                    <img src={modelObj?.img} alt={modelObj?.name} className="w-full h-full object-cover object-top" />
                                 </div>
                             </div>
-                            <p className="text-gray-500 text-center text-sm leading-relaxed max-w-xs">
-                                Visualize your product on a real-looking mannequin and<br />
-                                see your product come to life
+                            <h3 className="text-gray-800 text-center text-lg font-semibold max-w-sm leading-snug">
+                                Visualize your product on a real-looking model
+                            </h3>
+                            <p className="text-gray-400 text-center text-sm mt-2 max-w-xs leading-relaxed">
+                                Upload a product photo and watch it come to life on the model and pose you choose.
                             </p>
                         </div>
                     ) : (
@@ -438,7 +513,35 @@ export default function VirtualModelModal({ onClose }) {
                 </div>
             </div>
 
+            {/* ── Tool switcher (header dropdown) ── */}
+            {toolMenuOpen && (
+                <>
+                    {/* transparent backdrop to close on outside click */}
+                    <div className="fixed inset-0 z-[205]" onClick={() => setToolMenuOpen(false)} />
+                    <DropdownBelow anchorRef={headerRef} width={460}>
+                        <p className="text-xs font-semibold text-gray-500 px-1 mb-2">Recently used</p>
+                        <div className="grid grid-cols-2 gap-2 mb-4">
+                            {RECENT_TOOL_IDS.map(id => {
+                                const tool = TOOL_LIST.find(t => t.id === id);
+                                if (!tool) return null;
+                                return <ToolCard key={`recent-${tool.id}`} tool={tool} active={tool.id === 'virtual'} onClick={handleToolClick} />;
+                            })}
+                        </div>
+                        <p className="text-xs font-semibold text-gray-500 px-1 mb-2">All tools</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            {TOOL_LIST.map(tool => (
+                                <ToolCard key={tool.id} tool={tool} active={tool.id === 'virtual'} onClick={handleToolClick} />
+                            ))}
+                        </div>
+                    </DropdownBelow>
+                </>
+            )}
+
             {/* ── Floating dropdowns (fixed, above everything) ── */}
+            {/* transparent backdrop closes whichever picker is open on outside click */}
+            {openDropdown && (
+                <div className="fixed inset-0 z-[195]" onClick={() => setOpenDropdown(null)} />
+            )}
             {openDropdown === 'model' && (
                 <FloatingPanel anchorRef={modelRef} width={310}>
                     <div className="grid grid-cols-4 gap-2 p-3">
@@ -448,8 +551,8 @@ export default function VirtualModelModal({ onClose }) {
                         {MODELS.map(m => (
                             <button key={m.id} onClick={() => { setSelectedModel(m.id); setOpenDropdown(null); }}
                                 className={`flex flex-col items-center p-1.5 rounded-lg border-2 transition-colors ${selectedModel === m.id ? 'border-violet-500' : 'border-transparent hover:border-gray-200'}`}>
-                                <div className="w-14 h-20 bg-gray-100 rounded-lg flex items-center justify-center text-3xl relative mb-1">
-                                    {m.emoji}
+                                <div className="w-14 h-20 bg-gray-100 rounded-lg overflow-hidden relative mb-1">
+                                    <img src={m.img} alt={m.name} className="w-full h-full object-cover object-top" />
                                     {selectedModel === m.id && <div className="absolute top-1 right-1 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
                                 </div>
                                 <span className="text-[10px] text-gray-600">{m.name}</span>
@@ -465,8 +568,8 @@ export default function VirtualModelModal({ onClose }) {
                         {POSES.map(p => (
                             <button key={p.id} onClick={() => { setSelectedPose(p.id); setOpenDropdown(null); }}
                                 className={`flex flex-col items-center p-1.5 rounded-lg border-2 transition-colors ${selectedPose === p.id ? 'border-violet-500' : 'border-transparent hover:border-gray-200'}`}>
-                                <div className="w-14 h-20 bg-amber-50 rounded-lg flex items-center justify-center text-3xl relative mb-1">
-                                    🪆
+                                <div className="w-14 h-20 bg-gray-100 rounded-lg overflow-hidden relative mb-1">
+                                    <img src={p.img} alt={p.name} className="w-full h-full object-cover object-top" />
                                     {selectedPose === p.id && <div className="absolute top-1 right-1 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
                                 </div>
                                 <span className="text-[10px] text-gray-600 text-center leading-tight">{p.name}</span>
@@ -477,28 +580,57 @@ export default function VirtualModelModal({ onClose }) {
             )}
 
             {openDropdown === 'quality' && (
-                <FloatingPanel anchorRef={qualityRef} width={180}>
-                    {['Standard', 'High', 'Ultra'].map(q => (
-                        <button key={q} onClick={() => { setQuality(q); setOpenDropdown(null); }}
-                            className={`w-full text-left px-4 py-2.5 text-sm hover:bg-violet-50 transition-colors ${quality === q ? 'text-violet-600 font-semibold' : 'text-gray-700'}`}>
-                            {q}
-                        </button>
-                    ))}
+                <FloatingPanel anchorRef={qualityRef} width={380}>
+                    <div className="p-2 space-y-2">
+                        {QUALITY_TIERS.map(t => {
+                            const active = quality === t.id;
+                            return (
+                                <button key={t.id} onClick={() => { setQuality(t.id); setOpenDropdown(null); }}
+                                    className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? 'border-violet-500 bg-violet-50/40' : 'border-gray-100 hover:border-gray-200 bg-white'}`}>
+                                    <div className="w-20 h-28 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+                                        <img src={t.img} alt={t.name} className="w-full h-full object-cover object-top" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-bold text-gray-900">{t.name}</span>
+                                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${t.tagColor}`}>{t.tag}</span>
+                                            </div>
+                                            <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${active ? 'bg-violet-600' : 'border-2 border-gray-300'}`}>
+                                                {active && <span className="text-white text-[10px]">✓</span>}
+                                            </span>
+                                        </div>
+                                        <ul className="mt-1.5 space-y-0.5">
+                                            {t.features.map(f => (
+                                                <li key={f} className="text-[11px] text-gray-500 leading-snug">{f}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </FloatingPanel>
             )}
 
             {openDropdown === 'background' && (
-                <FloatingPanel anchorRef={backgroundRef} width={330}>
-                    <div className="grid grid-cols-4 gap-2 p-3">
-                        {BACKGROUNDS.map(b => (
-                            <button key={b.id} onClick={() => { setBackground(b.id); setOpenDropdown(null); }}
-                                className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border-2 transition-colors ${background === b.id ? 'border-violet-500' : 'border-transparent hover:border-gray-200'}`}>
-                                <div className="w-14 h-12 rounded-lg relative" style={{ backgroundColor: b.color }}>
-                                    {background === b.id && <div className="absolute top-1 right-1 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
-                                </div>
-                                <span className="text-[9px] text-gray-600 text-center leading-tight">{b.name}</span>
-                            </button>
-                        ))}
+                <FloatingPanel anchorRef={backgroundRef} width={470}>
+                    <div className="grid grid-cols-4 gap-2.5 p-3">
+                        {BACKGROUNDS.map(b => {
+                            const active = background === b.id;
+                            return (
+                                <button key={b.id} onClick={() => { setBackground(b.id); setOpenDropdown(null); }}
+                                    className="flex flex-col items-center gap-1.5">
+                                    <div className={`w-full h-20 rounded-xl overflow-hidden relative border-2 transition-colors ${active ? 'border-violet-500' : 'border-transparent hover:border-gray-200'}`}>
+                                        {b.img
+                                            ? <img src={b.img} alt={b.name} className="w-full h-full object-cover" />
+                                            : <div className="w-full h-full bg-gray-50 flex items-center justify-center"><Plus className="w-6 h-6 text-gray-400" /></div>}
+                                        {active && <div className="absolute top-1 right-1 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
+                                    </div>
+                                    <span className="text-[10px] text-gray-600 text-center leading-tight">{b.name}</span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </FloatingPanel>
             )}
@@ -531,21 +663,21 @@ export default function VirtualModelModal({ onClose }) {
             )}
 
             {openDropdown === 'size' && (
-                <FloatingPanel anchorRef={sizeRef} width={300}>
-                    <div className="grid grid-cols-3 gap-3 p-3">
+                <FloatingPanel anchorRef={sizeRef} width={380}>
+                    <div className="grid grid-cols-3 gap-2.5 p-3">
                         {SIZES.map(s => {
-                            const maxDim = 56;
+                            const active = size === s.id;
+                            const maxDim = 64;
                             const bw = s.w >= s.h ? maxDim : Math.round(maxDim * s.w / s.h);
                             const bh = s.h >= s.w ? maxDim : Math.round(maxDim * s.h / s.w);
                             return (
                                 <button key={s.id} onClick={() => { setSize(s.id); setOpenDropdown(null); }}
-                                    className={`flex flex-col items-center gap-1.5 p-2 rounded-lg border-2 transition-colors ${size === s.id ? 'border-violet-500' : 'border-transparent hover:border-gray-200'}`}>
-                                    <div className="flex items-center justify-center h-16">
-                                        <div className="border-2 border-gray-300 rounded relative" style={{ width: bw, height: bh }}>
-                                            {size === s.id && <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-violet-600 rounded-full flex items-center justify-center"><span className="text-white text-[7px]">✓</span></div>}
-                                        </div>
+                                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? 'border-violet-500 bg-violet-50/40' : 'border-gray-100 hover:border-gray-200'}`}>
+                                    <div className="flex items-center justify-center h-20 relative w-full">
+                                        <div className={`rounded-md ${active ? 'bg-violet-300' : 'bg-gray-200'}`} style={{ width: bw, height: bh }} />
+                                        {active && <div className="absolute top-0 right-0 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
                                     </div>
-                                    <span className="text-[10px] text-gray-600 text-center">{s.name}</span>
+                                    <span className="text-[10px] text-gray-600 text-center leading-tight">{s.name}</span>
                                 </button>
                             );
                         })}

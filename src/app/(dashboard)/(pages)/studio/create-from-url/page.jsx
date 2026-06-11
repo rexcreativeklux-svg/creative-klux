@@ -107,7 +107,7 @@ const socialSelected = 'border-teal-500 bg-teal-50 text-teal-700';
 
 export default function CreateFromUrl() {
   const router = useRouter();
-  const { sendUrl, generateCustomCreative, saveDesign, activeBrandId, uploadImage, fetchDesignTemplates } = useAuth();
+  const { sendUrl, generateCustomCreative, createDesign, saveDesign, activeBrandId, uploadImage, fetchDesignTemplates } = useAuth();
 
   const [step, setStep] = useState(1);
   const [creationType, setCreationType] = useState(null);
@@ -458,7 +458,9 @@ export default function CreateFromUrl() {
         : (adSubType === 'video' ? videoSize : adSize);
       const scraiveCategory = (selectedSizeLabel || '').toLowerCase().replace(/\s+/g, '_');
 
-      // ── Fetch Scraive templates first ────────────────────────────────────
+      // ── Fetch Scraive templates ── COMMENTED OUT (createDesign test) ──────
+      // Testing /creatives/createdesign which generates from scratch — no Scraive.
+      /*
       const templateRes = await fetchDesignTemplates({
         type: isVideo ? 'video' : 'image',
         category: selectedSizeLabel,
@@ -479,6 +481,7 @@ export default function CreateFromUrl() {
       }
       // Use ALL templates — generateCustomCreative will batch them in pairs
       const selectedTemplates = templates;
+      */
 
       // ── Resolve image URLs ──────────────────────────────────────────────
       // - Items with a real https sourceUrl → use as-is (no upload needed).
@@ -531,11 +534,13 @@ export default function CreateFromUrl() {
         images: imageUrls,
         category: scraiveCategory,
         type_size: selectedSize,
-        templates: selectedTemplates,
+        // templates: selectedTemplates,  // commented — createDesign generates from scratch
         ...(isAds ? {} : { tone: postTone, platforms: targetPlatform }),
         generatedAt: new Date().toISOString(),
       };
 
+      // ── OLD: generateCustomCreative → /creatives/redesign ── COMMENTED (test) ──
+      /*
       const expectedCount = selectedTemplates.length;
       let isFirstBatch = true;
       const res = await generateCustomCreative(payload, (batch) => {
@@ -584,6 +589,51 @@ export default function CreateFromUrl() {
 
       // All batches succeeded — mark done so skeletons clear
       setResult((prev) => prev ? { ...prev, done: true } : prev);
+      */
+
+      // ── TEST: call /creatives/createdesign and log the output ─────────────
+      setGenerating(false);
+      const createRes = await createDesign(payload);
+      console.log('🎨 createDesign output (create-from-url):', createRes);
+
+      if (!createRes?.ok) {
+        throw new Error(createRes?.message || 'Generation failed');
+      }
+
+      // ── ADAPTER ──────────────────────────────────────────────────────────
+      // /creatives/createdesign returns a SINGLE design in a different shape
+      // than /creatives/redesign:
+      //   createdesign → { design: { canvas, elements }, copy: {...} }
+      //   redesign     → { variations: [ { canvas, elements, copy }, ... ] }
+      // The preview UI (AdPreview/DesignResultPanel) renders a `variations`
+      // array, so we wrap createdesign's single `design` + `copy` into one
+      // variation. Remove this adapter when reverting to the redesign flow.
+      const data = createRes.raw || createRes.data || {};
+      let variations = Array.isArray(data.variations) ? data.variations : [];
+      const assets = Array.isArray(data.assets) ? data.assets : [];
+
+      if (!variations.length && data.design) {
+        variations = [{
+          id: `cd-${Date.now()}`,
+          name: data.copy?.headline || brandName || 'Generated Design',
+          category: isAds ? adSubType : 'posts',
+          canvas: data.design.canvas,
+          elements: data.design.elements || [],
+          copy: data.copy || {},
+        }];
+      }
+
+      if (!variations.length && !assets.length) {
+        throw new Error('No results returned from createdesign');
+      }
+
+      setResult({
+        type: 'design',
+        variations,
+        assets,
+        expectedCount: variations.length || assets.length || 1,
+        done: true,
+      });
     } catch (err) {
       toast.error(err.message || 'Generation failed. Please try again.');
     } finally {

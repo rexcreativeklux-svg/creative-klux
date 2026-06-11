@@ -1596,6 +1596,62 @@ export function AuthProvider({ children }) {
     return { ok: true, source: "success", data: aggregated };
   };
 
+  // ── TEST: generate a design via /creatives/createdesign (no Scraive templates) ──
+  // Backend generates from scratch — we send brand_details only, no templates.
+  const createDesign = useCallback(
+    async ({ creativeType, categoryType, ...formPayload }) => {
+      if (!token) {
+        console.error("createDesign: no auth token.");
+        return { ok: false, message: "Not authenticated" };
+      }
+
+      const url = `${BASE_URL}/creatives/createdesign`;
+
+      // "ads_creative" -> "ads"
+      const creativeTypeShort =
+        creativeType?.replace("_creative", "") || creativeType;
+
+      // Drop `templates` (createdesign generates the design itself);
+      const { templates, generatedAt, ...rest } = formPayload || {};
+
+      const generation_data = {
+        brand_details: {
+          creative_type: creativeTypeShort,
+          create_sub_type: categoryType,
+          ...rest,
+        },
+        generatedAt,
+      };
+
+      console.log("createDesign PAYLOAD:", generation_data);
+
+      let response;
+      let result;
+      try {
+        response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: "include",
+          body: JSON.stringify({ generation_data }),
+        });
+        result = await classifyResult({ response });
+      } catch (error) {
+        result = await classifyResult({ error });
+      }
+
+      // 🔎 Log the raw createdesign output for testing
+      console.log(" createDesign RESULT:", result);
+      console.log("createDesign RAW DATA:", result?.raw || result?.data);
+
+      return result;
+    },
+    [token],
+  );
+
   const creativeAiChat = async ({ message, creativeType, history = [] }) => {
     if (!token) {
       console.error("No auth token found. User may not be logged in.");
@@ -1666,8 +1722,10 @@ export function AuthProvider({ children }) {
         creativedesigns: variations.map((v) => ({
           name: v.name || "Untitled Design",
           score:
-            parseInt(String(v.copy?.performance_score ?? "").split("/")[0], 10) ||
-            0,
+            parseInt(
+              String(v.copy?.performance_score ?? "").split("/")[0],
+              10,
+            ) || 0,
           copy: JSON.stringify(v.copy || {}),
           canvas: { canvas: v.canvas, elements: v.elements },
           type: typeShort,
@@ -2582,6 +2640,7 @@ export function AuthProvider({ children }) {
         activeBrandId,
         brandsLoading,
         generateCustomCreative,
+        createDesign,
         creativeAiChat,
         updateBrandById,
         handleDelete,

@@ -204,21 +204,19 @@ Wrapper response: `{ success, message, data: [ ...brands ] }`.
 - **`PEXELS_API_KEY` and other secrets live in `.env`** (gitignored). Without it, `/api/pexels` returns 500 and Search Media inside `MediaPickerModal` shows nothing. Next.js only reads `.env` at server startup — **restart `npm run dev` after editing `.env`**.
 - **Blob URLs are not fetchable by the backend.** Cropped images live in browser memory with `blob:` URLs that only work in the user's tab. Always upload via `useAuth().uploadImage(file)` first and send the returned URL. Note the side effect: every upload persists to the user's Image Gallery — there's no temporary-upload endpoint yet.
 
-## TEST: create-from-url uses `/creatives/createdesign` (not redesign)
+## createdesign test override — REVERTED (create-from-url is back on Scraive → redesign)
 
-(Added 2026-06-11. **This is a test override scoped to create-from-url only.**) The create-from-url page currently generates via **`/creatives/createdesign`** instead of the normal Scraive → `/creatives/redesign` flow. Everything else (Custom Creation forms, `generateCustomCreative`) is **unchanged** and still uses Scraive → redesign.
+(Added 2026-06-11, **reverted 2026-06-11.**) There was briefly a test override that made create-from-url generate via `/creatives/createdesign` instead of Scraive → `/creatives/redesign`. **That override is now OFF.** create-from-url is back to the normal flow: `fetchDesignTemplates` (Scraive) → `generateCustomCreative` (`/creatives/redesign`), same as Custom Creation.
 
-What's in place:
-- **`createDesign(payload)`** — a function in `AuthContext.jsx` (right after `generateCustomCreative`, exposed in the context value). POSTs `brand_details` only (no templates) to `/creatives/createdesign`, single request, and `console.log`s the payload + result for debugging.
-- **`src/app/(dashboard)/(pages)/studio/create-from-url/page.jsx` → `handleGenerate`:** the Scraive `fetchDesignTemplates` block, the `templates:` payload line, and the whole `generateCustomCreative`/redesign block are **commented out** (`/* ... */`). It now calls `createDesign(payload)` and logs the output.
-- **Response-shape adapter** (in the same `handleGenerate`): createdesign returns a **single** design `{ design: { canvas, elements }, copy }`, whereas redesign returns `{ variations: [...] }`. The adapter wraps createdesign's `design` + `copy` into a **one-item `variations` array** so the existing `AdPreview`/`DesignResultPanel` can render it. Without the adapter the UI shows nothing ("No results returned").
+Current state:
+- **`create-from-url/page.jsx` → `handleGenerate`:** the Scraive fetch, the `templates: selectedTemplates` payload line, and the `generateCustomCreative` block are all **active (un-commented)**. The createdesign test call + its response-shape adapter remain in the file but are **inside a block comment** (`/* ── TEST (DISABLED) ── ... ── end TEST ── */`). `createDesign` was removed from the `useAuth()` destructure.
+- **`createDesign(payload)`** still exists in `AuthContext.jsx` (right after `generateCustomCreative`, still exposed in the context value) but is **dormant — nothing calls it.** It's harmless; left in place so re-enabling the test is easy.
 
-**To REVERT (back to Scraive → redesign in create-from-url):**
-1. In `create-from-url/page.jsx` `handleGenerate`: un-comment the Scraive fetch block, the `templates: selectedTemplates,` payload line, and the `generateCustomCreative` block; delete the "TEST" `createDesign` call **and the ADAPTER block**.
-2. Remove `createDesign` from the `useAuth()` destructure in that file.
-3. (Optional) Remove the `createDesign` function + its context-value entry from `AuthContext.jsx` — or leave it; it's harmless and unused once create-from-url stops calling it.
+**To RE-ENABLE the createdesign test (if ever needed):**
+1. In `create-from-url/page.jsx` `handleGenerate`: comment out the `generateCustomCreative` redesign block (and the Scraive `fetchDesignTemplates` block + the `templates: selectedTemplates` payload line if you want to skip Scraive), then un-comment the `/* ── TEST (DISABLED) ── */` block.
+2. Add `createDesign` back to the `useAuth()` destructure at the top of that file.
 
-Note: `/creatives/createdesign` needed a backend CORS fix (its `OPTIONS` preflight was 500; now 204). The endpoint generates ONE design per call from brand details alone.
+Note: `/creatives/createdesign` generates ONE design per call from brand details alone (no templates). Its `OPTIONS` preflight previously 500'd; backend fixed it to 204.
 
 ## Recent significant changes
 

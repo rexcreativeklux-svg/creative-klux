@@ -107,7 +107,7 @@ const socialSelected = 'border-teal-500 bg-teal-50 text-teal-700';
 
 export default function CreateFromUrl() {
   const router = useRouter();
-  const { sendUrl, generateCustomCreative, createDesign, saveDesign, activeBrandId, uploadImage, fetchDesignTemplates } = useAuth();
+  const { sendUrl, generateCustomCreative, saveDesign, activeBrandId, uploadImage, fetchDesignTemplates } = useAuth();
 
   const [step, setStep] = useState(1);
   const [creationType, setCreationType] = useState(null);
@@ -458,9 +458,7 @@ export default function CreateFromUrl() {
         : (adSubType === 'video' ? videoSize : adSize);
       const scraiveCategory = (selectedSizeLabel || '').toLowerCase().replace(/\s+/g, '_');
 
-      // ── Fetch Scraive templates ── COMMENTED OUT (createDesign test) ──────
-      // Testing /creatives/createdesign which generates from scratch — no Scraive.
-      /*
+      // ── Fetch Scraive templates ──────────────────────────────────────────
       const templateRes = await fetchDesignTemplates({
         type: isVideo ? 'video' : 'image',
         category: selectedSizeLabel,
@@ -481,7 +479,6 @@ export default function CreateFromUrl() {
       }
       // Use ALL templates — generateCustomCreative will batch them in pairs
       const selectedTemplates = templates;
-      */
 
       // ── Resolve image URLs ──────────────────────────────────────────────
       // - Items with a real https sourceUrl → use as-is (no upload needed).
@@ -534,13 +531,12 @@ export default function CreateFromUrl() {
         images: imageUrls,
         category: scraiveCategory,
         type_size: selectedSize,
-        // templates: selectedTemplates,  // commented — createDesign generates from scratch
+        templates: selectedTemplates,
         ...(isAds ? {} : { tone: postTone, platforms: targetPlatform }),
         generatedAt: new Date().toISOString(),
       };
 
-      // ── OLD: generateCustomCreative → /creatives/redesign ── COMMENTED (test) ──
-      /*
+      // ── generateCustomCreative → /creatives/redesign ──────────────────────
       const expectedCount = selectedTemplates.length;
       let isFirstBatch = true;
       const res = await generateCustomCreative(payload, (batch) => {
@@ -589,9 +585,10 @@ export default function CreateFromUrl() {
 
       // All batches succeeded — mark done so skeletons clear
       setResult((prev) => prev ? { ...prev, done: true } : prev);
-      */
 
-      // ── TEST: call /creatives/createdesign and log the output ─────────────
+      /* ── TEST (DISABLED): /creatives/createdesign override ──────────────────
+         Re-enable by commenting out the generateCustomCreative block above and
+         un-commenting this. See CLAUDE.md → "TEST: create-from-url uses createdesign".
       setGenerating(false);
       const createRes = await createDesign(payload);
       console.log('🎨 createDesign output (create-from-url):', createRes);
@@ -600,14 +597,8 @@ export default function CreateFromUrl() {
         throw new Error(createRes?.message || 'Generation failed');
       }
 
-      // ── ADAPTER ──────────────────────────────────────────────────────────
-      // /creatives/createdesign returns a SINGLE design in a different shape
-      // than /creatives/redesign:
-      //   createdesign → { design: { canvas, elements }, copy: {...} }
-      //   redesign     → { variations: [ { canvas, elements, copy }, ... ] }
-      // The preview UI (AdPreview/DesignResultPanel) renders a `variations`
-      // array, so we wrap createdesign's single `design` + `copy` into one
-      // variation. Remove this adapter when reverting to the redesign flow.
+      // ADAPTER: createdesign → { design: {canvas, elements}, copy } (single);
+      // redesign → { variations: [...] }. Wrap the single design as one variation.
       const data = createRes.raw || createRes.data || {};
       let variations = Array.isArray(data.variations) ? data.variations : [];
       const assets = Array.isArray(data.assets) ? data.assets : [];
@@ -634,6 +625,7 @@ export default function CreateFromUrl() {
         expectedCount: variations.length || assets.length || 1,
         done: true,
       });
+      ── end TEST ──────────────────────────────────────────────────────────── */
     } catch (err) {
       toast.error(err.message || 'Generation failed. Please try again.');
     } finally {

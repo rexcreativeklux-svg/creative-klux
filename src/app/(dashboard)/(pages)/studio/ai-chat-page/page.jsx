@@ -321,7 +321,7 @@ function PreviewPanel({ result,
         }}
       >
         {variations.map((v) => {
-                const score = v.copy?.performance_score || "";
+                const score = String(v.copy?.performance_score ?? "");
                 const scoreNum = score.split("/")[0];
                 const scoreLabel = score.split("—")[1]?.trim() || "";
                 const isSelected = selectedDesigns?.some((s) => s.id === v.id);

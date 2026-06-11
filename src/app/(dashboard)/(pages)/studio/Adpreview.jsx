@@ -149,7 +149,7 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
     setSaving(false);
   };
 
-  const scoreNum = (v) => parseInt((v.copy?.performance_score || "").split("/")[0]) || 0;
+  const scoreNum = (v) => parseInt(String(v.copy?.performance_score ?? "").split("/")[0]) || 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%" }}>
@@ -241,7 +241,7 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
         {variations.map((v) => {
           const isSelected = selectedIds.includes(v.id);
           const score = scoreNum(v);
-          const scoreLabel = (v.copy?.performance_score || "").split("—")[1]?.trim() || "";
+          const scoreLabel = String(v.copy?.performance_score ?? "").split("—")[1]?.trim() || "";
 
           return (
             <div key={v.id} onClick={() => toggleSelect(v.id)} style={{

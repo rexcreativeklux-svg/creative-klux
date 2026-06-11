@@ -1665,9 +1665,9 @@ export function AuthProvider({ children }) {
         brand_id: brandId,
         creativedesigns: variations.map((v) => ({
           name: v.name || "Untitled Design",
-          score: v.copy?.performance_score
-            ? parseInt(v.copy.performance_score.split("/")[0], 10) || 0
-            : 0,
+          score:
+            parseInt(String(v.copy?.performance_score ?? "").split("/")[0], 10) ||
+            0,
           copy: JSON.stringify(v.copy || {}),
           canvas: { canvas: v.canvas, elements: v.elements },
           type: typeShort,

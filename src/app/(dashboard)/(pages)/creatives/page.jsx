@@ -214,7 +214,8 @@ function normalizeDesign(raw) {
           day: "numeric",
         })
       : "—",
-    favorite: raw.favorite || false,
+    // Backend returns `fav` as 1/0 — map it to the boolean the UI uses.
+    favorite: Number(raw.fav ?? raw.favorite) === 1,
     score: raw.score || 0,
     copy,
     canvas: canvasData || { width: 800, height: 450, background: "#ffffff" },

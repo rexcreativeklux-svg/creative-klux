@@ -147,3 +147,21 @@
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
+
+/* GeneratingOverlay — blocks that pop into place one by one (looping) */
+@keyframes block-pop {
+  0%, 100% { opacity: 0; transform: translateY(6px) scale(0.96); }
+  14%, 72% { opacity: 1; transform: translateY(0)  scale(1); }
+}
+
+/* GeneratingOverlay — indeterminate progress bar sweeping across the track */
+@keyframes bar-indeterminate {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(360%); }
+}
+
+/* GeneratingOverlay — soft fade/rise for swapping status + tip text */
+@keyframes pop-fade {
+  0%   { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}

@@ -6,7 +6,7 @@ import {
   Globe, Loader2, FileUp, X, CheckCircle2, ChevronRight,
   Sparkles, FileSearch, FolderOpen, Images, Scan, ImageIcon,
 } from "lucide-react";
-import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
+import GeneratingOverlay from "@/app/(components)/GeneratingOverlay";
 
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSection";
@@ -1019,15 +1019,7 @@ const ImageAdsForm = ({
         maxSelectable={Math.max(0, MAX_IMAGES - croppedImages.filter(Boolean).length)}
       />
 
-      {generating && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-10">
-            <FloatingAnimation showProgressBar>
-              <FloatingElements.ImageFile />
-            </FloatingAnimation>
-          </div>
-        </div>
-      )}
+      {generating && <GeneratingOverlay />}
     </>
   );
 };

@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import PhotoEditor from '@/app/(components)/product-photos/PhotoEditor';
 import VirtualModelModal from '@/app/(components)/product-photos/VirtualModelModal';
 import ProductToolModal from '@/app/(components)/product-photos/ProductToolModal';
+import VideoGeneratorModal from '@/app/(components)/product-photos/VideoGeneratorModal';
 
 // Tools that use the shared ProductToolModal (Virtual Model has its own modal).
 const PRODUCT_TOOL_IDS = ['staging', 'mannequin', 'beautifier', 'flatlay'];
@@ -142,6 +143,7 @@ export default function ProductPhotos() {
     const [editorMode, setEditorMode] = useState('start');
     const router = useRouter();
     const [virtualModelOpen, setVirtualModelOpen] = useState(false);
+    const [videoOpen, setVideoOpen] = useState(false);
     const [toolModalId, setToolModalId] = useState(null); // shared ProductToolModal (staging/mannequin/beautifier/flatlay)
 
     const openEditor = (mode = 'start') => {
@@ -152,6 +154,7 @@ export default function ProductPhotos() {
     // Central tool router — used by the tool grid AND the in-modal tool switcher.
     const openTool = (id) => {
         if (id === 'virtual') { setVirtualModelOpen(true); return; }
+        if (id === 'video') { setVideoOpen(true); return; }
         if (id === 'batch') { router.push('/product-photos/batch'); return; }
         if (id === 'all') { toast('All available tools are shown above.'); return; }
         if (PRODUCT_TOOL_IDS.includes(id)) { setToolModalId(id); return; }
@@ -178,6 +181,12 @@ export default function ProductPhotos() {
                     toolId={toolModalId}
                     onClose={() => setToolModalId(null)}
                     onSwitchTool={(id) => { setToolModalId(null); openTool(id); }}
+                />
+            )}
+            {videoOpen && (
+                <VideoGeneratorModal
+                    onClose={() => setVideoOpen(false)}
+                    onSwitchTool={(id) => { setVideoOpen(false); openTool(id); }}
                 />
             )}
             {editorOpen && <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />}

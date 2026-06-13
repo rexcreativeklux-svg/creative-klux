@@ -15,20 +15,24 @@ const SOFT_PASTELS = [
   '#fdecd0', '#d0f0e0', '#d0e0f0', '#e8d0f0', '#f0d0d8', '#d0ece0',
 ];
 
+const pxbg = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=600`;
+// Product-display backdrops — empty podiums, pedestals and staged surfaces a product can sit on.
 const IMAGE_BACKGROUNDS = [
-  { id: 'studio_white', name: 'White Studio', category: 'Studio', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&q=80' },
-  { id: 'studio_grey', name: 'Grey Studio', category: 'Studio', url: 'https://images.unsplash.com/photo-1553356084-58ef4a67b2a7?w=600&q=80' },
-  { id: 'studio_black', name: 'Dark Studio', category: 'Studio', url: 'https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=600&q=80' },
-  { id: 'marble_white', name: 'White Marble', category: 'Marble', url: 'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=600&q=80' },
-  { id: 'marble_dark', name: 'Dark Marble', category: 'Marble', url: 'https://images.unsplash.com/photo-1541123437800-1bb1317badc2?w=600&q=80' },
-  { id: 'wood_light', name: 'Light Wood', category: 'Wood', url: 'https://images.unsplash.com/photo-1542621334-a254cf47733d?w=600&q=80' },
-  { id: 'wood_dark', name: 'Dark Wood', category: 'Wood', url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80' },
-  { id: 'concrete', name: 'Concrete', category: 'Concrete', url: 'https://images.unsplash.com/photo-1508700929628-666bc8bd84ea?w=600&q=80' },
-  { id: 'nature_green', name: 'Green Nature', category: 'Other', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=600&q=80' },
-  { id: 'beach', name: 'Beach', category: 'Other', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80' },
-  { id: 'bokeh_pink', name: 'Pink Bokeh', category: 'Other', url: 'https://images.unsplash.com/photo-1557682268-e3955ed5d732?w=600&q=80' },
-  { id: 'plant_white', name: 'Plant & White', category: 'Other', url: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=600&q=80' },
-  { id: 'dark_plant', name: 'Dark Plant', category: 'Other', url: 'https://images.unsplash.com/photo-1550159930-40066082a4fc?w=600&q=80' },
+  { id: 'podium_beige', name: 'Beige Podium', category: 'Podium', url: pxbg(7897470) },
+  { id: 'podium_yellow', name: 'Yellow Podium', category: 'Podium', url: pxbg(16042675) },
+  { id: 'podium_green', name: 'Green Podium', category: 'Podium', url: pxbg(16059552) },
+  { id: 'podium_pink', name: 'Pink Podium', category: 'Podium', url: pxbg(12932574) },
+  { id: 'podium_arch', name: 'Arch Display', category: 'Podium', url: pxbg(12914280) },
+  { id: 'min_geometric', name: 'White Geometric', category: 'Minimal', url: pxbg(16149990) },
+  { id: 'min_arch', name: 'Arch Platform', category: 'Minimal', url: pxbg(6840026) },
+  { id: 'min_soft', name: 'Soft White', category: 'Minimal', url: pxbg(15067862) },
+  { id: 'min_leaf', name: 'Leaf Shadow', category: 'Minimal', url: pxbg(12198526) },
+  { id: 'surf_wood', name: 'Wood Table', category: 'Surface', url: pxbg(34658646) },
+  { id: 'surf_marble', name: 'White Marble', category: 'Surface', url: pxbg(3847496) },
+  { id: 'surf_marble_dark', name: 'Dark Marble', category: 'Surface', url: pxbg(18325786) },
+  { id: 'surf_stone', name: 'Stone Counter', category: 'Surface', url: pxbg(7533765) },
+  { id: 'grad_peach', name: 'Peach Gradient', category: 'Gradient', url: pxbg(7130564) },
+  { id: 'grad_pastel', name: 'Pastel Gradient', category: 'Gradient', url: pxbg(7135055) },
 ];
 
 const TEMPLATES = [
@@ -50,8 +54,8 @@ const TEMPLATES = [
   { id: 'profile_vib', name: 'Vibrant', category: 'Profile Pics', bg: 'linear-gradient(135deg,#f093fb,#f5a623)', padding: { top: 5, bottom: 5, left: 5, right: 5 }, align: 'center', scale: 'fill', preview: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=70' },
   { id: 'profile_ocean', name: 'Ocean', category: 'Profile Pics', bg: 'linear-gradient(135deg,#0099f7,#f11712)', padding: { top: 5, bottom: 5, left: 5, right: 5 }, align: 'center', scale: 'fill', preview: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=70' },
   { id: 'profile_min', name: 'Minimal', category: 'Profile Pics', bg: '#f0ede6', padding: { top: 5, bottom: 5, left: 5, right: 5 }, align: 'center', scale: 'fill', preview: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=70' },
-  { id: 'marble_light', name: 'Light Marble', category: 'Marble & Wood', bgImage: 'marble_white', bg: '#f5f5f5', padding: { top: 10, bottom: 20, left: 10, right: 10 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=200&q=70' },
-  { id: 'wood_natural', name: 'Natural Wood', category: 'Marble & Wood', bgImage: 'wood_light', bg: '#c8a874', padding: { top: 10, bottom: 20, left: 10, right: 10 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1542621334-a254cf47733d?w=200&q=70' },
+  { id: 'marble_light', name: 'Light Marble', category: 'Marble & Wood', bgImage: 'surf_marble', bg: '#f5f5f5', padding: { top: 10, bottom: 20, left: 10, right: 10 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.pexels.com/photos/3847496/pexels-photo-3847496.jpeg?auto=compress&cs=tinysrgb&w=200' },
+  { id: 'wood_natural', name: 'Natural Wood', category: 'Marble & Wood', bgImage: 'surf_wood', bg: '#c8a874', padding: { top: 10, bottom: 20, left: 10, right: 10 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1542621334-a254cf47733d?w=200&q=70' },
   { id: 'minimal_cream', name: 'Cream', category: 'Minimal Shop', bg: '#f7f3ec', padding: { top: 12, bottom: 18, left: 12, right: 12 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=200&q=70' },
   { id: 'minimal_rose', name: 'Rose', category: 'Minimal Shop', bg: '#f9ede8', padding: { top: 12, bottom: 18, left: 12, right: 12 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=200&q=70' },
   { id: 'minimal_sage', name: 'Sage', category: 'Minimal Shop', bg: '#e8ede8', padding: { top: 12, bottom: 18, left: 12, right: 12 }, align: 'bottom-center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=200&q=70' },
@@ -138,7 +142,7 @@ const HANDLES = [
 ];
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function BatchModal({ onClose, initialFile }) {
+export default function BackgroundRemoverModal({ onClose, initialFile }) {
   const fileInputRef    = useRef(null);
   const bgFileInputRef  = useRef(null);
   const canvasRef       = useRef(null);
@@ -326,11 +330,20 @@ export default function BatchModal({ onClose, initialFile }) {
     setImgInitialized(false);
     try {
       const objectUrl = URL.createObjectURL(file);
-      const blob = await removeBackground(objectUrl, {
-        progress: (key, current, total) => {
-          if (total > 0) setRemovingProgress(Math.round((current / total) * 100));
-        },
-      });
+      const onProgress = (key, current, total) => {
+        if (total > 0) setRemovingProgress(Math.round((current / total) * 100));
+      };
+      let blob;
+      try {
+        // Run on the GPU in a worker when WebGPU is available so the UI (spinner /
+        // progress) stays responsive. The library auto-falls back to WASM otherwise.
+        blob = await removeBackground(objectUrl, { device: 'gpu', proxyToWorker: true, progress: onProgress });
+      } catch (gpuErr) {
+        // WebGPU reported available but failed at runtime — fall back to the CPU path.
+        console.warn('GPU background removal failed, retrying on CPU', gpuErr);
+        setRemovingProgress(0);
+        blob = await removeBackground(objectUrl, { device: 'cpu', progress: onProgress });
+      }
       setRemovedUrl(URL.createObjectURL(blob));
       toast.success('Background removed!');
     } catch (err) {
@@ -358,25 +371,18 @@ export default function BatchModal({ onClose, initialFile }) {
     setBgImageUrl(URL.createObjectURL(file));
     setSelectedBgImage('custom_upload');
     setBgTab('image');
+    setAiResultUrl(null);   // a composited scene bg would otherwise suppress the uploaded image
+    setShowBefore(false);   // make sure we're on the "After" view so the new bg is visible
   };
 
-  const applySceneBackground = async (bgItem) => {
-    if (!removedUrl) { toast.error('Remove background first'); return; }
-    setApplyingAiBg(true);
+  const applySceneBackground = (bgItem) => {
+    // Layer the scene photo behind the cut-out product — instant, no backend round-trip.
+    setBgImageUrl(bgItem.url);
     setSelectedBgImage(bgItem.id);
     setBgTab('image');
-    try {
-      const result = await generateImage({
-        prompt: `Composite product photo: place this exact product/subject on a ${bgItem.name} background. Professional commercial photography, natural lighting, keep the product identical.`,
-        existing_image_urls: [removedUrl],
-      });
-      setAiResultUrl(result.url);
-      toast.success('Background applied!');
-    } catch {
-      toast.error('Failed to apply background');
-    } finally {
-      setApplyingAiBg(false);
-    }
+    setAiResultUrl(null);   // drop any prior AI composite so this scene shows
+    setShowBefore(false);   // ensure we're on the "After" view
+    if (!removedUrl) toast('Tip: remove the product background so the scene shows through.');
   };
 
   const generateAiBg = async () => {
@@ -418,6 +424,39 @@ export default function BatchModal({ onClose, initialFile }) {
 
   const handleDownload = async () => {
     if (!originalUrl) return;
+
+    const loadImg = (src) => new Promise((resolve, reject) => {
+      const im = new Image();
+      im.crossOrigin = 'anonymous';
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      im.src = src;
+    });
+
+    // Pull the color stops out of a `linear-gradient(...)` string.
+    const gradientStops = (g) => {
+      const inner = g.substring(g.indexOf('(') + 1, g.lastIndexOf(')'));
+      const parts = inner.split(/,(?![^(]*\))/).map(p => p.trim());
+      if (/deg|to /.test(parts[0])) parts.shift();
+      return parts.map(p => p.split(/\s+/)[0]);
+    };
+
+    // Re-scale a CSS drop-shadow filter so it matches the higher-res export.
+    const scaleShadow = (filterStr, factor) => {
+      if (!filterStr) return '';
+      const m = filterStr.match(/drop-shadow\((.+)\)\s*$/);
+      if (!m) return '';
+      const inner = m[1];
+      const colorMatch = inner.match(/rgba?\([^)]*\)|#[0-9a-fA-F]{3,8}/);
+      const color = colorMatch ? colorMatch[0] : 'rgba(0,0,0,0.3)';
+      const lenPart = colorMatch ? inner.slice(0, colorMatch.index).trim() : inner.trim();
+      const scaled = lenPart.split(/\s+/).map(t => {
+        const n = parseFloat(t);
+        return isNaN(n) ? t : `${(n * factor).toFixed(1)}px`;
+      }).join(' ');
+      return `drop-shadow(${scaled} ${color})`;
+    };
+
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const outW = 1200;
@@ -425,17 +464,38 @@ export default function BatchModal({ onClose, initialFile }) {
     canvas.width = outW;
     canvas.height = outH;
 
-    // Background
-    if (bgTab === 'color' && selectedColor !== 'transparent') {
-      ctx.fillStyle = selectedColor;
+    // ── Background layer ──
+    const showImageBg = bgTab === 'image' && bgImageUrl && !aiResultUrl;
+    if (showImageBg) {
+      try {
+        const bgImg = await loadImg(bgImageUrl);
+        const s = Math.max(outW / bgImg.width, outH / bgImg.height); // cover
+        const bw = bgImg.width * s, bh = bgImg.height * s;
+        ctx.drawImage(bgImg, (outW - bw) / 2, (outH - bh) / 2, bw, bh);
+      } catch {
+        toast.error('Could not load the background image for export.');
+      }
+    } else if (bgTab === 'color' && selectedColor !== 'transparent') {
+      if (selectedColor.startsWith('linear-gradient')) {
+        const stops = gradientStops(selectedColor);
+        const grad = ctx.createLinearGradient(0, 0, outW, outH);
+        stops.forEach((c, i) => grad.addColorStop(stops.length > 1 ? i / (stops.length - 1) : 0, c));
+        ctx.fillStyle = grad;
+      } else {
+        ctx.fillStyle = selectedColor;
+      }
       ctx.fillRect(0, 0, outW, outH);
     }
+    // else: leave transparent (the checkerboard is only a UI hint)
 
-    // Image
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = aiResultUrl || removedUrl || originalUrl;
-    await new Promise(res => (img.onload = res));
+    // ── Product layer ──
+    let img;
+    try {
+      img = await loadImg(aiResultUrl || removedUrl || originalUrl);
+    } catch {
+      toast.error('Could not export — failed to load the product image.');
+      return;
+    }
 
     const scaleX = outW / canvasW;
     const scaleY = outH / canvasH;
@@ -445,15 +505,25 @@ export default function BatchModal({ onClose, initialFile }) {
     const dh = imgSize.h * scaleY;
 
     ctx.save();
+    // aiResultUrl already has its background baked in, so don't double-apply the shadow.
+    if (!aiResultUrl) ctx.filter = scaleShadow(shadowStyle.filter, scaleX);
     ctx.translate(cx, cy);
     ctx.rotate((rotation * Math.PI) / 180);
     if (flipped) ctx.scale(-1, 1);
     ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
     ctx.restore();
 
+    let dataUrl;
+    try {
+      dataUrl = canvas.toDataURL('image/png');
+    } catch {
+      toast.error('Export blocked: the background image is not cross-origin accessible.');
+      return;
+    }
+
     const link = document.createElement('a');
     link.download = 'product-photo.png';
-    link.href = canvas.toDataURL('image/png');
+    link.href = dataUrl;
     link.click();
   };
 
@@ -487,7 +557,7 @@ export default function BatchModal({ onClose, initialFile }) {
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-3"
-      onClick={onClose}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="bg-white rounded-2xl shadow-2xl flex overflow-hidden w-full h-full"
@@ -749,7 +819,7 @@ export default function BatchModal({ onClose, initialFile }) {
                       <Upload className="w-3.5 h-3.5" /> Upload custom background
                     </button>
                     <input ref={bgFileInputRef} type="file" accept="image/*" className="hidden" onChange={handleBgFileChange} />
-                    {['Studio', 'Marble', 'Wood', 'Concrete', 'Other'].map(cat => {
+                    {['Podium', 'Minimal', 'Surface', 'Gradient'].map(cat => {
                       const bgs = IMAGE_BACKGROUNDS.filter(b => b.category === cat);
                       return (
                         <div key={cat} className="mb-4">
@@ -827,7 +897,7 @@ export default function BatchModal({ onClose, initialFile }) {
               : 'Upload an image to start'}
           </div>
 
-          <div className="flex-1 flex items-center justify-center p-8">
+          <div className="flex-1 min-h-0 flex items-center justify-center p-8 overflow-auto">
             {removing ? (
               <div className="flex flex-col items-center gap-4 w-60">
                 <div className="w-20 h-20 rounded-2xl bg-white shadow-lg flex items-center justify-center">
@@ -979,7 +1049,7 @@ export default function BatchModal({ onClose, initialFile }) {
           </div>
 
           {/* Bottom toolbar */}
-          <div className="flex items-center justify-between px-5 py-3 bg-white/90 backdrop-blur-sm border-t border-gray-100">
+          <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 bg-white/90 backdrop-blur-sm border-t border-gray-100">
             <div className="flex items-center gap-2">
               <button onClick={handleDownload} disabled={!originalUrl || removing}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">

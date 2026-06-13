@@ -141,8 +141,70 @@ const HANDLES = [
   { id: 'w',  cursor: 'w-resize',  style: { top: '50%', left: -5, transform: 'translateY(-50%)' } },
 ];
 
+// ── Canvas export helpers (shared by single + batch download) ─────────────────
+const loadImg = (src) => new Promise((resolve, reject) => {
+  const im = new Image();
+  im.crossOrigin = 'anonymous';
+  im.onload = () => resolve(im);
+  im.onerror = reject;
+  im.src = src;
+});
+
+// Pull the color stops out of a `linear-gradient(...)` string.
+const gradientStops = (g) => {
+  const inner = g.substring(g.indexOf('(') + 1, g.lastIndexOf(')'));
+  const parts = inner.split(/,(?![^(]*\))/).map(p => p.trim());
+  if (/deg|to /.test(parts[0])) parts.shift();
+  return parts.map(p => p.split(/\s+/)[0]);
+};
+
+// Re-scale a CSS drop-shadow filter so it matches the higher-res export.
+const scaleShadow = (filterStr, factor) => {
+  if (!filterStr) return '';
+  const m = filterStr.match(/drop-shadow\((.+)\)\s*$/);
+  if (!m) return '';
+  const inner = m[1];
+  const colorMatch = inner.match(/rgba?\([^)]*\)|#[0-9a-fA-F]{3,8}/);
+  const color = colorMatch ? colorMatch[0] : 'rgba(0,0,0,0.3)';
+  const lenPart = colorMatch ? inner.slice(0, colorMatch.index).trim() : inner.trim();
+  const scaled = lenPart.split(/\s+/).map(t => {
+    const n = parseFloat(t);
+    return isNaN(n) ? t : `${(n * factor).toFixed(1)}px`;
+  }).join(' ');
+  return `drop-shadow(${scaled} ${color})`;
+};
+
+// Downscale very large images before background removal — saves decode/inference
+// time and memory. Returns the original file when it's already within maxDim.
+const downscaleFile = (file, maxDim = 2500) => new Promise((resolve) => {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if (Math.max(w, h) <= maxDim) { URL.revokeObjectURL(url); resolve(file); return; }
+    const scale = maxDim / Math.max(w, h);
+    const cw = Math.round(w * scale), ch = Math.round(h * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = cw; canvas.height = ch;
+    canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
+    canvas.toBlob((blob) => {
+      URL.revokeObjectURL(url);
+      resolve(blob ? new File([blob], file.name || 'image.png', { type: 'image/png' }) : file);
+    }, 'image/png');
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+  img.src = url;
+});
+
+const triggerDownload = (dataUrl, filename) => {
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = dataUrl;
+  link.click();
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
-export default function BackgroundRemoverModal({ onClose, initialFile }) {
+export default function BackgroundRemoverModal({ onClose, initialFile, files }) {
   const fileInputRef    = useRef(null);
   const bgFileInputRef  = useRef(null);
   const canvasRef       = useRef(null);
@@ -178,6 +240,88 @@ export default function BackgroundRemoverModal({ onClose, initialFile }) {
 
   // Shadows
   const [selectedShadow, setSelectedShadow] = useState('none');
+
+  // ── Batch mode ─────────────────────────────────────────────────────────────
+  // batchItems: { name, file, originalUrl, removedUrl, status: 'pending'|'processing'|'done'|'error' }
+  const [batchItems, setBatchItems] = useState([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const activeIndexRef = useRef(0);
+  const batchMode = batchItems.length > 0;
+  useEffect(() => { activeIndexRef.current = activeIndex; }, [activeIndex]);
+
+  // ── Background-removal Worker POOL (parallel + off main thread) ───────────────
+  // Pool size is capped so it never starves the machine; each worker holds its own
+  // copy of the model, so more workers = more RAM.
+  const POOL_SIZE = Math.max(1, Math.min(3, (typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4) - 1));
+  const poolRef    = useRef([]);          // [{ worker, busy }]
+  const queueRef   = useRef([]);          // [{ file, onProgress, resolve, reject }]
+  const pendingRef = useRef(new Map());   // id -> { resolve, reject, onProgress, slot }
+  const reqIdRef   = useRef(0);
+
+  const pump = () => {
+    while (queueRef.current.length) {
+      const slot = poolRef.current.find(s => !s.busy);
+      if (!slot) return;
+      const task = queueRef.current.shift();
+      slot.busy = true;
+      const id = ++reqIdRef.current;
+      pendingRef.current.set(id, { ...task, slot });
+      slot.worker.postMessage({ id, file: task.file });
+    }
+  };
+
+  const createSlot = () => {
+    let w;
+    try {
+      w = new Worker(new URL('./bgRemoval.worker.js', import.meta.url), { type: 'module' });
+    } catch {
+      return null;
+    }
+    const slot = { worker: w, busy: false };
+    w.onmessage = (e) => {
+      const { id, type } = e.data || {};
+      const entry = pendingRef.current.get(id);
+      if (!entry) return;
+      if (type === 'progress') { entry.onProgress?.(e.data.current, e.data.total); return; }
+      if (type === 'done') entry.resolve(e.data.blob);
+      else if (type === 'error') entry.reject(new Error(e.data.message));
+      pendingRef.current.delete(id);
+      slot.busy = false;
+      pump();
+    };
+    w.onerror = () => {
+      // Fail the task in flight on this slot, drop the worker, keep going.
+      pendingRef.current.forEach((en, id) => {
+        if (en.slot === slot) { en.reject(new Error('worker error')); pendingRef.current.delete(id); }
+      });
+      try { w.terminate(); } catch {}
+      poolRef.current = poolRef.current.filter(s => s !== slot);
+      pump();
+    };
+    return slot;
+  };
+
+  const ensurePool = () => {
+    if (!poolRef.current.length) {
+      for (let i = 0; i < POOL_SIZE; i++) {
+        const slot = createSlot();
+        if (slot) poolRef.current.push(slot);
+      }
+    }
+    return poolRef.current.length > 0;
+  };
+
+  useEffect(() => () => {
+    poolRef.current.forEach(s => { try { s.worker.terminate(); } catch {} });
+    poolRef.current = [];
+  }, []);
+
+  const removeViaWorker = (file, onProgress) => new Promise((resolve, reject) => {
+    if (!ensurePool()) { reject(new Error('worker unavailable')); return; }
+    queueRef.current.push({ file, onProgress, resolve, reject });
+    pump();
+  });
 
   // ── Interactive image state ──────────────────────────────────────────────
   const [selected, setSelected]     = useState(false);
@@ -322,6 +466,69 @@ export default function BackgroundRemoverModal({ onClose, initialFile }) {
     if (initialFile) doRemoveBg(initialFile);
   }, []);
 
+  // Batch entry point — process every selected file, one at a time.
+  useEffect(() => {
+    if (files && files.length) processBatch(files);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files]);
+
+  const removeBgBlob = async (file, onProgress) => {
+    // Prefer the worker pool (off main thread, parallel). Fall back to main-thread
+    // WASM if a worker can't be created/loaded in this environment.
+    try {
+      return await removeViaWorker(file, onProgress);
+    } catch (e) {
+      console.warn('Worker background removal unavailable, using main thread', e);
+      return await removeBackground(file, { model: 'isnet_fp16', ...(onProgress ? { progress: (k, c, t) => onProgress(c, t) } : {}) });
+    }
+  };
+
+  const processBatch = async (fileList) => {
+    const list = Array.from(fileList).filter(f => f.type?.startsWith('image/'));
+    if (!list.length) return;
+    const items = list.map(f => ({
+      name: f.name || 'image.png', file: f,
+      originalUrl: URL.createObjectURL(f), removedUrl: null, status: 'pending',
+    }));
+    setBatchItems(items);
+    setActiveIndex(0);
+    activeIndexRef.current = 0;
+    // Show the first image immediately while the rest process.
+    setOriginalFile(items[0].file);
+    setOriginalUrl(items[0].originalUrl);
+    setRemovedUrl(null);
+    setAiResultUrl(null);
+    setShowBefore(false);
+
+    // Dispatch all at once — the worker pool caps real concurrency to POOL_SIZE.
+    await Promise.all(items.map(async (it, i) => {
+      setBatchItems(prev => prev.map((p, idx) => idx === i ? { ...p, status: 'processing' } : p));
+      try {
+        const downscaled = await downscaleFile(it.file, 2500);
+        const blob = await removeBgBlob(downscaled);
+        const url = URL.createObjectURL(blob);
+        setBatchItems(prev => prev.map((p, idx) => idx === i ? { ...p, removedUrl: url, status: 'done' } : p));
+        if (activeIndexRef.current === i) setRemovedUrl(url);
+      } catch (err) {
+        console.error('Batch item failed', err);
+        setBatchItems(prev => prev.map((p, idx) => idx === i ? { ...p, status: 'error' } : p));
+      }
+    }));
+    toast.success('All images processed');
+  };
+
+  const selectBatchItem = (i) => {
+    const it = batchItems[i];
+    if (!it) return;
+    setActiveIndex(i);
+    activeIndexRef.current = i;
+    setOriginalFile(it.file);
+    setOriginalUrl(it.originalUrl);
+    setRemovedUrl(it.removedUrl);
+    setAiResultUrl(null);
+    setShowBefore(false);
+  };
+
   const doRemoveBg = async (file) => {
     setRemoving(true);
     setRemovedUrl(null);
@@ -329,21 +536,10 @@ export default function BackgroundRemoverModal({ onClose, initialFile }) {
     setRemovingProgress(0);
     setImgInitialized(false);
     try {
-      const objectUrl = URL.createObjectURL(file);
-      const onProgress = (key, current, total) => {
+      const downscaled = await downscaleFile(file, 2500);
+      const blob = await removeBgBlob(downscaled, (current, total) => {
         if (total > 0) setRemovingProgress(Math.round((current / total) * 100));
-      };
-      let blob;
-      try {
-        // Run on the GPU in a worker when WebGPU is available so the UI (spinner /
-        // progress) stays responsive. The library auto-falls back to WASM otherwise.
-        blob = await removeBackground(objectUrl, { device: 'gpu', proxyToWorker: true, progress: onProgress });
-      } catch (gpuErr) {
-        // WebGPU reported available but failed at runtime — fall back to the CPU path.
-        console.warn('GPU background removal failed, retrying on CPU', gpuErr);
-        setRemovingProgress(0);
-        blob = await removeBackground(objectUrl, { device: 'cpu', progress: onProgress });
-      }
+      });
       setRemovedUrl(URL.createObjectURL(blob));
       toast.success('Background removed!');
     } catch (err) {
@@ -422,41 +618,11 @@ export default function BackgroundRemoverModal({ onClose, initialFile }) {
     toast.success(`Resized to ${preset.name}`);
   };
 
-  const handleDownload = async () => {
-    if (!originalUrl) return;
-
-    const loadImg = (src) => new Promise((resolve, reject) => {
-      const im = new Image();
-      im.crossOrigin = 'anonymous';
-      im.onload = () => resolve(im);
-      im.onerror = reject;
-      im.src = src;
-    });
-
-    // Pull the color stops out of a `linear-gradient(...)` string.
-    const gradientStops = (g) => {
-      const inner = g.substring(g.indexOf('(') + 1, g.lastIndexOf(')'));
-      const parts = inner.split(/,(?![^(]*\))/).map(p => p.trim());
-      if (/deg|to /.test(parts[0])) parts.shift();
-      return parts.map(p => p.split(/\s+/)[0]);
-    };
-
-    // Re-scale a CSS drop-shadow filter so it matches the higher-res export.
-    const scaleShadow = (filterStr, factor) => {
-      if (!filterStr) return '';
-      const m = filterStr.match(/drop-shadow\((.+)\)\s*$/);
-      if (!m) return '';
-      const inner = m[1];
-      const colorMatch = inner.match(/rgba?\([^)]*\)|#[0-9a-fA-F]{3,8}/);
-      const color = colorMatch ? colorMatch[0] : 'rgba(0,0,0,0.3)';
-      const lenPart = colorMatch ? inner.slice(0, colorMatch.index).trim() : inner.trim();
-      const scaled = lenPart.split(/\s+/).map(t => {
-        const n = parseFloat(t);
-        return isNaN(n) ? t : `${(n * factor).toFixed(1)}px`;
-      }).join(' ');
-      return `drop-shadow(${scaled} ${color})`;
-    };
-
+  // Compose the current shared style (background + shadow) with a product image and
+  // return a PNG data URL. `autoFit: true` centres + contains the product (used for
+  // batch, where one style is applied to many differently-sized images); otherwise it
+  // honours the manual position/scale/rotation of the active image.
+  const composeCanvas = async (productUrl, { autoFit = false, withShadow = true } = {}) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const outW = 1200;
@@ -464,7 +630,7 @@ export default function BackgroundRemoverModal({ onClose, initialFile }) {
     canvas.width = outW;
     canvas.height = outH;
 
-    // ── Background layer ──
+    // ── Background layer (shared style) ──
     const showImageBg = bgTab === 'image' && bgImageUrl && !aiResultUrl;
     if (showImageBg) {
       try {
@@ -489,42 +655,66 @@ export default function BackgroundRemoverModal({ onClose, initialFile }) {
     // else: leave transparent (the checkerboard is only a UI hint)
 
     // ── Product layer ──
-    let img;
-    try {
-      img = await loadImg(aiResultUrl || removedUrl || originalUrl);
-    } catch {
-      toast.error('Could not export — failed to load the product image.');
-      return;
-    }
-
+    const img = await loadImg(productUrl); // caller handles load errors
     const scaleX = outW / canvasW;
-    const scaleY = outH / canvasH;
-    const cx = outW / 2 + imgPos.x * scaleX;
-    const cy = outH / 2 + imgPos.y * scaleY;
-    const dw = imgSize.w * scaleX;
-    const dh = imgSize.h * scaleY;
 
     ctx.save();
-    // aiResultUrl already has its background baked in, so don't double-apply the shadow.
-    if (!aiResultUrl) ctx.filter = scaleShadow(shadowStyle.filter, scaleX);
-    ctx.translate(cx, cy);
-    ctx.rotate((rotation * Math.PI) / 180);
-    if (flipped) ctx.scale(-1, 1);
-    ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+    if (withShadow) ctx.filter = scaleShadow(shadowStyle.filter, scaleX);
+    if (autoFit) {
+      const fit = Math.min((outW * 0.85) / img.width, (outH * 0.85) / img.height);
+      const dw = img.width * fit, dh = img.height * fit;
+      ctx.drawImage(img, (outW - dw) / 2, (outH - dh) / 2, dw, dh);
+    } else {
+      const cx = outW / 2 + imgPos.x * scaleX;
+      const cy = outH / 2 + imgPos.y * (outH / canvasH);
+      const dw = imgSize.w * scaleX;
+      const dh = imgSize.h * (outH / canvasH);
+      ctx.translate(cx, cy);
+      ctx.rotate((rotation * Math.PI) / 180);
+      if (flipped) ctx.scale(-1, 1);
+      ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+    }
     ctx.restore();
 
-    let dataUrl;
-    try {
-      dataUrl = canvas.toDataURL('image/png');
-    } catch {
-      toast.error('Export blocked: the background image is not cross-origin accessible.');
-      return;
-    }
+    return canvas.toDataURL('image/png'); // may throw if tainted — caller catches
+  };
 
-    const link = document.createElement('a');
-    link.download = 'product-photo.png';
-    link.href = dataUrl;
-    link.click();
+  const safeName = (name, fallback) => {
+    const base = (name || fallback).replace(/\.[^.]+$/, '');
+    return `${base || fallback}.png`;
+  };
+
+  const handleDownload = async () => {
+    if (!originalUrl) return;
+    try {
+      // aiResultUrl already has its background + shadow baked in.
+      const productUrl = aiResultUrl || removedUrl || originalUrl;
+      const dataUrl = await composeCanvas(productUrl, { autoFit: false, withShadow: !aiResultUrl });
+      triggerDownload(dataUrl, batchMode ? safeName(batchItems[activeIndex]?.name, 'product-photo') : 'product-photo.png');
+    } catch {
+      toast.error('Export failed. The background image may not be cross-origin accessible.');
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    const done = batchItems.filter(it => it.status === 'done' && it.removedUrl);
+    if (!done.length) { toast.error('No processed images to download yet.'); return; }
+    setDownloadingAll(true);
+    toast(`Downloading ${done.length} image${done.length > 1 ? 's' : ''}…`);
+    let ok = 0;
+    for (const it of done) {
+      try {
+        const dataUrl = await composeCanvas(it.removedUrl, { autoFit: true, withShadow: true });
+        triggerDownload(dataUrl, safeName(it.name, `product-${ok + 1}`));
+        ok++;
+        await new Promise(r => setTimeout(r, 350)); // let the browser queue each download
+      } catch {
+        // skip failed item, keep going
+      }
+    }
+    setDownloadingAll(false);
+    if (ok) toast.success(`Downloaded ${ok} image${ok > 1 ? 's' : ''}`);
+    else toast.error('Could not export the images.');
   };
 
   const checkerBg = {
@@ -544,6 +734,17 @@ export default function BackgroundRemoverModal({ onClose, initialFile }) {
   };
 
   const shadowStyle = SHADOW_PRESETS.find(s => s.id === selectedShadow)?.style || {};
+
+  // Shared background for the batch filmstrip thumbnails (mirrors the current style).
+  const previewBgStyle = (() => {
+    if (bgTab === 'image' && bgImageUrl) return { backgroundImage: `url(${bgImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' };
+    if (bgTab === 'color') {
+      if (selectedColor === 'transparent') return checkerBg;
+      if (selectedColor.startsWith('linear-gradient')) return { background: selectedColor };
+      return { backgroundColor: selectedColor };
+    }
+    return checkerBg;
+  })();
 
   const grouped = TEMPLATE_CATEGORIES.reduce((acc, cat) => {
     acc[cat] = TEMPLATES.filter(t => t.category === cat);
@@ -891,7 +1092,15 @@ export default function BackgroundRemoverModal({ onClose, initialFile }) {
           </button>
 
           <div className="absolute top-3.5 left-4 z-20 text-xs text-gray-500">
-            {removing
+            {batchMode
+              ? (() => {
+                  const done = batchItems.filter(it => it.status === 'done').length;
+                  const failed = batchItems.filter(it => it.status === 'error').length;
+                  return done + failed < batchItems.length
+                    ? `Processing ${done + failed}/${batchItems.length}…`
+                    : `${done} image${done !== 1 ? 's' : ''} ready${failed ? ` · ${failed} failed` : ''} · one style applies to all`;
+                })()
+              : removing
               ? `Removing background… ${removingProgress > 0 ? `${removingProgress}%` : 'loading model'}`
               : removedUrl ? 'Background removed ✓'
               : 'Upload an image to start'}
@@ -935,12 +1144,23 @@ export default function BackgroundRemoverModal({ onClose, initialFile }) {
                     <img src={bgImageUrl} alt="bg" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
                   )}
 
-                  {applyingAiBg ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/20">
-                      <Loader2 className="w-8 h-8 text-white animate-spin drop-shadow" />
-                      <p className="text-white text-xs font-medium drop-shadow">Applying background…</p>
-                    </div>
-                  ) : imgInitialized && displayUrl ? (
+                  {(() => {
+                    const activeItem = batchMode ? batchItems[activeIndex] : null;
+                    const itemProcessing = activeItem && activeItem.status !== 'done' && activeItem.status !== 'error';
+                    if (applyingAiBg || itemProcessing) {
+                      return (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/20 z-10">
+                          <Loader2 className="w-8 h-8 text-white animate-spin drop-shadow" />
+                          <p className="text-white text-xs font-medium drop-shadow">
+                            {applyingAiBg ? 'Applying background…' : 'Removing background…'}
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {imgInitialized && displayUrl ? (
                     /* ── Draggable / resizable image ── */
                     <div
                       style={{
@@ -1048,14 +1268,53 @@ export default function BackgroundRemoverModal({ onClose, initialFile }) {
             )}
           </div>
 
+          {/* Batch filmstrip */}
+          {batchMode && (
+            <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white/80 backdrop-blur-sm border-t border-gray-100 overflow-x-auto hide-scrollbar">
+              {batchItems.map((it, i) => (
+                <button key={i} onClick={() => selectBatchItem(i)}
+                  className={`relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${i === activeIndex ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-gray-300'}`}
+                  title={it.name} style={it.removedUrl ? previewBgStyle : checkerBg}>
+                  <img src={it.removedUrl || it.originalUrl} alt={it.name}
+                    className="absolute inset-0 w-full h-full object-contain p-1" />
+                  {it.status !== 'done' && it.status !== 'error' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <Loader2 className="w-4 h-4 text-white animate-spin" />
+                    </div>
+                  )}
+                  {it.status === 'error' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-red-500/30">
+                      <X className="w-4 h-4 text-white" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Bottom toolbar */}
           <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 bg-white/90 backdrop-blur-sm border-t border-gray-100">
             <div className="flex items-center gap-2">
-              <button onClick={handleDownload} disabled={!originalUrl || removing}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-                <Download className="w-3.5 h-3.5" /> Download
-              </button>
-              {removedUrl && !removing && (
+              {batchMode ? (
+                <button onClick={handleDownloadAll} disabled={downloadingAll || !batchItems.some(it => it.status === 'done')}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                  {downloadingAll
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Downloading…</>
+                    : <><Download className="w-3.5 h-3.5" /> Download all ({batchItems.filter(it => it.status === 'done').length})</>}
+                </button>
+              ) : (
+                <button onClick={handleDownload} disabled={!originalUrl || removing}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Download className="w-3.5 h-3.5" /> Download
+                </button>
+              )}
+              {batchMode && (
+                <button onClick={handleDownload} disabled={!removedUrl}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-medium hover:bg-gray-50 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Download className="w-3 h-3" /> This one
+                </button>
+              )}
+              {!batchMode && removedUrl && !removing && (
                 <button onClick={() => originalFile && doRemoveBg(originalFile)}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-medium hover:bg-gray-50 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95">
                   <RefreshCw className="w-3 h-3" /> Re-process

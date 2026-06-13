@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, ImageIcon, Folder, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ImageIcon, Folder, Sparkles, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
+import BackgroundRemoverModal from '@/app/(components)/product-photos/BackgroundRemoverModal';
 
 // Horizontal row with hidden scrollbar + arrows that appear on hover and hide
 // at the start/end of the scroll.
@@ -88,7 +89,8 @@ export default function BatchPage() {
     const imagesInputRef = useRef(null);
     const folderInputRef = useRef(null);
     const [dragOver, setDragOver] = useState(false);
-    const [files, setFiles] = useState([]); // { name, url }
+    const [files, setFiles] = useState([]); // { name, url, file }
+    const [editorOpen, setEditorOpen] = useState(false);
 
     // <input> doesn't accept webkitdirectory as a React prop — set it imperatively.
     useEffect(() => {
@@ -102,8 +104,8 @@ export default function BatchPage() {
         const imgs = Array.from(fileList || []).filter(f => f.type.startsWith('image/'));
         if (!imgs.length) { toast.error('No images found.'); return; }
         const capped = imgs.slice(0, 250);
-        setFiles(prev => [...prev, ...capped.map(f => ({ name: f.name, url: URL.createObjectURL(f) }))]);
-        toast.success(`${capped.length} image${capped.length > 1 ? 's' : ''} imported`);
+        setFiles(capped.map(f => ({ name: f.name, url: URL.createObjectURL(f), file: f })));
+        setEditorOpen(true); // open straight in the Background Remover
         if (imgs.length > 250) toast('Only the first 250 images were added.');
     };
 
@@ -179,15 +181,22 @@ export default function BatchPage() {
                 <div className="mt-8">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-base font-semibold text-gray-900">Imported ({files.length})</h2>
-                        <button onClick={() => setFiles([])} className="text-sm text-gray-400 hover:text-gray-600 cursor-pointer transition-colors">
-                            Clear all
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => setEditorOpen(true)}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-700 hover:to-violet-600 text-white text-sm font-semibold transition-all cursor-pointer">
+                                <Wand2 className="w-4 h-4" /> Edit all
+                            </button>
+                            <button onClick={() => setFiles([])} className="text-sm text-gray-400 hover:text-gray-600 cursor-pointer transition-colors">
+                                Clear all
+                            </button>
+                        </div>
                     </div>
                     <div className="grid grid-cols-6 gap-3">
                         {files.map((f, i) => (
-                            <div key={i} className="aspect-square rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
+                            <button key={i} onClick={() => setEditorOpen(true)}
+                                className="aspect-square rounded-xl overflow-hidden border border-gray-100 bg-gray-50 cursor-pointer hover:ring-2 hover:ring-violet-300 transition-all">
                                 <img src={f.url} alt={f.name} className="w-full h-full object-cover" />
-                            </div>
+                            </button>
                         ))}
                     </div>
                 </div>
@@ -225,6 +234,13 @@ export default function BatchPage() {
                     </button>
                 ))}
             </ScrollRow>
+
+            {editorOpen && files.length > 0 && (
+                <BackgroundRemoverModal
+                    files={files.map(f => f.file)}
+                    onClose={() => setEditorOpen(false)}
+                />
+            )}
         </div>
     );
 }

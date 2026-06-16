@@ -150,8 +150,8 @@ const PosterForm = ({
     setImportingBrand(true);
     try {
       const r = await sendUrl(brandUrl);
-      if (!r?.data) throw new Error();
-      const d = r.data;
+      if (!r?.ok) throw new Error(r?.message || "Import failed");
+      const d = r.data?.data || r.data || {};
       setBrandName(d.name           || "");
       setDescription(d.description  || "");
       setBrandColor(d.primary_color || "#7c3aed");

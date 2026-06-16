@@ -204,19 +204,25 @@ Wrapper response: `{ success, message, data: [ ...brands ] }`.
 - **`PEXELS_API_KEY` and other secrets live in `.env`** (gitignored). Without it, `/api/pexels` returns 500 and Search Media inside `MediaPickerModal` shows nothing. Next.js only reads `.env` at server startup — **restart `npm run dev` after editing `.env`**.
 - **Blob URLs are not fetchable by the backend.** Cropped images live in browser memory with `blob:` URLs that only work in the user's tab. Always upload via `useAuth().uploadImage(file)` first and send the returned URL. Note the side effect: every upload persists to the user's Image Gallery — there's no temporary-upload endpoint yet.
 
-## createdesign test override — REVERTED (create-from-url is back on Scraive → redesign)
+## create-from-url has TWO generate backends (toggle by uncommenting)
 
-(Added 2026-06-11, **reverted 2026-06-11.**) There was briefly a test override that made create-from-url generate via `/creatives/createdesign` instead of Scraive → `/creatives/redesign`. **That override is now OFF.** create-from-url is back to the normal flow: `fetchDesignTemplates` (Scraive) → `generateCustomCreative` (`/creatives/redesign`), same as Custom Creation.
+(Updated 2026-06-16.) `create-from-url/page.jsx` now defines **two independent, live generate functions** and picks one in `handleGenerate` by uncommenting a single line. Nothing is deleted — switching backends is one-line.
 
-Current state:
-- **`create-from-url/page.jsx` → `handleGenerate`:** the Scraive fetch, the `templates: selectedTemplates` payload line, and the `generateCustomCreative` block are all **active (un-commented)**. The createdesign test call + its response-shape adapter remain in the file but are **inside a block comment** (`/* ── TEST (DISABLED) ── ... ── end TEST ── */`). `createDesign` was removed from the `useAuth()` destructure.
-- **`createDesign(payload)`** still exists in `AuthContext.jsx` (right after `generateCustomCreative`, still exposed in the context value) but is **dormant — nothing calls it.** It's harmless; left in place so re-enabling the test is easy.
+```js
+const handleGenerate = async () => {
+  if (!brandName.trim()) { toast.error('Please enter a brand name'); return; }
+  await generateViaLLM();          // OPTION B: /design/generate-design/involk_llm (ACTIVE)
+  // await generateViaRedesign();  // OPTION A: Scraive → /creatives/redesign
+};
+```
 
-**To RE-ENABLE the createdesign test (if ever needed):**
-1. In `create-from-url/page.jsx` `handleGenerate`: comment out the `generateCustomCreative` redesign block (and the Scraive `fetchDesignTemplates` block + the `templates: selectedTemplates` payload line if you want to skip Scraive), then un-comment the `/* ── TEST (DISABLED) ── */` block.
-2. Add `createDesign` back to the `useAuth()` destructure at the top of that file.
+- **`generateViaLLM`** → `useAuth().createDesign(payload)` → **`POST /design/generate-design/involk_llm`**. Bypasses Scraive entirely. **One request → one design** (no template batching). Body: `{ generation_data: { brand_details: { creative_type, create_sub_type, ...rest }, generatedAt } }` — `templates` is stripped. An **adapter** maps the response: `{ variations:[...] }` used directly, or a single `{ design:{canvas,elements}, copy }` wrapped as one variation.
+- **`generateViaRedesign`** → the standard Scraive recipe: `fetchDesignTemplates` → `generateCustomCreative` (`POST /creatives/redesign`, streamed batches of 2). Same recipe Custom Creation uses.
+- **Shared helpers** keep the two from drifting: `resolveImageUrls()` (upload Files / drop blobs), `buildPayload()` (base payload, no templates), `prepare()` (size + images + base payload).
 
-Note: `/creatives/createdesign` generates ONE design per call from brand details alone (no templates). Its `OPTIONS` preflight previously 500'd; backend fixed it to 204.
+**`createDesign`** lives in `AuthContext.jsx` (right after `generateCustomCreative`, exported in the context value). Endpoint is `${BASE_URL}/design/generate-design/involk_llm`; it uses plain `fetch` with `credentials:"include"`. Currently **only create-from-url's `generateViaLLM` calls it.**
+
+Two things unverified on a real run: (1) the URL spelling is `involk_llm` exactly as given — change the one line in `createDesign` if the backend route is `invoke_llm`; (2) the response shape — the adapter assumes `{ variations }` or `{ design, copy }`; the `console.log('🎨 createDesign output …')` prints the real body to adjust the adapter if needed.
 
 ## Generation flow & loaders (custom creation + create-from-url)
 

@@ -620,8 +620,8 @@ export default function CreateFromUrl() {
   const handleGenerate = async () => {
     if (!brandName.trim()) { toast.error('Please enter a brand name'); return; }
 
-    await generateViaLLM();          // OPTION B: /design/generate-design/involk_llm (active)
-    // await generateViaRedesign();  // OPTION A: Scraive → /creatives/redesign
+    // await generateViaLLM();       // OPTION B: /design/generate-design/involk_llm
+    await generateViaRedesign();     // OPTION A: Scraive → /creatives/redesign (active)
   };
 
   // ── RESULT VIEW ───────────────────────────────────────────────────────────

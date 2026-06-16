@@ -113,6 +113,14 @@ export default function CreateFromUrl() {
   const [step, setStep] = useState(1);
   const [creationType, setCreationType] = useState(null);
 
+  // Which generation backend to use. Default 'redesign' (Scraive → /creatives/redesign).
+  // The "Create using Involk" entry point passes ?engine=involk to use the LLM endpoint.
+  const [engine, setEngine] = useState('redesign');
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('engine') === 'involk') setEngine('involk');
+  }, []);
+
   // Step 1
   const [urlInput, setUrlInput]       = useState('');
   const [importing, setImporting]     = useState(false);
@@ -620,8 +628,8 @@ export default function CreateFromUrl() {
   const handleGenerate = async () => {
     if (!brandName.trim()) { toast.error('Please enter a brand name'); return; }
 
-    // await generateViaLLM();       // OPTION B: /design/generate-design/involk_llm
-    await generateViaRedesign();     // OPTION A: Scraive → /creatives/redesign (active)
+    if (engine === 'involk') await generateViaLLM();   // /design/generate-design/involk_llm
+    else await generateViaRedesign();                  // Scraive → /creatives/redesign
   };
 
   // ── RESULT VIEW ───────────────────────────────────────────────────────────

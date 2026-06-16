@@ -6,7 +6,7 @@ import {
   Globe, Loader2, FileUp, X, CheckCircle2, ChevronRight,
   Sparkles, FileSearch, FolderOpen, Images, Scan, ImageIcon,
 } from "lucide-react";
-import GeneratingOverlay from "@/app/(components)/GeneratingOverlay";
+import FullOverlayLoader from "@/app/(components)/loaders/full-overlay-loader";
 
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSection";
@@ -1019,7 +1019,7 @@ const ImageAdsForm = ({
         maxSelectable={Math.max(0, MAX_IMAGES - croppedImages.filter(Boolean).length)}
       />
 
-      {generating && <GeneratingOverlay />}
+      {generating && <FullOverlayLoader title="Generating your ad creative" subtitle="Crafting copy, layout & visuals" />}
     </>
   );
 };

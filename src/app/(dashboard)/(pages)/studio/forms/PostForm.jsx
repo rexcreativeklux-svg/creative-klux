@@ -6,7 +6,8 @@ import {
   Globe, Loader2, FileUp, X, CheckCircle2, ChevronRight,
   Sparkles, Images, Scan, Type, Hash,
 } from "lucide-react";
-import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
+import FullOverlayLoader from "@/app/(components)/loaders/full-overlay-loader";
+import { useAuth } from "@/context/AuthContext";
 
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
@@ -70,8 +71,10 @@ const STEPS = [
 
 const PostsForm = ({
   formData, setFormData, activeBrand, sendUrl, showToast, onResult,
-  generateCustomCreative, creative, categoryId,
+  generateCustomCreative, creative, categoryId, fetchDesignTemplates,
 }) => {
+  const { uploadImage, activeBrandId } = useAuth();
+
   const [step, setStep]                     = useState(1);
   const [error, setError]                   = useState("");
   const [brandUrl, setBrandUrl]             = useState(activeBrand?.url || activeBrand?.source_url || "");
@@ -338,69 +341,149 @@ const PostsForm = ({
     setStep((p) => p + 1);
   };
 
-  // ── Generate — mirrors ImageAdsForm.handleGenerate exactly ───────────────
+  // ── Generate — mirrors ImageAdsForm / create-from-url ────────────────────
+  // 1) fetch Scraive templates  2) upload File images → real URLs
+  // 3) send templates + brand_id  4) stream batches into onResult
   const handleGenerate = async () => {
-    setGenerating(true);
-    setError("");
-
-    const validImages = croppedImages.filter(Boolean);
-
-    const payload = {
-      creativeType: creative?.id,
-      categoryType: categoryId,
-      brandName:    formData.brandName    || null,
-      description:  formData.description  || null,
-      // brandColor and primaryColor are kept in sync by field(), so either works;
-      // fall back to primaryColor for backward compat with older formData shapes.
-      brandColor:   formData.brandColor   ?? formData.primaryColor ?? null,
-      logo:         formData.logo         || null,
-      visualStyle:  formData.visualStyle  || null,
-      font:         formData.font         || null,
-      sourceUrl:    brandUrl              || null,
-      size:         formData.size         || null,
-      campaignGoal: formData.campaignGoal || null,
-      audience:     formData.audience     || null,
-      fileFormat:   formData.fileFormat   || null,
-      caption:      formData.caption      || null,
-      hashtags:     formData.hashtags     || [],
-      tone:         formData.tone         || null,
-      platforms:    formData.platforms    || [],
-      images: validImages
-        .map((f) => f?.sourceUrl || f?.previewUrl)
-        .filter(Boolean),
-      generatedAt: new Date().toISOString(),
-    };
-
-    const result = await generateCustomCreative(payload);
-
-    if (!result.ok) {
-      setError(result.message || "Generation failed. Please try again.");
-      setGenerating(false);
+    if (!formData.size) {
+      const msg = "Please select a post size.";
+      setError(msg); showToast(msg);
       return;
     }
 
-    const data = result.data;
+    const validImages = croppedImages.filter(Boolean);
 
-    // ── canvas-based design response
-    if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
-      onResult({
-        type:       "design",
-        variations: data.variations,
-        reply:      data.reply || "",
-        meta:       data.meta  || {},
-        payload,
-        raw: data,
+    setGenerating(true);
+    setError("");
+
+    try {
+      // Resolve the selected size's label (Scraive category) from its value.
+      const sizeOpt   = SIZE_OPTIONS.find((s) => s.value === formData.size);
+      const sizeLabel = sizeOpt?.label || formData.size;
+
+      // 1. FETCH DESIGN TEMPLATES FIRST
+      const templateRes = await fetchDesignTemplates({
+        type: "image",
+        category: sizeLabel,
+        type_size: formData.size,
       });
-    } else {
-      // ── fallback: image/video asset response
-      onResult({
-        assets: data?.assets || [],
-        payload,
-        raw: data,
+
+      if (!templateRes.ok) {
+        setGenerating(false);
+        const msg = templateRes.message || "Failed to fetch templates.";
+        setError(msg); showToast(msg);
+        return;
+      }
+
+      const templates = templateRes.data || [];
+      if (!templates.length) {
+        setGenerating(false);
+        const msg = "No templates found for this size.";
+        setError(msg); showToast(msg);
+        return;
+      }
+      const selectedTemplates = templates;
+
+      // 2. RESOLVE IMAGE URLs — upload File items to /image-gallery
+      const resolvedUrls = await Promise.all(
+        validImages.map(async (item) => {
+          if (typeof item?.sourceUrl === "string" && item.sourceUrl.startsWith("http")) {
+            return item.sourceUrl;
+          }
+          if (item instanceof File) {
+            try {
+              const result = await uploadImage(item);
+              const url =
+                result?.image_url || result?.url || result?.data?.image_url || null;
+              return typeof url === "string" && url.startsWith("http") ? url : null;
+            } catch (err) {
+              console.error("uploadImage failed:", err);
+              return null;
+            }
+          }
+          if (typeof item?.previewUrl === "string" && item.previewUrl.startsWith("http")) {
+            return item.previewUrl;
+          }
+          return null;
+        })
+      );
+
+      const imageUrls = resolvedUrls.filter(Boolean);
+
+      // 3. BUILD PAYLOAD
+      const payload = {
+        creativeType: creative?.id,        // "social_creative" → creative_type "social"
+        categoryType: categoryId,          // "posts" → create_sub_type
+        brand_id:     activeBrandId,
+
+        brandName:    formData.brandName    || null,
+        description:  formData.description  || null,
+        brandColor:   formData.brandColor   ?? formData.primaryColor ?? null,
+        logo:         formData.logo         || null,
+        visualStyle:  formData.visualStyle  || null,
+        font:         formData.font         || null,
+        sourceUrl:    brandUrl              || null,
+
+        size:         formData.size,
+        campaignGoal: formData.campaignGoal || null,
+        audience:     formData.audience     || null,
+        fileFormat:   formData.fileFormat   || null,
+
+        caption:      formData.caption      || null,
+        hashtags:     formData.hashtags     || [],
+        tone:         formData.tone         || null,
+        platforms:    formData.platforms    || [],
+
+        category:     sizeLabel?.toLowerCase().replace(/\s+/g, "_"),
+        type_size:    formData.size,
+        images:       imageUrls,
+        templates:    selectedTemplates,
+        generatedAt:  new Date().toISOString(),
+      };
+
+      // 4. STREAM BATCHES
+      const expectedCount = selectedTemplates.length;
+      let isFirstBatch = true;
+      const result = await generateCustomCreative(payload, (batch) => {
+        if (!batch.ok) return;
+        const variations = batch.variations || [];
+        const assets = batch.assets || [];
+        if (isFirstBatch) {
+          isFirstBatch = false;
+          setGenerating(false); // hide overlay so first batch shows
+          onResult({
+            type: "design",
+            variations,
+            assets,
+            expectedCount,
+            done: false,
+            reply: batch.data?.reply || "",
+            meta: batch.data?.meta || {},
+            payload,
+            raw: batch.data,
+          });
+        } else {
+          onResult({ type: "design", variations, assets, append: true });
+        }
       });
+
+      if (!result.ok) {
+        setGenerating(false);
+        onResult({ append: true, done: true });
+        showToast(result.message || "Generation failed.");
+        setError(result.message || "Generation failed.");
+        return;
+      }
+
+      // All batches done — clear skeletons
+      onResult({ append: true, done: true });
+    } catch (err) {
+      console.error(err);
+      const msg = err.message || "Generation failed. Please try again.";
+      setError(msg); showToast(msg);
+    } finally {
+      setGenerating(false);
     }
-
-    setGenerating(false);
   };
 
   // ── Aspect ratio for cropper based on selected size ───────────────────────
@@ -867,15 +950,7 @@ const PostsForm = ({
         showToast={showToast}
       />
 
-      {generating && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-10">
-            <FloatingAnimation showProgressBar>
-              <FloatingElements.ImageFile />
-            </FloatingAnimation>
-          </div>
-        </div>
-      )}
+      {generating && <FullOverlayLoader title="Generating your posts" subtitle="Crafting copy, layout & visuals" />}
     </>
   );
 };

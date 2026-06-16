@@ -165,3 +165,16 @@
   0%   { opacity: 0; transform: translateY(4px); }
   100% { opacity: 1; transform: translateY(0); }
 }
+
+/* GeneratingOverlay — blinking typewriter caret */
+@keyframes caret-blink {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* Loaders (InlineLoader / OverlayLoader) */
+@keyframes ck-spin       { to { transform: rotate(360deg); } }
+@keyframes ck-bar-slide  { 0% { margin-left: -40%; } 100% { margin-left: 140%; } }
+@keyframes ck-icon-glow  { 0%, 100% { opacity: .8; } 50% { opacity: 1; } }
+@keyframes ck-dot-bounce { 0%, 100% { transform: translateY(0); opacity: .4; } 50% { transform: translateY(-5px); opacity: 1; } }
+@keyframes ck-text-cycle { 0%, 30% { opacity: 1; } 45%, 60% { opacity: .4; } 75%, 100% { opacity: 1; } }

@@ -6,7 +6,7 @@ import { Globe, ArrowRight, ArrowLeft, Loader2, Upload, Check, Megaphone, Share2
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import AdPreview from '../Adpreview';
-import GeneratingOverlay from '@/app/(components)/GeneratingOverlay';
+import FullOverlayLoader from '@/app/(components)/loaders/full-overlay-loader';
 
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
@@ -663,7 +663,7 @@ export default function CreateFromUrl() {
   // ── FORM VIEW ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen py-10 px-4">
-      {generating && <GeneratingOverlay />}
+      {generating && <FullOverlayLoader title="Generating your ad creative" subtitle="Crafting copy, layout & visuals" />}
       {localToast && (
         <div className="fixed top-5 right-5 z-100 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
           {localToast}

@@ -90,7 +90,10 @@ export default function DashboardLayout({ children }) {
 
                 <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
-                <main className={`flex flex-1 flex-col overflow-hidden h-full transition-opacity duration-200 ${isPending ? "opacity-70 pointer-events-none" : ""}`}>
+                <main
+                    style={{ "--ck-content-left": sidebarOpen ? "14rem" : "3.75rem", "--ck-content-top": "4rem" }}
+                    className={`flex flex-1 flex-col overflow-hidden h-full transition-opacity duration-200 ${isPending ? "opacity-70 pointer-events-none" : ""}`}
+                >
                     <Header
                         sidebarOpen={sidebarOpen}
                         toggleSidebar={toggleSidebar}

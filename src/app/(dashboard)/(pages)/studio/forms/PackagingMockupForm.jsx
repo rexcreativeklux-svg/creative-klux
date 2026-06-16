@@ -184,8 +184,8 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
     setImportingBrand(true);
     try {
       const r = await sendUrl(brandUrl);
-      if (!r?.data) throw new Error();
-      const d = r.data;
+      if (!r?.ok) throw new Error(r?.message || "Import failed");
+      const d = r.data?.data || r.data || {};
       const cleanName = (d.name || "").replace(/\s+/g, "");
       setFormData((p) => ({
         ...p,

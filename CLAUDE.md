@@ -218,15 +218,44 @@ Current state:
 
 Note: `/creatives/createdesign` generates ONE design per call from brand details alone (no templates). Its `OPTIONS` preflight previously 500'd; backend fixed it to 204.
 
+## Generation flow & loaders (custom creation + create-from-url)
+
+All AI design generation ultimately calls `useAuth().generateCustomCreative` → `POST /creatives/redesign`, which is **template-driven**: it pulls `templates` out of the payload, chunks them into **batches of 2**, and POSTs each batch (with an optional `onBatchResult` streaming callback). The correct, working **recipe** every generate handler must follow:
+
+1. **Fetch Scraive templates first** — `fetchDesignTemplates({ type, category: <size label>, type_size })` (hits `api.scraive.com`). Bail if `!ok` or zero templates.
+2. **Resolve image URLs** — real `https` `sourceUrl` → use as-is; `File` (cropped/dropped) → `await uploadImage(file)` and use the returned URL; `blob:` `previewUrl` only → **drop** (backend can't fetch blobs).
+3. **Build payload** with `templates`, `brand_id` (`activeBrandId`), `category`, `type_size`, plus `creativeType` (`*_creative`) and `categoryType` (the sub-type).
+4. **Stream batches** — `generateCustomCreative(payload, (batch) => …)`; first batch hides the overlay and calls `onResult({ type:'design', variations, assets, done:false })`, later batches `append`. Handle `!result.ok` and empty results.
+
+**`creative_type` / `create_sub_type` are already sent.** `generateCustomCreative` maps `creativeType` (`ads_creative`/`social_creative`/`designer_creative`) → `brand_details.creative_type` (`ads`/`social`/`designer`) and `categoryType` → `create_sub_type`. No extra wiring needed for the type — just pass `creativeType`/`categoryType`.
+
+### Architecture trap: custom-creation forms each reimplement the recipe
+
+`create-from-url` has **one** `handleGenerate` branched by `isAds` (`creationType === 'ads'`), so ads & social ("content") share identical logic and can't drift. **Custom creation is different** — every type has its **own form component** (`ImageAdsForm`, `VideoAdsForm`, `PostForm`, `LogoForm`, …) each with its **own** `handleGenerate`. `PostForm` (social) had drifted (no template fetch, no upload, no `brand_id`) and failed at generate; it was fixed (2026-06-16) to mirror `ImageAdsForm`. **If you touch the generate recipe, update every form** — or better, extract a shared helper. Forms read `uploadImage`/`activeBrandId` from `useAuth()` directly; `fetchDesignTemplates`/`generateCustomCreative` come via `commonProps` from the studio page.
+
+### Loaders
+
+Three shared components live in `src/app/(components)/`:
+- **`loaders/full-overlay-loader.jsx`** (`FullOverlayLoader`) — the **standard generating overlay** now used by create-from-url, `ImageAdsForm`, `VideoAdsForm`, `PostForm`. Dual counter-spinning rings + spark + cycling subtitle + bouncing dots on a light `#f5f5f5` surface. Props: `title`, `subtitle`, `embedded` (renders as an inline box instead of full-screen).
+- **`loaders/inline-progress-loader.jsx`** (`InlineProgressLoader`) — small inline strip with a glowing icon + indeterminate violet→coral bar.
+- **`GeneratingOverlay.jsx`** — the older spinning-logo + typewriter overlay (now superseded by `FullOverlayLoader` in the generate flows; kept for reference).
+
+**Overlay offset (don't cover the chrome):** `FullOverlayLoader` (non-embedded) is `fixed` but uses `left: var(--ck-content-left)` and `top: var(--ck-content-top)`, both published by `(dashboard)/layout.js` on `<main>` (left = sidebar width `14rem`/`3.75rem`, top = header `4rem`). Vars fall back to `0`, so it's full-screen anywhere without the layout (e.g. `/logo-test`). This is why the loader masks only the design-preview area, leaving the sidebar + header usable.
+
+All loader keyframes (`ck-spin`, `ck-bar-slide`, `ck-icon-glow`, `ck-dot-bounce`, `ck-text-cycle`, `caret-blink`) are in `globals.css`.
+
+**Dev preview:** `/logo-test` (public, outside `ProtectedRoute`) renders the inline + full-overlay loaders for quick visual checks.
+
 ## Recent significant changes
 
-(Last updated 2026-05-22. Keep this short — a running 3–5 item list is fine.)
+(Last updated 2026-06-16. Keep this short — a running 3–5 item list is fine.)
 
-- **Create-from-URL (`/studio/create-from-url`)** got a major upgrade: step 4 now has an "Ad Format" sub-type picker (Image / Video / Interactive / Playable — last two disabled with "Coming soon…" tooltip); step 4's size/format fields swap based on sub-type; step 5 labels/icons mirror VideoAdsForm when sub-type is video; the scraped images from `/brands/import` populate the strip above the picker instead of the user's library; cropped images are now uploaded to `/image-gallery` before the generate call so the backend gets real URLs. Payload also now passes `adSubType` as `create_sub_type` and includes `brand_id`. See the dedicated section below.
-- **`BrandImagesStrip` extended** with optional `images` prop (use instead of `useAuth().myImages`), optional `label`, src-dedupe, and a trim effect that keeps `externalCount + localSelected` ≤ `maxSelect` (prevents the old "6/5 selected" bug).
-- **`MediaPickerModal`**: removed the "Upload File" tab entirely; added `maxSelectable` prop so the picker enforces the parent's remaining-slot count across images AND videos combined; fixed a React "setState during render" warning that was caused by toasting inside an updater function; renamed "Upload to Library" → "Upload from Library".
-- **Image Gallery (`/image-gallery`)**: added a "Copy URL" button to the My Images popup (Download / Copy URL / Delete), switched `copyLink` to a `sonner` toast, and fixed cursor-shake on card hover by disabling `hover:scale-105` while the popup menu is open.
-- **Creatives page (`/creatives`)**: removed the duplicate center "Instant Creation"/"Custom Creation" buttons in the empty state (kept the three buttons in the top-right). Added a `useEffect` guard so `loadDesigns` doesn't fire while `activeBrandId` is still hydrating (avoids the boot-race `fetchDesigns: no activeBrandId` log).
+- **Generation loaders unified** — create-from-url, `ImageAdsForm`, `VideoAdsForm`, and `PostForm` all use `FullOverlayLoader`, offset by CSS vars so it doesn't cover the sidebar/header. See "Generation flow & loaders" above.
+- **Social creative (custom creation) fixed** — `PostForm.handleGenerate` was missing the template-fetch + image-upload + `brand_id` steps, so `/creatives/redesign` got empty `templates` and failed. Rewrote it to mirror `ImageAdsForm`.
+- **Product Photos → Background Remover + Batch** — `BatchModal` renamed to `BackgroundRemoverModal`; `/product-photos/batch` page selects images → opens them in `BackgroundRemoverModal` (batch mode: one shared style applied to all, filmstrip preview, "Download all" as separate PNGs). Background removal runs in a **Web Worker pool** (`bgRemoval.worker.js`, model `isnet_fp16`, inputs downscaled to 2500px) so the UI stays responsive; falls back to main-thread WASM. Background presets are product-display backdrops (Pexels).
+
+- **Create-from-URL (`/studio/create-from-url`)** earlier upgrade: step 4 "Ad Format" sub-type picker (Image / Video / Interactive / Playable — last two disabled); size/format fields swap by sub-type; scraped `/brands/import` images populate the strip; cropped images upload to `/image-gallery` before generate. See the dedicated create-from-url section.
+- **`MediaPickerModal` / `BrandImagesStrip`** — picker has no "Upload File" tab; `maxSelectable` caps images+videos combined; strip takes an optional `images` prop and trims to keep `externalCount + localSelected ≤ maxSelect`.
 
 ## Where the bodies are buried
 
@@ -239,6 +268,10 @@ Note: `/creatives/createdesign` generates ONE design per call from brand details
 - **Generate endpoint** — `POST /creatives/redesign` (via `useAuth().generateCustomCreative`, defined around `AuthContext.jsx:1498`). Note it uses plain `fetch` with `credentials: "include"`, not `authFetch`.
 - **Cropping coordinator state** lives on the create-from-url page: `imageSrc` (queue currently being cropped, resets per batch), `imageSrcMeta` (parallel original URLs), `croppedImages` (master list, never reset), `cropBatchStart` (where each cropper batch begins). Save/skip write to `croppedImages[cropBatchStart + currentCropIndex]`. Cancel rolls back only the current batch via `prev.slice(0, cropBatchStart)`.
 - **The scraped images strip** — `src/app/(components)/BrandImagesStrip.jsx`. Accepts an optional `images` prop. When provided, the strip uses it instead of `useAuth().myImages` and skips the library fetch.
+- **Generating overlay** — `src/app/(components)/loaders/full-overlay-loader.jsx` (`FullOverlayLoader`). Offset by `--ck-content-left` / `--ck-content-top` vars set on `<main>` in `(dashboard)/layout.js`. Inline variant: `inline-progress-loader.jsx`. Dev preview at `/logo-test`.
+- **Custom-creation forms** — `src/app/(dashboard)/(pages)/studio/forms/*` (one per type; each has its own `handleGenerate`). Routed by `studio/page.jsx` on `selectedCreative` + `selectedCategory`. `ImageAdsForm`/`PostForm` are the reference implementations of the generate recipe.
+- **Background-removal worker** — `src/app/(components)/product-photos/bgRemoval.worker.js` (pool managed inside `BackgroundRemoverModal.jsx`). `/product-photos/batch` page feeds files into it.
+- **`createDesign`** (the Scraive-bypass endpoint `POST /creatives/createdesign`) — defined in `AuthContext.jsx` right after `generateCustomCreative`, exported but **dormant**; one design per call, no templates. Re-enable steps in the "createdesign test override" section above.
 
 ## Running locally
 

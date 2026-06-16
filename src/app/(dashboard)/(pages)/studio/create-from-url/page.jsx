@@ -444,82 +444,145 @@ export default function CreateFromUrl() {
     }
   };
 
-  // ── Generate ─────────────────────────────────────────────────────────────
-  const handleGenerate = async () => {
-    if (!brandName.trim()) { toast.error('Please enter a brand name'); return; }
+  // ── Shared generate helpers ───────────────────────────────────────────────
+  // Resolve cropped/selected images to real URLs (used by both backends):
+  //  - real https sourceUrl → as-is; File → upload to /image-gallery; blob → drop.
+  const resolveImageUrls = async (validImages) =>
+    (await Promise.all(
+      validImages.map(async (item) => {
+        if (typeof item?.sourceUrl === 'string' && item.sourceUrl.startsWith('http')) {
+          return item.sourceUrl;
+        }
+        if (item instanceof File) {
+          try {
+            const result = await uploadImage(item);
+            const url = result?.image_url || result?.url || result?.data?.image_url || null;
+            return (typeof url === 'string' && url.startsWith('http')) ? url : null;
+          } catch (err) {
+            console.error('uploadImage failed for cropped item:', err);
+            return null;
+          }
+        }
+        if (typeof item?.previewUrl === 'string' && item.previewUrl.startsWith('http')) {
+          return item.previewUrl;
+        }
+        return null;
+      })
+    )).filter(Boolean);
+
+  // Base payload shared by both backends (no `templates`).
+  const buildPayload = ({ imageUrls, selectedSize, scraiveCategory, isVideo }) => ({
+    creativeType: isAds ? 'ads_creative' : 'social_creative',
+    categoryType: isAds ? adSubType : 'posts',
+    brand_id: activeBrandId,
+    brandName,
+    description,
+    brandColor,
+    logo: logoUrl || null,
+    visualStyle,
+    font: 'Montserrat',
+    sourceUrl: urlInput || null,
+    size: selectedSize,
+    campaignGoal,
+    audience,
+    ...(isVideo ? { videoFormat } : { fileFormat }),
+    images: imageUrls,
+    category: scraiveCategory,
+    type_size: selectedSize,
+    ...(isAds ? {} : { tone: postTone, platforms: targetPlatform }),
+    generatedAt: new Date().toISOString(),
+  });
+
+  // Common prep both functions need (size + images + base payload).
+  const prepare = async () => {
+    const selectedSize = getSelectedSize();
+    const validImages  = croppedImages.filter(Boolean);
+    const isVideo      = isAds && adSubType === 'video';
+    const selectedSizeLabel = !isAds
+      ? socialSize
+      : (adSubType === 'video' ? videoSize : adSize);
+    const scraiveCategory = (selectedSizeLabel || '').toLowerCase().replace(/\s+/g, '_');
+    const imageUrls = await resolveImageUrls(validImages);
+    const payload = buildPayload({ imageUrls, selectedSize, scraiveCategory, isVideo });
+    return { selectedSize, selectedSizeLabel, isVideo, payload };
+  };
+
+  // ═══ OPTION A — Scraive templates → POST /creatives/redesign (streamed batches) ═══
+  const generateViaRedesign = async () => {
     setGenerating(true);
     try {
-      const selectedSize = getSelectedSize();
-      const validImages  = croppedImages.filter(Boolean);
-      const isVideo      = isAds && adSubType === 'video';
+      const { selectedSize, selectedSizeLabel, isVideo, payload: base } = await prepare();
 
-      // Resolve the chosen size's label (for Scraive category + redesign payload)
-      const selectedSizeLabel = !isAds
-        ? socialSize
-        : (adSubType === 'video' ? videoSize : adSize);
-      const scraiveCategory = (selectedSizeLabel || '').toLowerCase().replace(/\s+/g, '_');
-
-      // ── Resolve image URLs ──────────────────────────────────────────────
-      // - Items with a real https sourceUrl → use as-is (no upload needed).
-      // - Items that are File objects (cropped, dropped, picker-cropped) → upload
-      //   to /image-gallery so the backend can fetch the cropped version.
-      // - Items with only a blob: previewUrl → drop (unreachable from backend).
-      const resolvedUrls = await Promise.all(
-        validImages.map(async (item) => {
-          // Existing real URL (brand-strip "Use", video picker, etc.)
-          if (typeof item?.sourceUrl === 'string' && item.sourceUrl.startsWith('http')) {
-            return item.sourceUrl;
-          }
-          // Cropped or uploaded File — push to image-gallery
-          if (item instanceof File) {
-            try {
-              const result = await uploadImage(item);
-              const url = result?.image_url || result?.url || result?.data?.image_url || null;
-              return (typeof url === 'string' && url.startsWith('http')) ? url : null;
-            } catch (err) {
-              console.error('uploadImage failed for cropped item:', err);
-              return null;
-            }
-          }
-          // Last resort — only keep if previewUrl is a real http(s) URL.
-          if (typeof item?.previewUrl === 'string' && item.previewUrl.startsWith('http')) {
-            return item.previewUrl;
-          }
-          return null;
-        })
-      );
-
-      const imageUrls = resolvedUrls.filter(Boolean);
-
-      const payload = {
-        creativeType: isAds ? 'ads_creative' : 'social_creative',
-        categoryType: isAds ? adSubType : 'posts',
-        brand_id: activeBrandId,
-        brandName,
-        description,
-        brandColor,
-        logo: logoUrl || null,
-        visualStyle,
-        font: 'Montserrat',
-        sourceUrl: urlInput || null,
-        size: selectedSize,
-        campaignGoal,
-        audience,
-        ...(isVideo ? { videoFormat } : { fileFormat }),
-        images: imageUrls,
-        category: scraiveCategory,
+      const templateRes = await fetchDesignTemplates({
+        type: isVideo ? 'video' : 'image',
+        category: selectedSizeLabel,
         type_size: selectedSize,
-        ...(isAds ? {} : { tone: postTone, platforms: targetPlatform }),
-        generatedAt: new Date().toISOString(),
-      };
+      });
+      if (!templateRes?.ok) {
+        toast.error(templateRes?.message || 'Failed to fetch templates');
+        setGenerating(false);
+        return;
+      }
+      const templates = Array.isArray(templateRes.data) ? templateRes.data : [];
+      if (!templates.length) {
+        toast.error('No templates found for this size');
+        setGenerating(false);
+        return;
+      }
 
-      // ── createDesign → /design/generate-design/involk_llm ─────────────────
-      // Bypasses Scraive + /creatives/redesign — the backend generates the design
-      // itself from brand_details (no templates).
+      const payload = { ...base, templates };
+      const expectedCount = templates.length;
+      let isFirstBatch = true;
+      const res = await generateCustomCreative(payload, (batch) => {
+        if (!batch.ok) return;
+        const variations = batch.variations || [];
+        const assets = batch.assets || [];
+        if (isFirstBatch) {
+          isFirstBatch = false;
+          setGenerating(false);
+          if (variations.length || assets.length) {
+            setResult({
+              type: 'design', variations, assets, expectedCount, done: false,
+              reply: batch.data?.reply || '', meta: batch.data?.meta || {},
+            });
+          }
+        } else {
+          setResult((prev) => {
+            if (!prev) return { type: 'design', variations, assets, expectedCount, done: false };
+            return {
+              ...prev,
+              variations: [...(prev.variations || []), ...variations],
+              assets: [...(prev.assets || []), ...assets],
+            };
+          });
+        }
+      });
+
+      if (!res.ok) {
+        setResult((prev) => prev ? { ...prev, done: true } : prev);
+        throw new Error(res.message || 'Generation failed');
+      }
+      const data = res.data;
+      if (!data?.variations?.length && !data?.assets?.length) {
+        throw new Error('No results returned from generation');
+      }
+      setResult((prev) => prev ? { ...prev, done: true } : prev);
+    } catch (err) {
+      toast.error(err.message || 'Generation failed. Please try again.');
+    } finally {
       setGenerating(false);
+    }
+  };
+
+  // ═══ OPTION B — POST /design/generate-design/involk_llm (no Scraive, single design) ═══
+  const generateViaLLM = async () => {
+    setGenerating(true);
+    try {
+      const { isVideo, payload } = await prepare();
+
+      // Keep the overlay up for the whole involk_llm request (single call, no streaming).
       const createRes = await createDesign(payload);
       console.log('🎨 createDesign output (create-from-url):', createRes);
-
       if (!createRes?.ok) {
         throw new Error(createRes?.message || 'Generation failed');
       }
@@ -529,7 +592,6 @@ export default function CreateFromUrl() {
       const data = createRes.raw || createRes.data || {};
       let variations = Array.isArray(data.variations) ? data.variations : [];
       const assets = Array.isArray(data.assets) ? data.assets : [];
-
       if (!variations.length && data.design) {
         variations = [{
           id: `cd-${Date.now()}`,
@@ -540,23 +602,26 @@ export default function CreateFromUrl() {
           copy: data.copy || {},
         }];
       }
-
       if (!variations.length && !assets.length) {
         throw new Error('No results returned from generation');
       }
-
       setResult({
-        type: 'design',
-        variations,
-        assets,
-        expectedCount: variations.length || assets.length || 1,
-        done: true,
+        type: 'design', variations, assets,
+        expectedCount: variations.length || assets.length || 1, done: true,
       });
     } catch (err) {
       toast.error(err.message || 'Generation failed. Please try again.');
     } finally {
       setGenerating(false);
     }
+  };
+
+  // ── Generate — pick the backend by uncommenting ONE line ───────────────────
+  const handleGenerate = async () => {
+    if (!brandName.trim()) { toast.error('Please enter a brand name'); return; }
+
+    await generateViaLLM();          // OPTION B: /design/generate-design/involk_llm (active)
+    // await generateViaRedesign();  // OPTION A: Scraive → /creatives/redesign
   };
 
   // ── RESULT VIEW ───────────────────────────────────────────────────────────

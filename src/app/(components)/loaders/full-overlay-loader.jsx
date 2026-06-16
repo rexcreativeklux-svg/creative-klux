@@ -11,12 +11,6 @@ const VIOLET = "#7c3aed";
 const VIOLET_MID = "#a855f7";
 const CORAL = "#f97316";
 
-const SparkIcon = () => (
-    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" style={{ fill: VIOLET }}>
-        <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-    </svg>
-);
-
 export default function FullOverlayLoader({
     title = "Generating your ad creative",
     subtitle = "Crafting copy, layout & visuals",
@@ -56,7 +50,7 @@ export default function FullOverlayLoader({
                     }}
                 />
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-                    <SparkIcon />
+                    <img src="/logoblue.svg" alt="Creative Klux" className="w-6 h-6" />
                 </div>
             </div>
 

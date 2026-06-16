@@ -1596,8 +1596,9 @@ export function AuthProvider({ children }) {
     return { ok: true, source: "success", data: aggregated };
   };
 
-  // ── TEST: generate a design via /creatives/createdesign (no Scraive templates) ──
+  // ── Generate a design via /design/generate-design/involk_llm (no Scraive templates) ──
   // Backend generates from scratch — we send brand_details only, no templates.
+  // Used by create-from-url to bypass Scraive + /creatives/redesign.
   const createDesign = useCallback(
     async ({ creativeType, categoryType, ...formPayload }) => {
       if (!token) {
@@ -1605,7 +1606,7 @@ export function AuthProvider({ children }) {
         return { ok: false, message: "Not authenticated" };
       }
 
-      const url = `${BASE_URL}/creatives/createdesign`;
+      const url = `${BASE_URL}/design/generate-design/involk_llm`;
 
       // "ads_creative" -> "ads"
       const creativeTypeShort =

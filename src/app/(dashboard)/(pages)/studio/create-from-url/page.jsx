@@ -108,7 +108,7 @@ const socialSelected = 'border-teal-500 bg-teal-50 text-teal-700';
 
 export default function CreateFromUrl() {
   const router = useRouter();
-  const { sendUrl, generateCustomCreative, saveDesign, activeBrandId, uploadImage, fetchDesignTemplates } = useAuth();
+  const { sendUrl, generateCustomCreative, createDesign, saveDesign, activeBrandId, uploadImage, fetchDesignTemplates } = useAuth();
 
   const [step, setStep] = useState(1);
   const [creationType, setCreationType] = useState(null);
@@ -459,28 +459,6 @@ export default function CreateFromUrl() {
         : (adSubType === 'video' ? videoSize : adSize);
       const scraiveCategory = (selectedSizeLabel || '').toLowerCase().replace(/\s+/g, '_');
 
-      // ── Fetch Scraive templates ──────────────────────────────────────────
-      const templateRes = await fetchDesignTemplates({
-        type: isVideo ? 'video' : 'image',
-        category: selectedSizeLabel,
-        type_size: selectedSize,
-      });
-
-      if (!templateRes?.ok) {
-        toast.error(templateRes?.message || 'Failed to fetch templates');
-        setGenerating(false);
-        return;
-      }
-
-      const templates = Array.isArray(templateRes.data) ? templateRes.data : [];
-      if (!templates.length) {
-        toast.error('No templates found for this size');
-        setGenerating(false);
-        return;
-      }
-      // Use ALL templates — generateCustomCreative will batch them in pairs
-      const selectedTemplates = templates;
-
       // ── Resolve image URLs ──────────────────────────────────────────────
       // - Items with a real https sourceUrl → use as-is (no upload needed).
       // - Items that are File objects (cropped, dropped, picker-cropped) → upload
@@ -496,7 +474,6 @@ export default function CreateFromUrl() {
           if (item instanceof File) {
             try {
               const result = await uploadImage(item);
-              console.log('🔼 uploadImage response:', result);   // one-time: verify URL field name, remove after testing
               const url = result?.image_url || result?.url || result?.data?.image_url || null;
               return (typeof url === 'string' && url.startsWith('http')) ? url : null;
             } catch (err) {
@@ -532,64 +509,13 @@ export default function CreateFromUrl() {
         images: imageUrls,
         category: scraiveCategory,
         type_size: selectedSize,
-        templates: selectedTemplates,
         ...(isAds ? {} : { tone: postTone, platforms: targetPlatform }),
         generatedAt: new Date().toISOString(),
       };
 
-      // ── generateCustomCreative → /creatives/redesign ──────────────────────
-      const expectedCount = selectedTemplates.length;
-      let isFirstBatch = true;
-      const res = await generateCustomCreative(payload, (batch) => {
-        if (!batch.ok) return; // failure handled below
-        const variations = batch.variations || [];
-        const assets = batch.assets || [];
-
-        if (isFirstBatch) {
-          isFirstBatch = false;
-          setGenerating(false); // hide overlay so user sees first batch
-          if (variations.length || assets.length) {
-            setResult({
-              type: 'design',
-              variations,
-              assets,
-              expectedCount,
-              done: false,
-              reply: batch.data?.reply || '',
-              meta: batch.data?.meta || {},
-            });
-          }
-        } else {
-          // Append subsequent batches to whatever's already showing
-          setResult((prev) => {
-            if (!prev) return { type: 'design', variations, assets, expectedCount, done: false };
-            return {
-              ...prev,
-              variations: [...(prev.variations || []), ...variations],
-              assets: [...(prev.assets || []), ...assets],
-            };
-          });
-        }
-      });
-
-      if (!res.ok) {
-        // Mark done so skeletons clear; keep what we have on screen
-        setResult((prev) => prev ? { ...prev, done: true } : prev);
-        throw new Error(res.message || 'Generation failed');
-      }
-
-      const data = res.data;
-      // If onBatchResult never produced a result (e.g. zero variations/assets), error out
-      if (!data?.variations?.length && !data?.assets?.length) {
-        throw new Error('No results returned from generation');
-      }
-
-      // All batches succeeded — mark done so skeletons clear
-      setResult((prev) => prev ? { ...prev, done: true } : prev);
-
-      /* ── TEST (DISABLED): /creatives/createdesign override ──────────────────
-         Re-enable by commenting out the generateCustomCreative block above and
-         un-commenting this. See CLAUDE.md → "TEST: create-from-url uses createdesign".
+      // ── createDesign → /design/generate-design/involk_llm ─────────────────
+      // Bypasses Scraive + /creatives/redesign — the backend generates the design
+      // itself from brand_details (no templates).
       setGenerating(false);
       const createRes = await createDesign(payload);
       console.log('🎨 createDesign output (create-from-url):', createRes);
@@ -598,8 +524,8 @@ export default function CreateFromUrl() {
         throw new Error(createRes?.message || 'Generation failed');
       }
 
-      // ADAPTER: createdesign → { design: {canvas, elements}, copy } (single);
-      // redesign → { variations: [...] }. Wrap the single design as one variation.
+      // ADAPTER: involk_llm → { design: {canvas, elements}, copy } (single) OR
+      // { variations: [...] }. Wrap a single design as one variation.
       const data = createRes.raw || createRes.data || {};
       let variations = Array.isArray(data.variations) ? data.variations : [];
       const assets = Array.isArray(data.assets) ? data.assets : [];
@@ -616,7 +542,7 @@ export default function CreateFromUrl() {
       }
 
       if (!variations.length && !assets.length) {
-        throw new Error('No results returned from createdesign');
+        throw new Error('No results returned from generation');
       }
 
       setResult({
@@ -626,7 +552,6 @@ export default function CreateFromUrl() {
         expectedCount: variations.length || assets.length || 1,
         done: true,
       });
-      ── end TEST ──────────────────────────────────────────────────────────── */
     } catch (err) {
       toast.error(err.message || 'Generation failed. Please try again.');
     } finally {

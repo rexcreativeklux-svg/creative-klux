@@ -6,7 +6,7 @@ import {
     Globe, Loader2, FileUp, X, CheckCircle2, ChevronRight,
     Sparkles, Film, Scan, Video, Clapperboard,
 } from "lucide-react";
-import GeneratingOverlay from "@/app/(components)/GeneratingOverlay";
+import FullOverlayLoader from "@/app/(components)/loaders/full-overlay-loader";
 
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSection";
@@ -960,7 +960,7 @@ const VideoAdsForm = ({
             />
 
             {/* Generating overlay */}
-            {generating && <GeneratingOverlay title="Generating your videos" />}
+            {generating && <FullOverlayLoader title="Generating your videos" subtitle="Composing scenes, motion & sound" />}
         </>
     );
 };

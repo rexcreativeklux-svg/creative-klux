@@ -53,7 +53,7 @@ function SectionCard({ title, status, delay = 0, children }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm"
+      className="bg-surface border border-gray-200 rounded-2xl p-5 shadow-sm"
     >
       <div className="flex items-center justify-between mb-4">
         <p className="font-semibold text-sm text-gray-900">{title}</p>
@@ -344,7 +344,7 @@ export default function ComplianceChecker() {
           <div className="flex flex-col gap-4">
 
             {/* Source card with tabs */}
-            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-surface border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
 
               {/* Platform toggles */}
               <div className=" p-5 ">
@@ -427,11 +427,11 @@ export default function ComplianceChecker() {
                           <img src={preview} alt="Ad creative" className="w-full object-contain max-h-72 bg-gray-100" />
                           <button
                             onClick={clearAll}
-                            className="absolute top-2 right-2 w-7 h-7 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition cursor-pointer shadow-sm"
+                            className="absolute top-2 right-2 w-7 h-7 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition cursor-pointer shadow-sm"
                           >
                             <X className="w-3.5 h-3.5 text-gray-500 hover:text-red-500" />
                           </button>
-                          <div className="absolute bottom-2 left-2 bg-white/90 rounded-lg px-2 py-0.5 shadow-sm">
+                          <div className="absolute bottom-2 left-2 bg-surface/90 rounded-lg px-2 py-0.5 shadow-sm">
                             <p className="text-xs font-semibold text-gray-700 truncate max-w-[180px]">{file?.name}</p>
                             <p className="text-[10px] text-gray-400">{(file?.size / 1024 / 1024).toFixed(2)} MB</p>
                           </div>
@@ -549,7 +549,7 @@ export default function ComplianceChecker() {
                                 )}
 
                                 {design.score > 0 && (
-                                  <div className="absolute bottom-1.5 right-1.5 bg-white/90 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold border border-green-100"
+                                  <div className="absolute bottom-1.5 right-1.5 bg-surface/90 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold border border-green-100"
                                     style={{ color: scoreColor(design.score) }}>
                                     ★ {design.score}
                                   </div>
@@ -563,7 +563,7 @@ export default function ComplianceChecker() {
                               </div>
 
                               {/* Card body */}
-                              <div className={`px-2.5 py-2 transition-colors ${isSel ? "bg-emerald-50" : "bg-white"}`}>
+                              <div className={`px-2.5 py-2 transition-colors ${isSel ? "bg-emerald-50" : "bg-surface"}`}>
                                 <p className="text-xs font-semibold text-gray-800 truncate">{design.name}</p>
                                 {design.copy?.tagline ? (
                                   <p className="text-[10px] text-gray-400 truncate italic mt-0.5">{design.copy.tagline}</p>
@@ -621,7 +621,7 @@ export default function ComplianceChecker() {
           <div className="flex flex-col gap-4">
 
             {loading && (
-              <div className="flex items-center justify-center h-64 bg-white border border-gray-200 rounded-2xl shadow-sm">
+              <div className="flex items-center justify-center h-64 bg-surface border border-gray-200 rounded-2xl shadow-sm">
                 <div className="text-center">
                   <Loader2 className="w-10 h-10 animate-spin text-emerald-500 mx-auto mb-4" />
                   <p className="text-gray-400 text-sm">AI is checking compliance…</p>
@@ -638,7 +638,7 @@ export default function ComplianceChecker() {
                   className="flex flex-col gap-4"
                 >
                   {/* Overall */}
-                  <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+                  <div className="bg-surface border border-gray-200 rounded-2xl p-5 shadow-sm">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
                         <p className="text-xs text-gray-400 mb-0.5">Overall Compliance</p>
@@ -760,7 +760,7 @@ export default function ComplianceChecker() {
             </AnimatePresence>
 
             {!data && !loading && (
-              <div className="flex items-center justify-center h-64 bg-white border border-gray-200 rounded-2xl shadow-sm">
+              <div className="flex items-center justify-center h-64 bg-surface border border-gray-200 rounded-2xl shadow-sm">
                 <div className="text-center">
                   <ShieldCheck className="w-10 h-10 text-gray-200 mx-auto mb-3" />
                   <p className="text-sm text-gray-400">Upload an image or pick a saved design to check compliance</p>

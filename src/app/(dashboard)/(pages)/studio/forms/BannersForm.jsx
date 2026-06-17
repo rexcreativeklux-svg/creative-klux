@@ -429,7 +429,7 @@ const BannersForm = ({
                 >
                   <div className={`shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
                     step > s.id    ? "border-emerald-600 bg-emerald-600 text-white"
-                    : step === s.id ? "border-emerald-600 text-emerald-600 bg-white"
+                    : step === s.id ? "border-emerald-600 text-emerald-600 bg-surface"
                     : "border-gray-200 text-gray-300"
                   }`}>
                     {step > s.id ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
@@ -448,7 +448,7 @@ const BannersForm = ({
       </div>
 
       {/* ── Step content ─────────────────────────────────────────────────── */}
-      <div className="bg-white px-2 rounded-lg py-2 flex flex-col gap-6">
+      <div className="bg-surface px-2 rounded-lg py-2 flex flex-col gap-6">
 
         {error && (
           <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -812,7 +812,7 @@ const BannersForm = ({
               className="border-2 border-dashed border-gray-200 rounded-2xl p-8 bg-gray-50 flex flex-col items-center gap-3 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition-all"
               onClick={() => setMediaPickerOpen(true)}
             >
-              <div className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
+              <div className="w-10 h-10 bg-surface border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
                 <FileUp className="w-5 h-5 text-gray-400" />
               </div>
               <div className="text-center">
@@ -898,7 +898,7 @@ const BannersForm = ({
 
       {generating && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-10">
+          <div className="bg-surface rounded-2xl p-10">
             <FloatingAnimation showProgressBar>
               <FloatingElements.ImageFile />
             </FloatingAnimation>

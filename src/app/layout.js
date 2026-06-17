@@ -2,6 +2,7 @@ import { BrandProvider } from "@/context/BrandContext";
 import "@/app/globals.css";
 import { ReusableFunctionsProvider } from "@/context/ReusableFunctions";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { ThemeProvider } from "@/context/ThemeProvider";
 import { Toaster } from "sonner";
 
 
@@ -15,7 +16,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* Inter – variable font, super fast & beautiful */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -27,14 +28,16 @@ export default function RootLayout({ children }) {
       </head>
 
       <body>
-        <AuthProvider>
-          <BrandProvider>
-              <ReusableFunctionsProvider>
-                {children}
-              </ReusableFunctionsProvider>
-          </BrandProvider>
-        </AuthProvider>
-        <Toaster position="top-right" richColors closeButton />
+        <ThemeProvider>
+          <AuthProvider>
+            <BrandProvider>
+                <ReusableFunctionsProvider>
+                  {children}
+                </ReusableFunctionsProvider>
+            </BrandProvider>
+          </AuthProvider>
+          <Toaster position="top-right" richColors closeButton />
+        </ThemeProvider>
       </body>
     </html>
 

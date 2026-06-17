@@ -74,7 +74,7 @@ const T = {
   importBg:     "bg-violet-50/40",
   importBorder: "border-violet-100",
   stepActive:   "border-violet-500 bg-violet-500 text-white",
-  stepCurrent:  "border-violet-500 text-violet-600 bg-white",
+  stepCurrent:  "border-violet-500 text-violet-600 bg-surface",
   connector:    "bg-violet-500",
   pill:         "border-violet-500 bg-violet-50 text-violet-700",
   accent:       "text-violet-500",
@@ -247,7 +247,7 @@ const InfographicForm = ({
       </div>
 
       {/* ── Form ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-lg p-2 flex flex-col gap-5">
+      <div className="bg-surface rounded-lg p-2 flex flex-col gap-5">
 
         {error && (
           <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
@@ -310,7 +310,7 @@ const InfographicForm = ({
                 />
                 <button
                   onClick={handleInspire}
-                  className="absolute bottom-3 left-3 text-xs font-semibold bg-white border border-gray-200 text-gray-500 hover:border-violet-400 hover:text-violet-600 px-3 py-1 rounded-lg cursor-pointer transition-all"
+                  className="absolute bottom-3 left-3 text-xs font-semibold bg-surface border border-gray-200 text-gray-500 hover:border-violet-400 hover:text-violet-600 px-3 py-1 rounded-lg cursor-pointer transition-all"
                 >
                   ✨ Inspire Me
                 </button>
@@ -528,7 +528,7 @@ const InfographicForm = ({
       {/* ── Fullscreen loading overlay ────────────────────────────────────── */}
       {generating && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-10">
+          <div className="bg-surface rounded-2xl p-10">
             <FloatingAnimation showProgressBar>
               <FloatingElements.ImageFile />
             </FloatingAnimation>

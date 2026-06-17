@@ -40,7 +40,7 @@ export default function ProfilePanel({ setActivePanel }) {
             className={`cursor-pointer ${
               isActive("general")
                 ? "text-[#155dfc] font-medium"
-                : "text-black hover:underline"
+                : "text-gray-900 hover:underline"
             }`}
           >
             Profile
@@ -52,7 +52,7 @@ export default function ProfilePanel({ setActivePanel }) {
             className={`cursor-pointer ${
               isActive("sessions-and-password")
                 ? "text-[#155dfc] font-medium"
-                : "text-black hover:underline"
+                : "text-gray-900 hover:underline"
             }`}
           >
             Sessions & Password
@@ -65,7 +65,7 @@ export default function ProfilePanel({ setActivePanel }) {
               className={`flex justify-between items-center cursor-pointer ${
                 isBillingActive()
                   ? "text-[#155dfc] font-medium"
-                  : "text-black hover:underline"
+                  : "text-gray-900 hover:underline"
               }`}
             >
               <span>Billing</span>
@@ -82,7 +82,7 @@ export default function ProfilePanel({ setActivePanel }) {
                   className={`flex items-center gap-2 cursor-pointer ${
                     isActive("billing/billing-one")
                       ? "text-[#155dfc] font-medium"
-                      : "text-black hover:underline"
+                      : "text-gray-900 hover:underline"
                   }`}
                 >
                   {isActive("billing/billing-one") && <Dot size={20} />}
@@ -96,7 +96,7 @@ export default function ProfilePanel({ setActivePanel }) {
                   className={`flex items-center gap-2 cursor-pointer ${
                     isActive("billing/billing-two")
                       ? "text-[#155dfc] font-medium"
-                      : "text-black hover:underline"
+                      : "text-gray-900 hover:underline"
                   }`}
                 >
                   {isActive("billing/billing-two") && <Dot size={20} />}
@@ -113,7 +113,7 @@ export default function ProfilePanel({ setActivePanel }) {
               className={`flex justify-between items-center cursor-pointer ${
                 isIntegrationsActive()
                   ? "text-[#155dfc] font-medium"
-                  : "text-black hover:underline"
+                  : "text-gray-900 hover:underline"
               }`}
             >
               <span>Integrations</span>
@@ -130,7 +130,7 @@ export default function ProfilePanel({ setActivePanel }) {
                   className={`flex items-center gap-2 cursor-pointer ${
                     isActive("socials")
                       ? "text-[#155dfc] font-medium"
-                      : "text-black hover:underline"
+                      : "text-gray-900 hover:underline"
                   }`}
                 >
                   {isActive("socials") && <Dot size={20} />}
@@ -144,7 +144,7 @@ export default function ProfilePanel({ setActivePanel }) {
                   className={`flex items-center gap-2 cursor-pointer ${
                     isActive("ads")
                       ? "text-[#155dfc] font-medium"
-                      : "text-black hover:underline"
+                      : "text-gray-900 hover:underline"
                   }`}
                 >
                   {isActive("ads") && <Dot size={20} />}
@@ -160,7 +160,7 @@ export default function ProfilePanel({ setActivePanel }) {
             className={`cursor-pointer ${
               isActive("team")
                 ? "text-[#155dfc] font-medium"
-                : "text-black hover:underline"
+                : "text-gray-900 hover:underline"
             }`}
           >
             Team
@@ -172,7 +172,7 @@ export default function ProfilePanel({ setActivePanel }) {
             className={`cursor-pointer ${
               isActive("resell")
                 ? "text-[#155dfc] font-medium"
-                : "text-black hover:underline"
+                : "text-gray-900 hover:underline"
             }`}
           >
             Resell

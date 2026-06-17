@@ -2,7 +2,7 @@ import { Eye, TrendingUp, TrendingDown } from "lucide-react";
 
 export default function CountrySource() {
   return (
-    <div className="bg-white rounded-2xl shadow p-4 flex flex-col gap-4 border border-gray-200">
+    <div className="bg-surface rounded-2xl shadow p-4 flex flex-col gap-4 border border-gray-200">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>

@@ -13,7 +13,7 @@ import {
 const sources = [
   { name: "Instagram", icon: <FaInstagram className="text-pink-600" />, views: "34.36k", revenue: "$5.17k", viewsUp: true, revenueUp: false },
   { name: "Facebook", icon: <FaFacebook className="text-blue-600" />, views: "24.62k", revenue: "$4.32k", viewsUp: false, revenueUp: true },
-  { name: "Tik Tok", icon: <FaTiktok className="text-black" />, views: "17.36k", revenue: "$3.47k", viewsUp: false, revenueUp: false },
+  { name: "Tik Tok", icon: <FaTiktok className="text-gray-900" />, views: "17.36k", revenue: "$3.47k", viewsUp: false, revenueUp: false },
   { name: "Twitter", icon: <FaTwitter className="text-sky-500" />, views: "49.32k", revenue: "$1.26k", viewsUp: true, revenueUp: true },
   { name: "Pinterest", icon: <FaPinterest className="text-red-600" />, views: "6.92k", revenue: "$926", viewsUp: true, revenueUp: true },
   { name: "Discord", icon: <FaDiscord className="text-indigo-500" />, views: "639", revenue: "$517", viewsUp: true, revenueUp: true },
@@ -22,7 +22,7 @@ const sources = [
 
 export default function SocialSource() {
   return (
-    <div className="bg-white rounded-xl p-5 border border-gray-200">
+    <div className="bg-surface rounded-xl p-5 border border-gray-200">
       {/* Header */}
       <div className="flex justify-between items-start mb-4">
         <div>

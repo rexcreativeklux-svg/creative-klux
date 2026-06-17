@@ -140,7 +140,7 @@ const ScriptToVoiceoverToVideoTab = ({ selectedMedia, handleSelectMedia }) => {
                 />
                 <button
                   onClick={handleInspireMe}
-                  className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition duration-300 text-sm"
+                  className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition duration-300 text-sm"
                   aria-label="Inspire Me"
                 >
                   Inspire Me
@@ -152,7 +152,7 @@ const ScriptToVoiceoverToVideoTab = ({ selectedMedia, handleSelectMedia }) => {
                 <div className="relative" ref={voiceStyleDropdownRef}>
                   <button
                     onClick={toggleVoiceStyleDropdown}
-                    className="w-full p-3 border bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
+                    className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
                     aria-label="Select Voice Style"
                   >
                     {selectedVoiceStyle && (
@@ -166,12 +166,12 @@ const ScriptToVoiceoverToVideoTab = ({ selectedMedia, handleSelectMedia }) => {
                     {inputData.voiceStyle || 'Select a voice style'}
                   </button>
                   {voiceStyleDropdownOpen && (
-                    <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-5 p-3">
+                    <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-5 p-3">
                       {voiceStyleOptions.map((option) => (
                         <button
                           key={option.value}
                           onClick={() => handleVoiceStyleChange(option.value)}
-                          className={`flex flex-col items-center p-2 border rounded-md transition duration-200 ${inputData.voiceStyle === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-white hover:border-blue-700'
+                          className={`flex flex-col items-center p-2 border rounded-md transition duration-200 ${inputData.voiceStyle === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-surface hover:border-blue-700'
                             }`}
                           aria-label={`Select ${option.label}`}
                         >
@@ -205,7 +205,7 @@ const ScriptToVoiceoverToVideoTab = ({ selectedMedia, handleSelectMedia }) => {
         </div>
       ) : (
         <div className="p-3 relative">
-          <div className='flex sticky top-0 pt-3  z-50 bg-white flex-row border-b border-b-gray-200  justify-between'>
+          <div className='flex sticky top-0 pt-3  z-50 bg-surface flex-row border-b border-b-gray-200  justify-between'>
             <h2 className="font-medium px-2 flex justify-center items-center text-lg text-blue-700 mb-4">
               Generated Videos
             </h2>
@@ -232,7 +232,7 @@ const ScriptToVoiceoverToVideoTab = ({ selectedMedia, handleSelectMedia }) => {
               return (
                 <div
                   key={output.id}
-                  className={`relative bg-white border rounded-lg cursor-pointer hover:border-blue-700 transition duration-300 overflow-hidden ${isSelected ? 'border-2 border-blue-700' : 'border-gray-200'
+                  className={`relative bg-surface border rounded-lg cursor-pointer hover:border-blue-700 transition duration-300 overflow-hidden ${isSelected ? 'border-2 border-blue-700' : 'border-gray-200'
                     }`}
                   onClick={() => handleSelectMedia(output)}
                   aria-label={`Select ${output.alt}`}

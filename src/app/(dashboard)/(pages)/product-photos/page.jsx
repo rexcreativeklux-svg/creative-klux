@@ -126,7 +126,7 @@ const getStarted = [
 ];
 
 const classics = [
-  { label: "White", bg: "bg-white border border-gray-200" },
+  { label: "White", bg: "bg-surface border border-gray-200" },
   { label: "Black", bg: "bg-black", active: true },
   {
     label: "Transparent",
@@ -289,7 +289,7 @@ export default function ProductPhotos() {
                   className={`flex items-center gap-2 px-3 py-3 rounded-lg text-sm font-medium border transition-all cursor-pointer hover:border-blue-400 hover:bg-blue-50 ${
                     tool.primary
                       ? "border-blue-500 bg-blue-50 text-blue-700"
-                      : "border-gray-200 bg-white text-gray-700"
+                      : "border-gray-200 bg-surface text-gray-700"
                   }`}
                 >
                   <div

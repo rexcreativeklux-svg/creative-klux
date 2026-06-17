@@ -69,7 +69,7 @@ const MasonryImageGrid = ({
 
               {/* Dropdown */}
               {menuOpen === id && (
-                <div className="absolute top-10 right-2 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
+                <div className="absolute top-10 right-2 bg-surface rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

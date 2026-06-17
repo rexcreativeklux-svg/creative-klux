@@ -37,7 +37,7 @@ export default function Toast({ message, isOpen, onClose, duration = 2000, type 
                     className="fixed top-6 right-6 z-9999"
                 >
                     <div className={`rounded-xl shadow-2xl border px-6 py-4 flex items-center gap-3 min-w-[320px] max-w-md
-  ${isError ? "bg-red-50 border-red-200" : "bg-white border-gray-100"}`}>
+  ${isError ? "bg-red-50 border-red-200" : "bg-surface border-gray-100"}`}>
 
                         {/* Success Icon */}
                         <div className="flex-shrink-0">

@@ -281,7 +281,7 @@ const ImageToVariationsTab = ({
   }, []);
   return (
     <div className="">
-      <div className="flex flex-col  overflow-hidden w-full mt-5 gap-6 bg-white rounded-xl py-4">
+      <div className="flex flex-col  overflow-hidden w-full mt-5 gap-6 bg-surface rounded-xl py-4">
         <div className="overflow-auto space-y-6">
 
           {/* INPUT SECTION */}
@@ -324,14 +324,14 @@ const ImageToVariationsTab = ({
                     <div className="flex gap-4">
                       <button 
                         onClick={() => setSearchModalOpen(true)} 
-                        className="flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3"
+                        className="flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3"
                       >
                         <div className="text-sm font-medium">Search Images</div>
                         <div className="mt-0.5"><FileSearch className="w-4 h-4" /></div>
                       </button>
                       <button 
                         onClick={() => setLibraryModalOpen(true)} 
-                        className="flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3"
+                        className="flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3"
                       >
                         <div className="text-sm font-medium">Your Library</div>
                         <div className="mt-0.5"><FolderOpen className="w-4 h-4" /></div>
@@ -371,13 +371,13 @@ const ImageToVariationsTab = ({
                   <div className="relative " ref={styleDropdownRef}>
                     <button
                       onClick={toggleStyleDropdown}
-                      className="w-full p-3 border bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2 cursor-pointer"
+                      className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2 cursor-pointer"
                     >
                       {selectedStyle && <img src={selectedStyle.image} alt="" className="w-6 h-6 object-cover rounded" />}
                       {inputData.style || 'Select a style'}
                     </button>
                     {styleDropdownOpen && (
-                      <div className="absolute bottom-15 z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-6 gap-5 p-3">
+                      <div className="absolute bottom-15 z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-6 gap-5 p-3">
                         {styleOptions.map(option => (
                           <button
                             key={option.value}
@@ -412,7 +412,7 @@ const ImageToVariationsTab = ({
             /* OUTPUT SECTION — STICKY HEADER + MASONRY */
             <div className="border border-gray-200 p-3 rounded-lg">
               {/* Sticky Header */}
-              <div className="sticky top-0 z-50 bg-white border-b border-gray-200 pb-4 mb-6 flex justify-between items-center">
+              <div className="sticky top-0 z-50 bg-surface border-b border-gray-200 pb-4 mb-6 flex justify-between items-center">
                 <div>
                   <h1 className="font-medium text-lg text-blue-700">Generated Variations</h1>
                   <p className="text-xs text-gray-600">
@@ -441,7 +441,7 @@ const ImageToVariationsTab = ({
                       className="relative group break-inside-avoid mb-4 cursor-pointer"
                       onClick={() => toggleVariationSelect(variation)}
                     >
-                      <div className={`relative bg-white border rounded-lg overflow-hidden transition-all duration-300 ${
+                      <div className={`relative bg-surface border rounded-lg overflow-hidden transition-all duration-300 ${
                         isSelected ? 'border-blue-700 ring-4 ring-blue-100' : 'border-gray-200 hover:border-blue-700'
                       }`}>
                         <img
@@ -471,7 +471,7 @@ const ImageToVariationsTab = ({
                         </button>
 
                         {menuOpen === menuId && (
-                          <div className="absolute top-10 right-2 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
+                          <div className="absolute top-10 right-2 bg-surface rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

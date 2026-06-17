@@ -32,7 +32,7 @@ export default function Modal({ open, onClose, children }) {
                         leaveTo="opacity-0 scale-95 translate-y-4"
                     >
                         <Dialog.Panel
-                            className="relative w-[80%] h-[90%] rounded-2xl bg-white shadow-xl p-6 sm:p-8 overflow-y-auto"
+                            className="relative w-[80%] h-[90%] rounded-2xl bg-surface shadow-xl p-6 sm:p-8 overflow-y-auto"
                         >
                  
                             {/* content */}

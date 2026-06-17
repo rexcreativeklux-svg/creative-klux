@@ -86,7 +86,7 @@ const AD_PLATFORMS = [
 // ── Facebook Page Selector Modal ─────────────────────────────────────────────
 const PlatformPageModal = ({ pages, onSelect, onClose, loading, selectedPageId }) => (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)" }}>
-        <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+        <div className="bg-surface rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
             {/* Header */}
             <div className="px-5 pt-5 pb-4 border-b border-gray-100">
                 <div className="flex items-start justify-between gap-3">
@@ -117,7 +117,7 @@ const PlatformPageModal = ({ pages, onSelect, onClose, loading, selectedPageId }
                             disabled={!!loading}
                             className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border text-left transition-all disabled:opacity-60 disabled:cursor-not-allowed ${isSelected
                                 ? "border-blue-500 bg-blue-50"
-                                : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/50"
+                                : "border-gray-200 bg-surface hover:border-blue-300 hover:bg-blue-50/50"
                                 }`}
                         >
                             {/* Page avatar */}
@@ -190,7 +190,7 @@ const PlatformCard = ({
     const connectedLabel = integration?.int_name || integration?.int_id || null;
 
     return (
-        <div className="rounded-xl border bg-white border-gray-200 hover:shadow transition-all">
+        <div className="rounded-xl border bg-surface border-gray-200 hover:shadow transition-all">
             <div className="flex items-center gap-4 px-5 py-4">
                 <div
                     className="w-11 h-11 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"

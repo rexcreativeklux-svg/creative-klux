@@ -18,22 +18,65 @@ const SOFT_PASTELS = [
 const pxbg = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=600`;
 // Product-display backdrops — empty podiums, pedestals and staged surfaces a product can sit on.
 const IMAGE_BACKGROUNDS = [
+  // ── Podium ──
   { id: 'podium_beige', name: 'Beige Podium', category: 'Podium', url: pxbg(7897470) },
   { id: 'podium_yellow', name: 'Yellow Podium', category: 'Podium', url: pxbg(16042675) },
   { id: 'podium_green', name: 'Green Podium', category: 'Podium', url: pxbg(16059552) },
   { id: 'podium_pink', name: 'Pink Podium', category: 'Podium', url: pxbg(12932574) },
   { id: 'podium_arch', name: 'Arch Display', category: 'Podium', url: pxbg(12914280) },
+  { id: 'podium_white', name: 'White Podium', category: 'Podium', url: pxbg(35073010) },
+  // ── Minimal ──
   { id: 'min_geometric', name: 'White Geometric', category: 'Minimal', url: pxbg(16149990) },
   { id: 'min_arch', name: 'Arch Platform', category: 'Minimal', url: pxbg(6840026) },
   { id: 'min_soft', name: 'Soft White', category: 'Minimal', url: pxbg(15067862) },
   { id: 'min_leaf', name: 'Leaf Shadow', category: 'Minimal', url: pxbg(12198526) },
+  { id: 'min_spa', name: 'Spa Minimal', category: 'Minimal', url: pxbg(8015809) },
+  { id: 'min_shadows', name: 'Soft Shadows', category: 'Minimal', url: pxbg(8015461) },
+  // ── Surface ──
   { id: 'surf_wood', name: 'Wood Table', category: 'Surface', url: pxbg(34658646) },
   { id: 'surf_marble', name: 'White Marble', category: 'Surface', url: pxbg(3847496) },
   { id: 'surf_marble_dark', name: 'Dark Marble', category: 'Surface', url: pxbg(18325786) },
   { id: 'surf_stone', name: 'Stone Counter', category: 'Surface', url: pxbg(7533765) },
+  { id: 'surf_marble_close', name: 'Marble Close-up', category: 'Surface', url: pxbg(4705932) },
+  { id: 'surf_speckled', name: 'Speckled Stone', category: 'Surface', url: pxbg(7232667) },
+  // ── Gradient ──
   { id: 'grad_peach', name: 'Peach Gradient', category: 'Gradient', url: pxbg(7130564) },
   { id: 'grad_pastel', name: 'Pastel Gradient', category: 'Gradient', url: pxbg(7135055) },
+  { id: 'grad_abstract', name: 'Abstract Blend', category: 'Gradient', url: pxbg(7135028) },
+  { id: 'grad_pinkyellow', name: 'Pink & Yellow', category: 'Gradient', url: pxbg(7130557) },
+  { id: 'grad_green', name: 'Green Glow', category: 'Gradient', url: pxbg(6985185) },
+  { id: 'grad_soft', name: 'Soft Tones', category: 'Gradient', url: pxbg(7135024) },
+  // ── Texture (new) ──
+  { id: 'tex_concrete', name: 'Concrete Wall', category: 'Texture', url: pxbg(2463329) },
+  { id: 'tex_rough', name: 'Rough Concrete', category: 'Texture', url: pxbg(3964666) },
+  { id: 'tex_stucco', name: 'Light Stucco', category: 'Texture', url: pxbg(12901948) },
+  { id: 'tex_plaster', name: 'Beige Plaster', category: 'Texture', url: pxbg(12998745) },
+  { id: 'tex_surface', name: 'Concrete Surface', category: 'Texture', url: pxbg(247719) },
+  // ── Fabric (new) ──
+  { id: 'fab_linen', name: 'Neutral Linen', category: 'Fabric', url: pxbg(7794365) },
+  { id: 'fab_canvas', name: 'Beige Canvas', category: 'Fabric', url: pxbg(7533979) },
+  { id: 'fab_crumpled', name: 'Crumpled Linen', category: 'Fabric', url: pxbg(6843273) },
+  { id: 'fab_silk', name: 'Cream Silk', category: 'Fabric', url: pxbg(7988399) },
+  { id: 'fab_satin_black', name: 'Black Satin', category: 'Fabric', url: pxbg(8007352) },
+  { id: 'fab_satin_pink', name: 'Pink Satin', category: 'Fabric', url: pxbg(7956629) },
+  // ── Nature (new) ──
+  { id: 'nat_palm_shadow', name: 'Palm Shadow', category: 'Nature', url: pxbg(6793893) },
+  { id: 'nat_frond', name: 'Frond Shadow', category: 'Nature', url: pxbg(27394932) },
+  { id: 'nat_sand', name: 'Rippled Sand', category: 'Nature', url: pxbg(19215108) },
+  { id: 'nat_sand_coast', name: 'Coastal Sand', category: 'Nature', url: pxbg(1478450) },
+  { id: 'nat_tulips', name: 'White Tulips', category: 'Nature', url: pxbg(30399673) },
+  { id: 'nat_roses', name: 'Red Roses', category: 'Nature', url: pxbg(13246785) },
+  // ── Paper (new) ──
+  { id: 'paper_pastel', name: 'Pastel Papers', category: 'Paper', url: pxbg(8559014) },
+  { id: 'paper_sheets', name: 'Colored Sheets', category: 'Paper', url: pxbg(7457657) },
+  { id: 'paper_flatlay', name: 'Paper Flatlay', category: 'Paper', url: pxbg(9389596) },
+  { id: 'paper_abstract', name: 'Abstract Paper', category: 'Paper', url: pxbg(7953539) },
+  { id: 'paper_rolled', name: 'Rolled Paper', category: 'Paper', url: pxbg(36135531) },
+  { id: 'paper_rolled2', name: 'Rolled Color', category: 'Paper', url: pxbg(36135526) },
 ];
+
+// Order categories appear in the Image-background tab.
+const IMAGE_BG_CATEGORIES = ['Podium', 'Minimal', 'Surface', 'Gradient', 'Texture', 'Fabric', 'Nature', 'Paper'];
 
 const TEMPLATES = [
   { id: 'clean_white', name: 'Clean White', category: 'Essentials', bg: '#ffffff', padding: { top: 10, bottom: 10, left: 10, right: 10 }, align: 'center', scale: 'fit', preview: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&q=70' },
@@ -100,7 +143,7 @@ function Toggle({ enabled, onChange }) {
       onClick={() => onChange(!enabled)}
       className={`relative w-10 h-6 rounded-full transition-all flex-shrink-0 cursor-pointer ${enabled ? 'bg-blue-500' : 'bg-gray-300 hover:bg-gray-400'}`}
     >
-      <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${enabled ? 'left-5' : 'left-1'}`} />
+      <span className={`absolute top-1 w-4 h-4 bg-surface rounded-full shadow transition-all ${enabled ? 'left-5' : 'left-1'}`} />
     </button>
   );
 }
@@ -109,7 +152,7 @@ function ColorSwatch({ color, selected, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`w-8 h-8 rounded-full border-2 transition-all cursor-pointer hover:scale-110 ${selected ? 'border-blue-500 scale-110' : color === '#ffffff' ? 'border-gray-300 hover:border-gray-400' : 'border-transparent hover:border-gray-300'}`}
+      className={`w-8 h-8 rounded-full border-2 transition-all cursor-pointer hover:scale-110 ${selected ? 'border-blue-500 scale-110' : color === '#ffffff' ? 'border-gray-200 hover:border-gray-400' : 'border-transparent hover:border-gray-200'}`}
       style={{ backgroundColor: color }}
     />
   );
@@ -119,7 +162,7 @@ function SidebarIcon({ icon, label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 py-3 px-1 w-full transition-colors cursor-pointer ${active ? 'text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+      className={`flex flex-col items-center gap-1 py-3 px-1 w-full transition-colors cursor-pointer ${active ? 'text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
     >
       <div className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${active ? 'bg-blue-100' : ''}`}>
         {icon}
@@ -761,13 +804,13 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl flex overflow-hidden w-full h-full"
+        className="bg-surface rounded-2xl shadow-2xl flex overflow-hidden w-full h-full"
         style={{ maxWidth: '1600px', maxHeight: '960px' }}
         onClick={e => e.stopPropagation()}
       >
 
         {/* ── Icon sidebar ── */}
-        <div className="w-[64px] border-r border-gray-100 flex flex-col items-center py-2 bg-white flex-shrink-0">
+        <div className="w-[64px] border-r border-gray-200 flex flex-col items-center py-2 bg-surface flex-shrink-0">
           <SidebarIcon active={activePanel === 'templates'} onClick={() => setActivePanel('templates')}
             icon={<svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><rect x="2" y="2" width="7" height="7" rx="1"/><rect x="11" y="2" width="7" height="7" rx="1"/><rect x="2" y="11" width="7" height="7" rx="1"/><rect x="11" y="11" width="7" height="7" rx="1"/></svg>}
             label="Templates" />
@@ -793,26 +836,26 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
         </div>
 
         {/* ── Side panel ── */}
-        <div className="w-64 border-r border-gray-100 flex flex-col bg-white flex-shrink-0 overflow-hidden">
+        <div className="w-64 border-r border-gray-200 flex flex-col bg-surface flex-shrink-0 overflow-hidden">
 
           {/* TEMPLATES */}
           {activePanel === 'templates' && !showAllTemplates && (
             <div className="flex flex-col h-full">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
-                <span className="font-semibold text-sm text-gray-800">Templates</span>
-                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-400" /></button>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                <span className="font-semibold text-sm text-gray-900">Templates</span>
+                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-500" /></button>
               </div>
-              <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
+              <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                  <input placeholder="Search templates" className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 outline-none bg-gray-50 cursor-text focus:border-blue-400 transition-colors" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                  <input placeholder="Search templates" className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 outline-none bg-gray-100 cursor-text focus:border-blue-400 transition-colors" />
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto px-3 py-2">
                 {TEMPLATE_CATEGORIES.map(cat => (
                   <div key={cat} className="mb-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-gray-700">{cat}</span>
+                      <span className="text-xs font-semibold text-gray-900">{cat}</span>
                       <button onClick={() => setShowAllTemplates(true)} className="text-xs text-blue-500 hover:text-blue-700 cursor-pointer transition-colors">See all</button>
                     </div>
                     <div className="grid grid-cols-2 gap-1.5">
@@ -840,14 +883,14 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
 
           {activePanel === 'templates' && showAllTemplates && (
             <div className="flex flex-col h-full">
-              <div className="flex items-center gap-2 px-3 py-3 border-b border-gray-100 flex-shrink-0">
-                <button onClick={() => setShowAllTemplates(false)} className="p-1 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"><ChevronLeft className="w-4 h-4 text-gray-600" /></button>
-                <span className="font-semibold text-sm text-gray-800">All Templates</span>
+              <div className="flex items-center gap-2 px-3 py-3 border-b border-gray-200 flex-shrink-0">
+                <button onClick={() => setShowAllTemplates(false)} className="p-1 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"><ChevronLeft className="w-4 h-4 text-gray-500" /></button>
+                <span className="font-semibold text-sm text-gray-900">All Templates</span>
               </div>
               <div className="flex-1 overflow-y-auto px-3 py-2">
                 {TEMPLATE_CATEGORIES.map(cat => (
                   <div key={cat} className="mb-5">
-                    <p className="text-xs font-semibold text-gray-700 mb-2">{cat}</p>
+                    <p className="text-xs font-semibold text-gray-900 mb-2">{cat}</p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {grouped[cat].map(tpl => (
                         <button key={tpl.id} onClick={() => applyTemplate(tpl)}
@@ -874,43 +917,43 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
           {/* RESIZE */}
           {activePanel === 'resize' && (
             <div className="flex flex-col h-full">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
-                <span className="font-semibold text-sm text-gray-800">Resize</span>
-                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-400" /></button>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                <span className="font-semibold text-sm text-gray-900">Resize</span>
+                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-500" /></button>
               </div>
-              <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
+              <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                  <input placeholder="Search formats…" className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 outline-none bg-gray-50 cursor-text focus:border-blue-400 transition-colors" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                  <input placeholder="Search formats…" className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 outline-none bg-gray-100 cursor-text focus:border-blue-400 transition-colors" />
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto px-3 py-2">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Standard</p>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Standard</p>
                 {RESIZE_STANDARD.map(s => (
                   <button key={s.id} onClick={() => applyResize(s)}
-                    className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg mb-0.5 transition-colors cursor-pointer ${selectedResize === s.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent hover:border-gray-200'}`}>
+                    className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg mb-0.5 transition-colors cursor-pointer ${selectedResize === s.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-100 border border-transparent hover:border-gray-200'}`}>
                     <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
                       <div className={`border-2 rounded-sm transition-colors ${selectedResize === s.id ? 'border-blue-400' : 'border-gray-400'} ${s.w > s.h ? 'w-6 h-4' : s.h > s.w ? 'w-4 h-6' : 'w-5 h-5'}`} />
                     </div>
-                    <div className="text-left"><p className="text-xs font-medium text-gray-800">{s.name}</p><p className="text-[10px] text-gray-400">{s.dims}</p></div>
+                    <div className="text-left"><p className="text-xs font-medium text-gray-900">{s.name}</p><p className="text-[10px] text-gray-500">{s.dims}</p></div>
                   </button>
                 ))}
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-2">Advanced</p>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-2">Advanced</p>
                 {[{ id: 'custom', name: 'Custom size', sub: 'Enter exact dimensions' }, { id: 'original', name: 'Original image', sub: 'Keep source dimensions' }].map(s => (
                   <button key={s.id} onClick={() => { setSelectedResize(s.id); if (s.id === 'original') setCanvasRatio({ w: 1, h: 1 }); }}
-                    className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg mb-0.5 transition-colors cursor-pointer ${selectedResize === s.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent hover:border-gray-200'}`}>
+                    className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg mb-0.5 transition-colors cursor-pointer ${selectedResize === s.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-100 border border-transparent hover:border-gray-200'}`}>
                     <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
                       <div className={`w-5 h-5 border-2 border-dashed rounded-sm ${selectedResize === s.id ? 'border-blue-400' : 'border-gray-400'}`} />
                     </div>
-                    <div className="text-left"><p className="text-xs font-medium text-gray-800">{s.name}</p><p className="text-[10px] text-gray-400">{s.sub}</p></div>
+                    <div className="text-left"><p className="text-xs font-medium text-gray-900">{s.name}</p><p className="text-[10px] text-gray-500">{s.sub}</p></div>
                   </button>
                 ))}
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-2">Social Media</p>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-2">Social Media</p>
                 {RESIZE_SOCIAL.map(s => (
                   <button key={s.id} onClick={() => applyResize(s)}
-                    className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg mb-0.5 transition-colors cursor-pointer ${selectedResize === s.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent hover:border-gray-200'}`}>
-                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-600">{s.icon}</div>
-                    <div className="text-left"><p className="text-xs font-medium text-gray-800">{s.name}</p><p className="text-[10px] text-gray-400">{s.dims}</p></div>
+                    className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg mb-0.5 transition-colors cursor-pointer ${selectedResize === s.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-100 border border-transparent hover:border-gray-200'}`}>
+                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-500">{s.icon}</div>
+                    <div className="text-left"><p className="text-xs font-medium text-gray-900">{s.name}</p><p className="text-[10px] text-gray-500">{s.dims}</p></div>
                   </button>
                 ))}
               </div>
@@ -920,40 +963,40 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
           {/* POSITION */}
           {activePanel === 'position' && (
             <div className="flex flex-col h-full">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
-                <span className="font-semibold text-sm text-gray-800">Position</span>
-                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-400" /></button>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                <span className="font-semibold text-sm text-gray-900">Position</span>
+                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-500" /></button>
               </div>
               <div className="flex-1 overflow-y-auto px-3 py-3">
-                <p className="text-xs font-semibold text-gray-700 mb-2">Size</p>
+                <p className="text-xs font-semibold text-gray-900 mb-2">Size</p>
                 <div className="grid grid-cols-2 gap-2 mb-4">
                   {[['W', 'w'], ['H', 'h']].map(([label, key]) => (
                     <div key={key}>
-                      <p className="text-[9px] text-gray-400 mb-1">{label}</p>
-                      <div className="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus-within:border-blue-400 transition-colors">
+                      <p className="text-[9px] text-gray-500 mb-1">{label}</p>
+                      <div className="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-surface focus-within:border-blue-400 transition-colors">
                         <input type="number" min="20" value={imgSize[key] || 0}
                           onChange={e => setImgSize(s => ({ ...s, [key]: Number(e.target.value) }))}
-                          className="w-full text-xs text-gray-700 outline-none bg-transparent cursor-text" />
-                        <span className="text-[10px] text-gray-400">px</span>
+                          className="w-full text-xs text-gray-900 outline-none bg-transparent cursor-text" />
+                        <span className="text-[10px] text-gray-500">px</span>
                       </div>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs font-semibold text-gray-700 mb-2">Position</p>
+                <p className="text-xs font-semibold text-gray-900 mb-2">Position</p>
                 <div className="grid grid-cols-2 gap-2 mb-4">
                   {[['X', 'x'], ['Y', 'y']].map(([label, key]) => (
                     <div key={key}>
-                      <p className="text-[9px] text-gray-400 mb-1">{label}</p>
-                      <div className="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus-within:border-blue-400 transition-colors">
+                      <p className="text-[9px] text-gray-500 mb-1">{label}</p>
+                      <div className="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-surface focus-within:border-blue-400 transition-colors">
                         <input type="number" value={imgPos[key] || 0}
                           onChange={e => setImgPos(p => ({ ...p, [key]: Number(e.target.value) }))}
-                          className="w-full text-xs text-gray-700 outline-none bg-transparent cursor-text" />
-                        <span className="text-[10px] text-gray-400">px</span>
+                          className="w-full text-xs text-gray-900 outline-none bg-transparent cursor-text" />
+                        <span className="text-[10px] text-gray-500">px</span>
                       </div>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs font-semibold text-gray-700 mb-2">Rotation</p>
+                <p className="text-xs font-semibold text-gray-900 mb-2">Rotation</p>
                 <div className="flex items-center gap-2 mb-4">
                   <input type="range" min={-180} max={180} value={rotation}
                     onChange={e => setRotation(Number(e.target.value))}
@@ -962,11 +1005,11 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setFlipped(f => !f)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer ${flipped ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer ${flipped ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-500 hover:border-gray-400'}`}>
                     <FlipHorizontal2 className="w-3.5 h-3.5" /> Flip
                   </button>
                   <button onClick={() => { setImgPos({ x: 0, y: 0 }); setRotation(0); setFlipped(false); }}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:border-gray-400 transition-all cursor-pointer">
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-500 hover:border-gray-400 transition-all cursor-pointer">
                     <RotateCcw className="w-3.5 h-3.5" /> Reset
                   </button>
                 </div>
@@ -977,18 +1020,18 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
           {/* BACKGROUND */}
           {activePanel === 'background' && (
             <div className="flex flex-col h-full">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
-                <span className="font-semibold text-sm text-gray-800">Background</span>
-                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-400" /></button>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                <span className="font-semibold text-sm text-gray-900">Background</span>
+                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-500" /></button>
               </div>
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 flex-shrink-0">
-                <span className="text-xs text-gray-700">Remove original backgrounds</span>
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 flex-shrink-0">
+                <span className="text-xs text-gray-900">Remove original backgrounds</span>
                 <Toggle enabled={removeOrigBg} onChange={v => { setRemoveOrigBg(v); if (v && originalFile) doRemoveBg(originalFile); }} />
               </div>
-              <div className="flex border-b border-gray-100 flex-shrink-0">
+              <div className="flex border-b border-gray-200 flex-shrink-0">
                 {[['color', 'Color'], ['image', 'Image'], ['ai', 'AI']].map(([id, name]) => (
                   <button key={id} onClick={() => setBgTab(id)}
-                    className={`flex-1 py-2 text-[11px] font-medium transition-colors border-b-2 cursor-pointer ${bgTab === id ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
+                    className={`flex-1 py-2 text-[11px] font-medium transition-colors border-b-2 cursor-pointer ${bgTab === id ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}>
                     {name}
                   </button>
                 ))}
@@ -996,18 +1039,18 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
               <div className="flex-1 overflow-y-auto px-3 py-3">
                 {bgTab === 'color' && (
                   <>
-                    <p className="text-xs font-semibold text-gray-600 mb-2">Standard</p>
+                    <p className="text-xs font-semibold text-gray-500 mb-2">Standard</p>
                     <div className="flex items-center gap-2 mb-3 flex-wrap">
                       {STANDARD_COLORS.map(c => <ColorSwatch key={c} color={c} selected={selectedColor === c} onClick={() => setSelectedColor(c)} />)}
                       <label className="w-8 h-8 rounded-full cursor-pointer border-2 border-gray-200 overflow-hidden flex items-center justify-center hover:border-blue-400 transition-colors" style={{ background: 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)' }}>
                         <input type="color" value={customColor} onChange={e => { setCustomColor(e.target.value); setSelectedColor(e.target.value); }} className="opacity-0 w-0 h-0" />
                       </label>
                     </div>
-                    <p className="text-xs font-semibold text-gray-600 mb-2">Neutral tones</p>
+                    <p className="text-xs font-semibold text-gray-500 mb-2">Neutral tones</p>
                     <div className="flex flex-wrap gap-1.5 mb-3">
                       {NEUTRAL_TONES.map(c => <ColorSwatch key={c} color={c} selected={selectedColor === c} onClick={() => setSelectedColor(c)} />)}
                     </div>
-                    <p className="text-xs font-semibold text-gray-600 mb-2">Soft pastels</p>
+                    <p className="text-xs font-semibold text-gray-500 mb-2">Soft pastels</p>
                     <div className="flex flex-wrap gap-1.5">
                       {SOFT_PASTELS.map(c => <ColorSwatch key={c} color={c} selected={selectedColor === c} onClick={() => setSelectedColor(c)} />)}
                     </div>
@@ -1016,19 +1059,19 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
                 {bgTab === 'image' && (
                   <>
                     <button onClick={() => bgFileInputRef.current?.click()}
-                      className="w-full mb-3 flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-xs text-gray-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 cursor-pointer transition-all">
+                      className="w-full mb-3 flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 cursor-pointer transition-all">
                       <Upload className="w-3.5 h-3.5" /> Upload custom background
                     </button>
                     <input ref={bgFileInputRef} type="file" accept="image/*" className="hidden" onChange={handleBgFileChange} />
-                    {['Podium', 'Minimal', 'Surface', 'Gradient'].map(cat => {
+                    {IMAGE_BG_CATEGORIES.map(cat => {
                       const bgs = IMAGE_BACKGROUNDS.filter(b => b.category === cat);
                       return (
                         <div key={cat} className="mb-4">
-                          <p className="text-xs font-semibold text-gray-600 mb-2">{cat}</p>
+                          <p className="text-xs font-semibold text-gray-500 mb-2">{cat}</p>
                           <div className="grid grid-cols-2 gap-1.5">
                             {bgs.map(bg => (
                               <button key={bg.id} onClick={() => applySceneBackground(bg)}
-                                className={`relative rounded-xl overflow-hidden aspect-video border-2 transition-all cursor-pointer hover:shadow-md ${selectedBgImage === bg.id ? 'border-blue-500' : 'border-transparent hover:border-gray-300'}`}>
+                                className={`relative rounded-xl overflow-hidden aspect-video border-2 transition-all cursor-pointer hover:shadow-md ${selectedBgImage === bg.id ? 'border-blue-500' : 'border-transparent hover:border-gray-200'}`}>
                                 <img src={bg.url} alt={bg.name} className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-black/10 hover:bg-black/0 transition-colors flex items-end p-1">
                                   <span className="text-white text-[9px] font-semibold drop-shadow">{bg.name}</span>
@@ -1046,13 +1089,13 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
                     <p className="text-xs text-gray-500 mb-3">Describe any background and AI will generate it</p>
                     <textarea value={aiPrompt} onChange={e => setAiPrompt(e.target.value)}
                       placeholder="e.g. luxury marble counter with soft studio lighting…"
-                      className="w-full text-xs border border-gray-200 rounded-xl p-2.5 outline-none resize-none focus:border-blue-400 bg-gray-50 cursor-text transition-colors" rows={4} />
+                      className="w-full text-xs border border-gray-200 rounded-xl p-2.5 outline-none resize-none focus:border-blue-400 bg-gray-100 cursor-text transition-colors" rows={4} />
                     <button onClick={generateAiBg} disabled={applyingAiBg || !aiPrompt.trim()}
                       className="mt-2 w-full py-2.5 rounded-xl text-xs font-semibold text-white transition-all disabled:opacity-50 cursor-pointer active:scale-95 hover:opacity-90"
                       style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)' }}>
                       {applyingAiBg ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</span> : '✨ Generate AI Background'}
                     </button>
-                    <p className="text-[9px] text-gray-400 mt-2 text-center">Uses AI image generation credits</p>
+                    <p className="text-[9px] text-gray-500 mt-2 text-center">Uses AI image generation credits</p>
                   </div>
                 )}
               </div>
@@ -1062,20 +1105,20 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
           {/* AI SHADOWS */}
           {activePanel === 'shadows' && (
             <div className="flex flex-col h-full">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
-                <span className="font-semibold text-sm text-gray-800">AI Shadows</span>
-                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-400" /></button>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                <span className="font-semibold text-sm text-gray-900">AI Shadows</span>
+                <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 cursor-pointer transition-colors"><X className="w-4 h-4 text-gray-500" /></button>
               </div>
               <div className="flex-1 overflow-y-auto px-3 py-3">
                 <p className="text-xs text-gray-500 mb-3">Choose a shadow style for your product</p>
                 <div className="grid grid-cols-2 gap-2">
                   {SHADOW_PRESETS.map(s => (
                     <button key={s.id} onClick={() => setSelectedShadow(s.id)}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all cursor-pointer hover:shadow-md ${selectedShadow === s.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <div className="w-14 h-14 bg-gray-50 rounded-xl flex items-center justify-center">
-                        <div className="w-8 h-8 bg-white border border-gray-200 rounded-lg" style={s.style} />
+                      className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all cursor-pointer hover:shadow-md ${selectedShadow === s.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-200'}`}>
+                      <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center">
+                        <div className="w-8 h-8 bg-surface border border-gray-200 rounded-lg" style={s.style} />
                       </div>
-                      <span className="text-xs font-medium text-gray-700">{s.name}</span>
+                      <span className="text-xs font-medium text-gray-900">{s.name}</span>
                     </button>
                   ))}
                 </div>
@@ -1085,10 +1128,10 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
         </div>
 
         {/* ── Canvas area ── */}
-        <div className="flex-1 flex flex-col bg-[#e8e8e8] relative overflow-hidden">
+        <div className="flex-1 flex flex-col bg-[#e8e8e8] dark:bg-canvas relative overflow-hidden">
           <button onClick={onClose}
-            className="absolute top-3 right-3 z-20 w-8 h-8 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-300 hover:text-red-500 shadow-sm cursor-pointer transition-all">
-            <X className="w-4 h-4 text-gray-600" />
+            className="absolute top-3 right-3 z-20 w-8 h-8 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-300 hover:text-red-500 shadow-sm cursor-pointer transition-all">
+            <X className="w-4 h-4 text-gray-500" />
           </button>
 
           <div className="absolute top-3.5 left-4 z-20 text-xs text-gray-500">
@@ -1109,19 +1152,19 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
           <div className="flex-1 min-h-0 flex items-center justify-center p-8 overflow-auto">
             {removing ? (
               <div className="flex flex-col items-center gap-4 w-60">
-                <div className="w-20 h-20 rounded-2xl bg-white shadow-lg flex items-center justify-center">
+                <div className="w-20 h-20 rounded-2xl bg-surface shadow-lg flex items-center justify-center">
                   <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
                 </div>
                 <div className="text-center w-full">
-                  <p className="text-gray-700 font-semibold mb-2">Removing background…</p>
+                  <p className="text-gray-900 font-semibold mb-2">Removing background…</p>
                   {removingProgress > 0 ? (
                     <>
-                      <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div className="w-full bg-gray-100 rounded-full h-1.5">
                         <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${removingProgress}%` }} />
                       </div>
-                      <p className="text-gray-400 text-xs mt-1">{removingProgress}%</p>
+                      <p className="text-gray-500 text-xs mt-1">{removingProgress}%</p>
                     </>
-                  ) : <p className="text-gray-400 text-xs">Loading model…</p>}
+                  ) : <p className="text-gray-500 text-xs">Loading model…</p>}
                 </div>
               </div>
             ) : originalUrl ? (
@@ -1220,26 +1263,26 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
 
                           {/* Floating toolbar above image */}
                           <div
-                            className="absolute flex items-center gap-0.5 bg-white rounded-lg shadow-lg border border-gray-100 px-1.5 py-1"
+                            className="absolute flex items-center gap-0.5 bg-surface rounded-lg shadow-lg border border-gray-200 px-1.5 py-1"
                             style={{ bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: 8, whiteSpace: 'nowrap' }}
                             onMouseDown={e => e.stopPropagation()}
                           >
                             <button
                               onClick={e => { e.stopPropagation(); setRotation(r => r - 90); }}
-                              className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 transition-colors" title="Rotate -90°">
+                              className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-900 transition-colors" title="Rotate -90°">
                               <RotateCcw className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={e => { e.stopPropagation(); setFlipped(f => !f); }}
-                              className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 transition-colors" title="Flip horizontal">
+                              className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-900 transition-colors" title="Flip horizontal">
                               <FlipHorizontal2 className="w-3.5 h-3.5" />
                             </button>
-                            <div className="w-px h-4 bg-gray-200 mx-0.5" />
-                            <span className="text-[10px] text-gray-400 px-1">{imgSize.w} × {imgSize.h}</span>
-                            <div className="w-px h-4 bg-gray-200 mx-0.5" />
+                            <div className="w-px h-4 bg-gray-100 mx-0.5" />
+                            <span className="text-[10px] text-gray-500 px-1">{imgSize.w} × {imgSize.h}</span>
+                            <div className="w-px h-4 bg-gray-100 mx-0.5" />
                             <button
                               onClick={e => { e.stopPropagation(); setOriginalUrl(null); setRemovedUrl(null); setAiResultUrl(null); setSelected(false); setImgInitialized(false); }}
-                              className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-500 transition-colors" title="Remove image">
+                              className="p-1.5 hover:bg-red-50 rounded text-gray-500 hover:text-red-500 transition-colors" title="Remove image">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -1251,29 +1294,29 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
 
                 {/* Before / After toggle */}
                 {removedUrl && (
-                  <div className="flex bg-white rounded-full shadow border border-gray-200 overflow-hidden text-xs font-medium">
-                    <button onClick={() => setShowBefore(false)} className={`px-5 py-1.5 transition-colors cursor-pointer ${!showBefore ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>After</button>
-                    <button onClick={() => setShowBefore(true)}  className={`px-5 py-1.5 transition-colors cursor-pointer ${showBefore ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Before</button>
+                  <div className="flex bg-surface rounded-full shadow border border-gray-200 overflow-hidden text-xs font-medium">
+                    <button onClick={() => setShowBefore(false)} className={`px-5 py-1.5 transition-colors cursor-pointer ${!showBefore ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>After</button>
+                    <button onClick={() => setShowBefore(true)}  className={`px-5 py-1.5 transition-colors cursor-pointer ${showBefore ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>Before</button>
                   </div>
                 )}
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3 cursor-pointer group" onClick={() => fileInputRef.current?.click()}>
-                <div className="w-24 h-24 rounded-2xl bg-white shadow flex items-center justify-center group-hover:shadow-md group-hover:bg-blue-50 transition-all">
-                  <Upload className="w-10 h-10 text-gray-300 group-hover:text-blue-400 transition-colors" />
+                <div className="w-24 h-24 rounded-2xl bg-surface shadow flex items-center justify-center group-hover:shadow-md group-hover:bg-blue-50 transition-all">
+                  <Upload className="w-10 h-10 text-gray-500 group-hover:text-blue-400 transition-colors" />
                 </div>
-                <p className="text-gray-500 font-medium group-hover:text-gray-700 transition-colors">Upload an image to get started</p>
-                <p className="text-gray-400 text-xs">PNG, JPG or WEBP</p>
+                <p className="text-gray-500 font-medium group-hover:text-gray-900 transition-colors">Upload an image to get started</p>
+                <p className="text-gray-500 text-xs">PNG, JPG or WEBP</p>
               </div>
             )}
           </div>
 
           {/* Batch filmstrip */}
           {batchMode && (
-            <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white/80 backdrop-blur-sm border-t border-gray-100 overflow-x-auto hide-scrollbar">
+            <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-surface/80 backdrop-blur-sm border-t border-gray-200 overflow-x-auto hide-scrollbar">
               {batchItems.map((it, i) => (
                 <button key={i} onClick={() => selectBatchItem(i)}
-                  className={`relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${i === activeIndex ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-gray-300'}`}
+                  className={`relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${i === activeIndex ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-gray-200'}`}
                   title={it.name} style={it.removedUrl ? previewBgStyle : checkerBg}>
                   <img src={it.removedUrl || it.originalUrl} alt={it.name}
                     className="absolute inset-0 w-full h-full object-contain p-1" />
@@ -1293,7 +1336,7 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
           )}
 
           {/* Bottom toolbar */}
-          <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 bg-white/90 backdrop-blur-sm border-t border-gray-100">
+          <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 bg-surface/90 backdrop-blur-sm border-t border-gray-200">
             <div className="flex items-center gap-2">
               {batchMode ? (
                 <button onClick={handleDownloadAll} disabled={downloadingAll || !batchItems.some(it => it.status === 'done')}
@@ -1310,27 +1353,27 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
               )}
               {batchMode && (
                 <button onClick={handleDownload} disabled={!removedUrl}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-medium hover:bg-gray-50 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed">
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-100 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed">
                   <Download className="w-3 h-3" /> This one
                 </button>
               )}
               {!batchMode && removedUrl && !removing && (
                 <button onClick={() => originalFile && doRemoveBg(originalFile)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-medium hover:bg-gray-50 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95">
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-100 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95">
                   <RefreshCw className="w-3 h-3" /> Re-process
                 </button>
               )}
               {selected && (
-                <span className="text-xs text-gray-400 ml-2">
+                <span className="text-xs text-gray-500 ml-2">
                   Arrow keys to nudge · Shift+Arrow for 10px
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1 bg-white rounded-full border border-gray-200 shadow-sm px-2 py-1">
+            <div className="flex items-center gap-1 bg-surface rounded-full border border-gray-200 shadow-sm px-2 py-1">
               <button onClick={() => setZoom(z => Math.max(25, z - 25))} className="p-1 hover:bg-gray-100 rounded-full cursor-pointer transition-colors"><Minus className="w-3 h-3 text-gray-500" /></button>
               <span className="text-xs text-gray-500 w-10 text-center">{zoom}%</span>
               <button onClick={() => setZoom(z => Math.min(200, z + 25))} className="p-1 hover:bg-gray-100 rounded-full cursor-pointer transition-colors"><Plus className="w-3 h-3 text-gray-500" /></button>
-              <HelpCircle className="w-3.5 h-3.5 text-gray-400 ml-1 cursor-help" />
+              <HelpCircle className="w-3.5 h-3.5 text-gray-500 ml-1 cursor-help" />
             </div>
           </div>
         </div>

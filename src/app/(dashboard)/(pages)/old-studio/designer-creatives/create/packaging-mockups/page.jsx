@@ -473,7 +473,7 @@ const PackagingMockupCreationPage = () => {
             {steps.map((s) => (
               <div key={s.id} className="relative z-10 flex items-center h-full last:mb-0 mb-10">
                 <div className="relative z-20">
-                  <div className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-white
+                  <div className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-surface
                     ${step === s.id ? 'border-blue-700 bg-blue-100 text-blue-700' : step > s.id ? 'bg-blue-700 border-blue-700 text-white' : 'border-gray-300 text-gray-300'}`}>
                     {loading[s.id] ? (
                       <div className="absolute inset-0 rounded-full border-2 border-blue-700 border-t-transparent animate-spin"></div>
@@ -484,7 +484,7 @@ const PackagingMockupCreationPage = () => {
                     )}
                   </div>
                 </div>
-                <span className={`ml-3 text-sm font-medium ${step === s.id ? 'text-blue-700' : 'text-black'}`}>
+                <span className={`ml-3 text-sm font-medium ${step === s.id ? 'text-blue-700' : 'text-gray-900'}`}>
                   <div className="text-gray-500 text-xs">Step {s.id}</div>
                   <div className="font-medium">{s.title}</div>
                 </span>
@@ -493,7 +493,7 @@ const PackagingMockupCreationPage = () => {
           </div>
 
           {/* Main Content */}
-          <div className="flex flex-col w-full mt-5 justify-between gap-10 bg-white rounded-2xl p-4">
+          <div className="flex flex-col w-full mt-5 justify-between gap-10 bg-surface rounded-2xl p-4">
 
             {/* Step 1 - With Project Name */}
             {step === 1 && (
@@ -585,7 +585,7 @@ const PackagingMockupCreationPage = () => {
                     />
                     <button
                       onClick={handleInspireMe}
-                      className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition duration-300 text-sm"
+                      className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition duration-300 text-sm"
                     >
                       Inspire Me
                     </button>
@@ -613,7 +613,7 @@ const PackagingMockupCreationPage = () => {
                     <select
                       value={postData.font}
                       onChange={(e) => handleFieldChange('font', e.target.value)}
-                      className="w-full p-3 border bg-white border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700 cursor-pointer"
+                      className="w-full p-3 border bg-surface border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700 cursor-pointer"
                     >
                       {fontOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
@@ -908,15 +908,15 @@ const PackagingMockupCreationPage = () => {
                   <h3 className="text-md font-semibold text-gray-700">Upload Image</h3>
                   <p className="text-gray-500 text-xs">Choose an image from your brand, library, or generate with Magic Media.</p>
                   <div className="flex gap-4">
-                    <button onClick={() => setSearchModalOpen(true)} className="flex border hover:border-blue-700 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white gap-3">
+                    <button onClick={() => setSearchModalOpen(true)} className="flex border hover:border-blue-700 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface gap-3">
                       <div className="text-sm font-medium">Search Images</div>
                       <FileSearch className="w-4 h-4 mt-0.5" />
                     </button>
-                    <button onClick={() => setLibraryModalOpen(true)} className="flex border hover:border-blue-700 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white gap-3">
+                    <button onClick={() => setLibraryModalOpen(true)} className="flex border hover:border-blue-700 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface gap-3">
                       <div className="text-sm font-medium">Your Library</div>
                       <FolderOpen className="w-4 h-4 mt-0.5" />
                     </button>
-                    <button onClick={() => setMagicMediaModalOpen(true)} className="flex border hover:border-blue-700 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white gap-3">
+                    <button onClick={() => setMagicMediaModalOpen(true)} className="flex border hover:border-blue-700 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface gap-3">
                       <div className="text-sm font-medium">Magic Media</div>
                       <Image className="w-4 h-4 mt-0.5" />
                     </button>

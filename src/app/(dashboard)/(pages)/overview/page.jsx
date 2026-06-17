@@ -63,8 +63,8 @@ export default function Dashboard() {
 
   return (
     <div
-      className=" space-y-5"
-      style={{ fontFamily: "'DM Sans', sans-serif", background: "#f8fafc" }}
+      className="space-y-5 bg-page"
+      style={{ fontFamily: "'DM Sans', sans-serif" }}
     >
 
       {/* ── Welcome header ── */}

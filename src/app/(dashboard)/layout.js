@@ -100,7 +100,7 @@ export default function DashboardLayout({ children }) {
                     // setShowModal={() => { }}
 
                     />
-                    <div className="flex-1 bg-[#f7f8fc] h-full overflow-y-auto">
+                    <div className="flex-1 bg-page h-full overflow-y-auto">
                         <div className={`h-full ${noPadding ? "" : "px-9 pt-24"}`}>
                             {children || <Overview />}
                         </div>

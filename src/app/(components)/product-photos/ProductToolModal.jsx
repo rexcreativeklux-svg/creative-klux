@@ -94,9 +94,9 @@ function ToolCard({ tool, active, onClick }) {
     return (
         <button
             onClick={() => onClick(tool.id)}
-            className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? 'ring-2 ring-violet-500 bg-violet-50' : 'bg-gray-50 hover:bg-gray-100'}`}
+            className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? 'ring-2 ring-violet-500 bg-violet-50' : 'bg-gray-100 hover:bg-gray-100'}`}
         >
-            <span className="text-sm font-semibold text-gray-800 leading-tight self-center pl-3.5 flex-1">{tool.name}</span>
+            <span className="text-sm font-semibold text-gray-900 leading-tight self-center pl-3.5 flex-1">{tool.name}</span>
             <div className={`w-20 flex-shrink-0 flex items-center justify-center ${tool.color}`}>
                 {imgOk
                     ? <img src={tool.img} alt={tool.name} className="w-full h-full object-cover" onError={() => setImgOk(false)} />
@@ -117,7 +117,7 @@ function DropdownBelow({ anchorRef, children, width = 460 }) {
     }, [anchorRef]);
     return (
         <div
-            className="fixed z-[210] bg-white rounded-2xl shadow-2xl border border-gray-100 p-3 max-h-[80vh] overflow-y-auto"
+            className="fixed z-[210] bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto"
             style={{ top: pos.top, left: pos.left, width }}
             onClick={e => e.stopPropagation()}
         >
@@ -152,7 +152,7 @@ function FloatingPanel({ anchorRef, children, width = 320 }) {
     return (
         <div
             ref={panelRef}
-            className="fixed z-[200] bg-white rounded-xl shadow-2xl border border-gray-100 max-h-[85vh] overflow-y-auto"
+            className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
             style={{ top: pos.top, left: pos.left, width }}
             onClick={e => e.stopPropagation()}
         >
@@ -234,12 +234,12 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={closeAll}>
             <div
-                className="bg-white rounded-2xl shadow-2xl flex overflow-hidden"
+                className="bg-surface rounded-2xl shadow-2xl flex overflow-hidden"
                 style={{ width: '95vw', height: '92vh', maxWidth: '1400px' }}
                 onClick={e => e.stopPropagation()}
             >
                 {/* ── Left sidebar ── */}
-                <div className="w-84 border-r border-gray-100 flex flex-col flex-shrink-0">
+                <div className="w-84 border-r border-gray-200 flex flex-col flex-shrink-0">
 
                     {/* Scrollable content (Generate button stays pinned below) */}
                     <div className="flex-1 overflow-y-auto min-h-0">
@@ -252,7 +252,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                                 className="flex items-center gap-2 font-bold text-2xl text-gray-900 hover:opacity-70 transition-opacity"
                             >
                                 {cfg.title}
-                                <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${toolMenuOpen ? 'rotate-180' : ''}`} />
+                                <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${toolMenuOpen ? 'rotate-180' : ''}`} />
                             </button>
                         </div>
 
@@ -260,7 +260,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                         <div className="px-4 pt-4">
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="w-full border border-dashed border-gray-300 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors"
+                                className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors"
                             >
                                 <Upload className="w-4 h-4" />
                                 Drop a file or <span className="text-violet-600 font-semibold">select an image</span>
@@ -281,35 +281,35 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                         <div className="px-4 pt-4 pb-3 space-y-2.5">
                             {/* Quality */}
                             <button ref={qualityRef} onClick={() => toggle('quality')}
-                                className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-50 hover:bg-gray-100 text-sm transition-colors">
-                                <span className="text-gray-800 font-medium">Quality</span>
-                                <span className="text-gray-400 flex items-center gap-2">
+                                className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors">
+                                <span className="text-gray-900 font-medium">Quality</span>
+                                <span className="text-gray-500 flex items-center gap-2">
                                     {QUALITY_TIERS.find(t => t.id === quality)?.name || quality}
-                                    <span className="text-[11px] font-bold text-gray-700 bg-white border border-gray-200 shadow-sm rounded-md px-1.5 py-0.5">{QUALITY_RES[quality]}</span>
+                                    <span className="text-[11px] font-bold text-gray-900 bg-surface border border-gray-200 shadow-sm rounded-md px-1.5 py-0.5">{QUALITY_RES[quality]}</span>
                                 </span>
                             </button>
 
                             {/* Size */}
                             <button ref={sizeRef} onClick={() => toggle('size')}
-                                className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-50 hover:bg-gray-100 text-sm transition-colors">
-                                <span className="text-gray-800 font-medium">Size</span>
-                                <span className="text-gray-400">{sizeObj?.name}</span>
+                                className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors">
+                                <span className="text-gray-900 font-medium">Size</span>
+                                <span className="text-gray-500">{sizeObj?.name}</span>
                             </button>
 
                             {/* Brand style */}
                             <button onClick={() => setApplyBrandStyle(p => !p)}
-                                className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-50 hover:bg-gray-100 text-sm transition-colors">
-                                <span className="text-gray-800 font-medium">Apply brand style</span>
-                                <span className={applyBrandStyle ? 'text-violet-600 font-semibold' : 'text-gray-400'}>{applyBrandStyle ? 'On' : 'Off'}</span>
+                                className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors">
+                                <span className="text-gray-900 font-medium">Apply brand style</span>
+                                <span className={applyBrandStyle ? 'text-violet-600 font-semibold' : 'text-gray-500'}>{applyBrandStyle ? 'On' : 'Off'}</span>
                             </button>
 
                             {/* Prompt */}
-                            <div className="rounded-2xl bg-gray-50 px-4 py-3">
+                            <div className="rounded-2xl bg-gray-100 px-4 py-3">
                                 <textarea
                                     value={prompt}
                                     onChange={e => setPrompt(e.target.value)}
                                     placeholder="Describe the image you want (optional)"
-                                    className="w-full text-sm text-gray-600 placeholder:text-gray-400 bg-transparent outline-none resize-none leading-relaxed"
+                                    className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed"
                                     rows={4}
                                 />
                             </div>
@@ -318,7 +318,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                     {/* end scrollable content */}
 
                     {/* Generate — pinned to the bottom of the sidebar */}
-                    <div className="px-4 pb-5 pt-3 border-t border-gray-100 bg-white">
+                    <div className="px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
                         <button
                             onClick={handleGenerate}
                             disabled={generating}
@@ -330,9 +330,9 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                 </div>
 
                 {/* ── Right content ── */}
-                <div className="flex-1 flex flex-col relative bg-[#f8f8f8]">
-                    <button onClick={onClose} className="absolute top-3 right-3 z-10 w-8 h-8 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 shadow-sm">
-                        <X className="w-4 h-4 text-gray-600" />
+                <div className="flex-1 flex flex-col relative bg-[#f8f8f8] dark:bg-canvas">
+                    <button onClick={onClose} className="absolute top-3 right-3 z-10 w-8 h-8 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-100 shadow-sm cursor-pointer">
+                        <X className="w-4 h-4 text-gray-500" />
                     </button>
 
                     {generatedImages.length === 0 && !generating ? (
@@ -346,14 +346,14 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                                     <path d="M6 44 C 24 8, 50 8, 62 32" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
                                     <path d="M62 32 L51 28 M62 32 L55 42" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
-                                <div className="w-44 h-56 bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 rotate-3">
+                                <div className="w-44 h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
                                     <img src={cfg.afterImg} alt="after" className="w-full h-full object-cover" />
                                 </div>
                             </div>
-                            <h3 className="text-gray-800 text-center text-lg font-semibold max-w-sm leading-snug">
+                            <h3 className="text-gray-900 text-center text-lg font-semibold max-w-sm leading-snug">
                                 {cfg.headline}
                             </h3>
-                            <p className="text-gray-400 text-center text-sm mt-2 max-w-xs leading-relaxed">
+                            <p className="text-gray-500 text-center text-sm mt-2 max-w-xs leading-relaxed">
                                 {cfg.subtext}
                             </p>
                         </div>
@@ -376,9 +376,9 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                                                 e.stopPropagation();
                                                 setImageMenu(p => p?.idx === idx ? null : { idx, x: e.clientX, y: e.clientY });
                                             }}
-                                            className="absolute top-2 right-2 w-8 h-8 bg-white/90 rounded-full flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="absolute top-2 right-2 w-8 h-8 bg-surface/90 rounded-full flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
-                                            <MoreHorizontal className="w-4 h-4 text-gray-600" />
+                                            <MoreHorizontal className="w-4 h-4 text-gray-500" />
                                         </button>
                                     </div>
                                 ))}
@@ -423,7 +423,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                             const active = quality === t.id;
                             return (
                                 <button key={t.id} onClick={() => { setQuality(t.id); setOpenDropdown(null); }}
-                                    className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? 'border-violet-500 bg-violet-50/40' : 'border-gray-100 hover:border-gray-200 bg-white'}`}>
+                                    className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? 'border-violet-500 bg-violet-50/40' : 'border-gray-200 hover:border-gray-200 bg-surface'}`}>
                                     <div className="w-20 h-28 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
                                         <img src={t.img} alt={t.name} className="w-full h-full object-cover object-top" />
                                     </div>
@@ -433,7 +433,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                                                 <span className="font-bold text-gray-900">{t.name}</span>
                                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${t.tagColor}`}>{t.tag}</span>
                                             </div>
-                                            <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${active ? 'bg-violet-600' : 'border-2 border-gray-300'}`}>
+                                            <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${active ? 'bg-violet-600' : 'border-2 border-gray-200'}`}>
                                                 {active && <span className="text-white text-[10px]">✓</span>}
                                             </span>
                                         </div>
@@ -460,12 +460,12 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                             const bh = s.h >= s.w ? maxDim : Math.round(maxDim * s.h / s.w);
                             return (
                                 <button key={s.id} onClick={() => { setSize(s.id); setOpenDropdown(null); }}
-                                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? 'border-violet-500 bg-violet-50/40' : 'border-gray-100 hover:border-gray-200'}`}>
+                                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? 'border-violet-500 bg-violet-50/40' : 'border-gray-200 hover:border-gray-200'}`}>
                                     <div className="flex items-center justify-center h-20 relative w-full">
-                                        <div className={`rounded-md ${active ? 'bg-violet-300' : 'bg-gray-200'}`} style={{ width: bw, height: bh }} />
+                                        <div className={`rounded-md ${active ? 'bg-violet-300' : 'bg-gray-100'}`} style={{ width: bw, height: bh }} />
                                         {active && <div className="absolute top-0 right-0 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
                                     </div>
-                                    <span className="text-[10px] text-gray-600 text-center leading-tight">{s.name}</span>
+                                    <span className="text-[10px] text-gray-500 text-center leading-tight">{s.name}</span>
                                 </button>
                             );
                         })}
@@ -476,7 +476,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
             {/* Image context menu */}
             {imageMenu && (
                 <div
-                    className="fixed z-[200] bg-white rounded-xl shadow-2xl border border-gray-100 w-48 py-1"
+                    className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-200 w-48 py-1"
                     style={{ top: imageMenu.y, left: imageMenu.x }}
                     onClick={e => e.stopPropagation()}
                 >
@@ -491,7 +491,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                     ].map(item => (
                         <button key={item.label}
                             onClick={() => { if (item.action) item.action(); else setImageMenu(null); }}
-                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${item.red ? 'text-red-500' : 'text-gray-700'}`}>
+                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-100 transition-colors ${item.red ? 'text-red-500' : 'text-gray-900'}`}>
                             <item.icon className="w-4 h-4 flex-shrink-0" />
                             {item.label}
                         </button>

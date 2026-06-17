@@ -21,7 +21,7 @@ export default function MagicMediaModal({
 
     return (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-[80%] h-[95%] flex flex-col overflow-hidden">
+            <div className="bg-surface rounded-lg w-[80%] h-[95%] flex flex-col overflow-hidden">
                 {/* Header */}
                 <div className="flex justify-between items-center py-5 px-14">
                     <h2 className="text-xl font-semibold">Magic Media</h2>
@@ -41,7 +41,7 @@ export default function MagicMediaModal({
                             key={tab}
                             onClick={() => onTabChange(tab)}
                             className={`px-6 py-4 cursor-pointer text-sm font-medium whitespace-nowrap transition ${activeTab === tab
-                                    ? 'text-blue-600 border-b-3 border-blue-600 bg-white'
+                                    ? 'text-blue-600 border-b-3 border-blue-600 bg-surface'
                                     : 'text-gray-600 hover:text-gray-900'
                                 }`}
                         >

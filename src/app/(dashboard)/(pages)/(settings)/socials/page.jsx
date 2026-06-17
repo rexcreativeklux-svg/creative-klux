@@ -194,7 +194,7 @@ export default function SocialIntegrations() {
             return (
               <div
                 key={idx}
-                className="bg-white rounded-lg border border-gray-200 p-4 flex flex-col gap-2 justify-between hover:border-[#155dfc] transition duration-300"
+                className="bg-surface rounded-lg border border-gray-200 p-4 flex flex-col gap-2 justify-between hover:border-[#155dfc] transition duration-300"
               >
                 <div>
                   <div className="flex flex-row gap-2 mb-3">

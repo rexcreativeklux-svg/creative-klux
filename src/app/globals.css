@@ -1,5 +1,46 @@
 @import "tailwindcss";
 
+/* Tailwind v4: make `.dark` (and `dark:` variants) drive styles — the JS config's
+   darkMode:"class" is ignored in v4. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* App surface tokens. Light values = the current hardcoded colours (so light is
+   unchanged); dark values are overridden in the .dark block below.
+   - surface: cards / panels (was bg-white)
+   - page:    the main content area behind pages (was bg-[#f7f8fc]) */
+@theme {
+  --color-surface: #ffffff;
+  --color-page: #f7f8fc;
+  /* Editor/preview canvas — only used via `dark:bg-canvas`, so light keeps its
+     exact hex per component; this is the single dark value to tune. */
+  --color-canvas: #161619;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DARK MODE — single source of truth.
+   Light mode is left 100% untouched (it uses Tailwind's defaults exactly).
+   This block re-points the same palette variables when <html class="dark">, so
+   every gray-* utility across the app flips automatically. To fix how anything
+   looks in dark, edit it HERE — one place.
+   `white` / `black` are left as true white/black so `text-white` on buttons and
+   `bg-black/..` overlays stay correct. Surfaces flip via `--color-surface`
+   (bg-white → bg-surface, applied in components).
+   ───────────────────────────────────────────────────────────────────────────── */
+.dark {
+  --color-page:     #0e0e11;   /* main content background — the darkest layer */
+  --color-surface:  #1c1c20;   /* cards / panels (was white) — sits clearly above the page */
+  --color-gray-50:  #0e0e11;   /* page-level background (was lightest) */
+  --color-gray-100: #18181b;
+  --color-gray-200: #2a2a30;   /* borders / dividers */
+  --color-gray-300: #3a3a42;
+  --color-gray-400: #6b6b75;   /* faint text */
+  --color-gray-500: #9b9ba5;   /* secondary text */
+  --color-gray-600: #babac2;
+  --color-gray-700: #d2d2d8;
+  --color-gray-800: #e6e6ea;
+  --color-gray-900: #f5f5f7;   /* primary text (was darkest) */
+  --color-gray-950: #fafafa;
+}
 
 @layer base {
   :root {
@@ -20,7 +61,8 @@
     -moz-osx-font-smoothing: grayscale;
     height: 100%;
     overflow: hidden;
-
+    background: var(--color-surface);
+    color: var(--color-gray-900);
   }
 }
 

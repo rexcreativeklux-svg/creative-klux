@@ -67,7 +67,7 @@ export default function SalesReport() {
     };
 
     return (
-        <div className="bg-white px-6 py-4 rounded-lg border border-gray-200">
+        <div className="bg-surface px-6 py-4 rounded-lg border border-gray-200">
             <div className="flex items-center justify-between py-3 ">
                 <div className="text-lg font-semibold">Sales Report</div>
                 <div className="flex">
@@ -75,7 +75,7 @@ export default function SalesReport() {
                         <button
                             key={type}
                             onClick={() => setFilter(type)}
-                            className={`px-3 border  border-gray-200 py-1 ${filter === type ? "bg-gray-300 text-black" : "bg-white"
+                            className={`px-3 border  border-gray-200 py-1 ${filter === type ? "bg-gray-300 text-gray-900" : "bg-surface"
                                 }`}
                         >
                             {type.charAt(0).toUpperCase() + type.slice(1)}

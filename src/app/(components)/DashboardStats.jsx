@@ -85,7 +85,7 @@ export default function DashboardStats({
         return (
           <div
             key={key}
-            className="bg-white cursor-pointer rounded-xl border p-4 flex flex-col gap-3 transition-all hover:shadow-md hover:-translate-y-0.5 duration-200"
+            className="bg-surface cursor-pointer rounded-xl border p-4 flex flex-col gap-3 transition-all hover:shadow-md hover:-translate-y-0.5 duration-200"
             style={{ borderColor }}
           >
             <div

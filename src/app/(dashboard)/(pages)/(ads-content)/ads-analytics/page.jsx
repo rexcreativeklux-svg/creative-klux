@@ -32,7 +32,7 @@ const PLATFORM_META = {
 
 function StatCard({ icon: Icon, label, value, sub, accent = false }) {
     return (
-        <div className="rounded-xl bg-white border border-gray-200 p-5 ">
+        <div className="rounded-xl bg-surface border border-gray-200 p-5 ">
             <div className="flex items-center justify-between mb-3">
                 <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">{label}</span>
                 <div
@@ -319,7 +319,7 @@ export default function AdsAnalytics() {
                 </div>
                 <div className="flex gap-2">
                     <button
-                        className="inline-flex items-center cursor-pointer hover:scale-95 gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50 transition-all duration-200"
+                        className="inline-flex items-center cursor-pointer hover:scale-95 gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-surface text-sm text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50 transition-all duration-200"
                         onClick={() => fetchLive(false)}
                         disabled={fetchingLive}
                     >
@@ -339,7 +339,7 @@ export default function AdsAnalytics() {
             </div>
 
             {publishedPosts.length === 0 ? (
-                <div className="rounded-xl border-2 border-dashed border-gray-200 bg-white p-16 text-center">
+                <div className="rounded-xl border-2 border-dashed border-gray-200 bg-surface p-16 text-center">
                     <BarChart3 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-800 font-semibold mb-1">No published ads yet</p>
                     <p className="text-gray-400 text-sm">Publish content from Creatives to start seeing analytics.</p>
@@ -366,7 +366,7 @@ export default function AdsAnalytics() {
                     )}
 
                     {/* Timeline chart */}
-                    <div className="rounded-xl bg-white border border-gray-200 p-5 ">
+                    <div className="rounded-xl bg-surface border border-gray-200 p-5 ">
                         <h3 className="font-semibold text-gray-800 text-sm mb-4">Performance — Last 14 Days</h3>
                         <ResponsiveContainer width="100%" height={220}>
                             <LineChart data={timelineData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
@@ -384,7 +384,7 @@ export default function AdsAnalytics() {
 
                     {/* Platform breakdown + Engagement pie */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="rounded-xl bg-white border border-gray-200 p-5 ">
+                        <div className="rounded-xl bg-surface border border-gray-200 p-5 ">
                             <h3 className="font-semibold text-gray-800 text-sm mb-4">Impressions by Platform</h3>
                             {platformData.length === 0 ? (
                                 <p className="text-xs text-gray-400 text-center py-8">No data</p>
@@ -405,7 +405,7 @@ export default function AdsAnalytics() {
                             )}
                         </div>
 
-                        <div className="rounded-xl bg-white border border-gray-200 p-5 ">
+                        <div className="rounded-xl bg-surface border border-gray-200 p-5 ">
                             <h3 className="font-semibold text-gray-800 text-sm mb-4">Engagement Breakdown</h3>
                             {engagementPie.length === 0 ? (
                                 <p className="text-xs text-gray-400 text-center py-8">No engagement data yet</p>
@@ -426,7 +426,7 @@ export default function AdsAnalytics() {
                     </div>
 
                     {/* Post-level table */}
-                    <div className="rounded-xl bg-white border border-gray-200 overflow-hidden ">
+                    <div className="rounded-xl bg-surface border border-gray-200 overflow-hidden ">
                         <div className="px-5 py-3 border-b border-gray-100">
                             <h3 className="font-semibold text-gray-800 text-sm">Ad Performance</h3>
                         </div>
@@ -451,7 +451,7 @@ export default function AdsAnalytics() {
                                         return (
                                             <tr
                                                 key={post.id}
-                                                className={'border-b border-gray-100 hover:bg-blue-50 transition-colors ' + (i % 2 !== 0 ? 'bg-gray-50/60' : 'bg-white')}
+                                                className={'border-b border-gray-100 hover:bg-blue-50 transition-colors ' + (i % 2 !== 0 ? 'bg-gray-50/60' : 'bg-surface')}
                                             >
                                                 <td className="px-4 py-2.5">
                                                     <div className="flex items-center gap-2.5">

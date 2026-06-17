@@ -141,7 +141,7 @@ const AudioToTextTab = ({ selectedMedia, handleSelectMedia }) => {
         /* Result View with Sticky Top Back Button */
         <div className="relative h-full flex flex-col">
           {/* Sticky Header with Back Button */}
-          <div className="sticky top-0 z-50 bg-white border-b border-gray-200 px-4 py-4 flex justify-between items-center">
+          <div className="sticky top-0 z-50 bg-surface border-b border-gray-200 px-4 py-4 flex justify-between items-center">
             <h2 className="text-xl font-medium text-blue-700">Transcription Result</h2>
             <button
               onClick={handleBack}

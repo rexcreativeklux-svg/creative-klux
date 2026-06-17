@@ -109,7 +109,7 @@ export default function PublishModal({ creative, onClose, showToast }) {
     // ── Render ─────────────────────────────────────────────────────────────────
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[80] px-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+            <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
 
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
@@ -164,7 +164,7 @@ export default function PublishModal({ creative, onClose, showToast }) {
                                 <select
                                     value={selected || ""}
                                     onChange={(e) => setSelected(e.target.value)}
-                                    className="w-full appearance-none text-sm text-gray-800 border border-gray-200 rounded-xl px-3 py-2.5 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition bg-white cursor-pointer"
+                                    className="w-full appearance-none text-sm text-gray-800 border border-gray-200 rounded-xl px-3 py-2.5 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition bg-surface cursor-pointer"
                                 >
                                     {integrations.map((i) => (
                                         <option key={i.platform} value={i.platform}>

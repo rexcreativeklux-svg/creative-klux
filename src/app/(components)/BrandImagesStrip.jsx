@@ -207,7 +207,7 @@ export default function BrandImagesStrip({
           {/* Clear */}
           <button
             onClick={() => setLocalSelected(new Set())}
-            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-white transition cursor-pointer"
+            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-surface transition cursor-pointer"
             title="Clear selection"
           >
             <X className="w-3.5 h-3.5" />
@@ -216,7 +216,7 @@ export default function BrandImagesStrip({
           {/* Crop selected */}
           <button
             onClick={handleBulkCrop}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-700 transition cursor-pointer"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-surface border border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-700 transition cursor-pointer"
           >
             <Crop className="w-3 h-3" />
             Crop {localCount > 1 ? `${localCount}` : ""}
@@ -294,7 +294,7 @@ export default function BrandImagesStrip({
                     ? "bg-blue-500 border-blue-500 opacity-100"
                     : isExtSelected
                       ? "bg-blue-400 border-blue-400 opacity-100"
-                      : "bg-white/80 border-gray-300 opacity-0 group-hover:opacity-100"
+                      : "bg-surface/80 border-gray-300 opacity-0 group-hover:opacity-100"
                   }
                 `}
               >
@@ -315,7 +315,7 @@ export default function BrandImagesStrip({
                     onClick={(e) => handleQuickUse(e, imageObj)}
                     className="
                       flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold
-                      bg-white text-gray-800 hover:bg-blue-600 hover:text-white
+                      bg-surface text-gray-800 hover:bg-blue-600 hover:text-white
                       transition-all duration-150 cursor-pointer shadow
                       opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0
                     "
@@ -330,7 +330,7 @@ export default function BrandImagesStrip({
                     onClick={(e) => handleQuickCrop(e, imageObj)}
                     className="
                       flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold
-                      bg-white/20 text-white border border-white/40 hover:bg-white hover:text-gray-800
+                      bg-surface/20 text-white border border-white/40 hover:bg-surface hover:text-gray-800
                       transition-all duration-150 cursor-pointer shadow
                       opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0
                     "

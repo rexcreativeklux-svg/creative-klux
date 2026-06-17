@@ -904,7 +904,7 @@ const VideoAdsCreatives = () => {
 
       {result ? (
         // Results Section
-        <div className="flex flex-col overflow-hidden w-full mt-3 justify-between gap-6 bg-white rounded-lg py-4">
+        <div className="flex flex-col overflow-hidden w-full mt-3 justify-between gap-6 bg-surface rounded-lg py-4">
 
 
           <div className="flex justify-between p-3 rounded-lg">
@@ -939,7 +939,7 @@ const VideoAdsCreatives = () => {
               </button>
               <button
                 onClick={handleSingleSchedule}
-                className="px-4 py-2 bg-white text-black hover:text-blue-700 rounded-md cursor-pointer border hover:bg-gray-50 hover:border-blue-700 transition duration-300 flex items-center gap-2"
+                className="px-4 py-2 bg-surface text-gray-900 hover:text-blue-700 rounded-md cursor-pointer border hover:bg-gray-50 hover:border-blue-700 transition duration-300 flex items-center gap-2"
                 aria-label="Schedule Ad"
               >
                 <Calendar className="w-4 h-4" />
@@ -947,7 +947,7 @@ const VideoAdsCreatives = () => {
               </button>
               <button
                 onClick={handleSingleDownload}
-                className="px-4 py-2 bg-black text-white rounded-md cursor-pointer hover:bg-white hover:border hover:border-blue-700 hover:text-blue-700 transition duration-300 flex items-center gap-2"
+                className="px-4 py-2 bg-black text-white rounded-md cursor-pointer hover:bg-surface hover:border hover:border-blue-700 hover:text-blue-700 transition duration-300 flex items-center gap-2"
                 aria-label="Download Ad"
               >
                 <Download className="w-4 h-4" />
@@ -965,7 +965,7 @@ const VideoAdsCreatives = () => {
                   className={`relative border rounded-lg overflow-hidden cursor-pointer transition duration-300 mb-6 break-inside-avoid ${selectedAsset === asset.id ? 'border-blue-700 ring-2 ring-blue-700' : 'border-gray-200 hover:border-blue-500'
                     }`}
                 >
-                  <div className="py-3 px-2 bg-white">
+                  <div className="py-3 px-2 bg-surface">
                     <p className="text-sm text-gray-800">Rating</p>
                   </div>
 
@@ -1020,7 +1020,7 @@ const VideoAdsCreatives = () => {
                     )}
                   </div>
 
-                  <div className="py-4 px-2 bg-white">
+                  <div className="py-4 px-2 bg-surface">
                     <p className="text-sm text-gray-800 truncate">Caption: {postData.caption}</p>
                     <p className="text-sm text-gray-800 truncate">Brand Name: {postData.projectName}</p>
                   </div>
@@ -1030,7 +1030,7 @@ const VideoAdsCreatives = () => {
                       e.stopPropagation();
                       handleMenuToggle(asset.id);
                     }}
-                    className="absolute top-16 right-2 p-1 bg-white rounded-full border border-gray-200 hover:bg-gray-100 cursor-pointer transition duration-300 shadow-md z-10"
+                    className="absolute top-16 right-2 p-1 bg-surface rounded-full border border-gray-200 hover:bg-gray-100 cursor-pointer transition duration-300 shadow-md z-10"
                     aria-label="Video Options"
                   >
                     <MoreVertical className="w-4 h-4 text-gray-600" />
@@ -1039,7 +1039,7 @@ const VideoAdsCreatives = () => {
                   {menuOpen === asset.id && (
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      className="absolute top-24 right-2 bg-white border border-gray-200 rounded-md shadow-lg z-20 min-w-[140px]"
+                      className="absolute top-24 right-2 bg-surface border border-gray-200 rounded-md shadow-lg z-20 min-w-[140px]"
                     >
                       <button
                         onClick={() => handlePostNow(asset)}
@@ -1108,13 +1108,13 @@ const VideoAdsCreatives = () => {
               <div key={s.id} className="relative z-10 flex items-center h-full last:mb-0 mb-10">
                 <div className="relative z-20">
                   <div
-                    className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-white
+                    className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-surface
                       ${step === s.id ? "border-[#155dfc] bg-blue-100 text-[#155dfc]" : step > s.id ? "bg-[#155dfc] border-[#155dfc] text-white" : "border-gray-300 text-gray-300"}`}
                   >
                     {step > s.id ? <CheckCircle2 size={20} className="text-blue-700" /> : s.icon}
                   </div>
                 </div>
-                <span className={`ml-3 text-sm font-medium ${step === s.id ? "text-[#155dfc]" : "text-black"}`}>
+                <span className={`ml-3 text-sm font-medium ${step === s.id ? "text-[#155dfc]" : "text-gray-900"}`}>
                   <div className="text-gray-500 text-xs">Step {s.id}</div>
                   <div className="font-medium">{s.title}</div>
                 </span>
@@ -1122,7 +1122,7 @@ const VideoAdsCreatives = () => {
             ))}
           </div>
 
-          <div className="flex flex-col overflow-hidden w-full mt-5 justify-between gap-10 bg-white rounded-2xl p-4">
+          <div className="flex flex-col overflow-hidden w-full mt-5 justify-between gap-10 bg-surface rounded-2xl p-4">
             <div className='overflow-auto'>
               {step === 1 && (
                 <div className='flex flex-col gap-3'>
@@ -1185,7 +1185,7 @@ const VideoAdsCreatives = () => {
                           value={postData.brandName}
                           onChange={(e) => handleFieldChange('brandName', e.target.value)}
                           placeholder="Your Brand Name"
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
                           aria-label="Brand Name"
                         />
                       </div>
@@ -1196,7 +1196,7 @@ const VideoAdsCreatives = () => {
                           value={postData.projectName}
                           onChange={(e) => handleFieldChange('projectName', e.target.value)}
                           placeholder="Your Project Name"
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
                           aria-label="Project Name"
                         />
                       </div>
@@ -1212,7 +1212,7 @@ const VideoAdsCreatives = () => {
                       />
                       <button
                         onClick={handleInspireMe}
-                        className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition duration-300 text-sm"
+                        className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition duration-300 text-sm"
                         aria-label="Inspire Me"
                       >
                         Inspire Me
@@ -1220,7 +1220,7 @@ const VideoAdsCreatives = () => {
 
                       {showInspireConfirm && (
                         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+                          <div className="bg-surface rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
                             <h3 className="text-lg font-semibold text-gray-900 mb-2">
                               Replace current description?
                             </h3>
@@ -1296,7 +1296,7 @@ const VideoAdsCreatives = () => {
                         <select
                           value={postData.font}
                           onChange={(e) => handleFieldChange('font', e.target.value)}
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700 cursor-pointer"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700 cursor-pointer"
                           aria-label="Font"
                         >
                           {fontOptions.map((option) => (
@@ -1645,21 +1645,21 @@ const VideoAdsCreatives = () => {
                     <div className='flex gap-4'>
                       <button
                         onClick={handleSearchMedia}
-                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3'
+                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3'
                       >
                         <div className='text-sm font-medium'>Search Media</div>
                         <div className='mt-0.5'><FileSearch className='w-4 h-4' /></div>
                       </button>
                       <button
                         onClick={handleUploadMedia}
-                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3'
+                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3'
                       >
                         <div className='text-sm font-medium'>Your Library</div>
                         <div className='mt-0.5'><FolderOpen className='w-4 h-4' /></div>
                       </button>
                       <button
                         onClick={handleMagicMedia}
-                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3'
+                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3'
                       >
                         <div className='text-sm font-medium'>Magic Media</div>
                         <div className='mt-0.5'><Film className='w-4 h-4' /></div>

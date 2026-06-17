@@ -191,7 +191,7 @@ const CreateSocialCreatives = () => {
             <div key={s.id} className="relative z-10 flex items-center h-full last:mb-0 mb-10">
               <div className="relative z-20">
                 <div
-                  className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-white
+                  className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-surface
                     ${step === s.id ? "border-[#155dfc] bg-blue-100 text-[#155dfc]" : step > s.id ? "bg-[#155dfc] border-[#155dfc] text-white" : "border-gray-300 text-gray-300"}`}
                 >
                   {loading[s.id] ? (
@@ -203,7 +203,7 @@ const CreateSocialCreatives = () => {
                   )}
                 </div>
               </div>
-              <span className={`ml-3 text-sm font-medium ${step === s.id ? "text-[#155dfc]" : "text-black"}`}>
+              <span className={`ml-3 text-sm font-medium ${step === s.id ? "text-[#155dfc]" : "text-gray-900"}`}>
                 <div className="text-gray-500 text-xs">Step {s.id}</div>
                 <div className="font-medium">{s.title}</div>
               </span>
@@ -211,7 +211,7 @@ const CreateSocialCreatives = () => {
           ))}
         </div>
 
-        <div className="flex flex-col overflow-hidden w-full mt-5 justify-between gap-10 bg-white rounded-2xl p-4">
+        <div className="flex flex-col overflow-hidden w-full mt-5 justify-between gap-10 bg-surface rounded-2xl p-4">
           <div className="overflow-auto">
             {step === 1 && (
               <div className="border border-gray-200 p-3 rounded-lg">
@@ -229,7 +229,7 @@ const CreateSocialCreatives = () => {
                     <div
                       key={opt.type}
                       onClick={() => handleSelectFormat(opt.type)}
-                      className={`border p-4 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${format === opt.type ? "bg-blue-100 border-blue-500" : "bg-white hover:bg-gray-100 hover:border hover:border-gray-200 border-gray-200"}`}
+                      className={`border p-4 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${format === opt.type ? "bg-blue-100 border-blue-500" : "bg-surface hover:bg-gray-100 hover:border hover:border-gray-200 border-gray-200"}`}
                     >
                       <div className="text-center flex flex-col gap-2">
                         <div className="mx-auto text-blue-700 mb-2">{opt.icon}</div>
@@ -441,7 +441,7 @@ const CreateSocialCreatives = () => {
 
             {showCropper && (
               <div className="fixed inset-0 bg-black/70 flex flex-col items-center justify-center z-50">
-                <div className="relative w-[700px] h-[600px] bg-white rounded-lg overflow-hidden flex items-center justify-center">
+                <div className="relative w-[700px] h-[600px] bg-surface rounded-lg overflow-hidden flex items-center justify-center">
                   <ReactCrop
                     crop={crop}
                     onChange={(c) => setCrop(c)}

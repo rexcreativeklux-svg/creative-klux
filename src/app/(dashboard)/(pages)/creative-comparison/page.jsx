@@ -371,7 +371,7 @@ function CreativeUpload({ label, value, onChange }) {
     };
 
     return (
-        <div className="bg-white border border-gray-200 rounded-2xl p-5  h-full flex flex-col">
+        <div className="bg-surface border border-gray-200 rounded-2xl p-5  h-full flex flex-col">
             {/* Label input */}
             <div className="mb-4">
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">{label} Name</label>
@@ -380,7 +380,7 @@ function CreativeUpload({ label, value, onChange }) {
                     value={value.label}
                     onChange={(e) => onChange({ ...value, label: e.target.value })}
                     placeholder={label}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-indigo-400 focus:bg-white transition text-gray-800 placeholder-gray-400"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-indigo-400 focus:bg-surface transition text-gray-800 placeholder-gray-400"
                 />
             </div>
 
@@ -388,13 +388,13 @@ function CreativeUpload({ label, value, onChange }) {
             <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-4">
                 <button
                     onClick={() => handleTabSwitch("upload")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === "upload" ? "bg-white text-gray-800 " : "text-gray-500 hover:text-gray-700"}`}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === "upload" ? "bg-surface text-gray-800 " : "text-gray-500 hover:text-gray-700"}`}
                 >
                     <Upload className="w-3 h-3" /> Upload image
                 </button>
                 <button
                     onClick={() => handleTabSwitch("projects")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === "projects" ? "bg-white text-gray-800 " : "text-gray-500 hover:text-gray-700"}`}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === "projects" ? "bg-surface text-gray-800 " : "text-gray-500 hover:text-gray-700"}`}
                 >
                     <LayoutGrid className="w-3 h-3" /> From projects
                 </button>
@@ -423,7 +423,7 @@ function CreativeUpload({ label, value, onChange }) {
                         <img src={value.url} alt={label} className="w-full object-contain max-h-52 bg-gray-100" />
                         <button
                             onClick={clear}
-                            className="absolute top-2 right-2 w-7 h-7 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition cursor-pointer "
+                            className="absolute top-2 right-2 w-7 h-7 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition cursor-pointer "
                         >
                             <X className="w-3.5 h-3.5 text-gray-500 hover:text-red-500" />
                         </button>
@@ -466,7 +466,7 @@ function CreativeUpload({ label, value, onChange }) {
                                                 <Wand2 className="w-5 h-5 text-gray-300" />
                                             )}
                                         </div>
-                                        <div className="px-2 py-1.5 bg-white">
+                                        <div className="px-2 py-1.5 bg-surface">
                                             <p className="text-[11px] font-semibold text-gray-800 truncate">{d.name}</p>
                                             <div className="flex items-center justify-between">
                                                 <p className="text-[10px] text-gray-400 truncate">{d.copy?.tagline || ""}</p>
@@ -502,9 +502,9 @@ function CreativeUpload({ label, value, onChange }) {
 /* ─── WebsiteInput ────────────────────────────────────────────── */
 function WebsiteInput({ label, value, onChange }) {
     return (
-        <div className="bg-white border border-gray-200 rounded-2xl p-5  h-full flex flex-col">
+        <div className="bg-surface border border-gray-200 rounded-2xl p-5  h-full flex flex-col">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{label}</p>
-            <div className="flex items-center gap-2 px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 focus-within:border-indigo-400 focus-within:bg-white transition">
+            <div className="flex items-center gap-2 px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 focus-within:border-indigo-400 focus-within:bg-surface transition">
                 <Globe className="w-4 h-4 text-gray-400 shrink-0" />
                 <input
                     type="url"
@@ -556,7 +556,7 @@ function ResultsPanel({ result, onReset }) {
                 <h2 className="text-lg font-bold text-gray-900">Comparison Results</h2>
                 <button
                     onClick={onReset}
-                    className="text-xs font-medium text-gray-500 hover:text-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 bg-white transition"
+                    className="text-xs font-medium text-gray-500 hover:text-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 bg-surface transition"
                 >
                     New Comparison
                 </button>
@@ -581,7 +581,7 @@ function ResultsPanel({ result, onReset }) {
             </div>
 
             {/* Score comparison */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 ">
+            <div className="bg-surface border border-gray-200 rounded-2xl p-5 ">
                 <p className="font-semibold text-sm text-gray-900 mb-5">Score Breakdown</p>
 
                 {/* Overall */}
@@ -622,7 +622,7 @@ function ResultsPanel({ result, onReset }) {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.1 * (which === "A" ? 0 : 1) }}
-                            className="bg-white border border-gray-200 rounded-2xl p-5 "
+                            className="bg-surface border border-gray-200 rounded-2xl p-5 "
                         >
                             <div className="flex items-center justify-between mb-4">
                                 <p className="font-semibold text-sm text-gray-900 truncate">{item.label}</p>
@@ -642,7 +642,7 @@ function ResultsPanel({ result, onReset }) {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.05 + 0.08 * (which === "A" ? 0 : 1) }}
-                        className="bg-white border border-gray-200 rounded-2xl p-5 "
+                        className="bg-surface border border-gray-200 rounded-2xl p-5 "
                     >
                         <div className="flex items-center justify-between mb-4">
                             <p className="font-semibold text-sm text-gray-900 truncate">{item.label}</p>
@@ -736,7 +736,7 @@ export default function Comparison() {
                                 onClick={() => switchMode(m.id)}
                                 className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl border text-left transition-all duration-200 flex-1 max-w-xs cursor-pointer ${active
                                     ? "border-indigo-300 bg-indigo-50 "
-                                    : "border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50/40"
+                                    : "border-gray-200 bg-surface hover:border-indigo-200 hover:bg-indigo-50/40"
                                     }`}
                             >
                                 <m.icon className={`w-5 h-5 shrink-0 ${active ? "text-indigo-600" : "text-gray-400"}`} />
@@ -756,7 +756,7 @@ export default function Comparison() {
                             <>
                                 <CreativeUpload label="Creative A" value={creativeA} onChange={setCreativeA} />
                                 <div className="flex items-center justify-center">
-                                    <div className="w-11 h-11 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 font-bold text-xs bg-white ">
+                                    <div className="w-11 h-11 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 font-bold text-xs bg-surface ">
                                         VS
                                     </div>
                                 </div>
@@ -766,7 +766,7 @@ export default function Comparison() {
                             <>
                                 <WebsiteInput label="Website A" value={urlA} onChange={setUrlA} />
                                 <div className="flex items-center justify-center">
-                                    <div className="w-11 h-11 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 font-bold text-xs bg-white ">
+                                    <div className="w-11 h-11 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 font-bold text-xs bg-surface ">
                                         VS
                                     </div>
                                 </div>

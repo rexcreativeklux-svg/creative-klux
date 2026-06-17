@@ -272,7 +272,7 @@ export default function BrandPulsePage() {
                 {/* ── KPI row ── */}
                 <div className="grid grid-cols-4 gap-4">
                     {DB.kpis.map((k) => (
-                        <div key={k.id} className="bg-white rounded-xl border border-gray-200 px-5 py-4 ">
+                        <div key={k.id} className="bg-surface rounded-xl border border-gray-200 px-5 py-4 ">
                             <p className="text-xs text-gray-400 font-medium mb-1">{k.label}</p>
                             <p className="text-3xl font-bold text-gray-900 leading-none">{k.value}</p>
                             <div className="flex items-center gap-1 mt-1.5">
@@ -295,7 +295,7 @@ export default function BrandPulsePage() {
                 <div className="grid grid-cols-2 gap-4">
 
                     {/* Pulse score */}
-                    <div className="bg-white rounded-xl border border-gray-200  p-5">
+                    <div className="bg-surface rounded-xl border border-gray-200  p-5">
                         <p className="text-sm font-semibold text-gray-900 mb-4">Your Pulse Score</p>
                         <div className="flex items-center gap-6">
                             <PulseGauge value={DB.pulseScore.value} />
@@ -315,7 +315,7 @@ export default function BrandPulsePage() {
                                     }}>
                                     </div>
                                     <div
-                                        className="absolute top-[18px] w-3 h-3 rounded-full bg-white border-2 shadow-md -translate-x-1/2"
+                                        className="absolute top-[18px] w-3 h-3 rounded-full bg-surface border-2 shadow-md -translate-x-1/2"
                                         style={{ left: `${DB.pulseScore.position}%`, borderColor: "#f59e0b" }}
                                     />
                                 </div>
@@ -324,7 +324,7 @@ export default function BrandPulsePage() {
                     </div>
 
                     {/* Creative health */}
-                    <div className="bg-white rounded-xl border border-gray-200  p-5">
+                    <div className="bg-surface rounded-xl border border-gray-200  p-5">
                         <p className="text-sm font-semibold text-gray-900 mb-4">Creative Health</p>
                         <div className="flex flex-col gap-3">
                             {DB.creativeHealth.map((item) => (
@@ -347,7 +347,7 @@ export default function BrandPulsePage() {
                 </div>
 
                 {/* ── metric overview chart ── */}
-                <div className="bg-white rounded-xl border border-gray-200  p-3">
+                <div className="bg-surface rounded-xl border border-gray-200  p-3">
                     <div className="flex items-center justify-between mb-4">
                         <p className="text-sm font-semibold text-gray-900">Metric Overview</p>
                         <div className="flex items-center gap-1">
@@ -371,7 +371,7 @@ export default function BrandPulsePage() {
                 </div>
 
                 {/* ── top performing creatives ── */}
-                <div className="bg-white rounded-xl border border-gray-200  p-5">
+                <div className="bg-surface rounded-xl border border-gray-200  p-5">
                     <p className="text-sm font-semibold text-gray-900 mb-4">Top Performing Creatives</p>
                     <table className="w-full">
                         <thead>

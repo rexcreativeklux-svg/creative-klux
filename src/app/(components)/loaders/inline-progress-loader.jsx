@@ -11,7 +11,7 @@ export default function InlineProgressLoader({ label = "Generating your creative
     return (
         <div className="flex items-center gap-3.5 px-[18px] py-3.5 rounded-[10px] border border-violet-500/30 bg-gray-50 w-[280px] max-w-full">
             <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-white border border-violet-200"
+                className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-surface border border-violet-200"
                 style={{ animation: "ck-icon-glow 1.8s ease-in-out infinite" }}
             >
                 <img src="/logoblue.svg" alt="Creative Klux" className="w-5 h-5" />

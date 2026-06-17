@@ -62,12 +62,12 @@ const ImagePropertiesModal = ({ image, onClose, onApply, existingData }) => {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
-      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-light-border dark:border-dark-border flex flex-col max-h-[92vh]">
+      <div className="bg-surface dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-light-border dark:border-dark-border flex flex-col max-h-[92vh]">
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-light-border dark:border-dark-border flex items-center justify-between bg-gradient-to-r from-primary-700 to-primary-600 text-white flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-white/15 rounded-lg">
+            <div className="p-1.5 bg-surface/15 rounded-lg">
               <Settings2 className="w-5 h-5" />
             </div>
             <div>
@@ -75,7 +75,7 @@ const ImagePropertiesModal = ({ image, onClose, onApply, existingData }) => {
               <p className="text-xs opacity-70 mt-0.5">Configure before inserting</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-1.5 hover:bg-surface/20 rounded-lg transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -97,7 +97,7 @@ const ImagePropertiesModal = ({ image, onClose, onApply, existingData }) => {
                       onClick={() => setPreviewSize(s)}
                       className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${previewSize === s
                         ? 'bg-primary-600 text-white'
-                        : 'bg-white dark:bg-dark-card border border-light-border dark:border-dark-border text-light-text dark:text-dark-text hover:border-primary-400'
+                        : 'bg-surface dark:bg-dark-card border border-light-border dark:border-dark-border text-light-text dark:text-dark-text hover:border-primary-400'
                         }`}
                     >
                       {s.toUpperCase()}
@@ -108,7 +108,7 @@ const ImagePropertiesModal = ({ image, onClose, onApply, existingData }) => {
 
               {/* Preview card */}
               <div
-                className={`relative w-full ${previewDims[previewSize]} rounded-xl overflow-hidden border-2 border-light-border dark:border-dark-border bg-white dark:bg-dark-card flex items-center transition-all`}
+                className={`relative w-full ${previewDims[previewSize]} rounded-xl overflow-hidden border-2 border-light-border dark:border-dark-border bg-surface dark:bg-dark-card flex items-center transition-all`}
                 style={{ justifyContent: align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center' }}
               >
                 <img
@@ -143,7 +143,7 @@ const ImagePropertiesModal = ({ image, onClose, onApply, existingData }) => {
             </div>
 
             {/* RIGHT — Controls */}
-            <div className="p-5 flex flex-col gap-5 bg-white dark:bg-dark-card">
+            <div className="p-5 flex flex-col gap-5 bg-surface dark:bg-dark-card">
 
               {/* Alt text */}
               <div>
@@ -309,7 +309,7 @@ const ImagePropertiesModal = ({ image, onClose, onApply, existingData }) => {
                   className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${lazy ? 'bg-primary-600' : 'bg-light-border dark:bg-dark-border'
                     }`}
                 >
-                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${lazy ? 'translate-x-5' : 'translate-x-0'
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-surface rounded-full shadow transition-transform ${lazy ? 'translate-x-5' : 'translate-x-0'
                     }`} />
                 </button>
               </div>
@@ -319,7 +319,7 @@ const ImagePropertiesModal = ({ image, onClose, onApply, existingData }) => {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-light-border dark:border-dark-border flex items-center justify-between gap-3 flex-shrink-0 bg-white dark:bg-dark-card">
+        <div className="px-6 py-4 border-t border-light-border dark:border-dark-border flex items-center justify-between gap-3 flex-shrink-0 bg-surface dark:bg-dark-card">
           <button
             onClick={onClose}
             className="px-4 py-2 border border-light-border dark:border-dark-border rounded-lg text-sm font-medium text-light-text dark:text-dark-text hover:bg-light-bg dark:hover:bg-dark-bg transition-colors"
@@ -461,7 +461,7 @@ const BgRemovalModal = ({ image, onClose, onApply }) => {
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-light-border dark:border-dark-border flex flex-col">
+      <div className="bg-surface dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-light-border dark:border-dark-border flex flex-col">
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-light-border dark:border-dark-border flex items-center justify-between bg-gradient-to-r from-primary-700 to-primary-600 text-white flex-shrink-0">
@@ -472,7 +472,7 @@ const BgRemovalModal = ({ image, onClose, onApply }) => {
               <p className="text-xs opacity-75 mt-0.5">Powered by AI — processed on our server</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-1.5 hover:bg-surface/20 rounded-lg transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -488,7 +488,7 @@ const BgRemovalModal = ({ image, onClose, onApply }) => {
         )}
 
         {/* Image panels */}
-        <div className="p-6 bg-white dark:bg-dark-card">
+        <div className="p-6 bg-surface dark:bg-dark-card">
           <div className="grid grid-cols-2 gap-5">
 
             {/* Original */}
@@ -507,7 +507,7 @@ const BgRemovalModal = ({ image, onClose, onApply }) => {
                 style={isDone ? checkerStyle : {}}
               >
                 {isProcessing && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-white/90 dark:bg-dark-card/90 p-5">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-surface/90 dark:bg-dark-card/90 p-5">
                     <div className="relative w-16 h-16">
                       <div className="absolute inset-0 rounded-full border-4 border-primary-100 dark:border-primary-950" />
                       <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary-600 animate-spin" />
@@ -577,7 +577,7 @@ const BgRemovalModal = ({ image, onClose, onApply }) => {
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-5 flex items-center justify-between gap-3 flex-shrink-0 bg-white dark:bg-dark-card">
+        <div className="px-6 pb-5 flex items-center justify-between gap-3 flex-shrink-0 bg-surface dark:bg-dark-card">
           <div>
             {(isDone || isError) && (
               <button
@@ -749,7 +749,7 @@ const CropModal = ({ image, onClose, onApply }) => {
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60]">
-      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-light-border dark:border-dark-border flex flex-col max-h-[90vh]">
+      <div className="bg-surface dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-light-border dark:border-dark-border flex flex-col max-h-[90vh]">
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-light-border dark:border-dark-border flex items-center justify-between bg-gradient-to-r from-primary-700 to-primary-600 text-white flex-shrink-0">
@@ -757,7 +757,7 @@ const CropModal = ({ image, onClose, onApply }) => {
             <Crop className="w-5 h-5" />
             <h3 className="text-lg font-bold">Crop Image</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-1.5 hover:bg-surface/20 rounded-lg transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -773,7 +773,7 @@ const CropModal = ({ image, onClose, onApply }) => {
                   onClick={() => setAspect(a.value)}
                   className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${aspect === a.value
                     ? 'bg-primary-600 text-white'
-                    : 'bg-white dark:bg-dark-card border border-light-border dark:border-dark-border text-light-text dark:text-dark-text hover:border-primary-400'
+                    : 'bg-surface dark:bg-dark-card border border-light-border dark:border-dark-border text-light-text dark:text-dark-text hover:border-primary-400'
                     }`}
                 >
                   {a.label}
@@ -783,7 +783,7 @@ const CropModal = ({ image, onClose, onApply }) => {
           </div>
           <button
             onClick={resetCrop}
-            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-light-border dark:border-dark-border text-xs font-medium text-light-text dark:text-dark-text hover:bg-white dark:hover:bg-dark-card hover:text-primary-600 transition-colors"
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-light-border dark:border-dark-border text-xs font-medium text-light-text dark:text-dark-text hover:bg-surface dark:hover:bg-dark-card hover:text-primary-600 transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" /> Reset
           </button>
@@ -835,7 +835,7 @@ const CropModal = ({ image, onClose, onApply }) => {
         )}
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-light-border dark:border-dark-border flex justify-between items-center flex-shrink-0 bg-white dark:bg-dark-card">
+        <div className="px-6 py-4 border-t border-light-border dark:border-dark-border flex justify-between items-center flex-shrink-0 bg-surface dark:bg-dark-card">
           <p className="text-xs text-light-text dark:text-dark-text">
             {Math.round(cropBox.w)} × {Math.round(cropBox.h)} px
           </p>
@@ -877,7 +877,7 @@ const ImageCard = ({ image, onSelect, onCrop, onBgRemove, onDelete, onCopyLink, 
   }, []);
 
   return (
-    <div className="group relative bg-white dark:bg-dark-card rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-light-border dark:border-dark-border break-inside-avoid mb-4">
+    <div className="group relative bg-surface dark:bg-dark-card rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-light-border dark:border-dark-border break-inside-avoid mb-4">
 
       {/* Thumbnail */}
       <div
@@ -888,7 +888,7 @@ const ImageCard = ({ image, onSelect, onCrop, onBgRemove, onDelete, onCopyLink, 
           <div className="w-full h-full relative">
             <img src={image.thumbnail} alt={image.alt} className="w-full h-auto block group-hover:scale-110 transition-transform duration-300" />
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-surface/80 flex items-center justify-center">
                 <Play className="w-5 h-5 text-dark-bg ml-0.5" />
               </div>
             </div>
@@ -913,7 +913,7 @@ const ImageCard = ({ image, onSelect, onCrop, onBgRemove, onDelete, onCopyLink, 
 
       {/* Configure & Insert hint badge */}
       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none pb-8">
-        <div className="bg-white/95 dark:bg-dark-card/95 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center gap-1.5 shadow-lg border border-light-border dark:border-dark-border">
+        <div className="bg-surface/95 dark:bg-dark-card/95 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center gap-1.5 shadow-lg border border-light-border dark:border-dark-border">
           <Settings2 className="w-3.5 h-3.5 text-primary-600" />
           <span className="text-xs font-semibold text-primary-600">Configure &amp; Insert</span>
         </div>
@@ -923,13 +923,13 @@ const ImageCard = ({ image, onSelect, onCrop, onBgRemove, onDelete, onCopyLink, 
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" ref={menuRef}>
         <button
           onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}
-          className="w-8 h-8 bg-white dark:bg-dark-card rounded-lg shadow-md flex items-center justify-center hover:bg-light-bg dark:hover:bg-dark-bg border border-light-border dark:border-dark-border transition-colors"
+          className="w-8 h-8 bg-surface dark:bg-dark-card rounded-lg shadow-md flex items-center justify-center hover:bg-light-bg dark:hover:bg-dark-bg border border-light-border dark:border-dark-border transition-colors"
         >
           <MoreVertical className="w-4 h-4 text-light-text dark:text-dark-text" />
         </button>
 
         {menuOpen && (
-          <div className="absolute top-full right-0 mt-1 bg-white dark:bg-dark-card rounded-xl shadow-xl border border-light-border dark:border-dark-border py-1.5 z-30 min-w-[175px]">
+          <div className="absolute top-full right-0 mt-1 bg-surface dark:bg-dark-card rounded-xl shadow-xl border border-light-border dark:border-dark-border py-1.5 z-30 min-w-[175px]">
             {showUseImage && (
               <button
                 onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onUseImage?.(image); }}
@@ -1149,12 +1149,12 @@ const ImageUploadModal = ({ isOpen, onClose, onUpload, onUseImage, editMode, cur
   return (
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-2">
-        <div className="bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-7xl h-[90vh] overflow-hidden border border-light-border dark:border-dark-border flex flex-col">
+        <div className="bg-surface dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-7xl h-[90vh] overflow-hidden border border-light-border dark:border-dark-border flex flex-col">
 
           {/* Header */}
           <div className="px-6 py-5 border-b border-light-border dark:border-dark-border flex items-center justify-between bg-gradient-to-r from-primary-700 to-primary-600 text-white flex-shrink-0">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <div className="p-2 bg-surface/20 rounded-lg backdrop-blur-sm">
                 <Image className="w-6 h-6" />
               </div>
               <div>
@@ -1162,7 +1162,7 @@ const ImageUploadModal = ({ isOpen, onClose, onUpload, onUseImage, editMode, cur
                 <p className="text-sm opacity-90 mt-0.5">Click any image to configure and insert</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+            <button onClick={onClose} className="p-2 hover:bg-surface/20 rounded-lg transition-colors">
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -1181,7 +1181,7 @@ const ImageUploadModal = ({ isOpen, onClose, onUpload, onUseImage, editMode, cur
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   onKeyPress={e => e.key === 'Enter' && commitInput()}
-                  className="w-full pl-10 pr-36 py-2.5 border border-light-border dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 text-dark-bold dark:text-dark-bold bg-white dark:bg-dark-card placeholder-light-text dark:placeholder-dark-text"
+                  className="w-full pl-10 pr-36 py-2.5 border border-light-border dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 text-dark-bold dark:text-dark-bold bg-surface dark:bg-dark-card placeholder-light-text dark:placeholder-dark-text"
                 />
                 {isUrl(searchQuery) && (
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-primary-600 font-medium bg-primary-50 dark:bg-primary-950 px-2 py-0.5 rounded-full pointer-events-none">
@@ -1209,12 +1209,12 @@ const ImageUploadModal = ({ isOpen, onClose, onUpload, onUseImage, editMode, cur
               <div className="relative" ref={mediaRef}>
                 <button
                   onClick={() => setMediaOpen(!mediaOpen)}
-                  className="px-3 py-1.5 border border-light-border dark:border-dark-border rounded-lg text-sm flex items-center gap-2 bg-white dark:bg-dark-card text-dark-bold dark:text-dark-bold hover:border-primary-400 transition-colors"
+                  className="px-3 py-1.5 border border-light-border dark:border-dark-border rounded-lg text-sm flex items-center gap-2 bg-surface dark:bg-dark-card text-dark-bold dark:text-dark-bold hover:border-primary-400 transition-colors"
                 >
                   {mediaType} <ChevronDown className={`w-4 h-4 transition-transform ${mediaOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {mediaOpen && (
-                  <div className="absolute top-full mt-1 left-0 bg-white dark:bg-dark-card rounded-lg shadow-xl border border-light-border dark:border-dark-border py-2 z-20 min-w-[150px]">
+                  <div className="absolute top-full mt-1 left-0 bg-surface dark:bg-dark-card rounded-lg shadow-xl border border-light-border dark:border-dark-border py-2 z-20 min-w-[150px]">
                     {mediaTypes.map(t => (
                       <button
                         key={t}
@@ -1234,12 +1234,12 @@ const ImageUploadModal = ({ isOpen, onClose, onUpload, onUseImage, editMode, cur
               <div className="relative" ref={orientationRef}>
                 <button
                   onClick={() => setOrientationOpen(!orientationOpen)}
-                  className="px-3 py-1.5 border border-light-border dark:border-dark-border rounded-lg text-sm flex items-center gap-2 bg-white dark:bg-dark-card text-dark-bold dark:text-dark-bold hover:border-primary-400 transition-colors"
+                  className="px-3 py-1.5 border border-light-border dark:border-dark-border rounded-lg text-sm flex items-center gap-2 bg-surface dark:bg-dark-card text-dark-bold dark:text-dark-bold hover:border-primary-400 transition-colors"
                 >
                   {orientation} <ChevronDown className={`w-4 h-4 transition-transform ${orientationOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {orientationOpen && (
-                  <div className="absolute top-full mt-1 left-0 bg-white dark:bg-dark-card rounded-lg shadow-xl border border-light-border dark:border-dark-border py-2 z-20 min-w-[180px]">
+                  <div className="absolute top-full mt-1 left-0 bg-surface dark:bg-dark-card rounded-lg shadow-xl border border-light-border dark:border-dark-border py-2 z-20 min-w-[180px]">
                     {orientations.map(o => (
                       <button
                         key={o}
@@ -1265,7 +1265,7 @@ const ImageUploadModal = ({ isOpen, onClose, onUpload, onUseImage, editMode, cur
           </div>
 
           {/* Tabs */}
-          <div className="border-b border-light-border dark:border-dark-border bg-white dark:bg-dark-card flex-shrink-0">
+          <div className="border-b border-light-border dark:border-dark-border bg-surface dark:bg-dark-card flex-shrink-0">
             <div className="px-6 flex gap-6">
               {[
                 { id: 'search', icon: <Search className="w-4 h-4" />, label: 'Search Results', count: allSearchResults.length },
@@ -1372,7 +1372,7 @@ const ImageUploadModal = ({ isOpen, onClose, onUpload, onUseImage, editMode, cur
             {activeTab === 'upload' && (
               <div className="max-w-2xl mx-auto">
                 {uploadProgress !== null && (
-                  <div className="mb-6 bg-white dark:bg-dark-card rounded-lg p-4 border border-light-border dark:border-dark-border">
+                  <div className="mb-6 bg-surface dark:bg-dark-card rounded-lg p-4 border border-light-border dark:border-dark-border">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm text-light-text dark:text-dark-text">Uploading…</span>
                       <span className="text-sm font-semibold text-primary-600">{uploadProgress}%</span>
@@ -1398,7 +1398,7 @@ const ImageUploadModal = ({ isOpen, onClose, onUpload, onUseImage, editMode, cur
                   onClick={() => fileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-2xl p-16 text-center cursor-pointer transition-all ${dragActive
                     ? 'border-primary-600 bg-primary-50 dark:bg-primary-950 scale-105'
-                    : 'border-light-border dark:border-dark-border bg-white dark:bg-dark-card hover:border-primary-400'
+                    : 'border-light-border dark:border-dark-border bg-surface dark:bg-dark-card hover:border-primary-400'
                     }`}
                 >
                   <Upload className="w-16 h-16 text-primary-600 mx-auto mb-4" />

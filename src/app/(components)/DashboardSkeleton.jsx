@@ -14,7 +14,7 @@ export default function DashboardSkeleton() {
     <div className="flex h-screen overflow-hidden bg-gray-50" style={{ fontFamily: 'var(--font-sans)' }}>
 
       {/* ── Sidebar: wide with label text, matching screenshot ── */}
-      <nav className="hidden md:flex flex-col justify-between h-screen bg-white border-r border-gray-100 shrink-0" style={{ width: 188 }}>
+      <nav className="hidden md:flex flex-col justify-between h-screen bg-surface border-r border-gray-100 shrink-0" style={{ width: 188 }}>
         {/* Logo */}
         <div>
           <div className="flex items-center gap-2 px-5 py-5">
@@ -80,7 +80,7 @@ export default function DashboardSkeleton() {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Top bar: back arrow left, workspace dropdown right */}
-        <div className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
+        <div className="h-14 bg-surface border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
           <Pulse w={28} h={28} rounded="8px" />
           <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-1.5">
             <Pulse w={24} h={24} rounded="50%" />
@@ -104,7 +104,7 @@ export default function DashboardSkeleton() {
           {/* 7-column stat cards */}
           <div className="grid grid-cols-7 gap-3">
             {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 flex flex-col gap-2">
+              <div key={i} className="bg-surface border border-gray-100 rounded-xl p-4 flex flex-col gap-2">
                 <Pulse w={28} h={28} rounded="8px" />
                 <Pulse w={24} h={20} rounded="4px" />
                 <Pulse w={64} h={11} />
@@ -116,7 +116,7 @@ export default function DashboardSkeleton() {
           <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 320px' }}>
 
             {/* Weekly Activity line chart */}
-            <div className="bg-white border border-gray-100 rounded-xl p-5">
+            <div className="bg-surface border border-gray-100 rounded-xl p-5">
               <div className="flex flex-col gap-1 mb-5">
                 <Pulse w={120} h={16} />
                 <Pulse w={180} h={11} />
@@ -162,7 +162,7 @@ export default function DashboardSkeleton() {
             </div>
 
             {/* Quick Create panel */}
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex flex-col gap-4">
+            <div className="bg-surface border border-gray-100 rounded-xl p-5 flex flex-col gap-4">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <Pulse w={20} h={20} rounded="4px" />
@@ -200,7 +200,7 @@ export default function DashboardSkeleton() {
             </div>
             <div className="grid grid-cols-4 gap-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="rounded-xl overflow-hidden border border-gray-100 bg-white">
+                <div key={i} className="rounded-xl overflow-hidden border border-gray-100 bg-surface">
                   <Pulse w="100%" h={180} rounded="0" />
                   <div className="p-3 flex flex-col gap-1.5">
                     <Pulse w="70%" h={12} />

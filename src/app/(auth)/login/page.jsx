@@ -104,7 +104,7 @@ function LeftPanel() {
             {/* Top bar */}
             <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-8 pt-7 z-20">
                 <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 bg-white/95 rounded-lg grid place-items-center">
+                    <div className="w-7 h-7 bg-surface/95 rounded-lg grid place-items-center">
                         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
                             <circle cx="3.5" cy="3.5" r="2.5" fill="#111" opacity="0.9"/>
                             <circle cx="10.5" cy="3.5" r="2.5" fill="#111" opacity="0.45"/>
@@ -178,13 +178,13 @@ function LeftPanel() {
                     <div className="flex gap-2">
                         <button
                             onClick={prev}
-                            className="w-9 h-9 rounded-full border border-white/15 bg-white/8 hover:bg-white/18 backdrop-blur-md grid place-items-center text-white cursor-pointer transition-colors"
+                            className="w-9 h-9 rounded-full border border-white/15 bg-surface/8 hover:bg-surface/18 backdrop-blur-md grid place-items-center text-white cursor-pointer transition-colors"
                         >
                             <ChevronLeft size={15} />
                         </button>
                         <button
                             onClick={next}
-                            className="w-9 h-9 rounded-full border border-white/15 bg-white/8 hover:bg-white/18 backdrop-blur-md grid place-items-center text-white cursor-pointer transition-colors"
+                            className="w-9 h-9 rounded-full border border-white/15 bg-surface/8 hover:bg-surface/18 backdrop-blur-md grid place-items-center text-white cursor-pointer transition-colors"
                         >
                             <ChevronRight size={15} />
                         </button>
@@ -193,10 +193,10 @@ function LeftPanel() {
             </div>
 
             {/* Progress bar */}
-            <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/8 z-30">
+            <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-surface/8 z-30">
                 <motion.div
                     key={current}
-                    className="h-full bg-white/50"
+                    className="h-full bg-surface/50"
                     initial={{ width: '0%' }}
                     animate={{ width: '100%' }}
                     transition={{ duration: 4.5, ease: 'linear' }}
@@ -239,7 +239,7 @@ export default function LoginPage() {
 
     return (
         // Full viewport, no scroll
-        <div className="fixed inset-0 flex flex-row-reverse bg-white overflow-hidden">
+        <div className="fixed inset-0 flex flex-row-reverse bg-surface overflow-hidden">
 
             {/* ── LEFT ── */}
             <LeftPanel />
@@ -274,13 +274,13 @@ export default function LoginPage() {
                         <div className="grid grid-cols-2 gap-2.5 mb-5">
                             <button
                                 onClick={() => {}}
-                                className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer"
+                                className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl bg-surface hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer"
                             >
                                 <GoogleIcon /> Google
                             </button>
                             <button
                                 onClick={() => {}}
-                                className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer"
+                                className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl bg-surface hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer"
                             >
                                 <FacebookIcon /> Facebook
                             </button>
@@ -305,7 +305,7 @@ export default function LoginPage() {
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     required
-                                    className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-gray-50 text-[13.5px] text-gray-900 placeholder:text-gray-300 outline-none transition-all duration-150 focus:bg-white focus:border-[#1447e6] focus:ring-3 focus:ring-[#1447e6]/10"
+                                    className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-gray-50 text-[13.5px] text-gray-900 placeholder:text-gray-300 outline-none transition-all duration-150 focus:bg-surface focus:border-[#1447e6] focus:ring-3 focus:ring-[#1447e6]/10"
                                 />
                             </div>
 
@@ -327,7 +327,7 @@ export default function LoginPage() {
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
                                         required
-                                        className="w-full h-11 px-4 pr-11 rounded-xl border border-gray-200 bg-gray-50 text-[13.5px] text-gray-900 placeholder:text-gray-300 outline-none transition-all duration-150 focus:bg-white focus:border-[#1447e6] focus:ring-3 focus:ring-[#1447e6]/10"
+                                        className="w-full h-11 px-4 pr-11 rounded-xl border border-gray-200 bg-gray-50 text-[13.5px] text-gray-900 placeholder:text-gray-300 outline-none transition-all duration-150 focus:bg-surface focus:border-[#1447e6] focus:ring-3 focus:ring-[#1447e6]/10"
                                     />
                                     <button
                                         type="button"

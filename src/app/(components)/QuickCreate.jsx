@@ -33,7 +33,7 @@ const QUICK_ACTIONS = [
 
 export default function QuickCreate() {
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm h-full flex flex-col overflow-hidden">
+    <div className="bg-surface border border-gray-100 rounded-2xl shadow-sm h-full flex flex-col overflow-hidden">
 
       {/* Header */}
       <div className="px-5 pt-5 pb-4 shrink-0">

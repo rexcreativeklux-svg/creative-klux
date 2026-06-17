@@ -53,7 +53,7 @@ export default function Transactions() {
   ];
 
   return (
-    <div className="bg-white rounded-2xl p-4 ">
+    <div className="bg-surface rounded-2xl p-4 ">
       {/* Header */}
       <div className="flex justify-between px-1 items-center mb-4">
         <h2 className="text-gray-800 font-medium">Transactions</h2>

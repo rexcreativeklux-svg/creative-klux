@@ -103,7 +103,7 @@ const T = {
   importBg:     "bg-violet-50/40",
   importBorder: "border-violet-100",
   stepActive:   "border-violet-600 bg-violet-600 text-white",
-  stepCurrent:  "border-violet-600 text-violet-600 bg-white",
+  stepCurrent:  "border-violet-600 text-violet-600 bg-surface",
   connector:    "bg-violet-600",
   pill:         "border-violet-600 bg-violet-50 text-violet-700",
 };
@@ -405,7 +405,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
   return (
     <>
       {/* ── Step indicator ───────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl px-0 py-4">
+      <div className="bg-surface rounded-2xl px-0 py-4">
         <div className="flex items-center justify-between gap-2">
           {STEPS.map((s, idx) => {
             const Icon = s.icon;
@@ -436,7 +436,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
       </div>
 
       {/* ── Form ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-lg py-2 flex flex-col gap-6">
+      <div className="bg-surface rounded-lg py-2 flex flex-col gap-6">
 
         {error && (
           <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -507,7 +507,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
                   placeholder="Describe the product, key design elements, target feel, and any special requirements…"
                   rows={3} className={`${inputCls} resize-none`} />
                 <button onClick={handleInspire}
-                  className="absolute bottom-3 left-3 text-xs font-semibold bg-white border border-gray-200 text-gray-500 hover:border-violet-400 hover:text-violet-600 px-3 py-1 rounded-lg cursor-pointer transition-all">
+                  className="absolute bottom-3 left-3 text-xs font-semibold bg-surface border border-gray-200 text-gray-500 hover:border-violet-400 hover:text-violet-600 px-3 py-1 rounded-lg cursor-pointer transition-all">
                   ✨ Inspire Me
                 </button>
               </div>
@@ -573,7 +573,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
             <div className="grid grid-cols-2 gap-4">
               <Field label="Font">
                 <select value={formData.font || "Arial"} onChange={(e) => field("font", e.target.value)}
-                  className={`${inputCls} bg-white cursor-pointer`}>
+                  className={`${inputCls} bg-surface cursor-pointer`}>
                   {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
                 </select>
               </Field>
@@ -760,7 +760,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
 
             {/* Upload zone */}
             <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6 bg-gray-50 flex flex-col items-center gap-3 mt-2">
-              <div className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
+              <div className="w-10 h-10 bg-surface border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
                 <FileUp className="w-5 h-5 text-gray-400" />
               </div>
               <div className="text-center">
@@ -826,7 +826,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
 
       {generating && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-10">
+          <div className="bg-surface rounded-2xl p-10">
             <FloatingAnimation showProgressBar><FloatingElements.ImageFile /></FloatingAnimation>
           </div>
         </div>
@@ -848,7 +848,7 @@ const Field = ({ label, required, children }) => (
 );
 const MediaBtn = ({ icon: Icon, label, onClick }) => (
   <button onClick={onClick}
-    className="flex items-center gap-1.5 px-4 py-2 cursor-pointer rounded-lg text-xs font-semibold bg-white border border-gray-200 text-gray-600 hover:border-violet-400 hover:text-violet-600 transition-all">
+    className="flex items-center gap-1.5 px-4 py-2 cursor-pointer rounded-lg text-xs font-semibold bg-surface border border-gray-200 text-gray-600 hover:border-violet-400 hover:text-violet-600 transition-all">
     <Icon className="w-4 h-4" /> {label}
   </button>
 );

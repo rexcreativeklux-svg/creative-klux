@@ -392,7 +392,7 @@ const ImageAdsCreatives = () => {
       <div className='font-medium text-xl mb-6'>Image Ads Creatives</div>
 
       {result ? (
-        <div className="flex flex-col overflow-hidden w-full mt-3 justify-between gap-6 bg-white rounded-lg py-4">
+        <div className="flex flex-col overflow-hidden w-full mt-3 justify-between gap-6 bg-surface rounded-lg py-4">
           <div className='flex flex-row justify-between'>
             <div className='font-medium text-lg text-blue-700 flex justify-center items-center'>Generated Image Ads </div>
             <div className="flex justify-between p-3 rounded-lg">
@@ -409,11 +409,11 @@ const ImageAdsCreatives = () => {
                 <Send className="w-4 h-4" /> Create Ad
               </button>
               <button onClick={() => openAdsModal('schedule', [result.assets.find(a => a.id === selectedAsset)])}
-                className="px-4 py-2 bg-white text-black hover:text-blue-700 rounded-md cursor-pointer border hover:bg-gray-50 hover:border-blue-700 transition duration-300 flex items-center gap-2">
+                className="px-4 py-2 bg-surface text-gray-900 hover:text-blue-700 rounded-md cursor-pointer border hover:bg-gray-50 hover:border-blue-700 transition duration-300 flex items-center gap-2">
                 <Calendar className="w-4 h-4" /> Schedule Ad
               </button>
               <button onClick={() => handleDownload(result.assets.find(a => a.id === selectedAsset))}
-                className="px-4 py-2 bg-black text-white rounded-md cursor-pointer hover:bg-white hover:border hover:border-blue-700 hover:text-blue-700 transition duration-300 flex items-center gap-2">
+                className="px-4 py-2 bg-black text-white rounded-md cursor-pointer hover:bg-surface hover:border hover:border-blue-700 hover:text-blue-700 transition duration-300 flex items-center gap-2">
                 <Download className="w-4 h-4" /> Download Ad
               </button>
             </motion.div>
@@ -427,7 +427,7 @@ const ImageAdsCreatives = () => {
                   onClick={() => toggleAssetSelection(asset.id)}
                   className={`relative border rounded-lg overflow-hidden cursor-pointer transition duration-300 mb-6 break-inside-avoid ${selectedAsset === asset.id ? 'border-blue-700 ring-2 ring-blue-700' : 'border-gray-200 hover:border-blue-500'}`}
                 >
-                  <div className="py-3 px-2 bg-white">
+                  <div className="py-3 px-2 bg-surface">
                     <p className="text-sm text-gray-800">Rating</p>
                   </div>
 
@@ -449,7 +449,7 @@ const ImageAdsCreatives = () => {
                     />
                   </div>
 
-                  <div className="py-4 px-2 bg-white">
+                  <div className="py-4 px-2 bg-surface">
                     <p className="text-sm text-gray-800 truncate">Caption: {postData.caption}</p>
                     <p className="text-sm text-gray-800 truncate">Brand Name: {postData.projectName}</p>
                   </div>
@@ -459,13 +459,13 @@ const ImageAdsCreatives = () => {
                       e.stopPropagation();
                       setMenuOpen(menuOpen === asset.id ? null : asset.id);
                     }}
-                    className="absolute top-16 right-2 p-1 bg-white rounded-full border border-gray-200 hover:bg-gray-100 cursor-pointer transition duration-300 shadow-md z-10"
+                    className="absolute top-16 right-2 p-1 bg-surface rounded-full border border-gray-200 hover:bg-gray-100 cursor-pointer transition duration-300 shadow-md z-10"
                   >
                     <MoreVertical className="w-4 h-4 text-gray-600" />
                   </button>
 
                   {menuOpen === asset.id && (
-                    <div onClick={(e) => e.stopPropagation()} className="absolute top-24 right-2 bg-white border border-gray-200 rounded-md shadow-lg z-20 min-w-[140px]">
+                    <div onClick={(e) => e.stopPropagation()} className="absolute top-24 right-2 bg-surface border border-gray-200 rounded-md shadow-lg z-20 min-w-[140px]">
                       <button onClick={() => handlePostNow(asset)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer transition duration-300">
                         Post Now
                       </button>
@@ -511,7 +511,7 @@ const ImageAdsCreatives = () => {
             ))}
           </div>
 
-          <div className="flex flex-col w-full mt-5 justify-between gap-10 bg-white rounded-2xl p-4">
+          <div className="flex flex-col w-full mt-5 justify-between gap-10 bg-surface rounded-2xl p-4">
             <div className='overflow-auto'>
               {step === 1 && (
                 <div className='flex flex-col gap-3'>
@@ -560,7 +560,7 @@ const ImageAdsCreatives = () => {
                           value={postData.brandName}
                           onChange={(e) => handleFieldChange('brandName', e.target.value)}
                           placeholder="Your Brand Name"
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
                         />
                       </div>
                       <div className='w-full'>
@@ -570,7 +570,7 @@ const ImageAdsCreatives = () => {
                           value={postData.projectName}
                           onChange={(e) => handleFieldChange('projectName', e.target.value)}
                           placeholder="Your Project Name"
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
                         />
                       </div>
                     </div>
@@ -602,7 +602,7 @@ const ImageAdsCreatives = () => {
                     <div className='flex flex-row justify-between gap-4'>
                       <div className="flex-1">
                         <label className="text-sm font-medium text-gray-700 mb-1 block">Font</label>
-                        <select value={postData.font} onChange={(e) => handleFieldChange('font', e.target.value)} className="w-full p-3 border bg-white border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700 cursor-pointer">
+                        <select value={postData.font} onChange={(e) => handleFieldChange('font', e.target.value)} className="w-full p-3 border bg-surface border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700 cursor-pointer">
                           {fontOptions.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
                           ))}
@@ -830,21 +830,21 @@ const ImageAdsCreatives = () => {
                     <div className='flex gap-4'>
                       <button
                         onClick={() => setSearchModalOpen(true)}
-                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3'
+                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3'
                       >
                         <div className='text-sm font-medium'>Search Media</div>
                         <div className='mt-0.5'><FileSearch className='w-4 h-4' /></div>
                       </button>
                       <button
                         onClick={() => setLibraryModalOpen(true)}
-                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3'
+                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3'
                       >
                         <div className='text-sm font-medium'>Your Library</div>
                         <div className='mt-0.5'><FolderOpen className='w-4 h-4' /></div>
                       </button>
                       <button
                         onClick={() => setMagicMediaModalOpen(true)}
-                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3'
+                        className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3'
                       >
                         <div className='text-sm font-medium'>Magic Media</div>
                         <div className='mt-0.5'><Film className='w-4 h-4' /></div>

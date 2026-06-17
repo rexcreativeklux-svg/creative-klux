@@ -181,7 +181,7 @@ export default function ImageGallery() {
                 </header>
 
                 <div className="mx-auto">
-                    <div className="bg-white rounded-md p-6 shadow mb-8">
+                    <div className="bg-surface rounded-md p-6 shadow mb-8">
                         <div className="flex flex-wrap gap-4 items-center">
                             <input
                                 type="text"
@@ -281,13 +281,13 @@ export default function ImageGallery() {
                                                         e.stopPropagation();
                                                         setOpenMenu(openMenu === id ? null : id);
                                                     }}
-                                                    className="absolute cursor-pointer top-2 text-white hover:text-black right-2 p-2 hover:bg-black/40 bg-black/60 backdrop-blur-sm rounded-full  transition-all duration-200 shadow z-10"
+                                                    className="absolute cursor-pointer top-2 text-white hover:text-gray-900 right-2 p-2 hover:bg-black/40 bg-black/60 backdrop-blur-sm rounded-full  transition-all duration-200 shadow z-10"
                                                 >
                                                     <MoreVertical size={12} />
                                                 </button>
 
                                                 {openMenu === id && (
-                                                    <div className="absolute top-12 right-0 bg-white rounded-xl shadow-2xl py-3 z-50 min-w-[210px] border border-gray-200">
+                                                    <div className="absolute top-12 right-0 bg-surface rounded-xl shadow-2xl py-3 z-50 min-w-[210px] border border-gray-200">
                                                         {isSearchTab ? (
                                                             <>
                                                                 {!isVid && (

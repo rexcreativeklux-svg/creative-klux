@@ -65,7 +65,7 @@ const T = {
   importBg:     "bg-rose-50/40",
   importBorder: "border-rose-100",
   stepActive:   "border-rose-500 bg-rose-500 text-white",
-  stepCurrent:  "border-rose-500 text-rose-600 bg-white",
+  stepCurrent:  "border-rose-500 text-rose-600 bg-surface",
   connector:    "bg-rose-500",
   pill:         "border-rose-500 bg-rose-50 text-rose-700",
   accent:       "accent-rose-500",
@@ -225,7 +225,7 @@ const DigitalBusinessCardForm = ({ formData, setFormData, activeBrand, showToast
       </div>
 
       {/* ── Form ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-lg p-2 flex flex-col gap-5">
+      <div className="bg-surface rounded-lg p-2 flex flex-col gap-5">
 
         {error && (
           <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -260,7 +260,7 @@ const DigitalBusinessCardForm = ({ formData, setFormData, activeBrand, showToast
                 />
                 <button
                   onClick={handleInspire}
-                  className="absolute bottom-3 left-3 text-xs font-semibold bg-white border border-gray-200 text-gray-500 hover:border-rose-400 hover:text-rose-600 px-3 py-1 rounded-lg cursor-pointer transition-all"
+                  className="absolute bottom-3 left-3 text-xs font-semibold bg-surface border border-gray-200 text-gray-500 hover:border-rose-400 hover:text-rose-600 px-3 py-1 rounded-lg cursor-pointer transition-all"
                 >
                   ✨ Inspire Me
                 </button>
@@ -550,7 +550,7 @@ const DigitalBusinessCardForm = ({ formData, setFormData, activeBrand, showToast
       {/* ── Fullscreen loading overlay ────────────────────────────────────── */}
       {generating && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-10">
+          <div className="bg-surface rounded-2xl p-10">
             <FloatingAnimation showProgressBar>
               <FloatingElements.ImageFile />
             </FloatingAnimation>

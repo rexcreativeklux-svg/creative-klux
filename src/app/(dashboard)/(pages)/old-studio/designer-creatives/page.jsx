@@ -419,7 +419,7 @@ const DesignerCreativesPage = () => {
                 {formatOptions.map((opt) => (
                   <div
                     key={opt.type}
-                    className="bg-white cursor-pointer rounded-xl hover:shadow-md border border-gray-200 p-6 transition-shadow group flex flex-col relative"
+                    className="bg-surface cursor-pointer rounded-xl hover:shadow-md border border-gray-200 p-6 transition-shadow group flex flex-col relative"
                   >
                     {loadingCard === opt.type && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/10 rounded-xl z-10">

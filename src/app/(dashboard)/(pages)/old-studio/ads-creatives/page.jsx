@@ -101,14 +101,14 @@ const AdsCreativesPage = () => {
       content: (
         <>
           <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-60 group-hover:animate-none"></div>
-          <div className="absolute top-4 left-4 w-8 h-6 bg-white/20 rounded opacity-70 group-hover:animate-pulse" style={{ animationDelay: "0s" }}></div>
-          <div className="absolute top-8 right-8 w-6 h-4 bg-white/15 rounded opacity-50 group-hover:animate-pulse" style={{ animationDelay: "1s" }}></div>
-          <div className="absolute bottom-6 left-8 w-10 h-3 bg-white/25 rounded opacity-60 group-hover:animate-pulse" style={{ animationDelay: "2s" }}></div>
+          <div className="absolute top-4 left-4 w-8 h-6 bg-surface/20 rounded opacity-70 group-hover:animate-pulse" style={{ animationDelay: "0s" }}></div>
+          <div className="absolute top-8 right-8 w-6 h-4 bg-surface/15 rounded opacity-50 group-hover:animate-pulse" style={{ animationDelay: "1s" }}></div>
+          <div className="absolute bottom-6 left-8 w-10 h-3 bg-surface/25 rounded opacity-60 group-hover:animate-pulse" style={{ animationDelay: "2s" }}></div>
           <div className="relative z-10 flex items-center justify-center">
             <div className="relative">
-              <div className="absolute inset-0 w-20 h-20 bg-white/20 rounded-full group-hover:animate-ping"></div>
-              <div className="absolute inset-0 w-20 h-20 bg-white/10 rounded-full group-hover:animate-pulse" style={{ animationDelay: "0.5s" }}></div>
-              <div className="relative w-20 h-20 bg-white/90 rounded-full flex items-center justify-center group-hover:bg-white transition-colors duration-300 shadow-lg">
+              <div className="absolute inset-0 w-20 h-20 bg-surface/20 rounded-full group-hover:animate-ping"></div>
+              <div className="absolute inset-0 w-20 h-20 bg-surface/10 rounded-full group-hover:animate-pulse" style={{ animationDelay: "0.5s" }}></div>
+              <div className="relative w-20 h-20 bg-surface/90 rounded-full flex items-center justify-center group-hover:bg-surface transition-colors duration-300 shadow-lg">
                 <Play className="w-8 h-8 text-gray-600 fill-current ml-1" strokeWidth={0} />
               </div>
             </div>
@@ -312,7 +312,7 @@ const AdsCreativesPage = () => {
               {creativeOptions.map((opt) => (
                 <div
                   key={opt.type}
-                  className="bg-white rounded-xl cursor-pointer hover:shadow-md border border-gray-200 px-6 py-5 transition-shadow group flex flex-col relative"
+                  className="bg-surface rounded-xl cursor-pointer hover:shadow-md border border-gray-200 px-6 py-5 transition-shadow group flex flex-col relative"
                 >
                   {loadingCard === opt.type && (
                     <div className="absolute z-20 inset-0 flex items-center justify-center bg-black/10 rounded-xl ">

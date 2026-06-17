@@ -97,7 +97,7 @@ export default function LibraryMediaModal({
       <Toast isOpen={toast.isOpen} message={toast.message} onClose={closeToast} duration={2500} />
 
       <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-[80%] h-[85%] flex flex-col">
+        <div className="bg-surface rounded-lg p-6 w-[80%] h-[85%] flex flex-col">
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-3">
@@ -176,7 +176,7 @@ export default function LibraryMediaModal({
                         </button>
 
                         {menuOpen === menuId && (
-                          <div className="absolute top-10 right-2 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
+                          <div className="absolute top-10 right-2 bg-surface rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();

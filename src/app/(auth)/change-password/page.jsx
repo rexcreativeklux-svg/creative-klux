@@ -53,7 +53,7 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="flex items-center justify-center h-screen">
-      <div className="p-10 bg-white border space-y-14 border-gray-200 rounded-lg w-full max-w-md">
+      <div className="p-10 bg-surface border space-y-14 border-gray-200 rounded-lg w-full max-w-md">
         <h1 className="text-3xl font-bold text-center mb-4">Change Password</h1>
         <p className="text-sm text-gray-600 text-center mb-6">
           Enter your new password for <strong>{email}</strong>
@@ -84,7 +84,7 @@ export default function ChangePasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full hover:cursor-pointer hover:bg-gray-200 hover:border hover:text-black py-3 bg-black rounded-4xl transition-all duration-300 text-white font-semibold"
+            className="w-full hover:cursor-pointer hover:bg-gray-200 hover:border hover:text-gray-900 py-3 bg-black rounded-4xl transition-all duration-300 text-white font-semibold"
           >
             {loading ? (
               <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto" />

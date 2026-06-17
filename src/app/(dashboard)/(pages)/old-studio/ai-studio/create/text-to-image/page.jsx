@@ -215,7 +215,7 @@ const TextToImagePipelinePage = () => {
         ]}
       />
 
-      <div className="flex flex-col overflow-hidden w-full mt-5 gap-6 bg-white rounded-xl py-4">
+      <div className="flex flex-col overflow-hidden w-full mt-5 gap-6 bg-surface rounded-xl py-4">
         <div className="overflow-auto space-y-6">
           {outputs.length === 0 ? (
             /* Input Section — Your Original Design 100% Preserved */
@@ -242,7 +242,7 @@ const TextToImagePipelinePage = () => {
                     />
                     <button
                       onClick={handleInspireMe}
-                      className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition duration-300 text-sm"
+                      className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition duration-300 text-sm"
                     >
                       Inspire Me
                     </button>
@@ -253,7 +253,7 @@ const TextToImagePipelinePage = () => {
                       <div className="relative" ref={styleDropdownRef}>
                         <button
                           onClick={toggleStyleDropdown}
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
                         >
                           {selectedStyle && (
                             <img
@@ -265,12 +265,12 @@ const TextToImagePipelinePage = () => {
                           {inputData.style || 'Select a style'}
                         </button>
                         {styleDropdownOpen && (
-                          <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-5 p-3">
+                          <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-5 p-3">
                             {styleOptions.map((option) => (
                               <button
                                 key={option.value}
                                 onClick={() => handleStyleChange(option.value)}
-                                className={`flex flex-col items-center p-2 border rounded-md transition duration-200 ${inputData.style === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-white hover:border-blue-700'
+                                className={`flex flex-col items-center p-2 border rounded-md transition duration-200 ${inputData.style === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-surface hover:border-blue-700'
                                   }`}
                               >
                                 <img
@@ -290,17 +290,17 @@ const TextToImagePipelinePage = () => {
                       <div className="relative" ref={layoutDropdownRef}>
                         <button
                           onClick={toggleLayoutDropdown}
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200"
                         >
                           {inputData.layout || 'Select a layout'}
                         </button>
                         {layoutDropdownOpen && (
-                          <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-3 gap-2 p-2">
+                          <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-3 gap-2 p-2">
                             {layoutOptions.map((option) => (
                               <button
                                 key={option.value}
                                 onClick={() => handleLayoutChange(option.value)}
-                                className={`flex flex-col items-center justify-center p-2 border rounded-md transition duration-200 ${inputData.layout === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-white hover:border-blue-700'
+                                className={`flex flex-col items-center justify-center p-2 border rounded-md transition duration-200 ${inputData.layout === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-surface hover:border-blue-700'
                                   }`}
                               >
                                 <div className="mb-2">{option.svg}</div>
@@ -332,7 +332,7 @@ const TextToImagePipelinePage = () => {
                   <h2 className="font-medium text-lg text-blue-700 mb-4">Generated Images</h2>
                   <div className="grid grid-cols-5 gap-4">
                     {staticImages.map((image, index) => (
-                      <div key={index} className="relative bg-white h-35 border border-gray-200 rounded-lg overflow-hidden">
+                      <div key={index} className="relative bg-surface h-35 border border-gray-200 rounded-lg overflow-hidden">
                         <img
                           src={image}
                           alt={`Sample Image ${index + 1}`}
@@ -370,7 +370,7 @@ const TextToImagePipelinePage = () => {
                 {outputs.map((output, index) => (
                   <div
                     key={output.id}
-                    className="relative bg-white border border-gray-200 rounded-lg overflow-hidden break-inside-avoid mb-4 hover:border-blue-700 transition duration-300"
+                    className="relative bg-surface border border-gray-200 rounded-lg overflow-hidden break-inside-avoid mb-4 hover:border-blue-700 transition duration-300"
                   >
                     <div className="absolute top-2 right-2 z-10">
                       <button
@@ -380,7 +380,7 @@ const TextToImagePipelinePage = () => {
                         <MoreVertical className="w-5 h-5 text-gray-600" />
                       </button>
                       {menuOpen === index && (
-                        <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+                        <div className="absolute right-0 mt-2 w-40 bg-surface border border-gray-200 rounded-md shadow-lg z-20">
                           <button
                             onClick={() => handleDownload(index)}
                             className="w-full cursor-pointer text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"

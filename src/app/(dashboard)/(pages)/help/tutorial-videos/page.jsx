@@ -100,7 +100,7 @@ export default function TutorialVideos() {
         return (
             <>
                 <div className="min-h-screen px-12 py-4">
-                    <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+                    <div className="text-center py-12 bg-surface rounded-xl border border-gray-200">
                         <Video className="w-16 h-16 text-red-300 mx-auto mb-4" />
                         <p className="text-red-500 text-lg mb-2">{tutorialVideosError}</p>
                         <button
@@ -153,7 +153,7 @@ export default function TutorialVideos() {
                             All Tutorials ({filteredTutorials.length})
                         </h2>
                         {filteredTutorials.length === 0 ? (
-                            <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+                            <div className="text-center py-12 bg-surface rounded-xl border border-gray-200">
                                 <Video className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">No tutorials found</p>
                                 <p className="text-gray-400 text-sm mt-2">
@@ -166,7 +166,7 @@ export default function TutorialVideos() {
                                     <div
                                         key={tutorial.id}
                                         onClick={() => setSelectedVideo(tutorial)}
-                                        className="group cursor-pointer bg-white rounded-xl overflow-hidden shadow hover:shadow-md transition-all duration-300 hover:-translate-y-1 border border-gray-100"
+                                        className="group cursor-pointer bg-surface rounded-xl overflow-hidden shadow hover:shadow-md transition-all duration-300 hover:-translate-y-1 border border-gray-100"
                                     >
                                         <div className="relative aspect-video bg-gray-900">
                                             <img
@@ -267,7 +267,7 @@ export default function TutorialVideos() {
                                                 </span>
                                             )}
                                             {selectedVideo.source && (
-                                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-50 text-black capitalize">
+                                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-50 text-gray-900 capitalize">
                                                     {selectedVideo.source}
                                                 </span>
                                             )}

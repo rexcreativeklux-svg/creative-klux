@@ -150,7 +150,7 @@ const ModernAdsPostPage = () => {
     };
 
     const AdPreview = () => (
-        <div className="bg-white rounded-2xl border border-gray-200">
+        <div className="bg-surface rounded-2xl border border-gray-200">
             <div className="pt-3">
                 <div className="flex space-x-2 px-2">
                     <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center">
@@ -198,7 +198,7 @@ const ModernAdsPostPage = () => {
                             <p className="text-xs text-gray-500 mb-">{url || 'url.com'}</p>
                             <h4 className="text-xs font-medium text-gray-900">Discover Cutting-Edge...</h4>
                         </div>
-                        <button className="hover:bg-gray-50 hover:border hover:border-blue-700 cursor-pointer text-black border border-gray-200 px-3 py-1.5 rounded-lg text-xs transition-colors">
+                        <button className="hover:bg-gray-50 hover:border hover:border-blue-700 cursor-pointer text-gray-900 border border-gray-200 px-3 py-1.5 rounded-lg text-xs transition-colors">
                             {conversionButton}
                         </button>
                     </div>
@@ -255,14 +255,14 @@ const ModernAdsPostPage = () => {
                                     type="url"
                                     value={url}
                                     onChange={(e) => setUrl(e.target.value)}
-                                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full px-4 py-3 bg-surface border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     placeholder="https://yourdomain.com"
                                 />
                             </div>
                         </>
 
                         {/* Project Name */}
-                        <div className="bg-white rounded-lg ">
+                        <div className="bg-surface rounded-lg ">
                             <div className="flex items-center space-x-2 mb-2">
                                 <div className="w-2 h-2 bg-blue-700 rounded-full"></div>
                                 <label className="text-sm font-medium text-gray-700">Project name</label>
@@ -277,7 +277,7 @@ const ModernAdsPostPage = () => {
                         </div>
 
                         {/* Ad Goal */}
-                        <div className="bg-white rounded-lg ">
+                        <div className="bg-surface rounded-lg ">
                             <div className="flex items-center space-x-2 mb-4">
                                 <div className="w-2 h-2 bg-blue-700 rounded-full"></div>
                                 <label className="text-sm font-medium text-gray-700">Ad Goal</label>
@@ -307,7 +307,7 @@ const ModernAdsPostPage = () => {
                         </div>
 
                         {/* Ad Conversion Button */}
-                        <div className="bg-white rounded-lg">
+                        <div className="bg-surface rounded-lg">
                             <div className="flex items-center space-x-2 mb-2">
                                 <div className="w-2 h-2 bg-blue-700 rounded-full"></div>
                                 <label className="text-sm font-medium text-gray-700">Ad Conversion Button</label>
@@ -317,7 +317,7 @@ const ModernAdsPostPage = () => {
                                 <select
                                     value={conversionButton}
                                     onChange={(e) => setConversionButton(e.target.value)}
-                                    className="w-full cursor-pointer px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                                    className="w-full cursor-pointer px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-surface"
                                 >
                                     {conversionButtons.map(button => (
                                         <option key={button} value={button}>{button}</option>
@@ -328,7 +328,7 @@ const ModernAdsPostPage = () => {
                         </div>
 
                         {/* Date Range */}
-                        <div className="bg-white rounded-xl">
+                        <div className="bg-surface rounded-xl">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className='flex flex-col pt-1'>
                                     <div className="flex items-center mb-4 space-x-2">
@@ -374,7 +374,7 @@ const ModernAdsPostPage = () => {
                         </div>
 
                         {/* Cities and Countries */}
-                        <div className="bg-white">
+                        <div className="bg-surface">
                             <div className="flex items-center space-x-2 mb-2">
                                 <div className="w-2 h-2 bg-blue-700 rounded-full"></div>
                                 <label className="text-sm font-medium text-gray-700">Cities and Countries to Advertise</label>
@@ -384,7 +384,7 @@ const ModernAdsPostPage = () => {
                                 <select
                                     value={selectedCountry}
                                     onChange={(e) => setSelectedCountry(e.target.value)}
-                                    className="w-full cursor-pointer px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                                    className="w-full cursor-pointer px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-surface"
                                 >
                                     {countries.map(country => (
                                         <option key={country} value={country}>{country}</option>
@@ -404,7 +404,7 @@ const ModernAdsPostPage = () => {
                     {/* Right Column - Budget, Ad Sets, Preview */}
                     <div className="w-[50%] flex rounded-xl border border-gray-200 flex-col space-y-6 overflow-y-auto max-h-[80vh]">
                         {/* Daily Budget */}
-                        <div className="bg-white py-6 px-5">
+                        <div className="bg-surface py-6 px-5">
                             <div className="flex items-center space-x-2 mb-">
                                 <Calendar className="w-5 h-5 text-blue-700" />
                                 <label className="text-sm font-medium text-gray-700">Daily Budget</label>
@@ -454,7 +454,7 @@ const ModernAdsPostPage = () => {
                         </div>
 
                         {/* Ad Sets */}
-                        <div className="bg-white p-3 flex-1">
+                        <div className="bg-surface p-3 flex-1">
                             <div className="flex items-center justify-end mb-5">
                                 <div className="flex items-center border border-blue-700 p-2 hover:bg-gray-100 rounded-xl space-x-1 text-blue-700 hover:text-blue-800 cursor-pointer">
                                     <Upload className="w-4 h-4" />

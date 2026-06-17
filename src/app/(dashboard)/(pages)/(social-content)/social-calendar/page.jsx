@@ -43,7 +43,7 @@ function PostPill({ post, onDelete }) {
   const meta = PLATFORM_META[post.platform] || { label: post.platform, emoji: '🌐' };
   const borderColor = STATUS_BORDER[post.status] || 'border-l-gray-300';
   return (
-    <div className={'group flex cursor-pointer items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] border-l-2 bg-white hover:bg-gray-50 transition-all cursor-default ' + borderColor}>
+    <div className={'group flex cursor-pointer items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] border-l-2 bg-surface hover:bg-gray-50 transition-all cursor-default ' + borderColor}>
       <span>{meta.emoji}</span>
       <span className="text-gray-700 truncate flex-1 min-w-0">{post.project_title}</span>
       <button
@@ -138,7 +138,7 @@ export default function SocialContentCalendar() {
       {/* ── Month nav ── */}
       <div className="flex items-center gap-4 mb-4">
         <button
-          className="h-8 w-8 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-all duration-200"
+          className="h-8 w-8 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-surface text-gray-600 hover:bg-gray-50 transition-all duration-200"
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
         >
           <ChevronLeft className="w-4 h-4" />
@@ -147,7 +147,7 @@ export default function SocialContentCalendar() {
           {format(currentMonth, 'MMMM yyyy')}
         </h2>
         <button
-          className="h-8 w-8 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+          className="h-8 w-8 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-surface text-gray-600 hover:bg-gray-50 transition-colors"
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
         >
           <ChevronRight className="w-4 h-4" />
@@ -164,7 +164,7 @@ export default function SocialContentCalendar() {
 
         {/* ── Calendar grid ── */}
         <div className="lg:col-span-3">
-          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-gray-200 bg-surface overflow-hidden">
             {/* Day headers */}
             <div className="grid grid-cols-7 border-b border-gray-100">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
@@ -219,7 +219,7 @@ export default function SocialContentCalendar() {
 
         {/* ── Day detail panel ── */}
         <div className="lg:col-span-1">
-          <div className="rounded-xl border border-gray-200 bg-white p-4 sticky top-6">
+          <div className="rounded-xl border border-gray-200 bg-surface p-4 sticky top-6">
             {selectedDay ? (
               <>
                 <div className="flex items-center gap-2 mb-4">
@@ -232,7 +232,7 @@ export default function SocialContentCalendar() {
                   <div className="text-center py-8">
                     <p className="text-xs text-gray-400">No posts on this day</p>
                     <Link href="/creatives">
-                      <button className="mt-3 inline-flex cursor-pointer items-center gap-1 px-3 py-1.5 rounded-md border border-gray-200 text-xs text-gray-600 bg-white hover:bg-gray-50 transition-colors">
+                      <button className="mt-3 inline-flex cursor-pointer items-center gap-1 px-3 py-1.5 rounded-md border border-gray-200 text-xs text-gray-600 bg-surface hover:bg-gray-50 transition-colors">
                         <Plus className="w-3 h-3" /> Schedule a post
                       </button>
                     </Link>

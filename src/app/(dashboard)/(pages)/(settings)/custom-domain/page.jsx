@@ -80,7 +80,7 @@ const CustomDomainIntegration = () => {
   };
 
   return (
-    <div className="w-full mx-auto bg-white p-3 rounded-lg">
+    <div className="w-full mx-auto bg-surface p-3 rounded-lg">
       {/* Header */}
       <div className="space-y-2 pb-10">
         <h1 className="font-semibold text-2xl">Resell accounts</h1>
@@ -148,7 +148,7 @@ const CustomDomainIntegration = () => {
               <select
                 value={selectedWebsite}
                 onChange={(e) => setSelectedWebsite(e.target.value)}
-                className="w-full appearance-none cursor-pointer placeholder:text-sm bg-white border border-gray-300 rounded-lg px-4 py-3 pr-10 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none text-gray-700"
+                className="w-full appearance-none cursor-pointer placeholder:text-sm bg-surface border border-gray-300 rounded-lg px-4 py-3 pr-10 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none text-gray-700"
               >
                 {websites.map((website) => (
                   <option key={website.value} className='placeholder:text-sm' value={website.value}>
@@ -194,7 +194,7 @@ const CustomDomainIntegration = () => {
             <select
               value={entriesPerPage}
               onChange={(e) => setEntriesPerPage(Number(e.target.value))}
-              className="appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none"
+              className="appearance-none bg-surface border border-gray-300 rounded-lg px-3 py-2 pr-8 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
@@ -239,7 +239,7 @@ const CustomDomainIntegration = () => {
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-surface divide-y divide-gray-200">
             {paginatedDomains.length === 0 ? (
               <tr>
                 <td colSpan="4" className="px-6 py-12 text-center text-gray-500">

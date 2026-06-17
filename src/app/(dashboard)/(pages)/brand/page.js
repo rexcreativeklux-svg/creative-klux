@@ -29,7 +29,7 @@ export default function Brand({ activePanel, setActivePanel }) {
             className={`block ${
               isActive("create") 
                 ? "text-[#155dfc] font-medium cursor-pointer" 
-                : "text-black cursor-pointer transition-all duration-300 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc]"
+                : "text-gray-900 cursor-pointer transition-all duration-300 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc]"
             }`}
           >
             Create BrandKit
@@ -49,7 +49,7 @@ export default function Brand({ activePanel, setActivePanel }) {
             className={`block ${
               isActive("reuse") 
                 ? "text-[#155dfc] font-medium cursor-pointer" 
-                : "text-black cursor-pointer transition-all duration-300 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc]"
+                : "text-gray-900 cursor-pointer transition-all duration-300 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc]"
             }`}
           >
             BrandKits

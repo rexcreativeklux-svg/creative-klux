@@ -42,7 +42,7 @@ function ScrollRow({ children }) {
             {canLeft && (
                 <button
                     onClick={() => scroll(-1)}
-                    className="absolute left-1 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-md border border-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-50 opacity-0 group-hover/row:opacity-100 transition-opacity cursor-pointer"
+                    className="absolute left-1 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-surface shadow-md border border-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-50 opacity-0 group-hover/row:opacity-100 transition-opacity cursor-pointer"
                     aria-label="Scroll left"
                 >
                     <ChevronLeft className="w-5 h-5" />
@@ -51,7 +51,7 @@ function ScrollRow({ children }) {
             {canRight && (
                 <button
                     onClick={() => scroll(1)}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-md border border-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-50 opacity-0 group-hover/row:opacity-100 transition-opacity cursor-pointer"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-surface shadow-md border border-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-50 opacity-0 group-hover/row:opacity-100 transition-opacity cursor-pointer"
                     aria-label="Scroll right"
                 >
                     <ChevronRight className="w-5 h-5" />
@@ -162,7 +162,7 @@ export default function BatchPage() {
                         </button>
                         <button
                             onClick={() => folderInputRef.current?.click()}
-                            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
+                            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-surface border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                             <Folder className="w-4 h-4" />
                             Import folder
@@ -227,7 +227,7 @@ export default function BatchPage() {
                         className="group/tile flex-shrink-0 w-28 h-40 rounded-2xl overflow-hidden relative cursor-pointer"
                     >
                         <img src={SNEAKER} alt="sneaker" className="w-full h-full object-cover" />
-                        <span className="absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-md flex items-center justify-center shadow-sm z-10">
+                        <span className="absolute top-2 right-2 w-6 h-6 bg-surface/90 rounded-md flex items-center justify-center shadow-sm z-10">
                             <Sparkles className="w-3.5 h-3.5 text-blue-600" />
                         </span>
                         <div className="absolute inset-0 bg-gray-900/30 translate-y-full group-hover/tile:translate-y-0 transition-transform duration-300" />

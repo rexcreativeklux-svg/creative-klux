@@ -169,7 +169,7 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
                 />
                 <button
                   onClick={handleInspireMe}
-                  className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition text-sm"
+                  className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition text-sm"
                 >
                   Inspire Me
                 </button>
@@ -180,7 +180,7 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
                 <div className="relative " ref={styleDropdownRef}>
                   <button
                     onClick={toggleStyleDropdown}
-                    className="w-full p-3 border cursor-pointer bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 flex items-center gap-2"
+                    className="w-full p-3 border cursor-pointer bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 flex items-center gap-2"
                   >
                     {selectedStyle && (
                       <img src={selectedStyle.image} alt={selectedStyle.label} className="w-6 h-6 object-cover rounded" />
@@ -189,7 +189,7 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
                   </button>
 
                   {styleDropdownOpen && (
-                    <div className="absolute  z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-4 p-4 max-h-96 overflow-y-auto">
+                    <div className="absolute  z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-4 p-4 max-h-96 overflow-y-auto">
                       {styleOptions.map((option) => (
                         <button
                           key={option.value}
@@ -230,7 +230,7 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
         </div>
       ) : (
         <div className="p-3 relative">
-          <div className='flex sticky top-0 pt-3  z-50 bg-white flex-row border-b border-b-gray-200  justify-between'>
+          <div className='flex sticky top-0 pt-3  z-50 bg-surface flex-row border-b border-b-gray-200  justify-between'>
             <h2 className="font-medium px-2 flex justify-center items-center text-lg text-blue-700 mb-4">
               Generated Personas
             </h2>
@@ -288,7 +288,7 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
 
                     {/* Dropdown Menu */}
                     {menuOpen === menuId && (
-                      <div className="absolute top-10 right-2 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
+                      <div className="absolute top-10 right-2 bg-surface rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

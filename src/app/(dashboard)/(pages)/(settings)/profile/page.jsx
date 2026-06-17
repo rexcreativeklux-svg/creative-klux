@@ -176,7 +176,7 @@ export default function AccountSettings() {
       {/* ── PROFILE ─────────────────────────────────── */}
       <form
         onSubmit={handleProfileSave}
-        className="bg-white border border-gray-200 rounded-xl p-6 space-y-5"
+        className="bg-surface border border-gray-200 rounded-xl p-6 space-y-5"
       >
         <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">
           Profile
@@ -234,7 +234,7 @@ export default function AccountSettings() {
       </form>
 
       {/* ── PASSWORD ────────────────────────────────── */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
+      <div className="bg-surface border border-gray-200 rounded-xl p-6 space-y-5">
         <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">
           Password
         </p>
@@ -284,7 +284,7 @@ export default function AccountSettings() {
       </div>
 
       {/* ── SESSIONS ────────────────────────────────── */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+      <div className="bg-surface border border-gray-200 rounded-xl p-6 space-y-4">
         <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">
           Active sessions
         </p>
@@ -299,7 +299,7 @@ export default function AccountSettings() {
               key={s.id}
               className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-3"
             >
-              <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-surface border border-gray-200 flex items-center justify-center flex-shrink-0">
                 {s.device?.includes("iPhone") ? (
                   <Smartphone size={13} className="text-gray-500" />
                 ) : (
@@ -365,7 +365,7 @@ export default function AccountSettings() {
       {/* ── CONFIRM DELETE MODAL ──────────────────────── */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl border border-gray-200 p-6 w-80 shadow-xl space-y-3">
+          <div className="bg-surface rounded-xl border border-gray-200 p-6 w-80 shadow-xl space-y-3">
             <h3 className="text-base font-medium text-gray-900">
               Delete your account?
             </h3>

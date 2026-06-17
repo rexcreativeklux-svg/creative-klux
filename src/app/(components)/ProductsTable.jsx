@@ -170,7 +170,7 @@ export default function ProductsTable() {
                     <MoreVertical className="w-4 h-4" />
                 </button>
                 {isOpen && (
-                    <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                    <div className="absolute right-0 mt-1 w-32 bg-surface border border-gray-200 rounded-md shadow-lg z-10">
                         <button
                             onClick={() => { toggleStatus(item.id); setIsOpen(false); }}
                             className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center"
@@ -273,7 +273,7 @@ export default function ProductsTable() {
                                 setIsCardView(false);
                                 console.log("View toggled: Table");
                             }}
-                            className={`p-1 rounded-md transition duration-300 ${!isCardView ? "bg-blue-600 text-white" : "text-black"}`}
+                            className={`p-1 rounded-md transition duration-300 ${!isCardView ? "bg-blue-600 text-white" : "text-gray-900"}`}
                         >
                             <List strokeWidth={1.5} size={20} />
                         </button>
@@ -282,7 +282,7 @@ export default function ProductsTable() {
                                 setIsCardView(true);
                                 console.log("View toggled: Card");
                             }}
-                            className={`p-1 rounded-md transition duration-300 ${isCardView ? "bg-blue-600 text-white" : "text-black"}`}
+                            className={`p-1 rounded-md transition duration-300 ${isCardView ? "bg-blue-600 text-white" : "text-gray-900"}`}
                         >
                             <Grip strokeWidth={1.5} size={20} />
                         </button>
@@ -315,7 +315,7 @@ export default function ProductsTable() {
                     {paginatedData.map((item) => (
                         <div
                             key={item.id}
-                            className="bg-white border border-gray-200 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
+                            className="bg-surface border border-gray-200 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
                         >
                             <div className="flex justify-between items-center pb-2 gap-3">
                                 <div className="flex items-center gap-3">
@@ -371,7 +371,7 @@ export default function ProductsTable() {
                     ))}
                 </div>
             ) : (
-                <div className="bg-white rounded-tl-lg rounded-tr-lg border border-gray-200 overflow-hidden max-h-[700px] overflow-y-auto">
+                <div className="bg-surface rounded-tl-lg rounded-tr-lg border border-gray-200 overflow-hidden max-h-[700px] overflow-y-auto">
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-100 sticky top-0 z-10">
@@ -443,7 +443,7 @@ export default function ProductsTable() {
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-surface divide-y divide-gray-200">
                                 {paginatedData.map((item) => (
                                     <tr key={item.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4">
@@ -499,7 +499,7 @@ export default function ProductsTable() {
             )}
 
             {/* Pagination */}
-            <div className="bg-white px-6 py-6.5 flex items-center justify-between border border-gray-200 rounded-br-lg rounded-bl-lg">
+            <div className="bg-surface px-6 py-6.5 flex items-center justify-between border border-gray-200 rounded-br-lg rounded-bl-lg">
                 <div className="flex items-center space-x-2">
                     <button
                         onClick={() => setCurrentPage(page => Math.max(1, page - 1))}

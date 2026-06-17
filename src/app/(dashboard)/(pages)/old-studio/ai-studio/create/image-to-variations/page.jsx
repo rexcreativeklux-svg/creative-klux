@@ -234,7 +234,7 @@ const ImageToVariationsPipelinePage = () => {
 
       <div className="font-medium text-xl mb-6">Image to Variations</div>
 
-      <div className="flex flex-col overflow-hidden w-full mt-5 gap-6 bg-white rounded-xl py-4">
+      <div className="flex flex-col overflow-hidden w-full mt-5 gap-6 bg-surface rounded-xl py-4">
         <div className="overflow-auto space-y-6">
           
 
@@ -269,11 +269,11 @@ const ImageToVariationsPipelinePage = () => {
                 <h3 className="text-md font-semibold text-gray-700">Upload Image</h3>
                 <p className="text-gray-500 text-xs">Choose from your library or search</p>
                 <div className="flex gap-4">
-                  <button onClick={() => setSearchModalOpen(true)} className="flex border hover:border-blue-700 cursor-pointer border-gray-200 py-2 px-4 rounded-md bg-white gap-3 items-center">
+                  <button onClick={() => setSearchModalOpen(true)} className="flex border hover:border-blue-700 cursor-pointer border-gray-200 py-2 px-4 rounded-md bg-surface gap-3 items-center">
                     <div className="text-sm font-medium">Search Images</div>
                     <FileSearch className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setLibraryModalOpen(true)} className="flex border hover:border-blue-700 cursor-pointer border-gray-200 py-2 px-4 rounded-md bg-white gap-3 items-center">
+                  <button onClick={() => setLibraryModalOpen(true)} className="flex border hover:border-blue-700 cursor-pointer border-gray-200 py-2 px-4 rounded-md bg-surface gap-3 items-center">
                     <div className="text-sm font-medium">Your Library</div>
                     <FolderOpen className="w-4 h-4" />
                   </button>
@@ -301,12 +301,12 @@ const ImageToVariationsPipelinePage = () => {
               <div className="space-y-4">
                 <label className="text-sm font-medium text-gray-700 block">Style</label>
                 <div className="relative" ref={styleDropdownRef}>
-                  <button onClick={() => setStyleDropdownOpen(!styleDropdownOpen)} className="w-full p-3 border bg-white border-gray-200 rounded-md text-left flex items-center gap-3">
+                  <button onClick={() => setStyleDropdownOpen(!styleDropdownOpen)} className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left flex items-center gap-3">
                     {selectedStyle && <img src={selectedStyle.image} alt="" className="w-8 h-8 object-cover rounded" />}
                     <span className="text-gray-700">{inputData.style || 'Select a style'}</span>
                   </button>
                   {styleDropdownOpen && (
-                    <div className="absolute z-10 bottom-14 w-full bg-white border border-gray-200 rounded-lg shadow-xl p-4 grid grid-cols-5 gap-4">
+                    <div className="absolute z-10 bottom-14 w-full bg-surface border border-gray-200 rounded-lg shadow-xl p-4 grid grid-cols-5 gap-4">
                       {styleOptions.map(option => (
                         <button key={option.value} onClick={() => handleStyleChange(option.value)} className={`p-3 rounded-lg border ${inputData.style === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200'} hover:border-blue-700 transition`}>
                           <img src={option.image} alt={option.label} className="w-full cursor-pointer h-28 object-cover rounded mb-2" />
@@ -326,7 +326,7 @@ const ImageToVariationsPipelinePage = () => {
 
             /* OUTPUT SECTION - BEAUTIFUL MASONRY */
             <div className="border border-gray-200 p-3 rounded-lg">
-              <div className="sticky top-0 z-50 bg-white border-b border-gray-200 pb-4 mb-6 flex justify-between items-center">
+              <div className="sticky top-0 z-50 bg-surface border-b border-gray-200 pb-4 mb-6 flex justify-between items-center">
                 <div>
                   <h1 className="font-medium text-lg text-blue-700">Generated Variations</h1>
                   <p className="text-xs text-gray-600">Click any variation to select • Use menu for actions</p>
@@ -347,7 +347,7 @@ const ImageToVariationsPipelinePage = () => {
                       className="relative group break-inside-avoid mb-4 cursor-pointer"
                       onClick={() => toggleVariationSelect(variation)}
                     >
-                      <div className={`relative bg-white border-2 rounded-md overflow-visible transition-all `}>
+                      <div className={`relative bg-surface border-2 rounded-md overflow-visible transition-all `}>
                         <img src={variation.src} alt={variation.alt} className="w-full rounded-md h-auto" loading="lazy" />
 
                         {/* Selected Checkmark */}
@@ -372,7 +372,7 @@ const ImageToVariationsPipelinePage = () => {
 
                         {/* Dropdown Menu */}
                         {menuOpen === menuId && (
-                          <div className="absolute top-10 right-2 z-20 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 w-48">
+                          <div className="absolute top-10 right-2 z-20 bg-surface rounded-lg shadow-2xl border border-gray-200 py-2 w-48">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

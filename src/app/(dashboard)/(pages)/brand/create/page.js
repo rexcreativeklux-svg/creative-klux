@@ -25,7 +25,7 @@ export default function CreateBrand({ isEditing, brandDraft }) {
             <button
               onClick={() => setActiveCreateTab("import")}
               className={`font-medium transition cursor-pointer text-sm duration-300 ${
-                activeCreateTab === "import" ? "border-b text-[#155dfc] border-[#155dfc]" : "text-black"
+                activeCreateTab === "import" ? "border-b text-[#155dfc] border-[#155dfc]" : "text-gray-900"
               }`}
             >
               <span className="pr-1">Smart Import</span>
@@ -36,7 +36,7 @@ export default function CreateBrand({ isEditing, brandDraft }) {
             <button
               onClick={() => setActiveCreateTab("manual")}
               className={`font-medium cursor-pointer text-sm transition duration-300 ${
-                activeCreateTab === "manual" ? "border-b text-[#155dfc] border-[#155dfc]" : "text-black"
+                activeCreateTab === "manual" ? "border-b text-[#155dfc] border-[#155dfc]" : "text-gray-900"
               }`}
             >
               <span className="pr-1">Manual Creation</span>

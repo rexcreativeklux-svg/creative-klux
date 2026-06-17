@@ -186,7 +186,7 @@ export default function RivalLensPage() {
       </div>
 
       {/* ── search bar — always visible ── */}
-      <div className="bg-white border border-gray-200 rounded-xl px-3 py-3 sticky top-[49px] z-10">
+      <div className="bg-surface border border-gray-200 rounded-xl px-3 py-3 sticky top-[49px] z-10">
         <div className="">
           {!result && (
             <p className="text-xs font-semibold text-gray-500 mb-2">Analyze a Competitor</p>
@@ -293,7 +293,7 @@ export default function RivalLensPage() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.18, delay: i * 0.05 }}
-                    className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4"
+                    className="bg-surface rounded-xl border border-gray-100 shadow-sm px-5 py-4"
                   >
                     <p className="text-xs text-gray-400 font-medium mb-1">{k.label}</p>
                     <p className="text-2xl font-bold text-gray-900">{k.value}</p>
@@ -317,7 +317,7 @@ export default function RivalLensPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, delay: 0.3 }}
-                  className="bg-white rounded-xl border border-gray-100 shadow-sm p-5"
+                  className="bg-surface rounded-xl border border-gray-100 shadow-sm p-5"
                 >
                   <p className="text-sm font-semibold text-gray-900 mb-4">Audience Gender</p>
                   <div className="flex rounded-full overflow-hidden h-8 mb-3">
@@ -344,7 +344,7 @@ export default function RivalLensPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, delay: 0.35 }}
-                  className="bg-white rounded-xl border border-gray-100 shadow-sm p-5"
+                  className="bg-surface rounded-xl border border-gray-100 shadow-sm p-5"
                 >
                   <p className="text-sm font-semibold text-gray-900 mb-2">Age Distribution</p>
                   <AgeBar data={result.age} animated={animBars} />
@@ -358,7 +358,7 @@ export default function RivalLensPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, delay: 0.4 }}
-                  className="bg-white rounded-xl border border-gray-100 shadow-sm p-5"
+                  className="bg-surface rounded-xl border border-gray-100 shadow-sm p-5"
                 >
                   <p className="text-sm font-semibold text-gray-900 mb-4">Traffic Sources</p>
                   <div className="flex items-center gap-6">
@@ -384,7 +384,7 @@ export default function RivalLensPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, delay: 0.45 }}
-                  className="bg-white rounded-xl border border-gray-100 shadow-sm p-5"
+                  className="bg-surface rounded-xl border border-gray-100 shadow-sm p-5"
                 >
                   <p className="text-sm font-semibold text-gray-900 mb-4">Socioeconomic Profile</p>
                   <div className="flex flex-col gap-3">
@@ -402,7 +402,7 @@ export default function RivalLensPage() {
               <motion.div
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: 0.5 }}
-                className="bg-white rounded-xl border border-gray-100 shadow-sm p-5"
+                className="bg-surface rounded-xl border border-gray-100 shadow-sm p-5"
               >
                 <p className="text-sm font-semibold text-gray-900 mb-4">Top Keywords Driving Traffic</p>
                 <table className="w-full">

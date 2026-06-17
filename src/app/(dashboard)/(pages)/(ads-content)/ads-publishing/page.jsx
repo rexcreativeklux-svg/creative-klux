@@ -108,7 +108,7 @@ function StatusBadge({ post }) {
 
 function SummaryCard({ label, value, Icon }) {
   return (
-    <div className="rounded-xl bg-white border border-gray-200 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
+    <div className="rounded-xl bg-surface border border-gray-200 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
       <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: BRAND_LIGHT }}>
         <Icon className="w-4 h-4" style={{ color: BRAND }} />
       </div>
@@ -332,7 +332,7 @@ export default function AdsPublishing() {
         <div className="flex items-center gap-2">
           {hasConnections && (
             <button
-              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-sm transition-colors disabled:opacity-50"
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-surface text-gray-700 hover:bg-gray-50 shadow-sm transition-colors disabled:opacity-50"
               onClick={() => mergeLiveIntoLocal(false)}
               disabled={fetchingLive}
             >
@@ -364,7 +364,7 @@ export default function AdsPublishing() {
 
       {/* ── Status Tabs ── */}
       {posts.length > 0 && (
-        <div className="flex items-center border-b border-gray-200 bg-white rounded-t-xl px-2 shadow-sm">
+        <div className="flex items-center border-b border-gray-200 bg-surface rounded-t-xl px-2 shadow-sm">
           {TABS.map(tab => (
             <button
               key={tab.key}
@@ -388,7 +388,7 @@ export default function AdsPublishing() {
 
       {/* ── Filter Bar ── */}
       {posts.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-white border-x border-b border-gray-200 rounded-b-xl mb-6 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-surface border-x border-b border-gray-200 rounded-b-xl mb-6 shadow-sm">
           <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-9">
             <Filter className="w-3.5 h-3.5 text-gray-400" />
             <select
@@ -426,7 +426,7 @@ export default function AdsPublishing() {
 
       {/* ── Empty: filters active but no results ── */}
       {filteredPosts.length === 0 && posts.length > 0 && (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-white p-12 text-center shadow-sm">
+        <div className="rounded-xl border border-dashed border-gray-200 bg-surface p-12 text-center shadow-sm">
           <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
             <Search className="w-5 h-5 text-gray-400" />
           </div>
@@ -443,7 +443,7 @@ export default function AdsPublishing() {
 
       {/* ── Empty: no ads at all ── */}
       {posts.length === 0 && (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-white p-16 text-center shadow-sm">
+        <div className="rounded-xl border border-dashed border-gray-200 bg-surface p-16 text-center shadow-sm">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: BRAND_LIGHT }}>
             <Calendar className="w-7 h-7" style={{ color: BRAND }} />
           </div>
@@ -463,7 +463,7 @@ export default function AdsPublishing() {
 
       {/* ── Table ── */}
       {pagedPosts.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+        <div className="rounded-xl border border-gray-200 bg-surface overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -488,7 +488,7 @@ export default function AdsPublishing() {
                   return (
                     <tr
                       key={post.id}
-                      className={`border-b border-gray-100 transition-colors hover:bg-blue-50/40 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
+                      className={`border-b border-gray-100 transition-colors hover:bg-blue-50/40 ${i % 2 === 0 ? 'bg-surface' : 'bg-gray-50/50'}`}
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">

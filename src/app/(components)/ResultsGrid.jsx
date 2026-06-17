@@ -52,7 +52,7 @@ const ResultsGrid = ({
     };
 
     return (
-        <div className="flex flex-col overflow-hidden w-full mt-3 justify-between gap-6 bg-white rounded-lg py-4">
+        <div className="flex flex-col overflow-hidden w-full mt-3 justify-between gap-6 bg-surface rounded-lg py-4">
             <div className='flex flex-row justify-between'>
                 <div className="font-medium text-lg text-blue-700 flex justify-center items-center">{title}</div>
 
@@ -81,7 +81,7 @@ const ResultsGrid = ({
                     </button>
                     <button
                         onClick={() => onBulkSchedule && onBulkSchedule()}
-                        className="px-4 py-2 bg-white text-black hover:text-blue-700 rounded-md cursor-pointer border hover:bg-gray-50 hover:border-blue-700 transition duration-300 flex items-center gap-2"
+                        className="px-4 py-2 bg-surface text-gray-900 hover:text-blue-700 rounded-md cursor-pointer border hover:bg-gray-50 hover:border-blue-700 transition duration-300 flex items-center gap-2"
                     >
                         <Calendar className="w-4 h-4" /> Schedule Ad
                     </button>
@@ -90,7 +90,7 @@ const ResultsGrid = ({
                             const asset = assets.find(a => a.id === selectedAsset);
                             if (asset) handleDownload(asset);
                         }}
-                        className="px-4 py-2 bg-black text-white rounded-md cursor-pointer hover:bg-white hover:border hover:border-blue-700 hover:text-blue-700 transition duration-300 flex items-center gap-2"
+                        className="px-4 py-2 bg-black text-white rounded-md cursor-pointer hover:bg-surface hover:border hover:border-blue-700 hover:text-blue-700 transition duration-300 flex items-center gap-2"
                     >
                         <Download className="w-4 h-4" /> Download Ad
                     </button>
@@ -129,7 +129,7 @@ const ResultsGrid = ({
                             >
                                 {/* Rating */}
                                 {asset.rating !== undefined && (
-                                    <div className="py-3 px-2 bg-white">
+                                    <div className="py-3 px-2 bg-surface">
                                         <p className="text-sm text-gray-800 font-medium">Rating: {asset.rating}/100</p>
                                     </div>
                                 )}
@@ -181,7 +181,7 @@ const ResultsGrid = ({
                                                     className="w-full h-full object-cover"
                                                 />
                                                 <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                                    <div className="bg-white/90 rounded-full p-4">
+                                                    <div className="bg-surface/90 rounded-full p-4">
                                                         <svg className="w-8 h-8 text-blue-700" fill="currentColor" viewBox="0 0 24 24">
                                                             <path d="M8 5v14l11-7z" />
                                                         </svg>
@@ -199,7 +199,7 @@ const ResultsGrid = ({
                                 </div>
 
                                 {/* Caption & Brand Name */}
-                                <div className="py-4 px-2 bg-white">
+                                <div className="py-4 px-2 bg-surface">
                                     {caption && (
                                         <p className="text-sm text-gray-800 truncate">Caption: {caption}</p>
                                     )}
@@ -217,7 +217,7 @@ const ResultsGrid = ({
                                         e.stopPropagation();
                                         setMenuOpen(menuOpen === asset.id ? null : asset.id);
                                     }}
-                                    className="absolute top-16 right-2 p-1 bg-white rounded-full border border-gray-200 hover:bg-gray-100 cursor-pointer transition duration-300 shadow-md z-10"
+                                    className="absolute top-16 right-2 p-1 bg-surface rounded-full border border-gray-200 hover:bg-gray-100 cursor-pointer transition duration-300 shadow-md z-10"
                                 >
                                     <MoreVertical className="w-4 h-4 text-gray-600" />
                                 </button>
@@ -226,7 +226,7 @@ const ResultsGrid = ({
                                 {menuOpen === asset.id && (
                                     <div 
                                         onClick={(e) => e.stopPropagation()} 
-                                        className="absolute top-24 right-2 bg-white border border-gray-200 rounded-md shadow-lg z-20 min-w-[140px]"
+                                        className="absolute top-24 right-2 bg-surface border border-gray-200 rounded-md shadow-lg z-20 min-w-[140px]"
                                     >
                                         <button 
                                             onClick={() => handlePostNow(asset)} 

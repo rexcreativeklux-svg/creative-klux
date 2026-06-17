@@ -46,7 +46,7 @@ const ImageCropperModal = forwardRef(({
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-surface rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex justify-between items-center p-6">
           <h2 className="text-md font-medium text-gray-800">

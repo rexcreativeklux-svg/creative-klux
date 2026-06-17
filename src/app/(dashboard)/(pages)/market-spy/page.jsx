@@ -35,7 +35,7 @@ function StatCard({ label, value, change, Icon, delay = 0 }) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className="bg-white border border-gray-200 rounded-2xl p-5 "
+      className="bg-surface border border-gray-200 rounded-2xl p-5 "
     >
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</p>
@@ -67,7 +67,7 @@ function Card({ children, className = "", delay = 0 }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className={`bg-white border border-gray-200 rounded-2xl p-6  ${className}`}
+      className={`bg-surface border border-gray-200 rounded-2xl p-6  ${className}`}
     >
       {children}
     </motion.div>
@@ -153,7 +153,7 @@ export default function CompetitorInsights() {
 
         {/* ── Search bar ── */}
         <div className="flex gap-3 mb-6">
-          <div className="flex-1 flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3  focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
+          <div className="flex-1 flex items-center gap-3 bg-surface border border-gray-200 rounded-xl px-4 py-3  focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
             <Globe className="w-4 h-4 text-gray-400 shrink-0" />
             <input
               value={url}
@@ -186,7 +186,7 @@ export default function CompetitorInsights() {
 
         {/* ── Empty state ── */}
         {!data && !loading && !error && (
-          <div className="flex items-center justify-center py-24 bg-white border border-gray-200 rounded-2xl ">
+          <div className="flex items-center justify-center py-24 bg-surface border border-gray-200 rounded-2xl ">
             <div className="text-center">
               <div className="w-16 h-16 rounded-2xl bg-pink-50 flex items-center justify-center mx-auto mb-4">
                 <Users className="w-7 h-7 text-pink-300" />
@@ -199,7 +199,7 @@ export default function CompetitorInsights() {
 
         {/* ── Loading ── */}
         {loading && (
-          <div className="flex items-center justify-center py-24 bg-white border border-gray-200 rounded-2xl ">
+          <div className="flex items-center justify-center py-24 bg-surface border border-gray-200 rounded-2xl ">
             <div className="text-center">
               <Loader2 className="w-10 h-10 animate-spin text-pink-500 mx-auto mb-4" />
               <p className="text-gray-400 text-sm">Analyzing competitor data…</p>
@@ -253,7 +253,7 @@ export default function CompetitorInsights() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 + i * 0.04 }}
-                    className="bg-white border border-gray-200 rounded-2xl p-4 text-center "
+                    className="bg-surface border border-gray-200 rounded-2xl p-4 text-center "
                   >
                     <p className="text-xs text-gray-400 mb-1">{s.label}</p>
                     <p className="font-bold text-lg text-gray-900">{s.value ?? "—"}</p>

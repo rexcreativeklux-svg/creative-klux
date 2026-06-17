@@ -380,7 +380,7 @@ const PostNowPage = ({ prefilledData = null }) => {
   };
 
   const PreviewPost = () => (
-    <div className="bg-white w-[450px] rounded-lg border border-gray-200">
+    <div className="bg-surface w-[450px] rounded-lg border border-gray-200">
       <div className="py-4">
         <div className="flex px-3 items-center space-x-3 mb-3">
           <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center">
@@ -502,7 +502,7 @@ const PostNowPage = ({ prefilledData = null }) => {
         <div className="flex relative flex-col lg:flex-row gap-7">
           {/* Sidebar - Selected Assets */}
           <div className="lg:sticky lg:top-6 rounded-md max-h-[calc(100vh-200px)] w-[15%] overflow-y-auto">
-            <div className="bg-white p-3">
+            <div className="bg-surface p-3">
               <h2 className="font-medium text-gray-900 mb-3">Selected Assets</h2>
               {selectedAssets.length === 0 ? (
                 <p className="text-sm text-gray-500">No assets selected.</p>
@@ -542,13 +542,13 @@ const PostNowPage = ({ prefilledData = null }) => {
           <div className="relative w-[45%]">
             <div className="h-[calc(100vh-200px)] scroll overflow-y-auto space-y-6 bg-gray-50 border rounded-md border-gray-200 px-5 pt-5">
               {/* Post to */}
-              <div className="p-3 border bg-white border-gray-200 rounded-md">
+              <div className="p-3 border bg-surface border-gray-200 rounded-md">
                 <label className="block font-medium mb-3">
                   Post to
                 </label>
                 <div className="relative">
                   <div
-                    className="w-full p-2 pr-10 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                    className="w-full p-2 pr-10 border border-gray-300 rounded-lg bg-surface focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
                   >
                     {selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1)}
                   </div>
@@ -556,7 +556,7 @@ const PostNowPage = ({ prefilledData = null }) => {
               </div>
 
               {/* Media */}
-              <div className="border bg-white border-gray-200 p-3 rounded-md">
+              <div className="border bg-surface border-gray-200 p-3 rounded-md">
                 <label className="block font-medium text-gray-900 mb-1">
                   Media
                 </label>
@@ -565,7 +565,7 @@ const PostNowPage = ({ prefilledData = null }) => {
                 </p>
 
                 <div className="flex space-x-3">
-                  <label className="flex items-center space-x-2 px-4 py-2 bg-gray-50 border transition duration-300 ease-in-out border-gray-300 rounded-lg hover:bg-white hover:border-blue-700 cursor-pointer">
+                  <label className="flex items-center space-x-2 px-4 py-2 bg-gray-50 border transition duration-300 ease-in-out border-gray-300 rounded-lg hover:bg-surface hover:border-blue-700 cursor-pointer">
                     <ImagePlus className="w-4 h-4 text-gray-600" />
                     <span className="text-sm">Add Photo</span>
                     <input
@@ -577,7 +577,7 @@ const PostNowPage = ({ prefilledData = null }) => {
                     />
                   </label>
 
-                  <label className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-300 transition duration-300 ease-in-out rounded-lg hover:bg-white hover:border-blue-700 cursor-pointer">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-300 transition duration-300 ease-in-out rounded-lg hover:bg-surface hover:border-blue-700 cursor-pointer">
                     <Video className="w-4 h-4 text-gray-600" />
                     <span className="text-sm">Add Video</span>
                     <input
@@ -622,7 +622,7 @@ const PostNowPage = ({ prefilledData = null }) => {
               </div>
 
               {/* Text */}
-              <div className="border bg-white border-gray-200 p-3 rounded-md">
+              <div className="border bg-surface border-gray-200 p-3 rounded-md">
                 <label className="block font-medium mb-3">
                   Text
                 </label>
@@ -661,7 +661,7 @@ const PostNowPage = ({ prefilledData = null }) => {
               </div>
 
               {/* Scheduling Options */}
-              <div className="border bg-white rounded-md border-gray-200 p-3">
+              <div className="border bg-surface rounded-md border-gray-200 p-3">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">Scheduling Options</span>
                   <label className="flex items-center">
@@ -672,7 +672,7 @@ const PostNowPage = ({ prefilledData = null }) => {
                       className="sr-only"
                     />
                     <span className="mr-2 text-sm text-gray-500">Set date and time</span>
-                    <div className={`relative inline-flex h-6 cursor-pointer w-11 items-center border border-gray-200 rounded-full transition-colors ${isScheduling ? 'bg-blue-700' : 'bg-white'}`}>
+                    <div className={`relative inline-flex h-6 cursor-pointer w-11 items-center border border-gray-200 rounded-full transition-colors ${isScheduling ? 'bg-blue-700' : 'bg-surface'}`}>
                       <div className={`inline-block h-4 w-4 transform rounded-full bg-gray-200 transition-transform ${isScheduling ? 'translate-x-6' : 'translate-x-1'}`} />
                     </div>
                   </label>
@@ -716,7 +716,7 @@ const PostNowPage = ({ prefilledData = null }) => {
               </div>
 
               {/* Collaborator */}
-              <div className="border bg-white border-gray-200 p-3 rounded-md">
+              <div className="border bg-surface border-gray-200 p-3 rounded-md">
                 <label className="block font-medium mb-3">
                   Collaborator
                 </label>
@@ -730,7 +730,7 @@ const PostNowPage = ({ prefilledData = null }) => {
               </div>
 
               {/* Share Your Story */}
-              <div className="border bg-white border-gray-200 p-3 rounded-md">
+              <div className="border bg-surface border-gray-200 p-3 rounded-md">
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-medium">Share to Your Story</span>
@@ -744,7 +744,7 @@ const PostNowPage = ({ prefilledData = null }) => {
                       className="sr-only"
                     />
                     <span className="mr-2 text-sm text-gray-500">Enable</span>
-                    <div className={`relative inline-flex h-6 cursor-pointer w-11 items-center border border-gray-200 rounded-full transition-colors ${shareStory ? 'bg-blue-700' : 'bg-white'}`}>
+                    <div className={`relative inline-flex h-6 cursor-pointer w-11 items-center border border-gray-200 rounded-full transition-colors ${shareStory ? 'bg-blue-700' : 'bg-surface'}`}>
                       <div className={`inline-block h-4 w-4 transform rounded-full bg-gray-200 transition-transform ${shareStory ? 'translate-x-6' : 'translate-x-1'}`} />
                     </div>
                   </label>
@@ -782,7 +782,7 @@ const PostNowPage = ({ prefilledData = null }) => {
               </div>
 
               {/* Privacy Settings */}
-              <div className="border bg-white border-gray-200 p-3 rounded-md">
+              <div className="border bg-surface border-gray-200 p-3 rounded-md">
                 <label className="block font-medium mb-1">
                   Privacy Settings
                 </label>
@@ -818,9 +818,9 @@ const PostNowPage = ({ prefilledData = null }) => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-row bg-white sticky bottom-0 border border-gray-200 p-3 rounded-md justify-between">
+              <div className="flex flex-row bg-surface sticky bottom-0 border border-gray-200 p-3 rounded-md justify-between">
                 <div className="flex items-center space-x-2">
-                  <div className={`relative inline-flex h-6 cursor-pointer w-11 items-center border border-gray-200 rounded-full transition-colors ${boost ? 'bg-blue-700' : 'bg-white'}`}>
+                  <div className={`relative inline-flex h-6 cursor-pointer w-11 items-center border border-gray-200 rounded-full transition-colors ${boost ? 'bg-blue-700' : 'bg-surface'}`}>
                     <div className={`inline-block h-4 w-4 transform rounded-full bg-gray-200 transition-transform ${boost ? 'translate-x-6' : 'translate-x-1'}`} />
                   </div>
                   <label className="flex items-center">
@@ -837,7 +837,7 @@ const PostNowPage = ({ prefilledData = null }) => {
                 <div className="flex items-start space-x-3">
                   <button
                     onClick={() => router.back()}
-                    className="px-4 py-2 bg-white border cursor-pointer border-gray-200 rounded-md hover:border-blue-700 transition duration-300 ease-in-out"
+                    className="px-4 py-2 bg-surface border cursor-pointer border-gray-200 rounded-md hover:border-blue-700 transition duration-300 ease-in-out"
                   >
                     Cancel
                   </button>
@@ -856,7 +856,7 @@ const PostNowPage = ({ prefilledData = null }) => {
           <div className="flex flex-col w-[40%] items-center">
             <div className="mb-4">
               <div className="flex items-center justify-between mb-4">
-                <div className="px-3 py-3 border border-gray-200 rounded-md bg-white text-sm">
+                <div className="px-3 py-3 border border-gray-200 rounded-md bg-surface text-sm">
                   {selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1)} feed preview
                 </div>
               </div>

@@ -228,7 +228,7 @@ export default function TextToAudioPipelinePage() {
                 ]}
             />
 
-            <div className="flex flex-col overflow-hidden w-full mt-5 gap-6 bg-white rounded-2xl py-4">
+            <div className="flex flex-col overflow-hidden w-full mt-5 gap-6 bg-surface rounded-2xl py-4">
                 <div className="overflow-auto space-y-6">
                     {!output ? (
                         /* Input Section */
@@ -256,7 +256,7 @@ export default function TextToAudioPipelinePage() {
                                     />
                                     <button
                                         onClick={handleInspireMe}
-                                        className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition duration-300 text-sm"
+                                        className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition duration-300 text-sm"
                                     >
                                         Inspire Me
                                     </button>
@@ -268,19 +268,19 @@ export default function TextToAudioPipelinePage() {
                                             <div className="relative" ref={exportFormatDropdownRef}>
                                                 <button
                                                     onClick={toggleExportFormatDropdown}
-                                                    className="w-full p-3 border bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
+                                                    className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
                                                 >
                                                     {inputData.exportFormat || "Select an export format"}
                                                 </button>
                                                 {exportFormatDropdownOpen && (
-                                                    <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-1 gap-2 p-2">
+                                                    <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-1 gap-2 p-2">
                                                         {exportFormatOptions.map((option) => (
                                                             <button
                                                                 key={option.value}
                                                                 onClick={() => handleExportFormatChange(option.value)}
                                                                 className={`flex items-center p-2 transition duration-200 ${inputData.exportFormat === option.value
                                                                         ? "border-blue-700 bg-blue-50"
-                                                                        : "border-gray-200 bg-white hover:border-blue-700"
+                                                                        : "border-gray-200 bg-surface hover:border-blue-700"
                                                                     }`}
                                                             >
                                                                 <span className="text-sm text-gray-700">{option.label}</span>
@@ -309,7 +309,7 @@ export default function TextToAudioPipelinePage() {
                                             <div className="relative" ref={voiceTypeDropdownRef}>
                                                 <button
                                                     onClick={toggleVoiceTypeDropdown}
-                                                    className="w-full p-3 border bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
+                                                    className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
                                                 >
                                                     {selectedVoiceoverStyle && (
                                                         <img
@@ -321,14 +321,14 @@ export default function TextToAudioPipelinePage() {
                                                     {inputData.voiceType || "Select a voice type"}
                                                 </button>
                                                 {voiceTypeDropdownOpen && (
-                                                    <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-2 p-2">
+                                                    <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-2 p-2">
                                                         {voiceTypeOptions.map((option) => (
                                                             <button
                                                                 key={option.value}
                                                                 onClick={() => handleVoiceTypeChange(option.value)}
                                                                 className={`flex cursor-pointer flex-col items-center p-2 border rounded-md transition duration-200 ${inputData.voiceType === option.value
                                                                         ? "border-blue-700 bg-blue-50"
-                                                                        : "border-gray-200 bg-white hover:border-blue-700"
+                                                                        : "border-gray-200 bg-surface hover:border-blue-700"
                                                                     }`}
                                                             >
                                                                 <img
@@ -377,7 +377,7 @@ export default function TextToAudioPipelinePage() {
                                     {staticThumbnails.map((thumbnail, index) => (
                                         <div
                                             key={index}
-                                            className="relative bg-white border h-35 border-gray-200 rounded-lg overflow-hidden"
+                                            className="relative bg-surface border h-35 border-gray-200 rounded-lg overflow-hidden"
                                         >
                                             <img
                                                 src={thumbnail}
@@ -407,7 +407,7 @@ export default function TextToAudioPipelinePage() {
                                 {output.map((audio) => (
                                     <div
                                         key={audio.id}
-                                        className="relative bg-white border border-gray-200 rounded-md  p-4"
+                                        className="relative bg-surface border border-gray-200 rounded-md  p-4"
                                     >
                                         <div className="absolute top-2 right-2" ref={(el) => (menuRefs.current[audio.id] = el)}>
                                             <button
@@ -418,7 +418,7 @@ export default function TextToAudioPipelinePage() {
                                                 <MoreVertical className="w-5 h-5" />
                                             </button>
                                             {menuOpen === audio.id && (
-                                                <div className="absolute z-20 right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg p-2">
+                                                <div className="absolute z-20 right-0 mt-2 w-48 bg-surface border border-gray-200 rounded-md shadow-lg p-2">
                                                     <button
                                                         onClick={() => handleDownload(audio.id)}
                                                         className="w-full text-left p-2 text-sm text-gray-700 hover:bg-blue-50 rounded-md flex items-center gap-2"
@@ -431,7 +431,7 @@ export default function TextToAudioPipelinePage() {
                                                         <button className="w-full text-left p-2 text-sm text-gray-700 hover:bg-blue-50 rounded-md flex items-center gap-2">
                                                             Use
                                                         </button>
-                                                        <div className="absolute z-20 right-full top-0 w-48 bg-white border border-gray-200 rounded-md shadow-lg p-2 hidden group-hover:block">
+                                                        <div className="absolute z-20 right-full top-0 w-48 bg-surface border border-gray-200 rounded-md shadow-lg p-2 hidden group-hover:block">
                                                             <button
                                                                 onClick={() => handleSendOutput("Ad Creatives", audio.id)}
                                                                 className="w-full text-left p-2 text-sm text-gray-700 hover:bg-blue-50 rounded-md"

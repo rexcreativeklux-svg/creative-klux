@@ -141,7 +141,7 @@ const AdsIntegrationModal = ({ isOpen, onClose, actionType }) => {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-white relative rounded-lg p-6 w-[90%] max-w-4xl max-h-[80vh] overflow-y-auto">
+      <div className="bg-surface relative rounded-lg p-6 w-[90%] max-w-4xl max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-10">
           <div>
             <h1 className="text-xl font-semibold pb-1">Ads Integrations</h1>
@@ -161,7 +161,7 @@ const AdsIntegrationModal = ({ isOpen, onClose, actionType }) => {
               <div
                 key={idx}
                 onClick={() => connected && toggleSelectPlatform(platform.key)}
-                className={`bg-white relative rounded-lg border p-4 flex flex-col gap-2 justify-between hover:border-[#155dfc] transition duration-300 cursor-pointer ${selected ? "border-blue-700" : "border-gray-200"}`}
+                className={`bg-surface relative rounded-lg border p-4 flex flex-col gap-2 justify-between hover:border-[#155dfc] transition duration-300 cursor-pointer ${selected ? "border-blue-700" : "border-gray-200"}`}
               >
                 <div>
                   <div className="flex flex-row gap-2 mb-3">

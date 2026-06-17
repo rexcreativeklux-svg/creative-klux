@@ -43,7 +43,7 @@ const LINES = [
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-3 py-2.5 text-xs">
+    <div className="bg-surface border border-gray-200 rounded-xl shadow-lg px-3 py-2.5 text-xs">
       <p className="font-semibold text-gray-700 mb-1.5">{label}</p>
       {payload.map((p) => (
         <div key={p.dataKey} className="flex items-center gap-2 mb-0.5">
@@ -74,7 +74,7 @@ export default function ActivityChart({ designs = [] }) {
   const data = useMemo(() => buildChartData(designs, 14), [designs]);
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm h-full flex flex-col">
+    <div className="bg-surface border border-gray-100 rounded-2xl p-5 shadow-sm h-full flex flex-col">
       {/* Header */}
       <div className="mb-1 shrink-0">
         <h3 className="text-base font-bold text-gray-900">Weekly Activity</h3>

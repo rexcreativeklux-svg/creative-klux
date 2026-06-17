@@ -313,7 +313,7 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
         {isLoadingMore && Array.from({ length: pendingCount }).map((_, i) => (
           <div
             key={`skeleton-${i}`}
-            className="mb-2.5 overflow-hidden rounded-xl border border-gray-200 bg-white"
+            className="mb-2.5 overflow-hidden rounded-xl border border-gray-200 bg-surface"
             style={{ breakInside: "avoid" }}
           >
             <div className="bg-[#f4f5f8] p-2">
@@ -435,11 +435,11 @@ const AdPreview = ({ creative, category, formData, result, onBack, onOpenModal, 
                   </div>
                 )}
                 <div className="absolute top-3 left-3"><input type="radio" readOnly checked={selectedAsset === asset.id} className="w-4 h-4 text-blue-600 accent-blue-600" /></div>
-                <button onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === asset.id ? null : asset.id); }} className="absolute top-3 right-3 bg-white/90 rounded-full border border-gray-200 p-1.5 shadow-sm hover:bg-white z-10">
+                <button onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === asset.id ? null : asset.id); }} className="absolute top-3 right-3 bg-surface/90 rounded-full border border-gray-200 p-1.5 shadow-sm hover:bg-surface z-10">
                   <MoreVertical className="w-3.5 h-3.5 text-gray-500" />
                 </button>
                 {menuOpen === asset.id && (
-                  <div onClick={(e) => e.stopPropagation()} className="absolute top-12 right-3 bg-white border border-gray-200 rounded-xl shadow-lg z-20 min-w-[140px] py-1 text-sm">
+                  <div onClick={(e) => e.stopPropagation()} className="absolute top-12 right-3 bg-surface border border-gray-200 rounded-xl shadow-lg z-20 min-w-[140px] py-1 text-sm">
                     {[["Post Now", () => onOpenModal?.("post", [asset])], ["Schedule", () => onOpenModal?.("schedule", [asset])], ["Download", () => handleDownload(asset)]].map(([label, fn]) => (
                       <button key={label} onClick={fn} className="block w-full text-left px-4 py-2.5 text-gray-700 hover:bg-gray-50 transition">{label}</button>
                     ))}
@@ -459,7 +459,7 @@ const AdPreview = ({ creative, category, formData, result, onBack, onOpenModal, 
   /* ── live preview (pre-generation) ── */
   const previewBg = formData.backgroundImage || null;
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex flex-col gap-5">
+    <div className="bg-surface border border-gray-100 rounded-2xl p-6 shadow-sm flex flex-col gap-5">
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <Eye className="w-4 h-4 text-gray-400" />
@@ -481,10 +481,10 @@ const AdPreview = ({ creative, category, formData, result, onBack, onOpenModal, 
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-          <div className="absolute top-3 left-3 bg-white/90 text-[9px] font-mono text-gray-600 px-2 py-1 rounded-full">{formData.size}</div>
+          <div className="absolute top-3 left-3 bg-surface/90 text-[9px] font-mono text-gray-600 px-2 py-1 rounded-full">{formData.size}</div>
           <div className="absolute top-3 left-1/2 -translate-x-1/2"><span className="text-[9px] font-semibold tracking-widest text-white/70 uppercase">Sponsored</span></div>
           {formData.logo && (
-            <div className="absolute top-3 right-3 w-10 h-10 bg-white rounded-xl p-1.5 shadow">
+            <div className="absolute top-3 right-3 w-10 h-10 bg-surface rounded-xl p-1.5 shadow">
               <img src={formData.logo} alt="logo" className="w-full h-full object-contain" />
             </div>
           )}

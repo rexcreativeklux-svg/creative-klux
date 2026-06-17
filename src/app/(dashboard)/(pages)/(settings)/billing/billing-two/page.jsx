@@ -37,7 +37,7 @@ export default function Billing() {
     return (
         <div className="flex flex-col">
             {/* Billing & Payments Header */}
-            <div className="rounded-lg px-12 py-6 bg-white ">
+            <div className="rounded-lg px-12 py-6 bg-surface ">
                 <h2 className="text-2xl font-semibold mb-2">Billing & Payments</h2>
                 <p className="text-gray-600">
                     Manage your Billing and Payments from here. You can also manage your payment methods from here.
@@ -64,7 +64,7 @@ export default function Billing() {
             </div>
 
             {/* Payment Methods */}
-            <div className=" rounded-lg px-12 py-6 bg-white ">
+            <div className=" rounded-lg px-12 py-6 bg-surface ">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-lg font-semibold">Payment Methods</h2>
                     <button className="border border-gray-200 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">
@@ -130,7 +130,7 @@ export default function Billing() {
             </div>
 
             {/* Invoices Table */}
-            <div className=" rounded-lg px-12 py-6 bg-white">
+            <div className=" rounded-lg px-12 py-6 bg-surface">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-lg font-semibold">Invoices</h2>
                     <button className="border border-gray-200 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-100">

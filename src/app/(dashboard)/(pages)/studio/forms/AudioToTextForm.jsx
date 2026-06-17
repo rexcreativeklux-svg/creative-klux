@@ -147,7 +147,7 @@ const AudioToTextForm = ({ formData, setFormData, activeBrand, showToast, onResu
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="bg-white rounded-lg p-2 flex flex-col gap-5">
+      <div className="bg-surface rounded-lg p-2 flex flex-col gap-5">
 
         {error && (
           <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -309,7 +309,7 @@ const AudioToTextForm = ({ formData, setFormData, activeBrand, showToast, onResu
 
       {transcribing && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-10">
+          <div className="bg-surface rounded-2xl p-10">
             <FloatingAnimation showProgressBar>
               <FloatingElements.FileUp />
             </FloatingAnimation>

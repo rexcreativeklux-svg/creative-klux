@@ -239,13 +239,13 @@ const Statement = () => {
                     {/* Navigation Arrows */}
                     {/* <button
                         onClick={handlePrev}
-                        className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-white rounded-full p-1 shadow hover:bg-gray-50"
+                        className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-surface rounded-full p-1 shadow hover:bg-gray-50"
                     >
                         <ChevronLeft className="w-5 h-5 text-gray-600" />
                     </button>
                     <button
                         onClick={handleNext}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-white rounded-full p-1 shadow hover:bg-gray-50"
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-surface rounded-full p-1 shadow hover:bg-gray-50"
                     >
                         <ChevronRight className="w-5 h-5 text-gray-600" />
                     </button> */}

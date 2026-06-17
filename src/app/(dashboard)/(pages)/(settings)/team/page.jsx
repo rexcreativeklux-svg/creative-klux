@@ -62,7 +62,7 @@ const Team = () => {
         duration={notification.duration}
       />
 
-      <div className="w-full flex flex-col gap-8 p-4 sm:py-6 sm:px-10 bg-white">
+      <div className="w-full flex flex-col gap-8 p-4 sm:py-6 sm:px-10 bg-surface">
         {/* Header */}
         <div className="space-y-2 pb-10">
           <h1 className="font-semibold text-2xl">Team Members</h1>

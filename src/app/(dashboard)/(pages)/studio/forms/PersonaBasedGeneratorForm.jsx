@@ -187,7 +187,7 @@ const PersonaBasedGeneratorForm = ({ formData, setFormData, activeBrand, showToa
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="bg-white rounded-lg p-2 flex flex-col gap-5">
+      <div className="bg-surface rounded-lg p-2 flex flex-col gap-5">
 
         {error && (
           <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
@@ -208,7 +208,7 @@ const PersonaBasedGeneratorForm = ({ formData, setFormData, activeBrand, showToa
           </Field>
           <button
             onClick={handleInspire}
-            className="shrink-0 text-xs font-semibold bg-white border border-gray-200 text-gray-500 hover:border-pink-400 hover:text-pink-600 px-3 py-2.5 rounded-lg cursor-pointer transition-all mb-0.5"
+            className="shrink-0 text-xs font-semibold bg-surface border border-gray-200 text-gray-500 hover:border-pink-400 hover:text-pink-600 px-3 py-2.5 rounded-lg cursor-pointer transition-all mb-0.5"
           >
             ✨ Inspire Me
           </button>
@@ -365,7 +365,7 @@ const PersonaBasedGeneratorForm = ({ formData, setFormData, activeBrand, showToa
 
       {generating && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-10">
+          <div className="bg-surface rounded-2xl p-10">
             <FloatingAnimation showProgressBar>
               <FloatingElements.ImageFile />
             </FloatingAnimation>

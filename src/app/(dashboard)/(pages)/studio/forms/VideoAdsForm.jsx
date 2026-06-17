@@ -593,7 +593,7 @@ const VideoAdsForm = ({
                                     className={`flex flex-1 items-center gap-2 min-w-0 ${step > s.id ? "cursor-pointer" : "cursor-default"}`}
                                 >
                                     <div className={`shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${step > s.id ? "border-blue-600 bg-blue-600 text-white"
-                                        : step === s.id ? "border-blue-600 text-blue-600 bg-white"
+                                        : step === s.id ? "border-blue-600 text-blue-600 bg-surface"
                                             : "border-gray-200 text-gray-300"
                                         }`}>
                                         {step > s.id ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
@@ -612,7 +612,7 @@ const VideoAdsForm = ({
             </div>
 
             {/* ── Step content card ────────────────────────────────────────────── */}
-            <div className="bg-white rounded-lg py-5 px-2 flex flex-col gap-6">
+            <div className="bg-surface rounded-lg py-5 px-2 flex flex-col gap-6">
 
                 {error && (
                     <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -661,7 +661,7 @@ const VideoAdsForm = ({
                                 />
                                 <button
                                     onClick={handleInspireMe}
-                                    className="absolute bottom-3 left-3 bg-gray-100 hover:bg-white border border-gray-300 text-gray-600 px-3 py-1 rounded-md text-xs font-medium cursor-pointer transition flex items-center gap-1.5"
+                                    className="absolute bottom-3 left-3 bg-gray-100 hover:bg-surface border border-gray-300 text-gray-600 px-3 py-1 rounded-md text-xs font-medium cursor-pointer transition flex items-center gap-1.5"
                                 >
                                     <Sparkles className="w-3 h-3 text-blue-500" /> Inspire Me
                                 </button>
@@ -884,7 +884,7 @@ const VideoAdsForm = ({
                             className="border-2 border-dashed border-gray-200 rounded-2xl p-8 bg-gray-50 flex flex-col items-center gap-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
                             onClick={() => setMediaPickerOpen(true)}
                         >
-                            <div className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
+                            <div className="w-10 h-10 bg-surface border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
                                 <Film className="w-5 h-5 text-gray-400" />
                             </div>
                             <div className="text-center">

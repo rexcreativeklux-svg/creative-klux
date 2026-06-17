@@ -31,7 +31,7 @@ const getLogoSrc = (logo) => {
 const inputCls =
   "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 " +
   "placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 " +
-  "focus:border-transparent focus:bg-white transition-all";
+  "focus:border-transparent focus:bg-surface transition-all";
 
 const Field = ({ label, required, children }) => (
   <div className="flex flex-col gap-1.5">
@@ -89,7 +89,7 @@ const BrandPreview = ({ data }) => {
               <div key={i} className="w-5 h-5 rounded-full border-2 border-white/60 shadow-sm" style={{ background: c }} />
             ))}
           </div>
-          <div className="w-14 h-14 rounded-2xl border-2 border-white shadow-lg bg-white flex items-center justify-center overflow-hidden">
+          <div className="w-14 h-14 rounded-2xl border-2 border-white shadow-lg bg-surface flex items-center justify-center overflow-hidden">
             {logo
               ? <img src={logo} alt="logo" className="w-full h-full object-contain" />
               : <span className="text-2xl font-black" style={{ color: primary }}>{name[0]?.toUpperCase()}</span>
@@ -97,7 +97,7 @@ const BrandPreview = ({ data }) => {
           </div>
         </div>
 
-        <div className="bg-white p-4 flex flex-col gap-3">
+        <div className="bg-surface p-4 flex flex-col gap-3">
           <div>
             <h3 className="font-bold text-gray-900 text-base leading-tight" style={{ fontFamily: font }}>{name}</h3>
             {tagline && <p className="text-xs text-gray-400 mt-0.5 italic">{tagline}</p>}
@@ -111,7 +111,7 @@ const BrandPreview = ({ data }) => {
         <div className="h-1" style={{ background: `linear-gradient(90deg, ${primary}, ${secondary})` }} />
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 shadow-sm">
+      <div className="bg-surface border border-gray-100 rounded-xl p-3 flex items-center gap-3 shadow-sm">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Palette</span>
         {[primary, secondary].map((c, i) => (
           <div key={i} className="flex items-center gap-1.5">
@@ -121,7 +121,7 @@ const BrandPreview = ({ data }) => {
         ))}
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
+      <div className="bg-surface border border-gray-100 rounded-xl p-3 shadow-sm">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Typography</p>
         <p className="text-sm font-medium text-gray-800" style={{ fontFamily: font }}>Aa Bb Cc — {font}</p>
       </div>
@@ -254,7 +254,7 @@ export default function EditBrand({ setActiveTab, brandId }) {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-start">
 
         {/* ── Left: form card ── */}
-        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex flex-col gap-6">
+        <div className="bg-surface border border-gray-100 rounded-2xl p-6 shadow-sm flex flex-col gap-6">
 
           {/* Section header */}
           <div className="flex items-center gap-3 pb-4 border-b border-gray-100">

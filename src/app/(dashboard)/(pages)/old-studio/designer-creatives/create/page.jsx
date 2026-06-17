@@ -225,7 +225,7 @@ const DesignerCreatives = () => {
             <div key={s.id} className="relative z-10 flex items-center h-full last:mb-0 mb-10">
               <div className="relative z-20">
                 <div
-                  className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-white
+                  className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-surface
                     ${step === s.id ? "border-[#155dfc] bg-blue-100 text-[#155dfc]" : step > s.id ? "bg-[#155dfc] border-[#155dfc] text-white" : "border-gray-300 text-gray-300"}`}
                 >
                   {loading[s.id] ? (
@@ -237,7 +237,7 @@ const DesignerCreatives = () => {
                   )}
                 </div>
               </div>
-              <span className={`ml-3 text-sm font-medium ${step === s.id ? "text-[#155dfc]" : "text-black"}`}>
+              <span className={`ml-3 text-sm font-medium ${step === s.id ? "text-[#155dfc]" : "text-gray-900"}`}>
                 <div className="text-gray-500 text-xs">Step {s.id}</div>
                 <div className="font-medium">{s.title}</div>
               </span>
@@ -245,7 +245,7 @@ const DesignerCreatives = () => {
           ))}
         </div>
 
-        <div className="flex flex-col overflow-hidden w-full mt-5 justify-between gap-10 bg-white rounded-2xl p-4">
+        <div className="flex flex-col overflow-hidden w-full mt-5 justify-between gap-10 bg-surface rounded-2xl p-4">
           <div className="overflow-auto">
             {step === 1 && (
               <div className="border border-gray-200 p-3 rounded-lg">
@@ -263,7 +263,7 @@ const DesignerCreatives = () => {
                     <div
                       key={opt.type}
                       onClick={() => handleSelectFormat(opt.type)}
-                      className={`border p-4 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${format === opt.type ? "bg-blue-100 border-blue-500" : "bg-white hover:bg-gray-100 hover:border hover:border-gray-200 border-gray-200"}`}
+                      className={`border p-4 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${format === opt.type ? "bg-blue-100 border-blue-500" : "bg-surface hover:bg-gray-100 hover:border hover:border-gray-200 border-gray-200"}`}
                     >
                       <div className="text-center flex flex-col">
                         <div className="mx-auto mb-2">{opt.icon}</div>
@@ -385,7 +385,7 @@ const DesignerCreatives = () => {
                 <div className="flex flex-col md:flex-row gap-4">
                   <div className="flex-1 border rounded-lg p-4 bg-gray-50">
                     <h3 className="text-sm font-medium mb-2">Drag & Drop Editor</h3>
-                    <div className="h-64 bg-white border-dashed border-2 border-gray-300 flex items-center justify-center text-gray-500">
+                    <div className="h-64 bg-surface border-dashed border-2 border-gray-300 flex items-center justify-center text-gray-500">
                       Drag-and-Drop Editor Placeholder
                     </div>
                   </div>

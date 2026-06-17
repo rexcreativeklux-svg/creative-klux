@@ -29,7 +29,7 @@ export default function Creatives({ activePanel, setActivePanel }) {
             className={`block ${
               isActive("ads-creatives")
                 ? "text-[#155dfc] font-medium cursor-pointer"
-                : "text-black cursor-pointer"
+                : "text-gray-900 cursor-pointer"
             } px-3 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc] transition-all duration-300`}
           >
             Ads Creative
@@ -49,7 +49,7 @@ export default function Creatives({ activePanel, setActivePanel }) {
             className={`block ${
               isActive("social-creatives")
                 ? "text-[#155dfc] font-medium cursor-pointer"
-                : "text-black cursor-pointer"
+                : "text-gray-900 cursor-pointer"
             } px-3 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc] transition-all duration-300`}
           >
             Social Creative
@@ -69,7 +69,7 @@ export default function Creatives({ activePanel, setActivePanel }) {
             className={`block ${
               isActive("designer-creatives")
                 ? "text-[#155dfc] font-medium cursor-pointer"
-                : "text-black cursor-pointer"
+                : "text-gray-900 cursor-pointer"
             } px-3 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc] transition-all duration-300`}
           >
             Designer Creative
@@ -89,7 +89,7 @@ export default function Creatives({ activePanel, setActivePanel }) {
             className={`block ${
               isActive("ai-studio")
                 ? "text-[#155dfc] font-medium cursor-pointer"
-                : "text-black cursor-pointer"
+                : "text-gray-900 cursor-pointer"
             } px-3 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc] transition-all duration-300`}
           >
             Magic Studio

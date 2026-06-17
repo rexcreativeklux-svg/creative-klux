@@ -204,19 +204,26 @@ Wrapper response: `{ success, message, data: [ ...brands ] }`.
 - **`PEXELS_API_KEY` and other secrets live in `.env`** (gitignored). Without it, `/api/pexels` returns 500 and Search Media inside `MediaPickerModal` shows nothing. Next.js only reads `.env` at server startup — **restart `npm run dev` after editing `.env`**.
 - **Blob URLs are not fetchable by the backend.** Cropped images live in browser memory with `blob:` URLs that only work in the user's tab. Always upload via `useAuth().uploadImage(file)` first and send the returned URL. Note the side effect: every upload persists to the user's Image Gallery — there's no temporary-upload endpoint yet.
 
-## create-from-url has TWO generate backends (toggle by uncommenting)
+## create-from-url has TWO generate backends (chosen by `?engine=` query param)
 
-(Updated 2026-06-16.) `create-from-url/page.jsx` now defines **two independent, live generate functions** and picks one in `handleGenerate` by uncommenting a single line. Nothing is deleted — switching backends is one-line.
+(Updated 2026-06-16.) `create-from-url/page.jsx` defines **two independent, live generate functions** and picks one in `handleGenerate` based on an `engine` flag read from the URL. Both stay live — nothing is commented out anymore.
 
 ```js
+// engine is read once from the URL: ?engine=involk → 'involk', else 'redesign' (default)
 const handleGenerate = async () => {
   if (!brandName.trim()) { toast.error('Please enter a brand name'); return; }
-  await generateViaLLM();          // OPTION B: /design/generate-design/involk_llm (ACTIVE)
-  // await generateViaRedesign();  // OPTION A: Scraive → /creatives/redesign
+  if (engine === 'involk') await generateViaLLM();   // /design/generate-design/involk_llm
+  else await generateViaRedesign();                  // Scraive → /creatives/redesign
 };
 ```
 
-- **`generateViaLLM`** → `useAuth().createDesign(payload)` → **`POST /design/generate-design/involk_llm`**. Bypasses Scraive entirely. **One request → one design** (no template batching). Body: `{ generation_data: { brand_details: { creative_type, create_sub_type, ...rest }, generatedAt } }` — `templates` is stripped. An **adapter** maps the response: `{ variations:[...] }` used directly, or a single `{ design:{canvas,elements}, copy }` wrapped as one variation.
+**Two entry points on the My Creations page (`creatives/page.jsx`)** route to the same flow with different engines:
+- **"Create from URL"** → `/studio/create-from-url` → `engine='redesign'` (default).
+- **"Create using Involk"** (violet button) → `/studio/create-from-url?engine=involk` → `engine='involk'`.
+
+The whole flow (import → type → brand details → size/goals → images → full-overlay loader) is identical; only the generation endpoint differs. `engine` is read in a mount `useEffect` via `new URLSearchParams(window.location.search)` (no `useSearchParams`/Suspense needed since the page is already a client component).
+
+- **`generateViaLLM`** → `useAuth().createDesign(payload)` → **`POST /design/generate-design/involk_llm`**. Bypasses Scraive entirely. **One request → one design** (no template batching). Body: `{ generation_data: { brand_details: { creative_type, create_sub_type, ...rest }, generatedAt } }` — `templates` is stripped. An **adapter** maps the response: `{ variations:[...] }` used directly, or a single `{ design:{canvas,elements}, copy }` wrapped as one variation. ⚠️ Backend currently returns empty `{"variations":[]}`, so this engine produces no designs until the backend populates variations — frontend wiring is correct.
 - **`generateViaRedesign`** → the standard Scraive recipe: `fetchDesignTemplates` → `generateCustomCreative` (`POST /creatives/redesign`, streamed batches of 2). Same recipe Custom Creation uses.
 - **Shared helpers** keep the two from drifting: `resolveImageUrls()` (upload Files / drop blobs), `buildPayload()` (base payload, no templates), `prepare()` (size + images + base payload).
 

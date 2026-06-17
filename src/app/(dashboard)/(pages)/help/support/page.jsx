@@ -246,7 +246,7 @@ export default function Support({ activePanel, setActivePanel }) {
         {/* Contact Methods */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-24">
           {contactMethods.map((method, index) => (
-            <div key={index} className="bg-white rounded-xl p-5 hover:shadow hover:border-blue-700 transition-all duration-300 border  cursor-pointer border-gray-200">
+            <div key={index} className="bg-surface rounded-xl p-5 hover:shadow hover:border-blue-700 transition-all duration-300 border  cursor-pointer border-gray-200">
               <div className={`w-12 h-12 ${method.color} rounded-lg flex items-center justify-center text-white mb-4`}>
                 {method.icon}
               </div>
@@ -272,7 +272,7 @@ export default function Support({ activePanel, setActivePanel }) {
             </div>
             <button
               onClick={() => setShowTicketForm(!showTicketForm)}
-              className="bg-white text-blue-600 font-bold px-6 py-3 rounded-lg hover:bg-blue-50 transition-colors"
+              className="bg-surface text-blue-600 font-bold px-6 py-3 rounded-lg hover:bg-blue-50 transition-colors"
             >
               Submit Ticket
             </button>
@@ -282,7 +282,7 @@ export default function Support({ activePanel, setActivePanel }) {
         {/* Ticket Form Modal */}
         {/* {showTicketForm && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl">
+            <div className="bg-surface rounded-2xl max-w-2xl w-full p-8 shadow-2xl">
               {!ticketSubmitted ? (
                 <>
                   <div className="flex items-center justify-between mb-6">
@@ -384,7 +384,7 @@ export default function Support({ activePanel, setActivePanel }) {
             {popularFaqs.map((faq) => (
               <div
                 key={faq.id}
-                className="bg-white rounded-lg p-5 hover:shadow transition-all duration-300 border border-gray-200 cursor-pointer"
+                className="bg-surface rounded-lg p-5 hover:shadow transition-all duration-300 border border-gray-200 cursor-pointer"
                 onClick={() => setExpandedFaq(expandedFaq === faq.id ? null : faq.id)}
               >
                 <div className="flex items-start justify-between">
@@ -419,7 +419,7 @@ export default function Support({ activePanel, setActivePanel }) {
                 className={`flex items-center cursor-pointer gap-2 px-4 py-2 rounded-lg font-normal whitespace-nowrap transition-all duration-300 ${
                   selectedCategory === category.name
                     ? "bg-blue-600 text-white "
-                    : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
+                    : "bg-surface text-gray-700 hover:bg-gray-50 border border-gray-200"
                 }`}
               >
                 {category.icon}
@@ -435,7 +435,7 @@ export default function Support({ activePanel, setActivePanel }) {
             {selectedCategory === "All" ? "All Questions" : `${selectedCategory} Questions`}
           </h2>
           {filteredFaqs.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+            <div className="text-center py-12 bg-surface rounded-xl border border-gray-200">
               <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500 text-lg">No questions found</p>
               <p className="text-gray-400 text-sm mt-2">Try adjusting your search or filters</p>
@@ -445,7 +445,7 @@ export default function Support({ activePanel, setActivePanel }) {
               {filteredFaqs.map((faq) => (
                 <div
                   key={faq.id}
-                  className="bg-white rounded-lg p-5 hover:shadow transition-all duration-300 border border-gray-200 cursor-pointer"
+                  className="bg-surface rounded-lg p-5 hover:shadow transition-all duration-300 border border-gray-200 cursor-pointer"
                   onClick={() => setExpandedFaq(expandedFaq === faq.id ? null : faq.id)}
                 >
                   <div className="flex items-start justify-between">
@@ -480,7 +480,7 @@ export default function Support({ activePanel, setActivePanel }) {
               <a
                 key={index}
                 href={resource.link}
-                className="bg-white rounded-lg p-6 hover:scale-105 transition-all duration-300 border border-gray-200 group"
+                className="bg-surface rounded-lg p-6 hover:scale-105 transition-all duration-300 border border-gray-200 group"
               >
                 <div className={`w-14 h-14 ${resource.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                   {resource.icon}

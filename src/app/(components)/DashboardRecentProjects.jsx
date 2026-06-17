@@ -140,7 +140,7 @@ const DEFAULT_TYPE = { text: "text-gray-600", bg: "bg-gray-50", border: "border-
 
 /* ─── Skeleton card ───────────────────────────────────────────── */
 const SkeletonCard = () => (
-  <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden animate-pulse">
+  <div className="bg-surface border border-gray-100 rounded-2xl overflow-hidden animate-pulse">
     <div className="bg-gray-100 h-32 w-full" />
     <div className="p-3 space-y-2">
       <div className="h-3 bg-gray-100 rounded w-3/4" />
@@ -199,7 +199,7 @@ export default function DashboardRecentProjects({ designs = [], isLoading = fals
               <Link
                 key={design.id}
                 href="/creatives"
-                className="group bg-white border border-gray-200 rounded-xl overflow-hidden transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 cursor-pointer"
+                className="group bg-surface border border-gray-200 rounded-xl overflow-hidden transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 cursor-pointer"
               >
                 {/* Preview */}
                 <div
@@ -226,7 +226,7 @@ export default function DashboardRecentProjects({ designs = [], isLoading = fals
 
                   {/* Score badge */}
                   {design.score > 0 && (
-                    <div className="absolute bottom-1.5 right-1.5 bg-white/90 backdrop-blur-sm text-[10px] font-bold text-green-600 px-1.5 py-0.5 rounded-full border border-green-100">
+                    <div className="absolute bottom-1.5 right-1.5 bg-surface/90 backdrop-blur-sm text-[10px] font-bold text-green-600 px-1.5 py-0.5 rounded-full border border-green-100">
                       ★ {design.score}
                     </div>
                   )}

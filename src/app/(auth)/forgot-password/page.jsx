@@ -65,7 +65,7 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full hover:cursor-pointer hover:bg-gray-200 hover:border hover:text-black py-3 bg-black rounded-4xl transition-all duration-300 text-white font-semibold"
+              className="w-full hover:cursor-pointer hover:bg-gray-200 hover:border hover:text-gray-900 py-3 bg-black rounded-4xl transition-all duration-300 text-white font-semibold"
             >
               {loading ? (
                 <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto" />

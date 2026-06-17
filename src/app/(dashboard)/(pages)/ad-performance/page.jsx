@@ -33,7 +33,7 @@ function Card({ children, className = "", delay = 0 }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className={`bg-white border border-gray-100 rounded-2xl p-6  ${className}`}
+      className={`bg-surface border border-gray-100 rounded-2xl p-6  ${className}`}
     >
       {children}
     </motion.div>
@@ -47,7 +47,7 @@ const SectionLabel = ({ children }) => (
 
 // ── kpi pill ──────────────────────────────────────────────────────────────────
 const KpiPill = ({ label, value }) => (
-  <div className="bg-white border border-gray-100 rounded-xl p-3 text-center ">
+  <div className="bg-surface border border-gray-100 rounded-xl p-3 text-center ">
     <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">{label}</p>
     <p className="font-bold text-sm text-gray-900">{value ?? "—"}</p>
   </div>
@@ -115,7 +115,7 @@ export default function CreativeInsights() {
             onChange={(e) => setBrand(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && analyze()}
             placeholder="Enter your brand or account name (e.g. Nike, Shopify)"
-            className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all "
+            className="flex-1 bg-surface border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all "
           />
           <button
             onClick={analyze}
@@ -140,7 +140,7 @@ export default function CreativeInsights() {
 
         {/* ── Empty state ── */}
         {!data && !loading && !error && (
-          <div className="flex items-center justify-center py-24 bg-white border border-gray-100 rounded-2xl ">
+          <div className="flex items-center justify-center py-24 bg-surface border border-gray-100 rounded-2xl ">
             <div className="text-center">
               <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
                 <TrendingUp className="w-7 h-7 text-violet-300" />
@@ -161,7 +161,7 @@ export default function CreativeInsights() {
 
         {/* ── Loading ── */}
         {loading && (
-          <div className="flex items-center justify-center py-24 bg-white border border-gray-100 rounded-2xl ">
+          <div className="flex items-center justify-center py-24 bg-surface border border-gray-100 rounded-2xl ">
             <div className="text-center">
               <Loader2 className="w-10 h-10 animate-spin text-violet-500 mx-auto mb-4" />
               <p className="text-gray-400 text-sm">Generating ad performance insights…</p>
@@ -365,7 +365,7 @@ export default function CreativeInsights() {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.2 }}
-                      className="bg-white border border-gray-100 rounded-2xl p-4 text-center "
+                      className="bg-surface border border-gray-100 rounded-2xl p-4 text-center "
                     >
                       <p className="text-xs text-gray-400 mb-1">{a.label}</p>
                       <p className="font-bold text-gray-900">{a.value ?? "—"}</p>

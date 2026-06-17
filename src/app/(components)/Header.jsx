@@ -41,7 +41,7 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
 
   return (
     <div
-      className={`fixed top-0 left-0 right-0 z-50 border-custom flex items-center justify-between bg-white  px-6 h-16
+      className={`fixed top-0 left-0 right-0 z-50 border-custom flex items-center justify-between bg-surface  px-6 h-16
       ${sidebarOpen ? "left-56 right-0" : "left-15  right-"}`}>
 
       {/* Left — sidebar toggle */}
@@ -63,7 +63,7 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
       <div className="relative">
         <button
           onClick={() => setDropdownOpen((prev) => !prev)}
-          className="flex items-center cursor-pointer gap-2 px-3 py-2 w-[220px] border border-gray-200 rounded-lg text-sm font-medium text-gray-800 hover:border-gray-300 transition-colors bg-white"
+          className="flex items-center cursor-pointer gap-2 px-3 py-2 w-[220px] border border-gray-200 rounded-lg text-sm font-medium text-gray-800 hover:border-gray-300 transition-colors bg-surface"
         >
           {brandsLoading ? (
             <span className="flex-1 text-left text-gray-400">Loading...</span>
@@ -108,7 +108,7 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
 
         {/* Dropdown */}
         {!brandsLoading && isDropdownOpen && (
-          <div className="absolute right-0 top-full mt-2 z-[9999] w-[220px] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="absolute right-0 top-full mt-2 z-[9999] w-[220px] bg-surface border border-gray-200 rounded-xl shadow-lg overflow-hidden">
             {/* Search */}
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50">
               <input

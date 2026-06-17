@@ -150,7 +150,7 @@ export default function RegisterPage() {
                                 placeholder="Name"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="w-full py-3 px-5 outline-0 rounded-2xl border border-gray-500 text-black"
+                                className="w-full py-3 px-5 outline-0 rounded-2xl border border-gray-500 text-gray-900"
                                 required
                             />
                             <input
@@ -158,7 +158,7 @@ export default function RegisterPage() {
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full py-3 px-5 outline-0 rounded-2xl border border-gray-500 text-black"
+                                className="w-full py-3 px-5 outline-0 rounded-2xl border border-gray-500 text-gray-900"
                                 required
                             />
 
@@ -168,7 +168,7 @@ export default function RegisterPage() {
                                     value={licenseCode}
                                     onChange={(e) => setLicenseCode(e.target.value)}
                                     placeholder="License Code"
-                                    className="w-full py-3 px-5 border outline-0 border-gray-500 text-black rounded-2xl "
+                                    className="w-full py-3 px-5 border outline-0 border-gray-500 text-gray-900 rounded-2xl "
                                 />
                                 <p className="text-[#155dfc] text-xs p-1 px-5 mt-1">
                                     Leave (License Code) empty if it's a free trial account.(7 days)
@@ -182,13 +182,13 @@ export default function RegisterPage() {
                                     type={showPassword ? "text" : "password"}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full py-3 outline-0 px-5 rounded-2xl border border-gray-500 text-black pr-10"
+                                    className="w-full py-3 outline-0 px-5 rounded-2xl border border-gray-500 text-gray-900 pr-10"
                                     required
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-900"
                                 >
                                     {showPassword ? <EyeOff className="w-5 cursor-pointer h-5" /> : <Eye className="w-5 cursor-pointer h-5" />}
                                 </button>
@@ -203,13 +203,13 @@ export default function RegisterPage() {
                                     type={showPassword ? "text" : "password"}
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
-                                    className="w-full py-3 outline-0 px-5 rounded-2xl border border-gray-500 text-black pr-10"
+                                    className="w-full py-3 outline-0 px-5 rounded-2xl border border-gray-500 text-gray-900 pr-10"
                                     required
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-900"
                                 >
                                     {/* Eye icon hidden here as per your original code */}
                                 </button>
@@ -223,7 +223,7 @@ export default function RegisterPage() {
 
                             <button
                                 type="submit"
-                                className="w-full hover:cursor-pointer hover:bg-gray-200 hover:border hover:text-black py-3 bg-black rounded-4xl transition-all duration-300 text-white font-semibold"
+                                className="w-full hover:cursor-pointer hover:bg-gray-200 hover:border hover:text-gray-900 py-3 bg-black rounded-4xl transition-all duration-300 text-white font-semibold"
                                 disabled={loading}
                             >
                                 {loading ? (
@@ -238,7 +238,7 @@ export default function RegisterPage() {
                             {/* Your original custom modal — unchanged */}
                             {showModal && (
                                 <div className="fixed inset-0 flex items-center justify-center bg-black/70 z-50">
-                                    <div className="bg-white rounded-lg p-6 flex flex-col max-w-md items-center shadow border border-gray-200 animate-fadeIn">
+                                    <div className="bg-surface rounded-lg p-6 flex flex-col max-w-md items-center shadow border border-gray-200 animate-fadeIn">
                                         <div
                                             className={`w-16 h-16 flex items-center justify-center rounded-full mb-4 ${modalType === "success" ? "bg-green-50" : "bg-red-50"
                                                 }`}
@@ -308,7 +308,7 @@ export default function RegisterPage() {
                             Already have an account?{" "}
                             <button
                                 onClick={() => router.push("/login")}
-                                className="text-black font-semibold hover:cursor-pointer hover:underline"
+                                className="text-gray-900 font-semibold hover:cursor-pointer hover:underline"
                             >
                                 Login
                             </button>

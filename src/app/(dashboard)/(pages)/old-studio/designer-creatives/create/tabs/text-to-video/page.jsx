@@ -170,7 +170,7 @@ const TextToVideoTab = ({ selectedMedia, handleSelectMedia }) => {
                 />
                 <button
                   onClick={handleInspireMe}
-                  className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition duration-300 text-sm"
+                  className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition duration-300 text-sm"
                   aria-label="Inspire Me"
                 >
                   Inspire Me
@@ -183,7 +183,7 @@ const TextToVideoTab = ({ selectedMedia, handleSelectMedia }) => {
                   <div className="relative" ref={styleDropdownRef}>
                     <button
                       onClick={toggleStyleDropdown}
-                      className="w-full p-3 border bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
+                      className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
                       aria-label="Select Style"
                     >
                       {selectedStyle && (
@@ -197,12 +197,12 @@ const TextToVideoTab = ({ selectedMedia, handleSelectMedia }) => {
                       {inputData.style || 'Select a style'}
                     </button>
                     {styleDropdownOpen && (
-                      <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-5 p-3">
+                      <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-5 p-3">
                         {styleOptions.map((option) => (
                           <button
                             key={option.value}
                             onClick={() => handleStyleChange(option.value)}
-                            className={`flex flex-col items-center p-2 border rounded-md transition duration-200 ${inputData.style === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-white hover:border-blue-700'
+                            className={`flex flex-col items-center p-2 border rounded-md transition duration-200 ${inputData.style === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-surface hover:border-blue-700'
                               }`}
                             aria-label={`Select ${option.label}`}
                           >
@@ -225,18 +225,18 @@ const TextToVideoTab = ({ selectedMedia, handleSelectMedia }) => {
                   <div className="relative" ref={layoutDropdownRef}>
                     <button
                       onClick={toggleLayoutDropdown}
-                      className="w-full p-3 border bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200"
+                      className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200"
                       aria-label="Select Layout"
                     >
                       {inputData.layout || 'Select a layout'}
                     </button>
                     {layoutDropdownOpen && (
-                      <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-3 gap-2 p-2">
+                      <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-3 gap-2 p-2">
                         {layoutOptions.map((option) => (
                           <button
                             key={option.value}
                             onClick={() => handleLayoutChange(option.value)}
-                            className={`flex flex-col items-center justify-center p-2 border rounded-md transition duration-200 ${inputData.layout === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-white hover:border-blue-700'
+                            className={`flex flex-col items-center justify-center p-2 border rounded-md transition duration-200 ${inputData.layout === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-surface hover:border-blue-700'
                               }`}
                             aria-label={`Select ${option.label}`}
                           >
@@ -267,7 +267,7 @@ const TextToVideoTab = ({ selectedMedia, handleSelectMedia }) => {
         </div>
       ) : (
         <div className="p-3 relative">
-          <div className='flex sticky top-0 pt-3  z-50 bg-white flex-row border-b border-b-gray-200  justify-between'>
+          <div className='flex sticky top-0 pt-3  z-50 bg-surface flex-row border-b border-b-gray-200  justify-between'>
             <h2 className="font-medium px-2 flex justify-center items-center text-lg text-blue-700 mb-4">
               Generated Videos
             </h2>
@@ -329,7 +329,7 @@ const TextToVideoTab = ({ selectedMedia, handleSelectMedia }) => {
                   </div>
 
                   {/* Bottom label - same as your gallery */}
-                  <div className="p-2 bg-white">
+                  <div className="p-2 bg-surface">
                     <p className="text-xs text-gray-500 truncate">
                       {output.alt || 'Video clip'}
                     </p>

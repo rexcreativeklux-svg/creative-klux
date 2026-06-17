@@ -304,7 +304,7 @@ export default function CreativeScoring() {
 
           {/* ── LEFT: Input panel ── */}
           <div className="space-y-4">
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-surface border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
 
               {/* Tab switcher */}
               <div className="flex border-b border-gray-100 px-4">
@@ -365,7 +365,7 @@ export default function CreativeScoring() {
                           <img src={preview} alt="Creative" className="w-full object-contain max-h-64 bg-gray-100" />
                           <button
                             onClick={clearAll}
-                            className="absolute top-2 right-2 w-7 h-7 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition cursor-pointer shadow-sm"
+                            className="absolute top-2 right-2 w-7 h-7 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition cursor-pointer shadow-sm"
                           >
                             <X className="w-3.5 h-3.5 text-gray-500 hover:text-red-500" />
                           </button>
@@ -477,7 +477,7 @@ export default function CreativeScoring() {
                                   </div>
                                 )}
                                 {design.score > 0 && (
-                                  <div className="absolute bottom-1.5 right-1.5 bg-white/90 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold text-green-600 border border-green-100">
+                                  <div className="absolute bottom-1.5 right-1.5 bg-surface/90 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold text-green-600 border border-green-100">
                                     ★ {design.score}
                                   </div>
                                 )}
@@ -490,7 +490,7 @@ export default function CreativeScoring() {
                               </div>
 
                               {/* Card body */}
-                              <div className={`px-2.5 py-2 transition-colors ${isSel ? "bg-amber-50" : "bg-white"}`}>
+                              <div className={`px-2.5 py-2 transition-colors ${isSel ? "bg-amber-50" : "bg-surface"}`}>
                                 <p className="text-xs font-semibold text-gray-800 truncate">{design.name}</p>
                                 {design.copy?.tagline ? (
                                   <p className="text-[10px] text-gray-400 truncate italic mt-0.5">{design.copy.tagline}</p>
@@ -541,7 +541,7 @@ export default function CreativeScoring() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm"
+                  className="bg-surface border border-gray-100 rounded-2xl p-5 shadow-sm"
                 >
                   <p className="font-semibold text-sm text-gray-800 mb-3">Detected Elements</p>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -570,7 +570,7 @@ export default function CreativeScoring() {
             )}
 
             {loading && (
-              <div className="flex items-center justify-center py-24 bg-white border border-gray-100 rounded-2xl shadow-sm">
+              <div className="flex items-center justify-center py-24 bg-surface border border-gray-100 rounded-2xl shadow-sm">
                 <div className="text-center">
                   <Loader2 className="w-10 h-10 animate-spin text-amber-500 mx-auto mb-4" />
                   <p className="text-gray-400 text-sm">AI is scoring your creative…</p>
@@ -588,7 +588,7 @@ export default function CreativeScoring() {
                 >
                   {/* Headline card */}
                   {data.headline && (
-                    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+                    <div className="bg-surface border border-gray-100 rounded-2xl p-5 shadow-sm">
                       <p className="font-bold text-sm text-gray-900 mb-2">{data.headline}</p>
                       <div className="flex items-center gap-4 mb-3">
                         {data.estimatedCTR && (
@@ -636,7 +636,7 @@ export default function CreativeScoring() {
                   )}
 
                   {/* Score gauges */}
-                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                  <div className="bg-surface border border-gray-100 rounded-2xl p-6 shadow-sm">
                     <p className="font-semibold text-sm text-gray-800 mb-4">Scores</p>
                     <div className="grid grid-cols-3 gap-3">
                       {[
@@ -654,7 +654,7 @@ export default function CreativeScoring() {
 
                   {/* Recommendations */}
                   {data.recommendations?.length > 0 && (
-                    <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                    <div className="bg-surface border border-gray-100 rounded-2xl p-6 shadow-sm">
                       <p className="font-semibold text-sm text-gray-800 mb-4">AI Recommendations</p>
                       <div className="space-y-3">
                         {data.recommendations.map((r, i) => (
@@ -690,7 +690,7 @@ export default function CreativeScoring() {
             </AnimatePresence>
 
             {!data && !loading && (
-              <div className="flex items-center justify-center h-64 bg-white border border-gray-100 rounded-2xl shadow-sm">
+              <div className="flex items-center justify-center h-64 bg-surface border border-gray-100 rounded-2xl shadow-sm">
                 <div className="text-center">
                   <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
                     <Star className="w-7 h-7 text-amber-300" />

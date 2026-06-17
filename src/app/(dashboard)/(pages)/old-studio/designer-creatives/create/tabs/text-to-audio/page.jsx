@@ -193,7 +193,7 @@ const TextToAudioTab = () => {
     const accentColor = getStyleColor(inputData.style);
 
     return (
-      <div className={`relative bg-white hover:scale-95 border ${isPlaying ? accentColor : 'border-gray-200'} rounded-lg transition-all duration-300 overflow-hidden cursor-pointer hover:border-opacity-100 p-4 shadow`}>
+      <div className={`relative bg-surface hover:scale-95 border ${isPlaying ? accentColor : 'border-gray-200'} rounded-lg transition-all duration-300 overflow-hidden cursor-pointer hover:border-opacity-100 p-4 shadow`}>
         <audio
           ref={(el) => (audioRefs.current[audioId] = el)}
           src={audio.src}
@@ -272,7 +272,7 @@ const TextToAudioTab = () => {
                 />
                 <button
                   onClick={handleInspireMe}
-                  className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition duration-300 text-sm"
+                  className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition duration-300 text-sm"
                 >
                   Inspire Me
                 </button>
@@ -282,7 +282,7 @@ const TextToAudioTab = () => {
                 <div className="relative" ref={styleDropdownRef}>
                   <button
                     onClick={toggleStyleDropdown}
-                    className="w-full p-3 border cursor-pointer bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
+                    className="w-full p-3 border cursor-pointer bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
                   >
                     {selectedStyle && (
                       <img
@@ -294,12 +294,12 @@ const TextToAudioTab = () => {
                     {inputData.style || 'Select a style'}
                   </button>
                   {styleDropdownOpen && (
-                    <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-5 p-3">
+                    <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-5 p-3">
                       {styleOptions.map((option) => (
                         <button
                           key={option.value}
                           onClick={() => handleStyleChange(option.value)}
-                          className={`flex flex-col cursor-pointer items-center p-2 border rounded-md transition duration-200 ${inputData.style === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-white hover:border-blue-700'
+                          className={`flex flex-col cursor-pointer items-center p-2 border rounded-md transition duration-200 ${inputData.style === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-surface hover:border-blue-700'
                             }`}
                         >
                           <img
@@ -342,7 +342,7 @@ const TextToAudioTab = () => {
         </div>
       ) : (
         <div className="p-3 relative">
-          <div className='flex sticky top-0 pt-3  z-50 bg-white flex-row border-b border-b-gray-200  justify-between'>
+          <div className='flex sticky top-0 pt-3  z-50 bg-surface flex-row border-b border-b-gray-200  justify-between'>
             <h2 className="font-medium px-2 flex justify-center items-center text-lg text-blue-700 mb-4">
               Generated Audio
             </h2>

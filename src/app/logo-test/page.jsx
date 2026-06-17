@@ -18,7 +18,7 @@ export default function LogoTestPage() {
 
                 {/* Inline progress loader */}
                 <h2 className="text-sm font-semibold text-gray-700 mb-3">Inline progress loader</h2>
-                <div className="rounded-2xl border border-gray-200 bg-white p-6 flex justify-center mb-10">
+                <div className="rounded-2xl border border-gray-200 bg-surface p-6 flex justify-center mb-10">
                     <InlineProgressLoader label="Generating your creative…" />
                 </div>
 

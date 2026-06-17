@@ -114,7 +114,7 @@ export default function ModalPage({ onClose }) {
       aria-modal="true"
       aria-labelledby="modal-title"
     >
-      <div className="relative bg-white rounded-lg shadow-lg w-full lg:max-w-3xl overflow-hidden">
+      <div className="relative bg-surface rounded-lg shadow-lg w-full lg:max-w-3xl overflow-hidden">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -188,7 +188,7 @@ export default function ModalPage({ onClose }) {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className="flex flex-col items-center justify-center mt-6 p-20 rounded-md bg-white"
+                className="flex flex-col items-center justify-center mt-6 p-20 rounded-md bg-surface"
               >
                 <p className="text-lg font-medium text-center text-red-600 mb-4">
                   {error}
@@ -205,7 +205,7 @@ export default function ModalPage({ onClose }) {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className="flex flex-col items-center justify-center mt-6 p-20 rounded-md bg-white"
+                className="flex flex-col items-center justify-center mt-6 p-20 rounded-md bg-surface"
               >
                 <p className="text-lg font-medium text-center text-gray-600 mb-4">
                   Loading brands...
@@ -216,7 +216,7 @@ export default function ModalPage({ onClose }) {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className="flex flex-col items-center justify-center mt-6 p-20 rounded-md bg-white"
+                className="flex flex-col items-center justify-center mt-6 p-20 rounded-md bg-surface"
               >
                 <p className="text-lg font-medium text-center text-gray-600 mb-4">
                   No brands found
@@ -245,7 +245,7 @@ export default function ModalPage({ onClose }) {
                   return (
                     <motion.div
                       key={brand.id}
-                      className="relative flex hover:border-[#155dfc] cursor-pointer flex-col border rounded-lg border-gray-200 py-5 px-4 bg-white"
+                      className="relative flex hover:border-[#155dfc] cursor-pointer flex-col border rounded-lg border-gray-200 py-5 px-4 bg-surface"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2 }}
@@ -264,7 +264,7 @@ export default function ModalPage({ onClose }) {
                         {openMenuId === brand.id && (
                           <div
                             ref={dropdownRef}
-                            className="absolute right-0 mt-2 w-40 bg-white border rounded-md shadow-lg z-10 border-gray-200"
+                            className="absolute right-0 mt-2 w-40 bg-surface border rounded-md shadow-lg z-10 border-gray-200"
                           >
                             <button
                               className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"

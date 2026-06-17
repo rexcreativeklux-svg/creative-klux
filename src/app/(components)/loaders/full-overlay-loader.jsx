@@ -17,8 +17,8 @@ export default function FullOverlayLoader({
     embedded = false,
 }) {
     const wrapClass = embedded
-        ? "relative overflow-hidden w-full max-w-[480px] min-h-[200px] rounded-xl border border-black/10 bg-[#f5f5f5] flex flex-col items-center justify-center gap-4 p-10"
-        : "fixed right-0 bottom-0 z-[120] overflow-hidden flex flex-col items-center justify-center gap-4 bg-[#f5f5f5]";
+        ? "relative overflow-hidden w-full max-w-[480px] min-h-[200px] rounded-xl border border-black/10 dark:border-white/10 bg-[#f5f5f5] dark:bg-canvas flex flex-col items-center justify-center gap-4 p-10"
+        : "fixed right-0 bottom-0 z-[120] overflow-hidden flex flex-col items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-canvas";
 
     // Non-embedded: start after the sidebar (left) and below the header (top).
     // Both vars are published by the dashboard layout and fall back to 0 so it's
@@ -79,12 +79,12 @@ export default function FullOverlayLoader({
             </div>
 
             {/* Heading */}
-            <p className="text-[15px] font-medium text-[#111111] text-center">{title}</p>
+            <p className="text-[15px] font-medium text-[#111111] dark:text-[#fafafa] text-center">{title}</p>
 
             {/* Cycling subtitle */}
             {subtitle && (
                 <p
-                    className="text-[13px] text-[#666666] text-center"
+                    className="text-[13px] text-[#666666] dark:text-[#a1a1aa] text-center"
                     style={{ animation: "ck-text-cycle 3s ease-in-out infinite" }}
                 >
                     {subtitle}

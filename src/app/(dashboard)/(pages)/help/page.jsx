@@ -27,7 +27,7 @@ export default function Help({ activePanel, setActivePanel }) {
             className={`block ${
               isActive("tutorial-videos") 
                 ? "text-[#155dfc] font-medium cursor-pointer" 
-                : "text-black cursor-pointer transition-all duration-300 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc]"
+                : "text-gray-900 cursor-pointer transition-all duration-300 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc]"
             }`}
           >
             Tutorial Videos
@@ -47,7 +47,7 @@ export default function Help({ activePanel, setActivePanel }) {
             className={`block ${
               isActive("support") 
                 ? "text-[#155dfc] font-medium cursor-pointer" 
-                : "text-black cursor-pointer transition-all duration-300 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc]"
+                : "text-gray-900 cursor-pointer transition-all duration-300 py-2 rounded hover:bg-gray-50 hover:text-[#155dfc]"
             }`}
           >
             Support

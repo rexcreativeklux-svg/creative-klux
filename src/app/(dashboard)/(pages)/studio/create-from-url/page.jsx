@@ -694,7 +694,7 @@ export default function CreateFromUrl() {
 
         {/* ── STEP 1: URL ── */}
         {step === 1 && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-8 space-y-6">
+          <div className="bg-surface rounded-2xl border border-gray-200 p-8 space-y-6">
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">Enter your website URL</h2>
               <p className="text-sm text-gray-500">We'll automatically extract your brand details to get started.</p>
@@ -720,7 +720,7 @@ export default function CreateFromUrl() {
                     value={urlInput}
                     onChange={e => { setUrlInput(e.target.value); setImported(false); setImportError(''); }}
                     placeholder="https://yourwebsite.com"
-                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-surface
                       ${imported ? 'border-green-300 pr-8' : 'border-gray-200'}`}
                     onKeyDown={e => e.key === 'Enter' && handleImport()}
                   />
@@ -749,7 +749,7 @@ export default function CreateFromUrl() {
                   </div>
                   {logoUrl && (
                     <img src={logoUrl} alt="logo"
-                      className="w-10 h-10 object-contain rounded-lg border border-green-200 bg-white p-0.5 shrink-0"
+                      className="w-10 h-10 object-contain rounded-lg border border-green-200 bg-surface p-0.5 shrink-0"
                       onError={e => { e.target.style.display = 'none'; }}
                     />
                   )}
@@ -777,7 +777,7 @@ export default function CreateFromUrl() {
 
         {/* ── STEP 2: Type ── */}
         {step === 2 && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-6">
+          <div className="bg-surface rounded-2xl border border-gray-100 shadow-sm p-8 space-y-6">
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">What would you like to create?</h2>
               <p className="text-sm text-gray-500">Choose your creative type to get started.</p>
@@ -820,7 +820,7 @@ export default function CreateFromUrl() {
 
         {/* ── STEP 3: Brand / Post Details ── */}
         {step === 3 && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-7 space-y-6">
+          <div className="bg-surface rounded-2xl border border-gray-200 p-7 space-y-6">
             <h2 className="text-xl font-bold text-gray-900">
               {isAds ? 'Brand Details' : 'Post Details'}
             </h2>
@@ -938,7 +938,7 @@ export default function CreateFromUrl() {
                         {logoUrl.startsWith('data:') ? 'Logo uploaded' : 'Logo imported'}
                       </span>
                       <img src={logoUrl} alt="logo"
-                        className="w-10 h-10 object-contain rounded border border-green-200 bg-white p-0.5 shrink-0"
+                        className="w-10 h-10 object-contain rounded border border-green-200 bg-surface p-0.5 shrink-0"
                         onError={e => { e.target.style.display = 'none'; }}
                       />
                       <button
@@ -976,7 +976,7 @@ export default function CreateFromUrl() {
 
         {/* ── STEP 4: Size, Goals & Audience ── */}
         {step === 4 && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-7 space-y-7">
+          <div className="bg-surface rounded-2xl border border-gray-200 p-7 space-y-7">
             <h2 className="text-xl font-bold text-gray-900">Size, Goals & Audience</h2>
 
             {isAds && (
@@ -1132,7 +1132,7 @@ export default function CreateFromUrl() {
 
         {/* ── STEP 5: Select Images / Background Media ── */}
         {step === 5 && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-7 space-y-5">
+          <div className="bg-surface rounded-2xl border border-gray-200 p-7 space-y-5">
             <div>
               <h2 className="text-xl font-bold text-gray-900">
                 {isAds && adSubType === 'video' ? 'Select Background Media' : 'Select Images'}
@@ -1207,7 +1207,7 @@ export default function CreateFromUrl() {
               className="border-2 border-dashed border-gray-200 rounded-2xl p-8 bg-gray-50 flex flex-col items-center gap-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
               onClick={() => setMediaPickerOpen(true)}
             >
-              <div className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
+              <div className="w-10 h-10 bg-surface border border-gray-200 rounded-xl flex items-center justify-center shadow-sm">
                 {isAds && adSubType === 'video'
                   ? <Film className="w-5 h-5 text-gray-400" />
                   : <FileUp className="w-5 h-5 text-gray-400" />}

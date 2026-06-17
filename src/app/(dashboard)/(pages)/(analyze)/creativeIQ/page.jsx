@@ -242,7 +242,7 @@ export default function CreativeIQPage() {
                                             />
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); clearFile(); }}
-                                                className="absolute top-2 right-2 w-7 h-7 bg-white cursor-pointer rounded-full hover:scale-105 border border-gray-200 flex items-center justify-center  hover:bg-gray-100 transition"
+                                                className="absolute top-2 right-2 w-7 h-7 bg-surface cursor-pointer rounded-full hover:scale-105 border border-gray-200 flex items-center justify-center  hover:bg-gray-100 transition"
                                             >
                                                 <X className="w-3.5 h-3.5 text-gray-500" />
                                             </button>
@@ -306,7 +306,7 @@ export default function CreativeIQPage() {
                                     onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                                     onDragLeave={() => setDragging(false)}
                                     onDrop={onDrop}
-                                    className="rounded-2xl border border-gray-200 bg-white  overflow-hidden"
+                                    className="rounded-2xl border border-gray-200 bg-surface  overflow-hidden"
                                 >
                                     {/* mini drop hint */}
                                     <div
@@ -389,7 +389,7 @@ export default function CreativeIQPage() {
                                 className="flex flex-col gap-4"
                             >
                                 {/* IQ Score card */}
-                                <div className="bg-white rounded-2xl border border-gray-200  p-5">
+                                <div className="bg-surface rounded-2xl border border-gray-200  p-5">
                                     <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">IQ Score</p>
 
                                     <div className="flex items-center gap-6 mb-5">
@@ -422,7 +422,7 @@ export default function CreativeIQPage() {
                                 </div>
 
                                 {/* AI recommendations */}
-                                <div className="bg-white rounded-2xl border border-gray-200  p-5 flex-1">
+                                <div className="bg-surface rounded-2xl border border-gray-200  p-5 flex-1">
                                     <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">AI Recommendations</p>
                                     <div className="flex flex-col gap-4">
                                         {result.recommendations.map((rec, i) => (

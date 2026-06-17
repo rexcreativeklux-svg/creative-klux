@@ -117,7 +117,7 @@ export default function SearchMediaModal({
   return (
     <>
       <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg p-6 w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl">
+        <div className="bg-surface rounded-lg p-6 w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl">
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold flex items-center gap-3 text-gray-800">
@@ -199,7 +199,7 @@ export default function SearchMediaModal({
 
                         {/* Dropdown Menu */}
                         {menuOpen === img.id && (
-                          <div className="absolute top-10 right-2 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
+                          <div className="absolute top-10 right-2 bg-surface rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

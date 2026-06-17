@@ -148,7 +148,7 @@ export default function AdsIntegrations() {
             return (
               <div
                 key={idx}
-                className="bg-white rounded-lg border border-gray-200 p-4 flex flex-col justify-between gap-2 hover:border-[#155dfc] transition"
+                className="bg-surface rounded-lg border border-gray-200 p-4 flex flex-col justify-between gap-2 hover:border-[#155dfc] transition"
               >
                 <div>
                   <div className="flex mb-3 gap-2 items-center">

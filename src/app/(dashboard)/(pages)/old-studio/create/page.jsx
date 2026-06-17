@@ -78,7 +78,7 @@ export default function CreateCreatives({ onBack }) {
                     <div
                         key={asset.id}
                         onClick={() => router.push(asset.route)}
-                        className="cursor-pointer rounded-xl border border-gray-200 bg-white shadow hover:shadow-lg transition p-5 flex flex-col justify-between"
+                        className="cursor-pointer rounded-xl border border-gray-200 bg-surface shadow hover:shadow-lg transition p-5 flex flex-col justify-between"
                     >
                         <div>
                             <div className="flex items-center justify-between mb-3">

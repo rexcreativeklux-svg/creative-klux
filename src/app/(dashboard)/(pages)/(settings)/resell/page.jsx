@@ -126,7 +126,7 @@ const Resell = () => {
                 duration={notification.duration}
             />
 
-            <div className="w-full flex flex-col gap-4 p-4 rounded-lg bg-white">
+            <div className="w-full flex flex-col gap-4 p-4 rounded-lg bg-surface">
                 {/* Header */}
                 <div className="space-y-2 pb-8">
                     <h1 className="font-semibold text-2xl">Resell accounts</h1>
@@ -181,7 +181,7 @@ const Resell = () => {
                                 <select
                                     value={entriesPerPage}
                                     onChange={(e) => setEntriesPerPage(Number(e.target.value))}
-                                    className="appearance-none  bg-white border-gray-300 rounded-lg py-2 pr-8 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none cursor-pointer"
+                                    className="appearance-none  bg-surface border-gray-300 rounded-lg py-2 pr-8 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none cursor-pointer"
                                 >
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
@@ -287,7 +287,7 @@ const Resell = () => {
                 ) : isCardView ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                         {paginatedMembers.map((member) => (
-                            <div key={member.id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow cursor-default">
+                            <div key={member.id} className="bg-surface border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow cursor-default">
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-lg font-semibold text-gray-700">
@@ -337,7 +337,7 @@ const Resell = () => {
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-surface divide-y divide-gray-200">
                                 {paginatedMembers.map((member) => (
                                     <tr key={member.id} className="hover:bg-gray-50 transition">
                                         <td className="px-6 py-4">

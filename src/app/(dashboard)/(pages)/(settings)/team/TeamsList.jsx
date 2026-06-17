@@ -105,7 +105,7 @@ export default function TeamsList({ onActiveCountChange, showNotification }) {
                                 <select
                                     value={entriesPerPage}
                                     onChange={(e) => setEntriesPerPage(Number(e.target.value))}
-                                    className="appearance-none bg-white border-gray-300 rounded-lg py-2 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none cursor-pointer"
+                                    className="appearance-none bg-surface border-gray-300 rounded-lg py-2 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none cursor-pointer"
                                 >
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
@@ -131,13 +131,13 @@ export default function TeamsList({ onActiveCountChange, showNotification }) {
                     <div>
                         <button
                             onClick={() => setIsCardView(false)}
-                            className={`p-1 rounded-md transition duration-300 ${!isCardView ? "bg-[#155dfc] text-white" : "text-black"} cursor-pointer`}
+                            className={`p-1 rounded-md transition duration-300 ${!isCardView ? "bg-[#155dfc] text-white" : "text-gray-900"} cursor-pointer`}
                         >
                             <List strokeWidth={1.5} size={20} />
                         </button>
                         <button
                             onClick={() => setIsCardView(true)}
-                            className={`p-1 rounded-md transition duration-300 ${isCardView ? "bg-[#155dfc] text-white" : "text-black"} cursor-pointer`}
+                            className={`p-1 rounded-md transition duration-300 ${isCardView ? "bg-[#155dfc] text-white" : "text-gray-900"} cursor-pointer`}
                         >
                             <Grip strokeWidth={1.5} size={20} />
                         </button>
@@ -274,7 +274,7 @@ export default function TeamsList({ onActiveCountChange, showNotification }) {
                     {isCardView ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                             {paginatedTeams.map((team) => (
-                                <div key={team.id} className="bg-white border border-gray-200 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow">
+                                <div key={team.id} className="bg-surface border border-gray-200 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow">
                                     <div className="flex justify-between items-center pb-2 gap-3">
                                         <div className="flex items-center gap-2">
                                             <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
@@ -342,7 +342,7 @@ export default function TeamsList({ onActiveCountChange, showNotification }) {
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
+                                <tbody className="bg-surface divide-y divide-gray-200">
                                     {paginatedTeams.map((team) => (
                                         <tr key={team.id} className="hover:bg-gray-50">
                                             <td className="px-4 py-4">
@@ -400,7 +400,7 @@ export default function TeamsList({ onActiveCountChange, showNotification }) {
                     <button
                         onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                         disabled={currentPage === 1}
-                        className="px-3 py-2 rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        className="px-3 py-2 rounded-md border border-gray-200 bg-surface text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                         <ChevronLeft size={16} />
                     </button>
@@ -409,7 +409,7 @@ export default function TeamsList({ onActiveCountChange, showNotification }) {
                         <button
                             key={i}
                             onClick={() => setCurrentPage(i + 1)}
-                            className={`px-3 py-1 rounded-md border border-gray-200 ${currentPage === i + 1 ? "bg-blue-700 text-white" : "bg-white text-gray-700 hover:bg-gray-50"} cursor-pointer`}
+                            className={`px-3 py-1 rounded-md border border-gray-200 ${currentPage === i + 1 ? "bg-blue-700 text-white" : "bg-surface text-gray-700 hover:bg-gray-50"} cursor-pointer`}
                         >
                             {i + 1}
                         </button>
@@ -418,7 +418,7 @@ export default function TeamsList({ onActiveCountChange, showNotification }) {
                     <button
                         onClick={() => setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(filteredTeams.length / entriesPerPage)))}
                         disabled={currentPage === Math.ceil(filteredTeams.length / entriesPerPage)}
-                        className="px-3 py-2 rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        className="px-3 py-2 rounded-md border border-gray-200 bg-surface text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                         <ChevronRight size={16} />
                     </button>

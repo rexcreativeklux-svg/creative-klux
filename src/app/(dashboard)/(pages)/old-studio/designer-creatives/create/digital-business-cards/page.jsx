@@ -585,7 +585,7 @@ const DigitalBusinessCardCreationPage = () => {
       <div className="font-medium text-xl mb-6">Create Digital Business Card</div>
 
       {outputs.length > 0 ? (
-        <div className="flex flex-col overflow-hidden w-full mt-3 justify-between gap-6 bg-white rounded-lg py-4">
+        <div className="flex flex-col overflow-hidden w-full mt-3 justify-between gap-6 bg-surface rounded-lg py-4">
           <div className="font-medium pb-4">Generated Cards</div>
           <div className="border border-gray-200 p-3 rounded-lg">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -603,13 +603,13 @@ const DigitalBusinessCardCreationPage = () => {
                   </div>
                   <button
                     onClick={() => handleMenuToggle(card.id)}
-                    className="absolute top-2 right-2 p-1 bg-white rounded-full border border-gray-200 hover:bg-gray-100 cursor-pointer"
+                    className="absolute top-2 right-2 p-1 bg-surface rounded-full border border-gray-200 hover:bg-gray-100 cursor-pointer"
                     aria-label="Card Options"
                   >
                     <MoreVertical className="w-4 h-4 text-gray-600" />
                   </button>
                   {menuOpen === card.id && (
-                    <div className="absolute top-10 right-2 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                    <div className="absolute top-10 right-2 bg-surface border border-gray-200 rounded-md shadow-lg z-10">
                       <button
                         onClick={() => handleDownload(card)}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer"
@@ -668,7 +668,7 @@ const DigitalBusinessCardCreationPage = () => {
               <div key={s.id} className="relative z-10 flex items-center h-full last:mb-0 mb-10">
                 <div className="relative z-20">
                   <div
-                    className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-white
+                    className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-surface
                       ${step === s.id ? 'border-blue-700 bg-blue-100 text-blue-700' : step > s.id ? 'bg-blue-700 border-blue-700 text-white' : 'border-gray-300 text-gray-300'}`}
                   >
                     {loading[s.id] ? (
@@ -680,7 +680,7 @@ const DigitalBusinessCardCreationPage = () => {
                     )}
                   </div>
                 </div>
-                <span className={`ml-3 text-sm font-medium ${step === s.id ? 'text-blue-700' : 'text-black'}`}>
+                <span className={`ml-3 text-sm font-medium ${step === s.id ? 'text-blue-700' : 'text-gray-900'}`}>
                   <div className="text-gray-500 text-xs">Step {s.id}</div>
                   <div className="font-medium">{s.title}</div>
                 </span>
@@ -688,7 +688,7 @@ const DigitalBusinessCardCreationPage = () => {
             ))}
           </div>
 
-          <div className="flex flex-col overflow-hidden w-full mt-5 justify-between gap-10 bg-white rounded-2xl p-4">
+          <div className="flex flex-col overflow-hidden w-full mt-5 justify-between gap-10 bg-surface rounded-2xl p-4">
             <div className="overflow-auto">
               {step === 1 && (
                 <div className="flex flex-col gap-3">
@@ -763,7 +763,7 @@ const DigitalBusinessCardCreationPage = () => {
                         />
                         <button
                           onClick={handleInspireMe}
-                          className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition duration-300 text-sm"
+                          className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition duration-300 text-sm"
                           aria-label="Inspire Me"
                         >
                           Inspire Me
@@ -831,7 +831,7 @@ const DigitalBusinessCardCreationPage = () => {
                         <select
                           value={cardData.font}
                           onChange={(e) => handleFieldChange('font', e.target.value)}
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700 cursor-pointer"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700 cursor-pointer"
                           aria-label="Font"
                         >
                           {fontOptions.map((option) => (
@@ -1070,7 +1070,7 @@ const DigitalBusinessCardCreationPage = () => {
                       <div className="flex gap-4">
                         <button
                           onClick={handleSearchImages}
-                          className="flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3"
+                          className="flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3"
                           aria-label="Search Images"
                         >
                           <div className="text-sm font-medium">Search Images</div>
@@ -1078,7 +1078,7 @@ const DigitalBusinessCardCreationPage = () => {
                         </button>
                         <button
                           onClick={handleUploadImages}
-                          className="flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3"
+                          className="flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3"
                           disabled={loading[3]}
                           aria-label="Your Library"
                         >
@@ -1093,7 +1093,7 @@ const DigitalBusinessCardCreationPage = () => {
                         </button>
                         <button
                           onClick={handleMagicMedia}
-                          className="flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3"
+                          className="flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3"
                           aria-label="Magic Media"
                         >
                           <div className="text-sm font-medium">Magic Media</div>
@@ -1124,7 +1124,7 @@ const DigitalBusinessCardCreationPage = () => {
 
               {searchModalOpen && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-                  <div className="bg-white relative flex flex-col rounded-lg p-6 w-[80%] h-[85%]">
+                  <div className="bg-surface relative flex flex-col rounded-lg p-6 w-[80%] h-[85%]">
                     <div className="flex flex-col gap-8">
                       <div className="flex justify-between items-center">
                         <h2 className="text-xl font-semibold">Search Images</h2>
@@ -1257,7 +1257,7 @@ const DigitalBusinessCardCreationPage = () => {
 
               {libraryModalOpen && (
                 <div className="fixed inset-0 bg-black/70 flex justify-center z-50">
-                  <div className="bg-white relative flex flex-col rounded-lg p-6 w-[80%] h-[85%]">
+                  <div className="bg-surface relative flex flex-col rounded-lg p-6 w-[80%] h-[85%]">
                     <div className="flex flex-col gap-8">
                       <div className="flex justify-between">
                         <h2 className="text-xl font-semibold">Your Library</h2>
@@ -1335,7 +1335,7 @@ const DigitalBusinessCardCreationPage = () => {
 
               {magicMediaModalOpen && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-                  <div className="bg-white flex flex-col justify-between rounded-lg p-6 w-[80%] h-[95%]">
+                  <div className="bg-surface flex flex-col justify-between rounded-lg p-6 w-[80%] h-[95%]">
                     <div className="flex flex-col gap-8">
                       <div className="flex justify-between items-center px-14">
                         <h2 className="text-xl font-semibold">Magic Media</h2>
@@ -1400,7 +1400,7 @@ const DigitalBusinessCardCreationPage = () => {
 
               {showCropper && (
                 <div className="fixed inset-0 bg-black/70 flex flex-col items-center justify-center z-50">
-                  <div className="relative w-[700px] h-[600px] bg-white rounded-lg overflow-hidden flex items-center justify-center">
+                  <div className="relative w-[700px] h-[600px] bg-surface rounded-lg overflow-hidden flex items-center justify-center">
                     <h3 className="absolute top-4 left-4 text-sm font-medium text-gray-700">
                       Cropping Image {croppingIndex + 1} of {cardData.assets.length}
                     </h3>

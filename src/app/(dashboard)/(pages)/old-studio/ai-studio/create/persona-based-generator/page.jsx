@@ -481,7 +481,7 @@ const PersonaBasedGeneratorPage = () => {
                 ]}
             />
 
-            <div className="flex flex-col overflow-hidden w-full mt-5 gap-6 bg-white rounded-2xl py-4">
+            <div className="flex flex-col overflow-hidden w-full mt-5 gap-6 bg-surface rounded-2xl py-4">
                 <div className="overflow-auto space-y-6">
                     {!outputs.length ? (
                         <div className="border border-gray-200 flex flex-col justify-between gap-10 p-3 rounded-lg">
@@ -562,17 +562,17 @@ const PersonaBasedGeneratorPage = () => {
                                             <div className="relative" ref={layoutDropdownRef}>
                                                 <button
                                                     onClick={toggleLayoutDropdown}
-                                                    className="w-full p-3 border bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200"
+                                                    className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200"
                                                 >
                                                     {inputData.layout || 'Select a layout'}
                                                 </button>
                                                 {layoutDropdownOpen && (
-                                                    <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-3 gap-2 p-2">
+                                                    <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-3 gap-2 p-2">
                                                         {layoutOptions.map((option) => (
                                                             <button
                                                                 key={option.value}
                                                                 onClick={() => handleLayoutChange(option.value)}
-                                                                className={`flex flex-col justify-center items-center p-2 border rounded-md transition duration-200 ${inputData.layout === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-white hover:border-blue-700'
+                                                                className={`flex flex-col justify-center items-center p-2 border rounded-md transition duration-200 ${inputData.layout === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-surface hover:border-blue-700'
                                                                     }`}
                                                             >
                                                                 <div className="mb-2">{option.svg}</div>
@@ -601,7 +601,7 @@ const PersonaBasedGeneratorPage = () => {
                                 <h2 className="font-medium text-lg text-blue-700 mb-4">Sample Thumbnails</h2>
                                 <div className="grid grid-cols-5 gap-4">
                                     {staticThumbnails.map((thumbnail, index) => (
-                                        <div key={index} className="relative h-34 bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                        <div key={index} className="relative h-34 bg-surface border border-gray-200 rounded-lg overflow-hidden">
                                             <img
                                                 src={thumbnail}
                                                 alt={`Sample Thumbnail ${index + 1}`}
@@ -631,12 +631,12 @@ const PersonaBasedGeneratorPage = () => {
                                         <div className="absolute top-5 right-4 z-10" ref={(el) => (menuRefs.current[output.id] = el)}>
                                             <button
                                                 onClick={() => toggleMenu(output.id)}
-                                                className="p-1 hover:bg-gray-100 rounded-full bg-white border border-gray-200"
+                                                className="p-1 hover:bg-gray-100 rounded-full bg-surface border border-gray-200"
                                             >
                                                 <MoreVertical className="w-5 h-5 text-gray-600" />
                                             </button>
                                             {menuOpen[output.id] && (
-                                                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg">
+                                                <div className="absolute right-0 mt-2 w-48 bg-surface border border-gray-200 rounded-md shadow-lg">
                                                     <button
                                                         onClick={() => handleDownload(output.id)}
                                                         className="flex w-full text-left rounded cursor-pointer hover:bg-gray-100 p-3 items-center gap-2 text-sm font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"

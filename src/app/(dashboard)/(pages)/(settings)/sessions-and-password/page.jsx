@@ -149,7 +149,7 @@ export default function Sessions() {
             </div>
 
             {/* Password Reset */}
-            <div className="rounded-lg border border-gray-200 px-3 py-3 bg-white">
+            <div className="rounded-lg border border-gray-200 px-3 py-3 bg-surface">
                 <h2 className="text-lg font-semibold mb-6">Password Reset</h2>
 
                 {/* form */}
@@ -214,7 +214,7 @@ export default function Sessions() {
                 {/* modal */}
                 {showModal && (
                     <div className="fixed inset-0 flex items-center justify-center bg-black/70 z-50">
-                        <div className="bg-white rounded-lg p-20 flex flex-col max-w-lg items-center shadow border border-gray-200 animate-fadeIn">
+                        <div className="bg-surface rounded-lg p-20 flex flex-col max-w-lg items-center shadow border border-gray-200 animate-fadeIn">
                             <div className="w-16 h-16 flex items-center border justify-center rounded-full bg-green-50 mb-4">
                                 <svg
                                     className="w-10 h-10 text-green-600 animate-check"
@@ -238,7 +238,7 @@ export default function Sessions() {
                 {/* delete confirm modal */}
                 {showConfirmModal && (
                     <div className="fixed inset-0 flex items-center justify-center bg-black/70 z-50">
-                        <div className="bg-white rounded-lg p-6 flex flex-col items-center shadow border border-gray-200 animate-fadeIn">
+                        <div className="bg-surface rounded-lg p-6 flex flex-col items-center shadow border border-gray-200 animate-fadeIn">
                             <p className="text-center mb-6">
                                 Are you sure you want to delete your account? <br />
                                 This action cannot be undone.
@@ -263,7 +263,7 @@ export default function Sessions() {
             </div>
 
             {/* Active Sessions */}
-            <div className="border border-gray-200 rounded-lg p-6 bg-white">
+            <div className="border border-gray-200 rounded-lg p-6 bg-surface">
                 <h2 className="text-lg font-semibold mb-6">Active Sessions</h2>
 
                 {sessions.length === 0 ? (

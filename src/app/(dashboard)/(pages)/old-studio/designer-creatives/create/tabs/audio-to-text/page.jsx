@@ -77,7 +77,7 @@ const AudioToTextTab = ({ selectedMedia, handleSelectMedia }) => {
                 />
                 <button
                   onClick={handleInspireMe}
-                  className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition duration-300 text-sm"
+                  className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition duration-300 text-sm"
                   aria-label="Inspire Me"
                 >
                   Inspire Me
@@ -105,7 +105,7 @@ const AudioToTextTab = ({ selectedMedia, handleSelectMedia }) => {
             {outputs.map((output) => (
               <div
                 key={output.id}
-                className={`relative bg-white border rounded-lg p-4 ${
+                className={`relative bg-surface border rounded-lg p-4 ${
                   selectedMedia.some((item) => item.id === output.id) ? 'border-blue-700' : 'border-gray-200'
                 }`}
                 onClick={() => handleSelectMedia({ ...output, id: `transcription-${output.id}` })}

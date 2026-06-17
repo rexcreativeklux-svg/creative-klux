@@ -689,7 +689,7 @@ const BannersCreativeWizard = () => {
               <div key={s.id} className="relative z-10 flex items-center h-full last:mb-0 mb-10">
                 <div className="relative z-20">
                   <div
-                    className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-white cursor-pointer
+                    className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-colors duration-300 bg-surface cursor-pointer
                       ${step === s.id ? 'border-blue-700 bg-blue-100 text-blue-700' : step > s.id ? 'bg-blue-700 border-blue-700 text-white' : 'border-gray-300 text-gray-300'}`}
                   >
                     {loading[s.id] ? (
@@ -701,7 +701,7 @@ const BannersCreativeWizard = () => {
                     )}
                   </div>
                 </div>
-                <span className={`ml-3 text-sm font-medium ${step === s.id ? 'text-blue-700' : 'text-black'}`}>
+                <span className={`ml-3 text-sm font-medium ${step === s.id ? 'text-blue-700' : 'text-gray-900'}`}>
                   <div className="text-gray-500 text-xs">Step {s.id}</div>
                   <div className="font-medium">{s.title}</div>
                 </span>
@@ -709,7 +709,7 @@ const BannersCreativeWizard = () => {
             ))}
           </div>
 
-          <div className="flex flex-col overflow-hidden w-full mt-3 justify-between gap-6 bg-white rounded-2xl p-4 max-w-5xl  ">
+          <div className="flex flex-col overflow-hidden w-full mt-3 justify-between gap-6 bg-surface rounded-2xl p-4 max-w-5xl  ">
             <div className="">
               {step === 1 && (
                 <div className='flex flex-col gap-3'>
@@ -767,7 +767,7 @@ const BannersCreativeWizard = () => {
                           value={postData.brandName}
                           onChange={(e) => handleFieldChange('brandName', e.target.value)}
                           placeholder="Your Brand Name"
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
                           aria-label="Brand Name"
                         />
                       </div>
@@ -778,7 +778,7 @@ const BannersCreativeWizard = () => {
                           value={postData.projectName}
                           onChange={(e) => handleFieldChange('projectName', e.target.value)}
                           placeholder="Your Project Name"
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700"
                           aria-label="Project Name"
                         />
                       </div>
@@ -794,7 +794,7 @@ const BannersCreativeWizard = () => {
                       />
                       <button
                         onClick={handleInspireMe}
-                        className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition duration-300 text-sm"
+                        className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition duration-300 text-sm"
                         aria-label="Inspire Me"
                       >
                         Inspire Me
@@ -848,7 +848,7 @@ const BannersCreativeWizard = () => {
                         <select
                           value={postData.font}
                           onChange={(e) => handleFieldChange('font', e.target.value)}
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700 cursor-pointer"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-700 cursor-pointer"
                           aria-label="Font"
                         >
                           {fontOptions.map((option) => (
@@ -1151,15 +1151,15 @@ const BannersCreativeWizard = () => {
                     <h3 className='text-md font-semibold text-gray-700'>Upload Media</h3>
                     <p className='text-gray-500 text-xs'>Choose images from your brand, library, or generate with Magic Media.</p>
                     <div className='flex gap-4'>
-                      <button onClick={() => setSearchModalOpen(true)} className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3'>
+                      <button onClick={() => setSearchModalOpen(true)} className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3'>
                         <div className='text-sm font-medium'>Search Media</div>
                         <div className='mt-0.5'><FileSearch className='w-4 h-4' /></div>
                       </button>
-                      <button onClick={() => setLibraryModalOpen(true)} className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3'>
+                      <button onClick={() => setLibraryModalOpen(true)} className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3'>
                         <div className='text-sm font-medium'>Your Library</div>
                         <div className='mt-0.5'><FolderOpen className='w-4 h-4' /></div>
                       </button>
-                      <button onClick={() => setMagicMediaModalOpen(true)} className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-white flex-row gap-3'>
+                      <button onClick={() => setMagicMediaModalOpen(true)} className='flex border hover:border-blue-700 transition duration-300 cursor-pointer border-gray-200 py-2 px-2 rounded-md bg-surface flex-row gap-3'>
                         <div className='text-sm font-medium'>Magic Media</div>
                         <div className='mt-0.5'><Film className='w-4 h-4' /></div>
                       </button>

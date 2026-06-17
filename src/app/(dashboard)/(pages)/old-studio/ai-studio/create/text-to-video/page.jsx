@@ -250,7 +250,7 @@ const TextToVideoPipelinePage = () => {
         ]}
       />
 
-      <div className="flex flex-col overflow-hidden w-full mt-5 gap-6 bg-white rounded-xl py-4">
+      <div className="flex flex-col overflow-hidden w-full mt-5 gap-6 bg-surface rounded-xl py-4">
         <div className="overflow-auto space-y-6">
           {outputs.length === 0 ? (
             <div className="border border-gray-200 flex flex-col justify-between gap-30 h-full p-3 rounded-lg">
@@ -277,7 +277,7 @@ const TextToVideoPipelinePage = () => {
                     />
                     <button
                       onClick={handleInspireMe}
-                      className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-white cursor-pointer transition duration-300 text-sm"
+                      className="absolute bottom-3 left-3 bg-gray-200 text-gray-700 border border-gray-400 px-2 py-0.5 rounded hover:bg-surface cursor-pointer transition duration-300 text-sm"
                     >
                       Inspire Me
                     </button>
@@ -289,7 +289,7 @@ const TextToVideoPipelinePage = () => {
                       <div className="relative" ref={styleDropdownRef}>
                         <button
                           onClick={toggleStyleDropdown}
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200 flex items-center gap-2"
                         >
                           {selectedStyle && (
                             <img src={selectedStyle.image} alt={selectedStyle.label} className="w-6 h-6 object-cover rounded" />
@@ -297,12 +297,12 @@ const TextToVideoPipelinePage = () => {
                           {inputData.style || 'Select a style'}
                         </button>
                         {styleDropdownOpen && (
-                          <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-4 p-3">
+                          <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-4 p-3">
                             {styleOptions.map((option) => (
                               <button
                                 key={option.value}
                                 onClick={() => handleStyleChange(option.value)}
-                                className={`flex flex-col items-center p-2 border rounded-md transition duration-200 ${inputData.style === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-white hover:border-blue-700'
+                                className={`flex flex-col items-center p-2 border rounded-md transition duration-200 ${inputData.style === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-surface hover:border-blue-700'
                                   }`}
                               >
                                 <img
@@ -323,17 +323,17 @@ const TextToVideoPipelinePage = () => {
                       <div className="relative" ref={layoutDropdownRef}>
                         <button
                           onClick={toggleLayoutDropdown}
-                          className="w-full p-3 border bg-white border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200"
+                          className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200"
                         >
                           {inputData.layout || 'Select a layout'}
                         </button>
                         {layoutDropdownOpen && (
-                          <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg grid grid-cols-3 gap-2 p-2">
+                          <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-3 gap-2 p-2">
                             {layoutOptions.map((option) => (
                               <button
                                 key={option.value}
                                 onClick={() => handleLayoutChange(option.value)}
-                                className={`flex flex-col items-center justify-center p-2 border rounded-md transition duration-200 ${inputData.layout === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-white hover:border-blue-700'
+                                className={`flex flex-col items-center justify-center p-2 border rounded-md transition duration-200 ${inputData.layout === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-surface hover:border-blue-700'
                                   }`}
                               >
                                 <div className="mb-2">{option.svg}</div>
@@ -374,7 +374,7 @@ const TextToVideoPipelinePage = () => {
                     {createdVideos.map((video) => (
                       <div
                         key={video.id}
-                        className="relative cursor-pointer group bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-blue-700 transition duration-300 shadow-sm hover:shadow-lg"
+                        className="relative cursor-pointer group bg-surface border border-gray-200 rounded-lg overflow-hidden hover:border-blue-700 transition duration-300 shadow-sm hover:shadow-lg"
                       >
                         {/* Fixed height + full-width video = BIG & clean */}
                         <div className="relative w-full h-48 bg-black">
@@ -390,7 +390,7 @@ const TextToVideoPipelinePage = () => {
                           />
                           {/* Optional: subtle play icon overlay */}
                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-black/20">
-                            <div className="bg-white/90 p-3 rounded-full">
+                            <div className="bg-surface/90 p-3 rounded-full">
                               <Video className="w-8 h-8 text-blue-700" />
                             </div>
                           </div>
@@ -431,7 +431,7 @@ const TextToVideoPipelinePage = () => {
                 {outputs.map((output, index) => (
                   <div
                     key={output.id}
-                    className="relative group cursor-pointer bg-white border border-gray-200 rounded-lg overflow-hidden break-inside-avoid mb-6 hover:border-blue-700 transition duration-300"
+                    className="relative group cursor-pointer bg-surface border border-gray-200 rounded-lg overflow-hidden break-inside-avoid mb-6 hover:border-blue-700 transition duration-300"
                   >
                     <div className="absolute top-2 right-2 z-10">
                       <button
@@ -441,7 +441,7 @@ const TextToVideoPipelinePage = () => {
                         <MoreVertical className="w-5 h-5 text-gray-600" />
                       </button>
                       {menuOpen === index && (
-                        <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+                        <div className="absolute right-0 mt-2 w-40 bg-surface border border-gray-200 rounded-md shadow-lg z-20">
                           <button
                             onClick={() => handleDownload(index)}
                             className="w-full cursor-pointer text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"

@@ -52,7 +52,7 @@ const STEPS = [
 const inputCls =
   "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 " +
   "placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 " +
-  "focus:border-transparent focus:bg-white transition-all";
+  "focus:border-transparent focus:bg-surface transition-all";
 
 const Field = ({ label, required, children }) => (
   <div className="flex flex-col gap-1.5">
@@ -124,7 +124,7 @@ const BrandPreview = ({ data }) => {
               <div key={i} className="w-5 h-5 rounded-full border-2 border-white/60 shadow-sm" style={{ background: c }} />
             ))}
           </div>
-          <div className="w-14 h-14 rounded-2xl border-2 border-white shadow-lg bg-white flex items-center justify-center overflow-hidden">
+          <div className="w-14 h-14 rounded-2xl border-2 border-white shadow-lg bg-surface flex items-center justify-center overflow-hidden">
             {logo
               ? <img src={logo} alt="logo" className="w-full h-full object-contain" />
               : <span className="text-2xl font-black" style={{ color: primary }}>{name[0]?.toUpperCase()}</span>
@@ -132,7 +132,7 @@ const BrandPreview = ({ data }) => {
           </div>
         </div>
 
-        <div className="bg-white p-4 flex flex-col gap-3">
+        <div className="bg-surface p-4 flex flex-col gap-3">
           <div>
             <h3 className="font-bold text-gray-900 text-base leading-tight" style={{ fontFamily: font }}>{name}</h3>
             {tagline && <p className="text-xs text-gray-400 mt-0.5 italic">{tagline}</p>}
@@ -147,7 +147,7 @@ const BrandPreview = ({ data }) => {
         <div className="h-1" style={{ background: `linear-gradient(90deg, ${primary}, ${secondary})` }} />
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 shadow-sm">
+      <div className="bg-surface border border-gray-100 rounded-xl p-3 flex items-center gap-3 shadow-sm">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Palette</span>
         {[primary, secondary].map((c, i) => (
           <div key={i} className="flex items-center gap-1.5">
@@ -157,7 +157,7 @@ const BrandPreview = ({ data }) => {
         ))}
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
+      <div className="bg-surface border border-gray-100 rounded-xl p-3 shadow-sm">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Typography</p>
         <p className="text-sm font-medium text-gray-800" style={{ fontFamily: font }}>Aa Bb Cc — {font}</p>
       </div>
@@ -274,8 +274,8 @@ export default function ManualCreate({ refreshBrands, setBrandView, setActiveTab
                 <div key={s.id} className="flex items-center gap-0 flex-1 min-w-0">
                   <div className="flex items-center gap-2 shrink-0">
                     <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all ${step > s.id ? "border-blue-600 bg-blue-600 text-white"
-                      : step === s.id ? "border-blue-600 text-blue-600 bg-white"
-                        : "border-gray-200 text-gray-300 bg-white"
+                      : step === s.id ? "border-blue-600 text-blue-600 bg-surface"
+                        : "border-gray-200 text-gray-300 bg-surface"
                       }`}>
                       {step > s.id ? <Check className="w-3.5 h-3.5" /> : s.id}
                     </div>
@@ -290,7 +290,7 @@ export default function ManualCreate({ refreshBrands, setBrandView, setActiveTab
           </div>
 
           {/* Form card */}
-          <div className="bg-white border border-gray-100 rounded-xl p-6 flex flex-col gap-5">
+          <div className="bg-surface border border-gray-100 rounded-xl p-6 flex flex-col gap-5">
 
             {/* ── Step 1: Brand Details ── */}
             {step === 1 && (
@@ -377,7 +377,7 @@ export default function ManualCreate({ refreshBrands, setBrandView, setActiveTab
                             : <span className="text-xs text-gray-400">Not connected</span>}
                           <button
                             onClick={() => addSocial(id, `${name} Account ${connected.length + 1}`)}
-                            className="px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 cursor-pointer transition"
+                            className="px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg bg-surface hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 cursor-pointer transition"
                           >
                             Connect
                           </button>
@@ -416,7 +416,7 @@ export default function ManualCreate({ refreshBrands, setBrandView, setActiveTab
                             : <span className="text-xs text-gray-400">Not connected</span>}
                           <button
                             onClick={() => addAd(id, `${name} Account ${connected.length + 1}`)}
-                            className="px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 cursor-pointer transition"
+                            className="px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg bg-surface hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 cursor-pointer transition"
                           >
                             Connect
                           </button>

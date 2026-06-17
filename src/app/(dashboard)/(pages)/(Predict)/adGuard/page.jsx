@@ -195,7 +195,7 @@ export default function AdGuardPage() {
               className="flex flex-col items-center justify-center"
               style={{ minHeight: "calc(100vh - 300px)" }}
             >
-              <div className="w-full max-w-xl bg-white rounded-2xl border border-gray-200 p-6 flex flex-col gap-5">
+              <div className="w-full max-w-xl bg-surface rounded-2xl border border-gray-200 p-6 flex flex-col gap-5">
                 <p className="text-sm font-semibold text-gray-800">Upload Ad Creative</p>
 
                 {/* drop zone */}
@@ -224,7 +224,7 @@ export default function AdGuardPage() {
                       <img src={preview} alt="preview" className="w-full h-auto object-cover rounded-xl" />
                       <button
                         onClick={(e) => { e.stopPropagation(); clearFile(); }}
-                        className="absolute top-2 right-2 w-7 h-7 bg-white rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-200 hover:scale-105 cursor-pointer transition"
+                        className="absolute top-2 right-2 w-7 h-7 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-200 hover:scale-105 cursor-pointer transition"
                       >
                         <X className="w-3.5 h-3.5 text-gray-500" />
                       </button>
@@ -292,7 +292,7 @@ export default function AdGuardPage() {
             >
               {/* ── LEFT: upload panel ── */}
               <div className="flex flex-col gap-4">
-                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="bg-surface rounded-2xl border border-gray-200 overflow-hidden">
                   <p className="text-xs font-semibold text-gray-500 px-5 pt-4 pb-3 border-b border-gray-100">Upload Ad Creative</p>
 
                   {/* mini drop hint */}
@@ -351,7 +351,7 @@ export default function AdGuardPage() {
                 </div>
 
                 {/* platform checkboxes (compact) */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-4">
+                <div className="bg-surface rounded-2xl border border-gray-200 p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-3">Check against platforms</p>
                   <PlatformChecks />
 
@@ -394,7 +394,7 @@ export default function AdGuardPage() {
                   {result.summary.map((s) => {
                     const cfg = statusCfg[s.status];
                     return (
-                      <div key={s.label} className="bg-white rounded-xl border border-gray-200 px-4 py-3 text-center">
+                      <div key={s.label} className="bg-surface rounded-xl border border-gray-200 px-4 py-3 text-center">
                         <p className="text-[10px] text-gray-400 font-medium mb-1">{s.label}</p>
                         <span className="text-xs font-bold" style={{ color: cfg.color }}>{s.status}</span>
                       </div>
@@ -409,7 +409,7 @@ export default function AdGuardPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.22, delay: 0.15 + si * 0.08 }}
-                    className="bg-white rounded-2xl border border-gray-200 p-5"
+                    className="bg-surface rounded-2xl border border-gray-200 p-5"
                   >
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-sm font-semibold text-gray-900">{section.title}</p>

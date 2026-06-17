@@ -75,13 +75,13 @@ const BrandMenu = ({ brand, onEdit, onDelete, light }) => {
           e.stopPropagation();
           setOpen((p) => !p);
         }}
-        className={`w-7 h-7 flex items-center justify-center rounded-lg transition cursor-pointer ${light ? "text-black/40 hover:text-black/70 hover:bg-black/10" : "text-white/70 hover:text-white hover:bg-white/20"}`}
+        className={`w-7 h-7 flex items-center justify-center rounded-lg transition cursor-pointer ${light ? "text-gray-900/40 hover:text-gray-900/70 hover:bg-black/10" : "text-white/70 hover:text-white hover:bg-surface/20"}`}
       >
         <MoreVertical className="w-4 h-4" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-9 z-50 w-44 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden py-1">
+        <div className="absolute right-0 top-9 z-50 w-44 bg-surface border border-gray-100 rounded-2xl shadow-2xl overflow-hidden py-1">
           <button
             onClick={() => {
               setOpen(false);
@@ -129,7 +129,7 @@ const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) 
   return (
     <div
       onClick={onSelect}
-      className={`bg-white rounded-2xl hover:scale-105 overflow-hidden border shadow-sm hover:shadow-md transition-all duration-200 flex flex-col cursor-pointer ${
+      className={`bg-surface rounded-2xl hover:scale-105 overflow-hidden border shadow-sm hover:shadow-md transition-all duration-200 flex flex-col cursor-pointer ${
         isSelected
           ? "border-blue-500 ring-2 ring-blue-100 shadow-blue-50"
           : "border-gray-100 hover:border-gray-200"
@@ -152,7 +152,7 @@ const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) 
         />
         <div className="relative flex items-center justify-between mb-3">
           <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${light ? "border-black/20 bg-black/10 text-black/60" : "border-white/25 bg-white/15 text-white"}`}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${light ? "border-black/20 bg-black/10 text-gray-900/60" : "border-white/25 bg-surface/15 text-white"}`}
           >
             <span
               className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-400" : "bg-amber-300"}`}
@@ -166,7 +166,7 @@ const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) 
             light={light}
           />
         </div>
-        <div className="w-12 h-12 rounded-xl border-2 border-white/80 shadow-lg bg-white flex items-center justify-center overflow-hidden">
+        <div className="w-12 h-12 rounded-xl border-2 border-white/80 shadow-lg bg-surface flex items-center justify-center overflow-hidden">
           {logo && !logoErr ? (
             <img
               src={logo}
@@ -184,7 +184,7 @@ const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) 
 
       {/* Body */}
       <div className="flex flex-col flex-1 px-3 pb-3">
-        <div className="bg-white py-2 mb-2.5 select-none">
+        <div className="bg-surface py-2 mb-2.5 select-none">
           <h3 className="font-bold text-gray-900 text-sm truncate">
             {brand.name}
           </h3>
@@ -238,7 +238,7 @@ const BrandRow = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) =
   return (
     <div
       onClick={onSelect}
-      className={`bg-white rounded-xl border transition-all duration-200 cursor-pointer flex items-center gap-4 px-4 py-3 hover:shadow-md ${
+      className={`bg-surface rounded-xl border transition-all duration-200 cursor-pointer flex items-center gap-4 px-4 py-3 hover:shadow-md ${
         isSelected
           ? "border-blue-500 ring-2 ring-blue-100"
           : "border-gray-100 hover:border-gray-200"
@@ -348,7 +348,7 @@ const BrandDetailPanel = ({ brand, onEdit, onClose, isActive }) => {
   const router = useRouter();
 
   return (
-    <div className="bg-white border border-gray-100 mt-10 rounded-2xl shadow-sm overflow-hidden">
+    <div className="bg-surface border border-gray-100 mt-10 rounded-2xl shadow-sm overflow-hidden">
       <div
         className="relative px-6 pt-3 pb-6"
         style={{
@@ -369,13 +369,13 @@ const BrandDetailPanel = ({ brand, onEdit, onClose, isActive }) => {
           </span>
           <button
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/20 transition cursor-pointer"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-surface/20 transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
         <div className="relative flex items-end gap-4">
-          <div className="w-16 h-16 rounded-full border-2 border-white/80 shadow-xl bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
+          <div className="w-16 h-16 rounded-full border-2 border-white/80 shadow-xl bg-surface flex items-center justify-center overflow-hidden flex-shrink-0">
             {logo && !logoErr ? (
               <img
                 src={logo}
@@ -464,7 +464,7 @@ const BrandDetailPanel = ({ brand, onEdit, onClose, isActive }) => {
                   href={brand.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 px-3 py-1 text-sm font-semibold rounded-md bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all duration-200"
+                  className="flex items-center justify-center gap-2 px-3 py-1 text-sm font-semibold rounded-md bg-surface border border-gray-200 text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all duration-200"
                 >
                   <Globe className="w-3.5 h-3.5" /> Visit Site
                 </a>
@@ -529,7 +529,7 @@ const BrandDetailPanel = ({ brand, onEdit, onClose, isActive }) => {
 // ── delete confirm modal ──────────────────────────────────────────────────────
 const DeleteModal = ({ brand, onConfirm, onCancel }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
-    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+    <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
       <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center">
         <Trash2 className="w-5 h-5 text-red-500" />
       </div>
@@ -632,7 +632,7 @@ export default function ReusePage({ setActiveTab }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search brands…"
-            className="w-full pl-9 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full pl-9 pr-8 py-2 bg-surface border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
           {search && (
             <button
@@ -651,7 +651,7 @@ export default function ReusePage({ setActiveTab }) {
             title="Grid view"
             className={`w-8 h-8 flex items-center justify-center rounded-md transition-all duration-150 cursor-pointer ${
               viewMode === "grid"
-                ? "bg-white text-gray-800 shadow-sm"
+                ? "bg-surface text-gray-800 shadow-sm"
                 : "text-gray-400 hover:text-gray-600"
             }`}
           >
@@ -662,7 +662,7 @@ export default function ReusePage({ setActiveTab }) {
             title="List view"
             className={`w-8 h-8 flex items-center justify-center rounded-md transition-all duration-150 cursor-pointer ${
               viewMode === "list"
-                ? "bg-white text-gray-800 shadow-sm"
+                ? "bg-surface text-gray-800 shadow-sm"
                 : "text-gray-400 hover:text-gray-600"
             }`}
           >

@@ -36,6 +36,7 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import LogoutModal from "./LogoutModal";
+import ThemeSwitcher from "./ThemeSwitcher";
 import { FaTrello } from "react-icons/fa";
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
@@ -205,12 +206,12 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         className={`
           group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium
           transition-all duration-150
-          ${active ? "bg-blue-50 text-blue-600" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}
+          ${active ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"}
           ${!isOpen ? "justify-center px-0" : ""}
         `}
         title={!isOpen ? label : undefined}
       >
-        <Icon className={`h-[18px] w-[18px] flex-shrink-0 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-700"}`} />
+        <Icon className={`h-[18px] w-[18px] flex-shrink-0 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`} />
         {isOpen && <span className="flex-1 truncate">{label}</span>}
         {isOpen && badge && (
           <span className="text-[10px] font-semibold bg-rose-500 text-white px-1.5 py-0.5 rounded-full leading-none">
@@ -234,11 +235,11 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           className={`
             group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer
             transition-all duration-150
-            ${dropActive ? "bg-blue-50 text-blue-600" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}
+            ${dropActive ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"}
             ${!isOpen ? "justify-center px-0" : ""}
           `}
         >
-          <Icon className={`h-[18px] w-[18px] flex-shrink-0 ${dropActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-700"}`} />
+          <Icon className={`h-[18px] w-[18px] flex-shrink-0 ${dropActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`} />
           {isOpen && (
             <>
               <span className="flex-1 text-left truncate">{label}</span>
@@ -270,8 +271,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
         {/* Flyout — sidebar collapsed */}
         {!isOpen && dropOpen && (
-          <div className="absolute left-full top-0 z-50 ml-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 overflow-hidden">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 py-1.5 border-b border-gray-100 mb-1">
+          <div className="absolute left-full top-0 z-50 ml-2 w-48 bg-surface rounded-xl shadow-xl border border-gray-200 py-1.5 overflow-hidden">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500 px-3 py-1.5 border-b border-gray-200 mb-1">
               {label}
             </p>
             {children.map((child) => {
@@ -281,8 +282,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                   key={child.href}
                   href={child.href}
                   onClick={() => setOpenDropdown(null)}
-                  className={`flex items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-gray-50
-                    ${isActive(child.href) ? "text-blue-600 font-semibold" : "text-gray-700"}`}
+                  className={`flex items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-gray-100
+                    ${isActive(child.href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
                 >
                   <ChildIcon className="h-3.5 w-3.5 flex-shrink-0" />
                   {child.label}
@@ -302,11 +303,11 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const renderSection = (title, items) => (
     <div className="flex flex-col gap-0.5">
       {isOpen && (
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 mb-1 mt-1">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500 px-3 mb-1 mt-1">
           {title}
         </p>
       )}
-      {!isOpen && <div className="my-1 border-t border-gray-100 mx-2" />}
+      {!isOpen && <div className="my-1 border-t border-gray-200 mx-2" />}
       {items.map(renderItem)}
     </div>
   );
@@ -317,14 +318,14 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       <nav
         className={`
           hidden md:flex md:flex-col shrink-0
-          h-screen bg-white border-r border-gray-100
+          h-screen bg-surface border-r border-gray-200
           transition-all duration-300 ease-in-out overflow-hidden
           ${isOpen ? "w-56" : "w-15"}
         `}
       >
         {/* Logo row */}
         <div
-          className={`flex items-center h-16 flex-shrink-0 border-b border-gray-100 cursor-pointer
+          className={`flex items-center h-16 flex-shrink-0 border-b border-gray-200 cursor-pointer
             ${isOpen ? "px-4" : "justify-center px-0"}
           `}
           onClick={() => router.push("/")}
@@ -352,9 +353,14 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
         </div>
 
+        {/* Theme switcher (UI only) */}
+        <div className="flex-shrink-0 border-t border-gray-200">
+          <ThemeSwitcher collapsed={!isOpen} />
+        </div>
+
 
         {/* Bottom user area */}
-        <div ref={bottomMenuRef} className={`flex-shrink-0 border-t border-gray-100 relative ${isOpen ? "px-3 py-3" : "px-2 py-3"}`}>
+        <div ref={bottomMenuRef} className={`flex-shrink-0 border-t border-gray-200 relative ${isOpen ? "px-3 py-3" : "px-2 py-3"}`}>
 
           {/* Backdrop — closes menu when clicking outside */}
           {showBottomMenu && (
@@ -366,7 +372,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
           {/* Bottom popup menu */}
           {showBottomMenu && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50">
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-surface border border-gray-200 rounded-2xl shadow-xl z-50">
               {/* remove overflow-hidden here ^ */}
               <div className="py-1.5">
                 {bottomMenuLinks.map(({ label, href, icon: Icon }) => (
@@ -374,14 +380,14 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                     key={href}
                     href={href}
                     onClick={() => setShowBottomMenu(false)}
-                    className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-gray-50
-              ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-700"}`}
+                    className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-gray-100
+              ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
                   >
                     <Icon className="h-4 w-4 flex-shrink-0 text-gray-500" />
                     {label}
                   </Link>
                 ))}
-                <div className="border-t border-gray-100 mt-1 pt-1">
+                <div className="border-t border-gray-200 mt-1 pt-1">
                   <button
                     onClick={() => {
                       setShowBottomMenu(false);
@@ -402,7 +408,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             onClick={() => setShowBottomMenu((p) => !p)}
             className={`
       flex items-center w-full rounded-xl transition-all duration-150 cursor-pointer
-      ${showBottomMenu ? "bg-gray-100" : "hover:bg-gray-50"}
+      ${showBottomMenu ? "bg-gray-100" : "hover:bg-gray-100"}
       ${isOpen ? "gap-3 px-3 py-2.5" : "justify-center px-0 py-2.5"}
     `}
           >
@@ -416,14 +422,14 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               </div>
             )}
             {isOpen && (
-              <ChevronRight className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${showBottomMenu ? "rotate-90" : "-rotate-90"}`} />
+              <ChevronRight className={`h-4 w-4 text-gray-500 flex-shrink-0 transition-transform duration-200 ${showBottomMenu ? "rotate-90" : "-rotate-90"}`} />
             )}
           </button>
         </div>
       </nav>
 
       {/* ── Mobile Bottom Nav ──────────────────────────────────── */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 flex justify-around items-center py-2 md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-gray-200 flex justify-around items-center py-2 md:hidden">
         {[...overviewItems, ...createItems, ...manageItems.slice(0, 2), ...insightsItems]
 
           .map((item) => {
@@ -441,8 +447,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                     <span className="mt-0.5 font-medium">{label}</span>
                   </button>
                   {isDropOpen && (
-                    <div className="absolute bottom-14 left-1/2 -translate-x-1/2 w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50">
-                      <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-400 px-3 py-1.5 border-b border-gray-100">
+                    <div className="absolute bottom-14 left-1/2 -translate-x-1/2 w-44 bg-surface rounded-xl shadow-xl border border-gray-200 py-1.5 z-50">
+                      <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-500 px-3 py-1.5 border-b border-gray-200">
                         {label}
                       </p>
                       {children.map((child) => {
@@ -452,7 +458,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                             key={child.href}
                             href={child.href}
                             onClick={() => setOpenDropdown(null)}
-                            className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-50 ${isActive(child.href) ? "text-blue-600 font-semibold" : "text-gray-700"}`}
+                            className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-100 ${isActive(child.href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
                           >
                             <ChildIcon className="h-3.5 w-3.5 flex-shrink-0" />
                             {child.label}
@@ -495,20 +501,20 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           </button>
 
           {showBottomMenu && (
-            <div className="absolute bottom-14 right-0 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50">
+            <div className="absolute bottom-14 right-0 w-48 bg-surface rounded-xl shadow-xl border border-gray-200 py-1.5 z-50">
               {/* same links, no onMouseDown needed */}
               {bottomMenuLinks.map(({ label, href, icon: Icon }) => (
                 <Link
                   key={href}
                   href={href}
                   onClick={() => setShowBottomMenu(false)}
-                  className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-50 ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-700"}`}
+                  className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-100 ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
                 >
                   <Icon className="h-3.5 w-3.5 flex-shrink-0" />
                   {label}
                 </Link>
               ))}
-              <div className="border-t border-gray-100 mt-1 pt-1">
+              <div className="border-t border-gray-200 mt-1 pt-1">
                 <button
                   onClick={() => { setShowBottomMenu(false); setShowLogoutModal(true); }}
                   className="flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 w-full"

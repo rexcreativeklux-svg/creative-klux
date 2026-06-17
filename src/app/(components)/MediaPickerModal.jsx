@@ -271,7 +271,7 @@ export default function MediaPickerModal({
 
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+        <div className="bg-surface rounded-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
 
           {/* ── Header ───────────────────────────────────────────────────── */}
           <div className="flex items-center justify-between px-6 pt-5 pb-0 shrink-0">
@@ -366,7 +366,7 @@ export default function MediaPickerModal({
                                 <MoreVertical className="w-3.5 h-3.5" />
                               </button>
                               {searchMenuOpen === img.id && (
-                                <div className="absolute top-9 left-2 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-20 min-w-[160px]" onClick={(e) => e.stopPropagation()}>
+                                <div className="absolute top-9 left-2 bg-surface rounded-xl shadow-2xl border border-gray-100 py-1.5 z-20 min-w-[160px]" onClick={(e) => e.stopPropagation()}>
                                   <MenuBtn icon={Download} label="Download" onClick={() => { handleDownload(img); setSearchMenuOpen(null); }} />
                                   <MenuBtn icon={PlusCircleIcon} label="Add to Brand" blue onClick={() => { onAddToBrand?.(img); notify("Added to brand!"); setSearchMenuOpen(null); }} />
                                 </div>
@@ -442,7 +442,7 @@ export default function MediaPickerModal({
                                 <MoreVertical className="w-3.5 h-3.5" />
                               </button>
                               {libMenuOpen === menuId && (
-                                <div className="absolute top-9 left-2 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-20 min-w-[160px]" onClick={(e) => e.stopPropagation()}>
+                                <div className="absolute top-9 left-2 bg-surface rounded-xl shadow-2xl border border-gray-100 py-1.5 z-20 min-w-[160px]" onClick={(e) => e.stopPropagation()}>
                                   <MenuBtn icon={Download} label="Download" onClick={() => { handleDownload({ src: url, large: url }); setLibMenuOpen(null); }} />
                                   {hasId && (
                                     <MenuBtn icon={Trash2} label="Delete" red onClick={async () => {

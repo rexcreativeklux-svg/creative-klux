@@ -42,7 +42,7 @@ export default function EditProfilePage() {
   if (!user) return <p>Please log in first</p>;
 
   return (
-    <div className="max-w-md  p-6 bg-white rounded">
+    <div className="max-w-md  p-6 bg-surface rounded">
       <h1 className="text-2xl font-bold mb-4">Edit Profile</h1>
 
       {error && <p className="text-red-500">{error}</p>}

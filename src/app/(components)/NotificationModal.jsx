@@ -74,7 +74,7 @@ const NotificationModal = ({
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-6 max-w-sm w-full mx-4"
+            className="bg-surface rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-6 max-w-sm w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Animated Icon with border */}
@@ -177,7 +177,7 @@ const NotificationModal = ({
 
 //   return (
 //     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
-//       <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
+//       <div className="bg-surface rounded-xl shadow-lg p-8 max-w-md w-full">
 //         <h2 className="text-2xl font-bold text-gray-900 mb-6">Notification Modals</h2>
         
 //         <div className="space-y-3">

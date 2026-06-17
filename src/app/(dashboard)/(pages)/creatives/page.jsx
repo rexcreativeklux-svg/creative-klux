@@ -621,7 +621,7 @@ export default function CreativesPage() {
         <div className="flex flex-row gap-3 items-center">
           <Link
             href="/studio/create-from-url"
-            className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800  text-white border border-gray-200 text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
+            className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-gray-50 border border-gray-200 text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
           >
             <Plus className="w-4 h-4" /> Create from URL
           </Link>
@@ -633,7 +633,7 @@ export default function CreativesPage() {
           </Link>
           <Link
             href="/studio/ai-select"
-            className="flex items-center gap-2 border border-gray-300 hover:bg-gray-200 text-black text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
+            className="flex items-center gap-2 border border-gray-300 hover:bg-gray-200 text-gray-900 text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
           >
             <Plus className="w-4 h-4" /> Instant Creation
           </Link>
@@ -667,7 +667,7 @@ export default function CreativesPage() {
           {bulkSelected.length > 0 && (
             <button
               onClick={() => setDeleteConfirm("bulk")}
-              className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-red-500 border border-red-200 bg-white px-3 py-1.5 rounded-lg hover:bg-red-50 cursor-pointer transition"
+              className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-red-500 border border-red-200 bg-surface px-3 py-1.5 rounded-lg hover:bg-red-50 cursor-pointer transition"
             >
               <Trash2 className="w-3.5 h-3.5" /> Delete {bulkSelected.length}
             </button>
@@ -699,7 +699,7 @@ export default function CreativesPage() {
                   setActiveFilter(group.key);
                   setPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${isActive ? "bg-white text-blue-600 shadow-sm border border-blue-100" : "text-gray-500 hover:text-gray-700"}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${isActive ? "bg-surface text-blue-600 shadow-sm border border-blue-100" : "text-gray-500 hover:text-gray-700"}`}
               >
                 {group.label}
               </button>
@@ -710,14 +710,14 @@ export default function CreativesPage() {
         <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl ml-auto">
           <button
             onClick={() => setViewMode("grid")}
-            className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === "grid" ? "bg-white shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
+            className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === "grid" ? "bg-surface shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
             title="Grid view"
           >
             <LayoutGrid className="w-4 h-4" />
           </button>
           <button
             onClick={() => setViewMode("table")}
-            className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === "table" ? "bg-white shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
+            className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === "table" ? "bg-surface shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
             title="List view"
           >
             <List className="w-4 h-4" />
@@ -768,7 +768,7 @@ export default function CreativesPage() {
 
       {/* ── Pagination ── */}
       {totalPages > 1 && (
-        <div className="shrink-0 flex items-center justify-between px-3 py-3 border-t border-gray-100 rounded bg-white">
+        <div className="shrink-0 flex items-center justify-between px-3 py-3 border-t border-gray-100 rounded bg-surface">
           <p className="text-xs text-gray-400">
             Showing {(page - 1) * ITEMS_PER_PAGE + 1}–
             {Math.min(page * ITEMS_PER_PAGE, filtered.length)} of{" "}
@@ -812,7 +812,7 @@ export default function CreativesPage() {
 
       {/* ── Sidebar panel ── */}
       <div
-        className={`fixed top-0 right-0 h-full w-[420px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${selected ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed top-0 right-0 h-full w-[420px] bg-surface shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${selected ? "translate-x-0" : "translate-x-full"}`}
       >
         {selected && (
           <Sidebar
@@ -853,7 +853,7 @@ export default function CreativesPage() {
       {/* ── Delete confirm modal ── */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl mx-4">
+          <div className="bg-surface rounded-2xl p-6 w-full max-w-sm shadow-xl mx-4">
             <h3 className="text-base font-semibold text-gray-900 mb-1">
               {deleteConfirm === "bulk"
                 ? `Delete ${bulkSelected.length} design${bulkSelected.length > 1 ? "s" : ""}?`
@@ -935,12 +935,12 @@ const CreativeCard = ({
   return (
     <div
       onClick={onSelect}
-      className={`group bg-white rounded-lg border-2 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 flex flex-col relative ${isBulkMode && bulkChecked ? "border-blue-500 shadow-lg shadow-blue-100/60" : selected ? "border-blue-500 shadow-lg shadow-blue-100/60" : "border-gray-100 hover:border-gray-200"}`}
+      className={`group bg-surface rounded-lg border-2 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 flex flex-col relative ${isBulkMode && bulkChecked ? "border-blue-500 shadow-lg shadow-blue-100/60" : selected ? "border-blue-500 shadow-lg shadow-blue-100/60" : "border-gray-100 hover:border-gray-200"}`}
     >
       {/* Bulk checkbox */}
       {isBulkMode && (
         <div
-          className={`absolute top-2.5 left-2.5 z-10 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${bulkChecked ? "bg-blue-600 border-blue-600" : "bg-white/80 border-gray-300"}`}
+          className={`absolute top-2.5 left-2.5 z-10 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${bulkChecked ? "bg-blue-600 border-blue-600" : "bg-surface/80 border-gray-300"}`}
         >
           {bulkChecked && <Check className="w-3 h-3 text-white" />}
         </div>
@@ -979,7 +979,7 @@ const CreativeCard = ({
         {/* Type badge — top left */}
         <div className="absolute top-2.5 left-2.5">
           <span
-            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border backdrop-blur-sm bg-white/90 ${tc.text} ${tc.border} capitalize`}
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border backdrop-blur-sm bg-surface/90 ${tc.text} ${tc.border} capitalize`}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${tc.dot}`} />
             {c.type}
@@ -988,14 +988,14 @@ const CreativeCard = ({
 
         {/* Favorite indicator — top right */}
         {c.favorite && (
-          <div className="absolute top-2.5 right-2.5 w-6 h-6 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center border border-amber-100 shadow-sm">
+          <div className="absolute top-2.5 right-2.5 w-6 h-6 bg-surface/90 backdrop-blur-sm rounded-full flex items-center justify-center border border-amber-100 shadow-sm">
             <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
           </div>
         )}
 
         {/* Score badge — bottom right */}
         {c.score > 0 && (
-          <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm rounded-full px-2 py-0.5 text-[10px] font-bold text-green-600 border border-green-100">
+          <div className="absolute bottom-2 right-2 bg-surface/90 backdrop-blur-sm rounded-full px-2 py-0.5 text-[10px] font-bold text-green-600 border border-green-100">
             ★ {c.score}
           </div>
         )}
@@ -1068,7 +1068,7 @@ const TableView = ({
   onToggleFavorite,
   onDeleteRequest,
 }) => (
-  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+  <div className="bg-surface rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-gray-100 bg-gray-50/60">
@@ -1422,7 +1422,7 @@ const Sidebar = ({
 
           {/* Hovering Edit button — opens copy editor */}
           <button className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/preview:opacity-100 transition-opacity duration-200 cursor-pointer">
-            <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 hover:scale-105 rounded-lg text-sm font-semibold text-gray-700 hover:bg-white transition">
+            <div className="flex items-center gap-2 bg-surface/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 hover:scale-105 rounded-lg text-sm font-semibold text-gray-700 hover:bg-surface transition">
               <Edit2 className="w-3.5 h-3.5" />
               Edit with editor
             </div>
@@ -1588,7 +1588,7 @@ const Sidebar = ({
       </div>
 
       {/* Sticky footer */}
-      <div className="shrink-0 px-4 py-3 border-t border-gray-100 flex items-center gap-2 bg-white">
+      <div className="shrink-0 px-4 py-3 border-t border-gray-100 flex items-center gap-2 bg-surface">
         <button
           onClick={onCopy}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${copied ? "bg-green-50 border-green-200 text-green-600" : "bg-gray-50 border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50"}`}
@@ -1771,7 +1771,7 @@ function EditCopyModal({ creative, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[70] px-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
         {/* Modal header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-2">

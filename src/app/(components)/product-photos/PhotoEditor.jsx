@@ -3,9 +3,9 @@ import { removeBackground } from '@imgly/background-removal';
 import {
     X, Undo, Redo, Plus, Download, Share2, ChevronRight,
     AlignCenter, AlignVerticalJustifyCenter,
-    Scissors, Pencil, Sun, Layers, Box,
+    Scissors, Pencil, Sun, Layers, Box, LayoutTemplate,
     Sparkles, SlidersHorizontal, ImageIcon, Type, Loader2,
-    FlipHorizontal, Upload, Trash2, Copy
+    FlipHorizontal, Upload, Trash2, Copy, Eye, EyeOff, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
@@ -14,8 +14,9 @@ const topTools = [
     { id: 'insert', label: 'Insert', icon: Plus },
     { id: 'brandit', label: 'Brand Kit', icon: ImageIcon },
     { id: 'addtext', label: 'Add text', icon: Type },
-    { id: 'templates', label: 'Templates', icon: Layers },
+    { id: 'templates', label: 'Templates', icon: LayoutTemplate },
     { id: 'backgrounds', label: 'Backgrounds', icon: Box },
+    { id: 'layers', label: 'Layers', icon: Layers },
     { id: 'aishadows', label: 'AI Shadows', icon: Sun },
     { id: 'resize', label: 'Resize', icon: SlidersHorizontal },
 ];
@@ -457,6 +458,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     const [exportSize, setExportSize] = useState(null); // real output dims {w,h} (Resize); null = 2× preview
     const [templateQuery, setTemplateQuery] = useState('');
 
+    // Base image box model (preview px) — drives 8-handle resize + export.
+    const [imgW, setImgW] = useState(null);
+    const [imgH, setImgH] = useState(null);
+    const [imgHidden, setImgHidden] = useState(false);
+    const imgFitRef = useRef({ w: 0, h: 0 }); // fitted size at load (for the Scale slider)
+    const imgResizeRef = useRef(null);
+
     // ── Resize panel ──────────────────────────────────────────────────────
     const [resizeQuery, setResizeQuery] = useState('');
     const [pendingResize, setPendingResize] = useState(null);
@@ -555,6 +563,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         blurAmount, selectedFilter,
         shadowBlur, shadowOpacity,
         posX, posY, toggles, layers, canvasBg, canvasSize, canvasRound, exportSize,
+        imgW, imgH, imgHidden,
     });
 
     useEffect(() => {
@@ -596,6 +605,9 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         if (s.canvasSize) setCanvasSize(s.canvasSize);
         setCanvasRound(!!s.canvasRound);
         setExportSize(s.exportSize || null);
+        if (s.imgW !== undefined) setImgW(s.imgW);
+        if (s.imgH !== undefined) setImgH(s.imgH);
+        setImgHidden(!!s.imgHidden);
     };
 
     const canUndo = histIndex > 0;
@@ -607,6 +619,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     const onImgPointerDown = (e) => {
         e.stopPropagation();
         setSelected(true);
+        setSelectedLayerId(null);
         dragRef.current = { sx: e.clientX, sy: e.clientY, bx: posX, by: posY };
         e.currentTarget.setPointerCapture?.(e.pointerId);
     };
@@ -630,7 +643,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
             setExpandedPanel('shadows');
             return;
         }
-        if (id === 'backgrounds' || id === 'resize' || id === 'brandit' || id === 'templates') {
+        if (id === 'backgrounds' || id === 'resize' || id === 'brandit' || id === 'templates' || id === 'layers') {
             setActiveTool((t) => (t === id ? null : id));
             return;
         }
@@ -966,20 +979,95 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         layerDragRef.current = null;
         e.currentTarget.releasePointerCapture?.(e.pointerId);
     };
-    // Resize a layer (bottom-right handle)
-    const onResizePointerDown = (e, layer) => {
+    // ── Shared 8-direction resize geometry ────────────────────────────────
+    // k ∈ tl,tc,tr,ml,mr,bl,bc,br. start={w,h,cx,cy}. Corners keep aspect when
+    // lockAspect; edges stretch a single axis. Opposite edge/corner stays put.
+    const HANDLES = ['tl', 'tc', 'tr', 'ml', 'mr', 'bl', 'bc', 'br'];
+    const handleCursor = (k) => (
+        k === 'tl' || k === 'br' ? 'nwse-resize'
+        : k === 'tr' || k === 'bl' ? 'nesw-resize'
+        : k === 'tc' || k === 'bc' ? 'ns-resize' : 'ew-resize'
+    );
+    const geomResize = (k, dx, dy, start, lockAspect) => {
+        const hr = k.includes('l') ? -1 : k.includes('r') ? 1 : 0;
+        const vr = k.includes('t') ? -1 : k.includes('b') ? 1 : 0;
+        let w = start.w, h = start.h;
+        if (hr && vr && lockAspect) {
+            const fw = (start.w + hr * dx) / start.w;
+            const fh = (start.h + vr * dy) / start.h;
+            const f = Math.max(0.05, (fw + fh) / 2);
+            w = Math.max(20, start.w * f);
+            h = Math.max(20, start.h * f);
+        } else {
+            if (hr) w = Math.max(20, start.w + hr * dx);
+            if (vr) h = Math.max(20, start.h + vr * dy);
+        }
+        return { w, h, cx: start.cx + hr * (w - start.w) / 2, cy: start.cy + vr * (h - start.h) / 2 };
+    };
+
+    // ── Base image resize ─────────────────────────────────────────────────
+    const onImageLoad = (e) => {
+        if (imgW != null && imgH != null) return; // already sized
+        const nat = { w: e.target.naturalWidth || 1, h: e.target.naturalHeight || 1 };
+        const r = nat.w / nat.h;
+        let w = canvasSize.w * 0.7, h = w / r;
+        if (h > canvasSize.h * 0.8) { h = canvasSize.h * 0.8; w = h * r; }
+        imgFitRef.current = { w, h };
+        setImgW(w); setImgH(h);
+    };
+    const onImgResizeDown = (e, k) => {
         e.stopPropagation();
-        layerDragRef.current = { id: layer.id, mode: 'resize', sx: e.clientX, sy: e.clientY, bw: layer.w, bh: layer.h };
+        setSelected(true);
+        imgResizeRef.current = { k, sx: e.clientX, sy: e.clientY, w0: imgW, h0: imgH, cx0: canvasSize.w / 2 + posX, cy0: canvasSize.h / 2 + posY };
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+    };
+    const onImgResizeMove = (e) => {
+        const d = imgResizeRef.current;
+        if (!d) return;
+        const r = geomResize(d.k, e.clientX - d.sx, e.clientY - d.sy, { w: d.w0, h: d.h0, cx: d.cx0, cy: d.cy0 }, true);
+        setImgW(r.w); setImgH(r.h);
+        setPosX(r.cx - canvasSize.w / 2); setPosY(r.cy - canvasSize.h / 2);
+        if (imgFitRef.current.w) setScale(Math.round((r.w / imgFitRef.current.w) * 100));
+    };
+    const onImgResizeUp = (e) => { imgResizeRef.current = null; e.currentTarget.releasePointerCapture?.(e.pointerId); };
+
+    // Scale slider → uniform-scale the base box from its fitted size.
+    const setBaseScale = (v) => {
+        setScale(v);
+        if (imgFitRef.current.w) { setImgW(imgFitRef.current.w * v / 100); setImgH(imgFitRef.current.h * v / 100); }
+    };
+
+    // ── Layer resize (8 handles) ──────────────────────────────────────────
+    const onResizePointerDown = (e, layer, k = 'br') => {
+        e.stopPropagation();
+        layerDragRef.current = { id: layer.id, mode: 'resize', k, sx: e.clientX, sy: e.clientY, w0: layer.w, h0: layer.h, cx0: layer.x, cy0: layer.y, fs0: layer.fontSize };
         e.currentTarget.setPointerCapture?.(e.pointerId);
     };
     const onResizePointerMove = (e) => {
         const d = layerDragRef.current;
         if (!d || d.mode !== 'resize') return;
-        updateLayer(d.id, {
-            w: Math.max(20, d.bw + (e.clientX - d.sx)),
-            h: Math.max(20, d.bh + (e.clientY - d.sy)),
+        const layer = layers.find((l) => l.id === d.id);
+        const lock = layer && layer.type !== 'text' && layer.type !== 'shape';
+        const r = geomResize(d.k, e.clientX - d.sx, e.clientY - d.sy, { w: d.w0, h: d.h0, cx: d.cx0, cy: d.cy0 }, lock);
+        const patch = { w: r.w, h: r.h, x: r.cx, y: r.cy };
+        // Scale text size with the box on a corner drag.
+        if (layer?.type === 'text' && d.fs0 && (d.k.length === 2)) patch.fontSize = Math.max(8, Math.round(d.fs0 * (r.w / d.w0)));
+        updateLayer(d.id, patch);
+    };
+
+    // Reorder a layer up/down one step (z-order) for the Layers panel.
+    const moveLayer = (id, dir) => {
+        setLayers((prev) => {
+            const i = prev.findIndex((l) => l.id === id);
+            if (i < 0) return prev;
+            const j = dir === 'up' ? i + 1 : i - 1;
+            if (j < 0 || j >= prev.length) return prev;
+            const next = [...prev];
+            [next[i], next[j]] = [next[j], next[i]];
+            return next;
         });
     };
+    const toggleLayerHidden = (id) => setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, hidden: !l.hidden } : l)));
 
     const handleInsertFile = (e) => {
         const file = e.target.files?.[0];
@@ -1115,6 +1203,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         setProcessedUrl(null);
         setRemoveBg(false);
         setSelected(true);
+        setImgW(null); setImgH(null); // refit the new image to its own ratio
+        setPosX(0); setPosY(0); setScale(100);
 
         if (mode === 'bgremove') {
             await runBgRemoval(url);
@@ -1337,13 +1427,10 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
             } catch { /* ignore bg load failure */ }
         }
 
-        // Base image, placed where it appears in the preview.
-        if (displayImage && imgRef.current) {
+        // Base image, placed where it appears in the preview (box model).
+        if (displayImage && !imgHidden && imgW != null && imgH != null) {
             const im = await loadImageEl(displayImage);
-            const lw = imgRef.current.offsetWidth || im.naturalWidth;
-            const lh = imgRef.current.offsetHeight || im.naturalHeight;
-            const s = scale / 100;
-            const dw = lw * sc * s, dh = lh * sc * s;
+            const dw = imgW * sc, dh = imgH * sc;
             ctx.save();
             ctx.translate((canvasSize.w / 2 + posX) * sc, (canvasSize.h / 2 + posY) * sc);
             ctx.rotate((rotation * Math.PI) / 180);
@@ -1362,6 +1449,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         }
 
         for (const layer of layers) {
+            if (layer.hidden) continue;
             // eslint-disable-next-line no-await-in-loop
             await drawLayer(ctx, layer, sc);
         }
@@ -1371,7 +1459,11 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
     // Pick the right exporter: frame (layers / background / resized / round) vs. tight product crop.
     const exportBlob = async () => {
-        const framed = layers.length > 0 || canvasBg.type !== 'none' || canvasRound || exportSize || canvasSize.w !== CANVAS_W || canvasSize.h !== CANVAS_H;
+        // Non-uniform (edge-stretched) base image must use the frame compositor;
+        // uniform scaling stays on the high-res tight-crop path.
+        const fit = imgFitRef.current;
+        const distorted = imgW != null && imgH != null && fit.w && Math.abs((imgW / imgH) - (fit.w / fit.h)) > 0.01;
+        const framed = layers.length > 0 || canvasBg.type !== 'none' || canvasRound || exportSize || distorted || canvasSize.w !== CANVAS_W || canvasSize.h !== CANVAS_H;
         return framed ? renderFrameToCanvas() : renderToCanvas();
     };
 
@@ -1524,30 +1616,39 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                                 <p className="text-gray-500 text-xs">Loading model…</p>
                                             )}
                                         </div>
-                                    ) : displayImage && (
+                                    ) : displayImage && !imgHidden && (
+                                        (() => {
+                                            const baseReady = imgW != null && imgH != null;
+                                            return (
                                         <div
-                                            className={`relative cursor-move ${selected ? 'outline outline-2 outline-blue-500' : ''}`}
+                                            className={`absolute ${selected ? 'outline outline-2 outline-blue-500' : ''}`}
                                             onClick={e => { e.stopPropagation(); setSelected(true); }}
                                             onPointerDown={onImgPointerDown}
                                             onPointerMove={onImgPointerMove}
                                             onPointerUp={onImgPointerUp}
-                                            style={{ maxWidth: '78%', maxHeight: '82%', position: 'relative', touchAction: 'none' }}
+                                            style={baseReady
+                                                ? { left: canvasSize.w / 2 + posX - imgW / 2, top: canvasSize.h / 2 + posY - imgH / 2, width: imgW, height: imgH, cursor: 'move', touchAction: 'none', zIndex: 4 }
+                                                : { left: '50%', top: '50%', transform: 'translate(-50%,-50%)', maxWidth: '78%', maxHeight: 340, cursor: 'move', touchAction: 'none', zIndex: 4 }}
                                         >
-                                            {selected && (
+                                            {selected && baseReady && (
                                                 <>
-                                                    {[[-1, -1, 'tl'], ['50%', -1, 'tc'], ['100%', -1, 'tr'], [-1, '50%', 'ml'], ['100%', '50%', 'mr'], [-1, '100%', 'bl'], ['50%', '100%', 'bc'], ['100%', '100%', 'br']].map(([l, t, k]) => (
-                                                        <div key={k} className="absolute w-3 h-3 bg-surface border-2 border-blue-500 rounded-sm z-10"
-                                                            style={{ left: typeof l === 'number' ? `${l}px` : l, top: typeof t === 'number' ? `${t}px` : t, transform: 'translate(-50%,-50%)' }} />
+                                                    {HANDLES.map((k) => (
+                                                        <div key={k}
+                                                            onPointerDown={(e) => onImgResizeDown(e, k)}
+                                                            onPointerMove={onImgResizeMove}
+                                                            onPointerUp={onImgResizeUp}
+                                                            className="absolute w-3 h-3 bg-surface border-2 border-blue-500 rounded-sm z-10"
+                                                            style={{
+                                                                left: k.includes('l') ? '0%' : k.includes('r') ? '100%' : '50%',
+                                                                top: k.includes('t') ? '0%' : k.includes('b') ? '100%' : '50%',
+                                                                transform: 'translate(-50%,-50%)', cursor: handleCursor(k), touchAction: 'none',
+                                                            }} />
                                                     ))}
-                                                    <div className="absolute -top-10 left-0 flex items-center gap-1 bg-surface rounded-lg shadow px-2 py-1 z-10">
-                                                        <button onClick={e => { e.stopPropagation(); setOriginalUrl(null); setProcessedUrl(null); setSelected(false); setRemoveBg(false); }}
-                                                            className="p-1 hover:bg-gray-100 rounded text-gray-500 text-sm">🗑</button>
+                                                    <div className="absolute -top-10 left-0 flex items-center gap-1 bg-surface rounded-lg shadow px-2 py-1 z-10" onPointerDown={(e) => e.stopPropagation()}>
+                                                        <button onClick={e => { e.stopPropagation(); setOriginalUrl(null); setProcessedUrl(null); setSelected(false); setRemoveBg(false); setImgW(null); setImgH(null); }}
+                                                            className="p-1 hover:bg-gray-100 rounded text-gray-500 text-sm cursor-pointer">🗑</button>
                                                         <button onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                                                            className="p-1 hover:bg-gray-100 rounded text-gray-500 text-xs font-medium">Replace</button>
-                                                        <button className="p-1 hover:bg-gray-100 rounded text-gray-500 text-sm">···</button>
-                                                    </div>
-                                                    <div className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 bg-surface border-2 border-blue-500 rounded-full z-10 flex items-center justify-center cursor-e-resize">
-                                                        <div className="w-1 h-1 rounded-full bg-blue-500" />
+                                                            className="p-1 hover:bg-gray-100 rounded text-gray-500 text-xs font-medium cursor-pointer">Replace</button>
                                                     </div>
                                                 </>
                                             )}
@@ -1560,24 +1661,29 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                                 src={displayImage}
                                                 alt="product"
                                                 draggable={false}
-                                                className="block object-contain"
+                                                onLoad={onImageLoad}
+                                                className="block w-full h-full"
                                                 style={{
-                                                    maxWidth: '100%',
-                                                    maxHeight: 340,
+                                                    objectFit: baseReady ? 'fill' : 'contain',
+                                                    maxWidth: baseReady ? undefined : '100%',
+                                                    maxHeight: baseReady ? undefined : 340,
                                                     filter: imageFilter,
-                                                    transform: imageTransform,
+                                                    transform: `rotate(${rotation}deg) scaleX(${flipH ? -1 : 1})`,
                                                     transformOrigin: 'center',
                                                     ...(toggles.outline ? { outline: '3px solid #7c3aed', outlineOffset: '4px' } : {}),
                                                     ...(toggles.reflection ? { WebkitBoxReflect: 'below 4px linear-gradient(transparent 60%, rgba(0,0,0,0.15))' } : {}),
                                                 }}
                                             />
                                         </div>
+                                            );
+                                        })()
                                     )}
                                 </div>
                             )}
 
                             {/* Overlay layers (Insert) */}
                             {layers.map((layer) => {
+                                if (layer.hidden) return null;
                                 const isSel = layer.id === selectedLayerId;
                                 const isText = layer.type === 'text';
                                 const isEditing = layer.id === editingLayerId;
@@ -1664,13 +1770,18 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                                     <button onClick={(e) => { e.stopPropagation(); duplicateLayer(layer.id); }} className="p-1 hover:bg-gray-100 rounded text-gray-500 cursor-pointer" title="Duplicate"><Copy className="w-3.5 h-3.5" /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); deleteLayer(layer.id); }} className="p-1 hover:bg-gray-100 rounded text-red-500 cursor-pointer" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
                                                 </div>
-                                                <div
-                                                    onPointerDown={(e) => onResizePointerDown(e, layer)}
-                                                    onPointerMove={onResizePointerMove}
-                                                    onPointerUp={onLayerPointerUp}
-                                                    className="absolute w-3 h-3 bg-surface border-2 border-blue-500 rounded-sm cursor-se-resize"
-                                                    style={{ right: -6, bottom: -6, touchAction: 'none' }}
-                                                />
+                                                {!isEditing && HANDLES.map((k) => (
+                                                    <div key={k}
+                                                        onPointerDown={(e) => onResizePointerDown(e, layer, k)}
+                                                        onPointerMove={onResizePointerMove}
+                                                        onPointerUp={onLayerPointerUp}
+                                                        className="absolute w-3 h-3 bg-surface border-2 border-blue-500 rounded-sm z-10"
+                                                        style={{
+                                                            left: k.includes('l') ? '0%' : k.includes('r') ? '100%' : '50%',
+                                                            top: k.includes('t') ? '0%' : k.includes('b') ? '100%' : '50%',
+                                                            transform: 'translate(-50%,-50%)', cursor: handleCursor(k), touchAction: 'none',
+                                                        }} />
+                                                ))}
                                             </>
                                         )}
                                     </div>
@@ -1702,7 +1813,78 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
                     {/* Right Panel */}
                     <div className="w-84 bg-surface border-l border-gray-200 flex flex-col overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        {activeTool === 'addtext' ? (
+                        {activeTool === 'layers' ? (
+                            (() => {
+                                const layerLabel = (l) => (
+                                    l.type === 'text' ? (l.text || 'Text')
+                                    : l.type === 'image' ? 'Image'
+                                    : l.type === 'emoji' ? l.emoji
+                                    : l.type === 'badge' ? (l.text || 'Badge')
+                                    : l.type === 'shape' ? 'Shape' : 'Graphic'
+                                );
+                                const row = (opts) => (
+                                    <div key={opts.key}
+                                        onClick={opts.onSelect}
+                                        className={`flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer ${opts.active ? 'bg-blue-50 ring-1 ring-blue-400' : 'hover:bg-gray-100'}`}>
+                                        <button onClick={(e) => { e.stopPropagation(); opts.onToggleHidden(); }}
+                                            className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer shrink-0" title={opts.hidden ? 'Show' : 'Hide'}>
+                                            {opts.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                        </button>
+                                        <span className="w-8 h-8 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+                                            {opts.thumb}
+                                        </span>
+                                        <span className={`flex-1 text-sm truncate ${opts.hidden ? 'text-gray-400' : 'text-gray-800'}`}>{opts.label}</span>
+                                        {opts.controls}
+                                    </div>
+                                );
+                                return (
+                                    <div className="flex flex-col max-h-full">
+                                        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                                            <span className="font-semibold text-base text-gray-900">Layers</span>
+                                            <button onClick={() => setActiveTool(null)} className="p-1 rounded hover:bg-gray-100 cursor-pointer"><X className="w-4 h-4 text-gray-400" /></button>
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+                                            {!displayImage && layers.length === 0 && (
+                                                <p className="text-xs text-gray-400 text-center py-8">No layers yet. Add an image, text or graphics.</p>
+                                            )}
+                                            {/* Overlay layers (front first) */}
+                                            {[...layers].reverse().map((l) => row({
+                                                key: l.id,
+                                                active: l.id === selectedLayerId,
+                                                hidden: l.hidden,
+                                                label: layerLabel(l),
+                                                thumb: l.type === 'image' ? <img src={l.src} alt="" className="w-full h-full object-cover" />
+                                                    : l.type === 'text' ? <Type className="w-4 h-4 text-gray-400" />
+                                                    : <VisualSVG spec={l} />,
+                                                onSelect: () => { setSelectedLayerId(l.id); setSelected(false); },
+                                                onToggleHidden: () => toggleLayerHidden(l.id),
+                                                controls: (
+                                                    <span className="flex items-center shrink-0">
+                                                        <button onClick={(e) => { e.stopPropagation(); moveLayer(l.id, 'up'); }} className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer" title="Bring forward"><ChevronUp className="w-4 h-4" /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); moveLayer(l.id, 'down'); }} className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer" title="Send backward"><ChevronDown className="w-4 h-4" /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); duplicateLayer(l.id); }} className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer" title="Duplicate"><Copy className="w-3.5 h-3.5" /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); deleteLayer(l.id); }} className="p-1 text-gray-400 hover:text-red-500 cursor-pointer" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                                                    </span>
+                                                ),
+                                            }))}
+                                            {/* Base product image (bottom of stack) */}
+                                            {displayImage && row({
+                                                key: 'base',
+                                                active: selected,
+                                                hidden: imgHidden,
+                                                label: 'Product image',
+                                                thumb: <img src={displayImage} alt="" className="w-full h-full object-contain" />,
+                                                onSelect: () => { setSelected(true); setSelectedLayerId(null); },
+                                                onToggleHidden: () => setImgHidden((v) => !v),
+                                                controls: (
+                                                    <button onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }} className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer text-xs font-medium" title="Replace">Replace</button>
+                                                ),
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })()
+                        ) : activeTool === 'addtext' ? (
                             <div className="flex flex-col max-h-full">
                                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                                     <span className="font-semibold text-base text-gray-900">Add Text</span>
@@ -2414,12 +2596,12 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                 {expandedPanel === 'transform' && (
                                     <div className="px-3 pb-3 bg-gray-100">
                                         <Slider label="Rotation" value={rotation} min={-180} max={180} onChange={setRotation} unit="°" />
-                                        <Slider label="Scale" value={scale} min={20} max={200} onChange={setScale} unit="%" />
+                                        <Slider label="Scale" value={scale} min={20} max={200} onChange={setBaseScale} unit="%" />
                                         <button onClick={() => setFlipH(f => !f)}
                                             className="mt-2 flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700">
                                             <FlipHorizontal className="w-3.5 h-3.5" /> Flip horizontal
                                         </button>
-                                        <button onClick={() => { setRotation(0); setScale(100); setFlipH(false); }}
+                                        <button onClick={() => { setRotation(0); setBaseScale(100); setFlipH(false); }}
                                             className="mt-1 text-xs text-gray-500 hover:text-gray-500">Reset transform</button>
                                     </div>
                                 )}

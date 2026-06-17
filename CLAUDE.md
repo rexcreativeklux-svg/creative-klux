@@ -259,16 +259,44 @@ All loader keyframes (`ck-spin`, `ck-bar-slide`, `ck-icon-glow`, `ck-dot-bounce`
 
 **Dev preview:** `/logo-test` (public, outside `ProtectedRoute`) renders the inline + full-overlay loaders for quick visual checks.
 
+## Theming / dark mode (Tailwind v4)
+
+Light + dark mode via **next-themes** + a **palette-variable override** in `globals.css`. The guiding rule: **light mode is left 100% untouched**; only dark is centralized.
+
+- **Engine:** `ThemeProvider` (next-themes, `attribute="class"`, `defaultTheme="system"`) wraps everything in the **root** `layout.js`; `<html suppressHydrationWarning>`. Toggle UI: `src/app/(components)/ThemeSwitcher.jsx` (Light/System/Dark) lives at the bottom of the Sidebar. (The old hand-rolled `(components)/ThemeProvider.jsx` + `ThemeToggle.jsx` are dormant — use the **`@/context/ThemeProvider`** one.)
+- **v4 hook:** `globals.css` has `@custom-variant dark (&:where(.dark, .dark *));` — the JS config's `darkMode:"class"` is ignored in v4.
+- **How colors flip:** a single **`.dark { … }`** block in `globals.css` re-points Tailwind's palette vars (`--color-gray-50…950`). Because components use `gray-*` classes, every one flips automatically in dark. **To fix any dark shade, edit that one block** — it's the single source of truth for dark. Light isn't redeclared (uses Tailwind defaults).
+- **Surface/page/canvas tokens** (registered in `@theme`, light value = the old hardcoded color, dark overridden in `.dark`): `bg-surface` (cards, was `bg-white`), `bg-page` (dashboard content bg, was `bg-[#f7f8fc]`), `bg-canvas` (editor/preview/loader bg — applied as **`dark:bg-canvas`** so light keeps its exact hex).
+- **`white`/`black` are NOT flipped** (true white/black) so `text-white` on buttons and `bg-black/..` overlays stay correct. Surfaces flip via `bg-surface`, not by remapping white.
+- **Gotchas:**
+  - A "dark neutral button" (`bg-gray-900 text-white`) breaks in dark (gray-900→light, white text invisible). Fix: `text-white` → **`text-gray-50`** so text inverts opposite to the bg (an *inverting* button). Watch for more of these.
+  - **Arbitrary hex** (`bg-[#…]`, inline `style`) doesn't flip — convert to a token or add `dark:bg-[#…]`. Charts (apexcharts/recharts) carry own colors.
+  - `/designs/*` poster pages were **excluded** from theming (static art) — their surfaces stay white but their `gray-*` will flip; force-light that route if it matters.
+
+## Product Photos — Photo Editor (`(components)/product-photos/PhotoEditor.jsx`)
+
+"Edit a photo" is a **layered editor** (~1500 lines). The base product image is the bottom layer; everything else is an **overlay layer** (`layers[]` of `{id,type,x,y,w,h,rotation,...}`, types: `image | text | shape | path | badge | emoji`). Layers drag/resize/select/delete/duplicate/Front-Back; **Delete key** removes (ignored while typing). Full **undo/redo** history (debounced snapshot of all edit state incl. layers, canvasBg, canvasSize).
+
+- **Export is canvas-composited** — `renderFrameToCanvas()` paints canvasBg → base image (with filters/transform/shadow) → each layer, at `canvasSize × EXPORT_SCALE(2)`; `renderToCanvas()` is the tight product-crop fallback; `exportBlob()` picks frame vs crop. **Download** saves a file; **Save** uploads the PNG to the Image Gallery (`uploadImage`).
+- **Top tools wired:** Insert (category browser: Classics/Blobs/Arrows/Lines/Speech Bubbles/Emojis/Reactions/Indexes/Promotions/Sizes + Upload + Recent uploads), Add text (inline contentEditable + toolbar: bold/size/align/color), Backgrounds (none/solid/gradient/Pexels image → `canvasBg`), Resize (`canvasSize` presets), Brand it (add `activeBrand.logo` + brand colors), Templates (preset layer sets), AI Shadows (opens Shadows panel). Edit Cutout = real **eraser brush** overlay (destination-out → re-bakes `processedUrl`).
+- **All shapes are SVG/Path2D** via the shared `VisualSVG` component (preview + canvas) and `drawLayer` (export) — no licensed art; **brand logos deliberately omitted** (trademarked).
+- **⚠️ AI tools are dead** — see below.
+
+## Product Photos AI is a dead end (base44 removed)
+
+`src/(lib)/ai-helpers.jsx` (`generateImage` / `uploadFile`) calls **base44** (`base44.integrations.Core.*`), but the SDK is **uninstalled**, no `base44Client`, no appId/key in `.env`. So every AI-generation feature throws/does nothing:
+- **Affected:** Virtual Model, Product Staging, Product Tool (Beautifier/Flat Lay/Ghost Mannequin), Background Remover's "Generate AI background", Video Generator upload, PhotoEditor Retouch/Light On/AI-prompt (PhotoEditor's now show graceful "coming soon" toasts).
+- **Working without AI:** Background Remover's *core* removal (local `@imgly` WASM), all PhotoEditor non-AI editing.
+- **Fix is centralized:** repoint `generateImage`/`uploadFile` to a real **image-in → image-out** service and all the modals revive at once. `redesign`/`involk_llm` are **design/template** generators (brand_details → canvas JSON), **not** image-from-photo — they can't power these.
+
 ## Recent significant changes
 
-(Last updated 2026-06-16. Keep this short — a running 3–5 item list is fine.)
+(Last updated 2026-06-17. Keep this short — a running 3–5 item list is fine.)
 
-- **Generation loaders unified** — create-from-url, `ImageAdsForm`, `VideoAdsForm`, and `PostForm` all use `FullOverlayLoader`, offset by CSS vars so it doesn't cover the sidebar/header. See "Generation flow & loaders" above.
-- **Social creative (custom creation) fixed** — `PostForm.handleGenerate` was missing the template-fetch + image-upload + `brand_id` steps, so `/creatives/redesign` got empty `templates` and failed. Rewrote it to mirror `ImageAdsForm`.
-- **Product Photos → Background Remover + Batch** — `BatchModal` renamed to `BackgroundRemoverModal`; `/product-photos/batch` page selects images → opens them in `BackgroundRemoverModal` (batch mode: one shared style applied to all, filmstrip preview, "Download all" as separate PNGs). Background removal runs in a **Web Worker pool** (`bgRemoval.worker.js`, model `isnet_fp16`, inputs downscaled to 2500px) so the UI stays responsive; falls back to main-thread WASM. Background presets are product-display backdrops (Pexels).
-
-- **Create-from-URL (`/studio/create-from-url`)** earlier upgrade: step 4 "Ad Format" sub-type picker (Image / Video / Interactive / Playable — last two disabled); size/format fields swap by sub-type; scraped `/brands/import` images populate the strip; cropped images upload to `/image-gallery` before generate. See the dedicated create-from-url section.
-- **`MediaPickerModal` / `BrandImagesStrip`** — picker has no "Upload File" tab; `maxSelectable` caps images+videos combined; strip takes an optional `images` prop and trims to keep `externalCount + localSelected ≤ maxSelect`.
+- **Dark mode added** (whole app) — next-themes + palette-variable override in `globals.css`; light untouched. See "Theming / dark mode".
+- **Photo Editor fully built out** — layer system + Insert browser + Add text + Backgrounds + Resize + Brand it + Templates + Edit Cutout eraser; canvas-composited export. See "Product Photos — Photo Editor".
+- **"Create using Involk" button** on My Creations → `/studio/create-from-url?engine=involk` (vs default `redesign`). See create-from-url backends section.
+- **Product Photos → Background Remover + Batch** — `BackgroundRemoverModal` (core removal via `@imgly` Web Worker pool, `isnet_fp16`); `/product-photos/batch` opens selected images in batch mode. Image-background library expanded to 8 categories.
 
 ## Where the bodies are buried
 

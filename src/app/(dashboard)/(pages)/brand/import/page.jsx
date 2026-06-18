@@ -224,7 +224,8 @@ export default function ImportBrand({ brands = [], refreshBrands, setBrandView, 
         showToast(res?.message || "Import failed. Check the URL and try again.");
         return;
       }
-      const d = res.data?.data;
+      // Tolerate both shapes: double-wrapped ({ data: {...} }) or already-unwrapped brand object.
+      const d = res.data?.data || res.data;
       if (d) {
         setFormData(p => ({
           ...p,

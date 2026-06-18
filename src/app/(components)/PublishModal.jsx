@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-    X, Send, Loader2, Check, AlertCircle, Link2, ArrowLeft,
+    X, Send, Loader2, Check, AlertCircle, Link2, ArrowLeft, CalendarClock,
     Heart, MessageCircle, Share2, Bookmark, ThumbsUp, Globe, MoreHorizontal,
 } from "lucide-react";
 import {
@@ -46,6 +46,20 @@ const captionFromCopy = (copy = {}) =>
     copy.headline
         ? `${copy.headline}${copy.tagline ? ` — ${copy.tagline}` : ""}${copy.body ? `\n\n${copy.body}` : ""}${copy.cta ? `\n\n${copy.cta}` : ""}`
         : copy.body || copy.tagline || "";
+
+// What actually gets published: UPPERCASE the headline (first paragraph) for real,
+// so Facebook receives capitalized text (CSS `uppercase` only affects the preview).
+const captionForPublish = (text = "") => {
+    const idx = text.indexOf("\n\n");
+    return idx === -1 ? text.toUpperCase() : text.slice(0, idx).toUpperCase() + text.slice(idx);
+};
+
+// Route external http(s) images through our proxy so they load CORS-safe (same-origin)
+// when drawn onto a canvas — otherwise canvas export taints/drops them. Leaves data:/blob: alone.
+const proxiedSrc = (src) =>
+    typeof src === "string" && /^https?:\/\//i.test(src)
+        ? `/api/proxy-image?url=${encodeURIComponent(src)}`
+        : src;
 
 // ── Design visual ─────────────────────────────────────────────────────────────
 // Renders the actual creative: a rendered image_url if present, otherwise the
@@ -107,7 +121,7 @@ function DesignCanvas({ canvas, elements }) {
                 const img = new Image();
                 img.crossOrigin = "anonymous";
                 img.onload = () => c.getContext("2d").drawImage(img, el.x, el.y, el.width, el.height);
-                img.src = el.src;
+                img.src = proxiedSrc(el.src);
             }
             ctx.restore();
         });
@@ -140,7 +154,7 @@ async function renderDesignToFile(canvas, elements, filename = "creative.png") {
         img.crossOrigin = "anonymous";
         img.onload = () => resolve([el, img]);
         img.onerror = () => resolve(null);
-        img.src = el.src;
+        img.src = proxiedSrc(el.src);
     })));
     const imgMap = new Map(loaded.filter(Boolean));
 
@@ -285,7 +299,7 @@ const EditableCaption = ({ value, onChange, placeholder, prefix = null, classNam
     return (
         <div className={`px-3 text-sm text-gray-800 ${className}`}>
             {prefix}
-            <AutoTextarea value={headline} onChange={setHeadline} placeholder={placeholder} className="font-bold" />
+            <AutoTextarea value={headline} onChange={setHeadline} placeholder={placeholder} className="uppercase" />
             <AutoTextarea value={body} onChange={setBody} placeholder="Write more…" className="mt-1" />
         </div>
     );
@@ -360,7 +374,7 @@ const PlatformPreview = ({ platform, ...rest }) => {
 };
 
 // ── Main modal ────────────────────────────────────────────────────────────────
-export default function PublishModal({ creative, onClose, showToast }) {
+export default function PublishModal({ creative, onClose, showToast, startInSchedule = false }) {
     const { fetchIntegrations, activeBrand, uploadImage } = useAuth();
     const router = useRouter();
 
@@ -370,7 +384,10 @@ export default function PublishModal({ creative, onClose, showToast }) {
     const [selected, setSelected]         = useState(null);       // platform id
     const [caption, setCaption]           = useState("");
     const [publishing, setPublishing]     = useState(false);
+    const [busyAction, setBusyAction]     = useState(null);  // 'publish' | 'schedule' | null
     const [published, setPublished]       = useState(false);
+    const [showSchedule, setShowSchedule] = useState(false); // schedule picker visible
+    const [scheduleAt, setScheduleAt]     = useState("");    // datetime-local value
 
     const order = useMemo(() => platformsForCategory(creative?.category), [creative]);
 
@@ -386,7 +403,17 @@ export default function PublishModal({ creative, onClose, showToast }) {
             setFetching(true);
             try {
                 const data = await fetchIntegrations();
-                if (alive) setIntegrations(Array.isArray(data) ? data : []);
+                const arr = Array.isArray(data) ? data : [];
+                if (alive) {
+                    setIntegrations(arr);
+                    // Opened via the Schedule button → jump straight into Facebook's
+                    // compose view with the schedule picker open (FB is the only schedulable platform).
+                    if (startInSchedule && arr.some((i) => i.platform === "facebook")) {
+                        setSelected("facebook");
+                        setView("compose");
+                        setShowSchedule(true);
+                    }
+                }
             } catch {
                 if (alive) setIntegrations([]);
             } finally {
@@ -414,14 +441,16 @@ export default function PublishModal({ creative, onClose, showToast }) {
     };
 
     // ── Publish ─────────────────────────────────────────────────────────────────
-    const handlePublish = useCallback(async () => {
+    // scheduledUnix (seconds) → schedule on Facebook; null/undefined → post now.
+    const handlePublish = useCallback(async (scheduledUnix = null) => {
         if (!selected || !creative) return;
         const integration = integrations.find((i) => i.platform === selected);
         if (!integration) return;
 
         setPublishing(true);
+        setBusyAction(scheduledUnix ? "schedule" : "publish");
         try {
-            const cap = caption.trim();
+            const cap = captionForPublish(caption.trim());
 
             // Resolve a real, publishable image URL.
             // Canvas-based designs have no image_url — render them to a PNG, upload it,
@@ -455,6 +484,7 @@ export default function PublishModal({ creative, onClose, showToast }) {
                     page_id: integration.int_id,
                     image_url: imageUrl,
                     caption: cap,
+                    scheduled_publish_time: scheduledUnix || undefined,
                 });
             } else if (selected === "instagram") {
                 await publishToInstagram({
@@ -469,12 +499,18 @@ export default function PublishModal({ creative, onClose, showToast }) {
             }
 
             setPublished(true);
-            showToast(`Published to ${PLATFORMS[selected]?.label || selected}!`, "success");
+            showToast(
+                scheduledUnix
+                    ? `Scheduled for ${new Date(scheduledUnix * 1000).toLocaleString()}`
+                    : `Published to ${PLATFORMS[selected]?.label || selected}!`,
+                "success",
+            );
             setTimeout(onClose, 1600);
         } catch (err) {
             showToast(err.message || "Publish failed", "error");
         } finally {
             setPublishing(false);
+            setBusyAction(null);
         }
     }, [selected, integrations, creative, caption, onClose, showToast, uploadImage]);
 
@@ -484,10 +520,36 @@ export default function PublishModal({ creative, onClose, showToast }) {
         return i?.int_name || activeBrand?.name || PLATFORMS[selected]?.label || "Your Brand";
     }, [integrations, selected, activeBrand]);
 
+    // ── Scheduling (Facebook only) ────────────────────────────────────────────────
+    const toLocalInput = (d) => {
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    const scheduleMin = toLocalInput(new Date(Date.now() + 11 * 60 * 1000));         // 10-min floor (+1 buffer)
+    const scheduleMax = toLocalInput(new Date(Date.now() + 180 * 24 * 60 * 60 * 1000)); // 6-month ceiling
+
+    const toggleSchedule = () => {
+        if (selected !== "facebook") {
+            showToast("Scheduling is only available for Facebook right now", "error");
+            return;
+        }
+        setShowSchedule((s) => !s);
+    };
+
+    const confirmSchedule = () => {
+        if (!scheduleAt) { showToast("Pick a date & time", "error"); return; }
+        const ts = new Date(scheduleAt).getTime();
+        if (Number.isNaN(ts)) { showToast("Pick a valid date & time", "error"); return; }
+        const now = Date.now();
+        if (ts < now + 10 * 60 * 1000) { showToast("Schedule at least 10 minutes from now", "error"); return; }
+        if (ts > now + 180 * 24 * 60 * 60 * 1000) { showToast("Schedule within 6 months", "error"); return; }
+        handlePublish(Math.floor(ts / 1000));
+    };
+
     // ── Render ───────────────────────────────────────────────────────────────────
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[80] px-4">
-            <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+            <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
 
                 {/* Header */}
                 <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 shrink-0">
@@ -605,6 +667,34 @@ export default function PublishModal({ creative, onClose, showToast }) {
                             <p className="text-[11px] text-gray-400 text-right -mt-1">
                                 Click the caption to edit · {caption.length} chars
                             </p>
+
+                            {/* Schedule picker (Facebook only) */}
+                            {showSchedule && (
+                                <div className="rounded-xl border border-gray-200 p-3 flex flex-col gap-2">
+                                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Schedule for</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="datetime-local"
+                                            value={scheduleAt}
+                                            min={scheduleMin}
+                                            max={scheduleMax}
+                                            onChange={(e) => setScheduleAt(e.target.value)}
+                                            className="flex-1 min-w-0 text-sm text-gray-800 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                                        />
+                                        <button
+                                            onClick={confirmSchedule}
+                                            disabled={publishing || published}
+                                            className="px-4 py-2 text-sm text-white rounded-lg font-semibold disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shrink-0"
+                                            style={{ background: "linear-gradient(135deg,#7c3aed,#ec4899)" }}
+                                        >
+                                            {busyAction === "schedule"
+                                                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Scheduling…</>
+                                                : <><CalendarClock className="w-3.5 h-3.5" /> Schedule</>}
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-gray-400">Facebook publishes it automatically · 10 min–6 months ahead.</p>
+                                </div>
+                            )}
                         </div>
 
                         {/* Footer */}
@@ -617,11 +707,20 @@ export default function PublishModal({ creative, onClose, showToast }) {
                                 Back
                             </button>
                             <button
-                                onClick={handlePublish}
+                                onClick={toggleSchedule}
+                                disabled={publishing || published}
+                                className={`px-4 py-2 text-sm border rounded-xl hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer transition flex items-center gap-2 font-medium ${
+                                    showSchedule ? "border-blue-400 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-700"
+                                }`}
+                            >
+                                <CalendarClock className="w-3.5 h-3.5" /> Schedule
+                            </button>
+                            <button
+                                onClick={() => handlePublish()}
                                 disabled={publishing || published}
                                 className="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl cursor-pointer transition flex items-center gap-2 font-semibold"
                             >
-                                {publishing ? (
+                                {busyAction === "publish" ? (
                                     <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Publishing…</>
                                 ) : published ? (
                                     <><Check className="w-3.5 h-3.5" /> Published!</>

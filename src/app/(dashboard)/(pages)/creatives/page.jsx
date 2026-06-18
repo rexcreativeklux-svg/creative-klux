@@ -335,6 +335,7 @@ export default function CreativesPage() {
   const [isBulkMode, setIsBulkMode] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [publishTarget, setPublishTarget] = useState(null);
+  const [publishStartSchedule, setPublishStartSchedule] = useState(false);
 
   // Toast state
   const [toast, setToast] = useState({
@@ -824,8 +825,14 @@ export default function CreativesPage() {
             onDeleteRequest={setDeleteConfirm}
             onEdit={setEditTarget}
             onPublish={() => {
+              setPublishStartSchedule(false);
               setPublishTarget(selected); // capture the creative
               setSelectedId(null); // close the sidebar
+            }}
+            onSchedule={() => {
+              setPublishStartSchedule(true); // open the modal straight into scheduling
+              setPublishTarget(selected);
+              setSelectedId(null);
             }}
             onDownload={handleDownloadDesign}
           />
@@ -845,6 +852,7 @@ export default function CreativesPage() {
       {publishTarget && (
         <PublishModal
           creative={publishTarget}
+          startInSchedule={publishStartSchedule}
           onClose={() => setPublishTarget(null)}
           showToast={showToast}
         />
@@ -1351,6 +1359,7 @@ const Sidebar = ({
   onDeleteRequest,
   onEdit,
   onPublish,
+  onSchedule,
   onDownload,
 }) => {
   const [downloading, setDownloading] = useState(false);
@@ -1507,12 +1516,12 @@ const Sidebar = ({
               >
                 <Send className="w-3 h-3" /> Publish
               </button>
-              <Link
-                href="/"
+              <button
+                onClick={onSchedule}
                 className="flex-1 cursor-pointer flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold py-2 rounded-lg transition-all"
               >
                 <CalendarClock className="w-3 h-3" /> Schedule
-              </Link>
+              </button>
               <button
                 onClick={async () => {
                   if (downloading) return;

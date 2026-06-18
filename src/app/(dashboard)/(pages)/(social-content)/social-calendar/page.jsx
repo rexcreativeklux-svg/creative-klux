@@ -10,6 +10,7 @@ import {
   format, addMonths, subMonths
 } from 'date-fns';
 import { getPublishedPosts, deletePostFromPlatform, fetchLivePostsFromConnectedAccounts } from '../../../../../(lib)/integration';
+import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import Link from 'next/link';
 
@@ -61,6 +62,8 @@ export default function SocialContentCalendar() {
   const typeLabel = 'Social';
   const matchType = 'social';
 
+  const { fetchIntegrations } = useAuth();
+
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [allPosts, setAllPosts]         = useState([]);
   const [selectedDay, setSelectedDay]   = useState(null);
@@ -69,17 +72,25 @@ export default function SocialContentCalendar() {
 
   const fetchLive = useCallback(async () => {
     try {
-      const livePosts = await fetchLivePostsFromConnectedAccounts();
-      const local     = getPublishedPosts();
-      const localIds  = new Set(local.map(p => p.id));
-      const newPosts  = livePosts.filter(lp => !localIds.has(lp.id));
-      const merged    = [...newPosts, ...local];
-      localStorage.setItem('creativeklux_published_posts', JSON.stringify(merged));
-      setAllPosts(merged);
+      const integrations = (await fetchIntegrations()) || [];
+      const livePosts = await fetchLivePostsFromConnectedAccounts(integrations);
+
+      // Scheduled posts are shown live-only (never persisted) so they disappear
+      // from the calendar automatically once Facebook publishes them.
+      const liveScheduled  = livePosts.filter(p => p.status === 'scheduled');
+      const livePublished  = livePosts.filter(p => p.status !== 'scheduled');
+
+      const local    = getPublishedPosts();
+      const localIds = new Set(local.map(p => p.id));
+      const newPublished = livePublished.filter(lp => !localIds.has(lp.id));
+      const persisted = [...newPublished, ...local];
+
+      localStorage.setItem('creativeklux_published_posts', JSON.stringify(persisted));
+      setAllPosts([...liveScheduled, ...persisted]);
     } catch {
       reload();
     }
-  }, [reload]);
+  }, [reload, fetchIntegrations]);
 
   useEffect(() => { fetchLive(); }, [fetchLive]);
 

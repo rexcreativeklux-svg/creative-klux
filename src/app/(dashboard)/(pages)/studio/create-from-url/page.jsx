@@ -645,6 +645,7 @@ export default function CreateFromUrl() {
           <AdPreview
             creative={activeType}
             category={{ label: isAds ? 'Ad Creative' : 'Social Content' }}
+            creativeType={isAds ? 'ads' : 'social'}
             formData={previewFormData}
             result={result}
             onBack={() => setResult(null)}

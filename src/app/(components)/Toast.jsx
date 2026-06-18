@@ -1,7 +1,7 @@
 // components/Toast.jsx
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function Toast({ message, isOpen, onClose, duration = 2000, type = "success" }) {
 
@@ -9,16 +9,17 @@ export default function Toast({ message, isOpen, onClose, duration = 2000, type 
     const iconColor = isError ? "text-red-600" : "text-green-600";
     const barColor = isError ? "bg-red-600" : "bg-green-600";
 
-    // Auto-close after the specified duration
-    useEffect(() => {
-        if (isOpen) {
-            const timer = setTimeout(() => {
-                onClose();
-            }, duration);
+    // Pause the auto-close timer while the cursor is over the toast.
+    const [paused, setPaused] = useState(false);
 
-            return () => clearTimeout(timer);
-        }
-    }, [isOpen, duration, onClose]);
+    // Auto-close after the specified duration (paused on hover — restarts on leave).
+    useEffect(() => {
+        if (!isOpen || paused) return;
+        const timer = setTimeout(() => {
+            onClose();
+        }, duration);
+        return () => clearTimeout(timer);
+    }, [isOpen, duration, onClose, paused]);
 
     return (
         <AnimatePresence>
@@ -34,6 +35,8 @@ export default function Toast({ message, isOpen, onClose, duration = 2000, type 
                         stiffness: 200,
                         damping: 25,
                     }}
+                    onMouseEnter={() => setPaused(true)}
+                    onMouseLeave={() => setPaused(false)}
                     className="fixed top-6 right-6 z-9999"
                 >
                     <div className={`rounded-xl shadow-2xl border px-6 py-4 flex items-center gap-3 min-w-[320px] max-w-md
@@ -62,19 +65,18 @@ export default function Toast({ message, isOpen, onClose, duration = 2000, type 
                         </button>
                     </div>
 
-                    {/* Progress bar – perfectly synced with duration */}
+                    {/* Progress bar – synced with duration; freezes (full) while hovered */}
                     <div className="h-1 mt-1 rounded-full px-1 overflow-hidden">
                         <motion.div
+                            key={paused ? "paused" : "running"}
                             initial={{ scaleX: 1 }}
-                            animate={{ scaleX: 0 }}
+                            animate={{ scaleX: paused ? 1 : 0 }}
                             transition={{
-                                duration: 2,
+                                duration: paused ? 0 : duration / 1000,
                                 ease: "linear",
                             }}
                             style={{ originX: 0 }}
                             className={`h-full w-full ${barColor}`}
-
-
                         />
                     </div>
                 </motion.div>

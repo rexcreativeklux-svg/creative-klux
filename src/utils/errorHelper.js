@@ -131,6 +131,26 @@ export async function classifyResult({ response, error, rawText } = {}) {
     };
   }
 
+  // 429 / quota / rate-limit — may arrive as a real 429, or wrapped inside a 5xx
+  // by our backend (e.g. an OpenAI "exceeded your current quota" error surfaced as 500).
+  const backendText = `${data?.message || ""} ${data?.error || ""}`.toLowerCase();
+  if (
+    status === 429 ||
+    backendText.includes("quota") ||
+    backendText.includes("(429)") ||
+    backendText.includes("rate limit") ||
+    backendText.includes("rate_limit")
+  ) {
+    return {
+      ok: false,
+      source: "rate_limit",
+      message:
+        "You exceeded your current quota, please check your plan and billing details",
+      messageForDevs: data?.message || data?.error || `HTTP ${status} quota/rate-limit`,
+      status,
+    };
+  }
+
   // 422 OR a JSON body with an `errors` object — Laravel validation
   if (status === 422 || (data && typeof data.errors === "object" && data.errors !== null)) {
     const firstField = data?.errors ? Object.keys(data.errors)[0] : null;

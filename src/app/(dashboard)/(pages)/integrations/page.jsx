@@ -488,7 +488,21 @@ const IntegrationsPage = () => {
 
     async function resolveIntegrationCredentials(platformId, oauthResult) {
         if (["facebook", "instagram", "meta_ads"].includes(platformId)) {
-            return await resolveMetaIntegration(platformId, oauthResult);
+            // Fetch the user's Pages, then open the page-picker modal.
+            // handleSelectPlatformPage saves the chosen page's token/id (and resolves
+            // the IG business account / ad accounts for instagram / meta_ads).
+            const { userToken, pages } = await resolveMetaIntegration(platformId, oauthResult);
+            setFbPages(
+                pages.map((p) => ({
+                    id: p.id,
+                    name: p.name,
+                    access_token: p.access_token,
+                    _ig_user_id: p.instagram_business_account?.id || null,
+                }))
+            );
+            setPendingFbOauth({ platformId, userToken });
+            setShowPageModal(true);
+            return null;
         }
 
         if (["linkedin", "linkedin_ads"].includes(platformId)) {

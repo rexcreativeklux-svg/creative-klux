@@ -931,6 +931,7 @@ const CreativeCard = ({
   const tc = TYPE_COLOR[c.type?.toLowerCase()] || DEFAULT_COLOR;
   const hasCanvas = c.canvas && c.elements?.length > 0;
   const tagline = c.copy?.tagline || "";
+  console.log(c);
 
   return (
     <div
@@ -982,7 +983,7 @@ const CreativeCard = ({
             className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border backdrop-blur-sm bg-surface/90 ${tc.text} ${tc.border} capitalize`}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${tc.dot}`} />
-            {c.type}
+            {c.category}
           </span>
         </div>
 
@@ -1224,7 +1225,7 @@ async function renderDesignToPngBlob(c) {
       } catch {
         // skip images that fail to load — the rest of the design still exports
       }
-    })
+    }),
   );
 
   const canvas = document.createElement("canvas");
@@ -1258,7 +1259,8 @@ async function renderDesignToPngBlob(c) {
         ctx.fill();
         if (el.strokeWidth) ctx.stroke();
       } else if (el.shape === "triangle") {
-        const w = el.width || 0, h = el.height || 0;
+        const w = el.width || 0,
+          h = el.height || 0;
         ctx.beginPath();
         ctx.moveTo(el.x + w / 2, el.y);
         ctx.lineTo(el.x + w, el.y + h);
@@ -1288,16 +1290,21 @@ async function renderDesignToPngBlob(c) {
       ctx.fillStyle = el.fill || el.color || "#000000";
       ctx.textAlign = align;
       const x =
-        align === "center" ? el.x + (el.width || 0) / 2
-        : align === "right" ? el.x + (el.width || 0)
-        : el.x;
+        align === "center"
+          ? el.x + (el.width || 0) / 2
+          : align === "right"
+            ? el.x + (el.width || 0)
+            : el.x;
       const textContent =
-        typeof el.content === "string" ? el.content
-        : typeof el.text === "string" ? el.text
-        : "";
+        typeof el.content === "string"
+          ? el.content
+          : typeof el.text === "string"
+            ? el.text
+            : "";
       const words = textContent.trim().split(/\s+/);
       const lineMaxW = el.width || 9999;
-      let line = "", lineY = el.y + size;
+      let line = "",
+        lineY = el.y + size;
       words.forEach((word) => {
         const test = line ? line + " " + word : word;
         if (ctx.measureText(test).width > lineMaxW && line) {
@@ -1326,10 +1333,12 @@ async function renderDesignToPngBlob(c) {
           blob
             ? resolve(blob)
             : reject(new Error("Could not export this design.")),
-        "image/png"
+        "image/png",
       );
     } catch {
-      reject(new Error("Export blocked — this design contains protected images."));
+      reject(
+        new Error("Export blocked — this design contains protected images."),
+      );
     }
   });
 }

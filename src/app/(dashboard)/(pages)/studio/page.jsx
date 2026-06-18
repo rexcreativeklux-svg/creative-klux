@@ -309,6 +309,7 @@ const StudioInner = () => {
             <AdPreview
               creative={creative}
               category={category}
+              creativeType={selectedCreative}
               formData={formData}
               result={result}
               onBack={() => { setStep("form"); setResult(null); }}

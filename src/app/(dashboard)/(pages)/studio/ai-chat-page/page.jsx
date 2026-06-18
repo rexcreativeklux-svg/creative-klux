@@ -217,6 +217,7 @@ function DesignCanvas({ variation }) {
 
 function PreviewPanel({ result,
   config,
+  creativeType,
   selectedDesigns,
   setSelectedDesigns,
   onToggleSelect,
@@ -265,7 +266,10 @@ function PreviewPanel({ result,
         >
           <button className="hover:scale-95"
             onClick={async () => {
-              const res = await saveDesign(activeBrandId, selectedDesigns, "ads");
+              // Persist the real creative type so cards show the correct Ads/Social/Design/Magic badge.
+              // saveDesign strips the "_creative" suffix; "general" has no category so default it to "ads".
+              const saveType = !creativeType || creativeType === "general" ? "ads" : creativeType;
+              const res = await saveDesign(activeBrandId, selectedDesigns, saveType);
 
               if (res?.ok) {
                 setSelectedDesigns([]);
@@ -910,6 +914,7 @@ export default function AiCreativeChatPage() {
             <PreviewPanel
               result={previewResult}
               config={config}
+              creativeType={creativeType}
               selectedDesigns={selectedDesigns}
               setSelectedDesigns={setSelectedDesigns}
               onToggleSelect={toggleDesignSelection}

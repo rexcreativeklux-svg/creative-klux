@@ -121,7 +121,7 @@ function DesignCanvas({ variation, maxWidth = 220, maxHeight = 180 }) {
 }
 
 /* ─── DesignResultPanel ─────────────────────────────────────── */
-function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToast }) {
+function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToast, creativeType = "ads" }) {
   const [selectedIds, setSelectedIds] = useState([]);
   // Read variations directly from result so progressive batches re-render
   const variations = result?.variations || [];
@@ -142,7 +142,7 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
     setSaving(true);
     const toSave = variations.filter((v) => selectedIds.includes(v.id));
     try {
-      const res = await saveDesign?.(activeBrandId, toSave, "ads");
+      const res = await saveDesign?.(activeBrandId, toSave, creativeType);
       if (res?.ok) { setSelectedIds([]); showToast?.("Design(s) saved successfully ✓"); }
       else showToast?.(res?.message || "Failed to save designs");
     } catch { showToast?.("Failed to save designs"); }
@@ -339,7 +339,7 @@ function DesignResultPanel({ result, onBack, saveDesign, activeBrandId, showToas
 }
 
 /* ─── Main AdPreview ────────────────────────────────────────── */
-const AdPreview = ({ creative, category, formData, result, onBack, onOpenModal, saveDesign, activeBrandId, showToast }) => {
+const AdPreview = ({ creative, category, formData, result, onBack, onOpenModal, saveDesign, activeBrandId, showToast, creativeType = "ads" }) => {
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [menuOpen, setMenuOpen] = useState(null);
   const videoRefs = useRef({});
@@ -382,6 +382,7 @@ const AdPreview = ({ creative, category, formData, result, onBack, onOpenModal, 
         <DesignResultPanel
           result={result} onBack={onBack}
           saveDesign={saveDesign} activeBrandId={activeBrandId} showToast={showToast}
+          creativeType={creativeType}
         />
       </div>
     );

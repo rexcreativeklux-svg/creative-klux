@@ -931,7 +931,6 @@ const CreativeCard = ({
   const tc = TYPE_COLOR[c.type?.toLowerCase()] || DEFAULT_COLOR;
   const hasCanvas = c.canvas && c.elements?.length > 0;
   const tagline = c.copy?.tagline || "";
-  console.log(c);
 
   return (
     <div

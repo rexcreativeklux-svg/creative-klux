@@ -680,6 +680,7 @@ export async function publishToFacebook({
   page_id,
   image_url,
   caption,
+  scheduled_publish_time, // optional unix seconds — when set, FB schedules instead of posting now
 }) {
   if (!access_token) {
     throw new Error(
@@ -721,6 +722,10 @@ export async function publishToFacebook({
         },
         body: JSON.stringify({
           message: caption,
+          // Scheduling: an unpublished post with a future publish time.
+          ...(scheduled_publish_time
+            ? { published: false, scheduled_publish_time }
+            : {}),
         }),
       }
     );
@@ -749,7 +754,9 @@ export async function publishToFacebook({
       body: JSON.stringify({
         url: image_url,
         caption,
-        published: true,
+        // Scheduling: publish later instead of now.
+        published: scheduled_publish_time ? false : true,
+        ...(scheduled_publish_time ? { scheduled_publish_time } : {}),
       }),
     }
   );
@@ -1037,6 +1044,39 @@ export async function fetchLivePostsFromConnectedAccounts(
             scheduled_at: null,
             post_id: post.id,
             permalink_url: post.permalink_url,
+            live: true,
+            stats: {},
+          });
+        });
+      }
+
+      // Scheduled (unpublished) posts are NOT in /posts — they live under /scheduled_posts.
+      const schedRes = await fetch(
+        `${META_GRAPH_BASE}/${pageId}/scheduled_posts` +
+        `?fields=id,message,story,scheduled_publish_time,full_picture,permalink_url` +
+        `&access_token=${pageToken}`
+      );
+      const schedData = await schedRes.json();
+      if (schedData.error) {
+        console.warn("Facebook scheduled posts error:", schedData.error);
+      } else {
+        (schedData.data || []).forEach((post) => {
+          livePosts.push({
+            id: `fb_${post.id}`,
+            project_id: null,
+            project_title: post.message?.slice(0, 60) || post.story || "Scheduled Facebook Post",
+            caption: post.message || "",
+            image_url: post.full_picture || null,
+            platform: "facebook",
+            type: "social",
+            status: "scheduled",
+            published_at: null,
+            // scheduled_publish_time is unix seconds → ISO string for the calendar.
+            scheduled_at: post.scheduled_publish_time
+              ? new Date(post.scheduled_publish_time * 1000).toISOString()
+              : null,
+            post_id: post.id,
+            permalink_url: post.permalink_url || null,
             live: true,
             stats: {},
           });

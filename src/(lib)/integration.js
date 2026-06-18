@@ -812,7 +812,13 @@ export async function publishToInstagram({
   const container = await containerRes.json();
 
   if (container.error) {
-    throw new Error(container.error.message);
+    // Surface the full Graph error so we can tell apart permission vs account-restriction vs image issues.
+    console.error('Instagram container error:', container.error);
+    const e = container.error;
+    throw new Error(
+      `${e.error_user_msg || e.message}` +
+      `${e.code ? ` [code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''}]` : ''}`
+    );
   }
 
   // Publish media
@@ -833,7 +839,12 @@ export async function publishToInstagram({
   const publishData = await publishRes.json();
 
   if (publishData.error) {
-    throw new Error(publishData.error.message);
+    console.error('Instagram publish error:', publishData.error);
+    const e = publishData.error;
+    throw new Error(
+      `${e.error_user_msg || e.message}` +
+      `${e.code ? ` [code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''}]` : ''}`
+    );
   }
 
   return {

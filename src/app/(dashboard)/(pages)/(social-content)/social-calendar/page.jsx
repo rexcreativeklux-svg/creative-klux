@@ -75,18 +75,21 @@ export default function SocialContentCalendar() {
       const integrations = (await fetchIntegrations()) || [];
       const livePosts = await fetchLivePostsFromConnectedAccounts(integrations);
 
-      // Scheduled posts are shown live-only (never persisted) so they disappear
-      // from the calendar automatically once Facebook publishes them.
-      const liveScheduled  = livePosts.filter(p => p.status === 'scheduled');
-      const livePublished  = livePosts.filter(p => p.status !== 'scheduled');
+      // Facebook is authoritative for status. Keep a local post ONLY when FB no longer
+      // reports it, and never trust a local 'scheduled' — otherwise a stale local
+      // scheduled entry (persisted by an earlier bug) shadows the now-published post.
+      const liveIds   = new Set(livePosts.map(p => p.id));
+      const local     = getPublishedPosts();
+      const localOnly = local.filter(p => !liveIds.has(p.id) && p.status !== 'scheduled');
 
-      const local    = getPublishedPosts();
-      const localIds = new Set(local.map(p => p.id));
-      const newPublished = livePublished.filter(lp => !localIds.has(lp.id));
-      const persisted = [...newPublished, ...local];
+      // livePosts lists published before scheduled, so dedupe-by-id prefers the published copy.
+      const byId = new Map();
+      [...livePosts, ...localOnly].forEach(p => { if (!byId.has(p.id)) byId.set(p.id, p); });
+      const all = [...byId.values()];
 
-      localStorage.setItem('creativeklux_published_posts', JSON.stringify(persisted));
-      setAllPosts([...liveScheduled, ...persisted]);
+      // Persist published only — scheduled stays live-only.
+      localStorage.setItem('creativeklux_published_posts', JSON.stringify(all.filter(p => p.status !== 'scheduled')));
+      setAllPosts(all);
     } catch {
       reload();
     }
@@ -98,7 +101,7 @@ export default function SocialContentCalendar() {
 
   const handleDelete = async (post) => {
     await deletePostFromPlatform(post);
-    reload();
+    await fetchLive(); // re-fetch (keeps live scheduled posts; reload() would drop them)
     toast.success('Post removed');
   };
 

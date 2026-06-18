@@ -663,6 +663,7 @@ async function buildAuthUrl(platform, clientId) {
       const scope = encodeURIComponent([
         'pages_show_list',
         'instagram_basic',
+        'instagram_content_publish', // required to publish to IG — was missing
         'pages_read_engagement',
       ].join(','));
 

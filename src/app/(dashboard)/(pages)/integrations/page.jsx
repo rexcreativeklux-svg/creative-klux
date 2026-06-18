@@ -492,14 +492,21 @@ const IntegrationsPage = () => {
             // handleSelectPlatformPage saves the chosen page's token/id (and resolves
             // the IG business account / ad accounts for instagram / meta_ads).
             const { userToken, pages } = await resolveMetaIntegration(platformId, oauthResult);
-            setFbPages(
-                pages.map((p) => ({
-                    id: p.id,
-                    name: p.name,
-                    access_token: p.access_token,
-                    _ig_user_id: p.instagram_business_account?.id || null,
-                }))
-            );
+            let pagePicks = pages.map((p) => ({
+                id: p.id,
+                name: p.name,
+                access_token: p.access_token,
+                _ig_user_id: p.instagram_business_account?.id || null,
+                _ig_username: p.instagram_business_account?.username || null,
+            }));
+            // Instagram needs a linked IG Business/Creator account — only offer Pages that have one.
+            if (platformId === "instagram") {
+                pagePicks = pagePicks.filter((p) => p._ig_user_id);
+                if (!pagePicks.length) {
+                    throw new Error("No Instagram Business account found. Link an Instagram Business/Creator account to your Facebook Page, then try again.");
+                }
+            }
+            setFbPages(pagePicks);
             setPendingFbOauth({ platformId, userToken });
             setShowPageModal(true);
             return null;
@@ -707,7 +714,7 @@ const IntegrationsPage = () => {
                     platform: "instagram",
                     access_token: page.access_token,
                     int_id: page._ig_user_id,
-                    int_name: page.name,
+                    int_name: page._ig_username ? `@${page._ig_username}` : page.name,
                     brand_id: activeBrandId,
                 };
             }

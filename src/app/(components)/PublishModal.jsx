@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
     X, Send, Loader2, Check, AlertCircle, Link2, ArrowLeft,
@@ -47,6 +47,164 @@ const captionFromCopy = (copy = {}) =>
         ? `${copy.headline}${copy.tagline ? ` — ${copy.tagline}` : ""}${copy.body ? `\n\n${copy.body}` : ""}${copy.cta ? `\n\n${copy.cta}` : ""}`
         : copy.body || copy.tagline || "";
 
+// ── Design visual ─────────────────────────────────────────────────────────────
+// Renders the actual creative: a rendered image_url if present, otherwise the
+// canvas+elements (same as the My Creations cards) so the post shows the real design.
+function DesignCanvas({ canvas, elements }) {
+    const canvasRef = useRef(null);
+    useEffect(() => {
+        const c = canvasRef.current;
+        if (!c || !canvas) return;
+        const ctx = c.getContext("2d");
+        const { width, height, background } = canvas;
+        c.width = width; c.height = height;
+        ctx.fillStyle = background || "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        (elements || []).forEach((el) => {
+            ctx.save();
+            ctx.globalAlpha = el.opacity ?? 1;
+            if (el.rotation) {
+                const cx = el.x + (el.width || 0) / 2, cy = el.y + (el.height || 0) / 2;
+                ctx.translate(cx, cy); ctx.rotate((el.rotation * Math.PI) / 180); ctx.translate(-cx, -cy);
+            }
+            if (el.type === "shape") {
+                ctx.fillStyle = el.fill || "transparent";
+                ctx.strokeStyle = el.stroke || "transparent";
+                ctx.lineWidth = el.strokeWidth || 0;
+                if (el.shape === "circle") {
+                    const r = (el.width || 0) / 2;
+                    ctx.beginPath(); ctx.arc(el.x + r, el.y + r, r, 0, Math.PI * 2); ctx.fill();
+                    if (el.strokeWidth) ctx.stroke();
+                } else if (el.shape === "triangle") {
+                    const w = el.width || 0, h = el.height || 0;
+                    ctx.beginPath(); ctx.moveTo(el.x + w / 2, el.y); ctx.lineTo(el.x + w, el.y + h); ctx.lineTo(el.x, el.y + h); ctx.closePath(); ctx.fill();
+                    if (el.strokeWidth) ctx.stroke();
+                } else {
+                    const r = el.borderRadius || 0;
+                    if (r) { ctx.beginPath(); ctx.roundRect(el.x, el.y, el.width, el.height, r); ctx.fill(); if (el.strokeWidth) ctx.stroke(); }
+                    else { ctx.fillRect(el.x, el.y, el.width, el.height); if (el.strokeWidth) ctx.strokeRect(el.x, el.y, el.width, el.height); }
+                }
+            }
+            if (el.type === "text") {
+                const size = el.fontSize || 16;
+                ctx.font = `${el.fontWeight || "normal"} ${size}px 'DM Sans', sans-serif`;
+                ctx.fillStyle = el.fill || el.color || "#000000";
+                const align = el.textAlign || "left";
+                ctx.textAlign = align;
+                const x = align === "center" ? el.x + (el.width || 0) / 2 : align === "right" ? el.x + (el.width || 0) : el.x;
+                const textContent = typeof el.content === "string" ? el.content : typeof el.text === "string" ? el.text : "";
+                const words = textContent.trim().split(/\s+/);
+                const lineMaxW = el.width || 9999;
+                let line = "", lineY = el.y + size;
+                words.forEach((word) => {
+                    const test = line ? line + " " + word : word;
+                    if (ctx.measureText(test).width > lineMaxW && line) { ctx.fillText(line, x, lineY); line = word; lineY += size * 1.35; }
+                    else line = test;
+                });
+                if (line) ctx.fillText(line, x, lineY);
+            }
+            if (el.type === "image" && el.src) {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.onload = () => c.getContext("2d").drawImage(img, el.x, el.y, el.width, el.height);
+                img.src = el.src;
+            }
+            ctx.restore();
+        });
+    }, [canvas, elements]);
+    if (!canvas) return null;
+    return <canvas ref={canvasRef} style={{ width: "100%", height: "auto", display: "block" }} />;
+}
+
+const DesignVisual = ({ image, canvas, elements, className = "" }) => {
+    if (image) return <img src={image} alt="" className={`w-full object-cover ${className}`} />;
+    if (canvas) return <div className="w-full bg-gray-50"><DesignCanvas canvas={canvas} elements={elements} /></div>;
+    return null;
+};
+
+// Render a canvas-based design (canvas + elements) to a PNG File so it can be uploaded
+// and published. Preloads all image elements first so they're baked into the export.
+async function renderDesignToFile(canvas, elements, filename = "creative.png") {
+    if (!canvas) return null;
+    const { width, height, background } = canvas;
+    const off = document.createElement("canvas");
+    off.width = width; off.height = height;
+    const ctx = off.getContext("2d");
+    ctx.fillStyle = background || "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+
+    // Preload image elements up front (async) so they're drawn before we export.
+    const imgEls = (elements || []).filter((el) => el.type === "image" && el.src);
+    const loaded = await Promise.all(imgEls.map((el) => new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve([el, img]);
+        img.onerror = () => resolve(null);
+        img.src = el.src;
+    })));
+    const imgMap = new Map(loaded.filter(Boolean));
+
+    (elements || []).forEach((el) => {
+        ctx.save();
+        ctx.globalAlpha = el.opacity ?? 1;
+        if (el.rotation) {
+            const cx = el.x + (el.width || 0) / 2, cy = el.y + (el.height || 0) / 2;
+            ctx.translate(cx, cy); ctx.rotate((el.rotation * Math.PI) / 180); ctx.translate(-cx, -cy);
+        }
+        if (el.type === "shape") {
+            ctx.fillStyle = el.fill || "transparent";
+            ctx.strokeStyle = el.stroke || "transparent";
+            ctx.lineWidth = el.strokeWidth || 0;
+            if (el.shape === "circle") {
+                const r = (el.width || 0) / 2;
+                ctx.beginPath(); ctx.arc(el.x + r, el.y + r, r, 0, Math.PI * 2); ctx.fill();
+                if (el.strokeWidth) ctx.stroke();
+            } else if (el.shape === "triangle") {
+                const w = el.width || 0, h = el.height || 0;
+                ctx.beginPath(); ctx.moveTo(el.x + w / 2, el.y); ctx.lineTo(el.x + w, el.y + h); ctx.lineTo(el.x, el.y + h); ctx.closePath(); ctx.fill();
+                if (el.strokeWidth) ctx.stroke();
+            } else {
+                const r = el.borderRadius || 0;
+                if (r) { ctx.beginPath(); ctx.roundRect(el.x, el.y, el.width, el.height, r); ctx.fill(); if (el.strokeWidth) ctx.stroke(); }
+                else { ctx.fillRect(el.x, el.y, el.width, el.height); if (el.strokeWidth) ctx.strokeRect(el.x, el.y, el.width, el.height); }
+            }
+        }
+        if (el.type === "text") {
+            const size = el.fontSize || 16;
+            ctx.font = `${el.fontWeight || "normal"} ${size}px 'DM Sans', sans-serif`;
+            ctx.fillStyle = el.fill || el.color || "#000000";
+            const align = el.textAlign || "left";
+            ctx.textAlign = align;
+            const x = align === "center" ? el.x + (el.width || 0) / 2 : align === "right" ? el.x + (el.width || 0) : el.x;
+            const textContent = typeof el.content === "string" ? el.content : typeof el.text === "string" ? el.text : "";
+            const words = textContent.trim().split(/\s+/);
+            const lineMaxW = el.width || 9999;
+            let line = "", lineY = el.y + size;
+            words.forEach((word) => {
+                const test = line ? line + " " + word : word;
+                if (ctx.measureText(test).width > lineMaxW && line) { ctx.fillText(line, x, lineY); line = word; lineY += size * 1.35; }
+                else line = test;
+            });
+            if (line) ctx.fillText(line, x, lineY);
+        }
+        if (el.type === "image" && imgMap.has(el)) {
+            ctx.drawImage(imgMap.get(el), el.x, el.y, el.width, el.height);
+        }
+        ctx.restore();
+    });
+
+    return await new Promise((resolve, reject) => {
+        try {
+            off.toBlob((blob) => {
+                resolve(blob ? new File([blob], filename, { type: "image/png" }) : null);
+            }, "image/png");
+        } catch (err) {
+            // Cross-origin images without CORS headers "taint" the canvas and block export.
+            reject(err);
+        }
+    });
+}
+
 // ── Platform tile ─────────────────────────────────────────────────────────────
 const PlatformTile = ({ platform, connected, onClick }) => {
     const meta = PLATFORMS[platform];
@@ -89,7 +247,30 @@ const Avatar = ({ name, color, logo }) => (
     </div>
 );
 
-const FacebookPreview = ({ name, logo, caption, image }) => (
+// Auto-growing, borderless caption editor that blends into the post body —
+// the preview IS the composer (type the caption inside the post as it'll look).
+const EditableCaption = ({ value, onChange, placeholder, prefix = null, className = "" }) => {
+    const ref = useRef(null);
+    useEffect(() => {
+        const el = ref.current;
+        if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; }
+    }, [value]);
+    return (
+        <div className={`px-3 text-sm text-gray-800 ${className}`}>
+            {prefix}
+            <textarea
+                ref={ref}
+                rows={1}
+                value={value}
+                onChange={(e) => onChange?.(e.target.value)}
+                placeholder={placeholder}
+                className="w-full resize-none bg-transparent outline-none leading-snug placeholder-gray-400 align-top"
+            />
+        </div>
+    );
+};
+
+const FacebookPreview = ({ name, logo, caption, onCaptionChange, image, canvas, elements }) => (
     <div className="rounded-xl border border-gray-200 bg-surface overflow-hidden shadow-sm">
         <div className="flex items-center gap-2.5 p-3">
             <Avatar name={name} color="#1877F2" logo={logo} />
@@ -99,8 +280,8 @@ const FacebookPreview = ({ name, logo, caption, image }) => (
             </div>
             <MoreHorizontal className="w-4 h-4 text-gray-400 ml-auto" />
         </div>
-        {caption && <p className="px-3 pb-2 text-sm text-gray-800 whitespace-pre-wrap break-words">{caption}</p>}
-        {image && <img src={image} alt="" className="w-full object-cover max-h-72" />}
+        <EditableCaption value={caption} onChange={onCaptionChange} placeholder="What's on your mind?" className="pb-2" />
+        <DesignVisual image={image} canvas={canvas} elements={elements} className="max-h-72" />
         <div className="flex items-center justify-around px-3 py-2 border-t border-gray-100 text-gray-500 text-xs font-medium">
             <span className="flex items-center gap-1.5"><ThumbsUp className="w-4 h-4" /> Like</span>
             <span className="flex items-center gap-1.5"><MessageCircle className="w-4 h-4" /> Comment</span>
@@ -109,29 +290,31 @@ const FacebookPreview = ({ name, logo, caption, image }) => (
     </div>
 );
 
-const InstagramPreview = ({ name, logo, caption, image }) => (
+const InstagramPreview = ({ name, logo, caption, onCaptionChange, image, canvas, elements }) => (
     <div className="rounded-xl border border-gray-200 bg-surface overflow-hidden shadow-sm">
         <div className="flex items-center gap-2.5 p-3">
             <Avatar name={name} color="#E1306C" logo={logo} />
             <p className="text-sm font-semibold text-gray-900">{name}</p>
             <MoreHorizontal className="w-4 h-4 text-gray-400 ml-auto" />
         </div>
-        {image && <img src={image} alt="" className="w-full object-cover aspect-square" />}
+        <DesignVisual image={image} canvas={canvas} elements={elements} className="aspect-square" />
         <div className="flex items-center gap-4 px-3 pt-2.5 text-gray-800">
             <Heart className="w-5 h-5" />
             <MessageCircle className="w-5 h-5" />
             <Share2 className="w-5 h-5" />
             <Bookmark className="w-5 h-5 ml-auto" />
         </div>
-        {caption && (
-            <p className="px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap break-words">
-                <span className="font-semibold mr-1">{name}</span>{caption}
-            </p>
-        )}
+        <EditableCaption
+            value={caption}
+            onChange={onCaptionChange}
+            placeholder="Write a caption…"
+            className="py-2"
+            prefix={<span className="font-semibold mr-1 align-top leading-snug">{name}</span>}
+        />
     </div>
 );
 
-const GenericPreview = ({ platform, name, logo, caption, image }) => {
+const GenericPreview = ({ platform, name, logo, caption, onCaptionChange, image, canvas, elements }) => {
     const meta = PLATFORMS[platform];
     return (
         <div className="rounded-xl border border-gray-200 bg-surface overflow-hidden shadow-sm">
@@ -143,8 +326,8 @@ const GenericPreview = ({ platform, name, logo, caption, image }) => {
                 </div>
                 <MoreHorizontal className="w-4 h-4 text-gray-400 ml-auto" />
             </div>
-            {caption && <p className="px-3 pb-2 text-sm text-gray-800 whitespace-pre-wrap break-words">{caption}</p>}
-            {image && <img src={image} alt="" className="w-full object-cover max-h-72" />}
+            <EditableCaption value={caption} onChange={onCaptionChange} placeholder="Write a caption…" className="pb-2" />
+            <DesignVisual image={image} canvas={canvas} elements={elements} className="max-h-72" />
         </div>
     );
 };
@@ -157,7 +340,7 @@ const PlatformPreview = ({ platform, ...rest }) => {
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 export default function PublishModal({ creative, onClose, showToast }) {
-    const { fetchIntegrations, activeBrand } = useAuth();
+    const { fetchIntegrations, activeBrand, uploadImage } = useAuth();
     const router = useRouter();
 
     const [integrations, setIntegrations] = useState([]);
@@ -217,8 +400,28 @@ export default function PublishModal({ creative, onClose, showToast }) {
 
         setPublishing(true);
         try {
-            const imageUrl = creative.image || null;
             const cap = caption.trim();
+
+            // Resolve a real, publishable image URL.
+            // Canvas-based designs have no image_url — render them to a PNG, upload it,
+            // and publish the returned public URL (platforms can't fetch browser canvases).
+            let imageUrl = creative.image || null;
+            if (!imageUrl && creative.canvas) {
+                try {
+                    const file = await renderDesignToFile(
+                        creative.canvas,
+                        creative.elements,
+                        `${creative.name || "creative"}.png`,
+                    );
+                    if (file) {
+                        const up = await uploadImage(file);
+                        imageUrl = up?.image_url || up?.url || up?.data?.image_url || null;
+                    }
+                } catch {
+                    throw new Error("Couldn't prepare the design image for publishing. Try downloading it first.");
+                }
+                if (!imageUrl) throw new Error("Couldn't prepare the design image for publishing.");
+            }
 
             if (selected === "facebook") {
                 await publishToFacebook({
@@ -247,7 +450,7 @@ export default function PublishModal({ creative, onClose, showToast }) {
         } finally {
             setPublishing(false);
         }
-    }, [selected, integrations, creative, caption, onClose, showToast]);
+    }, [selected, integrations, creative, caption, onClose, showToast, uploadImage]);
 
     // Page/account display name for the preview
     const accountName = useMemo(() => {
@@ -362,29 +565,20 @@ export default function PublishModal({ creative, onClose, showToast }) {
                                 )}
                             </div>
 
-                            {/* Live native preview */}
+                            {/* Live native preview — the post itself is editable (click the caption to type) */}
                             <PlatformPreview
                                 platform={selected}
                                 name={accountName}
                                 logo={activeBrand?.logo || null}
                                 caption={caption}
+                                onCaptionChange={setCaption}
                                 image={creative?.image || null}
+                                canvas={creative?.canvas || null}
+                                elements={creative?.elements || []}
                             />
-
-                            {/* Editable caption */}
-                            <div>
-                                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                    Caption / Post Text
-                                </label>
-                                <textarea
-                                    rows={4}
-                                    value={caption}
-                                    onChange={(e) => setCaption(e.target.value)}
-                                    placeholder="Write your post caption here…"
-                                    className="w-full text-sm text-gray-800 border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent resize-none transition placeholder-gray-300"
-                                />
-                                <p className="text-[10px] text-gray-400 mt-1 text-right">{caption.length} chars</p>
-                            </div>
+                            <p className="text-[11px] text-gray-400 text-right -mt-1">
+                                Click the caption to edit · {caption.length} chars
+                            </p>
                         </div>
 
                         {/* Footer */}

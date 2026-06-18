@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   BarChart3, Calendar, CheckCircle2, Clock, Trash2,
   RefreshCw, Eye, MousePointer, Users, Heart, Share2,
@@ -87,16 +87,18 @@ function StatusBadge({ post }) {
     );
   }
   if (post.status === 'scheduled') {
+    // Future publish time → still scheduled (matches the calendar's wording).
     if (isAfterNow(post.scheduled_at)) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-          <Clock className="w-2.5 h-2.5" />Pending
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 border border-blue-200" style={{ color: BRAND }}>
+          <Clock className="w-2.5 h-2.5" />Scheduled
         </span>
       );
     }
+    // Time has passed but we still have it as scheduled → it's going live now.
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 border border-blue-200" style={{ color: BRAND }}>
-        <Clock className="w-2.5 h-2.5" />Scheduled
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+        <Clock className="w-2.5 h-2.5" />Publishing…
       </span>
     );
   }
@@ -141,12 +143,17 @@ export default function SocialPublishing() {
 
   const { fetchIntegrations } = useAuth();
   const [integrations, setIntegrations] = useState([]);
+  const [integrationsReady, setIntegrationsReady] = useState(false);
+
+  // Show saved posts immediately — even before integrations resolve, or if there are none.
+  useEffect(() => { setAllPosts(getPublishedPosts()); }, []);
 
   // 1. Load integrations first
   useEffect(() => {
     const loadIntegrations = async () => {
       const data = await fetchIntegrations();
       setIntegrations(data || []);
+      setIntegrationsReady(true);
     };
     loadIntegrations();
   }, [fetchIntegrations]);
@@ -156,29 +163,41 @@ export default function SocialPublishing() {
     setFetchingLive(true);
     try {
       const livePosts = await fetchLivePostsFromConnectedAccounts(integrations);
-      const local = getPublishedPosts();
-      const localIds = new Set(local.map(p => p.id));
-      const newPosts = livePosts.filter(lp => !localIds.has(lp.id));
-      const merged = [...newPosts, ...local];
-      localStorage.setItem('creativeklux_published_posts', JSON.stringify(merged));
-      setAllPosts(merged);
-      if (!silent && newPosts.length > 0) toast.success(`Fetched ${newPosts.length} live post(s)`);
+
+      // Facebook is authoritative for status. Keep a local post ONLY when FB no longer
+      // reports it, and never trust a local 'scheduled' — otherwise a stale local
+      // scheduled entry shadows the now-published post and the status never flips.
+      const liveIds   = new Set(livePosts.map(p => p.id));
+      const local     = getPublishedPosts();
+      const prevIds   = new Set(local.map(p => p.id));
+      const localOnly = local.filter(p => !liveIds.has(p.id) && p.status !== 'scheduled');
+
+      // livePosts lists published before scheduled, so dedupe-by-id prefers the published copy.
+      const byId = new Map();
+      [...livePosts, ...localOnly].forEach(p => { if (!byId.has(p.id)) byId.set(p.id, p); });
+      const all = [...byId.values()];
+
+      // Persist published only — scheduled stays live-only.
+      localStorage.setItem('creativeklux_published_posts', JSON.stringify(all.filter(p => p.status !== 'scheduled')));
+      setAllPosts(all);
+
+      const newCount = livePosts.filter(p => p.status !== 'scheduled' && !prevIds.has(p.id)).length;
+      if (!silent && newCount > 0) toast.success(`Fetched ${newCount} live post(s)`);
       else if (!silent) toast.info('No new posts found from connected accounts');
     } catch {
       if (!silent) toast.error('Failed to fetch live posts');
-      else setAllPosts(getPublishedPosts());
+      setAllPosts(getPublishedPosts());
     } finally {
       setFetchingLive(false);
     }
-  }, [integrations]); // ← integrations now in deps
+  }, [integrations]);
 
-  // 3. Only auto-fetch once integrations have actually loaded
-  const integrationsLoaded = useRef(false);
+  // 3. Auto-fetch once integrations have resolved — even if there are none,
+  //    so saved localStorage posts still load (was previously a dead path).
   useEffect(() => {
-    if (integrations.length === 0 && !integrationsLoaded.current) return;
-    integrationsLoaded.current = true;
+    if (!integrationsReady) return;
     mergeLiveIntoLocal(true);
-  }, [integrations]); // ← runs when integrations changes from [] to real data
+  }, [integrationsReady, integrations, mergeLiveIntoLocal]);
 
   const reload = useCallback(() => setAllPosts(getPublishedPosts()), []);
   const posts = allPosts.filter(p => p.type === matchType);

@@ -238,34 +238,55 @@ const PlatformTile = ({ platform, connected, onClick }) => {
 };
 
 // ── Platform-native previews ──────────────────────────────────────────────────
-const Avatar = ({ name, color, logo }) => (
-    <div
-        className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden text-white text-sm font-bold"
-        style={{ background: color }}
-    >
-        {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : (name?.[0]?.toUpperCase() || "B")}
-    </div>
-);
+const Avatar = ({ name, color, logo }) => {
+    // Fall back to the brand initial if there's no logo OR the logo fails to load.
+    const [broken, setBroken] = useState(false);
+    const showImg = logo && !broken;
+    return (
+        <div
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden text-white text-sm font-bold"
+            style={{ background: color }}
+        >
+            {showImg
+                ? <img src={logo} alt="" className="w-full h-full object-cover" onError={() => setBroken(true)} />
+                : (name?.[0]?.toUpperCase() || "B")}
+        </div>
+    );
+};
 
-// Auto-growing, borderless caption editor that blends into the post body —
-// the preview IS the composer (type the caption inside the post as it'll look).
-const EditableCaption = ({ value, onChange, placeholder, prefix = null, className = "" }) => {
+// Borderless, auto-growing textarea that blends into the post body.
+const AutoTextarea = ({ value, onChange, placeholder, className = "" }) => {
     const ref = useRef(null);
     useEffect(() => {
         const el = ref.current;
         if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; }
     }, [value]);
     return (
+        <textarea
+            ref={ref}
+            rows={1}
+            value={value}
+            onChange={(e) => onChange?.(e.target.value)}
+            placeholder={placeholder}
+            className={`w-full resize-none bg-transparent outline-none leading-snug placeholder-gray-400 align-top ${className}`}
+        />
+    );
+};
+
+// Caption editor — the preview IS the composer. The first paragraph (the headline,
+// up to the first blank line) renders BOLD; the rest is the body. Both editable;
+// they recombine into the single caption string with "\n\n" between them.
+const EditableCaption = ({ value, onChange, placeholder, prefix = null, className = "" }) => {
+    const idx = value.indexOf("\n\n");
+    const headline = idx === -1 ? value : value.slice(0, idx);
+    const body = idx === -1 ? "" : value.slice(idx + 2);
+    const setHeadline = (h) => onChange?.(body ? `${h}\n\n${body}` : h);
+    const setBody = (b) => onChange?.(b ? `${headline}\n\n${b}` : headline);
+    return (
         <div className={`px-3 text-sm text-gray-800 ${className}`}>
             {prefix}
-            <textarea
-                ref={ref}
-                rows={1}
-                value={value}
-                onChange={(e) => onChange?.(e.target.value)}
-                placeholder={placeholder}
-                className="w-full resize-none bg-transparent outline-none leading-snug placeholder-gray-400 align-top"
-            />
+            <AutoTextarea value={headline} onChange={setHeadline} placeholder={placeholder} className="font-bold" />
+            <AutoTextarea value={body} onChange={setBody} placeholder="Write more…" className="mt-1" />
         </div>
     );
 };
@@ -415,9 +436,14 @@ export default function PublishModal({ creative, onClose, showToast }) {
                     );
                     if (file) {
                         const up = await uploadImage(file);
-                        imageUrl = up?.image_url || up?.url || up?.data?.image_url || null;
+                        // Upload returns { success, message, image: "https://files.creativeklux.com/…png" }.
+                        // Cover sibling field names defensively.
+                        const d = up?.data ?? up;
+                        const pick = (o) => o?.image || o?.image_url || o?.url || o?.path || o?.src || null;
+                        imageUrl = pick(up) || pick(d) || (Array.isArray(d) ? pick(d[0]) : null);
                     }
-                } catch {
+                } catch (err) {
+                    console.warn("renderDesignToFile/upload failed:", err);
                     throw new Error("Couldn't prepare the design image for publishing. Try downloading it first.");
                 }
                 if (!imageUrl) throw new Error("Couldn't prepare the design image for publishing.");

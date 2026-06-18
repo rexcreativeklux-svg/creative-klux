@@ -271,18 +271,21 @@ const Avatar = ({ name, color, logo }) => {
 // Borderless, auto-growing textarea that blends into the post body.
 const AutoTextarea = ({ value, onChange, placeholder, className = "" }) => {
     const ref = useRef(null);
-    useEffect(() => {
+    const grow = () => {
         const el = ref.current;
-        if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; }
-    }, [value]);
+        if (el) { el.style.height = "auto"; el.style.height = `${Math.max(el.scrollHeight, 22)}px`; }
+    };
+    useEffect(grow, [value]);
     return (
         <textarea
             ref={ref}
             rows={1}
             value={value}
-            onChange={(e) => onChange?.(e.target.value)}
+            onChange={(e) => { onChange?.(e.target.value); grow(); }}
+            onFocus={grow}
             placeholder={placeholder}
-            className={`w-full resize-none bg-transparent outline-none leading-snug placeholder-gray-400 align-top ${className}`}
+            style={{ minHeight: 22 }}
+            className={`block w-full resize-none bg-transparent outline-none leading-snug placeholder-gray-400 align-top ${className}`}
         />
     );
 };
@@ -653,17 +656,20 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                                 )}
                             </div>
 
-                            {/* Live native preview — the post itself is editable (click the caption to type) */}
-                            <PlatformPreview
-                                platform={selected}
-                                name={accountName}
-                                logo={activeBrand?.logo || null}
-                                caption={caption}
-                                onCaptionChange={setCaption}
-                                image={creative?.image || null}
-                                canvas={creative?.canvas || null}
-                                elements={creative?.elements || []}
-                            />
+                            {/* Live native preview — the post itself is editable (click the caption to type).
+                                The post area scrolls internally if it overflows (like the real platforms). */}
+                            <div className="overflow-y-auto -mx-1 px-1" style={{ maxHeight: "52vh" }}>
+                                <PlatformPreview
+                                    platform={selected}
+                                    name={accountName}
+                                    logo={activeBrand?.logo || null}
+                                    caption={caption}
+                                    onCaptionChange={setCaption}
+                                    image={creative?.image || null}
+                                    canvas={creative?.canvas || null}
+                                    elements={creative?.elements || []}
+                                />
+                            </div>
                             <p className="text-[11px] text-gray-400 text-right -mt-1">
                                 Click the caption to edit · {caption.length} chars
                             </p>

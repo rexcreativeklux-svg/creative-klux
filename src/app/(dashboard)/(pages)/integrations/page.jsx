@@ -415,6 +415,44 @@ const IntegrationsPage = () => {
         };
     }
 
+    // YouTube uses Google's CODE flow (popup returns a `code`, not a token).
+    // Exchange it for a token via /api/google/exchange (same route as google_ads),
+    // then resolve the user's YouTube channel for int_id / int_name.
+    async function resolveYouTubeIntegration(oauthResult) {
+        // 1. code → token (reuses the Google exchange route)
+        const tokenData = await resolveGoogleAdsIntegration(oauthResult);
+
+        // 2. fetch the connected YouTube channel
+        const res = await fetch(
+            "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",
+            {
+                headers: {
+                    Authorization: `Bearer ${tokenData.access_token}`,
+                },
+            }
+        );
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(
+                data.error?.message || "Failed to fetch YouTube channel"
+            );
+        }
+
+        const channel = data.items?.[0];
+        if (!channel) {
+            throw new Error(
+                "No YouTube channel found on this Google account. Create a YouTube channel, then try again."
+            );
+        }
+
+        return {
+            int_token: tokenData.access_token,
+            int_id: channel.id,
+            int_name: channel.snippet?.title || "YouTube Channel",
+        };
+    }
+
     async function fetchGoogleAdAccounts(
         access_token
     ) {
@@ -449,8 +487,7 @@ const IntegrationsPage = () => {
         let int_id = null;
 
         switch (platformId) {
-            case "google_ads":
-            case "youtube": {
+            case "google_ads": {
                 const res = await fetch(
                     `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${access_token}`
                 );
@@ -575,6 +612,11 @@ const IntegrationsPage = () => {
             });
             setShowPageModal(true);
             return null;
+        }
+
+        // YouTube — Google code flow: exchange code, then resolve the channel.
+        if (platformId === "youtube") {
+            return await resolveYouTubeIntegration(oauthResult);
         }
 
         return await resolveGenericIntegration(platformId, oauthResult);

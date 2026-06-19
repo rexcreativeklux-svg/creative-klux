@@ -683,8 +683,10 @@ async function buildAuthUrl(platform, clientId) {
     case 'meta_ads': {
       const scope = encodeURIComponent([
         'business_management',
+        'ads_management', // required to CREATE campaigns/ads — was missing (ads_read can only read)
         'ads_read',
         'read_insights',
+        'pages_show_list', // the ad creative runs "as" a Page
       ].join(','));
 
       return (

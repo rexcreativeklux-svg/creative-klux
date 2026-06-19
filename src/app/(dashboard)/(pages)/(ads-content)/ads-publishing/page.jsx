@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   BarChart3, Calendar, CheckCircle2, Clock, Trash2,
   RefreshCw, Eye, MousePointer, Users, Heart, Share2,
@@ -140,44 +140,57 @@ export default function AdsPublishing() {
 
   const { fetchIntegrations } = useAuth();
   const [integrations, setIntegrations] = useState([]);
+  const [integrationsReady, setIntegrationsReady] = useState(false);
+
+  // Show saved posts immediately — even before integrations resolve, or if there are none.
+  useEffect(() => { setAllPosts(getPublishedPosts()); }, []);
 
   // 1. Load integrations first
   useEffect(() => {
     const loadIntegrations = async () => {
       const data = await fetchIntegrations();
       setIntegrations(data || []);
+      setIntegrationsReady(true);
     };
     loadIntegrations();
   }, [fetchIntegrations]);
 
-  // 2. Fix the stale closure by adding integrations to deps
+  // 2. Live (Facebook/Meta) is authoritative for status. Keep a local post ONLY when it's
+  //    no longer reported live, and never trust a local 'scheduled'. Persist published only.
   const mergeLiveIntoLocal = useCallback(async (silent = false) => {
     setFetchingLive(true);
     try {
       const livePosts = await fetchLivePostsFromConnectedAccounts(integrations);
-      const local = getPublishedPosts();
-      const localIds = new Set(local.map(p => p.id));
-      const newPosts = livePosts.filter(lp => !localIds.has(lp.id));
-      const merged = [...newPosts, ...local];
-      localStorage.setItem('creativeklux_published_posts', JSON.stringify(merged));
-      setAllPosts(merged);
-      if (!silent && newPosts.length > 0) toast.success(`Fetched ${newPosts.length} live post(s) from connected accounts`);
+
+      const liveIds   = new Set(livePosts.map(p => p.id));
+      const local     = getPublishedPosts();
+      const prevIds   = new Set(local.map(p => p.id));
+      const localOnly = local.filter(p => !liveIds.has(p.id) && p.status !== 'scheduled');
+
+      const byId = new Map();
+      [...livePosts, ...localOnly].forEach(p => { if (!byId.has(p.id)) byId.set(p.id, p); });
+      const all = [...byId.values()];
+
+      localStorage.setItem('creativeklux_published_posts', JSON.stringify(all.filter(p => p.status !== 'scheduled')));
+      setAllPosts(all);
+
+      const newCount = livePosts.filter(p => p.status !== 'scheduled' && !prevIds.has(p.id)).length;
+      if (!silent && newCount > 0) toast.success(`Fetched ${newCount} live post(s) from connected accounts`);
       else if (!silent) toast.info('No new posts found from connected accounts');
     } catch {
       if (!silent) toast.error('Failed to fetch live posts');
-      else setAllPosts(getPublishedPosts());
+      setAllPosts(getPublishedPosts());
     } finally {
       setFetchingLive(false);
     }
-  }, [integrations]); // ← integrations in deps, fixes stale closure
+  }, [integrations]);
 
-  // 3. Only auto-fetch once integrations have actually loaded
-  const integrationsLoaded = useRef(false);
+  // 3. Auto-fetch once integrations have resolved — even if there are none,
+  //    so saved localStorage posts still load (was previously a dead path).
   useEffect(() => {
-    if (integrations.length === 0 && !integrationsLoaded.current) return;
-    integrationsLoaded.current = true;
+    if (!integrationsReady) return;
     mergeLiveIntoLocal(true);
-  }, [integrations]); // ← runs when integrations changes from [] to real data
+  }, [integrationsReady, integrations, mergeLiveIntoLocal]);
 
   const reload = useCallback(() => setAllPosts(getPublishedPosts()), []);
   const posts = allPosts.filter(p => p.type === matchType);
@@ -193,7 +206,9 @@ export default function AdsPublishing() {
         (p.caption || '').toLowerCase().includes(q)
       );
     }
-    return result;
+    // Newest → oldest by the relevant date (scheduled uses scheduled_at, else published_at).
+    const dateOf = (p) => new Date(p.status === 'scheduled' ? p.scheduled_at : (p.published_at || p.scheduled_at)).getTime() || 0;
+    return [...result].sort((a, b) => dateOf(b) - dateOf(a));
   }, [posts, statusFilter, platformFilter, search]);
 
   // Build a flat map of platform → integration for quick lookups
@@ -268,7 +283,7 @@ export default function AdsPublishing() {
         toast.info(`For ${post.platform}, complete the final publish step in the platform dashboard.`);
       }
       savePublishedPost({ ...post, status: 'published', published_at: new Date().toISOString(), scheduled_at: null, post_id: postId || null });
-      reload();
+      await mergeLiveIntoLocal(true); // re-sync (reload() would drop live posts)
       toast.success(`Published to ${post.platform}!`);
     } catch (err) {
       toast.error(err.message);

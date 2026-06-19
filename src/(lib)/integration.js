@@ -853,64 +853,125 @@ export async function publishToInstagram({
 }
 
 /**
- * Create Meta Ads Campaign
+ * Publish a REAL Meta ad: campaign → ad set → ad creative → ad.
+ * Goes live (status ACTIVE) — it spends real money, so the caller's form collects budget/etc.
+ *
+ * Requires:
+ *  - ad_account_id  (from the meta_ads integration; needs a payment method set up in Ads Manager)
+ *  - page_id        (the ad runs "as" a Facebook Page — taken from the connected facebook integration)
+ *  - access_token   (a token with ads_management on that ad account)
+ *
+ * Form inputs: goal ('awareness'|'traffic'|'engagement'), daily_budget (whole units of the
+ * account currency, e.g. 5 = $5/day), days (run length), country (ISO-2 code), link (destination).
  */
+const META_ADS_GOALS = {
+  awareness:  { objective: 'OUTCOME_AWARENESS',  optimization_goal: 'REACH' },
+  traffic:    { objective: 'OUTCOME_TRAFFIC',    optimization_goal: 'LINK_CLICKS' },
+  engagement: { objective: 'OUTCOME_ENGAGEMENT', optimization_goal: 'POST_ENGAGEMENT' },
+};
+
 export async function publishToMetaAds({
   access_token,
   ad_account_id,
+  page_id,
   image_url,
-  campaign_name,
+  message,
+  link,
+  goal = 'traffic',
+  daily_budget,
+  days = 7,
+  country = 'US',
+  ad_name,
 }) {
-  const normalizedAccountId = ad_account_id.startsWith('act_')
-    ? ad_account_id
-    : `act_${ad_account_id}`;
+  if (!access_token) throw new Error('No access token — reconnect Meta Ads.');
+  if (!ad_account_id) throw new Error('No ad account — reconnect Meta Ads.');
+  if (!page_id) throw new Error('Connect a Facebook Page first — Meta ads run as a Page.');
+  if (!image_url) throw new Error('No image to advertise.');
+  if (!daily_budget || daily_budget <= 0) throw new Error('Enter a daily budget.');
 
-  const base = `${META_GRAPH_BASE}/${normalizedAccountId}`;
+  const acct = ad_account_id.startsWith('act_') ? ad_account_id : `act_${ad_account_id}`;
+  const base = `${META_GRAPH_BASE}/${acct}`;
+  const g = META_ADS_GOALS[goal] || META_ADS_GOALS.traffic;
+  const dest = link || 'https://www.facebook.com';
+  const name = ad_name || 'CreativeKlux Ad';
 
-  // Upload image
-  const imgRes = await fetch(`${base}/adimages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      url: image_url,
-      access_token,
-    }),
+  // Small POST helper that surfaces the full Graph error (logs status + body).
+  const post = async (path, body) => {
+    let res, data = {};
+    try {
+      res = await fetch(`${base}/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, access_token }),
+      });
+      data = await res.json();
+    } catch (netErr) {
+      console.error(`Meta Ads ${path} network/CORS error:`, netErr);
+      throw new Error('Could not reach Meta Ads. Ad-account calls may be blocked from the browser — this likely needs a backend.');
+    }
+    if (!res.ok || data.error) {
+      console.error(`Meta Ads ${path} error (HTTP ${res.status}):`, data);
+      const e = data.error || {};
+      const msg = e.error_user_msg || e.message ||
+        `Meta Ads "${path}" failed (HTTP ${res.status}). Usually means: the ad account has no payment method, the token lacks ads_management, or the account/app is restricted.`;
+      throw new Error(`${msg}${e.code ? ` [code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''}]` : ''}`);
+    }
+    return data;
+  };
+
+  // 1. Campaign (the goal/objective). Budget lives on the ad set, so we must explicitly
+  //    opt out of campaign-level budget sharing (is_adset_budget_sharing_enabled).
+  const campaign = await post('campaigns', {
+    name: `${name} — Campaign`,
+    objective: g.objective,
+    status: 'ACTIVE',
+    special_ad_categories: [],
+    is_adset_budget_sharing_enabled: false,
   });
 
-  const imgData = await imgRes.json();
-
-  if (imgData.error) {
-    throw new Error(imgData.error.message);
-  }
-
-  const imageHash =
-    Object.values(imgData.images || {})[0]?.hash;
-
-  // Create campaign
-  const campaignRes = await fetch(`${base}/campaigns`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      name: campaign_name || 'CreativeKlux Campaign',
-      objective: 'OUTCOME_AWARENESS',
-      status: 'PAUSED',
-      access_token,
-    }),
+  // 2. Ad set (budget, schedule, audience). Budget is in the currency's minor units (×100).
+  const now = Math.floor(Date.now() / 1000);
+  const adset = await post('adsets', {
+    name: `${name} — Ad Set`,
+    campaign_id: campaign.id,
+    daily_budget: Math.round(Number(daily_budget) * 100),
+    billing_event: 'IMPRESSIONS',
+    optimization_goal: g.optimization_goal,
+    bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+    start_time: now,
+    end_time: now + Math.max(1, Number(days)) * 86400,
+    targeting: { geo_locations: { countries: [country] }, age_min: 18, age_max: 65 },
+    status: 'ACTIVE',
   });
 
-  const campaignData = await campaignRes.json();
+  // 3. Ad creative — use the public image URL directly (`picture`) instead of uploading
+  //    to /adimages first (one fewer call, and adimages-by-url is unreliable).
+  const creative = await post('adcreatives', {
+    name: `${name} — Creative`,
+    object_story_spec: {
+      page_id,
+      link_data: {
+        picture: image_url,
+        message: message || '',
+        link: dest,
+        call_to_action: { type: 'LEARN_MORE', value: { link: dest } },
+      },
+    },
+  });
 
-  if (campaignData.error) {
-    throw new Error(campaignData.error.message);
-  }
+  // 4. Ad (ties the creative to the ad set, live)
+  const ad = await post('ads', {
+    name,
+    adset_id: adset.id,
+    creative: { creative_id: creative.id },
+    status: 'ACTIVE',
+  });
 
   return {
-    post_id: campaignData.id,
-    image_hash: imageHash,
+    post_id: ad.id,
+    campaign_id: campaign.id,
+    adset_id: adset.id,
+    creative_id: creative.id,
   };
 }
 
@@ -1179,7 +1240,9 @@ export async function fetchLivePostsFromConnectedAccounts(
                 ? 'published'
                 : 'scheduled',
             published_at: campaign.created_time,
-            scheduled_at: null,
+            // Campaigns have no separate schedule time — use created_time so non-ACTIVE
+            // campaigns still land on a calendar day (otherwise they're invisible).
+            scheduled_at: campaign.created_time,
             post_id: campaign.id,
             live: true,
             stats: {},

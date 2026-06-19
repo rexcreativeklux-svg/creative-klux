@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-    X, Send, Loader2, Check, AlertCircle, Link2, ArrowLeft, CalendarClock,
+    X, Send, Loader2, Check, AlertCircle, Link2, ArrowLeft, CalendarClock, Megaphone,
     Heart, MessageCircle, Share2, Bookmark, ThumbsUp, Globe, MoreHorizontal,
 } from "lucide-react";
 import {
@@ -11,7 +11,7 @@ import {
     FaPinterest, FaTwitter, FaSnapchatGhost, FaGoogle,
 } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
-import { publishToFacebook, publishToInstagram } from "@/(lib)/integration";
+import { publishToFacebook, publishToInstagram, publishToMetaAds } from "@/(lib)/integration";
 
 // ── Platform catalog ─────────────────────────────────────────────────────────
 // `kind` decides which list shows for a creative's category.
@@ -25,7 +25,7 @@ const PLATFORMS = {
     youtube:       { label: "YouTube",              kind: "social", color: "#FF0000", Icon: FaYoutube,       real: false },
     pinterest:     { label: "Pinterest",            kind: "social", color: "#E60023", Icon: FaPinterest,     real: false },
     snapchat:      { label: "Snapchat",             kind: "social", color: "#FFC400", Icon: FaSnapchatGhost, real: false },
-    meta_ads:      { label: "Meta Ads Manager",     kind: "ads",    color: "#0668E1", Icon: FaFacebook,      real: false },
+    meta_ads:      { label: "Meta Ads Manager",     kind: "ads",    color: "#0668E1", Icon: FaFacebook,      real: true  },
     google_ads:    { label: "Google Ads",           kind: "ads",    color: "#4285F4", Icon: FaGoogle,        real: false },
     tiktok_ads:    { label: "TikTok Ads",           kind: "ads",    color: "#010101", Icon: FaTiktok,        real: false },
     linkedin_ads:  { label: "LinkedIn Ads",         kind: "ads",    color: "#0A66C2", Icon: FaLinkedin,      real: false },
@@ -36,6 +36,22 @@ const PLATFORMS = {
 // Order tiles appear in, per kind.
 const SOCIAL_ORDER = ["facebook", "instagram", "tiktok", "twitter", "linkedin", "youtube", "pinterest", "snapchat"];
 const ADS_ORDER    = ["meta_ads", "google_ads", "tiktok_ads", "linkedin_ads", "snapchat_ads", "pinterest_ads"];
+
+// Minimal Meta-ad form options.
+const AD_GOALS = [
+    { value: "awareness",  label: "Awareness — more people see it" },
+    { value: "traffic",    label: "Traffic — visit your website" },
+    { value: "engagement", label: "Engagement — likes / comments / messages" },
+];
+const MIN_AD_BUDGET = 2000; // minimum daily budget the form allows
+const AD_COUNTRIES = [
+    { code: "NG", name: "Nigeria" }, { code: "US", name: "United States" },
+    { code: "GB", name: "United Kingdom" }, { code: "CA", name: "Canada" },
+    { code: "GH", name: "Ghana" }, { code: "KE", name: "Kenya" },
+    { code: "ZA", name: "South Africa" }, { code: "IN", name: "India" },
+    { code: "AU", name: "Australia" }, { code: "DE", name: "Germany" },
+    { code: "FR", name: "France" }, { code: "AE", name: "United Arab Emirates" },
+];
 
 // A creative's category → which platform list to show.
 const platformsForCategory = (category) =>
@@ -391,6 +407,11 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
     const [published, setPublished]       = useState(false);
     const [showSchedule, setShowSchedule] = useState(false); // schedule picker visible
     const [scheduleAt, setScheduleAt]     = useState("");    // datetime-local value
+    // Meta-ad form (only used when selected === "meta_ads")
+    const [adGoal, setAdGoal]       = useState("traffic");
+    const [adBudget, setAdBudget]   = useState("");
+    const [adDays, setAdDays]       = useState("7");
+    const [adCountry, setAdCountry] = useState("NG");
 
     const order = useMemo(() => platformsForCategory(creative?.category), [creative]);
 
@@ -496,6 +517,24 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                     image_url: imageUrl,
                     caption: cap,
                 });
+            } else if (selected === "meta_ads") {
+                // Real Meta ad (campaign→ad set→creative→ad). Runs "as" a connected FB Page.
+                const fb = integrations.find((i) => i.platform === "facebook");
+                if (!fb) throw new Error("Connect a Facebook Page first — Meta ads run as a Page.");
+                if (!adBudget || Number(adBudget) < MIN_AD_BUDGET) throw new Error(`Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`);
+                await publishToMetaAds({
+                    access_token: integration.int_token,
+                    ad_account_id: integration.int_id,
+                    page_id: fb.int_id,
+                    image_url: imageUrl,
+                    message: cap,
+                    link: activeBrand?.url || undefined,
+                    goal: adGoal,
+                    daily_budget: Number(adBudget),
+                    days: Number(adDays) || 7,
+                    country: adCountry,
+                    ad_name: creative?.name,
+                });
             } else {
                 // No live publisher yet — keep the UI wired.
                 await new Promise((r) => setTimeout(r, 1200));
@@ -505,7 +544,9 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
             showToast(
                 scheduledUnix
                     ? `Scheduled for ${new Date(scheduledUnix * 1000).toLocaleString()}`
-                    : `Published to ${PLATFORMS[selected]?.label || selected}!`,
+                    : selected === "meta_ads"
+                        ? "Ad created and live on Meta!"
+                        : `Published to ${PLATFORMS[selected]?.label || selected}!`,
                 "success",
             );
             setTimeout(onClose, 1600);
@@ -515,13 +556,20 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
             setPublishing(false);
             setBusyAction(null);
         }
-    }, [selected, integrations, creative, caption, onClose, showToast, uploadImage]);
+    }, [selected, integrations, creative, caption, onClose, showToast, uploadImage, activeBrand, adGoal, adBudget, adDays, adCountry]);
 
     // Page/account display name for the preview
     const accountName = useMemo(() => {
         const i = integrations.find((x) => x.platform === selected);
         return i?.int_name || activeBrand?.name || PLATFORMS[selected]?.label || "Your Brand";
     }, [integrations, selected, activeBrand]);
+
+    // Meta-ad form must be fully filled before the ad can be created.
+    const metaAdIncomplete = selected === "meta_ads" && (
+        !adGoal || !adCountry ||
+        !adBudget || Number(adBudget) < MIN_AD_BUDGET ||
+        !adDays || Number(adDays) < 1
+    );
 
     // ── Scheduling (Facebook only) ────────────────────────────────────────────────
     const toLocalInput = (d) => {
@@ -656,9 +704,67 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                                 )}
                             </div>
 
+                            {/* For Meta ads: form first (the main task), preview second (secondary). */}
+                            {selected === "meta_ads" && (
+                                <div className="rounded-xl border border-gray-200 p-3 flex flex-col gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <Megaphone className="w-3.5 h-3.5 text-blue-600" />
+                                        <span className="text-[11px] font-semibold text-gray-700 uppercase tracking-wider">Ad settings</span>
+                                        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 ml-auto">
+                                            Spends real money
+                                        </span>
+                                    </div>
+
+                                    <label className="flex flex-col gap-1">
+                                        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Goal</span>
+                                        <select value={adGoal} onChange={(e) => setAdGoal(e.target.value)}
+                                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                            {AD_GOALS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+                                        </select>
+                                    </label>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <label className="flex flex-col gap-1">
+                                            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Daily budget</span>
+                                            <input type="number" min={MIN_AD_BUDGET} step="100" value={adBudget} onChange={(e) => setAdBudget(e.target.value)}
+                                                placeholder={`Min ${MIN_AD_BUDGET.toLocaleString()}`}
+                                                className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                            {adBudget !== "" && Number(adBudget) < MIN_AD_BUDGET && (
+                                                <span className="text-[10px] text-red-500">Minimum daily budget is {MIN_AD_BUDGET.toLocaleString()}</span>
+                                            )}
+                                        </label>
+                                        <label className="flex flex-col gap-1">
+                                            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Run for (days)</span>
+                                            <input type="number" min="1" value={adDays} onChange={(e) => setAdDays(e.target.value)}
+                                                className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                        </label>
+                                    </div>
+
+                                    <label className="flex flex-col gap-1">
+                                        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Show to people in</span>
+                                        <select value={adCountry} onChange={(e) => setAdCountry(e.target.value)}
+                                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                            {AD_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                                        </select>
+                                    </label>
+
+                                    <p className="text-[10px] text-gray-400">
+                                        Ad goes <b>live immediately</b> and spends up to your daily budget. Sends clicks to{" "}
+                                        {activeBrand?.url || "your brand website"}. Other settings (age 18-65, all genders, auto-bid) use smart defaults.
+                                    </p>
+                                </div>
+                            )}
+
                             {/* Live native preview — the post itself is editable (click the caption to type).
-                                The post area scrolls internally if it overflows (like the real platforms). */}
-                            <div className="overflow-y-auto -mx-1 px-1" style={{ maxHeight: "52vh" }}>
+                                For ads it flows full-height (the whole modal body scrolls); for socials it
+                                scrolls in its own box like the real platforms. */}
+                            {selected === "meta_ads" && (
+                                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Preview</p>
+                            )}
+                            <div
+                                className={selected === "meta_ads" ? "-mx-1 px-1" : "overflow-y-auto -mx-1 px-1"}
+                                style={selected === "meta_ads" ? undefined : { maxHeight: "52vh" }}
+                            >
                                 <PlatformPreview
                                     platform={selected}
                                     name={accountName}
@@ -712,26 +818,29 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                             >
                                 Back
                             </button>
-                            <button
-                                onClick={toggleSchedule}
-                                disabled={publishing || published}
-                                className={`px-4 py-2 text-sm border rounded-xl hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer transition flex items-center gap-2 font-medium ${
-                                    showSchedule ? "border-blue-400 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-700"
-                                }`}
-                            >
-                                <CalendarClock className="w-3.5 h-3.5" /> Schedule
-                            </button>
+                            {selected !== "meta_ads" && (
+                                <button
+                                    onClick={toggleSchedule}
+                                    disabled={publishing || published}
+                                    className={`px-4 py-2 text-sm border rounded-xl hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer transition flex items-center gap-2 font-medium ${
+                                        showSchedule ? "border-blue-400 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-700"
+                                    }`}
+                                >
+                                    <CalendarClock className="w-3.5 h-3.5" /> Schedule
+                                </button>
+                            )}
                             <button
                                 onClick={() => handlePublish()}
-                                disabled={publishing || published}
+                                disabled={publishing || published || metaAdIncomplete}
+                                title={metaAdIncomplete ? "Fill in all ad settings first" : undefined}
                                 className="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl cursor-pointer transition flex items-center gap-2 font-semibold"
                             >
                                 {busyAction === "publish" ? (
-                                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Publishing…</>
+                                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {selected === "meta_ads" ? "Creating ad…" : "Publishing…"}</>
                                 ) : published ? (
-                                    <><Check className="w-3.5 h-3.5" /> Published!</>
+                                    <><Check className="w-3.5 h-3.5" /> {selected === "meta_ads" ? "Ad created!" : "Published!"}</>
                                 ) : (
-                                    <><Send className="w-3.5 h-3.5" /> Publish Now</>
+                                    <><Send className="w-3.5 h-3.5" /> {selected === "meta_ads" ? "Create Ad" : "Publish Now"}</>
                                 )}
                             </button>
                         </div>

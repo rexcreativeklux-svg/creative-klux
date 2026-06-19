@@ -61,7 +61,10 @@ export default function AdsContentCalendar() {
   const typeLabel = 'Ads';
   const matchType = 'ad';
 
-  const { integrations } = useAuth(); // ← get integrations from auth context
+  // AuthContext does NOT expose `integrations` — fetch them ourselves (the old
+  // `const { integrations } = useAuth()` was always undefined → no live ads ever).
+  const { fetchIntegrations } = useAuth();
+  const [integrations, setIntegrations] = useState([]);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [allPosts, setAllPosts]         = useState([]);
@@ -71,25 +74,34 @@ export default function AdsContentCalendar() {
 
   const fetchLive = useCallback(async () => {
     try {
-      const livePosts = await fetchLivePostsFromConnectedAccounts(integrations ?? []); // ← pass integrations
+      const ints = (await fetchIntegrations()) || [];
+      setIntegrations(ints);
+      const livePosts = await fetchLivePostsFromConnectedAccounts(ints);
+
+      // Live (Facebook/Meta) is authoritative for status. Keep a local post ONLY when
+      // it's no longer reported live, and never trust a local 'scheduled'.
+      const liveIds   = new Set(livePosts.map(p => p.id));
       const local     = getPublishedPosts();
-      const localIds  = new Set(local.map(p => p.id));
-      const newPosts  = livePosts.filter(lp => !localIds.has(lp.id));
-      const merged    = [...newPosts, ...local];
-      localStorage.setItem('creativeklux_published_posts', JSON.stringify(merged));
-      setAllPosts(merged);
+      const localOnly = local.filter(p => !liveIds.has(p.id) && p.status !== 'scheduled');
+
+      const byId = new Map();
+      [...livePosts, ...localOnly].forEach(p => { if (!byId.has(p.id)) byId.set(p.id, p); });
+      const all = [...byId.values()];
+
+      localStorage.setItem('creativeklux_published_posts', JSON.stringify(all.filter(p => p.status !== 'scheduled')));
+      setAllPosts(all);
     } catch {
       reload();
     }
-  }, [integrations, reload]); // ← integrations in dep array
+  }, [fetchIntegrations, reload]);
 
   useEffect(() => { fetchLive(); }, [fetchLive]);
 
   const posts = allPosts.filter(p => p.type === matchType);
 
   const handleDelete = async (post) => {
-    await deletePostFromPlatform(post, integrations ?? []); // ← pass integrations
-    reload();
+    await deletePostFromPlatform(post, integrations ?? []);
+    await fetchLive(); // re-fetch (keeps live posts; reload() would drop them)
     toast.success('Ad removed');
   };
 

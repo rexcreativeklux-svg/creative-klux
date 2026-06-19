@@ -213,7 +213,9 @@ export default function SocialPublishing() {
         (p.caption || '').toLowerCase().includes(q)
       );
     }
-    return result;
+    // Newest → oldest by the relevant date (scheduled uses scheduled_at, else published_at).
+    const dateOf = (p) => new Date(p.status === 'scheduled' ? p.scheduled_at : (p.published_at || p.scheduled_at)).getTime() || 0;
+    return [...result].sort((a, b) => dateOf(b) - dateOf(a));
   }, [posts, statusFilter, platformFilter, search]);
 
   const integrationsMap = useMemo(() => {

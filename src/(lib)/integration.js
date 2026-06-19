@@ -635,6 +635,13 @@ function buildAccountsMap(integrations) {
         };
         break;
 
+      case 'youtube':
+        map.youtube = {
+          ...base,
+          channel_id: i.int_id,
+        };
+        break;
+
       default:
         map[i.platform] = base;
     }
@@ -919,6 +926,19 @@ export async function publishToMetaAds({
     return data;
   };
 
+  // Best-effort delete of any object by id (used to clean up after a partial failure).
+  // Deleting a campaign cascades to its ad sets / ads, so removing the campaign is enough.
+  const del = async (id) => {
+    try {
+      await fetch(
+        `${META_GRAPH_BASE}/${id}?access_token=${encodeURIComponent(access_token)}`,
+        { method: 'DELETE' }
+      );
+    } catch (cleanupErr) {
+      console.warn(`Meta Ads cleanup of ${id} failed:`, cleanupErr?.message);
+    }
+  };
+
   // 1. Campaign (the goal/objective). Budget lives on the ad set, so we must explicitly
   //    opt out of campaign-level budget sharing (is_adset_budget_sharing_enabled).
   const campaign = await post('campaigns', {
@@ -929,49 +949,279 @@ export async function publishToMetaAds({
     is_adset_budget_sharing_enabled: false,
   });
 
-  // 2. Ad set (budget, schedule, audience). Budget is in the currency's minor units (×100).
-  const now = Math.floor(Date.now() / 1000);
-  const adset = await post('adsets', {
-    name: `${name} — Ad Set`,
-    campaign_id: campaign.id,
-    daily_budget: Math.round(Number(daily_budget) * 100),
-    billing_event: 'IMPRESSIONS',
-    optimization_goal: g.optimization_goal,
-    bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-    start_time: now,
-    end_time: now + Math.max(1, Number(days)) * 86400,
-    targeting: { geo_locations: { countries: [country] }, age_min: 18, age_max: 65 },
-    status: 'ACTIVE',
-  });
+  // Steps 2-4 build on the campaign. If any throws, the campaign (and whatever ad set we
+  // got to) would be left orphaned in Ads Manager — so delete the campaign before rethrowing.
+  let adset, creative, ad;
+  try {
+    // 2. Ad set (budget, schedule, audience). Budget is in the currency's minor units (×100).
+    const now = Math.floor(Date.now() / 1000);
+    adset = await post('adsets', {
+      name: `${name} — Ad Set`,
+      campaign_id: campaign.id,
+      daily_budget: Math.round(Number(daily_budget) * 100),
+      billing_event: 'IMPRESSIONS',
+      optimization_goal: g.optimization_goal,
+      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+      start_time: now,
+      end_time: now + Math.max(1, Number(days)) * 86400,
+      targeting: { geo_locations: { countries: [country] }, age_min: 18, age_max: 65 },
+      status: 'ACTIVE',
+    });
 
-  // 3. Ad creative — use the public image URL directly (`picture`) instead of uploading
-  //    to /adimages first (one fewer call, and adimages-by-url is unreliable).
-  const creative = await post('adcreatives', {
-    name: `${name} — Creative`,
-    object_story_spec: {
-      page_id,
-      link_data: {
-        picture: image_url,
-        message: message || '',
-        link: dest,
-        call_to_action: { type: 'LEARN_MORE', value: { link: dest } },
+    // 3. Ad creative — use the public image URL directly (`picture`) instead of uploading
+    //    to /adimages first (one fewer call, and adimages-by-url is unreliable).
+    creative = await post('adcreatives', {
+      name: `${name} — Creative`,
+      object_story_spec: {
+        page_id,
+        link_data: {
+          picture: image_url,
+          message: message || '',
+          link: dest,
+          call_to_action: { type: 'LEARN_MORE', value: { link: dest } },
+        },
       },
-    },
-  });
+    });
 
-  // 4. Ad (ties the creative to the ad set, live)
-  const ad = await post('ads', {
-    name,
-    adset_id: adset.id,
-    creative: { creative_id: creative.id },
-    status: 'ACTIVE',
-  });
+    // 4. Ad (ties the creative to the ad set, live)
+    ad = await post('ads', {
+      name,
+      adset_id: adset.id,
+      creative: { creative_id: creative.id },
+      status: 'ACTIVE',
+    });
+  } catch (err) {
+    // Roll back: deleting the campaign cascades to the ad set we may have created.
+    await del(campaign.id);
+    throw err;
+  }
 
   return {
     post_id: ad.id,
     campaign_id: campaign.id,
     adset_id: adset.id,
     creative_id: creative.id,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// YouTube
+// ─────────────────────────────────────────────────────────────
+//
+// YouTube ONLY accepts video uploads — there is no "image post". Our creatives
+// are images / canvas designs, so to publish we first turn the image into a short
+// video clip *in the browser* (canvas + MediaRecorder → a .webm blob), then run
+// YouTube's resumable upload. No backend / ffmpeg needed.
+
+// Route http(s) images through the proxy so the canvas isn't CORS-tainted
+// (a tainted canvas can't be captured to a video). Leaves data:/blob: alone.
+function ytProxiedSrc(src) {
+  if (!src) return src;
+  if (/^https?:/i.test(src)) {
+    return `/api/proxy-image?url=${encodeURIComponent(src)}`;
+  }
+  return src;
+}
+
+function ytLoadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () =>
+      reject(new Error('Failed to load the image to build the video.'));
+    img.src = ytProxiedSrc(url);
+  });
+}
+
+// Pick a MediaRecorder mime type the browser actually supports. YouTube accepts webm.
+function ytPickMime() {
+  const candidates = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+    'video/mp4',
+  ];
+  if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
+    for (const m of candidates) {
+      if (MediaRecorder.isTypeSupported(m)) return m;
+    }
+  }
+  return 'video/webm';
+}
+
+/**
+ * Turn a still image into a short looping-still video Blob, entirely in-browser.
+ * Draws the image onto a canvas, captures the canvas as a media stream, and records
+ * it for `durationSec` seconds with MediaRecorder.
+ */
+export async function imageUrlToVideoBlob(
+  imageUrl,
+  { durationSec = 5, fps = 30 } = {}
+) {
+  if (typeof document === 'undefined' || typeof MediaRecorder === 'undefined') {
+    throw new Error('Video creation is only available in the browser.');
+  }
+
+  const img = await ytLoadImage(imageUrl);
+
+  // Even dimensions (some encoders require it); cap to keep the file reasonable.
+  const cap = 1920;
+  let w = img.naturalWidth || 1280;
+  let h = img.naturalHeight || 720;
+  if (w > cap || h > cap) {
+    const scale = cap / Math.max(w, h);
+    w = Math.round(w * scale);
+    h = Math.round(h * scale);
+  }
+  w = Math.max(2, w - (w % 2));
+  h = Math.max(2, h - (h % 2));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  const stream = canvas.captureStream(fps);
+  const mimeType = ytPickMime();
+  const recorder = new MediaRecorder(stream, { mimeType });
+  const chunks = [];
+  recorder.ondataavailable = (e) => {
+    if (e.data && e.data.size) chunks.push(e.data);
+  };
+
+  return new Promise((resolve, reject) => {
+    let raf;
+    const stop = () => {
+      if (raf) cancelAnimationFrame(raf);
+      stream.getTracks().forEach((t) => t.stop());
+    };
+
+    recorder.onstop = () => {
+      stop();
+      resolve(new Blob(chunks, { type: mimeType }));
+    };
+    recorder.onerror = (e) => {
+      stop();
+      reject(e.error || new Error('Video recording failed.'));
+    };
+
+    // Keep the stream alive by continuously redrawing the still frame.
+    const draw = () => {
+      ctx.drawImage(img, 0, 0, w, h);
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+
+    recorder.start();
+    setTimeout(() => {
+      try {
+        recorder.stop();
+      } catch (err) {
+        stop();
+        reject(err);
+      }
+    }, Math.max(1, durationSec) * 1000);
+  });
+}
+
+/**
+ * Publish a video to YouTube via the resumable upload API (browser → googleapis).
+ *
+ * Pass a real `video` Blob/File when you have one; otherwise pass `image_url` and
+ * it is converted to a short video first. Requires a token with the
+ * `youtube.upload` scope (the YouTube connect flow requests it).
+ *
+ *  - access_token   from the youtube integration (int_token)
+ *  - title / description  video metadata (title capped to 100 chars)
+ *  - privacyStatus  'public' | 'unlisted' | 'private'
+ *  - publishAt      optional ISO string — schedules the video (forces privacyStatus 'private')
+ */
+export async function publishToYouTube({
+  access_token,
+  title,
+  description,
+  image_url,
+  video,
+  privacyStatus = 'public',
+  publishAt,
+  durationSec = 5,
+}) {
+  if (!access_token) {
+    throw new Error('No access token — reconnect your YouTube account.');
+  }
+
+  // Resolve a video blob: provided video wins, else build one from the image.
+  let videoBlob = video || null;
+  if (!videoBlob) {
+    if (!image_url) {
+      throw new Error('Nothing to publish — no video or image was provided.');
+    }
+    videoBlob = await imageUrlToVideoBlob(image_url, { durationSec });
+  }
+
+  const metadata = {
+    snippet: {
+      title: (title || 'Untitled').slice(0, 100),
+      description: description || '',
+      categoryId: '22', // People & Blogs
+    },
+    status: {
+      // Scheduling: YouTube only honors publishAt when the video starts private.
+      privacyStatus: publishAt ? 'private' : privacyStatus,
+      ...(publishAt ? { publishAt } : {}),
+      selfDeclaredMadeForKids: false,
+    },
+  };
+
+  // Step 1 — open a resumable upload session; YouTube returns the upload URL in `Location`.
+  const initRes = await fetch(
+    'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': videoBlob.type || 'video/webm',
+        'X-Upload-Content-Length': String(videoBlob.size),
+      },
+      body: JSON.stringify(metadata),
+    }
+  );
+
+  if (!initRes.ok) {
+    const err = await initRes.json().catch(() => ({}));
+    console.error('YouTube upload init error:', err);
+    throw new Error(
+      err.error?.message || `YouTube upload couldn't start (${initRes.status}).`
+    );
+  }
+
+  const uploadUrl =
+    initRes.headers.get('Location') || initRes.headers.get('location');
+  if (!uploadUrl) {
+    throw new Error('YouTube did not return an upload URL.');
+  }
+
+  // Step 2 — upload the video bytes.
+  const upRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': videoBlob.type || 'video/webm' },
+    body: videoBlob,
+  });
+
+  const data = await upRes.json().catch(() => ({}));
+  if (!upRes.ok || data.error) {
+    console.error('YouTube upload error:', data.error || upRes.status);
+    throw new Error(
+      data.error?.message || `YouTube upload failed (${upRes.status}).`
+    );
+  }
+
+  return {
+    post_id: data.id,
+    video_id: data.id,
+    url: data.id ? `https://youtube.com/watch?v=${data.id}` : undefined,
   };
 }
 
@@ -1202,6 +1452,90 @@ export async function fetchLivePostsFromConnectedAccounts(
         'Instagram live posts fetch failed:',
         err.message
       );
+    }
+  }
+
+  // ── YouTube ──────────────────────────
+
+  if (accounts.youtube?.access_token) {
+    try {
+      const token = accounts.youtube.access_token;
+
+      // 1. Resolve the channel's "uploads" playlist (holds every video).
+      const chRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true&access_token=${token}`
+      );
+      const chData = await chRes.json();
+      const uploads =
+        chData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+
+      if (chData.error) {
+        console.warn('YouTube channel fetch error:', chData.error);
+      } else if (uploads) {
+        // 2. Recent uploads from that playlist.
+        const plRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploads}&maxResults=20&access_token=${token}`
+        );
+        const plData = await plRes.json();
+
+        if (plData.error) {
+          console.warn('YouTube uploads fetch error:', plData.error);
+        } else {
+          const items = plData.items || [];
+          const ids = items
+            .map((it) => it.snippet?.resourceId?.videoId)
+            .filter(Boolean);
+
+          // 3. One status call to tell scheduled (private + publishAt) from published.
+          const statusById = {};
+          if (ids.length) {
+            const vRes = await fetch(
+              `https://www.googleapis.com/youtube/v3/videos?part=status&id=${ids.join(
+                ','
+              )}&access_token=${token}`
+            );
+            const vData = await vRes.json();
+            if (!vData.error) {
+              (vData.items || []).forEach((v) => {
+                statusById[v.id] = v.status || {};
+              });
+            }
+          }
+
+          items.forEach((it) => {
+            const s = it.snippet || {};
+            const vid = s.resourceId?.videoId;
+            if (!vid) return;
+
+            const st = statusById[vid] || {};
+            const scheduled =
+              st.privacyStatus === 'private' && st.publishAt;
+
+            livePosts.push({
+              id: `yt_${vid}`,
+              project_id: null,
+              project_title: s.title?.slice(0, 60) || 'YouTube Video',
+              caption: s.description || '',
+              image_url:
+                s.thumbnails?.high?.url ||
+                s.thumbnails?.medium?.url ||
+                s.thumbnails?.default?.url ||
+                null,
+              platform: 'youtube',
+              type: 'social',
+              status: scheduled ? 'scheduled' : 'published',
+              published_at: scheduled ? null : s.publishedAt || null,
+              scheduled_at: scheduled ? st.publishAt : null,
+              post_id: vid,
+              permalink_url: `https://youtube.com/watch?v=${vid}`,
+              live: true,
+              stats: {},
+            });
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('YouTube live posts fetch failed:', err.message);
     }
   }
 

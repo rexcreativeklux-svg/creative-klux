@@ -11,7 +11,7 @@ import {
     FaPinterest, FaTwitter, FaSnapchatGhost, FaGoogle,
 } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
-import { publishToFacebook, publishToInstagram, publishToMetaAds } from "@/(lib)/integration";
+import { publishToFacebook, publishToInstagram, publishToMetaAds, publishToYouTube } from "@/(lib)/integration";
 
 // ── Platform catalog ─────────────────────────────────────────────────────────
 // `kind` decides which list shows for a creative's category.
@@ -22,7 +22,7 @@ const PLATFORMS = {
     tiktok:        { label: "TikTok",               kind: "social", color: "#010101", Icon: FaTiktok,        real: false },
     twitter:       { label: "X / Twitter",          kind: "social", color: "#14171A", Icon: FaTwitter,       real: false },
     linkedin:      { label: "LinkedIn",             kind: "social", color: "#0A66C2", Icon: FaLinkedin,      real: false },
-    youtube:       { label: "YouTube",              kind: "social", color: "#FF0000", Icon: FaYoutube,       real: false },
+    youtube:       { label: "YouTube",              kind: "social", color: "#FF0000", Icon: FaYoutube,       real: true  },
     pinterest:     { label: "Pinterest",            kind: "social", color: "#E60023", Icon: FaPinterest,     real: false },
     snapchat:      { label: "Snapchat",             kind: "social", color: "#FFC400", Icon: FaSnapchatGhost, real: false },
     meta_ads:      { label: "Meta Ads Manager",     kind: "ads",    color: "#0668E1", Icon: FaFacebook,      real: true  },
@@ -534,6 +534,18 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                     days: Number(adDays) || 7,
                     country: adCountry,
                     ad_name: creative?.name,
+                });
+            } else if (selected === "youtube") {
+                // YouTube is video-only — the image (or rendered canvas) is converted to a
+                // short video in-browser, then uploaded. Title = first line of the caption.
+                const text = caption.trim();
+                const firstLine = text.split("\n")[0]?.trim();
+                await publishToYouTube({
+                    access_token: integration.int_token,
+                    title: (firstLine || creative?.name || "Creative Klux video").slice(0, 100),
+                    description: text,
+                    image_url: imageUrl,
+                    privacyStatus: "public",
                 });
             } else {
                 // No live publisher yet — keep the UI wired.

@@ -1071,6 +1071,24 @@ export function openOAuthPopup(platform) {
   });
 }
 
+/**
+ * Full-page redirect OAuth (instead of a popup).
+ *
+ * Popups can't complete *nested* logins — e.g. an X account that signs in via Google
+ * means x.com must open google.com inside the popup, which modern browsers block
+ * (partitioned cookies/storage) → blank screen / login loop. Navigating the whole tab
+ * avoids that: the login happens in a normal first-party context.
+ *
+ * The platform redirects back to /oauth-callback, which (no popup opener) forwards to
+ * /integrations?oauth_code=… where the connect is finished. The PKCE verifier stored by
+ * buildAuthUrl survives in sessionStorage across the round-trip (same tab + origin).
+ */
+export async function startOAuthRedirect(platform) {
+  const clientId = getClientId(platform);
+  const url = await buildAuthUrl(platform, clientId);
+  window.location.assign(url);
+}
+
 // ─────────────────────────────────────────────────────────────
 // Meta Helpers
 // ─────────────────────────────────────────────────────────────

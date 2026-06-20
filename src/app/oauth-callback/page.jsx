@@ -30,11 +30,19 @@ export default function OAuthCallback() {
       };
 
       if (window.opener && !window.opener.closed) {
+        // Popup flow: hand the result back to the opener and close.
         window.opener.postMessage(payload, window.location.origin);
+        window.close();
       } else {
-        console.warn("No opener window found. OAuth opened directly.");
+        // Full-page redirect flow (no popup): forward to /integrations to finish the
+        // connect. rawState carries the platform (e.g. "twitter_1700000000").
+        const qs = new URLSearchParams();
+        if (code) qs.set("oauth_code", code);
+        if (access_token) qs.set("oauth_token", access_token);
+        if (rawState) qs.set("oauth_state", rawState);
+        if (error) qs.set("oauth_error", error);
+        window.location.replace(`/integrations?${qs.toString()}`);
       }
-      window.close();
     } catch (err) {
       console.error("OAuth callback error:", err);
     }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Info, AlertCircle, Check, X } from "lucide-react";
-import { openOAuthPopup } from "@/(lib)/oauth/page";
+import { openOAuthPopup, startOAuthRedirect } from "@/(lib)/oauth/page";
 import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
 import { setStoredXRefresh } from "@/(lib)/integration";
@@ -247,9 +247,14 @@ const SectionHeader = ({ title }) => (
     <h2 className="text-base font-bold text-gray-900 tracking-tight mb-3">{title}</h2>
 );
 
+// Platforms that must connect via a full-page redirect instead of a popup — their login
+// can be a nested SSO (e.g. X signed in via Google) that popups can't complete. Add more
+// here if another platform hits the same popup/SSO wall.
+const REDIRECT_PLATFORMS = ["twitter"];
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 const IntegrationsPage = () => {
-    const { saveIntegration, disconnectIntegration, fetchIntegrations, activeBrandId } = useAuth();
+    const { saveIntegration, disconnectIntegration, fetchIntegrations, activeBrandId, token } = useAuth();
 
     // Facebook page selection state
     const [fbPages, setFbPages] = useState([]);
@@ -626,52 +631,73 @@ const IntegrationsPage = () => {
         return await resolveGenericIntegration(platformId, oauthResult);
     }
 
+    // Save resolved creds + post-save bookkeeping. Shared by the popup path and the
+    // full-page redirect return path so the two can't drift.
+    const finishConnect = useCallback(async (platformId, creds, brandId) => {
+        const saved = await saveIntegration({
+            platform: platformId,
+            access_token: creds.int_token,
+            refresh_token: creds.refresh_token, // X needs this to refresh its 2h token
+            brand_id: brandId,
+            int_id: creds.int_id,
+            int_name: creds.int_name,
+        });
+
+        if (!saved.ok) {
+            showToast(saved.message || "Failed to save integration", "error");
+            return;
+        }
+
+        // X/Twitter: stash the refresh token in localStorage keyed by the saved integration
+        // id (stopgap until the backend persists it). Posting reads it back to mint tokens.
+        if (platformId === "twitter" && creds.refresh_token) {
+            const savedId = saved.data?.id || saved.data?.data?.id || saved.id;
+            if (savedId) setStoredXRefresh(savedId, creds.refresh_token);
+        }
+
+        showToast(`${getPlatformName(platformId)} connected successfully!`, "success");
+        setIntegrations((prev) => [
+            ...prev,
+            {
+                id: saved.data?.id || saved.id,
+                platform: platformId,
+                int_id: creds.int_id,
+                int_name: creds.int_name,
+            },
+        ]);
+    }, [saveIntegration]);
+
     // ── Connect handler ──
     const handleConnect = useCallback(async (platformId) => {
         if (!activeBrandId) {
             showToast("Please select an active brand before connecting.", "error");
             return;
         }
+
+        // Redirect platforms: log in via a full-page redirect instead of a popup, because
+        // their login can be a nested SSO (e.g. X signed in via Google) which popups can't
+        // complete. We persist what's needed and finish the connect on return (effect below).
+        if (REDIRECT_PLATFORMS.includes(platformId)) {
+            try {
+                sessionStorage.setItem(
+                    "creativeklux_oauth_pending",
+                    JSON.stringify({ platform: platformId, brandId: activeBrandId }),
+                );
+                setLoadingPlatformId(platformId);
+                await startOAuthRedirect(platformId); // navigates the whole tab away
+            } catch (err) {
+                setLoadingPlatformId(null);
+                showToast(err.message || "Couldn't start the connection", "error");
+            }
+            return;
+        }
+
         setLoadingPlatformId(platformId);
         try {
             const oauthResult = await openOAuthPopup(platformId);
-            console.log("oauth:", oauthResult);
             const creds = await resolveIntegrationCredentials(platformId, oauthResult);
-            console.log(" result:", creds);
-
             if (!creds) return;
-
-            const saved = await saveIntegration({
-                platform: platformId,
-                access_token: creds.int_token,
-                refresh_token: creds.refresh_token, // X needs this to refresh its 2h token
-                brand_id: activeBrandId,
-                int_id: creds.int_id,
-                int_name: creds.int_name, // ← ADD THIS
-            });
-
-            if (!saved.ok) {
-                showToast(saved.message || "Failed to save integration", "error");
-                return;
-            }
-
-            // X/Twitter: stash the refresh token in localStorage keyed by the saved integration
-            // id (stopgap until the backend persists it). Posting reads it back to mint tokens.
-            if (platformId === "twitter" && creds.refresh_token) {
-                const savedId = saved.data?.id || saved.data?.data?.id || saved.id;
-                if (savedId) setStoredXRefresh(savedId, creds.refresh_token);
-            }
-
-            showToast(`${getPlatformName(platformId)} connected successfully!`, "success");
-            setIntegrations((prev) => [
-                ...prev,
-                {
-                    id: saved.data?.id || saved.id,
-                    platform: platformId,
-                    int_id: creds.int_id,
-                    int_name: creds.int_name,
-                },
-            ]);
+            await finishConnect(platformId, creds, activeBrandId);
         } catch (err) {
             if (err.message === "cancelled") return;
             console.error("Connect error:", err);
@@ -679,7 +705,47 @@ const IntegrationsPage = () => {
         } finally {
             setLoadingPlatformId(null);
         }
-    }, [saveIntegration, activeBrandId]);
+    }, [activeBrandId, finishConnect]);
+
+    // ── Finish a full-page redirect connect (X etc.) ──
+    // On return, oauth-callback forwarded us to /integrations?oauth_code=…&oauth_state=…
+    // Runs once auth is hydrated (needs `token` for saveIntegration).
+    const redirectHandled = useRef(false);
+    useEffect(() => {
+        if (redirectHandled.current) return;
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("oauth_code");
+        const oauthError = url.searchParams.get("oauth_error");
+        const rawState = url.searchParams.get("oauth_state");
+        if (!code && !oauthError) return;
+        if (!token) return; // wait until the app session is restored
+
+        redirectHandled.current = true;
+
+        let pending = null;
+        try { pending = JSON.parse(sessionStorage.getItem("creativeklux_oauth_pending") || "null"); } catch { /* ignore */ }
+        const platform = pending?.platform || rawState?.replace(/_\d+$/, "") || null;
+
+        // Clean the URL + pending state so a refresh can't replay it.
+        window.history.replaceState({}, "", "/integrations");
+        sessionStorage.removeItem("creativeklux_oauth_pending");
+
+        if (!platform) return;
+
+        (async () => {
+            setLoadingPlatformId(platform);
+            try {
+                if (oauthError) throw new Error(oauthError);
+                const creds = await resolveIntegrationCredentials(platform, { code, platform });
+                if (creds) await finishConnect(platform, creds, pending?.brandId || activeBrandId);
+            } catch (err) {
+                console.error("Redirect connect error:", err);
+                showToast(err.message || "Connection failed", "error");
+            } finally {
+                setLoadingPlatformId(null);
+            }
+        })();
+    }, [token, activeBrandId, finishConnect]);
 
     // ── Disconnect handler ──
     const handleDisconnect = useCallback(async (integrationId) => {

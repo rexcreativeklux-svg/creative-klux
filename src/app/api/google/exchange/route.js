@@ -10,7 +10,9 @@ export async function POST(req) {
       code,
       client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: 'https://app.creativeklux.com/oauth-callback',
+      // Must match the redirect used to build the Google auth URL (oauth/page.jsx
+      // GOOGLE_REDIRECT_URI) and the path registered on the Google OAuth client.
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'https://app.creativeklux.com/auth/google/callback',
       grant_type: 'authorization_code',
     });
 

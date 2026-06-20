@@ -248,9 +248,11 @@ const SectionHeader = ({ title }) => (
 );
 
 // Platforms that must connect via a full-page redirect instead of a popup — their login
-// can be a nested SSO (e.g. X signed in via Google) that popups can't complete. Add more
-// here if another platform hits the same popup/SSO wall.
-const REDIRECT_PLATFORMS = ["twitter"];
+// can be a nested SSO (e.g. X / LinkedIn / Pinterest signed in via Google or Apple) that
+// popups can't complete (partitioned cookies → blank page / login loop). Only plain social
+// connects that resolve creds directly belong here — NOT the *_ads variants, which use the
+// ad-account page-picker modal (popup-side state that the redirect path can't carry).
+const REDIRECT_PLATFORMS = ["twitter", "linkedin", "pinterest"];
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 const IntegrationsPage = () => {

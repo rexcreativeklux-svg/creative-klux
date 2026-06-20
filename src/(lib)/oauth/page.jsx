@@ -496,6 +496,12 @@ import { LINKEDIN_POSTING_ENABLED, LINKEDIN_POST_SCOPE } from "@/(lib)/linkedinC
 const REDIRECT_URI =
   'https://app.creativeklux.com/oauth-callback';
 
+// Google uses its OWN callback path (the new Google OAuth client is registered with this
+// exact URL in Google Cloud). Must match the redirect in /api/google/exchange and the page
+// at src/app/auth/google/callback. Other platforms keep REDIRECT_URI above.
+const GOOGLE_REDIRECT_URI =
+  'https://app.creativeklux.com/auth/google/callback';
+
 // ─────────────────────────────────────────────────────────────
 // API Versioning
 // ─────────────────────────────────────────────────────────────
@@ -791,7 +797,7 @@ async function buildAuthUrl(platform, clientId) {
       return (
         `https://accounts.google.com/o/oauth2/v2/auth` +
         `?client_id=${clientId}` +
-        `&redirect_uri=${redirect}` +
+        `&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}` +
         `&scope=${scope}` +
         `&response_type=code` +
         `&state=${state}` +

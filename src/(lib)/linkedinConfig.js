@@ -18,5 +18,16 @@ export const LINKEDIN_POSTING_ENABLED = true;
 // the flag above is on).
 export const LINKEDIN_POST_SCOPE = "w_member_social";
 
-// LinkedIn versions its REST API by month (YYYYMM). Bump if LinkedIn deprecates this one.
-export const LINKEDIN_API_VERSION = "202401";
+// LinkedIn versions its REST API by month (YYYYMM) and only keeps each active for ~12
+// months — so any *hardcoded* version eventually expires ("NONEXISTENT_VERSION"). Instead
+// of pinning one (and breaking again in a year), compute it from today's date so it rolls
+// forward automatically. We use LAST month: the current month's version may not be
+// published yet, and last month's is guaranteed released and well inside the active window.
+// (Recomputed on each server cold-start; monthly granularity means it never goes stale.)
+function computeLinkedInApiVersion() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export const LINKEDIN_API_VERSION = computeLinkedInApiVersion();

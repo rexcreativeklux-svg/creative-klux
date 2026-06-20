@@ -1126,11 +1126,14 @@ export async function imageUrlToVideoBlob(
 }
 
 /**
- * Publish a video to YouTube via the resumable upload API (browser → googleapis).
+ * Publish a video to YouTube.
  *
- * Pass a real `video` Blob/File when you have one; otherwise pass `image_url` and
- * it is converted to a short video first. Requires a token with the
- * `youtube.upload` scope (the YouTube connect flow requests it).
+ * The video is built in the BROWSER (canvas + MediaRecorder, which are browser-only) and
+ * then handed to /api/youtube/upload, which does the resumable upload SERVER-SIDE —
+ * googleapis' upload endpoint has no browser CORS, so a direct upload is blocked.
+ *
+ * Pass a real `video` Blob/File when you have one; otherwise pass `image_url` and it's
+ * converted to a short video first. Requires a token with the `youtube.upload` scope.
  *
  *  - access_token   from the youtube integration (int_token)
  *  - title / description  video metadata (title capped to 100 chars)
@@ -1151,7 +1154,7 @@ export async function publishToYouTube({
     throw new Error('No access token — reconnect your YouTube account.');
   }
 
-  // Resolve a video blob: provided video wins, else build one from the image.
+  // Resolve a video blob: provided video wins, else build one from the image (browser-side).
   let videoBlob = video || null;
   if (!videoBlob) {
     if (!image_url) {
@@ -1160,68 +1163,26 @@ export async function publishToYouTube({
     videoBlob = await imageUrlToVideoBlob(image_url, { durationSec });
   }
 
-  const metadata = {
-    snippet: {
-      title: (title || 'Untitled').slice(0, 100),
-      description: description || '',
-      categoryId: '22', // People & Blogs
-    },
-    status: {
-      // Scheduling: YouTube only honors publishAt when the video starts private.
-      privacyStatus: publishAt ? 'private' : privacyStatus,
-      ...(publishAt ? { publishAt } : {}),
-      selfDeclaredMadeForKids: false,
-    },
-  };
+  // Hand the blob + metadata to the server route, which uploads to YouTube (no CORS there).
+  const form = new FormData();
+  form.append('access_token', access_token);
+  form.append('title', (title || 'Untitled').slice(0, 100));
+  form.append('description', description || '');
+  form.append('privacyStatus', publishAt ? 'private' : privacyStatus);
+  if (publishAt) form.append('publishAt', publishAt);
+  form.append('video', videoBlob, 'creative.webm');
 
-  // Step 1 — open a resumable upload session; YouTube returns the upload URL in `Location`.
-  const initRes = await fetch(
-    'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${access_token}`,
-        'Content-Type': 'application/json; charset=UTF-8',
-        'X-Upload-Content-Type': videoBlob.type || 'video/webm',
-        'X-Upload-Content-Length': String(videoBlob.size),
-      },
-      body: JSON.stringify(metadata),
-    }
-  );
+  const res = await fetch('/api/youtube/upload', { method: 'POST', body: form });
+  const data = await res.json().catch(() => ({}));
 
-  if (!initRes.ok) {
-    const err = await initRes.json().catch(() => ({}));
-    console.error('YouTube upload init error:', err);
-    throw new Error(
-      err.error?.message || `YouTube upload couldn't start (${initRes.status}).`
-    );
-  }
-
-  const uploadUrl =
-    initRes.headers.get('Location') || initRes.headers.get('location');
-  if (!uploadUrl) {
-    throw new Error('YouTube did not return an upload URL.');
-  }
-
-  // Step 2 — upload the video bytes.
-  const upRes = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': videoBlob.type || 'video/webm' },
-    body: videoBlob,
-  });
-
-  const data = await upRes.json().catch(() => ({}));
-  if (!upRes.ok || data.error) {
-    console.error('YouTube upload error:', data.error || upRes.status);
-    throw new Error(
-      data.error?.message || `YouTube upload failed (${upRes.status}).`
-    );
+  if (!res.ok || data.error) {
+    throw new Error(data.error || 'YouTube upload failed.');
   }
 
   return {
-    post_id: data.id,
-    video_id: data.id,
-    url: data.id ? `https://youtube.com/watch?v=${data.id}` : undefined,
+    post_id: data.video_id,
+    video_id: data.video_id,
+    url: data.url,
   };
 }
 

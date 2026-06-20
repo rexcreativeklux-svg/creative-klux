@@ -11,7 +11,8 @@ import {
     FaPinterest, FaTwitter, FaSnapchatGhost, FaGoogle,
 } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
-import { publishToFacebook, publishToInstagram, publishToMetaAds, publishToYouTube } from "@/(lib)/integration";
+import { publishToFacebook, publishToInstagram, publishToMetaAds, publishToYouTube, publishToTwitter, publishToLinkedIn, publishToPinterest, fetchPinterestBoards } from "@/(lib)/integration";
+import { LINKEDIN_POSTING_ENABLED } from "@/(lib)/linkedinConfig";
 
 // ── Platform catalog ─────────────────────────────────────────────────────────
 // `kind` decides which list shows for a creative's category.
@@ -20,10 +21,10 @@ const PLATFORMS = {
     facebook:      { label: "Facebook Page",        kind: "social", color: "#1877F2", Icon: FaFacebook,      real: true  },
     instagram:     { label: "Instagram Business",   kind: "social", color: "#E1306C", Icon: FaInstagram,     real: true  },
     tiktok:        { label: "TikTok",               kind: "social", color: "#010101", Icon: FaTiktok,        real: false },
-    twitter:       { label: "X / Twitter",          kind: "social", color: "#14171A", Icon: FaTwitter,       real: false },
-    linkedin:      { label: "LinkedIn",             kind: "social", color: "#0A66C2", Icon: FaLinkedin,      real: false },
+    twitter:       { label: "X / Twitter",          kind: "social", color: "#14171A", Icon: FaTwitter,       real: true  },
+    linkedin:      { label: "LinkedIn",             kind: "social", color: "#0A66C2", Icon: FaLinkedin,      real: LINKEDIN_POSTING_ENABLED },
     youtube:       { label: "YouTube",              kind: "social", color: "#FF0000", Icon: FaYoutube,       real: true  },
-    pinterest:     { label: "Pinterest",            kind: "social", color: "#E60023", Icon: FaPinterest,     real: false },
+    pinterest:     { label: "Pinterest",            kind: "social", color: "#E60023", Icon: FaPinterest,     real: true  },
     snapchat:      { label: "Snapchat",             kind: "social", color: "#FFC400", Icon: FaSnapchatGhost, real: false },
     meta_ads:      { label: "Meta Ads Manager",     kind: "ads",    color: "#0668E1", Icon: FaFacebook,      real: true  },
     google_ads:    { label: "Google Ads",           kind: "ads",    color: "#4285F4", Icon: FaGoogle,        real: false },
@@ -412,6 +413,11 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
     const [adBudget, setAdBudget]   = useState("");
     const [adDays, setAdDays]       = useState("7");
     const [adCountry, setAdCountry] = useState("NG");
+    // Pinterest board picker (only used when selected === "pinterest")
+    const [pinBoards, setPinBoards]         = useState([]);
+    const [pinBoardId, setPinBoardId]       = useState("");
+    const [pinBoardsLoading, setPinBoardsLoading] = useState(false);
+    const [pinBoardsError, setPinBoardsError]     = useState("");
 
     const order = useMemo(() => platformsForCategory(creative?.category), [creative]);
 
@@ -446,6 +452,31 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
         })();
         return () => { alive = false; };
     }, [fetchIntegrations]);
+
+    // Load the user's Pinterest boards when Pinterest is the selected platform (a pin
+    // must go on a board). Defaults to the first board.
+    useEffect(() => {
+        if (selected !== "pinterest") return;
+        const integration = integrations.find((i) => i.platform === "pinterest");
+        if (!integration?.int_token) return;
+        let alive = true;
+        setPinBoardsLoading(true);
+        setPinBoardsError("");
+        (async () => {
+            try {
+                const boards = await fetchPinterestBoards(integration.int_token);
+                if (!alive) return;
+                setPinBoards(boards);
+                setPinBoardId((prev) => prev || boards[0]?.id || "");
+                if (!boards.length) setPinBoardsError("No boards found — create a board on Pinterest first.");
+            } catch (err) {
+                if (alive) setPinBoardsError(err.message || "Couldn't load boards.");
+            } finally {
+                if (alive) setPinBoardsLoading(false);
+            }
+        })();
+        return () => { alive = false; };
+    }, [selected, integrations]);
 
     const connectedSet = useMemo(
         () => new Set(integrations.map((i) => i.platform)),
@@ -535,6 +566,39 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                     country: adCountry,
                     ad_name: creative?.name,
                 });
+            } else if (selected === "pinterest") {
+                // A pin is an image on a board. Pinterest fetches the public image URL itself.
+                if (!pinBoardId) throw new Error("Pick a Pinterest board first.");
+                const text = caption.trim();
+                const firstLine = text.split("\n")[0]?.trim();
+                await publishToPinterest({
+                    access_token: integration.int_token,
+                    board_id: pinBoardId,
+                    title: (firstLine || creative?.name || "").slice(0, 100),
+                    description: text,
+                    image_url: imageUrl,
+                    link: activeBrand?.url || undefined,
+                });
+            } else if (selected === "linkedin") {
+                // LinkedIn posts server-side (no browser CORS). Author = the connected
+                // member (int_id). Only reachable when LINKEDIN_POSTING_ENABLED is on
+                // (gates the `real` flag), i.e. after LinkedIn approves w_member_social.
+                await publishToLinkedIn({
+                    access_token: integration.int_token,
+                    author_id: integration.int_id,
+                    text: cap,
+                    image_url: imageUrl,
+                });
+            } else if (selected === "twitter") {
+                // X posts server-side (no browser CORS). The route refreshes the 2h token,
+                // optionally uploads the image, and posts. Refresh token comes from the
+                // backend record (once it stores it) or localStorage; rotation handled inside.
+                await publishToTwitter({
+                    integration_id: integration.id,
+                    refresh_token: integration.int_refresh_token,
+                    text: cap,
+                    image_url: imageUrl,
+                });
             } else if (selected === "youtube") {
                 // YouTube is video-only — the image (or rendered canvas) is converted to a
                 // short video in-browser, then uploaded. Title = first line of the caption.
@@ -545,7 +609,10 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                     title: (firstLine || creative?.name || "Creative Klux video").slice(0, 100),
                     description: text,
                     image_url: imageUrl,
-                    privacyStatus: "public",
+                    // Scheduled → YouTube needs an ISO publishAt (it forces the video private
+                    // until then); immediate → public.
+                    privacyStatus: scheduledUnix ? "private" : "public",
+                    publishAt: scheduledUnix ? new Date(scheduledUnix * 1000).toISOString() : undefined,
                 });
             } else {
                 // No live publisher yet — keep the UI wired.
@@ -568,7 +635,7 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
             setPublishing(false);
             setBusyAction(null);
         }
-    }, [selected, integrations, creative, caption, onClose, showToast, uploadImage, activeBrand, adGoal, adBudget, adDays, adCountry]);
+    }, [selected, integrations, creative, caption, onClose, showToast, uploadImage, activeBrand, adGoal, adBudget, adDays, adCountry, pinBoardId]);
 
     // Page/account display name for the preview
     const accountName = useMemo(() => {
@@ -583,7 +650,13 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
         !adDays || Number(adDays) < 1
     );
 
-    // ── Scheduling (Facebook only) ────────────────────────────────────────────────
+    // Pinterest needs a board chosen before it can pin.
+    const pinterestIncomplete = selected === "pinterest" && !pinBoardId;
+
+    // ── Scheduling (Facebook + YouTube — both schedule natively) ──────────────────
+    // FB holds an unpublished post; YouTube uploads private with a publishAt. IG/X have
+    // no native API scheduling, so they're excluded.
+    const SCHEDULABLE = ["facebook", "youtube"];
     const toLocalInput = (d) => {
         const pad = (n) => String(n).padStart(2, "0");
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -592,8 +665,8 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
     const scheduleMax = toLocalInput(new Date(Date.now() + 180 * 24 * 60 * 60 * 1000)); // 6-month ceiling
 
     const toggleSchedule = () => {
-        if (selected !== "facebook") {
-            showToast("Scheduling is only available for Facebook right now", "error");
+        if (!SCHEDULABLE.includes(selected)) {
+            showToast("Scheduling is only available for Facebook and YouTube right now", "error");
             return;
         }
         setShowSchedule((s) => !s);
@@ -767,6 +840,26 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                                 </div>
                             )}
 
+                            {/* Pinterest: pick the board to pin to (required). */}
+                            {selected === "pinterest" && (
+                                <label className="rounded-xl border border-gray-200 p-3 flex flex-col gap-1">
+                                    <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Pin to board</span>
+                                    {pinBoardsLoading ? (
+                                        <span className="text-sm text-gray-400 flex items-center gap-2 py-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading boards…</span>
+                                    ) : pinBoardsError ? (
+                                        <span className="text-[11px] text-red-500">{pinBoardsError}</span>
+                                    ) : (
+                                        <select
+                                            value={pinBoardId}
+                                            onChange={(e) => setPinBoardId(e.target.value)}
+                                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-400"
+                                        >
+                                            {pinBoards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                        </select>
+                                    )}
+                                </label>
+                            )}
+
                             {/* Live native preview — the post itself is editable (click the caption to type).
                                 For ads it flows full-height (the whole modal body scrolls); for socials it
                                 scrolls in its own box like the real platforms. */}
@@ -792,7 +885,7 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                                 Click the caption to edit · {caption.length} chars
                             </p>
 
-                            {/* Schedule picker (Facebook only) */}
+                            {/* Schedule picker (Facebook + YouTube) */}
                             {showSchedule && (
                                 <div className="rounded-xl border border-gray-200 p-3 flex flex-col gap-2">
                                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Schedule for</label>
@@ -816,7 +909,7 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                                                 : <><CalendarClock className="w-3.5 h-3.5" /> Schedule</>}
                                         </button>
                                     </div>
-                                    <p className="text-[10px] text-gray-400">Facebook publishes it automatically · 10 min–6 months ahead.</p>
+                                    <p className="text-[10px] text-gray-400">{selected === "youtube" ? "YouTube" : "Facebook"} publishes it automatically · 10 min–6 months ahead.</p>
                                 </div>
                             )}
                         </div>
@@ -843,8 +936,8 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                             )}
                             <button
                                 onClick={() => handlePublish()}
-                                disabled={publishing || published || metaAdIncomplete}
-                                title={metaAdIncomplete ? "Fill in all ad settings first" : undefined}
+                                disabled={publishing || published || metaAdIncomplete || pinterestIncomplete}
+                                title={metaAdIncomplete ? "Fill in all ad settings first" : pinterestIncomplete ? "Pick a board first" : undefined}
                                 className="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl cursor-pointer transition flex items-center gap-2 font-semibold"
                             >
                                 {busyAction === "publish" ? (

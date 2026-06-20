@@ -1226,6 +1226,187 @@ export async function publishToYouTube({
 }
 
 // ─────────────────────────────────────────────────────────────
+// X / Twitter
+// ─────────────────────────────────────────────────────────────
+//
+// X has no browser CORS, so the actual posting happens server-side in
+// /api/twitter/post. Here we just call that route. X access tokens last ~2h and the
+// refresh token rotates on every use, so we keep the *current* refresh token in
+// localStorage (keyed by integration id) as a stopgap until the backend persists it,
+// and overwrite it with the rotated value the route returns after each post.
+
+const X_REFRESH_KEY = (id) => `ck_x_refresh_${id}`;
+
+export function getStoredXRefresh(integrationId) {
+  if (typeof window === 'undefined' || !integrationId) return null;
+  try {
+    return localStorage.getItem(X_REFRESH_KEY(integrationId));
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredXRefresh(integrationId, token) {
+  if (typeof window === 'undefined' || !integrationId || !token) return;
+  try {
+    localStorage.setItem(X_REFRESH_KEY(integrationId), token);
+  } catch {
+    /* storage unavailable — ignore */
+  }
+}
+
+/**
+ * Post to X (Twitter). Resolves the refresh token (passed in from the backend record
+ * if present, else from localStorage), hands it to the server route, and persists the
+ * rotated refresh token the route returns.
+ *
+ *  - integration_id  the saved integration's id (used as the localStorage key)
+ *  - refresh_token   optional — from the backend record once it stores int_refresh_token
+ *  - text            tweet body (capped to 280 server-side)
+ *  - image_url       optional public image URL to attach
+ */
+export async function publishToTwitter({
+  integration_id,
+  refresh_token,
+  text,
+  image_url,
+}) {
+  const rt = refresh_token || getStoredXRefresh(integration_id);
+  if (!rt) {
+    throw new Error(
+      'No saved X session on this device — reconnect your X account here, then try again.'
+    );
+  }
+
+  const res = await fetch('/api/twitter/post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: rt, text, image_url }),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  // X rotates the refresh token on every refresh — persist the new one even on failure,
+  // otherwise the next attempt uses a now-invalid token.
+  if (data.refresh_token) {
+    setStoredXRefresh(integration_id, data.refresh_token);
+  }
+
+  if (!res.ok || data.error) {
+    throw new Error(data.error || 'Failed to post to X.');
+  }
+
+  return {
+    post_id: data.tweet_id,
+    url: data.tweet_id
+      ? `https://x.com/i/web/status/${data.tweet_id}`
+      : undefined,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// LinkedIn
+// ─────────────────────────────────────────────────────────────
+//
+// LinkedIn has no browser CORS, so posting runs server-side in /api/linkedin/post.
+// Gated by LINKEDIN_POSTING_ENABLED (linkedinConfig.js): the Publish modal only routes
+// here when LinkedIn is `real`, which is tied to that same flag. Token comes from the
+// integration record (LinkedIn tokens last ~60 days; no refresh dance like X).
+
+/**
+ * Post to LinkedIn (the connected member's own feed).
+ *  - access_token  the integration's int_token
+ *  - author_id     the integration's int_id (LinkedIn member id = OpenID `sub`)
+ *  - text          post commentary
+ *  - image_url     optional public image URL to attach
+ */
+export async function publishToLinkedIn({
+  access_token,
+  author_id,
+  text,
+  image_url,
+}) {
+  if (!access_token) {
+    throw new Error('No access token — reconnect your LinkedIn account.');
+  }
+  if (!author_id) {
+    throw new Error('No LinkedIn member id — reconnect your LinkedIn account.');
+  }
+
+  const res = await fetch('/api/linkedin/post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token, author_id, text, image_url }),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || data.error) {
+    throw new Error(data.error || 'Failed to post to LinkedIn.');
+  }
+
+  return {
+    post_id: data.post_id,
+    url: data.post_id
+      ? `https://www.linkedin.com/feed/update/${data.post_id}`
+      : undefined,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Pinterest
+// ─────────────────────────────────────────────────────────────
+//
+// Pinterest is image-native: a "pin" is an image on a board. No browser CORS, so the
+// calls go through server routes. A pin MUST go on a board, so publishing needs a
+// board_id (the modal shows a board picker fed by fetchPinterestBoards).
+
+/** List the connected account's boards (for the board picker). */
+export async function fetchPinterestBoards(access_token) {
+  const res = await fetch('/api/pinterest/boards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) {
+    throw new Error(data.error || "Couldn't load your Pinterest boards.");
+  }
+  return data.boards || [];
+}
+
+/**
+ * Create a Pin.
+ *  - access_token  the integration's int_token
+ *  - board_id      which board to pin to (required — pins live on boards)
+ *  - title/description  pin metadata
+ *  - image_url     public image URL (Pinterest fetches it)
+ *  - link          optional click-through URL
+ */
+export async function publishToPinterest({
+  access_token,
+  board_id,
+  title,
+  description,
+  image_url,
+  link,
+}) {
+  if (!access_token) throw new Error('No access token — reconnect Pinterest.');
+  if (!board_id) throw new Error('Pick a Pinterest board first.');
+  if (!image_url) throw new Error('Pinterest needs an image to create a pin.');
+
+  const res = await fetch('/api/pinterest/pin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token, board_id, title, description, image_url, link }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) {
+    throw new Error(data.error || 'Failed to create pin.');
+  }
+
+  return { post_id: data.pin_id, url: data.url };
+}
+
+// ─────────────────────────────────────────────────────────────
 // Stats
 // ─────────────────────────────────────────────────────────────
 
@@ -1536,6 +1717,104 @@ export async function fetchLivePostsFromConnectedAccounts(
       }
     } catch (err) {
       console.warn('YouTube live posts fetch failed:', err.message);
+    }
+  }
+
+  // ── X / Twitter ──────────────────────
+  // No browser CORS → go through the server route, which refreshes the token and
+  // returns recent tweets. Uses the raw integration record (need id + int_id + refresh).
+  {
+    const tw = integrations.find((i) => i.platform === 'twitter');
+    if (tw && tw.int_id) {
+      const rt = tw.int_refresh_token || getStoredXRefresh(tw.id);
+      if (rt) {
+        try {
+          const res = await fetch('/api/twitter/posts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: rt, user_id: tw.int_id }),
+          });
+          const data = await res.json().catch(() => ({}));
+
+          // Persist the rotated refresh token (even on error — the old one is now dead).
+          if (data.refresh_token) setStoredXRefresh(tw.id, data.refresh_token);
+
+          if (res.ok && !data.error) {
+            const mediaByKey = {};
+            (data.media || []).forEach((m) => {
+              mediaByKey[m.media_key] = m;
+            });
+            (data.tweets || []).forEach((post) => {
+              const key = post.attachments?.media_keys?.[0];
+              const media = key ? mediaByKey[key] : null;
+              livePosts.push({
+                id: `tw_${post.id}`,
+                project_id: null,
+                project_title: post.text?.slice(0, 60) || 'Tweet',
+                caption: post.text || '',
+                image_url: media?.url || media?.preview_image_url || null,
+                platform: 'twitter',
+                type: 'social',
+                status: 'published',
+                published_at: post.created_at || null,
+                scheduled_at: null,
+                post_id: post.id,
+                permalink_url: `https://x.com/i/web/status/${post.id}`,
+                live: true,
+                stats: {},
+              });
+            });
+          } else {
+            console.warn('X posts fetch error:', data.error);
+          }
+        } catch (err) {
+          console.warn('X live posts fetch failed:', err.message);
+        }
+      }
+    }
+  }
+
+  // ── Pinterest ────────────────────────
+  // No browser CORS → list pins via the server route.
+  if (accounts.pinterest?.access_token) {
+    try {
+      const res = await fetch('/api/pinterest/pins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: accounts.pinterest.access_token }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && !data.error) {
+        (data.pins || []).forEach((pin) => {
+          const imgs = pin.media?.images || {};
+          const image_url =
+            imgs['600x']?.url ||
+            imgs['1200x']?.url ||
+            imgs['400x300']?.url ||
+            imgs.originals?.url ||
+            null;
+          livePosts.push({
+            id: `pin_${pin.id}`,
+            project_id: null,
+            project_title: pin.title?.slice(0, 60) || 'Pinterest Pin',
+            caption: pin.description || pin.title || '',
+            image_url,
+            platform: 'pinterest',
+            type: 'social',
+            status: 'published',
+            published_at: pin.created_at || null,
+            scheduled_at: null,
+            post_id: pin.id,
+            permalink_url: `https://www.pinterest.com/pin/${pin.id}`,
+            live: true,
+            stats: {},
+          });
+        });
+      } else {
+        console.warn('Pinterest pins error:', data.error);
+      }
+    } catch (err) {
+      console.warn('Pinterest live posts fetch failed:', err.message);
     }
   }
 

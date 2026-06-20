@@ -41,13 +41,6 @@ export default function RootLayout({ children }) {
           </AuthProvider>
           <Toaster position="top-right" richColors closeButton />
         </ThemeProvider>
-
-        {/* Woxelo Live Chat */}
-        <Script
-          src="https://app.woxelo.com/livechat/settings.js"
-          data-widget="6uqcR8AH5v77dtTXz1buTLJh7rWYGXs0eICS2n3s"
-          strategy="lazyOnload"
-        />
       </body>
     </html>
   );

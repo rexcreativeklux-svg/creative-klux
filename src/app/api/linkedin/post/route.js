@@ -23,6 +23,17 @@ function liHeaders(access_token) {
   };
 }
 
+// Format a LinkedIn API error into a useful message. A 401/403 here almost always means
+// the token is missing `w_member_social` — i.e. "Share on LinkedIn" wasn't approved when
+// the user connected, so they need to approve it and RECONNECT (the old token can't gain it).
+function liError(status, data, fallback) {
+  const base = data?.message || fallback || `LinkedIn request failed (${status}).`;
+  if (status === 401 || status === 403) {
+    return `${base} — your LinkedIn token is missing the posting permission (w_member_social). Approve "Share on LinkedIn" in your LinkedIn app, then DISCONNECT and RECONNECT LinkedIn here so a fresh token is issued. [HTTP ${status}${data?.serviceErrorCode ? `/${data.serviceErrorCode}` : ""}]`;
+  }
+  return `${base} [HTTP ${status}${data?.serviceErrorCode ? `/${data.serviceErrorCode}` : ""}]`;
+}
+
 // Registers an image, uploads the bytes, and returns the image URN to attach to a post.
 async function uploadImage(image_url, author, access_token) {
   // 1. Initialize the upload → LinkedIn gives back an uploadUrl + the image URN.
@@ -33,7 +44,8 @@ async function uploadImage(image_url, author, access_token) {
   });
   const initData = await initRes.json().catch(() => ({}));
   if (!initRes.ok) {
-    throw new Error(initData.message || `LinkedIn image init failed (${initRes.status}).`);
+    console.error("LinkedIn image init error:", initRes.status, initData);
+    throw new Error(liError(initRes.status, initData, "LinkedIn image init failed."));
   }
   const uploadUrl = initData.value?.uploadUrl;
   const imageUrn = initData.value?.image;
@@ -80,8 +92,35 @@ export async function POST(req) {
       );
     }
 
+    // Token probe: hit the sign-in endpoint first so we can tell a *bad token* apart from a
+    // *missing posting scope*. If this fails, the token itself is invalid/expired — no point
+    // blaming w_member_social. If it passes, any 401/403 from posting IS the posting scope.
+    const probe = await fetch("https://api.linkedin.com/v2/userinfo", {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    const probeData = await probe.json().catch(() => ({}));
+    console.log(
+      "LinkedIn token probe:",
+      probe.status,
+      "tokenLength:", access_token?.length,
+      "tokenTail:", access_token?.slice(-6),
+      probeData?.sub ? "(sub present)" : probeData
+    );
+    if (!probe.ok) {
+      return Response.json(
+        {
+          error: `Your LinkedIn token itself is invalid or expired (sign-in check failed: HTTP ${probe.status}). This is NOT a permissions issue — the token is bad. Disconnect and reconnect LinkedIn to mint a new one.`,
+          details: probeData,
+        },
+        { status: 400 }
+      );
+    }
+    // Token is valid for sign-in. Prefer the member id the token itself reports (probeData.sub)
+    // over whatever was stored — a mismatch here would also cause posting failures.
+    const memberId = probeData?.sub || author_id;
+
     // Posting on a member's own behalf: author URN = the connected member's id (profile.sub).
-    const author = `urn:li:person:${author_id}`;
+    const author = `urn:li:person:${memberId}`;
 
     // Optional image (3-step upload above).
     let imageUrn;
@@ -116,14 +155,9 @@ export async function POST(req) {
 
     if (!postRes.ok) {
       const err = await postRes.json().catch(() => ({}));
-      console.error("LinkedIn post error:", err);
+      console.error("LinkedIn post error:", postRes.status, err);
       return Response.json(
-        {
-          error:
-            err.message ||
-            `LinkedIn post failed (${postRes.status}). If this is a permission error, the "Share on LinkedIn" product may not be approved yet.`,
-          details: err,
-        },
+        { error: liError(postRes.status, err, "LinkedIn post failed."), details: err },
         { status: 400 }
       );
     }

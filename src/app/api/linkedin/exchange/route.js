@@ -39,6 +39,9 @@ export async function POST(req) {
     }
 
     const access_token = tokenData.access_token;
+    // Compare this length against the publish-time probe's tokenLength: if they differ, the
+    // backend truncated the token on save (LinkedIn tokens are long — needs a TEXT column).
+    console.log("LinkedIn exchange — full token length:", access_token?.length, "tail:", access_token?.slice(-6));
 
     // ─────────────────────────────────────────
     // 2. USERINFO (OPENID CONNECT)

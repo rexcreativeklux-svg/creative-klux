@@ -5,7 +5,7 @@ import { Info, AlertCircle, Check, X } from "lucide-react";
 import { openOAuthPopup, startOAuthRedirect } from "@/(lib)/oauth/page";
 import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
-import { setStoredXRefresh } from "@/(lib)/integration";
+import { setStoredXRefresh, setStoredTikTokRefresh } from "@/(lib)/integration";
 
 // ── SVG brand icons ─────────────────────────────────────────────────────────────
 const FacebookIcon = () => (
@@ -252,7 +252,7 @@ const SectionHeader = ({ title }) => (
 // popups can't complete (partitioned cookies → blank page / login loop). Only plain social
 // connects that resolve creds directly belong here — NOT the *_ads variants, which use the
 // ad-account page-picker modal (popup-side state that the redirect path can't carry).
-const REDIRECT_PLATFORMS = ["twitter", "linkedin", "pinterest"];
+const REDIRECT_PLATFORMS = ["twitter", "linkedin", "pinterest", "tiktok"];
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 const IntegrationsPage = () => {
@@ -393,6 +393,29 @@ const IntegrationsPage = () => {
         };
     }
 
+    // TikTok uses a code flow (popup/redirect returns a `code`). Exchange it server-side
+    // (needs the client secret + no browser CORS) for tokens + the user's open_id.
+    async function resolveTikTokIntegration(oauthResult) {
+        const res = await fetch("/api/tiktok/exchange", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: oauthResult.code }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "TikTok exchange failed");
+
+        return {
+            type: "tiktok",
+            int_token: data.access_token,
+            // TikTok access tokens last ~24h; the refresh_token mints new ones. We persist
+            // it (localStorage now + sent to the backend) so posting keeps working past 24h.
+            refresh_token: data.refresh_token,
+            int_id: data.int_id,
+            int_name: data.name ? `@${data.name}` : "TikTok",
+        };
+    }
+
     async function resolveGoogleAdsIntegration(
         oauthResult
     ) {
@@ -423,6 +446,7 @@ const IntegrationsPage = () => {
             access_token: data.access_token,
             refresh_token:
                 data.refresh_token,
+            scope: data.scope, // scopes Google actually granted
         };
     }
 
@@ -432,6 +456,17 @@ const IntegrationsPage = () => {
     async function resolveYouTubeIntegration(oauthResult) {
         // 1. code → token (reuses the Google exchange route)
         const tokenData = await resolveGoogleAdsIntegration(oauthResult);
+
+        // Guard: Google only grants the YouTube scopes if YouTube Data API v3 is enabled
+        // AND those scopes are added to the OAuth consent screen for THIS client. If they
+        // were dropped, the token is useless for YouTube — fail with an actionable message
+        // instead of the opaque "insufficient authentication scopes" from the API.
+        if (tokenData.scope && !/auth\/youtube/.test(tokenData.scope)) {
+            console.warn("YouTube connect — granted scopes:", tokenData.scope);
+            throw new Error(
+                "YouTube access wasn't granted. In Google Cloud (the project for this OAuth client): enable YouTube Data API v3 and add the youtube + youtube.upload scopes to the consent screen, then reconnect."
+            );
+        }
 
         // 2. fetch the connected YouTube channel
         const res = await fetch(
@@ -445,9 +480,14 @@ const IntegrationsPage = () => {
         const data = await res.json();
 
         if (!res.ok) {
-            throw new Error(
-                data.error?.message || "Failed to fetch YouTube channel"
-            );
+            const msg = data.error?.message || "Failed to fetch YouTube channel";
+            // 403 insufficient scopes / API-not-enabled → point at the Google Cloud fix.
+            if (/scope|insufficient|not been used|disabled/i.test(msg)) {
+                throw new Error(
+                    "YouTube rejected the connection (scope/API not enabled). In Google Cloud for this OAuth client: enable YouTube Data API v3 and add the youtube + youtube.upload scopes to the consent screen, then reconnect. (" + msg + ")"
+                );
+            }
+            throw new Error(msg);
         }
 
         const channel = data.items?.[0];
@@ -630,6 +670,11 @@ const IntegrationsPage = () => {
             return await resolveYouTubeIntegration(oauthResult);
         }
 
+        // TikTok — code flow: exchange server-side for tokens + open_id.
+        if (platformId === "tiktok") {
+            return await resolveTikTokIntegration(oauthResult);
+        }
+
         return await resolveGenericIntegration(platformId, oauthResult);
     }
 
@@ -655,6 +700,12 @@ const IntegrationsPage = () => {
         if (platformId === "twitter" && creds.refresh_token) {
             const savedId = saved.data?.id || saved.data?.data?.id || saved.id;
             if (savedId) setStoredXRefresh(savedId, creds.refresh_token);
+        }
+
+        // TikTok: same stopgap — its 24h token needs the refresh token to keep posting.
+        if (platformId === "tiktok" && creds.refresh_token) {
+            const savedId = saved.data?.id || saved.data?.data?.id || saved.id;
+            if (savedId) setStoredTikTokRefresh(savedId, creds.refresh_token);
         }
 
         showToast(`${getPlatformName(platformId)} connected successfully!`, "success");

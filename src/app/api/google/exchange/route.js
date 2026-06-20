@@ -40,6 +40,10 @@ export async function POST(req) {
     return NextResponse.json({
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
+      // The space-separated list of scopes Google ACTUALLY granted. If the YouTube
+      // scopes aren't here, the consent screen / API config dropped them — that's the
+      // "insufficient authentication scopes" cause, not a code bug.
+      scope: tokenData.scope,
     });
 
   } catch (err) {

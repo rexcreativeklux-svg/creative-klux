@@ -922,8 +922,10 @@ async function buildAuthUrl(platform, clientId) {
     // TIKTOK
     // ────────────────────────────────────────────────────────
     case 'tiktok': {
+      // video.publish = direct post (our use case); video.upload = draft-to-inbox fallback;
+      // video.list = read posts for the calendar. All must be approved on the TikTok app.
       const scope = encodeURIComponent(
-        'user.info.basic,video.upload,video.list'
+        'user.info.basic,video.publish,video.upload,video.list'
       );
 
       return (

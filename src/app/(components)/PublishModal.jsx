@@ -11,7 +11,7 @@ import {
     FaPinterest, FaTwitter, FaSnapchatGhost, FaGoogle,
 } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
-import { publishToFacebook, publishToInstagram, publishToMetaAds, publishToYouTube, publishToTwitter, publishToLinkedIn, publishToPinterest, fetchPinterestBoards } from "@/(lib)/integration";
+import { publishToFacebook, publishToInstagram, publishToMetaAds, publishToYouTube, publishToTwitter, publishToLinkedIn, publishToPinterest, publishToTikTok, fetchPinterestBoards } from "@/(lib)/integration";
 import { LINKEDIN_POSTING_ENABLED } from "@/(lib)/linkedinConfig";
 
 // ── Platform catalog ─────────────────────────────────────────────────────────
@@ -20,7 +20,7 @@ import { LINKEDIN_POSTING_ENABLED } from "@/(lib)/linkedinConfig";
 const PLATFORMS = {
     facebook:      { label: "Facebook Page",        kind: "social", color: "#1877F2", Icon: FaFacebook,      real: true  },
     instagram:     { label: "Instagram Business",   kind: "social", color: "#E1306C", Icon: FaInstagram,     real: true  },
-    tiktok:        { label: "TikTok",               kind: "social", color: "#010101", Icon: FaTiktok,        real: false },
+    tiktok:        { label: "TikTok",               kind: "social", color: "#010101", Icon: FaTiktok,        real: true  },
     twitter:       { label: "X / Twitter",          kind: "social", color: "#14171A", Icon: FaTwitter,       real: true  },
     linkedin:      { label: "LinkedIn",             kind: "social", color: "#0A66C2", Icon: FaLinkedin,      real: LINKEDIN_POSTING_ENABLED },
     youtube:       { label: "YouTube",              kind: "social", color: "#FF0000", Icon: FaYoutube,       real: true  },
@@ -613,6 +613,19 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                     // until then); immediate → public.
                     privacyStatus: scheduledUnix ? "private" : "public",
                     publishAt: scheduledUnix ? new Date(scheduledUnix * 1000).toISOString() : undefined,
+                });
+            } else if (selected === "tiktok") {
+                // TikTok posts server-side (no browser CORS) as an image-native PHOTO post —
+                // TikTok fetches the public image URL itself. Refresh token comes from the
+                // backend record or localStorage; rotation handled inside. Title = first line.
+                const text = caption.trim();
+                const firstLine = text.split("\n")[0]?.trim();
+                await publishToTikTok({
+                    integration_id: integration.id,
+                    refresh_token: integration.int_refresh_token,
+                    title: (firstLine || creative?.name || "").slice(0, 90),
+                    description: cap,
+                    image_url: imageUrl,
                 });
             } else {
                 // No live publisher yet — keep the UI wired.

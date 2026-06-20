@@ -1368,6 +1368,85 @@ export async function publishToPinterest({
 }
 
 // ─────────────────────────────────────────────────────────────
+// TikTok
+// ─────────────────────────────────────────────────────────────
+//
+// TikTok has no browser CORS, so posting + reading run server-side (/api/tiktok/post,
+// /api/tiktok/posts). It's a PHOTO post (image-native — no video bridge): TikTok fetches
+// the public image URL itself (PULL_FROM_URL). TikTok access tokens last ~24h and the
+// refresh token can rotate, so — like X — we keep the *current* refresh token in
+// localStorage (keyed by integration id) as a stopgap until the backend persists it, and
+// overwrite it with whatever the route returns after each call.
+
+const TIKTOK_REFRESH_KEY = (id) => `ck_tiktok_refresh_${id}`;
+
+export function getStoredTikTokRefresh(integrationId) {
+  if (typeof window === 'undefined' || !integrationId) return null;
+  try {
+    return localStorage.getItem(TIKTOK_REFRESH_KEY(integrationId));
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredTikTokRefresh(integrationId, token) {
+  if (typeof window === 'undefined' || !integrationId || !token) return;
+  try {
+    localStorage.setItem(TIKTOK_REFRESH_KEY(integrationId), token);
+  } catch {
+    /* storage unavailable — ignore */
+  }
+}
+
+/**
+ * Post a photo to TikTok. Resolves the refresh token (from the backend record if present,
+ * else localStorage), hands it to the server route, and persists the rotated refresh token
+ * the route returns.
+ *
+ *  - integration_id  the saved integration's id (used as the localStorage key)
+ *  - refresh_token   optional — from the backend record once it stores int_refresh_token
+ *  - title           short title (first line of the caption)
+ *  - description     full caption
+ *  - image_url       public image URL (TikTok fetches it)
+ *  - privacy_level   "PUBLIC_TO_EVERYONE" (default) | "SELF_ONLY" (pre-audit testing) | …
+ */
+export async function publishToTikTok({
+  integration_id,
+  refresh_token,
+  title,
+  description,
+  image_url,
+  privacy_level,
+}) {
+  const rt = refresh_token || getStoredTikTokRefresh(integration_id);
+  if (!rt) {
+    throw new Error(
+      'No saved TikTok session on this device — reconnect your TikTok account here, then try again.'
+    );
+  }
+  if (!image_url) throw new Error('TikTok needs an image to create a photo post.');
+
+  const res = await fetch('/api/tiktok/post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: rt, title, description, image_url, privacy_level }),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  // TikTok can rotate the refresh token — persist the new one even on failure.
+  if (data.refresh_token) {
+    setStoredTikTokRefresh(integration_id, data.refresh_token);
+  }
+
+  if (!res.ok || data.error) {
+    throw new Error(data.error || 'Failed to post to TikTok.');
+  }
+
+  // A publish_id means TikTok accepted it; the post finishes processing async.
+  return { post_id: data.publish_id };
+}
+
+// ─────────────────────────────────────────────────────────────
 // Stats
 // ─────────────────────────────────────────────────────────────
 
@@ -1776,6 +1855,60 @@ export async function fetchLivePostsFromConnectedAccounts(
       }
     } catch (err) {
       console.warn('Pinterest live posts fetch failed:', err.message);
+    }
+  }
+
+  // ── TikTok ───────────────────────────
+  // No browser CORS → list posts via the server route, which refreshes the 24h token and
+  // returns recent videos/photo posts. Uses the raw integration record (need id + refresh).
+  {
+    const tt = integrations.find((i) => i.platform === 'tiktok');
+    if (tt) {
+      const rt = tt.int_refresh_token || getStoredTikTokRefresh(tt.id);
+      if (rt) {
+        try {
+          const res = await fetch('/api/tiktok/posts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: rt }),
+          });
+          const data = await res.json().catch(() => ({}));
+
+          // Persist the rotated refresh token (even on error — the old one may be dead).
+          if (data.refresh_token) setStoredTikTokRefresh(tt.id, data.refresh_token);
+
+          if (res.ok && !data.error) {
+            (data.videos || []).forEach((v) => {
+              livePosts.push({
+                id: `tt_${v.id}`,
+                project_id: null,
+                project_title:
+                  v.title?.slice(0, 60) ||
+                  v.video_description?.slice(0, 60) ||
+                  'TikTok Post',
+                caption: v.video_description || v.title || '',
+                image_url: v.cover_image_url || null,
+                platform: 'tiktok',
+                type: 'social',
+                // TikTok v2 has no API scheduling → everything fetched is published.
+                status: 'published',
+                published_at: v.create_time
+                  ? new Date(v.create_time * 1000).toISOString()
+                  : null,
+                scheduled_at: null,
+                post_id: v.id,
+                permalink_url: v.share_url || null,
+                live: true,
+                stats: {},
+              });
+            });
+          } else {
+            console.warn('TikTok posts fetch error:', data.error);
+          }
+        } catch (err) {
+          console.warn('TikTok live posts fetch failed:', err.message);
+        }
+      }
     }
   }
 

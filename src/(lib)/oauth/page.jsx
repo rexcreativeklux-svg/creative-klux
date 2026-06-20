@@ -483,6 +483,8 @@
 
 "use client";
 
+import { LINKEDIN_POSTING_ENABLED, LINKEDIN_POST_SCOPE } from "@/(lib)/linkedinConfig";
+
 /**
  * OAuth popup flow for CreativeKlux integrations.
  */
@@ -703,8 +705,9 @@ async function buildAuthUrl(platform, clientId) {
     // Twitter / X
     // ────────────────────────────────────────────────────────
     case 'twitter': {
+      // media.write is required to attach an image to a tweet via the v2 media upload.
       const scope = encodeURIComponent(
-        'tweet.read tweet.write users.read offline.access'
+        'tweet.read tweet.write users.read offline.access media.write'
       );
 
       const challenge =
@@ -726,9 +729,11 @@ async function buildAuthUrl(platform, clientId) {
     // LinkedIn Organic
     // ────────────────────────────────────────────────────────
     case 'linkedin': {
-      const scope = encodeURIComponent(
-        'openid profile email'
-      );
+      // Sign-in scopes always; the posting scope (w_member_social) is added ONLY once
+      // LinkedIn has approved it — requesting it before approval makes connect fail.
+      const scopes = ['openid', 'profile', 'email'];
+      if (LINKEDIN_POSTING_ENABLED) scopes.push(LINKEDIN_POST_SCOPE);
+      const scope = encodeURIComponent(scopes.join(' '));
 
       return (
         `https://www.linkedin.com/oauth/v2/authorization` +

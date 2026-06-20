@@ -5,6 +5,7 @@ import { Info, AlertCircle, Check, X } from "lucide-react";
 import { openOAuthPopup } from "@/(lib)/oauth/page";
 import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
+import { setStoredXRefresh } from "@/(lib)/integration";
 
 // ── SVG brand icons ─────────────────────────────────────────────────────────────
 const FacebookIcon = () => (
@@ -359,6 +360,9 @@ const IntegrationsPage = () => {
         return {
             type: "twitter",
             int_token: data.access_token,
+            // X access tokens expire in 2h; the refresh_token mints new ones. We persist it
+            // (localStorage now + sent to the backend) so posting keeps working past 2h.
+            refresh_token: data.refresh_token,
             int_id: data.int_id,
             int_name: data.username ? `@${data.username}` : data.name,
         };
@@ -640,6 +644,7 @@ const IntegrationsPage = () => {
             const saved = await saveIntegration({
                 platform: platformId,
                 access_token: creds.int_token,
+                refresh_token: creds.refresh_token, // X needs this to refresh its 2h token
                 brand_id: activeBrandId,
                 int_id: creds.int_id,
                 int_name: creds.int_name, // ← ADD THIS
@@ -648,6 +653,13 @@ const IntegrationsPage = () => {
             if (!saved.ok) {
                 showToast(saved.message || "Failed to save integration", "error");
                 return;
+            }
+
+            // X/Twitter: stash the refresh token in localStorage keyed by the saved integration
+            // id (stopgap until the backend persists it). Posting reads it back to mint tokens.
+            if (platformId === "twitter" && creds.refresh_token) {
+                const savedId = saved.data?.id || saved.data?.data?.id || saved.id;
+                if (savedId) setStoredXRefresh(savedId, creds.refresh_token);
             }
 
             showToast(`${getPlatformName(platformId)} connected successfully!`, "success");

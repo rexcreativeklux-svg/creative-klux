@@ -1409,6 +1409,114 @@ export async function publishToPinterest({
 }
 
 // ─────────────────────────────────────────────────────────────
+// Pinterest ADS (promoted pin, UNTESTED)
+// ─────────────────────────────────────────────────────────────
+//
+// Image-native (no video bridge) — a Pinterest ad is a promoted pin. Reuses the connected
+// Pinterest token (pinterest_ads scope already has ads:write). Server-side route builds
+// pin → campaign → ad group → ad, all PAUSED. See /api/pinterest-ads/publish for caveats.
+export async function publishToPinterestAds({
+  access_token,
+  ad_account_id,
+  board_id,
+  image_url,
+  title,
+  description,
+  link,
+  daily_budget,
+  campaign_name,
+}) {
+  if (!access_token || !ad_account_id) throw new Error('Reconnect Pinterest Ads — missing token / ad account.');
+  if (!board_id) throw new Error('Pick a Pinterest board first.');
+  if (!image_url) throw new Error('Pinterest needs an image to promote.');
+
+  const res = await fetch('/api/pinterest-ads/publish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token, ad_account_id, board_id, image_url, title, description, link, daily_budget, campaign_name }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) throw new Error(data.error || 'Pinterest Ads publish failed');
+  return data; // { ok, pin_id, campaign_id, ad_group_id, ad_id }
+}
+
+/**
+ * Publish a single-image Sponsored Content ad to LinkedIn (campaign group → campaign →
+ * post → creative), all created DRAFT/PAUSED. Runs server-side (/api/linkedin-ads/publish)
+ * because api.linkedin.com has no browser CORS and needs the versioned headers.
+ *
+ *  - access_token    the LinkedIn ads token (int_token)
+ *  - ad_account_id   the chosen LinkedIn ad account id (int_id)
+ *  - image_url       public image URL to promote
+ *  - text            ad copy / caption
+ *  - link            destination URL (brand site) — makes the ad a clickable link share
+ *  - daily_budget    daily budget (currency-naïve — uses the ad account's currency)
+ *  - country         target country code → LinkedIn geo URN (defaults to US)
+ */
+export async function publishToLinkedInAds({
+  access_token,
+  ad_account_id,
+  image_url,
+  text,
+  link,
+  daily_budget,
+  campaign_name,
+  country,
+}) {
+  if (!access_token || !ad_account_id) throw new Error('Reconnect LinkedIn Ads — missing token / ad account.');
+  if (!image_url) throw new Error('LinkedIn ads need an image to promote.');
+
+  const res = await fetch('/api/linkedin-ads/publish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token, ad_account_id, image_url, text, link, daily_budget, campaign_name, country }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) throw new Error(data.error || 'LinkedIn Ads publish failed');
+  return data; // { ok, post_urn, campaign_group_urn, campaign_urn, creative_id }
+}
+
+/**
+ * Publish a single-image Snap ad (media → creative → campaign → ad squad → ad), all created
+ * PAUSED. Runs server-side (/api/snapchat-ads/publish) — Snapchat needs the client secret to
+ * refresh its ~1h token and has no browser CORS.
+ *
+ *  - access_token    Snapchat ads token (int_token)
+ *  - refresh_token   long-lived refresh token (int_refresh_token) — used to mint a fresh token
+ *  - ad_account_id   the chosen Snapchat ad account id (int_id)
+ *  - image_url       public image URL to promote (ideally 9:16)
+ *  - headline        short ad headline
+ *  - brand_name      brand name shown on the ad
+ *  - link            destination URL → makes the ad a clickable web-view ad
+ *  - daily_budget    daily budget (currency-naïve; converted to micro-currency server-side)
+ *  - country         target country code → Snapchat geo (defaults to US)
+ */
+export async function publishToSnapchatAds({
+  access_token,
+  refresh_token,
+  ad_account_id,
+  image_url,
+  headline,
+  brand_name,
+  link,
+  daily_budget,
+  campaign_name,
+  country,
+}) {
+  if (!ad_account_id) throw new Error('Reconnect Snapchat Ads — missing ad account.');
+  if (!image_url) throw new Error('Snapchat ads need an image to promote.');
+
+  const res = await fetch('/api/snapchat-ads/publish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token, refresh_token, ad_account_id, image_url, headline, brand_name, link, daily_budget, campaign_name, country }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) throw new Error(data.error || 'Snapchat Ads publish failed');
+  return data; // { ok, media_id, creative_id, campaign_id, ad_squad_id, ad_id }
+}
+
+// ─────────────────────────────────────────────────────────────
 // TikTok
 // ─────────────────────────────────────────────────────────────
 //
@@ -1485,6 +1593,46 @@ export async function publishToTikTok({
 
   // A publish_id means TikTok accepted it; the post finishes processing async.
   return { post_id: data.publish_id };
+}
+
+// ─────────────────────────────────────────────────────────────
+// TikTok ADS (Marketing API, UNTESTED scaffold)
+// ─────────────────────────────────────────────────────────────
+//
+// Separate from the organic TikTok above (different app/API). TikTok ads are video-first,
+// so we bridge the image creative into a short video in-browser (imageUrlToVideoBlob, same
+// as YouTube), then POST it (multipart) to /api/tiktok-ads/publish which uploads it and
+// builds the campaign → ad group → ad chain (all created PAUSED). See the route for caveats.
+export async function publishToTikTokAds({
+  access_token,
+  advertiser_id,
+  image_url,
+  video,
+  ad_text,
+  landing_url,
+  daily_budget,
+  campaign_name,
+  location_ids,
+}) {
+  if (!access_token || !advertiser_id) throw new Error('Reconnect TikTok Ads — missing token / advertiser.');
+  // Bridge image → short video (unless a real video Blob is supplied).
+  const blob = video || (image_url ? await imageUrlToVideoBlob(image_url, { durationSec: 5 }) : null);
+  if (!blob) throw new Error('No creative to advertise.');
+
+  const form = new FormData();
+  form.append('access_token', access_token);
+  form.append('advertiser_id', advertiser_id);
+  form.append('video', blob, 'creative.mp4');
+  form.append('ad_text', ad_text || '');
+  form.append('landing_url', landing_url || '');
+  form.append('daily_budget', String(daily_budget || 2000));
+  form.append('campaign_name', campaign_name || 'Creative Klux Campaign');
+  form.append('location_ids', JSON.stringify(location_ids || []));
+
+  const res = await fetch('/api/tiktok-ads/publish', { method: 'POST', body: form });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) throw new Error(data.error || 'TikTok Ads publish failed');
+  return data; // { ok, campaign_id, adgroup_id, ad_ids }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2002,6 +2150,149 @@ export async function fetchLivePostsFromConnectedAccounts(
         'Meta Ads live fetch failed:',
         err.message
       );
+    }
+  }
+
+  // ── Server-side ad platforms (Google / TikTok / Pinterest / LinkedIn / Snapchat Ads) ──
+  // These APIs block browser CORS, so each lists its campaigns via a BFF route. We map every
+  // campaign to a calendar post (type:'ad'); a live/enabled campaign is "published", anything
+  // else (paused/draft) is "scheduled" so it still lands on a calendar day. They use the raw
+  // integration record (need int_id / int_refresh_token), not buildAccountsMap.
+  const pushAdCampaigns = (platform, campaigns, isLive, whenOf) => {
+    (campaigns || []).forEach((c) => {
+      let when = null;
+      try { when = whenOf(c); } catch { when = null; }
+      const live = isLive(c);
+      livePosts.push({
+        id: `${platform}_campaign_${c.id}`,
+        project_id: null,
+        project_title: c.name || `${platform} campaign`,
+        caption: `Status: ${c.status || 'N/A'}`,
+        image_url: null,
+        platform,
+        type: 'ad',
+        status: live ? 'published' : 'scheduled',
+        published_at: when,
+        scheduled_at: when, // campaigns have no separate schedule time — use created/start
+        post_id: c.id,
+        live: true,
+        stats: {},
+      });
+    });
+  };
+
+  // Google Ads
+  {
+    const gi = integrations.find((i) => i.platform === 'google_ads');
+    if (gi?.int_refresh_token && gi.int_id) {
+      try {
+        const res = await fetch('/api/google-ads/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: gi.int_refresh_token, customer_id: gi.int_id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && !data.error) {
+          pushAdCampaigns(
+            'google_ads',
+            data.campaigns,
+            (c) => c.status === 'ENABLED',
+            (c) => (c.start_date ? new Date(c.start_date).toISOString() : null),
+          );
+        } else console.warn('Google Ads list error:', data.error);
+      } catch (err) { console.warn('Google Ads live fetch failed:', err.message); }
+    }
+  }
+
+  // TikTok Ads
+  {
+    const ti = integrations.find((i) => i.platform === 'tiktok_ads');
+    if (ti?.int_token && ti.int_id) {
+      try {
+        const res = await fetch('/api/tiktok-ads/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: ti.int_token, advertiser_id: ti.int_id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && !data.error) {
+          pushAdCampaigns(
+            'tiktok_ads',
+            data.campaigns,
+            (c) => c.status === 'ENABLE',
+            (c) => (c.create_time ? new Date(c.create_time.replace(' ', 'T') + 'Z').toISOString() : null),
+          );
+        } else console.warn('TikTok Ads list error:', data.error);
+      } catch (err) { console.warn('TikTok Ads live fetch failed:', err.message); }
+    }
+  }
+
+  // Pinterest Ads
+  {
+    const pi = integrations.find((i) => i.platform === 'pinterest_ads');
+    if (pi?.int_token && pi.int_id) {
+      try {
+        const res = await fetch('/api/pinterest-ads/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: pi.int_token, ad_account_id: pi.int_id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && !data.error) {
+          pushAdCampaigns(
+            'pinterest_ads',
+            data.campaigns,
+            (c) => c.status === 'ACTIVE',
+            (c) => (c.created_time ? new Date(c.created_time * 1000).toISOString() : null),
+          );
+        } else console.warn('Pinterest Ads list error:', data.error);
+      } catch (err) { console.warn('Pinterest Ads live fetch failed:', err.message); }
+    }
+  }
+
+  // LinkedIn Ads
+  {
+    const li = integrations.find((i) => i.platform === 'linkedin_ads');
+    if (li?.int_token && li.int_id) {
+      try {
+        const res = await fetch('/api/linkedin-ads/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: li.int_token, ad_account_id: li.int_id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && !data.error) {
+          pushAdCampaigns(
+            'linkedin_ads',
+            data.campaigns,
+            (c) => c.status === 'ACTIVE',
+            (c) => (c.created_time ? new Date(c.created_time).toISOString() : null),
+          );
+        } else console.warn('LinkedIn Ads list error:', data.error);
+      } catch (err) { console.warn('LinkedIn Ads live fetch failed:', err.message); }
+    }
+  }
+
+  // Snapchat Ads
+  {
+    const si = integrations.find((i) => i.platform === 'snapchat_ads');
+    if (si?.int_id && (si.int_token || si.int_refresh_token)) {
+      try {
+        const res = await fetch('/api/snapchat-ads/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: si.int_token, refresh_token: si.int_refresh_token, ad_account_id: si.int_id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && !data.error) {
+          pushAdCampaigns(
+            'snapchat_ads',
+            data.campaigns,
+            (c) => c.status === 'ACTIVE',
+            (c) => (c.created_at ? new Date(c.created_at).toISOString() : null),
+          );
+        } else console.warn('Snapchat Ads list error:', data.error);
+      } catch (err) { console.warn('Snapchat Ads live fetch failed:', err.message); }
     }
   }
 

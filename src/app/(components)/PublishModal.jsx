@@ -11,7 +11,7 @@ import {
     FaPinterest, FaTwitter, FaSnapchatGhost, FaGoogle,
 } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
-import { publishToFacebook, publishToInstagram, publishToMetaAds, publishToGoogleAds, publishToYouTube, publishToTwitter, publishToLinkedIn, publishToPinterest, publishToTikTok, fetchPinterestBoards } from "@/(lib)/integration";
+import { publishToFacebook, publishToInstagram, publishToMetaAds, publishToGoogleAds, publishToTikTokAds, publishToPinterestAds, publishToLinkedInAds, publishToSnapchatAds, publishToYouTube, publishToTwitter, publishToLinkedIn, publishToPinterest, publishToTikTok, fetchPinterestBoards } from "@/(lib)/integration";
 import { LINKEDIN_POSTING_ENABLED } from "@/(lib)/linkedinConfig";
 
 // ── Platform catalog ─────────────────────────────────────────────────────────
@@ -25,17 +25,16 @@ const PLATFORMS = {
     linkedin:      { label: "LinkedIn",             kind: "social", color: "#0A66C2", Icon: FaLinkedin,      real: LINKEDIN_POSTING_ENABLED },
     youtube:       { label: "YouTube",              kind: "social", color: "#FF0000", Icon: FaYoutube,       real: true  },
     pinterest:     { label: "Pinterest",            kind: "social", color: "#E60023", Icon: FaPinterest,     real: true  },
-    snapchat:      { label: "Snapchat",             kind: "social", color: "#FFC400", Icon: FaSnapchatGhost, real: false },
     meta_ads:      { label: "Meta Ads Manager",     kind: "ads",    color: "#0668E1", Icon: FaFacebook,      real: true  },
     google_ads:    { label: "Google Ads",           kind: "ads",    color: "#4285F4", Icon: FaGoogle,        real: true  },
-    tiktok_ads:    { label: "TikTok Ads",           kind: "ads",    color: "#010101", Icon: FaTiktok,        real: false },
-    linkedin_ads:  { label: "LinkedIn Ads",         kind: "ads",    color: "#0A66C2", Icon: FaLinkedin,      real: false },
-    snapchat_ads:  { label: "Snapchat Ads",         kind: "ads",    color: "#FFC400", Icon: FaSnapchatGhost, real: false },
-    pinterest_ads: { label: "Pinterest Ads",        kind: "ads",    color: "#E60023", Icon: FaPinterest,     real: false },
+    tiktok_ads:    { label: "TikTok Ads",           kind: "ads",    color: "#010101", Icon: FaTiktok,        real: true  },
+    linkedin_ads:  { label: "LinkedIn Ads",         kind: "ads",    color: "#0A66C2", Icon: FaLinkedin,      real: true  },
+    snapchat_ads:  { label: "Snapchat Ads",         kind: "ads",    color: "#FFC400", Icon: FaSnapchatGhost, real: true  },
+    pinterest_ads: { label: "Pinterest Ads",        kind: "ads",    color: "#E60023", Icon: FaPinterest,     real: true  },
 };
 
 // Order tiles appear in, per kind.
-const SOCIAL_ORDER = ["facebook", "instagram", "tiktok", "twitter", "linkedin", "youtube", "pinterest", "snapchat"];
+const SOCIAL_ORDER = ["facebook", "instagram", "tiktok", "twitter", "linkedin", "youtube", "pinterest"];
 const ADS_ORDER    = ["meta_ads", "google_ads", "tiktok_ads", "linkedin_ads", "snapchat_ads", "pinterest_ads"];
 
 // Minimal Meta-ad form options.
@@ -45,6 +44,14 @@ const AD_GOALS = [
     { value: "engagement", label: "Engagement — likes / comments / messages" },
 ];
 const MIN_AD_BUDGET = 2000; // minimum daily budget the form allows
+// TikTok ad groups need a numeric location id (NOT an ISO code). These are TikTok's
+// GeoNames-style region ids — ⚠️ verify against TikTok's /tools/region/get/ per advertiser;
+// a wrong id makes the ad group fail. Countries missing here block tiktok_ads publish.
+const TIKTOK_LOCATION_IDS = {
+    NG: "2328926", US: "6252001", GB: "2635167", CA: "6251999", GH: "2300660",
+    KE: "192950", ZA: "953987", IN: "1269750", AU: "2077456", DE: "2921044",
+    FR: "3017382", AE: "290557",
+};
 const AD_COUNTRIES = [
     { code: "NG", name: "Nigeria" }, { code: "US", name: "United States" },
     { code: "GB", name: "United Kingdom" }, { code: "CA", name: "Canada" },
@@ -456,8 +463,9 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
     // Load the user's Pinterest boards when Pinterest is the selected platform (a pin
     // must go on a board). Defaults to the first board.
     useEffect(() => {
-        if (selected !== "pinterest") return;
-        const integration = integrations.find((i) => i.platform === "pinterest");
+        // Both organic Pinterest and Pinterest Ads need a board (the ad promotes a pin).
+        if (selected !== "pinterest" && selected !== "pinterest_ads") return;
+        const integration = integrations.find((i) => i.platform === selected);
         if (!integration?.int_token) return;
         let alive = true;
         setPinBoardsLoading(true);
@@ -585,6 +593,73 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                     daily_budget: Number(adBudget),
                     campaign_name: creative?.name,
                 });
+            } else if (selected === "tiktok_ads") {
+                // Real TikTok ad (campaign→ad group→ad), server-side. The image is bridged to
+                // a short video. Created PAUSED. Country → TikTok location id.
+                if (!adBudget || Number(adBudget) < MIN_AD_BUDGET) throw new Error(`Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`);
+                const locId = TIKTOK_LOCATION_IDS[adCountry];
+                if (!locId) throw new Error("Pick a target country that's mapped to a TikTok region.");
+                await publishToTikTokAds({
+                    access_token: integration.int_token,
+                    advertiser_id: integration.int_id,
+                    image_url: imageUrl,
+                    ad_text: cap,
+                    landing_url: activeBrand?.url || undefined,
+                    daily_budget: Number(adBudget),
+                    campaign_name: creative?.name,
+                    location_ids: [locId],
+                });
+            } else if (selected === "pinterest_ads") {
+                // Real Pinterest promoted-pin ad (pin → campaign → ad group → ad), server-side,
+                // created PAUSED. Reuses the connected Pinterest token + chosen board.
+                if (!adBudget || Number(adBudget) < MIN_AD_BUDGET) throw new Error(`Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`);
+                if (!pinBoardId) throw new Error("Pick a Pinterest board first.");
+                const text = caption.trim();
+                const firstLine = text.split("\n")[0]?.trim();
+                await publishToPinterestAds({
+                    access_token: integration.int_token,
+                    ad_account_id: integration.int_id,
+                    board_id: pinBoardId,
+                    image_url: imageUrl,
+                    title: (firstLine || creative?.name || "").slice(0, 100),
+                    description: text,
+                    link: activeBrand?.url || undefined,
+                    daily_budget: Number(adBudget),
+                    campaign_name: creative?.name,
+                });
+            } else if (selected === "linkedin_ads") {
+                // Real LinkedIn Sponsored Content ad (campaign group → campaign → post →
+                // creative), server-side, created DRAFT/PAUSED. Runs as the Company Page that
+                // owns the ad account (resolved server-side). Country → LinkedIn geo URN.
+                if (!adBudget || Number(adBudget) < MIN_AD_BUDGET) throw new Error(`Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`);
+                await publishToLinkedInAds({
+                    access_token: integration.int_token,
+                    ad_account_id: integration.int_id,
+                    image_url: imageUrl,
+                    text: cap,
+                    link: activeBrand?.url || undefined,
+                    daily_budget: Number(adBudget),
+                    campaign_name: creative?.name,
+                    country: adCountry,
+                });
+            } else if (selected === "snapchat_ads") {
+                // Real Snapchat single-image Snap ad (media → creative → campaign → ad squad →
+                // ad), server-side, created PAUSED. Token refreshed server-side. Country → geo.
+                if (!adBudget || Number(adBudget) < MIN_AD_BUDGET) throw new Error(`Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`);
+                const text = caption.trim();
+                const firstLine = text.split("\n")[0]?.trim();
+                await publishToSnapchatAds({
+                    access_token: integration.int_token,
+                    refresh_token: integration.int_refresh_token,
+                    ad_account_id: integration.int_id,
+                    image_url: imageUrl,
+                    headline: (firstLine || creative?.name || "").slice(0, 34),
+                    brand_name: activeBrand?.name || creative?.name,
+                    link: activeBrand?.url || undefined,
+                    daily_budget: Number(adBudget),
+                    campaign_name: creative?.name,
+                    country: adCountry,
+                });
             } else if (selected === "pinterest") {
                 // A pin is an image on a board. Pinterest fetches the public image URL itself.
                 if (!pinBoardId) throw new Error("Pick a Pinterest board first.");
@@ -682,12 +757,22 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
         !adDays || Number(adDays) < 1
     );
 
-    // Both ad platforms reuse the same form; Google Ads only needs the daily budget
-    // (goal/run-days/country are Meta-only and ignored by the Google publisher).
-    const isAdForm = selected === "meta_ads" || selected === "google_ads";
+    // All ad platforms reuse the same form. Google Ads only needs the daily budget;
+    // Meta + TikTok also use the country (TikTok maps it to a location id). Goal/run-days
+    // are Meta-only.
+    const isAdForm = selected === "meta_ads" || selected === "google_ads" || selected === "tiktok_ads" || selected === "pinterest_ads" || selected === "linkedin_ads" || selected === "snapchat_ads";
     const googleAdsIncomplete = selected === "google_ads" && (!adBudget || Number(adBudget) < MIN_AD_BUDGET);
+    const tiktokAdsIncomplete = selected === "tiktok_ads" && (
+        !adBudget || Number(adBudget) < MIN_AD_BUDGET || !TIKTOK_LOCATION_IDS[adCountry]
+    );
+    // Pinterest Ads needs both a budget AND a board (it promotes a pin).
+    const pinterestAdsIncomplete = selected === "pinterest_ads" && (!adBudget || Number(adBudget) < MIN_AD_BUDGET || !pinBoardId);
+    // LinkedIn Ads needs a budget (country defaults to US if unset).
+    const linkedinAdsIncomplete = selected === "linkedin_ads" && (!adBudget || Number(adBudget) < MIN_AD_BUDGET);
+    // Snapchat Ads needs a budget (country defaults to US if unset).
+    const snapchatAdsIncomplete = selected === "snapchat_ads" && (!adBudget || Number(adBudget) < MIN_AD_BUDGET);
 
-    // Pinterest needs a board chosen before it can pin.
+    // Organic Pinterest needs a board chosen before it can pin.
     const pinterestIncomplete = selected === "pinterest" && !pinBoardId;
 
     // ── Scheduling (Facebook + YouTube — both schedule natively) ──────────────────
@@ -833,7 +918,7 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                                         <Megaphone className="w-3.5 h-3.5 text-blue-600" />
                                         <span className="text-[11px] font-semibold text-gray-700 uppercase tracking-wider">Ad settings</span>
                                         <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 ml-auto">
-                                            {selected === "google_ads" ? "Created paused" : "Spends real money"}
+                                            {selected === "meta_ads" ? "Spends real money" : "Created paused"}
                                         </span>
                                     </div>
 
@@ -867,26 +952,38 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                                         )}
                                     </div>
 
-                                    {selected === "meta_ads" && (
+                                    {/* Country: Meta targets it directly; TikTok maps it to a location id; LinkedIn → geo URN; Snapchat → geo. */}
+                                    {(selected === "meta_ads" || selected === "tiktok_ads" || selected === "linkedin_ads" || selected === "snapchat_ads") && (
                                         <label className="flex flex-col gap-1">
                                             <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Show to people in</span>
                                             <select value={adCountry} onChange={(e) => setAdCountry(e.target.value)}
                                                 className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
                                                 {AD_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
                                             </select>
+                                            {selected === "tiktok_ads" && !TIKTOK_LOCATION_IDS[adCountry] && (
+                                                <span className="text-[10px] text-red-500">This country isn’t mapped to a TikTok region yet — pick another.</span>
+                                            )}
                                         </label>
                                     )}
 
                                     <p className="text-[10px] text-gray-400">
-                                        {selected === "google_ads"
+                                        {selected === "meta_ads"
+                                            ? <>Ad goes <b>live immediately</b> and spends up to your daily budget. Sends clicks to {activeBrand?.url || "your brand website"}. Other settings (age 18-65, all genders, auto-bid) use smart defaults.</>
+                                            : selected === "google_ads"
                                             ? <>Creates a <b>paused</b> Display campaign + Responsive Display Ad in Google Ads — review &amp; enable it in Ads Manager to start spending. Sends clicks to {activeBrand?.url || "your brand website"}.</>
-                                            : <>Ad goes <b>live immediately</b> and spends up to your daily budget. Sends clicks to {activeBrand?.url || "your brand website"}. Other settings (age 18-65, all genders, auto-bid) use smart defaults.</>}
+                                            : selected === "tiktok_ads"
+                                            ? <>Creates a <b>paused</b> TikTok campaign + video ad (your image becomes a short clip) — review &amp; enable it in TikTok Ads Manager to start spending. Sends clicks to {activeBrand?.url || "your brand website"}.</>
+                                            : selected === "linkedin_ads"
+                                            ? <>Creates a <b>draft/paused</b> LinkedIn Sponsored Content ad (runs as the Company Page that owns the ad account) — review &amp; activate it in LinkedIn Campaign Manager to start spending. Sends clicks to {activeBrand?.url || "your brand website"}.</>
+                                            : selected === "snapchat_ads"
+                                            ? <>Creates a <b>paused</b> Snapchat campaign + single-image Snap ad — review &amp; enable it in Snapchat Ads Manager to start spending. Snap ads are full-screen vertical (9:16). Sends clicks to {activeBrand?.url || "your brand website"}.</>
+                                            : <>Creates a <b>paused</b> Pinterest campaign + promoted pin — review &amp; enable it in Pinterest Ads Manager to start spending. Sends clicks to {activeBrand?.url || "your brand website"}.</>}
                                     </p>
                                 </div>
                             )}
 
-                            {/* Pinterest: pick the board to pin to (required). */}
-                            {selected === "pinterest" && (
+                            {/* Pinterest (organic + ads): pick the board to pin to (required). */}
+                            {(selected === "pinterest" || selected === "pinterest_ads") && (
                                 <label className="rounded-xl border border-gray-200 p-3 flex flex-col gap-1">
                                     <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Pin to board</span>
                                     {pinBoardsLoading ? (
@@ -981,8 +1078,8 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                             )}
                             <button
                                 onClick={() => handlePublish()}
-                                disabled={publishing || published || metaAdIncomplete || googleAdsIncomplete || pinterestIncomplete}
-                                title={(metaAdIncomplete || googleAdsIncomplete) ? "Fill in all ad settings first" : pinterestIncomplete ? "Pick a board first" : undefined}
+                                disabled={publishing || published || metaAdIncomplete || googleAdsIncomplete || tiktokAdsIncomplete || pinterestAdsIncomplete || linkedinAdsIncomplete || snapchatAdsIncomplete || pinterestIncomplete}
+                                title={(metaAdIncomplete || googleAdsIncomplete || tiktokAdsIncomplete || linkedinAdsIncomplete || snapchatAdsIncomplete) ? "Fill in all ad settings first" : (pinterestAdsIncomplete) ? "Set a budget and pick a board" : pinterestIncomplete ? "Pick a board first" : undefined}
                                 className="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl cursor-pointer transition flex items-center gap-2 font-semibold"
                             >
                                 {busyAction === "publish" ? (

@@ -1005,6 +1005,47 @@ export async function publishToMetaAds({
 }
 
 // ─────────────────────────────────────────────────────────────
+// Google Ads (UNTESTED wiring)
+// ─────────────────────────────────────────────────────────────
+//
+// Unlike Meta (which works browser-side), the Google Ads API blocks browser CORS and
+// needs the developer token, so the whole campaign chain runs server-side in
+// /api/google-ads/publish. This just calls that route. The campaign is created PAUSED
+// (does NOT spend until reviewed in Ads Manager). See the route for the full caveat list.
+export async function publishToGoogleAds({
+  refresh_token,
+  customer_id,
+  image_url,
+  final_url,
+  headline,
+  long_headline,
+  description,
+  business_name,
+  daily_budget,
+  campaign_name,
+}) {
+  const res = await fetch('/api/google-ads/publish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      refresh_token,
+      customer_id,
+      image_url,
+      final_url,
+      headline,
+      long_headline,
+      description,
+      business_name,
+      daily_budget,
+      campaign_name,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Google Ads publish failed');
+  return data; // { ok, campaign, responses }
+}
+
+// ─────────────────────────────────────────────────────────────
 // YouTube
 // ─────────────────────────────────────────────────────────────
 //

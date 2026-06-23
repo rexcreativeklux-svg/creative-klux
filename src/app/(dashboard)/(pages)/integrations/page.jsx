@@ -631,6 +631,10 @@ const IntegrationsPage = () => {
                 platformId: "google_ads",
                 access_token:
                     tokenData.access_token,
+                // Google access tokens last ~1h; the publish runs server-side later,
+                // so we MUST persist the refresh token to mint fresh tokens then.
+                refresh_token:
+                    tokenData.refresh_token,
             });
 
             setShowPageModal(true);
@@ -873,7 +877,12 @@ const IntegrationsPage = () => {
                     access_token:
                         pendingFbOauth.access_token,
 
-                    int_id: page.id,
+                    // Long-lived refresh token — required for the server-side publish
+                    // (access token is dead within ~1h of connect).
+                    refresh_token:
+                        pendingFbOauth.refresh_token,
+
+                    int_id: page.id, // Google Ads customer id (10-digit)
 
                     int_name: page.name,
 

@@ -11,7 +11,7 @@ import {
     FaPinterest, FaTwitter, FaSnapchatGhost, FaGoogle,
 } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
-import { publishToFacebook, publishToInstagram, publishToMetaAds, publishToYouTube, publishToTwitter, publishToLinkedIn, publishToPinterest, publishToTikTok, fetchPinterestBoards } from "@/(lib)/integration";
+import { publishToFacebook, publishToInstagram, publishToMetaAds, publishToGoogleAds, publishToYouTube, publishToTwitter, publishToLinkedIn, publishToPinterest, publishToTikTok, fetchPinterestBoards } from "@/(lib)/integration";
 import { LINKEDIN_POSTING_ENABLED } from "@/(lib)/linkedinConfig";
 
 // ── Platform catalog ─────────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ const PLATFORMS = {
     pinterest:     { label: "Pinterest",            kind: "social", color: "#E60023", Icon: FaPinterest,     real: true  },
     snapchat:      { label: "Snapchat",             kind: "social", color: "#FFC400", Icon: FaSnapchatGhost, real: false },
     meta_ads:      { label: "Meta Ads Manager",     kind: "ads",    color: "#0668E1", Icon: FaFacebook,      real: true  },
-    google_ads:    { label: "Google Ads",           kind: "ads",    color: "#4285F4", Icon: FaGoogle,        real: false },
+    google_ads:    { label: "Google Ads",           kind: "ads",    color: "#4285F4", Icon: FaGoogle,        real: true  },
     tiktok_ads:    { label: "TikTok Ads",           kind: "ads",    color: "#010101", Icon: FaTiktok,        real: false },
     linkedin_ads:  { label: "LinkedIn Ads",         kind: "ads",    color: "#0A66C2", Icon: FaLinkedin,      real: false },
     snapchat_ads:  { label: "Snapchat Ads",         kind: "ads",    color: "#FFC400", Icon: FaSnapchatGhost, real: false },
@@ -566,6 +566,25 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                     country: adCountry,
                     ad_name: creative?.name,
                 });
+            } else if (selected === "google_ads") {
+                // Real Google Ads Display campaign + Responsive Display Ad — runs server-side
+                // (/api/google-ads/publish) and is created PAUSED (won't spend until reviewed).
+                if (!integration.int_refresh_token) throw new Error("Reconnect Google Ads — no refresh token stored for this account.");
+                if (!adBudget || Number(adBudget) < MIN_AD_BUDGET) throw new Error(`Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`);
+                const text = caption.trim();
+                const firstLine = text.split("\n")[0]?.trim();
+                await publishToGoogleAds({
+                    refresh_token: integration.int_refresh_token,
+                    customer_id: integration.int_id,
+                    image_url: imageUrl,
+                    final_url: activeBrand?.url || undefined,
+                    headline: (firstLine || creative?.name || "").slice(0, 30),
+                    long_headline: (firstLine || creative?.name || "").slice(0, 90),
+                    description: text.slice(0, 90),
+                    business_name: activeBrand?.name || creative?.name,
+                    daily_budget: Number(adBudget),
+                    campaign_name: creative?.name,
+                });
             } else if (selected === "pinterest") {
                 // A pin is an image on a board. Pinterest fetches the public image URL itself.
                 if (!pinBoardId) throw new Error("Pick a Pinterest board first.");
@@ -662,6 +681,11 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
         !adBudget || Number(adBudget) < MIN_AD_BUDGET ||
         !adDays || Number(adDays) < 1
     );
+
+    // Both ad platforms reuse the same form; Google Ads only needs the daily budget
+    // (goal/run-days/country are Meta-only and ignored by the Google publisher).
+    const isAdForm = selected === "meta_ads" || selected === "google_ads";
+    const googleAdsIncomplete = selected === "google_ads" && (!adBudget || Number(adBudget) < MIN_AD_BUDGET);
 
     // Pinterest needs a board chosen before it can pin.
     const pinterestIncomplete = selected === "pinterest" && !pinBoardId;
@@ -802,26 +826,29 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                                 )}
                             </div>
 
-                            {/* For Meta ads: form first (the main task), preview second (secondary). */}
-                            {selected === "meta_ads" && (
+                            {/* For ads: form first (the main task), preview second (secondary). */}
+                            {isAdForm && (
                                 <div className="rounded-xl border border-gray-200 p-3 flex flex-col gap-3">
                                     <div className="flex items-center gap-2">
                                         <Megaphone className="w-3.5 h-3.5 text-blue-600" />
                                         <span className="text-[11px] font-semibold text-gray-700 uppercase tracking-wider">Ad settings</span>
                                         <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 ml-auto">
-                                            Spends real money
+                                            {selected === "google_ads" ? "Created paused" : "Spends real money"}
                                         </span>
                                     </div>
 
-                                    <label className="flex flex-col gap-1">
-                                        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Goal</span>
-                                        <select value={adGoal} onChange={(e) => setAdGoal(e.target.value)}
-                                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                                            {AD_GOALS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
-                                        </select>
-                                    </label>
+                                    {/* Goal / Run-days / Country are Meta-only (the Google publisher ignores them). */}
+                                    {selected === "meta_ads" && (
+                                        <label className="flex flex-col gap-1">
+                                            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Goal</span>
+                                            <select value={adGoal} onChange={(e) => setAdGoal(e.target.value)}
+                                                className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                                {AD_GOALS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+                                            </select>
+                                        </label>
+                                    )}
 
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className={selected === "meta_ads" ? "grid grid-cols-2 gap-2" : ""}>
                                         <label className="flex flex-col gap-1">
                                             <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Daily budget</span>
                                             <input type="number" min={MIN_AD_BUDGET} step="100" value={adBudget} onChange={(e) => setAdBudget(e.target.value)}
@@ -831,24 +858,29 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                                                 <span className="text-[10px] text-red-500">Minimum daily budget is {MIN_AD_BUDGET.toLocaleString()}</span>
                                             )}
                                         </label>
-                                        <label className="flex flex-col gap-1">
-                                            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Run for (days)</span>
-                                            <input type="number" min="1" value={adDays} onChange={(e) => setAdDays(e.target.value)}
-                                                className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                                        </label>
+                                        {selected === "meta_ads" && (
+                                            <label className="flex flex-col gap-1">
+                                                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Run for (days)</span>
+                                                <input type="number" min="1" value={adDays} onChange={(e) => setAdDays(e.target.value)}
+                                                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                            </label>
+                                        )}
                                     </div>
 
-                                    <label className="flex flex-col gap-1">
-                                        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Show to people in</span>
-                                        <select value={adCountry} onChange={(e) => setAdCountry(e.target.value)}
-                                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                                            {AD_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-                                        </select>
-                                    </label>
+                                    {selected === "meta_ads" && (
+                                        <label className="flex flex-col gap-1">
+                                            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Show to people in</span>
+                                            <select value={adCountry} onChange={(e) => setAdCountry(e.target.value)}
+                                                className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                                {AD_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                                            </select>
+                                        </label>
+                                    )}
 
                                     <p className="text-[10px] text-gray-400">
-                                        Ad goes <b>live immediately</b> and spends up to your daily budget. Sends clicks to{" "}
-                                        {activeBrand?.url || "your brand website"}. Other settings (age 18-65, all genders, auto-bid) use smart defaults.
+                                        {selected === "google_ads"
+                                            ? <>Creates a <b>paused</b> Display campaign + Responsive Display Ad in Google Ads — review &amp; enable it in Ads Manager to start spending. Sends clicks to {activeBrand?.url || "your brand website"}.</>
+                                            : <>Ad goes <b>live immediately</b> and spends up to your daily budget. Sends clicks to {activeBrand?.url || "your brand website"}. Other settings (age 18-65, all genders, auto-bid) use smart defaults.</>}
                                     </p>
                                 </div>
                             )}
@@ -876,12 +908,12 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                             {/* Live native preview — the post itself is editable (click the caption to type).
                                 For ads it flows full-height (the whole modal body scrolls); for socials it
                                 scrolls in its own box like the real platforms. */}
-                            {selected === "meta_ads" && (
+                            {isAdForm && (
                                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Preview</p>
                             )}
                             <div
-                                className={selected === "meta_ads" ? "-mx-1 px-1" : "overflow-y-auto -mx-1 px-1"}
-                                style={selected === "meta_ads" ? undefined : { maxHeight: "52vh" }}
+                                className={isAdForm ? "-mx-1 px-1" : "overflow-y-auto -mx-1 px-1"}
+                                style={isAdForm ? undefined : { maxHeight: "52vh" }}
                             >
                                 <PlatformPreview
                                     platform={selected}
@@ -936,7 +968,7 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                             >
                                 Back
                             </button>
-                            {selected !== "meta_ads" && (
+                            {!isAdForm && (
                                 <button
                                     onClick={toggleSchedule}
                                     disabled={publishing || published}
@@ -949,16 +981,16 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                             )}
                             <button
                                 onClick={() => handlePublish()}
-                                disabled={publishing || published || metaAdIncomplete || pinterestIncomplete}
-                                title={metaAdIncomplete ? "Fill in all ad settings first" : pinterestIncomplete ? "Pick a board first" : undefined}
+                                disabled={publishing || published || metaAdIncomplete || googleAdsIncomplete || pinterestIncomplete}
+                                title={(metaAdIncomplete || googleAdsIncomplete) ? "Fill in all ad settings first" : pinterestIncomplete ? "Pick a board first" : undefined}
                                 className="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl cursor-pointer transition flex items-center gap-2 font-semibold"
                             >
                                 {busyAction === "publish" ? (
-                                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {selected === "meta_ads" ? "Creating ad…" : "Publishing…"}</>
+                                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {isAdForm ? "Creating ad…" : "Publishing…"}</>
                                 ) : published ? (
-                                    <><Check className="w-3.5 h-3.5" /> {selected === "meta_ads" ? "Ad created!" : "Published!"}</>
+                                    <><Check className="w-3.5 h-3.5" /> {isAdForm ? "Ad created!" : "Published!"}</>
                                 ) : (
-                                    <><Send className="w-3.5 h-3.5" /> {selected === "meta_ads" ? "Create Ad" : "Publish Now"}</>
+                                    <><Send className="w-3.5 h-3.5" /> {isAdForm ? "Create Ad" : "Publish Now"}</>
                                 )}
                             </button>
                         </div>

@@ -39,7 +39,14 @@ const adPlatforms = [
 ];
 
 const AdsIntegrationModal = ({ isOpen, onClose, actionType }) => {
-  const { fetchAdsAccounts, token, brandId, user, handleDelete, connectAdsAccount } = useAuth();
+  const {
+    fetchAdsAccounts,
+    token,
+    brandId,
+    user,
+    handleDelete,
+    connectAdsAccount,
+  } = useAuth();
   const [connectedAccounts, setConnectedAccounts] = useState([]);
   const [selectedPlatform, setSelectedPlatform] = useState(null);
 
@@ -68,7 +75,7 @@ const AdsIntegrationModal = ({ isOpen, onClose, actionType }) => {
 
   const isPlatformConnected = (platformKey) => {
     return connectedAccounts.some(
-      (acc) => acc.platform?.toLowerCase() === platformKey.toLowerCase()
+      (acc) => acc.platform?.toLowerCase() === platformKey.toLowerCase(),
     );
   };
 
@@ -102,7 +109,7 @@ const AdsIntegrationModal = ({ isOpen, onClose, actionType }) => {
 
     // Find the connected account for this platform
     const accountToDisconnect = connectedAccounts.find(
-      (acc) => acc.platform.toLowerCase() === platformKey.toLowerCase()
+      (acc) => acc.platform.toLowerCase() === platformKey.toLowerCase(),
     );
 
     if (!accountToDisconnect) return;
@@ -112,7 +119,7 @@ const AdsIntegrationModal = ({ isOpen, onClose, actionType }) => {
     if (res?.success) {
       alert(`${platformKey} disconnected successfully!`);
       setConnectedAccounts((prev) =>
-        prev.filter((acc) => acc.id !== accountToDisconnect.id)
+        prev.filter((acc) => acc.id !== accountToDisconnect.id),
       );
       setSelectedPlatform(null);
     } else {
@@ -130,10 +137,10 @@ const AdsIntegrationModal = ({ isOpen, onClose, actionType }) => {
       return;
     }
     // Store details in localStorage similar to social modal handling
-    localStorage.setItem('selectedPlatform', JSON.stringify(selectedPlatform));
-    localStorage.setItem('actionType', actionType);
+    localStorage.setItem("selectedPlatform", JSON.stringify(selectedPlatform));
+    localStorage.setItem("actionType", actionType);
     // Assume assets or other details are already in localStorage from the wizard
-    window.open('/AdsNow', '_blank');
+    window.open("/AdsNow", "_blank");
     onClose(); // Close the modal after opening the new tab
   };
 
@@ -145,9 +152,15 @@ const AdsIntegrationModal = ({ isOpen, onClose, actionType }) => {
         <div className="flex justify-between items-center mb-10">
           <div>
             <h1 className="text-xl font-semibold pb-1">Ads Integrations</h1>
-            <p className="text-sm text-gray-500">Connect your ad platforms, then select the one you want to run campaigns on.</p>
+            <p className="text-sm text-gray-500">
+              Connect your ad platforms, then select the one you want to run
+              campaigns on.
+            </p>
           </div>
-          <button onClick={onClose} className="text-gray-500 absolute top-6 right-6 cursor-pointer hover:text-gray-700">
+          <button
+            onClick={onClose}
+            className="text-gray-500 absolute top-6 right-6 cursor-pointer hover:text-gray-700"
+          >
             ✕
           </button>
         </div>
@@ -180,7 +193,10 @@ const AdsIntegrationModal = ({ isOpen, onClose, actionType }) => {
                     {platform.description}
                   </p>
                 </div>
-                <div className="flex justify-between items-center" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="flex justify-between items-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Info className="w-7 h-7 text-gray-400 cursor-pointer" />
                   <button
                     onClick={() =>
@@ -194,7 +210,10 @@ const AdsIntegrationModal = ({ isOpen, onClose, actionType }) => {
                   </button>
                 </div>
                 {connected && (
-                  <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className="absolute top-2 right-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <input
                       type="radio"
                       name="platform"

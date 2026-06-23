@@ -44,7 +44,9 @@ const PLATFORM_META = {
   twitter: { label: "X", emoji: "🐦" },
   youtube: { label: "YT", emoji: "▶️" },
   pinterest: { label: "PIN", emoji: "📌" },
-  snapchat: { label: "SNAP", emoji: "👻" },
+  pinterest_ads: { label: "PIN.Ads", emoji: "🎯" },
+  linkedin_ads: { label: "LI.Ads", emoji: "📊" },
+  snapchat_ads: { label: "Snap.Ads", emoji: "💥" },
 };
 
 const STATUS_BORDER = {

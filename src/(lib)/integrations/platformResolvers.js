@@ -14,7 +14,6 @@ export const platformResolvers = {
     pinterest: handlePinterest,
     pinterest_ads: handlePinterestAds,
 
-    snapchat: handleSnapchat,
     snapchat_ads: handleSnapchatAds,
 };
 

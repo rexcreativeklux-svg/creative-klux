@@ -550,9 +550,6 @@ const CLIENT_IDS = {
   pinterest_ads:
     process.env.NEXT_PUBLIC_PINTEREST_CLIENT_ID,
 
-  snapchat:
-    process.env.NEXT_PUBLIC_SNAPCHAT_CLIENT_ID,
-
   snapchat_ads:
     process.env.NEXT_PUBLIC_SNAPCHAT_CLIENT_ID,
 
@@ -891,21 +888,8 @@ async function buildAuthUrl(platform, clientId) {
     }
 
     // ────────────────────────────────────────────────────────
-    // SNAPCHAT
+    // SNAPCHAT ADS
     // ────────────────────────────────────────────────────────
-    case 'snapchat': {
-      const scope = encodeURIComponent('snapchat-marketing-api');
-
-      return (
-        `https://accounts.snapchat.com/login/oauth2/authorize` +
-        `?client_id=${clientId}` +
-        `&redirect_uri=${redirect}` +
-        `&scope=${scope}` +
-        `&response_type=code` +
-        `&state=${state}`
-      );
-    }
-
     case 'snapchat_ads': {
       const scope = encodeURIComponent(
         'snapchat-marketing-api snapchat-profile-api'

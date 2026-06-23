@@ -9,7 +9,8 @@ export default function OAuthCallback() {
     try {
       const hash = new URLSearchParams(window.location.hash.replace("#", ""));
       const access_token = hash.get("access_token");
-      const code = params.get("code");
+      // TikTok's Marketing API (business-api portal) returns `auth_code`, not `code`.
+      const code = params.get("code") || params.get("auth_code");
 
       const rawState =
         hash.get("state") ||

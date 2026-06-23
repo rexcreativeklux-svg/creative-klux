@@ -39,7 +39,6 @@ const PLATFORM_META = {
   tiktok: { label: 'TikTok', icon: '🎵', cls: 'bg-gray-50 text-gray-700 border border-gray-200', group: 'social' },
   youtube: { label: 'YouTube', icon: '▶️', cls: 'bg-red-50 text-red-700 border border-red-200', group: 'social' },
   pinterest: { label: 'Pinterest', icon: '📌', cls: 'bg-rose-50 text-rose-700 border border-rose-200', group: 'social' },
-  snapchat: { label: 'Snapchat', icon: '👻', cls: 'bg-yellow-50 text-yellow-700 border border-yellow-200', group: 'social' },
   meta_ads: { label: 'Meta Ads', icon: '📢', cls: 'bg-indigo-50 text-indigo-700 border border-indigo-200', group: 'ads' },
   google_ads: { label: 'Google Ads', icon: '🔍', cls: 'bg-green-50 text-green-700 border border-green-200', group: 'ads' },
   tiktok_ads: { label: 'TikTok Ads', icon: '🎯', cls: 'bg-cyan-50 text-cyan-700 border border-cyan-200', group: 'ads' },

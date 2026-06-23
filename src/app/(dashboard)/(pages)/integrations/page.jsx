@@ -71,7 +71,6 @@ const SOCIAL_PLATFORMS = [
     { id: "linkedin", name: "LinkedIn", description: "Share posts and articles on LinkedIn personal & company pages.", Icon: LinkedInIcon, iconBg: "linear-gradient(135deg, #0A66C2, #004182)" },
     { id: "youtube", name: "YouTube", description: "Upload videos and manage your YouTube channel.", Icon: YouTubeIcon, iconBg: "linear-gradient(135deg, #FF0000, #CC0000)" },
     { id: "pinterest", name: "Pinterest", description: "Create pins and manage Pinterest boards for your brand.", Icon: PinterestIcon, iconBg: "linear-gradient(135deg, #E60023, #ad081b)" },
-    { id: "snapchat", name: "Snapchat", description: "Publish Stories and Spotlight content to Snapchat.", Icon: SnapchatIcon, iconBg: "linear-gradient(135deg, #FFFC00, #f0ed00)" },
     { id: "tiktok", name: "TikTok", description: "Publish videos and create TikTok content.", Icon: TikTokIcon, iconBg: "linear-gradient(135deg, #161823, #010101)" },
 ];
 
@@ -344,6 +343,36 @@ const IntegrationsPage = () => {
         };
     }
 
+    // LinkedIn Ads — same OAuth/exchange as organic LinkedIn (the ads scope grants the
+    // token), then list the member's ad accounts so the user can pick which one to use.
+    async function resolveLinkedInAdsIntegration(access_token) {
+        const res = await fetch("/api/linkedin-ads/ad-accounts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ access_token }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load LinkedIn ad accounts");
+        return { adAccounts: data.adAccounts || [] };
+    }
+
+    // Snapchat Ads — code flow + client secret, so the exchange runs server-side; it returns
+    // the tokens AND the member's ad accounts (Org → Ad Accounts) for the picker.
+    async function resolveSnapchatAdsIntegration(oauthResult) {
+        const res = await fetch("/api/snapchat-ads/exchange", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: oauthResult.code }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Snapchat Ads connect failed");
+        return {
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+            adAccounts: data.adAccounts || [],
+        };
+    }
+
     async function resolveTwitterIntegration(oauthResult) {
         // Read the PKCE verifier that was stored before the popup opened
         const code_verifier = sessionStorage.getItem("creativeklux_pkce_verifier");
@@ -448,6 +477,19 @@ const IntegrationsPage = () => {
                 data.refresh_token,
             scope: data.scope, // scopes Google actually granted
         };
+    }
+
+    // TikTok ADS (Marketing API) — code flow: the portal returns an `auth_code`, exchanged
+    // server-side (needs the app secret) for an access token + advertiser (ad-account) list.
+    async function resolveTikTokAdsIntegration(oauthResult) {
+        const res = await fetch("/api/tiktok-ads/exchange", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ auth_code: oauthResult.code }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "TikTok Ads exchange failed");
+        return data; // { access_token, advertisers: [{ id, name }] }
     }
 
     // YouTube uses Google's CODE flow (popup returns a `code`, not a token).
@@ -557,7 +599,6 @@ const IntegrationsPage = () => {
                 break;
             }
 
-            case "snapchat":
             case "snapchat_ads": {
                 const res = await fetch("https://adsapi.snapchat.com/v1/me", {
                     headers: { Authorization: `Bearer ${access_token}` },
@@ -600,8 +641,21 @@ const IntegrationsPage = () => {
             return null;
         }
 
-        if (["linkedin", "linkedin_ads"].includes(platformId)) {
+        if (platformId === "linkedin") {
             return await resolveLinkedInIntegration(oauthResult);
+        }
+
+        // LinkedIn Ads — exchange the code for a token, then show the ad-account picker.
+        if (platformId === "linkedin_ads") {
+            const tokenData = await resolveLinkedInIntegration(oauthResult);
+            const { adAccounts } = await resolveLinkedInAdsIntegration(tokenData.int_token);
+            setFbPages(adAccounts.map((acc) => ({ id: acc.id, name: acc.name })));
+            setPendingFbOauth({
+                platformId: "linkedin_ads",
+                access_token: tokenData.int_token,
+            });
+            setShowPageModal(true);
+            return null;
         }
 
         if (platformId === "twitter") {
@@ -664,6 +718,32 @@ const IntegrationsPage = () => {
                 platformId: "pinterest_ads",
                 access_token: tokenData.int_token,
                 userName: tokenData.int_name,
+            });
+            setShowPageModal(true);
+            return null;
+        }
+
+        // TikTok ADS — Marketing API: exchange auth_code, then show the advertiser picker.
+        if (platformId === "tiktok_ads") {
+            const tokenData = await resolveTikTokAdsIntegration(oauthResult);
+            setFbPages((tokenData.advertisers || []).map((a) => ({ id: a.id, name: a.name })));
+            setPendingFbOauth({
+                platformId: "tiktok_ads",
+                access_token: tokenData.access_token,
+            });
+            setShowPageModal(true);
+            return null;
+        }
+
+        // Snapchat ADS — Marketing API: server-side exchange (code flow), then ad-account picker.
+        if (platformId === "snapchat_ads") {
+            const tokenData = await resolveSnapchatAdsIntegration(oauthResult);
+            setFbPages((tokenData.adAccounts || []).map((a) => ({ id: a.id, name: a.name })));
+            setPendingFbOauth({
+                platformId: "snapchat_ads",
+                access_token: tokenData.access_token,
+                // Snapchat access tokens last ~1h; the server-side publish refreshes with this.
+                refresh_token: tokenData.refresh_token,
             });
             setShowPageModal(true);
             return null;
@@ -865,6 +945,38 @@ const IntegrationsPage = () => {
                     access_token: pendingFbOauth.access_token,
                     int_id: page.id,           // ad account ID
                     int_name: `${pendingFbOauth.userName} • ${page.name}`,
+                    brand_id: activeBrandId,
+                };
+            }
+
+            else if (platformId === "tiktok_ads") {
+                savePayload = {
+                    platform: "tiktok_ads",
+                    access_token: pendingFbOauth.access_token,
+                    int_id: page.id,        // advertiser_id
+                    int_name: page.name,
+                    brand_id: activeBrandId,
+                };
+            }
+
+            else if (platformId === "linkedin_ads") {
+                savePayload = {
+                    platform: "linkedin_ads",
+                    access_token: pendingFbOauth.access_token,
+                    int_id: page.id,        // LinkedIn ad account id (numeric)
+                    int_name: page.name,
+                    brand_id: activeBrandId,
+                };
+            }
+
+            else if (platformId === "snapchat_ads") {
+                savePayload = {
+                    platform: "snapchat_ads",
+                    access_token: pendingFbOauth.access_token,
+                    // Long-lived refresh token — server-side publish refreshes the ~1h token with it.
+                    refresh_token: pendingFbOauth.refresh_token,
+                    int_id: page.id,        // Snapchat ad account id
+                    int_name: page.name,
                     brand_id: activeBrandId,
                 };
             }

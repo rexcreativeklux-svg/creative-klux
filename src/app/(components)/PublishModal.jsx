@@ -687,11 +687,16 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                 // X posts server-side (no browser CORS). The route refreshes the 2h token,
                 // optionally uploads the image, and posts. Refresh token comes from the
                 // backend record (once it stores it) or localStorage; rotation handled inside.
+                // 🧪 TEMP DIAGNOSTIC (2026-06-23): post TEXT-ONLY (image_url omitted) to confirm
+                // the tweet endpoint works on the Free tier. The image step (api.x.com/2/media/upload)
+                // needs a PAID X tier and was throwing "…does not have any credits". If this text-only
+                // post succeeds, that's confirmed → upgrade to X Basic+ for image tweets.
+                // ⚠️ REVERT: restore `image_url: imageUrl` once confirmed.
                 await publishToTwitter({
                     integration_id: integration.id,
                     refresh_token: integration.int_refresh_token,
                     text: cap,
-                    image_url: imageUrl,
+                    image_url: undefined, // TEMP: was `imageUrl` — skip media upload to test text-only
                 });
             } else if (selected === "youtube") {
                 // YouTube is video-only — the image (or rendered canvas) is converted to a

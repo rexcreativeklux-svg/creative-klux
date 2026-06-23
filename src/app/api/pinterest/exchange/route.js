@@ -1,10 +1,15 @@
 // app/api/pinterest/exchange/route.js
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_PINTEREST_CLIENT_ID;         // 1568756
-// Tolerate either name — env currently has NEXT_PUBLIC_PINTEREST_ACCESS_TOKEN.
-const APP_ACCESS_TOKEN =
-  process.env.PINTEREST_ACCESS_TOKEN ||
-  process.env.NEXT_PUBLIC_PINTEREST_ACCESS_TOKEN; // pina_...
+// Pinterest's OAuth token endpoint authenticates the APP with Basic base64(app_id:app_secret).
+// This MUST be the app's secret key (from the Pinterest developer console) — NOT a pina_…
+// API access token. Using the access token here makes Pinterest reply "Authentication failed".
+// Tolerate a couple env names but prefer the real secret.
+const CLIENT_SECRET =
+  process.env.PINTEREST_CLIENT_SECRET ||
+  process.env.PINTEREST_APP_SECRET ||
+  process.env.PINTEREST_ACCESS_TOKEN ||            // legacy/incorrect fallback
+  process.env.NEXT_PUBLIC_PINTEREST_ACCESS_TOKEN;
 const REDIRECT_URI = "https://app.creativeklux.com/oauth-callback";
 
 export async function POST(req) {
@@ -14,9 +19,15 @@ export async function POST(req) {
     if (!code) {
       return Response.json({ error: "Missing code" }, { status: 400 });
     }
+    if (!CLIENT_SECRET) {
+      return Response.json(
+        { error: "Pinterest app secret is not configured (set PINTEREST_CLIENT_SECRET)." },
+        { status: 500 }
+      );
+    }
 
-    // Pinterest Basic Auth = base64(client_id:app_access_token)
-    const credentials = Buffer.from(`${CLIENT_ID}:${APP_ACCESS_TOKEN}`).toString("base64");
+    // Pinterest Basic Auth = base64(client_id:client_secret)
+    const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
 
     // ─────────────────────────────────────────
     // 1. EXCHANGE CODE FOR TOKENS

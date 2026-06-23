@@ -1273,7 +1273,12 @@ export async function publishToTwitter({
   text,
   image_url,
 }) {
-  const rt = refresh_token || getStoredXRefresh(integration_id);
+  // Prefer the device's localStorage token over the backend's int_refresh_token. X rotates
+  // the refresh token on every use and we only write the rotated value back to localStorage
+  // (not the backend), so the backend copy goes stale after the first refresh (e.g. a calendar
+  // live-fetch). Using the freshest local copy first avoids "Value passed for the token was
+  // invalid". Falls back to the backend token for the first use / a fresh device.
+  const rt = getStoredXRefresh(integration_id) || refresh_token;
   if (!rt) {
     throw new Error(
       'No saved X session on this device — reconnect your X account here, then try again.'
@@ -1567,7 +1572,9 @@ export async function publishToTikTok({
   image_url,
   privacy_level,
 }) {
-  const rt = refresh_token || getStoredTikTokRefresh(integration_id);
+  // Prefer the device's localStorage token (kept rotated) over the backend's int_refresh_token,
+  // which goes stale after the first refresh. Falls back to backend for first use / new device.
+  const rt = getStoredTikTokRefresh(integration_id) || refresh_token;
   if (!rt) {
     throw new Error(
       'No saved TikTok session on this device — reconnect your TikTok account here, then try again.'
@@ -1955,7 +1962,8 @@ export async function fetchLivePostsFromConnectedAccounts(
   {
     const tw = integrations.find((i) => i.platform === 'twitter');
     if (tw && tw.int_id) {
-      const rt = tw.int_refresh_token || getStoredXRefresh(tw.id);
+      // Prefer the freshest (localStorage) rotated token; backend copy goes stale after rotation.
+      const rt = getStoredXRefresh(tw.id) || tw.int_refresh_token;
       if (rt) {
         try {
           const res = await fetch('/api/twitter/posts', {
@@ -2053,7 +2061,8 @@ export async function fetchLivePostsFromConnectedAccounts(
   {
     const tt = integrations.find((i) => i.platform === 'tiktok');
     if (tt) {
-      const rt = tt.int_refresh_token || getStoredTikTokRefresh(tt.id);
+      // Prefer the freshest (localStorage) rotated token; backend copy goes stale after rotation.
+      const rt = getStoredTikTokRefresh(tt.id) || tt.int_refresh_token;
       if (rt) {
         try {
           const res = await fetch('/api/tiktok/posts', {

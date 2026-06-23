@@ -422,6 +422,19 @@ const IntegrationsPage = () => {
         };
     }
 
+    // Pinterest Ads — after exchanging the Pinterest token, list the account's ad accounts
+    // (server-side; api.pinterest.com has no browser CORS) so the user can pick one.
+    async function resolvePinterestAdsIntegration({ access_token }) {
+        const res = await fetch("/api/pinterest-ads/ad-accounts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ access_token }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load Pinterest ad accounts");
+        return { adAccounts: data.adAccounts || [] };
+    }
+
     // TikTok uses a code flow (popup/redirect returns a `code`). Exchange it server-side
     // (needs the client secret + no browser CORS) for tokens + the user's open_id.
     async function resolveTikTokIntegration(oauthResult) {

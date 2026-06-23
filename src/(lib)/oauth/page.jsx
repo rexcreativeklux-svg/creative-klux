@@ -838,10 +838,13 @@ async function buildAuthUrl(platform, clientId) {
     'https://www.googleapis.com/auth/adwords',
   ].join(' '));
 
+  // Google Ads must use the SAME Google-specific redirect as YouTube + /api/google/exchange
+  // (GOOGLE_REDIRECT_URI = /auth/google/callback), NOT the generic /oauth-callback — otherwise
+  // Google returns redirect_uri_mismatch (and the token exchange would mismatch too).
   return (
     `https://accounts.google.com/o/oauth2/v2/auth` +
     `?client_id=${clientId}` +
-    `&redirect_uri=${redirect}` +
+    `&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}` +
     `&response_type=code` +
     `&scope=${scope}` +
     `&access_type=offline` +

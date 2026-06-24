@@ -402,7 +402,7 @@ const PlatformPreview = ({ platform, ...rest }) => {
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 export default function PublishModal({ creative, onClose, showToast, startInSchedule = false }) {
-    const { fetchIntegrations, activeBrand, uploadImage } = useAuth();
+    const { fetchIntegrations, updateIntegration, activeBrand, uploadImage } = useAuth();
     const router = useRouter();
 
     const [integrations, setIntegrations] = useState([]);
@@ -690,12 +690,17 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                 // NOTE: posting (text or image) needs an X API plan with write credits — a
                 // Free/unprovisioned app returns "…does not have any credits" (X-side, not code).
                 // Image tweets additionally need a PAID tier (the media-upload endpoint).
-                await publishToTwitter({
+                const xRes = await publishToTwitter({
                     integration_id: integration.id,
                     refresh_token: integration.int_refresh_token,
                     text: cap,
                     image_url: imageUrl,
                 });
+                // X rotates the refresh token on every use — persist the new one to the backend
+                // so other devices don't fall back to a stale copy. Best-effort (already in localStorage).
+                if (xRes?.refresh_token) {
+                    updateIntegration?.(integration.id, { refresh_token: xRes.refresh_token });
+                }
             } else if (selected === "youtube") {
                 // YouTube is video-only — the image (or rendered canvas) is converted to a
                 // short video in-browser, then uploaded. Title = first line of the caption.
@@ -717,13 +722,17 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                 // backend record or localStorage; rotation handled inside. Title = first line.
                 const text = caption.trim();
                 const firstLine = text.split("\n")[0]?.trim();
-                await publishToTikTok({
+                const ttRes = await publishToTikTok({
                     integration_id: integration.id,
                     refresh_token: integration.int_refresh_token,
                     title: (firstLine || creative?.name || "").slice(0, 90),
                     description: cap,
                     image_url: imageUrl,
                 });
+                // TikTok rotates its refresh token too — persist the new one to the backend.
+                if (ttRes?.refresh_token) {
+                    updateIntegration?.(integration.id, { refresh_token: ttRes.refresh_token });
+                }
             } else {
                 // No live publisher yet — keep the UI wired.
                 await new Promise((r) => setTimeout(r, 1200));
@@ -745,7 +754,7 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
             setPublishing(false);
             setBusyAction(null);
         }
-    }, [selected, integrations, creative, caption, onClose, showToast, uploadImage, activeBrand, adGoal, adBudget, adDays, adCountry, pinBoardId]);
+    }, [selected, integrations, creative, caption, onClose, showToast, uploadImage, updateIntegration, activeBrand, adGoal, adBudget, adDays, adCountry, pinBoardId]);
 
     // Page/account display name for the preview
     const accountName = useMemo(() => {

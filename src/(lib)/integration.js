@@ -1307,6 +1307,9 @@ export async function publishToTwitter({
     url: data.tweet_id
       ? `https://x.com/i/web/status/${data.tweet_id}`
       : undefined,
+    // The rotated refresh token — caller should persist it to the backend (updateIntegration)
+    // so other devices don't fall back to a now-stale copy. Already saved to localStorage above.
+    refresh_token: data.refresh_token,
   };
 }
 
@@ -1599,7 +1602,8 @@ export async function publishToTikTok({
   }
 
   // A publish_id means TikTok accepted it; the post finishes processing async.
-  return { post_id: data.publish_id };
+  // Return the rotated refresh token so the caller can persist it to the backend.
+  return { post_id: data.publish_id, refresh_token: data.refresh_token };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1743,7 +1747,11 @@ export async function getMetaAdsCampaignStats({
 // ─────────────────────────────────────────────────────────────
 
 export async function fetchLivePostsFromConnectedAccounts(
-  integrations = []
+  integrations = [],
+  // Optional: called as onTokenRotated(integrationId, newRefreshToken) whenever an X/TikTok
+  // refresh rotates the token here, so the caller can persist it to the backend
+  // (updateIntegration). Without it, only localStorage is updated (device-local).
+  { onTokenRotated } = {}
 ) {
   const accounts = buildAccountsMap(integrations);
 
@@ -1974,7 +1982,10 @@ export async function fetchLivePostsFromConnectedAccounts(
           const data = await res.json().catch(() => ({}));
 
           // Persist the rotated refresh token (even on error — the old one is now dead).
-          if (data.refresh_token) setStoredXRefresh(tw.id, data.refresh_token);
+          if (data.refresh_token) {
+            setStoredXRefresh(tw.id, data.refresh_token);
+            onTokenRotated?.(tw.id, data.refresh_token); // also persist to the backend
+          }
 
           if (res.ok && !data.error) {
             const mediaByKey = {};
@@ -2073,7 +2084,10 @@ export async function fetchLivePostsFromConnectedAccounts(
           const data = await res.json().catch(() => ({}));
 
           // Persist the rotated refresh token (even on error — the old one may be dead).
-          if (data.refresh_token) setStoredTikTokRefresh(tt.id, data.refresh_token);
+          if (data.refresh_token) {
+            setStoredTikTokRefresh(tt.id, data.refresh_token);
+            onTokenRotated?.(tt.id, data.refresh_token); // also persist to the backend
+          }
 
           if (res.ok && !data.error) {
             (data.videos || []).forEach((v) => {

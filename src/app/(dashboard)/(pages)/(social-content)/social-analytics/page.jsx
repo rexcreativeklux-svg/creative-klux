@@ -63,7 +63,7 @@ export default function SocialAnalytics() {
     const [allPosts, setAllPosts] = useState([]);
     const [refreshingAll, setRefreshingAll] = useState(false);
     const [fetchingLive, setFetchingLive] = useState(false);
-    const { fetchIntegrations } = useAuth();
+    const { fetchIntegrations, updateIntegration } = useAuth();
     const initializedRef = useRef(false);
 
     const [integrations, setIntegrations] = useState([]);
@@ -88,7 +88,7 @@ export default function SocialAnalytics() {
     const fetchLive = useCallback(async (silent = false) => {
         setFetchingLive(true);
         try {
-            const livePosts = await fetchLivePostsFromConnectedAccounts(integrations);
+            const livePosts = await fetchLivePostsFromConnectedAccounts(integrations, { onTokenRotated: (id, rt) => updateIntegration(id, { refresh_token: rt }) });
 
             const local = getPublishedPosts();
             const localIds = new Set(local.map(p => p.id));

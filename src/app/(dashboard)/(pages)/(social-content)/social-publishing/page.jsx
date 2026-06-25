@@ -140,7 +140,7 @@ export default function SocialPublishing() {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
-  const { fetchIntegrations } = useAuth();
+  const { fetchIntegrations, updateIntegration } = useAuth();
   const [integrations, setIntegrations] = useState([]);
   const [integrationsReady, setIntegrationsReady] = useState(false);
 
@@ -161,7 +161,7 @@ export default function SocialPublishing() {
   const mergeLiveIntoLocal = useCallback(async (silent = false) => {
     setFetchingLive(true);
     try {
-      const livePosts = await fetchLivePostsFromConnectedAccounts(integrations);
+      const livePosts = await fetchLivePostsFromConnectedAccounts(integrations, { onTokenRotated: (id, rt) => updateIntegration(id, { refresh_token: rt }) });
 
       // Facebook is authoritative for status. Keep a local post ONLY when FB no longer
       // reports it, and never trust a local 'scheduled' — otherwise a stale local

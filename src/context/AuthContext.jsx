@@ -2377,6 +2377,54 @@ export function AuthProvider({ children }) {
     [token],
   );
 
+  // Update an existing integration (PUT). Used to persist the ROTATED refresh token for
+  // X/TikTok after each publish/live-fetch — those platforms rotate the refresh token on
+  // every use, and without writing the new one back, the backend copy goes stale and a
+  // second device fails. Best-effort: a failed update must NOT break the publish/fetch that
+  // triggered it (localStorage is still updated as the device-local source of truth).
+  // ⚠️ Assumes a REST PUT at /integrations/{id} accepting int_token / int_refresh_token. If
+  // the backend uses the Laravel _method=PUT-via-POST quirk (see updateBrandById) or different
+  // field names, adjust here only.
+  const updateIntegration = useCallback(
+    async (id, { access_token, refresh_token } = {}) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
+      if (!id) return { ok: false, message: "Missing integration id" };
+
+      const body = {};
+      if (access_token !== undefined) body.int_token = access_token;
+      if (refresh_token !== undefined) body.int_refresh_token = refresh_token;
+      if (Object.keys(body).length === 0) return { ok: false, message: "Nothing to update" };
+
+      try {
+        const res = await authFetch(`${API_INTEGRATIONS_URL}/${id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = {};
+        }
+
+        if (!res.ok) {
+          return { ok: false, message: data?.message || "Failed to update integration" };
+        }
+        return { ok: true, data };
+      } catch (err) {
+        console.error("updateIntegration error:", err);
+        return { ok: false, message: err.message || "Network error" };
+      }
+    },
+    [token],
+  );
+
   const fetchIntegrations = useCallback(async () => {
     if (!token) return null;
 
@@ -2632,6 +2680,7 @@ export function AuthProvider({ children }) {
         creativeInsights,
         deleteDesignById,
         disconnectIntegration,
+        updateIntegration,
         creativeScoring,
         getCompetitorInsights,
         fetchIntegrations,

@@ -59,7 +59,7 @@ const GoogleAdsIcon = () => (
     </svg>
 );
 const TikTokAdsIcon = TikTokIcon;
-const LinkedInAdsIcon = LinkedInIcon;
+// const LinkedInAdsIcon = LinkedInIcon; // LinkedIn Ads disabled (needs LinkedIn Advertising API approval) — uncomment to re-add
 const SnapchatAdsIcon = SnapchatIcon;
 const PinterestAdsIcon = PinterestIcon;
 
@@ -78,7 +78,8 @@ const AD_PLATFORMS = [
     { id: "meta_ads", name: "Meta Ads Manager", description: "Create & manage Facebook and Instagram ad campaigns.", Icon: MetaIcon, iconBg: "linear-gradient(135deg, #0668E1, #1877F2)" },
     { id: "google_ads", name: "Google Ads", description: "Manage Google Search, Display & YouTube ad campaigns.", Icon: GoogleAdsIcon, iconBg: "linear-gradient(135deg, #4285F4, #34A853)" },
     { id: "tiktok_ads", name: "TikTok Ads", description: "Launch and manage TikTok ad campaigns.", Icon: TikTokAdsIcon, iconBg: "linear-gradient(135deg, #161823, #010101)" },
-    { id: "linkedin_ads", name: "LinkedIn Campaign Manager", description: "Run B2B ad campaigns on LinkedIn.", Icon: LinkedInAdsIcon, iconBg: "linear-gradient(135deg, #0A66C2, #004182)" },
+    // LinkedIn Ads disabled (needs LinkedIn Advertising API approval — "Bummer" on connect until then). Uncomment to re-add; backing code/routes are still in place.
+    // { id: "linkedin_ads", name: "LinkedIn Campaign Manager", description: "Run B2B ad campaigns on LinkedIn.", Icon: LinkedInAdsIcon, iconBg: "linear-gradient(135deg, #0A66C2, #004182)" },
     { id: "snapchat_ads", name: "Snapchat Ads", description: "Create and manage Snapchat advertising campaigns.", Icon: SnapchatAdsIcon, iconBg: "linear-gradient(135deg, #FFFC00, #f0ed00)" },
     { id: "pinterest_ads", name: "Pinterest Ads", description: "Run Pinterest ad campaigns and promoted pins.", Icon: PinterestAdsIcon, iconBg: "linear-gradient(135deg, #E60023, #ad081b)" },
 ];

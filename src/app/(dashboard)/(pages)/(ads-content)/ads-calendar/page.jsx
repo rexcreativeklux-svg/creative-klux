@@ -104,7 +104,7 @@ export default function AdsContentCalendar() {
 
   // AuthContext does NOT expose `integrations` — fetch them ourselves (the old
   // `const { integrations } = useAuth()` was always undefined → no live ads ever).
-  const { fetchIntegrations } = useAuth();
+  const { fetchIntegrations, updateIntegration } = useAuth();
   const [integrations, setIntegrations] = useState([]);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -122,7 +122,7 @@ export default function AdsContentCalendar() {
     try {
       const ints = (await fetchIntegrations()) || [];
       setIntegrations(ints);
-      const livePosts = await fetchLivePostsFromConnectedAccounts(ints);
+      const livePosts = await fetchLivePostsFromConnectedAccounts(ints, { onTokenRotated: (id, rt) => updateIntegration(id, { refresh_token: rt }) });
 
       // Live (Facebook/Meta) is authoritative for status. Keep a local post ONLY when
       // it's no longer reported live, and never trust a local 'scheduled'.

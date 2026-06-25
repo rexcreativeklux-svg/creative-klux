@@ -68,7 +68,7 @@ export default function SocialContentCalendar() {
   const typeLabel = 'Social';
   const matchType = 'social';
 
-  const { fetchIntegrations } = useAuth();
+  const { fetchIntegrations, updateIntegration } = useAuth();
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [allPosts, setAllPosts]         = useState([]);
@@ -84,7 +84,7 @@ export default function SocialContentCalendar() {
   const fetchLive = useCallback(async () => {
     try {
       const integrations = (await fetchIntegrations()) || [];
-      const livePosts = await fetchLivePostsFromConnectedAccounts(integrations);
+      const livePosts = await fetchLivePostsFromConnectedAccounts(integrations, { onTokenRotated: (id, rt) => updateIntegration(id, { refresh_token: rt }) });
 
       // Facebook is authoritative for status. Keep a local post ONLY when FB no longer
       // reports it, and never trust a local 'scheduled' — otherwise a stale local

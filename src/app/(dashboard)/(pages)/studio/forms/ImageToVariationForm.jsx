@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   Loader2, X, Upload, ImagePlus, FileSearch, FolderOpen,
   FileUp, Sparkles, Images,
+  Aperture, Cpu, Droplet, Grid3x3, Palette, Pencil, Smile, Shapes, Film, Minus,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
@@ -14,16 +15,16 @@ import { FloatingAnimation, FloatingElements } from "@/app/(components)/Floating
 // ── constants ──────────────────────────────────────────────────────────────────
 
 const STYLE_OPTIONS = [
-  { value: "Vintage Sepia", label: "Vintage Sepia" },
-  { value: "Futuristic Cyberpunk", label: "Cyberpunk" },
-  { value: "Watercolor Painting", label: "Watercolor" },
-  { value: "Pixel Art", label: "Pixel Art" },
-  { value: "Oil Painting", label: "Oil Painting" },
-  { value: "Sketch Drawing", label: "Sketch" },
-  { value: "Cartoon Style", label: "Cartoon" },
-  { value: "Abstract Art", label: "Abstract" },
-  { value: "Cinematic", label: "Cinematic" },
-  { value: "Minimalist", label: "Minimalist" },
+  { value: "Vintage Sepia", label: "Vintage Sepia", icon: Aperture },
+  { value: "Futuristic Cyberpunk", label: "Cyberpunk", icon: Cpu },
+  { value: "Watercolor Painting", label: "Watercolor", icon: Droplet },
+  { value: "Pixel Art", label: "Pixel Art", icon: Grid3x3 },
+  { value: "Oil Painting", label: "Oil Painting", icon: Palette },
+  { value: "Sketch Drawing", label: "Sketch", icon: Pencil },
+  { value: "Cartoon Style", label: "Cartoon", icon: Smile },
+  { value: "Abstract Art", label: "Abstract", icon: Shapes },
+  { value: "Cinematic", label: "Cinematic", icon: Film },
+  { value: "Minimalist", label: "Minimalist", icon: Minus },
 ];
 
 // ── theme: pink ────────────────────────────────────────────────────────────────
@@ -305,21 +306,25 @@ const ImageToVariationsForm = ({
           </div>
         )}
 
-        {/* Visual Style — text-only pills, always one active */}
+        {/* Visual Style — icon + label pills, always one active */}
         <Field label="Visual Style">
           <div className="flex flex-wrap gap-2">
-            {STYLE_OPTIONS.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => setStyle(s.value)}
-                className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${style === s.value
-                    ? T.pill
-                    : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
-                  }`}
-              >
-                {s.label}
-              </button>
-            ))}
+            {STYLE_OPTIONS.map((s) => {
+              const Icon = s.icon;
+              return (
+                <button
+                  key={s.value}
+                  onClick={() => setStyle(s.value)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${style === s.value
+                      ? T.pill
+                      : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
+                    }`}
+                >
+                  {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
         </Field>
 

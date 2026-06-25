@@ -66,7 +66,7 @@ const CategorySelector = ({ creative, selected, onChange }) => {
             </div>
 
             {/* GRID */}
-            <div className="grid grid-cols-4 gap-2">
+            <div className="flex flex-wrap gap-2">
                 {creative.categories.map((cat) => {
                     const active = selected === cat.id;
                     const Icon = categoryIconMap[cat.id];
@@ -75,7 +75,7 @@ const CategorySelector = ({ creative, selected, onChange }) => {
                         <button
                             key={cat.id}
                             onClick={() => onChange(cat.id)}
-                            className="flex items-center gap-2 w-full rounded-xl border px-3 py-2 transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
+                            className="flex items-center gap-2 rounded-xl border px-4 py-2 transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
                             style={{
                                 borderColor: active ? creative.color : `${creative.color}25`,
                                 background: active ? `${creative.color}12` : "white",

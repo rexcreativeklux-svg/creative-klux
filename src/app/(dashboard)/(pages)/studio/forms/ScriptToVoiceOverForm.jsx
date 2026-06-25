@@ -2,7 +2,10 @@
 // forms/ScriptToVoiceoverForm.jsx
 
 import React, { useState } from "react";
-import { Loader2, X, Film, Mic, Zap, Leaf, Flame, Cpu, Heart, User } from "lucide-react";
+import {
+    Loader2, X, Film, Mic, Zap, Leaf, Flame, Cpu, Heart, User, Gauge,
+    MessageCircle, Landmark, Sparkles, AlarmClock, BookOpen, Info, Laugh,
+} from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -22,6 +25,17 @@ const TONE_OPTIONS = [
     "Conversational", "Formal", "Inspirational", "Urgent",
     "Storytelling", "Informative", "Humorous", "Empathetic",
 ];
+
+const TONE_ICONS = {
+    Conversational: MessageCircle,
+    Formal: Landmark,
+    Inspirational: Sparkles,
+    Urgent: AlarmClock,
+    Storytelling: BookOpen,
+    Informative: Info,
+    Humorous: Laugh,
+    Empathetic: Heart,
+};
 
 const PACE_OPTIONS = [
     { value: "slow", label: "Slow", desc: "0.75× — contemplative" },
@@ -253,31 +267,36 @@ const ScriptToVoiceoverForm = ({
                 {/* ── Tone ────────────────────────────────────────────────────── */}
                 <Field label="Narration tone">
                     <div className="flex flex-wrap gap-2">
-                        {TONE_OPTIONS.map((t) => (
-                            <button
-                                key={t}
-                                onClick={() => setTone(tone === t ? "" : t)}
-                                className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${tone === t ? T.pill : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
-                                    }`}
-                            >
-                                {t}
-                            </button>
-                        ))}
+                        {TONE_OPTIONS.map((t) => {
+                            const Icon = TONE_ICONS[t];
+                            return (
+                                <button
+                                    key={t}
+                                    onClick={() => setTone(tone === t ? "" : t)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${tone === t ? T.pill : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
+                                        }`}
+                                >
+                                    {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
+                                    {t}
+                                </button>
+                            );
+                        })}
                     </div>
                 </Field>
 
-                {/* ── Pace ────────────────────────────────────────────────────── */}
+                {/* ── Pace — compact content-width pills ──────────────────────── */}
                 <Field label="Speaking pace">
-                    <div className="flex flex-wrap gap-4">
+                    <div className="flex flex-wrap gap-2">
                         {PACE_OPTIONS.map((p) => (
                             <button
                                 key={p.value}
                                 onClick={() => setPace(p.value)}
-                                className={`text-center px-5 py-2.5 cursor-pointer rounded-lg border-2 transition-all ${pace === p.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                                className={`flex items-center gap-2 px-4 py-2 cursor-pointer rounded-lg border transition-all hover:-translate-y-0.5 ${pace === p.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
                                     }`}
                             >
-                                <p className={`text-sm font-bold ${pace === p.value ? T.textDark : "text-gray-700"}`}>{p.label}</p>
-                                <p className={`text-[10px] mt-0.5 ${pace === p.value ? T.accent : "text-gray-400"}`}>{p.desc}</p>
+                                <Gauge className={`w-3.5 h-3.5 shrink-0 ${pace === p.value ? T.textDark : "text-gray-400"}`} />
+                                <span className={`text-xs font-semibold ${pace === p.value ? T.textDark : "text-gray-700"}`}>{p.label}</span>
+                                <span className={`text-[10px] ${pace === p.value ? T.accent : "text-gray-400"}`}>{p.desc}</span>
                             </button>
                         ))}
                     </div>
@@ -285,43 +304,41 @@ const ScriptToVoiceoverForm = ({
 
                 <Divider label="Video format" />
 
-                {/* ── Aspect ratio ────────────────────────────────────────────── */}
+                {/* ── Aspect ratio — compact content-width pills ──────────────── */}
                 <Field label="Aspect ratio">
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="flex flex-wrap gap-2">
                         {LAYOUT_OPTIONS.map((l) => (
                             <button
                                 key={l.value}
                                 onClick={() => setLayout(l.value)}
-                                className={`flex flex-col items-center gap-2 px-2 py-3 rounded-lg border-2 cursor-pointer transition-all hover:scale-[1.02] ${layout === l.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-all hover:-translate-y-0.5 ${layout === l.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
                                     }`}
                             >
-                                <div className="flex items-center justify-center h-12">
-                                    <div
-                                        className={`rounded border-2 transition-all ${layout === l.value ? T.border : "border-gray-400"}`}
+                                <span className="flex items-center justify-center w-6 h-6 shrink-0">
+                                    <span
+                                        className={`rounded-sm border-2 transition-all ${layout === l.value ? T.border : "border-gray-400"}`}
                                         style={{
-                                            width: `${l.w * 0.65}px`,
-                                            height: `${l.h * 0.65}px`,
+                                            width: `${l.w * 0.42}px`,
+                                            height: `${l.h * 0.42}px`,
                                             background: layout === l.value ? "#f5f3ff" : "#f9fafb",
                                         }}
                                     />
-                                </div>
-                                <div className="text-center">
-                                    <p className={`text-xs font-semibold ${layout === l.value ? T.textDark : "text-gray-700"}`}>{l.label}</p>
-                                    <p className={`text-[10px] ${layout === l.value ? T.accent : "text-gray-400"}`}>{l.ratio}</p>
-                                </div>
+                                </span>
+                                <span className={`text-xs font-semibold ${layout === l.value ? T.textDark : "text-gray-700"}`}>{l.label}</span>
+                                <span className={`text-[10px] ${layout === l.value ? T.accent : "text-gray-400"}`}>{l.ratio}</span>
                             </button>
                         ))}
                     </div>
                 </Field>
 
-                {/* ── Export format ────────────────────────────────────────────── */}
+                {/* ── Export format — compact pills ────────────────────────────── */}
                 <Field label="Export format">
                     <div className="flex flex-wrap gap-2">
                         {["MP4", "MOV", "WebM"].map((fmt) => (
                             <button
                                 key={fmt}
                                 onClick={() => setExportFormat(fmt)}
-                                className={`py-2.5 px-4 rounded-lg border-2 cursor-pointer text-xs font-semibold transition-all ${exportFormat === fmt
+                                className={`py-2 px-4 rounded-lg border cursor-pointer text-xs font-semibold transition-all hover:-translate-y-0.5 ${exportFormat === fmt
                                         ? `${T.border} ${T.bgLight} ${T.textDark}`
                                         : "border-gray-100 bg-gray-50 text-gray-700 hover:border-gray-300"
                                     }`}

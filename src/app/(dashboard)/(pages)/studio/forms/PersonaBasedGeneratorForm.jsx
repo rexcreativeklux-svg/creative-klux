@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import {
   User, X, Loader2, Sparkles,
   Image, Film, FileText,
+  Briefcase, Smile, Gavel, Coffee, Heart, Flame, Lightbulb, Landmark, MessageCircle,
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
@@ -15,6 +16,19 @@ const TONE_OPTIONS = [
   "Inspirational", "Empathetic", "Bold", "Witty",
   "Formal", "Conversational",
 ];
+
+const TONE_ICONS = {
+  Professional: Briefcase,
+  Friendly: Smile,
+  Authoritative: Gavel,
+  Casual: Coffee,
+  Inspirational: Sparkles,
+  Empathetic: Heart,
+  Bold: Flame,
+  Witty: Lightbulb,
+  Formal: Landmark,
+  Conversational: MessageCircle,
+};
 
 const OCCUPATION_SUGGESTIONS = [
   "Marketing Manager", "Software Engineer", "Entrepreneur",
@@ -214,21 +228,21 @@ const PersonaBasedGeneratorForm = ({ formData, setFormData, activeBrand, showToa
           </button>
         </div>
 
-        {/* Age Group */}
+        {/* Age Group — compact content-width pills */}
         <Field label="Age Group" required>
-          <div className="flex gap-2 mb-2">
+          <div className="flex flex-wrap gap-2 mb-2">
             {AGE_GROUPS.map((a) => (
               <button
                 key={a.value}
                 onClick={() => { setAgeGroup(a.value); setCustomAge(""); setError(""); }}
-                className={`flex-1 flex flex-col items-center px-2 py-2 rounded-lg border-2 cursor-pointer transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-all hover:-translate-y-0.5 ${
                   ageGroup === a.value
                     ? `${T.border} ${T.bgLight}`
                     : "border-gray-100 bg-gray-50 hover:border-gray-300"
                 }`}
               >
-                <span className={`text-xs font-bold ${ageGroup === a.value ? T.textDark : "text-gray-700"}`}>{a.label}</span>
-                <span className={`text-[10px] mt-0.5 ${ageGroup === a.value ? "text-pink-500" : "text-gray-400"}`}>{a.desc}</span>
+                <span className={`text-xs font-semibold ${ageGroup === a.value ? T.textDark : "text-gray-700"}`}>{a.label}</span>
+                <span className={`text-[10px] ${ageGroup === a.value ? "text-pink-500" : "text-gray-400"}`}>{a.desc}</span>
               </button>
             ))}
           </div>
@@ -268,61 +282,67 @@ const PersonaBasedGeneratorForm = ({ formData, setFormData, activeBrand, showToa
         {/* Tone */}
         <Field label="Communication Tone" required>
           <div className="flex flex-wrap gap-2">
-            {TONE_OPTIONS.map((t) => (
-              <button
-                key={t}
-                onClick={() => { setTone(tone === t ? "" : t); setError(""); }}
-                className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
-                  tone === t ? T.pill : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </Field>
-
-        {/* Content Type */}
-        <Field label="Content Type">
-          <div className="flex gap-2">
-            {CONTENT_TYPE_OPTIONS.map((ct) => {
-              const Icon = ct.icon;
+            {TONE_OPTIONS.map((t) => {
+              const Icon = TONE_ICONS[t];
               return (
                 <button
-                  key={ct.value}
-                  onClick={() => handleContentTypeChange(ct.value)}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 cursor-pointer transition-all ${
-                    contentType === ct.value
-                      ? `${T.border} ${T.bgLight}`
-                      : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                  key={t}
+                  onClick={() => { setTone(tone === t ? "" : t); setError(""); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
+                    tone === t ? T.pill : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${contentType === ct.value ? "text-pink-600" : "text-gray-400"}`} />
-                  <span className={`text-xs font-bold ${contentType === ct.value ? T.textDark : "text-gray-700"}`}>{ct.label}</span>
+                  {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
+                  {t}
                 </button>
               );
             })}
           </div>
         </Field>
 
-        {/* Layout — only for image/video */}
+        {/* Content Type — compact content-width pills */}
+        <Field label="Content Type">
+          <div className="flex flex-wrap gap-2">
+            {CONTENT_TYPE_OPTIONS.map((ct) => {
+              const Icon = ct.icon;
+              return (
+                <button
+                  key={ct.value}
+                  onClick={() => handleContentTypeChange(ct.value)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-all hover:-translate-y-0.5 ${
+                    contentType === ct.value
+                      ? `${T.border} ${T.bgLight}`
+                      : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 shrink-0 ${contentType === ct.value ? "text-pink-600" : "text-gray-400"}`} />
+                  <span className={`text-xs font-semibold ${contentType === ct.value ? T.textDark : "text-gray-700"}`}>{ct.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+
+        {/* Layout — only for image/video — compact content-width pills */}
         {contentType !== "text" && (
           <Field label="Aspect Ratio">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {LAYOUT_OPTIONS.map((l) => (
                 <button
                   key={l.value}
                   onClick={() => setLayout(l.value)}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 cursor-pointer transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-all hover:-translate-y-0.5 ${
                     layout === l.value
                       ? `${T.border} ${T.bgLight}`
                       : "border-gray-100 bg-gray-50 hover:border-gray-300"
                   }`}
                 >
-                  <div
-                    className={`rounded border-2 shrink-0 transition-all ${layout === l.value ? T.border : "border-gray-400"}`}
-                    style={{ width: `${l.w * 0.35}px`, height: `${l.h * 0.35}px`, background: layout === l.value ? "#fdf2f8" : "#f9fafb" }}
-                  />
+                  <span className="flex items-center justify-center w-6 h-6 shrink-0">
+                    <span
+                      className={`rounded-sm border-2 transition-all ${layout === l.value ? T.border : "border-gray-400"}`}
+                      style={{ width: `${l.w * 0.32}px`, height: `${l.h * 0.32}px`, background: layout === l.value ? "#fdf2f8" : "#f9fafb" }}
+                    />
+                  </span>
                   <span className={`text-xs font-semibold ${layout === l.value ? T.textDark : "text-gray-700"}`}>{l.label}</span>
                 </button>
               ))}
@@ -330,14 +350,14 @@ const PersonaBasedGeneratorForm = ({ formData, setFormData, activeBrand, showToa
           </Field>
         )}
 
-        {/* Export Format */}
+        {/* Export Format — compact pills */}
         <Field label="Export Format">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {EXPORT_FORMAT_MAP[contentType].map((fmt) => (
               <button
                 key={fmt}
                 onClick={() => setExportFormat(fmt)}
-                className={`px-4 py-2 rounded-lg border-2 cursor-pointer text-xs font-bold transition-all ${
+                className={`px-4 py-2 rounded-lg border cursor-pointer text-xs font-semibold transition-all hover:-translate-y-0.5 ${
                   exportFormat === fmt
                     ? `${T.border} ${T.bgLight} ${T.textDark}`
                     : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"

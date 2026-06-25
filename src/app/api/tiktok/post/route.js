@@ -55,6 +55,9 @@ async function refreshAccessToken(refresh_token) {
 }
 
 export async function POST(req) {
+  // Hoisted so the catch returns it even if a step after the refresh throws — the refresh
+  // rotates the token on TikTok's side, so the caller must always get the new one back.
+  let rotatedRefresh;
   try {
     const {
       refresh_token,
@@ -87,6 +90,7 @@ export async function POST(req) {
     // 1. Always refresh → a guaranteed-valid access token (+ the rotated refresh token).
     const { access_token, refresh_token: newRefresh } =
       await refreshAccessToken(refresh_token);
+    rotatedRefresh = newRefresh;
 
     // 2. Create the photo post.
     const body = {
@@ -137,8 +141,9 @@ export async function POST(req) {
       refresh_token: newRefresh,
     });
   } catch (err) {
+    // Return the rotated token even on failure (refresh may have already rotated it).
     return Response.json(
-      { error: err.message || "TikTok publish failed" },
+      { error: err.message || "TikTok publish failed", refresh_token: rotatedRefresh },
       { status: err.status || 500 }
     );
   }

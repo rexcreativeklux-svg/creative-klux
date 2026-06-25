@@ -1970,8 +1970,9 @@ export async function fetchLivePostsFromConnectedAccounts(
   {
     const tw = integrations.find((i) => i.platform === 'twitter');
     if (tw && tw.int_id) {
-      // Prefer the freshest (localStorage) rotated token; backend copy goes stale after rotation.
-      const rt = getStoredXRefresh(tw.id) || tw.int_refresh_token;
+      // Prefer the freshest (localStorage) rotated token; fall back to the backend copy, which
+      // is stored in int_token (the single token field; int_refresh_token kept as a fallback).
+      const rt = getStoredXRefresh(tw.id) || tw.int_token || tw.int_refresh_token;
       if (rt) {
         try {
           const res = await fetch('/api/twitter/posts', {
@@ -2072,8 +2073,9 @@ export async function fetchLivePostsFromConnectedAccounts(
   {
     const tt = integrations.find((i) => i.platform === 'tiktok');
     if (tt) {
-      // Prefer the freshest (localStorage) rotated token; backend copy goes stale after rotation.
-      const rt = getStoredTikTokRefresh(tt.id) || tt.int_refresh_token;
+      // Prefer the freshest (localStorage) rotated token; fall back to the backend copy, which
+      // is stored in int_token (the single token field; int_refresh_token kept as a fallback).
+      const rt = getStoredTikTokRefresh(tt.id) || tt.int_token || tt.int_refresh_token;
       if (rt) {
         try {
           const res = await fetch('/api/tiktok/posts', {

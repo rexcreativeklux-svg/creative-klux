@@ -693,7 +693,8 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                 // Image tweets additionally need a PAID tier (the media-upload endpoint).
                 const xRes = await publishToTwitter({
                     integration_id: integration.id,
-                    refresh_token: integration.int_refresh_token,
+                    // Backend stores the X refresh token in int_token (single token field).
+                    refresh_token: integration.int_token || integration.int_refresh_token,
                     text: cap,
                     image_url: imageUrl,
                 });
@@ -725,7 +726,8 @@ export default function PublishModal({ creative, onClose, showToast, startInSche
                 const firstLine = text.split("\n")[0]?.trim();
                 const ttRes = await publishToTikTok({
                     integration_id: integration.id,
-                    refresh_token: integration.int_refresh_token,
+                    // Backend stores the TikTok refresh token in int_token (single token field).
+                    refresh_token: integration.int_token || integration.int_refresh_token,
                     title: (firstLine || creative?.name || "").slice(0, 90),
                     description: cap,
                     image_url: imageUrl,

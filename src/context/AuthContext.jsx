@@ -2307,9 +2307,17 @@ export function AuthProvider({ children }) {
           body: JSON.stringify({
             brand_id: resolvedBrandId,
             platform,
-            int_token: access_token || null,
-            // Long-lived refresh token (X/Twitter). Backend must add an `int_refresh_token`
-            // column + allow it on create to actually persist this; ignored until then.
+            // The backend persists ONE token field: `int_token` (it's also the only token
+            // returned on GET). X/TikTok rotate their refresh token and the *access* token is
+            // ephemeral (re-derived on every publish), so for those we store the REFRESH token
+            // in int_token — that's the value that must survive + sync cross-device. Every
+            // other platform stores its (long-lived) access token as before.
+            int_token:
+              (platform === "twitter" || platform === "tiktok")
+                ? (refresh_token || access_token || null)
+                : (access_token || null),
+            // Kept for forward-compat if the backend ever adds a dedicated column; the
+            // authoritative field today is int_token (above).
             int_refresh_token: refresh_token || null,
             // code: code || null,
             int_id: int_id || null, // ← platform account ID e.g. Facebook User ID
@@ -2377,22 +2385,22 @@ export function AuthProvider({ children }) {
     [token],
   );
 
-  // Update an existing integration (PUT). Used to persist the ROTATED refresh token for
-  // X/TikTok after each publish/live-fetch — those platforms rotate the refresh token on
-  // every use, and without writing the new one back, the backend copy goes stale and a
-  // second device fails. Best-effort: a failed update must NOT break the publish/fetch that
-  // triggered it (localStorage is still updated as the device-local source of truth).
-  // ⚠️ Assumes a REST PUT at /integrations/{id} accepting int_token / int_refresh_token. If
-  // the backend uses the Laravel _method=PUT-via-POST quirk (see updateBrandById) or different
-  // field names, adjust here only.
+  // Update an existing integration (PUT `/integrations/{id}`). Used to persist the ROTATED
+  // refresh token for X/TikTok after each publish/live-fetch — those rotate on every use, and
+  // without writing the new one back the backend copy goes stale and a second device fails.
+  // The backend stores ONE token field (`int_token`, also the only one returned on GET), so
+  // the rotated refresh token is written there. Best-effort: a failed update must NOT break
+  // the publish/fetch that triggered it (localStorage stays the device-local source of truth).
   const updateIntegration = useCallback(
     async (id, { access_token, refresh_token } = {}) => {
       if (!token) return { ok: false, message: "Not authenticated" };
       if (!id) return { ok: false, message: "Missing integration id" };
 
       const body = {};
-      if (access_token !== undefined) body.int_token = access_token;
-      if (refresh_token !== undefined) body.int_refresh_token = refresh_token;
+      // The rotated refresh token (X/TikTok) is the authoritative value → write it to int_token.
+      const tokenForIntToken = refresh_token ?? access_token;
+      if (tokenForIntToken !== undefined) body.int_token = tokenForIntToken;
+      if (refresh_token !== undefined) body.int_refresh_token = refresh_token; // forward-compat
       if (Object.keys(body).length === 0) return { ok: false, message: "Nothing to update" };
 
       try {

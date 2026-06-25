@@ -28,14 +28,15 @@ const PLATFORMS = {
     meta_ads:      { label: "Meta Ads Manager",     kind: "ads",    color: "#0668E1", Icon: FaFacebook,      real: true  },
     google_ads:    { label: "Google Ads",           kind: "ads",    color: "#4285F4", Icon: FaGoogle,        real: true  },
     tiktok_ads:    { label: "TikTok Ads",           kind: "ads",    color: "#010101", Icon: FaTiktok,        real: true  },
-    linkedin_ads:  { label: "LinkedIn Ads",         kind: "ads",    color: "#0A66C2", Icon: FaLinkedin,      real: true  },
+    // LinkedIn Ads disabled (needs LinkedIn Advertising API approval). Uncomment to re-add; publish code/route still in place.
+    // linkedin_ads:  { label: "LinkedIn Ads",         kind: "ads",    color: "#0A66C2", Icon: FaLinkedin,      real: true  },
     snapchat_ads:  { label: "Snapchat Ads",         kind: "ads",    color: "#FFC400", Icon: FaSnapchatGhost, real: true  },
     pinterest_ads: { label: "Pinterest Ads",        kind: "ads",    color: "#E60023", Icon: FaPinterest,     real: true  },
 };
 
 // Order tiles appear in, per kind.
 const SOCIAL_ORDER = ["facebook", "instagram", "tiktok", "twitter", "linkedin", "youtube", "pinterest"];
-const ADS_ORDER    = ["meta_ads", "google_ads", "tiktok_ads", "linkedin_ads", "snapchat_ads", "pinterest_ads"];
+const ADS_ORDER    = ["meta_ads", "google_ads", "tiktok_ads", "snapchat_ads", "pinterest_ads"]; // "linkedin_ads" disabled — re-add here to restore
 
 // Minimal Meta-ad form options.
 const AD_GOALS = [

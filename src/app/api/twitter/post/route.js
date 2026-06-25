@@ -85,6 +85,11 @@ async function uploadImage(image_url, access_token) {
 }
 
 export async function POST(req) {
+  // Hoisted so the catch can return it: the refresh below rotates the token on X's side, so
+  // even if a LATER step (media upload, tweet create) throws, the caller MUST get the rotated
+  // token back — otherwise it keeps using the now-dead old one and the next attempt fails with
+  // "Value passed for the token was invalid." (This is exactly the media-upload "no credits" case.)
+  let rotatedRefresh;
   try {
     const { refresh_token, text, image_url } = await req.json();
 
@@ -98,6 +103,7 @@ export async function POST(req) {
     // 1. Always refresh → a guaranteed-valid access token (+ the rotated refresh token).
     const { access_token, refresh_token: newRefresh } =
       await refreshAccessToken(refresh_token);
+    rotatedRefresh = newRefresh;
 
     // 2. Optional media.
     let media_ids;
@@ -148,8 +154,11 @@ export async function POST(req) {
       refresh_token: newRefresh,
     });
   } catch (err) {
+    // Return the rotated refresh token even on failure — the refresh may have already
+    // succeeded (rotating the token) before a later step threw, so the caller must persist
+    // the new one or the next attempt uses a dead token.
     return Response.json(
-      { error: err.message || "X publish failed" },
+      { error: err.message || "X publish failed", refresh_token: rotatedRefresh },
       { status: err.status || 500 }
     );
   }

@@ -2,26 +2,41 @@
 // forms/TextToAudioForm.jsx
 
 import React, { useState } from "react";
-import { Mic, Loader2, X, AudioLines } from "lucide-react";
+import {
+  Mic, Loader2, X, AudioLines,
+  Cpu, User, Heart, Zap, Leaf, Flame, Baby, Crown, Gauge, Sparkles, Music,
+  Briefcase, Smile, PartyPopper, Glasses, Laugh, MessageCircle,
+} from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
 const VOICE_OPTIONS = [
-  { value: "neutral_ai",    label: "Neutral AI",    desc: "Balanced, clear tone" },
-  { value: "male",          label: "Male",          desc: "Deep, confident voice" },
-  { value: "female",        label: "Female",        desc: "Clear, warm voice" },
-  { value: "energetic",     label: "Energetic",     desc: "Upbeat and lively" },
-  { value: "calm",          label: "Calm",          desc: "Soothing and soft" },
-  { value: "dramatic",      label: "Dramatic",      desc: "Expressive and bold" },
-  { value: "childlike",     label: "Childlike",     desc: "Fun and playful" },
-  { value: "authoritative", label: "Authoritative", desc: "Strong, commanding" },
+  { value: "neutral_ai",    label: "Neutral AI",    desc: "Balanced, clear tone",  icon: Cpu },
+  { value: "male",          label: "Male",          desc: "Deep, confident voice", icon: User },
+  { value: "female",        label: "Female",        desc: "Clear, warm voice",     icon: Heart },
+  { value: "energetic",     label: "Energetic",     desc: "Upbeat and lively",     icon: Zap },
+  { value: "calm",          label: "Calm",          desc: "Soothing and soft",     icon: Leaf },
+  { value: "dramatic",      label: "Dramatic",      desc: "Expressive and bold",   icon: Flame },
+  { value: "childlike",     label: "Childlike",     desc: "Fun and playful",       icon: Baby },
+  { value: "authoritative", label: "Authoritative", desc: "Strong, commanding",    icon: Crown },
 ];
 
 const TONE_OPTIONS = [
   "Professional", "Friendly", "Excited", "Serious",
   "Humorous", "Empathetic", "Inspirational", "Conversational",
 ];
+
+const TONE_ICONS = {
+  Professional: Briefcase,
+  Friendly: Smile,
+  Excited: PartyPopper,
+  Serious: Glasses,
+  Humorous: Laugh,
+  Empathetic: Heart,
+  Inspirational: Sparkles,
+  Conversational: MessageCircle,
+};
 
 const SPEED_OPTIONS = [
   { value: "slow",   label: "Slow",   desc: "0.75× speed" },
@@ -30,14 +45,14 @@ const SPEED_OPTIONS = [
 ];
 
 const FORMAT_OPTIONS = [
-  { value: "mp3", label: "MP3", desc: "Best compatibility" },
-  { value: "wav", label: "WAV", desc: "Lossless quality" },
+  { value: "mp3", label: "MP3", desc: "Best compatibility", icon: Music },
+  { value: "wav", label: "WAV", desc: "Lossless quality", icon: AudioLines },
 ];
 
 const QUALITY_OPTIONS = [
-  { value: "standard", label: "Standard", desc: "Fast generation" },
-  { value: "high",     label: "High",     desc: "Richer audio" },
-  { value: "studio",   label: "Studio",   desc: "Max fidelity" },
+  { value: "standard", label: "Standard", desc: "Fast generation", icon: Zap },
+  { value: "high",     label: "High",     desc: "Richer audio", icon: Gauge },
+  { value: "studio",   label: "Studio",   desc: "Max fidelity", icon: Sparkles },
 ];
 
 const INSPIRE_PROMPTS = [
@@ -134,99 +149,116 @@ const TextToAudioForm = ({ formData, setFormData, activeBrand, showToast, onResu
           </div>
         </Field>
 
-        {/* Voice Type — text-only pills, always one active */}
+        {/* Voice Type — icon + label pills, always one active */}
         <Field label="Voice Type">
           <div className="flex flex-wrap gap-2">
-            {VOICE_OPTIONS.map((v) => (
-              <button
-                key={v.value}
-                onClick={() => setVoice(v.value)}
-                className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
-                  voice === v.value
-                    ? T.pill
-                    : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
-                }`}
-              >
-                {v.label}
-              </button>
-            ))}
+            {VOICE_OPTIONS.map((v) => {
+              const Icon = v.icon;
+              return (
+                <button
+                  key={v.value}
+                  onClick={() => setVoice(v.value)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
+                    voice === v.value
+                      ? T.pill
+                      : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
+                  }`}
+                >
+                  {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
+                  {v.label}
+                </button>
+              );
+            })}
           </div>
         </Field>
 
         {/* Speaking Tone */}
         <Field label="Speaking Tone">
           <div className="flex flex-wrap gap-2">
-            {TONE_OPTIONS.map((t) => (
-              <button
-                key={t}
-                onClick={() => setTone(tone === t ? "" : t)}
-                className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
-                  tone === t ? T.pill : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
+            {TONE_OPTIONS.map((t) => {
+              const Icon = TONE_ICONS[t];
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTone(tone === t ? "" : t)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
+                    tone === t ? T.pill : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
+                  }`}
+                >
+                  {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
+                  {t}
+                </button>
+              );
+            })}
           </div>
         </Field>
 
-        {/* Speaking Speed — compact inline row */}
+        {/* Speaking Speed — compact content-width pills */}
         <Field label="Speaking Speed">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {SPEED_OPTIONS.map((s) => (
               <button
                 key={s.value}
                 onClick={() => setSpeed(s.value)}
-                className={`flex-1 px-2 py-2 rounded-xl border-2 cursor-pointer transition-all text-center ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all hover:-translate-y-0.5 ${
                   speed === s.value
                     ? `${T.border} ${T.bgLight}`
                     : "border-gray-100 bg-gray-50 hover:border-gray-300"
                 }`}
               >
-                <p className={`text-xs font-bold ${speed === s.value ? T.textDark : "text-gray-700"}`}>{s.label}</p>
-                <p className={`text-[10px] mt-0.5 ${speed === s.value ? "text-pink-500" : "text-gray-400"}`}>{s.desc}</p>
+                <Gauge className={`w-3.5 h-3.5 shrink-0 ${speed === s.value ? T.textDark : "text-gray-400"}`} />
+                <span className={`text-xs font-semibold ${speed === s.value ? T.textDark : "text-gray-700"}`}>{s.label}</span>
+                <span className={`text-[10px] ${speed === s.value ? "text-pink-500" : "text-gray-400"}`}>{s.desc}</span>
               </button>
             ))}
           </div>
         </Field>
 
-        {/* Export Format — compact inline row */}
+        {/* Export Format — compact content-width pills */}
         <Field label="Export Format">
-          <div className="flex gap-2">
-            {FORMAT_OPTIONS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setFormat(f.value)}
-                className={`flex-1 px-2 py-2 rounded-xl border-2 cursor-pointer transition-all text-center ${
-                  format === f.value
-                    ? `${T.border} ${T.bgLight}`
-                    : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                }`}
-              >
-                <p className={`text-xs font-bold ${format === f.value ? T.textDark : "text-gray-700"}`}>{f.label}</p>
-                <p className={`text-[10px] mt-0.5 ${format === f.value ? "text-pink-500" : "text-gray-400"}`}>{f.desc}</p>
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {FORMAT_OPTIONS.map((f) => {
+              const Icon = f.icon;
+              return (
+                <button
+                  key={f.value}
+                  onClick={() => setFormat(f.value)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all hover:-translate-y-0.5 ${
+                    format === f.value
+                      ? `${T.border} ${T.bgLight}`
+                      : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                  }`}
+                >
+                  {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${format === f.value ? T.textDark : "text-gray-400"}`} />}
+                  <span className={`text-xs font-semibold ${format === f.value ? T.textDark : "text-gray-700"}`}>{f.label}</span>
+                  <span className={`text-[10px] ${format === f.value ? "text-pink-500" : "text-gray-400"}`}>{f.desc}</span>
+                </button>
+              );
+            })}
           </div>
         </Field>
 
-        {/* Audio Quality — compact inline row */}
+        {/* Audio Quality — compact content-width pills */}
         <Field label="Audio Quality">
-          <div className="flex gap-2">
-            {QUALITY_OPTIONS.map((q) => (
-              <button
-                key={q.value}
-                onClick={() => setQuality(q.value)}
-                className={`flex-1 px-2 py-2 rounded-xl border-2 cursor-pointer transition-all text-center ${
-                  quality === q.value
-                    ? `${T.border} ${T.bgLight}`
-                    : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                }`}
-              >
-                <p className={`text-xs font-bold ${quality === q.value ? T.textDark : "text-gray-700"}`}>{q.label}</p>
-                <p className={`text-[10px] mt-0.5 ${quality === q.value ? "text-pink-500" : "text-gray-400"}`}>{q.desc}</p>
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {QUALITY_OPTIONS.map((q) => {
+              const Icon = q.icon;
+              return (
+                <button
+                  key={q.value}
+                  onClick={() => setQuality(q.value)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all hover:-translate-y-0.5 ${
+                    quality === q.value
+                      ? `${T.border} ${T.bgLight}`
+                      : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                  }`}
+                >
+                  {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${quality === q.value ? T.textDark : "text-gray-400"}`} />}
+                  <span className={`text-xs font-semibold ${quality === q.value ? T.textDark : "text-gray-700"}`}>{q.label}</span>
+                  <span className={`text-[10px] ${quality === q.value ? "text-pink-500" : "text-gray-400"}`}>{q.desc}</span>
+                </button>
+              );
+            })}
           </div>
         </Field>
 

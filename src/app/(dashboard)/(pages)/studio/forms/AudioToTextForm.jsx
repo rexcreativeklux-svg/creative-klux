@@ -4,6 +4,7 @@
 import React, { useState, useRef } from "react";
 import {
   Mic, Loader2, X, FileAudio, AudioLines,
+  AlignLeft, Type, Pilcrow, Clock, Zap, Gauge, Target,
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
@@ -29,16 +30,16 @@ const LANGUAGE_OPTIONS = [
 ];
 
 const FORMAT_OPTIONS = [
-  { value: "plain", label: "Plain Text", desc: "Raw transcript only" },
-  { value: "punctuated", label: "Punctuated", desc: "Auto-add punctuation" },
-  { value: "paragraphs", label: "Paragraphs", desc: "Split into paragraphs" },
-  { value: "timestamped", label: "Timestamped", desc: "Include time markers" },
+  { value: "plain", label: "Plain Text", desc: "Raw transcript only", icon: AlignLeft },
+  { value: "punctuated", label: "Punctuated", desc: "Auto-add punctuation", icon: Type },
+  { value: "paragraphs", label: "Paragraphs", desc: "Split into paragraphs", icon: Pilcrow },
+  { value: "timestamped", label: "Timestamped", desc: "Include time markers", icon: Clock },
 ];
 
 const QUALITY_OPTIONS = [
-  { value: "fast", label: "Fast", desc: "Quick turnaround" },
-  { value: "balanced", label: "Balanced", desc: "Speed + accuracy" },
-  { value: "accurate", label: "Accurate", desc: "Maximum precision" },
+  { value: "fast", label: "Fast", desc: "Quick turnaround", icon: Zap },
+  { value: "balanced", label: "Balanced", desc: "Speed + accuracy", icon: Gauge },
+  { value: "accurate", label: "Accurate", desc: "Maximum precision", icon: Target },
 ];
 
 const ACCEPTED_TYPES = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/webm", "audio/x-m4a"];
@@ -255,41 +256,49 @@ const AudioToTextForm = ({ formData, setFormData, activeBrand, showToast, onResu
           </div>
         </Field>
 
-        {/* Transcript Format — compact flex row */}
+        {/* Transcript Format — compact content-width pills */}
         <Field label="Transcript Format">
           <div className="flex flex-wrap gap-2">
-            {FORMAT_OPTIONS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setFormat(f.value)}
-                className={`flex-1 px-2 py-2 rounded-xl border-2 cursor-pointer transition-all text-center ${format === f.value
-                    ? `${T.border} ${T.bgLight}`
-                    : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                  }`}
-              >
-                <p className={`text-xs font-bold ${format === f.value ? T.textDark : "text-gray-700"}`}>{f.label}</p>
-                <p className={`text-[10px] mt-0.5 ${format === f.value ? "text-pink-500" : "text-gray-400"}`}>{f.desc}</p>
-              </button>
-            ))}
+            {FORMAT_OPTIONS.map((f) => {
+              const Icon = f.icon;
+              return (
+                <button
+                  key={f.value}
+                  onClick={() => setFormat(f.value)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all hover:-translate-y-0.5 ${format === f.value
+                      ? `${T.border} ${T.bgLight}`
+                      : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                    }`}
+                >
+                  {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${format === f.value ? T.textDark : "text-gray-400"}`} />}
+                  <span className={`text-xs font-semibold ${format === f.value ? T.textDark : "text-gray-700"}`}>{f.label}</span>
+                  <span className={`text-[10px] ${format === f.value ? "text-pink-500" : "text-gray-400"}`}>{f.desc}</span>
+                </button>
+              );
+            })}
           </div>
         </Field>
 
-        {/* Transcription Quality — compact flex row */}
+        {/* Transcription Quality — compact content-width pills */}
         <Field label="Transcription Quality">
-          <div className="flex gap-2">
-            {QUALITY_OPTIONS.map((q) => (
-              <button
-                key={q.value}
-                onClick={() => setQuality(q.value)}
-                className={`flex-1 px-2 py-2 rounded-xl border-2 cursor-pointer transition-all text-center ${quality === q.value
-                    ? `${T.border} ${T.bgLight}`
-                    : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                  }`}
-              >
-                <p className={`text-xs font-bold ${quality === q.value ? T.textDark : "text-gray-700"}`}>{q.label}</p>
-                <p className={`text-[10px] mt-0.5 ${quality === q.value ? "text-pink-500" : "text-gray-400"}`}>{q.desc}</p>
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {QUALITY_OPTIONS.map((q) => {
+              const Icon = q.icon;
+              return (
+                <button
+                  key={q.value}
+                  onClick={() => setQuality(q.value)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all hover:-translate-y-0.5 ${quality === q.value
+                      ? `${T.border} ${T.bgLight}`
+                      : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                    }`}
+                >
+                  {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${quality === q.value ? T.textDark : "text-gray-400"}`} />}
+                  <span className={`text-xs font-semibold ${quality === q.value ? T.textDark : "text-gray-700"}`}>{q.label}</span>
+                  <span className={`text-[10px] ${quality === q.value ? "text-pink-500" : "text-gray-400"}`}>{q.desc}</span>
+                </button>
+              );
+            })}
           </div>
         </Field>
 

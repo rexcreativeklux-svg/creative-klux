@@ -2,23 +2,26 @@
 // forms/TextToImageForm.jsx
 
 import React, { useState } from "react";
-import { Sparkles, Loader2, X, LayoutTemplate } from "lucide-react";
+import {
+  Sparkles, Loader2, X, LayoutTemplate,
+  Camera, Smile, Shapes, Star, Droplet, Palette, Cpu, Minus, Film, Aperture, Zap,
+} from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
 const STYLE_OPTIONS = [
-  { value: "photorealistic", label: "Photorealistic" },
-  { value: "cartoon",        label: "Cartoon" },
-  { value: "abstract",       label: "Abstract" },
-  { value: "anime",          label: "Anime" },
-  { value: "watercolor",     label: "Watercolor" },
-  { value: "oil_painting",   label: "Oil Painting" },
-  { value: "cyberpunk",      label: "Cyberpunk" },
-  { value: "minimalist",     label: "Minimalist" },
-  { value: "cinematic",      label: "Cinematic" },
-  { value: "vintage",        label: "Vintage" },
-  { value: "neon",           label: "Neon / Glow" },
+  { value: "photorealistic", label: "Photorealistic", icon: Camera },
+  { value: "cartoon",        label: "Cartoon",        icon: Smile },
+  { value: "abstract",       label: "Abstract",       icon: Shapes },
+  { value: "anime",          label: "Anime",          icon: Star },
+  { value: "watercolor",     label: "Watercolor",     icon: Droplet },
+  { value: "oil_painting",   label: "Oil Painting",   icon: Palette },
+  { value: "cyberpunk",      label: "Cyberpunk",      icon: Cpu },
+  { value: "minimalist",     label: "Minimalist",     icon: Minus },
+  { value: "cinematic",      label: "Cinematic",      icon: Film },
+  { value: "vintage",        label: "Vintage",        icon: Aperture },
+  { value: "neon",           label: "Neon / Glow",    icon: Zap },
 ];
 
 const LAYOUT_OPTIONS = [
@@ -132,46 +135,48 @@ const TextToImageForm = ({ formData, setFormData, activeBrand, showToast, onResu
           </div>
         </Field>
 
-        {/* Visual Style — text-only pills, always one active */}
+        {/* Visual Style — icon + label pills, always one active */}
         <Field label="Visual Style">
           <div className="flex flex-wrap gap-2">
-            {STYLE_OPTIONS.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => setStyle(s.value)}
-                className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
-                  style === s.value
-                    ? T.pill
-                    : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
+            {STYLE_OPTIONS.map((s) => {
+              const Icon = s.icon;
+              return (
+                <button
+                  key={s.value}
+                  onClick={() => setStyle(s.value)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
+                    style === s.value
+                      ? T.pill
+                      : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
+                  }`}
+                >
+                  {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
         </Field>
 
-        {/* Layout */}
+        {/* Layout — compact content-width pills */}
         <Field label="Aspect Ratio">
-          <div className="grid grid-cols-4 gap-2">
+          <div className="flex flex-wrap gap-2">
             {LAYOUT_OPTIONS.map((l) => (
               <button
                 key={l.value}
                 onClick={() => setLayout(l.value)}
-                className={`flex flex-col items-center gap-2 px-2 py-3 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all hover:-translate-y-0.5 ${
                   layout === l.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
                 }`}
               >
-                <div className="flex items-center justify-center h-12">
-                  <div
-                    className={`rounded border-2 transition-all ${layout === l.value ? T.border : "border-gray-400"}`}
-                    style={{ width: `${l.w * 0.6}px`, height: `${l.h * 0.6}px`, background: layout === l.value ? "#fdf2f8" : "#f9fafb" }}
+                <span className="flex items-center justify-center w-6 h-6 shrink-0">
+                  <span
+                    className={`rounded-sm border-2 transition-all ${layout === l.value ? T.border : "border-gray-400"}`}
+                    style={{ width: `${l.w * 0.32}px`, height: `${l.h * 0.32}px`, background: layout === l.value ? "#fdf2f8" : "#f9fafb" }}
                   />
-                </div>
-                <div className="text-center">
-                  <p className={`text-xs font-semibold ${layout === l.value ? T.textDark : "text-gray-700"}`}>{l.label}</p>
-                  <p className={`text-[10px] ${layout === l.value ? "text-pink-500" : "text-gray-400"}`}>{l.ratio}</p>
-                </div>
+                </span>
+                <span className={`text-xs font-semibold ${layout === l.value ? T.textDark : "text-gray-700"}`}>{l.label}</span>
+                <span className={`text-[10px] ${layout === l.value ? "text-pink-500" : "text-gray-400"}`}>{l.ratio}</span>
               </button>
             ))}
           </div>

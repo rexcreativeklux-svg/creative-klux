@@ -2,26 +2,29 @@
 // forms/TextToVideoForm.jsx
 
 import React, { useState } from "react";
-import { Sparkles, Loader2, X, Film } from "lucide-react";
+import {
+    Sparkles, Loader2, X, Film, Clock,
+    Camera, Smile, Shapes, Star, Droplet, Palette, Cpu, Minus,
+} from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
 const STYLE_OPTIONS = [
-    { value: "photorealistic", label: "Photorealistic" },
-    { value: "cartoon",        label: "Cartoon" },
-    { value: "abstract",       label: "Abstract" },
-    { value: "anime",          label: "Anime" },
-    { value: "watercolor",     label: "Watercolor" },
-    { value: "oil_painting",   label: "Oil Painting" },
-    { value: "cyberpunk",      label: "Cyberpunk" },
-    { value: "minimalist",     label: "Minimalist" },
+    { value: "photorealistic", label: "Photorealistic", icon: Camera },
+    { value: "cartoon",        label: "Cartoon",        icon: Smile },
+    { value: "abstract",       label: "Abstract",       icon: Shapes },
+    { value: "anime",          label: "Anime",          icon: Star },
+    { value: "watercolor",     label: "Watercolor",     icon: Droplet },
+    { value: "oil_painting",   label: "Oil Painting",   icon: Palette },
+    { value: "cyberpunk",      label: "Cyberpunk",      icon: Cpu },
+    { value: "minimalist",     label: "Minimalist",     icon: Minus },
 ];
 
 const LAYOUT_OPTIONS = [
-    { value: "square",    label: "Square",    ratio: "1:1"  },
-    { value: "landscape", label: "Landscape", ratio: "16:9" },
-    { value: "portrait",  label: "Portrait",  ratio: "9:16" },
+    { value: "square",    label: "Square",    ratio: "1:1",  w: 48, h: 48 },
+    { value: "landscape", label: "Landscape", ratio: "16:9", w: 64, h: 36 },
+    { value: "portrait",  label: "Portrait",  ratio: "9:16", w: 36, h: 64 },
 ];
 
 const DURATION_OPTIONS = [
@@ -155,22 +158,26 @@ const TextToVideoForm = ({ formData, setFormData, activeBrand, showToast, onResu
                     </div>
                 </Field>
 
-                {/* Visual Style — text-only pills, always one active */}
+                {/* Visual Style — icon + label pills, always one active */}
                 <Field label="Visual Style">
                     <div className="flex flex-wrap gap-2">
-                        {STYLE_OPTIONS.map((s) => (
-                            <button
-                                key={s.value}
-                                onClick={() => setStyle(s.value)}
-                                className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
-                                    style === s.value
-                                        ? T.pill
-                                        : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
-                                }`}
-                            >
-                                {s.label}
-                            </button>
-                        ))}
+                        {STYLE_OPTIONS.map((s) => {
+                            const Icon = s.icon;
+                            return (
+                                <button
+                                    key={s.value}
+                                    onClick={() => setStyle(s.value)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
+                                        style === s.value
+                                            ? T.pill
+                                            : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
+                                    }`}
+                                >
+                                    {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
+                                    {s.label}
+                                </button>
+                            );
+                        })}
                     </div>
                 </Field>
 
@@ -193,41 +200,48 @@ const TextToVideoForm = ({ formData, setFormData, activeBrand, showToast, onResu
                     </div>
                 </Field> */}
 
-                {/* Duration — compact inline row */}
+                {/* Duration — compact content-width pills */}
                 <Field label="Video Duration">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         {DURATION_OPTIONS.map((d) => (
                             <button
                                 key={d.value}
                                 onClick={() => setDuration(d.value)}
-                                className={` flex flex-row px-2 py-2 items-center rounded-lg gap-3 border cursor-pointer transition-all text-center ${
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all hover:-translate-y-0.5 ${
                                     duration === d.value
                                         ? `${T.border} ${T.bgLight}`
                                         : "border-gray-100 bg-gray-50 hover:border-gray-300"
                                 }`}
                             >
-                                <p className={`text-xs font-semibold ${duration === d.value ? T.textDark : "text-gray-600"}`}>{d.label}</p>
-                                <p className={`text-[10px]  font-semibold ${duration === d.value ? "text-pink-500" : "text-gray-600"}`}>{d.desc}</p>
+                                <Clock className={`w-3.5 h-3.5 shrink-0 ${duration === d.value ? T.textDark : "text-gray-400"}`} />
+                                <span className={`text-xs font-semibold ${duration === d.value ? T.textDark : "text-gray-600"}`}>{d.label}</span>
+                                <span className={`text-[10px] font-semibold ${duration === d.value ? "text-pink-500" : "text-gray-500"}`}>{d.desc}</span>
                             </button>
                         ))}
                     </div>
                 </Field>
 
-                {/* Aspect Ratio — compact inline row */}
+                {/* Aspect Ratio — compact content-width pills */}
                 <Field label="Aspect Ratio">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         {LAYOUT_OPTIONS.map((l) => (
                             <button
                                 key={l.value}
                                 onClick={() => setLayout(l.value)}
-                                className={`flex-1 px-2 py-2 rounded-xl border-2 cursor-pointer transition-all text-center ${
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all hover:-translate-y-0.5 ${
                                     layout === l.value
                                         ? `${T.border} ${T.bgLight}`
                                         : "border-gray-100 bg-gray-50 hover:border-gray-300"
                                 }`}
                             >
-                                <p className={`text-xs font-bold ${layout === l.value ? T.textDark : "text-gray-700"}`}>{l.label}</p>
-                                <p className={`text-[10px] mt-0.5 ${layout === l.value ? "text-pink-500" : "text-gray-400"}`}>{l.ratio}</p>
+                                <span className="flex items-center justify-center w-6 h-6 shrink-0">
+                                    <span
+                                        className={`rounded-sm border-2 transition-all ${layout === l.value ? T.border : "border-gray-400"}`}
+                                        style={{ width: `${l.w * 0.32}px`, height: `${l.h * 0.32}px`, background: layout === l.value ? "#fdf2f8" : "#f9fafb" }}
+                                    />
+                                </span>
+                                <span className={`text-xs font-semibold ${layout === l.value ? T.textDark : "text-gray-700"}`}>{l.label}</span>
+                                <span className={`text-[10px] ${layout === l.value ? "text-pink-500" : "text-gray-400"}`}>{l.ratio}</span>
                             </button>
                         ))}
                     </div>

@@ -5,7 +5,7 @@ import {
     AlignCenter, AlignVerticalJustifyCenter,
     Scissors, Pencil, Sun, Layers, Box, LayoutTemplate,
     Sparkles, SlidersHorizontal, ImageIcon, Type, Loader2,
-    FlipHorizontal, Upload, Trash2, Copy, Eye, EyeOff, ChevronUp, ChevronDown
+    FlipHorizontal, FlipVertical, Upload, Trash2, Copy, Eye, EyeOff, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
@@ -17,7 +17,9 @@ const topTools = [
     { id: 'templates', label: 'Templates', icon: LayoutTemplate },
     { id: 'backgrounds', label: 'Backgrounds', icon: Box },
     { id: 'layers', label: 'Layers', icon: Layers },
-    { id: 'aishadows', label: 'AI Shadows', icon: Sun },
+    // AI Shadows hidden until an image-in→image-out AI service is wired (no backend yet).
+    // The manual Shadows panel (drop + floor/cast) covers the non-AI cases.
+    // { id: 'aishadows', label: 'AI Shadows', icon: Sun },
     { id: 'resize', label: 'Resize', icon: SlidersHorizontal },
 ];
 
@@ -25,6 +27,26 @@ const topTools = [
 const CANVAS_W = 520;
 const CANVAS_H = 440;
 const EXPORT_SCALE = 2;
+
+// Shadow colour swatches for the Photoroom-style shadow panel.
+const SHADOW_SWATCHES = ['#000000', '#374151', '#1e3a8a', '#7c2d12', '#581c87', '#0f766e'];
+
+// Blend modes — the CSS value doubles as the canvas globalCompositeOperation
+// (except 'normal' → 'source-over'). Blends the product against its background.
+const BLEND_MODES = [
+    'normal', 'multiply', 'darken', 'screen', 'lighten',
+    'overlay', 'soft-light', 'hard-light', 'difference', 'luminosity',
+];
+
+// hex (#rgb / #rrggbb) → rgba() string at the given alpha. Lets the shadow take an
+// arbitrary colour instead of being hardcoded black.
+const hexToRgba = (hex, alpha = 1) => {
+    let h = String(hex || '#000000').replace('#', '');
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+    const n = parseInt(h, 16);
+    if (Number.isNaN(n)) return `rgba(0,0,0,${alpha})`;
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+};
 
 // ── Brand Kit fonts (curated Google Fonts; loaded on demand) ──────────────
 const BRAND_FONTS = [
@@ -174,6 +196,291 @@ const loadImageEl = (src) => new Promise((resolve, reject) => {
     i.src = src;
 });
 
+// ── Adjust: pixel-level processing ────────────────────────────────────────
+// CSS filters can't do Highlights / Shadows / Sharpen / proper Warmth, so the
+// Adjust panel bakes its changes straight into the pixels. All sliders are
+// 0-centred (range −100…100, except Sharpen 0…100); 0 = no change. Alpha is
+// always preserved so the cut-out stays transparent.
+const ADJUST_MAXD = 1600; // cap the working resolution so the pass stays fast
+const clamp255 = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
+
+const sharpenInPlace = (ctx, w, h, amt) => {
+    const src = ctx.getImageData(0, 0, w, h);
+    const out = ctx.createImageData(w, h);
+    const s = src.data, o = out.data;
+    const k = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const idx = (y * w + x) * 4;
+            for (let ch = 0; ch < 3; ch++) {
+                let sum = 0, ki = 0;
+                for (let ky = -1; ky <= 1; ky++) {
+                    for (let kx = -1; kx <= 1; kx++) {
+                        const px = Math.min(w - 1, Math.max(0, x + kx));
+                        const py = Math.min(h - 1, Math.max(0, y + ky));
+                        sum += s[(py * w + px) * 4 + ch] * k[ki++];
+                    }
+                }
+                const orig = s[idx + ch];
+                o[idx + ch] = clamp255(orig + amt * (sum - orig));
+            }
+            o[idx + 3] = s[idx + 3];
+        }
+    }
+    ctx.putImageData(out, 0, 0);
+};
+
+// Returns a canvas with the adjustments baked in (or null if nothing to do).
+const processAdjustments = (img, a) => {
+    const active = a.brightness || a.contrast || a.saturation || a.highlights
+        || a.shadows || a.sharpen || a.hue || a.warmth;
+    if (!active) return null;
+
+    let w = img.naturalWidth || img.width || 1;
+    let h = img.naturalHeight || img.height || 1;
+    const sc = Math.min(1, ADJUST_MAXD / Math.max(w, h));
+    w = Math.max(1, Math.round(w * sc));
+    h = Math.max(1, Math.round(h * sc));
+
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+
+    const bAdd = (a.brightness / 100) * 100;
+    const C = (a.contrast / 100) * 255;
+    const cF = (259 * (C + 255)) / (255 * (259 - C));
+    const sF = 1 + a.saturation / 100;
+    const hl = a.highlights / 100;
+    const sh = a.shadows / 100;
+    const warm = a.warmth / 100;
+    const doHue = a.hue !== 0;
+    const hr = (() => {
+        const r = (a.hue * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
+        return [
+            0.213 + cos * 0.787 - sin * 0.213, 0.715 - cos * 0.715 - sin * 0.715, 0.072 - cos * 0.072 + sin * 0.928,
+            0.213 - cos * 0.213 + sin * 0.143, 0.715 + cos * 0.285 + sin * 0.140, 0.072 - cos * 0.072 - sin * 0.283,
+            0.213 - cos * 0.213 - sin * 0.787, 0.715 - cos * 0.715 + sin * 0.715, 0.072 + cos * 0.928 + sin * 0.072,
+        ];
+    })();
+
+    for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] === 0) continue; // skip fully transparent pixels
+        let r = d[i], g = d[i + 1], b = d[i + 2];
+        if (doHue) {
+            const nr = r * hr[0] + g * hr[1] + b * hr[2];
+            const ng = r * hr[3] + g * hr[4] + b * hr[5];
+            const nb = r * hr[6] + g * hr[7] + b * hr[8];
+            r = nr; g = ng; b = nb;
+        }
+        if (warm) { r += warm * 40; b -= warm * 40; }
+        if (bAdd) { r += bAdd; g += bAdd; b += bAdd; }
+        if (a.contrast) { r = cF * (r - 128) + 128; g = cF * (g - 128) + 128; b = cF * (b - 128) + 128; }
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (a.saturation) { r = luma + (r - luma) * sF; g = luma + (g - luma) * sF; b = luma + (b - luma) * sF; }
+        if (hl) { const wgt = Math.max(0, (luma - 128) / 127); const add = hl * wgt * 80; r += add; g += add; b += add; }
+        if (sh) { const wgt = Math.max(0, (128 - luma) / 128); const add = sh * wgt * 80; r += add; g += add; b += add; }
+        d[i] = clamp255(r); d[i + 1] = clamp255(g); d[i + 2] = clamp255(b);
+    }
+    ctx.putImageData(id, 0, 0);
+    if (a.sharpen > 0) sharpenInPlace(ctx, w, h, a.sharpen / 100);
+    return c;
+};
+
+// ── Transform: tile + perspective (baked) ──────────────────────────────────
+// Repeats the image into an N×N grid (Tile) and applies a keystone/perspective
+// warp (Horizontal/Vertical). Done by baking to a sprite so preview == export and
+// the existing rotate/scale/flip render path is untouched. Alpha is preserved.
+const TRANSFORM_MAXD = 1400;
+
+// Trapezoid (keystone) warp via thin strips. `axis` 'v' tapers top↔bottom using
+// horizontal strips; 'h' tapers left↔right using vertical strips. amt −1…1.
+const keystone = (srcCanvas, axis, amt) => {
+    const w = srcCanvas.width, h = srcCanvas.height;
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const o = out.getContext('2d');
+    const taper = Math.min(0.85, Math.abs(amt) * 0.85); // max shrink of the far edge
+    if (axis === 'v') {
+        for (let y = 0; y < h; y++) {
+            const t = y / (h - 1 || 1);                 // 0 top → 1 bottom
+            // amt>0: bottom narrows; amt<0: top narrows.
+            const f = amt >= 0 ? (1 - taper * t) : (1 - taper * (1 - t));
+            const dw = w * f, dx = (w - dw) / 2;
+            o.drawImage(srcCanvas, 0, y, w, 1, dx, y, dw, 1);
+        }
+    } else {
+        for (let x = 0; x < w; x++) {
+            const t = x / (w - 1 || 1);                 // 0 left → 1 right
+            const f = amt >= 0 ? (1 - taper * t) : (1 - taper * (1 - t));
+            const dh = h * f, dy = (h - dh) / 2;
+            o.drawImage(srcCanvas, x, 0, 1, h, x, dy, 1, dh);
+        }
+    }
+    return out;
+};
+
+const processTransform = (img, t) => {
+    const tiles = Math.max(1, Math.round(t.tile || 1));
+    const active = tiles > 1 || t.hPersp || t.vPersp;
+    if (!active) return null;
+
+    let w = img.naturalWidth || img.width || 1;
+    let h = img.naturalHeight || img.height || 1;
+    const sc = Math.min(1, TRANSFORM_MAXD / Math.max(w, h));
+    w = Math.max(1, Math.round(w * sc));
+    h = Math.max(1, Math.round(h * sc));
+
+    // 1. Tile into an N×N grid.
+    let base = document.createElement('canvas');
+    base.width = w; base.height = h;
+    const bctx = base.getContext('2d');
+    if (tiles > 1) {
+        const cw = w / tiles, ch = h / tiles;
+        for (let ty = 0; ty < tiles; ty++) {
+            for (let tx = 0; tx < tiles; tx++) {
+                bctx.drawImage(img, tx * cw, ty * ch, cw, ch);
+            }
+        }
+    } else {
+        bctx.drawImage(img, 0, 0, w, h);
+    }
+
+    // 2. Perspective (vertical then horizontal keystone).
+    let result = base;
+    if (t.vPersp) result = keystone(result, 'v', t.vPersp / 100);
+    if (t.hPersp) result = keystone(result, 'h', t.hPersp / 100);
+    return result;
+};
+
+// ── Blur: baked types ──────────────────────────────────────────────────────
+// Gaussian/Box → canvas blur; Pixelate/Square → nearest-neighbour downscale;
+// Motion → directional accumulation; Bokeh/Disc → circular (lens) sampling.
+const BLUR_MAXD = 1400;
+const processBlur = (img, type, amt) => {
+    if (!amt || amt <= 0) return null;
+    let w = img.naturalWidth || img.width || 1;
+    let h = img.naturalHeight || img.height || 1;
+    const scd = Math.min(1, BLUR_MAXD / Math.max(w, h));
+    w = Math.max(1, Math.round(w * scd));
+    h = Math.max(1, Math.round(h * scd));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+
+    if (type === 'pixelate' || type === 'square') {
+        const block = Math.max(2, Math.round(amt));
+        const sw = Math.max(1, Math.round(w / block));
+        const sh = Math.max(1, Math.round(h / block));
+        const tmp = document.createElement('canvas');
+        tmp.width = sw; tmp.height = sh;
+        tmp.getContext('2d').drawImage(img, 0, 0, sw, sh);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(tmp, 0, 0, sw, sh, 0, 0, w, h);
+        return c;
+    }
+    if (type === 'motion') {
+        const steps = Math.max(2, Math.round(amt));
+        ctx.globalAlpha = 1 / steps;
+        for (let i = 0; i < steps; i++) {
+            const t = (i / (steps - 1)) * 2 - 1; // -1…1
+            ctx.drawImage(img, t * amt, 0, w, h);
+        }
+        ctx.globalAlpha = 1;
+        return c;
+    }
+    if (type === 'bokeh' || type === 'disc') {
+        const N = 18;
+        ctx.globalAlpha = 1 / N;
+        for (let i = 0; i < N; i++) {
+            const ang = (i / N) * Math.PI * 2;
+            ctx.drawImage(img, Math.cos(ang) * amt, Math.sin(ang) * amt, w, h);
+        }
+        ctx.globalAlpha = 1;
+        return c;
+    }
+    // gaussian / box (box ≈ gaussian for this purpose)
+    ctx.filter = `blur(${amt}px)`;
+    ctx.drawImage(img, 0, 0, w, h);
+    return c;
+};
+
+// ── Texture: posterize / line / color (baked) ──────────────────────────────
+const TEXTURE_MAXD = 1400;
+const TEXTURE_DEFAULTS = { posterize: 10, line: 50, color: 50 };
+const processTexture = (img, type, amt) => {
+    if (!amt || amt <= 0) return null;
+    let w = img.naturalWidth || img.width || 1;
+    let h = img.naturalHeight || img.height || 1;
+    const scd = Math.min(1, TEXTURE_MAXD / Math.max(w, h));
+    w = Math.max(1, Math.round(w * scd));
+    h = Math.max(1, Math.round(h * scd));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+
+    if (type === 'line') {
+        const period = Math.max(2, Math.round(60 / (amt / 10 + 1)));
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const i = (y * w + x) * 4;
+                if (d[i + 3] === 0) continue;
+                const luma = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255;
+                const dark = (x % period) / period < (1 - luma);
+                const v = dark ? 0 : 255;
+                d[i] = v; d[i + 1] = v; d[i + 2] = v;
+            }
+        }
+    } else if (type === 'color') {
+        const levels = Math.max(2, Math.min(8, 2 + Math.round((100 - amt) / 100 * 6)));
+        const step = 255 / (levels - 1);
+        const sat = 1 + amt / 100;
+        for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] === 0) continue;
+            let r = Math.round(d[i] / step) * step;
+            let g = Math.round(d[i + 1] / step) * step;
+            let b = Math.round(d[i + 2] / step) * step;
+            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+            d[i] = clamp255(luma + (r - luma) * sat);
+            d[i + 1] = clamp255(luma + (g - luma) * sat);
+            d[i + 2] = clamp255(luma + (b - luma) * sat);
+        }
+    } else { // posterize
+        const levels = Math.max(2, Math.min(32, Math.round(amt)));
+        const step = 255 / (levels - 1);
+        for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] === 0) continue;
+            d[i] = clamp255(Math.round(d[i] / step) * step);
+            d[i + 1] = clamp255(Math.round(d[i + 1] / step) * step);
+            d[i + 2] = clamp255(Math.round(d[i + 2] / step) * step);
+        }
+    }
+    ctx.putImageData(id, 0, 0);
+    return c;
+};
+
+// Tightest opaque bounds of an image (for content-aware reflection anchoring).
+const opaqueBounds = (img, w, h) => {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    let top = h, bottom = 0, found = false;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            if (d[(y * w + x) * 4 + 3] > 8) { if (y < top) top = y; if (y > bottom) bottom = y; found = true; break; }
+        }
+    }
+    if (!found) return { top: 0, bottom: h - 1 };
+    return { top, bottom };
+};
+
 // ── Backgrounds / Resize / Templates data ──
 const ckpx = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=600`;
 const BG_SOLIDS = ['#ffffff', '#000000', '#f4f4f5', '#1e293b', '#fde68a', '#fca5a5', '#a7f3d0', '#bfdbfe', '#ddd6fe', '#fbcfe8'];
@@ -317,11 +624,29 @@ const PROFILE_TEMPLATES = [
     { id: 'pf-ocean',  label: 'Ocean',  from: '#2193b0', to: '#6dd5ed' },
     { id: 'pf-grape',  label: 'Grape',  from: '#7f00ff', to: '#e100ff' },
 ];
-// CSS filter string for thumbnail previews (mirrors the editor's imageFilter map).
-const staticFilterCss = (name) => ({
-    grayscale: 'grayscale(1)', sepia: 'sepia(1)', invert: 'invert(0.2)',
-    warm: 'sepia(0.3) saturate(1.4)', cool: 'hue-rotate(30deg) saturate(0.9)',
-}[name] || 'none');
+// Photoroom-style filter presets — each is a CSS filter string that works in the
+// preview AND the canvas export (ctx.filter). Applied on top of the baked pixels.
+const FILTERS = [
+    { id: 'none', label: 'None', css: '' },
+    { id: 'noir', label: 'Noir', css: 'grayscale(1) contrast(1.45) brightness(0.92)' },
+    { id: 'fade', label: 'Fade', css: 'contrast(0.85) brightness(1.12) saturate(0.82) sepia(0.12)' },
+    { id: 'mono', label: 'Mono', css: 'grayscale(1) contrast(1.1)' },
+    { id: 'process', label: 'Process', css: 'contrast(1.2) saturate(1.55) hue-rotate(-12deg)' },
+    { id: 'tonal', label: 'Tonal', css: 'grayscale(1) contrast(1.22) brightness(1.05)' },
+    { id: 'chrome', label: 'Chrome', css: 'saturate(1.5) contrast(1.18) brightness(1.05)' },
+    { id: 'sepia', label: 'Sepia', css: 'sepia(0.78) contrast(1.05) brightness(1.02)' },
+];
+// Legacy ids still referenced by the Templates "Photo Filters" group.
+const FILTER_LEGACY = {
+    grayscale: 'grayscale(1)', warm: 'sepia(0.3) saturate(1.4)',
+    cool: 'hue-rotate(30deg) saturate(0.9)', invert: 'invert(0.2)',
+};
+const filterCss = (id) => {
+    const f = FILTERS.find((x) => x.id === id);
+    return f ? f.css : (FILTER_LEGACY[id] || '');
+};
+// CSS filter string for thumbnail previews.
+const staticFilterCss = (name) => filterCss(name) || 'none';
 
 const TEMPLATE_GROUPS = [
     {
@@ -348,6 +673,24 @@ function Toggle({ enabled, onChange }) {
         >
             <span className={`absolute top-0.5 w-4 h-4 bg-surface rounded-full shadow transition-all ${enabled ? 'left-5' : 'left-0.5'}`} />
         </button>
+    );
+}
+
+function PosField({ label, value, onChange, unit = '', min }) {
+    return (
+        <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-gray-500">{label}</span>
+            <div className="flex items-center bg-surface border border-gray-200 rounded-lg px-2 focus-within:border-blue-400">
+                <input
+                    type="number"
+                    value={value}
+                    min={min}
+                    onChange={(e) => { const n = Number(e.target.value); if (!Number.isNaN(n)) onChange(n); }}
+                    className="w-full py-1.5 text-sm text-gray-800 bg-transparent outline-none"
+                />
+                {unit && <span className="text-xs text-gray-400 pl-1">{unit}</span>}
+            </div>
+        </label>
     );
 }
 
@@ -496,21 +839,57 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     const [expandedPanel, setExpandedPanel] = useState(null);
 
     // Adjust settings
-    const [brightness, setBrightness] = useState(100);
-    const [contrast, setContrast] = useState(100);
-    const [saturation, setSaturation] = useState(100);
+    // Adjust — all 0-centred (Photoroom-style); 0 = no change. Baked into pixels.
+    const [brightness, setBrightness] = useState(0);
+    const [contrast, setContrast] = useState(0);
+    const [saturation, setSaturation] = useState(0);
+    const [highlights, setHighlights] = useState(0);
+    const [shadowsAdj, setShadowsAdj] = useState(0);
+    const [sharpen, setSharpen] = useState(0);
+    const [hue, setHue] = useState(0);
+    const [warmth, setWarmth] = useState(0);
+    const [adjOpacity, setAdjOpacity] = useState(100);
+    const [adjustedUrl, setAdjustedUrl] = useState(null); // baked-adjustments PNG (null = none)
 
     // Transform
     const [rotation, setRotation] = useState(0);
     const [flipH, setFlipH] = useState(false);
+    const [flipV, setFlipV] = useState(false);
     const [scale, setScale] = useState(100);
+    const [tile, setTile] = useState(1);          // 1 = no tiling, N = N×N grid
+    const [hPersp, setHPersp] = useState(0);      // horizontal perspective (-100…100)
+    const [vPersp, setVPersp] = useState(0);      // vertical perspective (-100…100)
+    const [transformedSrc, setTransformedSrc] = useState(null); // baked tile + perspective
 
-    // Shadow
+    // Shadow (Photoroom-style: drop vs. floor/cast, colour, offset, shortness)
     const [shadowBlur, setShadowBlur] = useState(10);
     const [shadowOpacity, setShadowOpacity] = useState(50);
+    const [shadowColor, setShadowColor] = useState('#000000');
+    const [shadowX, setShadowX] = useState(0);          // px offset (drop) / horizontal nudge (floor)
+    const [shadowY, setShadowY] = useState(12);         // px offset (drop) / vertical nudge (floor)
+    const [shadowMode, setShadowMode] = useState('drop'); // 'drop' | 'floor'
+    const [shadowShortness, setShadowShortness] = useState(50); // floor cast length (0 long → 100 short)
+    const [floorShadow, setFloorShadow] = useState(null); // { url, pad, spriteW, spriteH } generated sprite
 
-    // Blur
+    // Outline (silhouette halo) — width / colour / blur, like Photoroom.
+    const [outlineColor, setOutlineColor] = useState('#7c3aed');
+    const [outlineWidth, setOutlineWidth] = useState(3);
+    const [outlineBlur, setOutlineBlur] = useState(0);
+
+    // Reflection (mirrored copy below the object) — opacity / move / angle.
+    const [reflectionOpacity, setReflectionOpacity] = useState(50);
+    const [reflectionGap, setReflectionGap] = useState(0);   // vertical gap (Move Y)
+    const [reflectionX, setReflectionX] = useState(0);       // horizontal nudge (Move X)
+    const [reflectionAngle, setReflectionAngle] = useState(0);
+    const [reflectionSprite, setReflectionSprite] = useState(null); // { url, w, h }
+
+    // Blend mode (product vs. background).
+    const [blendMode, setBlendMode] = useState('normal');
+
+    // Blur (Photoroom-style types, baked so all kinds work + export)
     const [blurAmount, setBlurAmount] = useState(0);
+    const [blurType, setBlurType] = useState('gaussian');
+    const [blurredSrc, setBlurredSrc] = useState(null);
 
     // Filter
     const [selectedFilter, setSelectedFilter] = useState('none');
@@ -518,8 +897,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     // Toggles
     const [toggles, setToggles] = useState({
         shadows: false, outline: false, reflection: false,
-        blur: false, filter: false
+        blur: false, filter: false, texture: false
     });
+
+    // Texture (posterize / line / color) — baked pixel effect.
+    const [textureType, setTextureType] = useState('posterize');
+    const [textureAmount, setTextureAmount] = useState(10);
+    const [texturedSrc, setTexturedSrc] = useState(null);
 
     // Position (drag + align) — preview-space offset from centre, in px.
     const [posX, setPosX] = useState(0);
@@ -534,17 +918,30 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     const histTimerRef = useRef(null);
     useEffect(() => { histIndexRef.current = histIndex; }, [histIndex]);
 
-    const imageFilter = [
-        `brightness(${brightness}%)`,
-        `contrast(${contrast}%)`,
-        `saturate(${saturation}%)`,
-        toggles.blur ? `blur(${blurAmount}px)` : '',
-        selectedFilter === 'grayscale' ? 'grayscale(1)' : '',
-        selectedFilter === 'sepia' ? 'sepia(1)' : '',
-        selectedFilter === 'invert' ? 'invert(0.2)' : '',
-        selectedFilter === 'warm' ? 'sepia(0.3) saturate(1.4)' : '',
-        selectedFilter === 'cool' ? 'hue-rotate(30deg) saturate(0.9)' : '',
-    ].filter(Boolean).join(' ');
+    // Adjust + Blur are baked into the image pixels (adjustedUrl / blurredSrc);
+    // imageFilter only carries the Filter preset now (gated by its toggle).
+    const imageFilter = toggles.filter ? filterCss(selectedFilter) : '';
+
+    // Shadow / outline that hug the cut-out SILHOUETTE (the shoe), not the
+    // rectangular image box. CSS box-shadow + CSS outline trace the box; an
+    // alpha-aware `drop-shadow` traces the transparent edge instead. Shared by the
+    // live preview and the canvas export so they stay in sync.
+    const OUTLINE_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+
+    const effectsFilter = [
+        // Outline: stacked drop-shadows trace the alpha edge (8 directions). Width =
+        // offset distance, Blur = softness/glow, Color = the halo colour.
+        ...(toggles.outline
+            ? OUTLINE_DIRS.map(([dx, dy]) => `drop-shadow(${dx * outlineWidth}px ${dy * outlineWidth}px ${outlineBlur}px ${outlineColor})`)
+            : []),
+        // Soft DROP shadow: follows the silhouette (matches the canvas export).
+        // Floor/cast shadow is a separate generated sprite (see floorShadow), not a filter.
+        ...(toggles.shadows && shadowMode === 'drop'
+            ? [`drop-shadow(${shadowX}px ${shadowY}px ${shadowBlur * 2}px ${hexToRgba(shadowColor, shadowOpacity / 100)})`]
+            : []),
+    ].join(' ');
+
+    const imageFilterWithEffects = [imageFilter, effectsFilter].filter(Boolean).join(' ');
 
     const imageTransform = [
         `translate(${posX}px, ${posY}px)`,
@@ -555,13 +952,208 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
     const displayImage = processedUrl || originalUrl;
 
+    // The image everything renders from: the baked-adjustments version when any
+    // Adjust slider is non-default, else the raw display image.
+    const baseImageSrc = adjustedUrl || displayImage;
+
+    // ── Adjust: bake the pixel changes (debounced) ────────────────────────
+    useEffect(() => {
+        const allDefault = !(brightness || contrast || saturation || highlights
+            || shadowsAdj || sharpen || hue || warmth);
+        if (!displayImage || allDefault) { setAdjustedUrl(null); return; }
+        let cancelled = false;
+        const t = setTimeout(async () => {
+            try {
+                const img = await loadImageEl(displayImage);
+                if (cancelled) return;
+                const c = processAdjustments(img, {
+                    brightness, contrast, saturation, highlights,
+                    shadows: shadowsAdj, sharpen, hue, warmth,
+                });
+                if (!cancelled) setAdjustedUrl(c ? c.toDataURL('image/png') : null);
+            } catch {
+                if (!cancelled) setAdjustedUrl(null);
+            }
+        }, 180);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [displayImage, brightness, contrast, saturation, highlights, shadowsAdj, sharpen, hue, warmth]);
+
+    // ── Transform: bake tile + perspective (debounced) ────────────────────
+    useEffect(() => {
+        const none = !(tile > 1 || hPersp || vPersp);
+        if (!baseImageSrc || none) { setTransformedSrc(null); return; }
+        let cancelled = false;
+        const t = setTimeout(async () => {
+            try {
+                const img = await loadImageEl(baseImageSrc);
+                if (cancelled) return;
+                const c = processTransform(img, { tile, hPersp, vPersp });
+                if (!cancelled) setTransformedSrc(c ? c.toDataURL('image/png') : null);
+            } catch {
+                if (!cancelled) setTransformedSrc(null);
+            }
+        }, 150);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [baseImageSrc, tile, hPersp, vPersp]);
+
+    // Source after transform/adjust, before blur.
+    const preBlurSrc = transformedSrc || baseImageSrc;
+
+    // ── Blur: bake the selected type (debounced) ──────────────────────────
+    useEffect(() => {
+        if (!preBlurSrc || !toggles.blur || blurAmount <= 0) { setBlurredSrc(null); return; }
+        let cancelled = false;
+        const t = setTimeout(async () => {
+            try {
+                const img = await loadImageEl(preBlurSrc);
+                if (cancelled) return;
+                const c = processBlur(img, blurType, blurAmount);
+                if (!cancelled) setBlurredSrc(c ? c.toDataURL('image/png') : null);
+            } catch {
+                if (!cancelled) setBlurredSrc(null);
+            }
+        }, 150);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [preBlurSrc, toggles.blur, blurType, blurAmount]);
+
+    // Source after blur, before texture.
+    const preTextureSrc = (toggles.blur && blurredSrc) ? blurredSrc : preBlurSrc;
+
+    // ── Texture: bake the selected effect (debounced) ─────────────────────
+    useEffect(() => {
+        if (!preTextureSrc || !toggles.texture || textureAmount <= 0) { setTexturedSrc(null); return; }
+        let cancelled = false;
+        const t = setTimeout(async () => {
+            try {
+                const img = await loadImageEl(preTextureSrc);
+                if (cancelled) return;
+                const c = processTexture(img, textureType, textureAmount);
+                if (!cancelled) setTexturedSrc(c ? c.toDataURL('image/png') : null);
+            } catch {
+                if (!cancelled) setTexturedSrc(null);
+            }
+        }, 150);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [preTextureSrc, toggles.texture, textureType, textureAmount]);
+
+    // What the product renders from: texture → blur → transform → adjust → raw.
+    const renderSrc = (toggles.texture && texturedSrc) ? texturedSrc : preTextureSrc;
+
+    // ── Floor / cast shadow sprite ────────────────────────────────────────
+    // A drop-shadow can't do the "shadow on the ground" look — that needs the
+    // silhouette mirrored at the base, vertically squashed (Shortness), blurred and
+    // faded. We bake it to a PNG sprite here (preview-space px) and reuse the same
+    // sprite for the canvas export, so preview == download. Regenerated only while
+    // Floor mode is active and a setting that affects the shape changes.
+    useEffect(() => {
+        let cancelled = false;
+        if (!displayImage || !toggles.shadows || shadowMode !== 'floor' || imgW == null || imgH == null) {
+            setFloorShadow(null);
+            return;
+        }
+        (async () => {
+            try {
+                const img = await loadImageEl(renderSrc);
+                if (cancelled) return;
+                const pw = Math.max(1, Math.round(imgW));
+                const ph = Math.max(1, Math.round(imgH));
+                const sil = makeSilhouetteCanvas(img, pw, ph, shadowColor);
+                const vScale = 0.6 * (1 - shadowShortness / 100) + 0.08; // 0.08 (short) … 0.68 (long)
+                const shadowH = ph * vScale;
+                const pad = Math.ceil(shadowBlur * 3 + 6);
+                const spriteW = pw + pad * 2;
+                const spriteH = Math.ceil(shadowH) + pad * 2;
+                const c = document.createElement('canvas');
+                c.width = spriteW; c.height = spriteH;
+                const cx = c.getContext('2d');
+                cx.translate(pad, pad);
+                cx.filter = shadowBlur > 0 ? `blur(${shadowBlur}px)` : 'none';
+                // Mirror at the base + squash: the silhouette's feet sit at sprite y=0,
+                // the shadow extends downward to y=shadowH.
+                cx.save();
+                cx.scale(1, -vScale);
+                cx.drawImage(sil, 0, -ph, pw, ph);
+                cx.restore();
+                cx.filter = 'none';
+                // Fade the far end of the cast shadow out.
+                cx.globalCompositeOperation = 'destination-in';
+                const g = cx.createLinearGradient(0, 0, 0, shadowH);
+                g.addColorStop(0, 'rgba(0,0,0,1)');
+                g.addColorStop(0.7, 'rgba(0,0,0,0.45)');
+                g.addColorStop(1, 'rgba(0,0,0,0)');
+                cx.fillStyle = g;
+                cx.fillRect(-pad, -pad, spriteW, spriteH);
+                cx.globalCompositeOperation = 'source-over';
+                if (!cancelled) setFloorShadow({ url: c.toDataURL('image/png'), pad, spriteW, spriteH });
+            } catch {
+                if (!cancelled) setFloorShadow(null);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [renderSrc, toggles.shadows, shadowMode, shadowColor, shadowBlur, shadowShortness, imgW, imgH]);
+
+    // ── Reflection sprite ─────────────────────────────────────────────────
+    // The mirrored image below the object, faded out. Baked from renderSrc (so it
+    // reflects every adjustment/transform on the product) and anchored to the
+    // product's REAL base (lowest opaque row) — not the box bottom — so gap 0 sits
+    // flush against the shoe instead of leaving the empty box space as a gap.
+    useEffect(() => {
+        let cancelled = false;
+        if (!renderSrc || !toggles.reflection || imgW == null || imgH == null) {
+            setReflectionSprite(null);
+            return;
+        }
+        (async () => {
+            try {
+                const img = await loadImageEl(renderSrc);
+                if (cancelled) return;
+                const pw = Math.max(1, Math.round(imgW));
+                const ph = Math.max(1, Math.round(imgH));
+                const { top, bottom } = opaqueBounds(img, pw, ph); // content rows in box space
+                const contentH = Math.max(1, bottom - top + 1);
+                const c = document.createElement('canvas');
+                c.width = pw; c.height = contentH;
+                const cx = c.getContext('2d');
+                // Mirror anchored at the base: sprite row 0 = the product's lowest
+                // opaque row, growing downward into the shoe's reflection.
+                cx.save();
+                cx.translate(0, bottom);
+                cx.scale(1, -1);
+                cx.drawImage(img, 0, 0, pw, ph);
+                cx.restore();
+                // Fade out away from the contact edge.
+                cx.globalCompositeOperation = 'destination-in';
+                const g = cx.createLinearGradient(0, 0, 0, contentH);
+                g.addColorStop(0, 'rgba(0,0,0,0.85)');
+                g.addColorStop(0.6, 'rgba(0,0,0,0)');
+                g.addColorStop(1, 'rgba(0,0,0,0)');
+                cx.fillStyle = g;
+                cx.fillRect(0, 0, pw, contentH);
+                cx.globalCompositeOperation = 'source-over';
+                if (!cancelled) {
+                    setReflectionSprite({
+                        url: c.toDataURL('image/png'),
+                        topFrac: bottom / ph,        // where the base sits inside the box (0..1)
+                        heightFrac: contentH / ph,   // sprite height as a fraction of the box
+                    });
+                }
+            } catch {
+                if (!cancelled) setReflectionSprite(null);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [renderSrc, toggles.reflection, imgW, imgH]);
+
     // ── Undo / redo history ───────────────────────────────────────────────
     const snapKey = JSON.stringify({
         originalUrl, processedUrl, removeBg,
-        brightness, contrast, saturation,
-        rotation, flipH, scale,
-        blurAmount, selectedFilter,
-        shadowBlur, shadowOpacity,
+        brightness, contrast, saturation, highlights, shadowsAdj, sharpen, hue, warmth, adjOpacity,
+        rotation, flipH, flipV, scale, tile, hPersp, vPersp,
+        blurAmount, blurType, selectedFilter, textureType, textureAmount,
+        shadowBlur, shadowOpacity, shadowColor, shadowX, shadowY, shadowMode, shadowShortness,
+        outlineColor, outlineWidth, outlineBlur,
+        reflectionOpacity, reflectionGap, reflectionX, reflectionAngle,
+        blendMode,
         posX, posY, toggles, layers, canvasBg, canvasSize, canvasRound, exportSize,
         imgW, imgH, imgHidden,
     });
@@ -590,13 +1182,39 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         setBrightness(s.brightness);
         setContrast(s.contrast);
         setSaturation(s.saturation);
+        if (s.highlights !== undefined) setHighlights(s.highlights);
+        if (s.shadowsAdj !== undefined) setShadowsAdj(s.shadowsAdj);
+        if (s.sharpen !== undefined) setSharpen(s.sharpen);
+        if (s.hue !== undefined) setHue(s.hue);
+        if (s.warmth !== undefined) setWarmth(s.warmth);
+        if (s.adjOpacity !== undefined) setAdjOpacity(s.adjOpacity);
         setRotation(s.rotation);
         setFlipH(s.flipH);
+        if (s.flipV !== undefined) setFlipV(s.flipV);
         setScale(s.scale);
+        if (s.tile !== undefined) setTile(s.tile);
+        if (s.hPersp !== undefined) setHPersp(s.hPersp);
+        if (s.vPersp !== undefined) setVPersp(s.vPersp);
         setBlurAmount(s.blurAmount);
+        if (s.blurType !== undefined) setBlurType(s.blurType);
+        if (s.textureType !== undefined) setTextureType(s.textureType);
+        if (s.textureAmount !== undefined) setTextureAmount(s.textureAmount);
         setSelectedFilter(s.selectedFilter);
         setShadowBlur(s.shadowBlur);
         setShadowOpacity(s.shadowOpacity);
+        if (s.shadowColor !== undefined) setShadowColor(s.shadowColor);
+        if (s.shadowX !== undefined) setShadowX(s.shadowX);
+        if (s.shadowY !== undefined) setShadowY(s.shadowY);
+        if (s.shadowMode !== undefined) setShadowMode(s.shadowMode);
+        if (s.shadowShortness !== undefined) setShadowShortness(s.shadowShortness);
+        if (s.outlineColor !== undefined) setOutlineColor(s.outlineColor);
+        if (s.outlineWidth !== undefined) setOutlineWidth(s.outlineWidth);
+        if (s.outlineBlur !== undefined) setOutlineBlur(s.outlineBlur);
+        if (s.reflectionOpacity !== undefined) setReflectionOpacity(s.reflectionOpacity);
+        if (s.reflectionGap !== undefined) setReflectionGap(s.reflectionGap);
+        if (s.reflectionX !== undefined) setReflectionX(s.reflectionX);
+        if (s.reflectionAngle !== undefined) setReflectionAngle(s.reflectionAngle);
+        if (s.blendMode !== undefined) setBlendMode(s.blendMode);
         setPosX(s.posX);
         setPosY(s.posY);
         setToggles({ ...s.toggles });
@@ -779,10 +1397,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         if (a.size) setCanvasSize(a.size);
         if (a.round !== undefined) setCanvasRound(a.round);
         if (a.removeBg === false) setRemoveBg(false);
-        if (a.filter !== undefined) setSelectedFilter(a.filter);
+        if (a.filter !== undefined) {
+            setSelectedFilter(a.filter);
+            setToggles((p) => ({ ...p, filter: !!a.filter && a.filter !== 'none' }));
+        }
         if (a.blur !== undefined) {
             setBlurAmount(a.blur);
-            setToggles((p) => ({ ...p, blur: a.blur > 0 }));
+            setToggles((p) => ({ ...p, blur: a.blur > 0, filter: false }));
             setSelectedFilter('none');
         }
         if (a.adjust) {
@@ -1229,13 +1850,27 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     // Composite the image + every active edit (filters, adjust, transform, flip,
     // blur, shadow, outline) onto a canvas and return a PNG blob. Keeps the
     // cut-out transparency when "Remove background" is on.
+    // A solid-colour silhouette of an image's opaque pixels — used to paint the
+    // outline halo on export (the canvas equivalent of the preview's drop-shadow outline).
+    const makeSilhouetteCanvas = (img, w, h, color) => {
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.ceil(w));
+        c.height = Math.max(1, Math.ceil(h));
+        const cx = c.getContext('2d');
+        cx.drawImage(img, 0, 0, c.width, c.height);
+        cx.globalCompositeOperation = 'source-in';
+        cx.fillStyle = color;
+        cx.fillRect(0, 0, c.width, c.height);
+        return c;
+    };
+
     const renderToCanvas = async () => {
         const img = await new Promise((resolve, reject) => {
             const i = new Image();
             i.crossOrigin = 'anonymous';
             i.onload = () => resolve(i);
             i.onerror = reject;
-            i.src = displayImage;
+            i.src = renderSrc;
         });
 
         const w = img.naturalWidth || img.width;
@@ -1261,31 +1896,38 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
         ctx.translate(canvas.width / 2, canvas.height / 2);
         ctx.rotate(rad);
-        ctx.scale(flipH ? -s : s, s);
+        ctx.scale(flipH ? -s : s, flipV ? -s : s);
 
-        // Shadow (mimics the CSS box-shadow: 0 blur (blur*2)).
-        if (toggles.shadows) {
+        // Soft DROP shadow (follows the alpha silhouette). Floor mode is handled by
+        // the frame exporter (renderFrameToCanvas), so this path only sees drop mode.
+        if (toggles.shadows && shadowMode === 'drop') {
             ctx.save();
-            ctx.shadowColor = `rgba(0,0,0,${shadowOpacity / 100})`;
+            ctx.shadowColor = hexToRgba(shadowColor, shadowOpacity / 100);
             ctx.shadowBlur = shadowBlur * 2;
-            ctx.shadowOffsetY = shadowBlur;
+            ctx.shadowOffsetX = shadowX;
+            ctx.shadowOffsetY = shadowY;
             ctx.drawImage(img, -w / 2, -h / 2, w, h);
             ctx.restore();
         }
 
-        // Outline (CSS outline ≈ stroked rect around the image bounds).
+        // Outline — silhouette halo hugging the cut-out (matches the preview's
+        // drop-shadow outline), not a rectangle around the image bounds.
         if (toggles.outline) {
+            const sil = makeSilhouetteCanvas(img, w, h, outlineColor);
+            const r = outlineWidth / s; // outline width in image space (ctx is scaled by s)
             ctx.save();
-            ctx.strokeStyle = '#7c3aed';
-            ctx.lineWidth = 3 / s;
-            const o = 4 / s;
-            ctx.strokeRect(-w / 2 - o, -h / 2 - o, w + o * 2, h + o * 2);
+            if (outlineBlur > 0) ctx.filter = `blur(${outlineBlur / s}px)`;
+            for (const [dx, dy] of OUTLINE_DIRS) {
+                ctx.drawImage(sil, -w / 2 + dx * r, -h / 2 + dy * r, w, h);
+            }
             ctx.restore();
         }
 
         // The image itself, with the same CSS filter string used for preview.
         ctx.filter = imageFilter || 'none';
+        ctx.globalAlpha = adjOpacity / 100;
         ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        ctx.globalAlpha = 1;
 
         return await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
     };
@@ -1427,24 +2069,73 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
             } catch { /* ignore bg load failure */ }
         }
 
+        // Floor / cast shadow sprite (behind the product, drawn unrotated like the preview).
+        if (displayImage && !imgHidden && imgW != null && imgH != null
+            && toggles.shadows && shadowMode === 'floor' && floorShadow) {
+            try {
+                const sh = await loadImageEl(floorShadow.url);
+                const left = (canvasSize.w / 2 + posX - imgW / 2 - floorShadow.pad + shadowX) * sc;
+                const top = (canvasSize.h / 2 + posY - imgH / 2 + imgH - floorShadow.pad + shadowY) * sc;
+                ctx.save();
+                ctx.globalAlpha = shadowOpacity / 100;
+                ctx.drawImage(sh, left, top, floorShadow.spriteW * sc, floorShadow.spriteH * sc);
+                ctx.restore();
+            } catch { /* ignore floor-shadow draw failure */ }
+        }
+
+        // Reflection sprite (anchored at the product's real base; mirrors flip + rotation like the preview).
+        if (displayImage && !imgHidden && imgW != null && imgH != null
+            && toggles.reflection && reflectionSprite) {
+            try {
+                const rf = await loadImageEl(reflectionSprite.url);
+                const left = (canvasSize.w / 2 + posX - imgW / 2 + reflectionX) * sc;
+                const top = (canvasSize.h / 2 + posY - imgH / 2 + reflectionSprite.topFrac * imgH + reflectionGap) * sc;
+                const rw = imgW * sc, rh = reflectionSprite.heightFrac * imgH * sc;
+                ctx.save();
+                ctx.globalAlpha = reflectionOpacity / 100;
+                ctx.translate(left + rw / 2, top);
+                ctx.scale(flipH ? -1 : 1, 1);
+                ctx.rotate(((-rotation + reflectionAngle) * Math.PI) / 180);
+                ctx.drawImage(rf, -rw / 2, 0, rw, rh);
+                ctx.restore();
+            } catch { /* ignore reflection draw failure */ }
+        }
+
         // Base image, placed where it appears in the preview (box model).
         if (displayImage && !imgHidden && imgW != null && imgH != null) {
-            const im = await loadImageEl(displayImage);
+            const im = await loadImageEl(renderSrc);
             const dw = imgW * sc, dh = imgH * sc;
             ctx.save();
             ctx.translate((canvasSize.w / 2 + posX) * sc, (canvasSize.h / 2 + posY) * sc);
             ctx.rotate((rotation * Math.PI) / 180);
-            ctx.scale(flipH ? -1 : 1, 1);
-            if (toggles.shadows) {
+            ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+            // Soft DROP shadow (follows the silhouette). Floor mode handled above.
+            if (toggles.shadows && shadowMode === 'drop') {
                 ctx.save();
-                ctx.shadowColor = `rgba(0,0,0,${shadowOpacity / 100})`;
+                ctx.shadowColor = hexToRgba(shadowColor, shadowOpacity / 100);
                 ctx.shadowBlur = shadowBlur * 2 * sc;
-                ctx.shadowOffsetY = shadowBlur * sc;
+                ctx.shadowOffsetX = shadowX * sc;
+                ctx.shadowOffsetY = shadowY * sc;
                 ctx.drawImage(im, -dw / 2, -dh / 2, dw, dh);
                 ctx.restore();
             }
+            // Outline — silhouette halo hugging the cut-out (matches the preview).
+            if (toggles.outline) {
+                const sil = makeSilhouetteCanvas(im, dw, dh, outlineColor);
+                const r = outlineWidth * sc;
+                ctx.save();
+                if (outlineBlur > 0) ctx.filter = `blur(${outlineBlur * sc}px)`;
+                for (const [dx, dy] of OUTLINE_DIRS) {
+                    ctx.drawImage(sil, -dw / 2 + dx * r, -dh / 2 + dy * r, dw, dh);
+                }
+                ctx.restore();
+            }
             ctx.filter = imageFilter || 'none';
+            ctx.globalAlpha = adjOpacity / 100;
+            ctx.globalCompositeOperation = blendMode === 'normal' ? 'source-over' : blendMode;
             ctx.drawImage(im, -dw / 2, -dh / 2, dw, dh);
+            ctx.globalAlpha = 1;
+            ctx.globalCompositeOperation = 'source-over';
             ctx.restore();
         }
 
@@ -1463,7 +2154,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         // uniform scaling stays on the high-res tight-crop path.
         const fit = imgFitRef.current;
         const distorted = imgW != null && imgH != null && fit.w && Math.abs((imgW / imgH) - (fit.w / fit.h)) > 0.01;
-        const framed = layers.length > 0 || canvasBg.type !== 'none' || canvasRound || exportSize || distorted || canvasSize.w !== CANVAS_W || canvasSize.h !== CANVAS_H;
+        const floorShadowActive = toggles.shadows && shadowMode === 'floor';
+        const framed = layers.length > 0 || canvasBg.type !== 'none' || canvasRound || exportSize || distorted || floorShadowActive || toggles.reflection || blendMode !== 'normal' || canvasSize.w !== CANVAS_W || canvasSize.h !== CANVAS_H;
         return framed ? renderFrameToCanvas() : renderToCanvas();
     };
 
@@ -1509,8 +2201,6 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     };
 
     const togglePanel = (id) => setExpandedPanel(p => p === id ? null : id);
-
-    const filters = ['none', 'grayscale', 'sepia', 'warm', 'cool', 'invert'];
 
     // Canvas box background driven by the Backgrounds tool.
     const boxBackground =
@@ -1597,6 +2287,48 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                 </div>
                             ) : (
                                 <div className="absolute inset-0 flex items-center justify-center">
+                                    {/* Floor / cast shadow (sits behind the product) */}
+                                    {!processing && displayImage && !imgHidden && toggles.shadows && shadowMode === 'floor'
+                                        && floorShadow && imgW != null && imgH != null && (
+                                        <img
+                                            src={floorShadow.url}
+                                            alt=""
+                                            draggable={false}
+                                            style={{
+                                                position: 'absolute',
+                                                left: canvasSize.w / 2 + posX - imgW / 2 - floorShadow.pad + shadowX,
+                                                top: canvasSize.h / 2 + posY - imgH / 2 + imgH - floorShadow.pad + shadowY,
+                                                width: floorShadow.spriteW,
+                                                height: floorShadow.spriteH,
+                                                opacity: shadowOpacity / 100,
+                                                pointerEvents: 'none',
+                                                zIndex: 3,
+                                            }}
+                                        />
+                                    )}
+                                    {/* Reflection (mirrored copy below the product) */}
+                                    {!processing && displayImage && !imgHidden && toggles.reflection
+                                        && reflectionSprite && imgW != null && imgH != null && (
+                                        <img
+                                            src={reflectionSprite.url}
+                                            alt=""
+                                            draggable={false}
+                                            style={{
+                                                position: 'absolute',
+                                                left: canvasSize.w / 2 + posX - imgW / 2 + reflectionX,
+                                                // Anchor at the product's real base (topFrac), not the box bottom.
+                                                top: canvasSize.h / 2 + posY - imgH / 2 + reflectionSprite.topFrac * imgH + reflectionGap,
+                                                width: imgW,
+                                                height: reflectionSprite.heightFrac * imgH,
+                                                opacity: reflectionOpacity / 100,
+                                                // Mirror the product's flip + rotation so the reflection tracks it.
+                                                transform: `scaleX(${flipH ? -1 : 1}) rotate(${-rotation + reflectionAngle}deg)`,
+                                                transformOrigin: 'top center',
+                                                pointerEvents: 'none',
+                                                zIndex: 2,
+                                            }}
+                                        />
+                                    )}
                                     {processing ? (
                                         <div className="flex flex-col items-center gap-3 w-48">
                                             <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
@@ -1652,13 +2384,9 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                                     </div>
                                                 </>
                                             )}
-                                            {toggles.shadows && (
-                                                <div className="absolute inset-0 z-0 rounded"
-                                                    style={{ boxShadow: `0 ${shadowBlur}px ${shadowBlur * 2}px rgba(0,0,0,${shadowOpacity / 100})`, pointerEvents: 'none' }} />
-                                            )}
                                             <img
                                                 ref={imgRef}
-                                                src={displayImage}
+                                                src={renderSrc}
                                                 alt="product"
                                                 draggable={false}
                                                 onLoad={onImageLoad}
@@ -1667,11 +2395,14 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                                     objectFit: baseReady ? 'fill' : 'contain',
                                                     maxWidth: baseReady ? undefined : '100%',
                                                     maxHeight: baseReady ? undefined : 340,
-                                                    filter: imageFilter,
-                                                    transform: `rotate(${rotation}deg) scaleX(${flipH ? -1 : 1})`,
+                                                    // Shadow + outline live in this filter so they hug the cut-out shape.
+                                                    filter: imageFilterWithEffects,
+                                                    opacity: adjOpacity / 100,
+                                                    mixBlendMode: blendMode === 'normal' ? undefined : blendMode,
+                                                    transform: `rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1})`,
                                                     transformOrigin: 'center',
-                                                    ...(toggles.outline ? { outline: '3px solid #7c3aed', outlineOffset: '4px' } : {}),
-                                                    ...(toggles.reflection ? { WebkitBoxReflect: 'below 4px linear-gradient(transparent 60%, rgba(0,0,0,0.15))' } : {}),
+                                                    // Reflection is now a separate sprite (see reflectionSprite) so it has
+                                                    // controls + exports — no longer a preview-only WebkitBoxReflect.
                                                 }}
                                             />
                                         </div>
@@ -2530,9 +3261,61 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                     </div>
                                 </div>
                                 {expandedPanel === 'shadows' && toggles.shadows && (
-                                    <div className="px-3 pb-3 bg-gray-100">
+                                    <div className="px-3 pb-3 bg-gray-100 space-y-1">
+                                        {/* Mode: drop vs. floor/cast */}
+                                        <div className="flex gap-2 pt-1 pb-1">
+                                            {[{ id: 'drop', label: 'Drop' }, { id: 'floor', label: 'Floor' }].map((m) => (
+                                                <button
+                                                    key={m.id}
+                                                    onClick={() => setShadowMode(m.id)}
+                                                    className={`flex-1 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${shadowMode === m.id
+                                                        ? 'border-blue-500 text-blue-600 bg-blue-50'
+                                                        : 'border-gray-200 text-gray-600 hover:border-blue-400'}`}
+                                                >
+                                                    {m.label} shadow
+                                                </button>
+                                            ))}
+                                        </div>
+
                                         <Slider label="Blur" value={shadowBlur} min={0} max={50} onChange={setShadowBlur} unit="px" />
-                                        <Slider label="Opacity" value={shadowOpacity} min={0} max={100} onChange={setShadowOpacity} unit="%" />
+                                        <Slider label="Intensity" value={shadowOpacity} min={0} max={100} onChange={setShadowOpacity} unit="%" />
+
+                                        {shadowMode === 'drop' ? (
+                                            <>
+                                                <Slider label="Offset X" value={shadowX} min={-60} max={60} onChange={setShadowX} unit="px" />
+                                                <Slider label="Offset Y" value={shadowY} min={-60} max={60} onChange={setShadowY} unit="px" />
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Slider label="Horizontal" value={shadowX} min={-60} max={60} onChange={setShadowX} unit="px" />
+                                                <Slider label="Shortness" value={shadowShortness} min={0} max={100} onChange={setShadowShortness} unit="%" />
+                                            </>
+                                        )}
+
+                                        {/* Colour */}
+                                        <div className="pt-1">
+                                            <p className="text-xs text-gray-500 mb-1.5">Color</p>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                {SHADOW_SWATCHES.map((c) => (
+                                                    <button
+                                                        key={c}
+                                                        onClick={() => setShadowColor(c)}
+                                                        title={c}
+                                                        className="w-6 h-6 rounded-full border border-gray-300 cursor-pointer"
+                                                        style={{ background: c, outline: shadowColor.toLowerCase() === c ? '2px solid #3b82f6' : 'none', outlineOffset: 1 }}
+                                                    />
+                                                ))}
+                                                <label className="w-6 h-6 rounded-full border border-gray-300 cursor-pointer relative overflow-hidden" title="Custom color"
+                                                    style={{ background: 'conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)' }}>
+                                                    <input
+                                                        type="color"
+                                                        value={shadowColor}
+                                                        onChange={(e) => setShadowColor(e.target.value)}
+                                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -2546,6 +3329,36 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                         <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === 'outline' ? 'rotate-90' : ''}`} />
                                     </div>
                                 </div>
+                                {expandedPanel === 'outline' && toggles.outline && (
+                                    <div className="px-3 pb-3 bg-gray-100 space-y-1">
+                                        <Slider label="Width" value={outlineWidth} min={1} max={30} onChange={setOutlineWidth} unit="px" />
+                                        <Slider label="Blur" value={outlineBlur} min={0} max={30} onChange={setOutlineBlur} unit="px" />
+                                        {/* Colour */}
+                                        <div className="pt-1">
+                                            <p className="text-xs text-gray-500 mb-1.5">Color</p>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                {['#7c3aed', '#ffffff', '#000000', '#ef4444', '#3b82f6', '#22c55e'].map((c) => (
+                                                    <button
+                                                        key={c}
+                                                        onClick={() => setOutlineColor(c)}
+                                                        title={c}
+                                                        className="w-6 h-6 rounded-full border border-gray-300 cursor-pointer"
+                                                        style={{ background: c, outline: outlineColor.toLowerCase() === c ? '2px solid #3b82f6' : 'none', outlineOffset: 1 }}
+                                                    />
+                                                ))}
+                                                <label className="w-6 h-6 rounded-full border border-gray-300 cursor-pointer relative overflow-hidden" title="Custom color"
+                                                    style={{ background: 'conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)' }}>
+                                                    <input
+                                                        type="color"
+                                                        value={outlineColor}
+                                                        onChange={(e) => setOutlineColor(e.target.value)}
+                                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Reflection */}
@@ -2554,9 +3367,17 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                     <span className="text-sm text-gray-900">Reflection</span>
                                     <div className="flex items-center gap-1.5">
                                         <Toggle enabled={toggles.reflection} onChange={val => setToggles(p => ({ ...p, reflection: val }))} />
-                                        <ChevronRight className="w-4 h-4 text-gray-500" />
+                                        <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === 'reflection' ? 'rotate-90' : ''}`} />
                                     </div>
                                 </div>
+                                {expandedPanel === 'reflection' && toggles.reflection && (
+                                    <div className="px-3 pb-3 bg-gray-100 space-y-1">
+                                        <Slider label="Opacity" value={reflectionOpacity} min={0} max={100} onChange={setReflectionOpacity} unit="%" />
+                                        <Slider label="Gap" value={reflectionGap} min={-40} max={60} onChange={setReflectionGap} unit="px" />
+                                        <Slider label="Offset X" value={reflectionX} min={-60} max={60} onChange={setReflectionX} unit="px" />
+                                        <Slider label="Angle" value={reflectionAngle} min={-45} max={45} onChange={setReflectionAngle} unit="°" />
+                                    </div>
+                                )}
                             </div>
 
                             {/* Adjust */}
@@ -2567,10 +3388,20 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                 </button>
                                 {expandedPanel === 'adjust' && (
                                     <div className="px-3 pb-3 bg-gray-100">
-                                        <Slider label="Brightness" value={brightness} min={0} max={200} onChange={setBrightness} unit="%" />
-                                        <Slider label="Contrast" value={contrast} min={0} max={200} onChange={setContrast} unit="%" />
-                                        <Slider label="Saturation" value={saturation} min={0} max={200} onChange={setSaturation} unit="%" />
-                                        <button onClick={() => { setBrightness(100); setContrast(100); setSaturation(100); }}
+                                        <Slider label="Brightness" value={brightness} min={-100} max={100} onChange={setBrightness} />
+                                        <Slider label="Contrast" value={contrast} min={-100} max={100} onChange={setContrast} />
+                                        <Slider label="Saturation" value={saturation} min={-100} max={100} onChange={setSaturation} />
+                                        <Slider label="Highlights" value={highlights} min={-100} max={100} onChange={setHighlights} />
+                                        <Slider label="Shadows" value={shadowsAdj} min={-100} max={100} onChange={setShadowsAdj} />
+                                        <Slider label="Sharpen" value={sharpen} min={0} max={100} onChange={setSharpen} />
+                                        <Slider label="Hue" value={hue} min={-180} max={180} onChange={setHue} unit="°" />
+                                        <Slider label="Warmth" value={warmth} min={-100} max={100} onChange={setWarmth} />
+                                        <Slider label="Opacity" value={adjOpacity} min={0} max={100} onChange={setAdjOpacity} unit="%" />
+                                        <button onClick={() => {
+                                            setBrightness(0); setContrast(0); setSaturation(0);
+                                            setHighlights(0); setShadowsAdj(0); setSharpen(0);
+                                            setHue(0); setWarmth(0); setAdjOpacity(100);
+                                        }}
                                             className="mt-2 text-xs text-blue-600 hover:text-blue-700">Reset adjustments</button>
                                     </div>
                                 )}
@@ -2578,13 +3409,26 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
                             {/* Blend */}
                             <div className="rounded-lg overflow-hidden mb-0.5">
-                                <button className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors">
+                                <button onClick={() => togglePanel('blend')} className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors">
                                     <span className="text-sm text-gray-900">Blend</span>
                                     <div className="flex items-center gap-1.5">
-                                        <span className="text-xs text-gray-500">Normal</span>
-                                        <ChevronRight className="w-4 h-4 text-gray-500" />
+                                        <span className="text-xs text-gray-500 capitalize">{blendMode.replace('-', ' ')}</span>
+                                        <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === 'blend' ? 'rotate-90' : ''}`} />
                                     </div>
                                 </button>
+                                {expandedPanel === 'blend' && (
+                                    <div className="px-2 pb-2 bg-gray-100">
+                                        {BLEND_MODES.map((m) => (
+                                            <button
+                                                key={m}
+                                                onClick={() => setBlendMode(m)}
+                                                className={`w-full text-left px-3 py-1.5 rounded-md text-sm capitalize cursor-pointer transition-colors ${blendMode === m ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700 hover:bg-gray-200'}`}
+                                            >
+                                                {m.replace('-', ' ')}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Transform */}
@@ -2597,11 +3441,14 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                     <div className="px-3 pb-3 bg-gray-100">
                                         <Slider label="Rotation" value={rotation} min={-180} max={180} onChange={setRotation} unit="°" />
                                         <Slider label="Scale" value={scale} min={20} max={200} onChange={setBaseScale} unit="%" />
+                                        <Slider label="Tile" value={tile} min={1} max={8} onChange={setTile} unit="×" />
+                                        <Slider label="Horizontal Perspective" value={hPersp} min={-100} max={100} onChange={setHPersp} />
+                                        <Slider label="Vertical Perspective" value={vPersp} min={-100} max={100} onChange={setVPersp} />
                                         <button onClick={() => setFlipH(f => !f)}
                                             className="mt-2 flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700">
                                             <FlipHorizontal className="w-3.5 h-3.5" /> Flip horizontal
                                         </button>
-                                        <button onClick={() => { setRotation(0); setBaseScale(100); setFlipH(false); }}
+                                        <button onClick={() => { setRotation(0); setBaseScale(100); setFlipH(false); setFlipV(false); setTile(1); setHPersp(0); setVPersp(0); }}
                                             className="mt-1 text-xs text-gray-500 hover:text-gray-500">Reset transform</button>
                                     </div>
                                 )}
@@ -2609,10 +3456,35 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
                             {/* Position */}
                             <div className="rounded-lg overflow-hidden mb-0.5">
-                                <button className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors">
+                                <button onClick={() => togglePanel('position')} disabled={!displayImage} className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors disabled:opacity-40">
                                     <span className="text-sm text-gray-900">Position</span>
-                                    <ChevronRight className="w-4 h-4 text-gray-500" />
+                                    <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === 'position' ? 'rotate-90' : ''}`} />
                                 </button>
+                                {expandedPanel === 'position' && displayImage && imgW != null && imgH != null && (
+                                    <div className="px-3 pb-3 bg-gray-100 space-y-2">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <PosField label="X" value={Math.round(posX)} onChange={(v) => setPosX(v)} />
+                                            <PosField label="Y" value={Math.round(posY)} onChange={(v) => setPosY(v)} />
+                                            <PosField label="Width" value={Math.round(imgW)} min={10} onChange={(v) => setImgW(Math.max(10, v))} />
+                                            <PosField label="Height" value={Math.round(imgH)} min={10} onChange={(v) => setImgH(Math.max(10, v))} />
+                                            <PosField label="Angle" value={Math.round(rotation)} onChange={(v) => setRotation(v)} unit="°" />
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 pt-1">
+                                            <button onClick={() => { setPosX(0); setPosY(0); }} title="Center"
+                                                className="flex items-center justify-center gap-1.5 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-600 cursor-pointer">
+                                                <AlignCenter className="w-3.5 h-3.5" /> Center
+                                            </button>
+                                            <button onClick={() => setFlipH((f) => !f)} title="Flip horizontal"
+                                                className={`flex items-center justify-center gap-1.5 py-2 border rounded-lg text-xs cursor-pointer ${flipH ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-200 text-gray-600 hover:border-blue-400'}`}>
+                                                <FlipHorizontal className="w-3.5 h-3.5" /> Flip H
+                                            </button>
+                                            <button onClick={() => setFlipV((f) => !f)} title="Flip vertical"
+                                                className={`flex items-center justify-center gap-1.5 py-2 border rounded-lg text-xs cursor-pointer ${flipV ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-200 text-gray-600 hover:border-blue-400'}`}>
+                                                <FlipVertical className="w-3.5 h-3.5" /> Flip V
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Blur */}
@@ -2625,8 +3497,27 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                     </div>
                                 </div>
                                 {expandedPanel === 'blur' && toggles.blur && (
-                                    <div className="px-3 pb-3 bg-gray-100">
-                                        <Slider label="Amount" value={blurAmount} min={0} max={20} onChange={setBlurAmount} unit="px" />
+                                    <div className="px-3 pb-3 bg-gray-100 space-y-2">
+                                        <div className="grid grid-cols-3 gap-1.5">
+                                            {[
+                                                { id: 'bokeh', label: 'Bokeh' },
+                                                { id: 'gaussian', label: 'Gaussian' },
+                                                { id: 'motion', label: 'Motion' },
+                                                { id: 'pixelate', label: 'Pixelate' },
+                                                { id: 'square', label: 'Square px' },
+                                                { id: 'box', label: 'Box' },
+                                                { id: 'disc', label: 'Disc' },
+                                            ].map((b) => (
+                                                <button
+                                                    key={b.id}
+                                                    onClick={() => setBlurType(b.id)}
+                                                    className={`py-2 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${blurType === b.id ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-200 text-gray-600 hover:border-blue-400'}`}
+                                                >
+                                                    {b.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <Slider label="Amount" value={blurAmount} min={0} max={40} onChange={setBlurAmount} unit="px" />
                                     </div>
                                 )}
                             </div>
@@ -2636,20 +3527,57 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                 <div onClick={() => togglePanel('filter')} className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors cursor-pointer">
                                     <span className="text-sm text-gray-900">Filter</span>
                                     <div className="flex items-center gap-1.5">
-                                        <Toggle enabled={toggles.filter} onChange={val => { setToggles(p => ({ ...p, filter: val })); if (!val) setSelectedFilter('none'); }} />
+                                        <Toggle enabled={toggles.filter} onChange={val => { setToggles(p => ({ ...p, filter: val })); if (!val) setSelectedFilter('none'); else if (selectedFilter === 'none') setSelectedFilter('noir'); }} />
                                         <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === 'filter' ? 'rotate-90' : ''}`} />
                                     </div>
                                 </div>
                                 {expandedPanel === 'filter' && toggles.filter && (
                                     <div className="px-3 pb-3 bg-gray-100">
-                                        <div className="flex flex-wrap gap-1.5 mt-1">
-                                            {filters.map(f => (
-                                                <button key={f} onClick={() => setSelectedFilter(f)}
-                                                    className={`px-2.5 py-1 rounded-md text-xs capitalize border transition-all ${selectedFilter === f ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500 hover:border-blue-300'}`}>
-                                                    {f === 'none' ? 'None' : f}
+                                        <div className="grid grid-cols-3 gap-1.5 mt-1">
+                                            {FILTERS.map(f => (
+                                                <button key={f.id} onClick={() => setSelectedFilter(f.id)}
+                                                    className={`py-2 rounded-lg text-xs font-medium border transition-all cursor-pointer ${selectedFilter === f.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}>
+                                                    {f.label}
                                                 </button>
                                             ))}
                                         </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Texture */}
+                            <div className="rounded-lg overflow-hidden mb-0.5">
+                                <div onClick={() => togglePanel('texture')} className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors cursor-pointer">
+                                    <span className="text-sm text-gray-900">Texture</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <Toggle enabled={toggles.texture} onChange={val => setToggles(p => ({ ...p, texture: val }))} />
+                                        <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === 'texture' ? 'rotate-90' : ''}`} />
+                                    </div>
+                                </div>
+                                {expandedPanel === 'texture' && toggles.texture && (
+                                    <div className="px-3 pb-3 bg-gray-100 space-y-2">
+                                        <div className="grid grid-cols-3 gap-1.5">
+                                            {[
+                                                { id: 'posterize', label: 'Posterize' },
+                                                { id: 'line', label: 'Line' },
+                                                { id: 'color', label: 'Color' },
+                                            ].map((tx) => (
+                                                <button
+                                                    key={tx.id}
+                                                    onClick={() => { setTextureType(tx.id); setTextureAmount(TEXTURE_DEFAULTS[tx.id]); }}
+                                                    className={`py-2 rounded-lg text-xs font-medium border cursor-pointer transition-colors ${textureType === tx.id ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-200 text-gray-600 hover:border-blue-400'}`}
+                                                >
+                                                    {tx.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <Slider
+                                            label={textureType === 'posterize' ? 'Posterize' : textureType === 'line' ? 'Line' : 'Color'}
+                                            value={textureAmount}
+                                            min={textureType === 'posterize' ? 2 : 1}
+                                            max={textureType === 'posterize' ? 24 : 100}
+                                            onChange={setTextureAmount}
+                                        />
                                     </div>
                                 )}
                             </div>

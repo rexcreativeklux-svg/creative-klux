@@ -160,9 +160,19 @@ function resolveItem(item, color) {
     return item;
 }
 
+// Imported brand logos/images are external URLs (scraped sites, files.creativeklux.com)
+// that usually don't send CORS headers and sometimes block hotlinking. Route them through
+// our same-origin proxy so: (1) crossOrigin='anonymous' loads succeed (otherwise the image
+// errors out and the layer is never added), and (2) canvas export isn't tainted. Leave
+// data:/blob: URLs alone.
+const proxiedSrc = (src) =>
+    typeof src === 'string' && /^https?:/i.test(src)
+        ? `/api/proxy-image?url=${encodeURIComponent(src)}`
+        : src;
+
 // Shared visual for an item/layer — used by previews, the canvas, everywhere.
 function VisualSVG({ spec }) {
-    if (spec.type === 'image') return <img src={spec.src} draggable={false} className="w-full h-full object-contain pointer-events-none" alt="" />;
+    if (spec.type === 'image') return <img src={proxiedSrc(spec.src)} draggable={false} className="w-full h-full object-contain pointer-events-none" alt="" />;
     if (spec.type === 'emoji') return (
         <svg viewBox="0 0 100 100" width="100%" height="100%" className="pointer-events-none"><text x="50" y="54" fontSize="78" textAnchor="middle" dominantBaseline="central">{spec.emoji}</text></svg>
     );
@@ -193,7 +203,9 @@ const loadImageEl = (src) => new Promise((resolve, reject) => {
     i.crossOrigin = 'anonymous';
     i.onload = () => resolve(i);
     i.onerror = reject;
-    i.src = src;
+    // Proxy external URLs so the crossOrigin load doesn't fail on missing CORS headers
+    // (the cause of imported logos/images silently failing to add).
+    i.src = proxiedSrc(src);
 });
 
 // ── Adjust: pixel-level processing ────────────────────────────────────────
@@ -799,6 +811,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     const [canvasSize, setCanvasSize] = useState({ w: CANVAS_W, h: CANVAS_H });
     const [canvasRound, setCanvasRound] = useState(false); // circular clip (Profile Pics)
     const [exportSize, setExportSize] = useState(null); // real output dims {w,h} (Resize); null = 2× preview
+    const [downloadMenuOpen, setDownloadMenuOpen] = useState(false); // Download format dropdown (PNG/JPEG)
     const [templateQuery, setTemplateQuery] = useState('');
 
     // Base image box model (preview px) — drives 8-handle resize + export.
@@ -1864,13 +1877,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         return c;
     };
 
-    const renderToCanvas = async () => {
+    const renderToCanvas = async (format = 'png') => {
         const img = await new Promise((resolve, reject) => {
             const i = new Image();
             i.crossOrigin = 'anonymous';
             i.onload = () => resolve(i);
             i.onerror = reject;
-            i.src = renderSrc;
+            i.src = proxiedSrc(renderSrc);
         });
 
         const w = img.naturalWidth || img.width;
@@ -1893,6 +1906,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         canvas.width = Math.ceil(bw + pad * 2);
         canvas.height = Math.ceil(bh + pad * 2);
         const ctx = canvas.getContext('2d');
+
+        // JPEG has no alpha — paint a white matte first so the cut-out's transparent
+        // pixels don't encode as black. (PNG keeps transparency.)
+        if (format === 'jpeg') {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
         ctx.translate(canvas.width / 2, canvas.height / 2);
         ctx.rotate(rad);
@@ -1929,7 +1949,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         ctx.drawImage(img, -w / 2, -h / 2, w, h);
         ctx.globalAlpha = 1;
 
-        return await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+        return await new Promise((resolve) => canvas.toBlob(resolve, mime, 0.92));
     };
 
     // Draw a single overlay layer onto a canvas context (export). `sc` = export scale.
@@ -2033,7 +2054,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     };
 
     // Composite the whole design frame (base image + overlay layers) at export scale.
-    const renderFrameToCanvas = async () => {
+    const renderFrameToCanvas = async (format = 'png') => {
         // When a Resize target is set, scale so output = exportSize; else 2× preview.
         const sc = exportSize ? exportSize.w / canvasSize.w : EXPORT_SCALE;
         const W = Math.round(canvasSize.w * sc), H = Math.round(canvasSize.h * sc);
@@ -2041,6 +2062,14 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         canvas.width = W;
         canvas.height = H;
         const ctx = canvas.getContext('2d');
+
+        // JPEG has no alpha — paint a white matte over the whole canvas first (before the
+        // round clip, so even circular exports get white corners) so transparent areas
+        // don't encode as black. PNG keeps transparency.
+        if (format === 'jpeg') {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, W, H);
+        }
 
         // Circular clip for Profile Pics — corners stay transparent.
         if (canvasRound) {
@@ -2145,29 +2174,31 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
             await drawLayer(ctx, layer, sc);
         }
         if (canvasRound) ctx.restore();
-        return await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+        return await new Promise((resolve) => canvas.toBlob(resolve, mime, 0.92));
     };
 
     // Pick the right exporter: frame (layers / background / resized / round) vs. tight product crop.
-    const exportBlob = async () => {
+    const exportBlob = async (format = 'png') => {
         // Non-uniform (edge-stretched) base image must use the frame compositor;
         // uniform scaling stays on the high-res tight-crop path.
         const fit = imgFitRef.current;
         const distorted = imgW != null && imgH != null && fit.w && Math.abs((imgW / imgH) - (fit.w / fit.h)) > 0.01;
         const floorShadowActive = toggles.shadows && shadowMode === 'floor';
         const framed = layers.length > 0 || canvasBg.type !== 'none' || canvasRound || exportSize || distorted || floorShadowActive || toggles.reflection || blendMode !== 'normal' || canvasSize.w !== CANVAS_W || canvasSize.h !== CANVAS_H;
-        return framed ? renderFrameToCanvas() : renderToCanvas();
+        return framed ? renderFrameToCanvas(format) : renderToCanvas(format);
     };
 
-    const handleDownload = async () => {
+    const handleDownload = async (format = 'png') => {
         if (!displayImage) return;
         try {
-            const blob = await exportBlob();
+            const blob = await exportBlob(format);
             if (!blob) throw new Error('Export failed');
+            const ext = format === 'jpeg' ? 'jpg' : 'png';
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'product-photo.png';
+            a.download = `product-photo.${ext}`;
             a.click();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (err) {
@@ -2256,9 +2287,32 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
                     <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">D</div>
-                        <button onClick={handleDownload} disabled={!displayImage} className="flex items-center gap-2 border border-blue-500 text-blue-600 text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed">
-                            <Download className="w-4 h-4" /> Download
-                        </button>
+                        <div className="relative">
+                            <button onClick={() => setDownloadMenuOpen((o) => !o)} disabled={!displayImage} className="flex items-center gap-2 border border-blue-500 text-blue-600 text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed">
+                                <Download className="w-4 h-4" /> Download
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${downloadMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {downloadMenuOpen && (
+                                <>
+                                    {/* click-away backdrop */}
+                                    <div className="fixed inset-0 z-40" onClick={() => setDownloadMenuOpen(false)} />
+                                    <div className="absolute right-0 mt-1 w-44 bg-surface border border-gray-200 rounded-lg shadow-lg py-1 z-50">
+                                        <button
+                                            onClick={() => { setDownloadMenuOpen(false); handleDownload('png'); }}
+                                            className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                                        >
+                                            <span className="font-medium">PNG</span>
+                                        </button>
+                                        <button
+                                            onClick={() => { setDownloadMenuOpen(false); handleDownload('jpeg'); }}
+                                            className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                                        >
+                                            <span className="font-medium">JPEG</span>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
                         <button onClick={handleShare} disabled={!displayImage} className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed">
                             <Share2 className="w-4 h-4" /> Share
                         </button>

@@ -170,7 +170,7 @@ export default function DashboardRecentProjects({ designs = [], isLoading = fals
 
       {/* Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : normalized.length === 0 ? (

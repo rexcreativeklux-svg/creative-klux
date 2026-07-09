@@ -1437,13 +1437,18 @@ const Sidebar = ({
             </div>
           )}
 
-          {/* Hovering Edit button — opens copy editor */}
-          <button className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/preview:opacity-100 transition-opacity duration-200 cursor-pointer">
+          {/* Hovering Edit button — opens the full design editor at /design/[id] */}
+          <Link
+            href={`/design/${c.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/preview:opacity-100 transition-opacity duration-200 cursor-pointer"
+          >
             <div className="flex items-center gap-2 bg-surface/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 hover:scale-105 rounded-lg text-sm font-semibold text-gray-700 hover:bg-surface transition">
               <Edit2 className="w-3.5 h-3.5" />
               Edit with editor
             </div>
-          </button>
+          </Link>
         </div>
 
         <div className="px-4 py-4 flex flex-col gap-4">

@@ -1835,6 +1835,58 @@ export function AuthProvider({ children }) {
     [token, activeBrandId],
   );
 
+  // Fetch a single design by id. Tries GET /creative-designs/:id first,
+  // then falls back to scanning the brand's design list so the editor can
+  // open even if the single-resource route isn't available.
+  const fetchDesignById = useCallback(
+    async (id) => {
+      if (!token) return null;
+      if (!id) return null;
+
+      try {
+        const res = await authFetch(`${BASE_URL}/creative-designs/${id}`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+
+        if (res.ok && data) {
+          // Unwrap { data: {...} } / { data: [...] } / raw object
+          const payload = data?.data ?? data;
+          if (Array.isArray(payload)) {
+            return payload.find((d) => String(d.id) === String(id)) || null;
+          }
+          if (payload && payload.id != null) return payload;
+        }
+      } catch (err) {
+        console.error("fetchDesignById error:", err);
+      }
+
+      // Fallback: pull the brand's designs and find it locally.
+      try {
+        const list = await fetchDesigns(50);
+        if (Array.isArray(list)) {
+          return list.find((d) => String(d.id) === String(id)) || null;
+        }
+      } catch (err) {
+        console.error("fetchDesignById fallback error:", err);
+      }
+
+      return null;
+    },
+    [token, fetchDesigns],
+  );
+
   const deleteDesignById = useCallback(
     async (id) => {
       if (!token) return { ok: false, message: "Not authenticated" };
@@ -2286,7 +2338,15 @@ export function AuthProvider({ children }) {
   );
 
   const saveIntegration = useCallback(
-    async ({ platform, access_token, refresh_token, code, brand_id, int_id, int_name }) => {
+    async ({
+      platform,
+      access_token,
+      refresh_token,
+      code,
+      brand_id,
+      int_id,
+      int_name,
+    }) => {
       if (!token) return { ok: false, message: "Not authenticated" };
 
       // Explicit brand_id from caller wins over the closure value (avoids stale null)
@@ -2313,9 +2373,9 @@ export function AuthProvider({ children }) {
             // in int_token — that's the value that must survive + sync cross-device. Every
             // other platform stores its (long-lived) access token as before.
             int_token:
-              (platform === "twitter" || platform === "tiktok")
-                ? (refresh_token || access_token || null)
-                : (access_token || null),
+              platform === "twitter" || platform === "tiktok"
+                ? refresh_token || access_token || null
+                : access_token || null,
             // Kept for forward-compat if the backend ever adds a dedicated column; the
             // authoritative field today is int_token (above).
             int_refresh_token: refresh_token || null,
@@ -2401,7 +2461,8 @@ export function AuthProvider({ children }) {
       const tokenForIntToken = refresh_token ?? access_token;
       if (tokenForIntToken !== undefined) body.int_token = tokenForIntToken;
       if (refresh_token !== undefined) body.int_refresh_token = refresh_token; // forward-compat
-      if (Object.keys(body).length === 0) return { ok: false, message: "Nothing to update" };
+      if (Object.keys(body).length === 0)
+        return { ok: false, message: "Nothing to update" };
 
       try {
         const res = await authFetch(`${API_INTEGRATIONS_URL}/${id}`, {
@@ -2422,7 +2483,10 @@ export function AuthProvider({ children }) {
         }
 
         if (!res.ok) {
-          return { ok: false, message: data?.message || "Failed to update integration" };
+          return {
+            ok: false,
+            message: data?.message || "Failed to update integration",
+          };
         }
         return { ok: true, data };
       } catch (err) {
@@ -2631,7 +2695,7 @@ export function AuthProvider({ children }) {
       let response;
       try {
         response = await authFetch(
-          `https://api.scraive.com/api/canvas-templates/public-fetch`,
+          `https://api.scraive.com/api/design-templates/public-fetch`,
           {
             method: "POST",
             headers: {
@@ -2696,6 +2760,7 @@ export function AuthProvider({ children }) {
         updateDesignById,
         toggleDesignFavorite,
         fetchDesigns,
+        fetchDesignById,
         saveDesign,
         analyzeRival,
         activeBrandId,

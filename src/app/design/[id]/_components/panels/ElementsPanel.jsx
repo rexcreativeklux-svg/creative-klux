@@ -3,11 +3,8 @@
 import React, { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import { SHAPES, SHAPE_CATEGORIES } from "../shapes";
-import ShapeSVG from "../ShapeSVG";
+import ShapeGrid from "../ShapeGrid";
 
-// currentColor so previews follow the panel's text color (readable in light AND
-// dark — a fixed dark fill vanished on the dark sidebar).
-const PREVIEW_FILL = "currentColor";
 const COLLAPSED_COUNT = 5; // shapes shown per row before "See all"
 
 /**
@@ -19,6 +16,14 @@ const COLLAPSED_COUNT = 5; // shapes shown per row before "See all"
 export default function ElementsPanel({ insert }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState({}); // { [categoryId]: bool }
+
+  // Curved & elbow lines are real multi-node paths, not stretched shapes.
+  const pick = (key) =>
+    key === "line-curved"
+      ? insert.curve()
+      : key === "line-elbow"
+        ? insert.elbow()
+        : insert.shape(key);
 
   const q = query.trim().toLowerCase();
   const matches = useMemo(() => {
@@ -53,7 +58,7 @@ export default function ElementsPanel({ insert }) {
 
       {matches ? (
         matches.length ? (
-          <ShapeGrid keys={matches} onPick={insert.shape} />
+          <ShapeGrid keys={matches} onPick={pick} />
         ) : (
           <p className="text-xs text-gray-400 text-center py-8">
             No shapes match “{query}”.
@@ -81,28 +86,11 @@ export default function ElementsPanel({ insert }) {
                   </button>
                 )}
               </div>
-              <ShapeGrid keys={shown} onPick={insert.shape} />
+              <ShapeGrid keys={shown} onPick={pick} />
             </div>
           );
         })
       )}
-    </div>
-  );
-}
-
-function ShapeGrid({ keys, onPick }) {
-  return (
-    <div className="grid grid-cols-5 gap-2">
-      {keys.map((key) => (
-        <button
-          key={key}
-          onClick={() => onPick(key)}
-          title={SHAPES[key]?.label || key}
-          className="aspect-square rounded-lg border border-gray-200 text-gray-700 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50/40 cursor-pointer transition flex items-center justify-center p-2"
-        >
-          <ShapeSVG shape={key} fill={PREVIEW_FILL} fit />
-        </button>
-      ))}
     </div>
   );
 }

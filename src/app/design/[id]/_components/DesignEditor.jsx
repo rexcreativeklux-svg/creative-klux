@@ -9,8 +9,13 @@ import EditorSidebar from "./EditorSidebar";
 import EditorContextBar from "./EditorContextBar";
 import EditorElement from "./EditorElement";
 import { renderDesignToBlob } from "./renderDesign";
-import { SHAPES, aspectOf } from "./shapes";
+import { SHAPES, aspectOf, isStraightLine, isBendableLine } from "./shapes";
 import { ensureEditorFontsLoaded } from "./fonts";
+import { strokeToElement, pointsToPath } from "./drawUtils";
+import { defaultCurvePoints, elbowPoints, insertCurvePoint } from "./curveUtils";
+import { measureText } from "./textFit";
+
+const DRAW_TOOLS = ["pen", "marker", "highlighter", "eraser"];
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
@@ -46,6 +51,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
     setBackground,
     undo,
     redo,
+    commit,
     markSaved,
   } = editor;
 
@@ -53,12 +59,284 @@ export default function DesignEditor({ design, onSave, onBack }) {
   const [zoom, setZoom] = useState(1);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [addNodeMode, setAddNodeMode] = useState(false);
   const stageWrapRef = useRef(null);
+  const stageInnerRef = useRef(null);
+
+  // Drawing tool state (Tools panel). type 'select' = normal editing.
+  const [tool, setTool] = useState({ type: "select", color: "#ef4444", size: 6, opacity: 1 });
+  const [liveStroke, setLiveStroke] = useState(null);
+  const strokeRef = useRef([]);
+  const drawingRef = useRef(false);
+  const isDrawTool = DRAW_TOOLS.includes(tool.type);
 
   // Make the curated web fonts available for on-canvas text + PNG export.
   useEffect(() => {
     ensureEditorFontsLoaded();
   }, []);
+
+  // ── Freehand drawing ──────────────────────────────────────────────────
+  const canvasPoint = (e) => {
+    const rect = stageInnerRef.current.getBoundingClientRect();
+    return { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom };
+  };
+
+  const eraseAt = (pt) => {
+    const hit = [...elements]
+      .reverse()
+      .find(
+        (el) =>
+          el.type === "draw" &&
+          pt.x >= el.x &&
+          pt.x <= el.x + el.width &&
+          pt.y >= el.y &&
+          pt.y <= el.y + el.height,
+      );
+    if (hit) removeElement(hit.id);
+  };
+
+  const onDrawDown = (e) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    drawingRef.current = true;
+    const pt = canvasPoint(e);
+    if (tool.type === "eraser") return eraseAt(pt);
+    strokeRef.current = [pt];
+    setLiveStroke([pt]);
+  };
+
+  const onDrawMove = (e) => {
+    if (!drawingRef.current) return;
+    const pt = canvasPoint(e);
+    if (tool.type === "eraser") return eraseAt(pt);
+    strokeRef.current.push(pt);
+    setLiveStroke([...strokeRef.current]);
+  };
+
+  const onDrawUp = () => {
+    if (!drawingRef.current) return;
+    drawingRef.current = false;
+    if (tool.type === "eraser") return;
+    const pts = strokeRef.current;
+    if (pts.length) {
+      addElement(
+        strokeToElement(pts, {
+          color: tool.color,
+          size: tool.size,
+          opacity: tool.opacity,
+          cap: tool.type === "marker" ? "butt" : "round",
+          blend: tool.type === "highlighter" ? "multiply" : undefined,
+        }),
+      );
+    }
+    strokeRef.current = [];
+    setLiveStroke(null);
+  };
+
+  // ── Line endpoint handles ─────────────────────────────────────────────
+  // A straight line is fully described by its two endpoints. We expose a draggable
+  // dot at each end; dragging one keeps the other fixed and recomputes the line's
+  // center, length (width) and angle (rotation) — so you can freely reshape it
+  // (horizontal, vertical, any diagonal) by hand.
+  const lineDragRef = useRef(null);
+  const selLine =
+    selectedElement &&
+    selectedElement.type === "shape" &&
+    isStraightLine(selectedElement.shape)
+      ? selectedElement
+      : null;
+
+  const lineEndpoints = (el) => {
+    const cx = el.x + el.width / 2;
+    const cy = el.y + el.height / 2;
+    const r = ((el.rotation || 0) * Math.PI) / 180;
+    const hx = (Math.cos(r) * el.width) / 2;
+    const hy = (Math.sin(r) * el.width) / 2;
+    return { p1: { x: cx - hx, y: cy - hy }, p2: { x: cx + hx, y: cy + hy } };
+  };
+
+  const onHandleDown = (which, e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const { p1, p2 } = lineEndpoints(selLine);
+    commit(); // one undo step for the whole drag
+    lineDragRef.current = {
+      id: selLine.id,
+      fixed: which === "p1" ? p2 : p1,
+      height: selLine.height,
+    };
+  };
+
+  const onHandleMove = (e) => {
+    const d = lineDragRef.current;
+    if (!d) return;
+    const P = canvasPoint(e);
+    const f = d.fixed;
+    const cx = (f.x + P.x) / 2;
+    const cy = (f.y + P.y) / 2;
+    const len = Math.hypot(P.x - f.x, P.y - f.y) || 1;
+    const ang = (Math.atan2(P.y - f.y, P.x - f.x) * 180) / Math.PI;
+    updateElement(
+      d.id,
+      { x: cx - len / 2, y: cy - d.height / 2, width: len, rotation: ang },
+      { record: false },
+    );
+  };
+
+  const onHandleUp = (e) => {
+    if (!lineDragRef.current) return;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    lineDragRef.current = null;
+  };
+
+  // Mid-point bend handle — curves a straight line into a quadratic. `bend` is the
+  // apex's perpendicular distance from the straight chord (canvas units, signed).
+  const bendDragRef = useRef(null);
+  const canBend = !!selLine && isBendableLine(selLine.shape);
+
+  const bendPoint = (el, eps) => {
+    const mx = (eps.p1.x + eps.p2.x) / 2;
+    const my = (eps.p1.y + eps.p2.y) / 2;
+    let dx = eps.p2.x - eps.p1.x;
+    let dy = eps.p2.y - eps.p1.y;
+    const L = Math.hypot(dx, dy) || 1;
+    dx /= L;
+    dy /= L;
+    const perp = { x: dy, y: -dx };
+    const b = el.bend || 0;
+    return { x: mx + perp.x * b, y: my + perp.y * b, mx, my, perp };
+  };
+
+  const onBendDown = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    commit();
+    const bp = bendPoint(selLine, lineEndpoints(selLine));
+    bendDragRef.current = { id: selLine.id, mx: bp.mx, my: bp.my, perp: bp.perp };
+  };
+
+  const onBendMove = (e) => {
+    const d = bendDragRef.current;
+    if (!d) return;
+    const P = canvasPoint(e);
+    const b = (P.x - d.mx) * d.perp.x + (P.y - d.my) * d.perp.y;
+    updateElement(d.id, { bend: b }, { record: false });
+  };
+
+  const onBendUp = (e) => {
+    if (!bendDragRef.current) return;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    bendDragRef.current = null;
+  };
+
+  // ── Curve node handles ────────────────────────────────────────────────
+  // A curve is a spline through N nodes; each node drags freely in 2D. Node
+  // positions live in the element's vb space, mapped to/from canvas coords.
+  const curveDragRef = useRef(null);
+  const selCurve =
+    selectedElement && selectedElement.type === "curve" ? selectedElement : null;
+
+  // Add-node mode only makes sense for a selected line/curve.
+  useEffect(() => {
+    if (!selLine && !selCurve) setAddNodeMode(false);
+  }, [selLine, selCurve]);
+
+  const curveNodePos = (el, p) => ({
+    x: el.x + (p.x / (el.vbW || el.width)) * el.width,
+    y: el.y + (p.y / (el.vbH || el.height)) * el.height,
+  });
+
+  const canvasToVb = (el, P) => ({
+    x: ((P.x - el.x) / el.width) * (el.vbW || el.width),
+    y: ((P.y - el.y) / el.height) * (el.vbH || el.height),
+  });
+
+  const onNodeDown = (i, e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    commit();
+    curveDragRef.current = { id: selCurve.id, i };
+  };
+
+  const onNodeMove = (e) => {
+    const d = curveDragRef.current;
+    if (!d) return;
+    const vb = canvasToVb(selCurve, canvasPoint(e));
+    const points = selCurve.points.map((p, idx) => (idx === d.i ? vb : p));
+    updateElement(d.id, { points }, { record: false });
+  };
+
+  const onNodeUp = (e) => {
+    if (!curveDragRef.current) return;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    curveDragRef.current = null;
+  };
+
+  // Double-click a node removes it (keep ≥2); double-click the curve adds one.
+  const removeCurveNode = (i) => {
+    if (!selCurve || selCurve.points.length <= 2) return;
+    updateElement(selCurve.id, {
+      points: selCurve.points.filter((_, idx) => idx !== i),
+    });
+  };
+
+  const addCurveNodeAt = (id, e) => {
+    const el = elements.find((x) => x.id === id);
+    if (!el || el.type !== "curve") return;
+    const vb = canvasToVb(el, canvasPoint(e));
+    updateElement(id, { points: insertCurvePoint(el.points, vb.x, vb.y) });
+  };
+
+  // "Add node" mode: clicking a point on the selected line/curve makes it a node.
+  // A straight/styled line is converted into an editable multi-node curve (its
+  // color/dash carry over; wavy/zigzag patterns become a smooth curve).
+  const lineToCurve = (line, canvasPts) => {
+    const xs = canvasPts.map((p) => p.x);
+    const ys = canvasPts.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const w = Math.max(1, Math.max(...xs) - minX);
+    const h = Math.max(1, Math.max(...ys) - minY);
+    const def = SHAPES[line.shape];
+    return {
+      type: "curve",
+      x: minX,
+      y: minY,
+      width: w,
+      height: h,
+      vbW: w,
+      vbH: h,
+      rotation: 0,
+      bend: undefined,
+      points: canvasPts.map((p) => ({ x: p.x - minX, y: p.y - minY })),
+      stroke: line.fill || "#111111",
+      strokeWidth: 4,
+      cap: def?.cap || "round",
+      dash: def?.dash,
+    };
+  };
+
+  const handleAddNodeClick = (e) => {
+    const P = canvasPoint(e);
+    if (selCurve) {
+      commit();
+      const vb = canvasToVb(selCurve, P);
+      updateElement(
+        selCurve.id,
+        { points: insertCurvePoint(selCurve.points, vb.x, vb.y) },
+        { record: false },
+      );
+    } else if (selLine) {
+      commit();
+      const { p1, p2 } = lineEndpoints(selLine);
+      updateElement(selLine.id, lineToCurve(selLine, [p1, P, p2]), {
+        record: false,
+      });
+    }
+  };
 
   // ── Fit-to-screen zoom ────────────────────────────────────────────────
   const fitZoom = useCallback(() => {
@@ -99,6 +377,8 @@ export default function DesignEditor({ design, onSave, onBack }) {
       if (e.key === "Escape") {
         setEditingId(null);
         selectElement(null);
+        setAddNodeMode(false);
+        setTool((t) => (t.type === "select" ? t : { ...t, type: "select" }));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -146,6 +426,14 @@ export default function DesignEditor({ design, onSave, onBack }) {
     const def = SHAPES[shape];
     const isStroke = def?.kind === "stroke";
 
+    // Pre-curve lines that ship curved (e.g. line-curved), so they look like
+    // their flyout preview and expose the bend handle immediately.
+    const initialBend =
+      opts.bend ??
+      (def?.previewBendVB
+        ? (def.previewBendVB * Math.round(h)) / 24
+        : undefined);
+
     addElement({
       type: "shape",
       shape: key,
@@ -155,6 +443,67 @@ export default function DesignEditor({ design, onSave, onBack }) {
       height: Math.round(h),
       fill: opts.fill ?? (isStroke ? "#111111" : "#6366f1"),
       borderRadius: isRounded ? Math.round(Math.min(w, h) * 0.14) : opts.borderRadius ?? 0,
+      ...(initialBend !== undefined ? { bend: initialBend } : {}),
+    });
+  };
+
+  const insertCurve = () => {
+    const w = Math.round(Math.min(canvas.width, canvas.height) * 0.32);
+    const h = Math.round(w * 0.55);
+    return addElement({
+      type: "curve",
+      x: cx() - w / 2,
+      y: cy() - h / 2,
+      width: w,
+      height: h,
+      vbW: w,
+      vbH: h,
+      points: defaultCurvePoints(w, h),
+      stroke: "#111111",
+      strokeWidth: 4,
+      cap: "round",
+    });
+  };
+
+  const insertStickyNote = (color = "#FEF08A") => {
+    const size = Math.round(Math.min(canvas.width, canvas.height) * 0.24);
+    const id = addElement({
+      type: "text",
+      content: "",
+      text: "",
+      x: cx() - size / 2,
+      y: cy() - size / 2,
+      width: size,
+      height: size,
+      fontSize: Math.max(18, Math.round(size * 0.11)),
+      fontWeight: "normal",
+      fill: "#1f2937",
+      textAlign: "left",
+      background: color,
+      padding: Math.round(size * 0.1),
+      borderRadius: 10,
+      sticky: true,
+      autoFit: true,
+    });
+    return id;
+  };
+
+  const insertElbow = () => {
+    const w = Math.round(Math.min(canvas.width, canvas.height) * 0.28);
+    const h = w;
+    return addElement({
+      type: "curve",
+      sharp: true,
+      x: cx() - w / 2,
+      y: cy() - h / 2,
+      width: w,
+      height: h,
+      vbW: w,
+      vbH: h,
+      points: elbowPoints(w, h),
+      stroke: "#111111",
+      strokeWidth: 4,
+      cap: "round",
     });
   };
 
@@ -208,6 +557,61 @@ export default function DesignEditor({ design, onSave, onBack }) {
     };
     img.src = localUrl;
   };
+
+  // ── Clipboard paste (Ctrl/⌘+V) ────────────────────────────────────────
+  // Paste an image or text straight onto the canvas. When editing a text box we
+  // bail so the paste flows into it natively. A ref keeps the handler current
+  // without re-subscribing every render.
+  const pasteRef = useRef(null);
+  pasteRef.current = (e) => {
+    const t = e.target;
+    if (
+      editingId ||
+      /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) ||
+      t.isContentEditable
+    ) {
+      return;
+    }
+    const cd = e.clipboardData;
+    if (!cd) return;
+
+    // Image (screenshots, copied pictures) — prefer this over any text.
+    const fromItems = cd.items
+      ? Array.from(cd.items)
+          .filter((it) => it.type && it.type.startsWith("image/"))
+          .map((it) => it.getAsFile())
+      : [];
+    const fromFiles = cd.files
+      ? Array.from(cd.files).filter((f) => f.type.startsWith("image/"))
+      : [];
+    const imageFile = fromItems.find(Boolean) || fromFiles[0];
+    if (imageFile) {
+      e.preventDefault();
+      handleAddImage(imageFile);
+      return;
+    }
+
+    // Text
+    const text = cd.getData("text/plain");
+    if (text && text.trim()) {
+      e.preventDefault();
+      const fontSize = 24;
+      const width = Math.min(600, Math.round(canvas.width * 0.7));
+      const font = `normal normal ${fontSize}px 'DM Sans', sans-serif`;
+      const { lines } = measureText(text, width - 8, font);
+      const height = Math.max(
+        Math.round(fontSize * 1.5),
+        Math.ceil(lines * fontSize * 1.3) + 12,
+      );
+      insertText({ content: text, fontSize, width, height, textAlign: "left" });
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => pasteRef.current?.(e);
+    window.addEventListener("paste", handler);
+    return () => window.removeEventListener("paste", handler);
+  }, []);
 
   // ── Save & download ───────────────────────────────────────────────────
   const doSave = async () => {
@@ -273,6 +677,9 @@ export default function DesignEditor({ design, onSave, onBack }) {
           insert={{
             text: insertText,
             shape: insertShape,
+            curve: insertCurve,
+            elbow: insertElbow,
+            sticky: insertStickyNote,
             imageUrl: insertImageUrl,
             imageFile: handleAddImage,
           }}
@@ -280,6 +687,8 @@ export default function DesignEditor({ design, onSave, onBack }) {
           background={typeof bg === "string" && bg.startsWith("#") ? bg : "#ffffff"}
           editor={editor}
           designId={design?.id}
+          tool={tool}
+          setTool={setTool}
         />
 
         {/* Stage viewport */}
@@ -300,6 +709,8 @@ export default function DesignEditor({ design, onSave, onBack }) {
             onDuplicate={duplicateElement}
             onRemove={removeElement}
             onMoveLayer={moveLayer}
+            addNodeMode={addNodeMode}
+            onToggleAddNode={() => setAddNodeMode((v) => !v)}
           />
 
           {/* Scaled stage */}
@@ -311,6 +722,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
             }}
           >
             <div
+              ref={stageInnerRef}
               className="relative shadow-xl"
               style={{
                 width: canvas.width,
@@ -340,12 +752,218 @@ export default function DesignEditor({ design, onSave, onBack }) {
                   onChange={(patch, opts) => updateElement(el.id, patch, opts)}
                   onStartEdit={setEditingId}
                   onEndEdit={() => setEditingId(null)}
+                  onCurveAddPoint={addCurveNodeAt}
                 />
               ))}
+
+              {/* Line endpoint handles — reshape a selected straight line */}
+              {selLine && !isDrawTool && (
+                <LineHandles
+                  el={selLine}
+                  zoom={zoom}
+                  endpoints={lineEndpoints(selLine)}
+                  onDown={onHandleDown}
+                  onMove={onHandleMove}
+                  onUp={onHandleUp}
+                  bend={
+                    canBend
+                      ? {
+                          point: bendPoint(selLine, lineEndpoints(selLine)),
+                          onDown: onBendDown,
+                          onMove: onBendMove,
+                          onUp: onBendUp,
+                        }
+                      : null
+                  }
+                />
+              )}
+
+              {/* Curve node handles — drag each point to reshape the spline */}
+              {selCurve && !isDrawTool && (
+                <CurveHandles
+                  el={selCurve}
+                  zoom={zoom}
+                  nodePos={(p) => curveNodePos(selCurve, p)}
+                  onNodeDown={onNodeDown}
+                  onNodeMove={onNodeMove}
+                  onNodeUp={onNodeUp}
+                  onNodeDoubleClick={removeCurveNode}
+                />
+              )}
+
+              {/* Add-node overlay — click on the selected line/curve to drop a node */}
+              {addNodeMode && (selCurve || selLine) && !isDrawTool && (
+                <div
+                  className="absolute inset-0"
+                  style={{ zIndex: 47, cursor: "copy", touchAction: "none" }}
+                  onPointerDown={handleAddNodeClick}
+                />
+              )}
+
+              {/* Drawing overlay — captures pointer while a draw tool is active */}
+              {isDrawTool && (
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    zIndex: 50,
+                    cursor: tool.type === "eraser" ? "cell" : "crosshair",
+                    touchAction: "none",
+                  }}
+                  onPointerDown={onDrawDown}
+                  onPointerMove={onDrawMove}
+                  onPointerUp={onDrawUp}
+                  onPointerLeave={onDrawUp}
+                >
+                  <svg
+                    width={canvas.width}
+                    height={canvas.height}
+                    style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible" }}
+                  >
+                    {liveStroke?.length > 0 && tool.type !== "eraser" && (
+                      <path
+                        d={pointsToPath(liveStroke)}
+                        fill="none"
+                        stroke={tool.color}
+                        strokeWidth={tool.size}
+                        strokeLinecap={tool.type === "marker" ? "butt" : "round"}
+                        strokeLinejoin="round"
+                        opacity={tool.opacity}
+                        style={{ mixBlendMode: tool.type === "highlighter" ? "multiply" : "normal" }}
+                      />
+                    )}
+                  </svg>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * LineHandles — two draggable dots at a straight line's endpoints. Rendered
+ * inside the scaled stage, so sizes are divided by `zoom` to stay a constant
+ * ~12px on screen regardless of zoom level.
+ */
+function LineHandles({ el, zoom, endpoints, onDown, onMove, onUp, bend }) {
+  const size = 14 / zoom;
+  const border = 2 / zoom;
+  const line = 1.5 / zoom;
+  const { p1, p2 } = endpoints;
+
+  const dot = (p, opts) => (
+    <div
+      onPointerDown={opts.onDown}
+      onPointerMove={opts.onMove}
+      onPointerUp={opts.onUp}
+      style={{
+        position: "absolute",
+        left: p.x - size / 2,
+        top: p.y - size / 2,
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: opts.solid ? "#6366f1" : "#fff",
+        border: `${border}px solid #6366f1`,
+        boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+        cursor: "move",
+        touchAction: "none",
+        pointerEvents: "auto",
+      }}
+    />
+  );
+
+  return (
+    <div
+      style={{ position: "absolute", inset: 0, zIndex: 45, pointerEvents: "none" }}
+    >
+      {/* thin guide connecting the endpoints */}
+      <svg
+        width={el.x + el.width + 200}
+        height={el.y + el.height + 200}
+        style={{ position: "absolute", inset: 0, overflow: "visible" }}
+      >
+        <line
+          x1={p1.x}
+          y1={p1.y}
+          x2={p2.x}
+          y2={p2.y}
+          stroke="#6366f1"
+          strokeWidth={line}
+          strokeDasharray={`${4 / zoom} ${4 / zoom}`}
+        />
+      </svg>
+      {dot(p1, {
+        onDown: (e) => onDown("p1", e),
+        onMove,
+        onUp,
+      })}
+      {dot(p2, {
+        onDown: (e) => onDown("p2", e),
+        onMove,
+        onUp,
+      })}
+      {bend &&
+        dot(bend.point, {
+          onDown: bend.onDown,
+          onMove: bend.onMove,
+          onUp: bend.onUp,
+          solid: true,
+        })}
+    </div>
+  );
+}
+
+/**
+ * CurveHandles — a draggable dot at every node of a curve element. Drag to
+ * reshape, double-click a node to remove it, double-click the curve to add one.
+ */
+function CurveHandles({
+  el,
+  zoom,
+  nodePos,
+  onNodeDown,
+  onNodeMove,
+  onNodeUp,
+  onNodeDoubleClick,
+}) {
+  const size = 14 / zoom;
+  const border = 2 / zoom;
+  const pts = el.points || [];
+  const canvasPts = pts.map(nodePos);
+
+  return (
+    <div
+      style={{ position: "absolute", inset: 0, zIndex: 45, pointerEvents: "none" }}
+    >
+      {canvasPts.map((p, i) => (
+        <div
+          key={i}
+          onPointerDown={(e) => onNodeDown(i, e)}
+          onPointerMove={onNodeMove}
+          onPointerUp={onNodeUp}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            onNodeDoubleClick(i);
+          }}
+          style={{
+            position: "absolute",
+            left: p.x - size / 2,
+            top: p.y - size / 2,
+            width: size,
+            height: size,
+            borderRadius: "50%",
+            background: "#fff",
+            border: `${border}px solid #6366f1`,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+            cursor: "move",
+            touchAction: "none",
+            pointerEvents: "auto",
+          }}
+        />
+      ))}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { SHAPES } from "./shapes";
+import { SHAPES, lineShaftPath } from "./shapes";
 
 /**
  * ShapeSVG — renders a library shape into a stretch-to-fill SVG.
@@ -14,6 +14,7 @@ export default function ShapeSVG({
   stroke = "transparent",
   strokeWidth = 0,
   rx,
+  bend, // curve amount (viewBox units) for bendable lines; undefined = use preview default
   fit = false, // true = keep aspect (picker previews); false = stretch to box (canvas)
   className,
   style,
@@ -78,15 +79,19 @@ export default function ShapeSVG({
   }
 
   if (def.render === "line") {
+    // On canvas EditorElement passes an explicit bend (0 = straight); previews
+    // pass nothing, so fall back to the shape's preview curve.
+    const bendVal = bend == null ? def.previewBendVB || 0 : bend;
     return (
-      <svg {...common}>
+      <svg {...common} style={{ display: "block", overflow: "visible", ...style }}>
         <path
-          d={def.path}
+          d={lineShaftPath(shape, bendVal)}
           fill="none"
           stroke={fill}
           strokeWidth={def.strokeW || 3}
           strokeDasharray={def.dash ? def.dash.join(" ") : undefined}
           strokeLinecap={def.cap || "butt"}
+          strokeLinejoin="round"
         />
       </svg>
     );

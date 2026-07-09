@@ -1,7 +1,9 @@
 "use client";
 
-import { SHAPES, PRIMITIVE_SHAPES } from "./shapes";
+import { SHAPES, PRIMITIVE_SHAPES, lineShaftPath } from "./shapes";
 import { waitForFonts } from "./fonts";
+import { pointsToPath } from "./drawUtils";
+import { curvePath } from "./curveUtils";
 
 /**
  * renderDesignToBlob — paints a { canvas, elements } design to an offscreen
@@ -72,21 +74,51 @@ export async function renderDesignToCanvas({ canvas, elements }) {
       ctx.translate(-rcx, -rcy);
     }
 
-    if (el.type === "shape" && !PRIMITIVE_SHAPES.has(el.shape) && SHAPES[el.shape]) {
+    if (el.type === "draw") {
+      const [vw, vh] = [el.vbW || el.width, el.vbH || el.height];
+      ctx.save();
+      ctx.translate(el.x, el.y);
+      ctx.scale(el.width / vw, el.height / vh);
+      if (el.blend) ctx.globalCompositeOperation = "multiply";
+      ctx.strokeStyle = el.stroke || "#111111";
+      ctx.lineWidth = el.strokeWidth || 4;
+      ctx.lineCap = el.cap || "round";
+      ctx.lineJoin = "round";
+      const p = new Path2D(pointsToPath(el.points));
+      ctx.stroke(p);
+      ctx.restore();
+    } else if (el.type === "curve") {
+      const vw = el.vbW || el.width;
+      const vh = el.vbH || el.height;
+      ctx.save();
+      ctx.translate(el.x, el.y);
+      ctx.scale(el.width / vw, el.height / vh);
+      ctx.strokeStyle = el.stroke || "#111111";
+      ctx.lineWidth = el.strokeWidth || 4;
+      ctx.lineCap = el.cap || "round";
+      ctx.lineJoin = "round";
+      if (el.dash) ctx.setLineDash(el.dash);
+      ctx.stroke(new Path2D(curvePath(el.points, el.sharp)));
+      ctx.restore();
+    } else if (el.type === "shape" && !PRIMITIVE_SHAPES.has(el.shape) && SHAPES[el.shape]) {
       // Library shape: map its viewBox onto the element box and draw the path.
       const def = SHAPES[el.shape];
       const [vw, vh] = def.viewBox;
       ctx.save();
       ctx.translate(el.x, el.y);
       ctx.scale(el.width / vw, el.height / vh);
-      const p = new Path2D(def.path);
       if (def.kind === "stroke") {
+        // Honor curvature for bendable lines (el.bend → viewBox control offset).
+        const bendVB = el.bend ? (24 * el.bend) / (el.height || 1) : 0;
+        const p = new Path2D(lineShaftPath(el.shape, bendVB));
         ctx.strokeStyle = el.fill || "#111111";
         ctx.lineWidth = def.strokeW || 3;
         ctx.lineCap = def.cap || "butt";
+        ctx.lineJoin = "round";
         if (def.dash) ctx.setLineDash(def.dash);
         ctx.stroke(p);
       } else {
+        const p = new Path2D(def.path);
         ctx.fillStyle = el.fill || "#6366f1";
         ctx.fill(p);
         if (el.strokeWidth && el.stroke) {
@@ -129,10 +161,61 @@ export async function renderDesignToCanvas({ canvas, elements }) {
     }
 
     if (el.type === "text") {
+      // Sticky-note background: a lifted paper panel (shadow, sheen, folded corner).
+      if (el.background) {
+        const br = el.borderRadius || 0;
+        const roundRect = () => {
+          ctx.beginPath();
+          if (br && ctx.roundRect) ctx.roundRect(el.x, el.y, el.width, el.height, br);
+          else ctx.rect(el.x, el.y, el.width, el.height);
+        };
+        // base fill + drop shadow
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,0.18)";
+        ctx.shadowBlur = 18;
+        ctx.shadowOffsetY = 8;
+        ctx.fillStyle = el.background;
+        roundRect();
+        ctx.fill();
+        ctx.restore();
+        // sheen + folded corner (clipped to the panel)
+        ctx.save();
+        roundRect();
+        ctx.clip();
+        const sheen = ctx.createLinearGradient(
+          el.x,
+          el.y,
+          el.x + el.width,
+          el.y + el.height,
+        );
+        sheen.addColorStop(0, "rgba(255,255,255,0.4)");
+        sheen.addColorStop(0.4, "rgba(255,255,255,0)");
+        sheen.addColorStop(1, "rgba(0,0,0,0.07)");
+        ctx.fillStyle = sheen;
+        ctx.fillRect(el.x, el.y, el.width, el.height);
+
+        const fold = Math.max(14, Math.round(Math.min(el.width, el.height) * 0.13));
+        const fx = el.x + el.width;
+        const fy = el.y + el.height;
+        ctx.beginPath();
+        ctx.moveTo(fx - fold, fy);
+        ctx.lineTo(fx, fy - fold);
+        ctx.lineTo(fx, fy);
+        ctx.closePath();
+        const fg = ctx.createLinearGradient(fx - fold, fy - fold, fx, fy);
+        fg.addColorStop(0, "rgba(0,0,0,0)");
+        fg.addColorStop(0.52, "rgba(0,0,0,0.16)");
+        fg.addColorStop(1, "rgba(0,0,0,0.28)");
+        ctx.fillStyle = fg;
+        ctx.fill();
+        ctx.restore();
+      }
+
       const size = el.fontSize || 16;
       const weight = el.fontWeight || "normal";
       const align = el.textAlign || "left";
       const family = el.fontFamily || "'DM Sans', sans-serif";
+      const pad = el.padding ?? 2;
       ctx.font = `${el.fontStyle || "normal"} ${weight} ${size}px ${family}`;
       ctx.fillStyle = el.fill || el.color || "#111111";
       ctx.textAlign = align;
@@ -142,8 +225,8 @@ export async function renderDesignToCanvas({ canvas, elements }) {
         align === "center"
           ? el.x + (el.width || 0) / 2
           : align === "right"
-            ? el.x + (el.width || 0)
-            : el.x;
+            ? el.x + (el.width || 0) - pad
+            : el.x + pad;
 
       const value =
         typeof el.content === "string"
@@ -152,24 +235,31 @@ export async function renderDesignToCanvas({ canvas, elements }) {
             ? el.text
             : "";
 
-      // Word-wrap within element width; honor explicit newlines.
-      const lineMaxW = el.width || 9999;
-      const paragraphs = value.split("\n");
+      // Word-wrap within the padded width; honor explicit newlines.
+      const lineMaxW = Math.max(1, (el.width || 9999) - pad * 2);
       const lineH = size * 1.3;
-      let lineY = el.y + size;
-      for (const para of paragraphs) {
+      const lines = [];
+      for (const para of value.split("\n")) {
         const words = para.split(/\s+/).filter(Boolean);
         let line = "";
         for (const word of words) {
           const test = line ? `${line} ${word}` : word;
           if (ctx.measureText(test).width > lineMaxW && line) {
-            ctx.fillText(line, x, lineY);
+            lines.push(line);
             line = word;
-            lineY += lineH;
           } else {
             line = test;
           }
         }
+        lines.push(line);
+      }
+
+      // Sticky notes are top-aligned; other text is vertically centered.
+      const blockH = lines.length * lineH;
+      let lineY = el.sticky
+        ? el.y + pad + size * 0.85
+        : el.y + Math.max(pad, ((el.height || 0) - blockH) / 2) + size * 0.85;
+      for (const line of lines) {
         if (line) ctx.fillText(line, x, lineY);
         lineY += lineH;
       }

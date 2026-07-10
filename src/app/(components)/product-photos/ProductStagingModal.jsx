@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { removeBackground } from '@imgly/background-removal';
+import { useState, useRef, useEffect } from 'react';
+import { removeBackground as engineRemoveBackground, disposeSegmentationWorker } from '@/(lib)/ai-engine/tasks/removeBackground';
 import { generateImage } from '@/(lib)/ai-helpers';
 import { X, Upload, Download, Loader2, MoreHorizontal, RefreshCw, Trash2, Copy, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { toast } from 'sonner';
@@ -47,15 +47,12 @@ export default function ProductStagingModal({ onClose }) {
         setUploadedImage(URL.createObjectURL(file));
         setRemovedBgUrl(null);
 
-        // Auto remove background on upload
+        // Auto remove background on upload (on-device AI engine).
         setRemovingBg(true);
         setRemovingProgress(0);
         try {
-            const objectUrl = URL.createObjectURL(file);
-            const blob = await removeBackground(objectUrl, {
-                progress: (key, current, total) => {
-                    if (total > 0) setRemovingProgress(Math.round((current / total) * 100));
-                },
+            const { blob } = await engineRemoveBackground(file, {
+                onProgress: ({ pct }) => setRemovingProgress(pct || 0),
             });
             setRemovedBgUrl(URL.createObjectURL(blob));
             toast.success('Background removed!');
@@ -67,6 +64,9 @@ export default function ProductStagingModal({ onClose }) {
             setRemovingProgress(0);
         }
     };
+
+    // Free the on-device segmentation worker when this modal closes.
+    useEffect(() => () => { disposeSegmentationWorker(); }, []);
 
     const handleGenerate = async () => {
         if (!uploadedFile && !uploadedImage) { toast.error('Upload a product image first'); return; }

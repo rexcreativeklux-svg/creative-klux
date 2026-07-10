@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { removeBackground } from '@imgly/background-removal';
+import { removeBackground as engineRemoveBackground, disposeSegmentationWorker } from '@/(lib)/ai-engine/tasks/removeBackground';
 import {
     X, Undo, Redo, Plus, Download, Share2, ChevronRight,
     AlignCenter, AlignVerticalJustifyCenter,
@@ -1804,17 +1804,18 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         return () => window.removeEventListener('keydown', onKey);
     }, [selectedLayerId]);
 
-    // Core background removal using @imgly/background-removal (runs locally in browser)
+    // Free the on-device segmentation worker + model session when the editor
+    // closes, so no AI RAM is held while it's not in use.
+    useEffect(() => () => { disposeSegmentationWorker(); }, []);
+
+    // Core background removal via the on-device AI engine (ONNX U²-Net in a Web
+    // Worker, WebGPU→WASM, cached model). Accepts a File/Blob or an image URL.
     const runBgRemoval = async (imageSource) => {
         setProcessing(true);
         setProcessingProgress(0);
         try {
-            const blob = await removeBackground(imageSource, {
-                progress: (key, current, total) => {
-                    if (total > 0) {
-                        setProcessingProgress(Math.round((current / total) * 100));
-                    }
-                },
+            const { blob } = await engineRemoveBackground(imageSource, {
+                onProgress: ({ pct }) => setProcessingProgress(pct || 0),
             });
             const resultUrl = URL.createObjectURL(blob);
             setProcessedUrl(resultUrl);

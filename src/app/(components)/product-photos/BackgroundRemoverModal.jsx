@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { removeBackground } from '@imgly/background-removal';
+import { removeBackground as engineRemoveBackground, disposeSegmentationWorker } from '@/(lib)/ai-engine/tasks/removeBackground';
 import { generateImage } from '@/(lib)/ai-helpers';
 import { X, Upload, Download, Loader2, Search, Minus, Plus, HelpCircle, ChevronLeft, RefreshCw, RotateCcw, FlipHorizontal2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -293,78 +293,12 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
   const batchMode = batchItems.length > 0;
   useEffect(() => { activeIndexRef.current = activeIndex; }, [activeIndex]);
 
-  // ── Background-removal Worker POOL (parallel + off main thread) ───────────────
-  // Pool size is capped so it never starves the machine; each worker holds its own
-  // copy of the model, so more workers = more RAM.
-  const POOL_SIZE = Math.max(1, Math.min(3, (typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4) - 1));
-  const poolRef    = useRef([]);          // [{ worker, busy }]
-  const queueRef   = useRef([]);          // [{ file, onProgress, resolve, reject }]
-  const pendingRef = useRef(new Map());   // id -> { resolve, reject, onProgress, slot }
-  const reqIdRef   = useRef(0);
-
-  const pump = () => {
-    while (queueRef.current.length) {
-      const slot = poolRef.current.find(s => !s.busy);
-      if (!slot) return;
-      const task = queueRef.current.shift();
-      slot.busy = true;
-      const id = ++reqIdRef.current;
-      pendingRef.current.set(id, { ...task, slot });
-      slot.worker.postMessage({ id, file: task.file });
-    }
-  };
-
-  const createSlot = () => {
-    let w;
-    try {
-      w = new Worker(new URL('./bgRemoval.worker.js', import.meta.url), { type: 'module' });
-    } catch {
-      return null;
-    }
-    const slot = { worker: w, busy: false };
-    w.onmessage = (e) => {
-      const { id, type } = e.data || {};
-      const entry = pendingRef.current.get(id);
-      if (!entry) return;
-      if (type === 'progress') { entry.onProgress?.(e.data.current, e.data.total); return; }
-      if (type === 'done') entry.resolve(e.data.blob);
-      else if (type === 'error') entry.reject(new Error(e.data.message));
-      pendingRef.current.delete(id);
-      slot.busy = false;
-      pump();
-    };
-    w.onerror = () => {
-      // Fail the task in flight on this slot, drop the worker, keep going.
-      pendingRef.current.forEach((en, id) => {
-        if (en.slot === slot) { en.reject(new Error('worker error')); pendingRef.current.delete(id); }
-      });
-      try { w.terminate(); } catch {}
-      poolRef.current = poolRef.current.filter(s => s !== slot);
-      pump();
-    };
-    return slot;
-  };
-
-  const ensurePool = () => {
-    if (!poolRef.current.length) {
-      for (let i = 0; i < POOL_SIZE; i++) {
-        const slot = createSlot();
-        if (slot) poolRef.current.push(slot);
-      }
-    }
-    return poolRef.current.length > 0;
-  };
-
-  useEffect(() => () => {
-    poolRef.current.forEach(s => { try { s.worker.terminate(); } catch {} });
-    poolRef.current = [];
-  }, []);
-
-  const removeViaWorker = (file, onProgress) => new Promise((resolve, reject) => {
-    if (!ensurePool()) { reject(new Error('worker unavailable')); return; }
-    queueRef.current.push({ file, onProgress, resolve, reject });
-    pump();
-  });
+  // ── Background removal (on-device AI engine) ─────────────────────────────────
+  // Uses the shared engine's segmentation worker (ONNX U²-Net, WebGPU→WASM, model
+  // cached after first download). The engine holds ONE worker + model session and
+  // frees it on unmount, so peak RAM stays low even on weak devices. Replaces the
+  // former @imgly (AGPL) worker pool.
+  useEffect(() => () => { disposeSegmentationWorker(); }, []);
 
   // ── Interactive image state ──────────────────────────────────────────────
   const [selected, setSelected]     = useState(false);
@@ -516,14 +450,13 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
   }, [files]);
 
   const removeBgBlob = async (file, onProgress) => {
-    // Prefer the worker pool (off main thread, parallel). Fall back to main-thread
-    // WASM if a worker can't be created/loaded in this environment.
-    try {
-      return await removeViaWorker(file, onProgress);
-    } catch (e) {
-      console.warn('Worker background removal unavailable, using main thread', e);
-      return await removeBackground(file, { model: 'isnet_fp16', ...(onProgress ? { progress: (k, c, t) => onProgress(c, t) } : {}) });
-    }
+    // On-device AI engine (ONNX U²-Net in a Web Worker, WebGPU→WASM, cached model).
+    // The engine reports 0–100 via `pct`; adapt it to this component's (current,
+    // total) progress shape.
+    const { blob } = await engineRemoveBackground(file, {
+      onProgress: onProgress ? ({ pct }) => onProgress(pct || 0, 100) : undefined,
+    });
+    return blob;
   };
 
   const processBatch = async (fileList) => {
@@ -800,7 +733,7 @@ export default function BackgroundRemoverModal({ onClose, initialFile, files }) 
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-3"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-3"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div

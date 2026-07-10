@@ -3,6 +3,12 @@ node_modules
 node_modules/
 .env
 
+# AI engine assets — big binaries, fetched by `npm run models` (see
+# src/(lib)/ai-engine/README.md). Git-ignored; every dev/deploy runs the script.
+public/models/
+public/ort/
+public/ort-hf/
+
 # Claude Code local state (per-user, do not commit)
 .claude/
 .claude-code/

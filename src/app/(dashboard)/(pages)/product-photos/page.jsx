@@ -24,9 +24,13 @@ import VirtualModelModal from "@/app/(components)/product-photos/VirtualModelMod
 import ProductToolModal from "@/app/(components)/product-photos/ProductToolModal";
 import VideoGeneratorModal from "@/app/(components)/product-photos/VideoGeneratorModal";
 import BackgroundRemoverModal from "@/app/(components)/product-photos/BackgroundRemoverModal";
+import OnDeviceToolModal from "@/app/(components)/product-photos/OnDeviceToolModal";
+import { ON_DEVICE_TOOLS, ON_DEVICE_TOOL_IDS } from "@/app/(components)/product-photos/onDeviceToolConfigs";
 
-// Tools that use the shared ProductToolModal (Virtual Model has its own modal).
-const PRODUCT_TOOL_IDS = ["staging", "mannequin", "beautifier", "flatlay"];
+// Tools still using the shared ProductToolModal (prose-prompt Generate flow).
+// Beautifier / Ghost Mannequin / Flat Lay now run on-device via OnDeviceToolModal
+// (handled by ON_DEVICE_TOOL_IDS below), so they're excluded here.
+const PRODUCT_TOOL_IDS = ["staging"];
 
 // const tools = [
 //     { id: 'start',      label: 'Start from a photo',    Icon: Image,      primary: true },
@@ -176,7 +180,8 @@ export default function ProductPhotos() {
   const [virtualModelOpen, setVirtualModelOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
-  const [toolModalId, setToolModalId] = useState(null); // shared ProductToolModal (staging/mannequin/beautifier/flatlay)
+  const [toolModalId, setToolModalId] = useState(null); // shared ProductToolModal (staging)
+  const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/mannequin/flatlay)
 
   const openEditor = (mode = "start") => {
     setEditorMode(mode);
@@ -203,6 +208,10 @@ export default function ProductPhotos() {
     }
     if (id === "all") {
       toast("All available tools are shown above.");
+      return;
+    }
+    if (ON_DEVICE_TOOL_IDS.includes(id)) {
+      setOnDeviceToolId(id);
       return;
     }
     if (PRODUCT_TOOL_IDS.includes(id)) {
@@ -244,6 +253,12 @@ export default function ProductPhotos() {
             setToolModalId(null);
             openTool(id);
           }}
+        />
+      )}
+      {onDeviceToolId && ON_DEVICE_TOOLS[onDeviceToolId] && (
+        <OnDeviceToolModal
+          config={ON_DEVICE_TOOLS[onDeviceToolId]}
+          onClose={() => setOnDeviceToolId(null)}
         />
       )}
       {videoOpen && (
@@ -293,7 +308,7 @@ export default function ProductPhotos() {
                   }`}
                 >
                   <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${tool.color}`}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tool.color}`}
                   >
                     <Icon className="w-4 h-4" />
                   </div>
@@ -331,19 +346,19 @@ export default function ProductPhotos() {
                   key={i}
                   onClick={() => openEditor("start")}
                   whileHover={{ scale: 1.02 }}
-                  className="relative rounded-2xl overflow-hidden aspect-[4/3] group cursor-pointer"
+                  className="relative rounded-2xl overflow-hidden aspect-4/3 group cursor-pointer"
                 >
                   <img
                     src={item.img}
                     alt={item.label}
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent" />
                   <div className="absolute bottom-0 left-0 p-4 flex items-end justify-between w-full">
                     <p className="text-white text-sm font-semibold leading-tight text-left">
                       {item.label}
                     </p>
-                    <ChevronRight className="w-4 h-4 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                   </div>
                 </motion.button>
               ))}

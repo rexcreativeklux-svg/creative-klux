@@ -29,7 +29,7 @@ function ToolCard({ tool, active, onClick }) {
             className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? 'ring-2 ring-violet-500 bg-violet-50' : 'bg-gray-100 hover:bg-gray-100'}`}
         >
             <span className="text-sm font-semibold text-gray-900 leading-tight self-center pl-3.5 flex-1">{tool.name}</span>
-            <div className={`w-20 flex-shrink-0 flex items-center justify-center ${tool.color}`}>
+            <div className={`w-20 shrink-0 flex items-center justify-center ${tool.color}`}>
                 {imgOk
                     ? <img src={tool.img} alt={tool.name} className="w-full h-full object-cover" onError={() => setImgOk(false)} />
                     : <Icon className="w-6 h-6" />}
@@ -49,7 +49,7 @@ function DropdownBelow({ anchorRef, children, width = 460 }) {
     }, [anchorRef]);
     return (
         <div
-            className="fixed z-[210] bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto"
+            className="fixed z-210 bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto"
             style={{ top: pos.top, left: pos.left, width }}
             onClick={e => e.stopPropagation()}
         >
@@ -187,7 +187,7 @@ function FloatingPanel({ anchorRef, children, width = 320 }) {
     return (
         <div
             ref={panelRef}
-            className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
+            className="fixed z-200 bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
             style={{ top: pos.top, left: pos.left, width }}
             onClick={e => e.stopPropagation()}
         >
@@ -286,7 +286,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={closeAll}>
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/40" onClick={closeAll}>
             <div
                 className="bg-surface rounded-2xl shadow-2xl flex overflow-hidden"
                 style={{ width: '95vw', height: '92vh', maxWidth: '1400px' }}
@@ -294,7 +294,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
             >
                 {/* ── Left sidebar ── */}
                 {/* Column with a scrollable body and a pinned Generate footer. */}
-                <div className="w-84 border-r border-gray-200 flex flex-col flex-shrink-0">
+                <div className="w-84 border-r border-gray-200 flex flex-col shrink-0">
 
                     {/* Scrollable content (Generate button stays pinned below) */}
                     <div className="flex-1 overflow-y-auto min-h-0">
@@ -424,7 +424,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
     disabled:opacity-60
     ${generating
                                     ? 'bg-gray-400'
-                                    : 'bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-700 hover:to-violet-600'
+                                    : 'bg-linear-to-r from-violet-600 to-violet-500 hover:from-violet-700 hover:to-violet-600'
                                 }
   `}
                         >
@@ -457,7 +457,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                                     />
                                 </div>
                                 {/* stylish curved arrow */}
-                                <svg width="72" height="60" viewBox="0 0 72 60" fill="none" className="text-violet-500 flex-shrink-0 -mt-6">
+                                <svg width="72" height="60" viewBox="0 0 72 60" fill="none" className="text-violet-500 shrink-0 -mt-6">
                                     <path d="M6 44 C 24 8, 50 8, 62 32" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
                                     <path d="M62 32 L51 28 M62 32 L55 42" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
@@ -484,7 +484,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                             )}
                             <div className="grid grid-cols-4 gap-3">
                                 {generatedImages.map((url, idx) => (
-                                    <div key={idx} className="relative rounded-xl overflow-hidden group aspect-[2/3] bg-gray-100">
+                                    <div key={idx} className="relative rounded-xl overflow-hidden group aspect-2/3 bg-gray-100">
                                         <img src={url} alt={`result ${idx + 1}`} className="w-full h-full object-cover" />
                                         <button
                                             onClick={e => {
@@ -517,7 +517,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
             {toolMenuOpen && (
                 <>
                     {/* transparent backdrop to close on outside click */}
-                    <div className="fixed inset-0 z-[205]" onClick={() => setToolMenuOpen(false)} />
+                    <div className="fixed inset-0 z-205" onClick={() => setToolMenuOpen(false)} />
                     <DropdownBelow anchorRef={headerRef} width={460}>
                         <p className="text-xs font-semibold text-gray-500 px-1 mb-2">Recently used</p>
                         <div className="grid grid-cols-2 gap-2 mb-4">
@@ -540,7 +540,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
             {/* ── Floating dropdowns (fixed, above everything) ── */}
             {/* transparent backdrop closes whichever picker is open on outside click */}
             {openDropdown && (
-                <div className="fixed inset-0 z-[195]" onClick={() => setOpenDropdown(null)} />
+                <div className="fixed inset-0 z-195" onClick={() => setOpenDropdown(null)} />
             )}
             {openDropdown === 'model' && (
                 <FloatingPanel anchorRef={modelRef} width={310}>
@@ -587,7 +587,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                             return (
                                 <button key={t.id} onClick={() => { setQuality(t.id); setOpenDropdown(null); }}
                                     className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? 'border-violet-500 bg-violet-50/40' : 'border-gray-200 hover:border-gray-200 bg-surface'}`}>
-                                    <div className="w-20 h-28 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+                                    <div className="w-20 h-28 rounded-xl overflow-hidden bg-gray-100 shrink-0">
                                         <img src={t.img} alt={t.name} className="w-full h-full object-cover object-top" />
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -596,7 +596,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                                                 <span className="font-bold text-gray-900">{t.name}</span>
                                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${t.tagColor}`}>{t.tag}</span>
                                             </div>
-                                            <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${active ? 'bg-violet-600' : 'border-2 border-gray-200'}`}>
+                                            <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? 'bg-violet-600' : 'border-2 border-gray-200'}`}>
                                                 {active && <span className="text-white text-[10px]">✓</span>}
                                             </span>
                                         </div>
@@ -638,7 +638,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
             {/* Image context menu */}
             {imageMenu && (
                 <div
-                    className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-200 w-48 py-1"
+                    className="fixed z-200 bg-surface rounded-xl shadow-2xl border border-gray-200 w-48 py-1"
                     style={{ top: imageMenu.y, left: imageMenu.x }}
                     onClick={e => e.stopPropagation()}
                 >
@@ -655,7 +655,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                         <button key={item.label}
                             onClick={() => { if (item.action) item.action(); else setImageMenu(null); }}
                             className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-100 transition-colors ${item.red ? 'text-red-500' : 'text-gray-900'}`}>
-                            <item.icon className="w-4 h-4 flex-shrink-0" />
+                            <item.icon className="w-4 h-4 shrink-0" />
                             {item.label}
                         </button>
                     ))}

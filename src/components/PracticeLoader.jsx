@@ -23,8 +23,12 @@ export default function PracticeLoader({
   return (
     <div className={`practice-loader ${fullScreen ? "is-fixed" : ""}`}>
       <div className="pl-stack">
-        {/* Sun mark */}
-        <div className="pl-sun" style={{ width: size, height: size }}>
+        {/* Sun mark with radiating pulse rings */}
+        <div className="pl-sun-wrap" style={{ width: size, height: size }}>
+          <span className="pl-ring" />
+          <span className="pl-ring pl-ring-2" />
+          <span className="pl-ring pl-ring-3" />
+          <div className="pl-sun">
           <svg viewBox="0 0 100 100" width="100%" height="100%" aria-hidden="true">
             <defs>
               <linearGradient id="pl-grad" x1="0" y1="0" x2="0" y2="1">
@@ -48,6 +52,7 @@ export default function PracticeLoader({
               mask="url(#pl-mask)"
             />
           </svg>
+          </div>
         </div>
 
         {/* Label with pulsing dots */}
@@ -85,10 +90,45 @@ export default function PracticeLoader({
           align-items: center;
           gap: 22px;
         }
+        .pl-sun-wrap {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
         .pl-sun {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          height: 100%;
           animation: pl-breathe 2.4s ease-in-out infinite;
           filter: drop-shadow(0 8px 22px rgba(241, 101, 30, 0.28));
           transform-origin: center;
+        }
+        /* radiating pulse — filled sun-colored discs expanding from the centre */
+        .pl-ring {
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          background: #fb7a3c;
+          transform-origin: center;
+          animation: pl-ring 2.4s ease-out infinite;
+        }
+        .pl-ring-2 {
+          animation-delay: 0.8s;
+        }
+        .pl-ring-3 {
+          animation-delay: 1.6s;
+        }
+        @keyframes pl-ring {
+          0% {
+            transform: scale(1);
+            opacity: 0.45;
+          }
+          100% {
+            transform: scale(2.1);
+            opacity: 0;
+          }
         }
         .pl-label {
           margin: 0;
@@ -159,8 +199,12 @@ export default function PracticeLoader({
         }
         @media (prefers-reduced-motion: reduce) {
           .pl-sun,
-          .pl-dot {
+          .pl-dot,
+          .pl-ring {
             animation: none;
+          }
+          .pl-ring {
+            display: none;
           }
         }
       `}</style>

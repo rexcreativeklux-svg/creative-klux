@@ -6,16 +6,20 @@
  * (ProductToolModal header switcher + quality/size dropdowns, BackgroundRemover
  * bottom toolbar + zoom) and drives an on-device engine hook underneath.
  *
- * Flow: pick image → auto-process at the current size/quality → lively
- * processing state with live % → result. Changing quality/size re-processes
- * (results cached per size+quality so switching back is instant). The sidebar is
- * locked while processing; a Cancel button appears there during a run. Download /
- * Save to gallery / Clear live in the bottom toolbar with a zoom control; a prompt
- * + "Generate photorealistic" refine the result on the backend.
+ * Flow: pick an image from the gallery picker (My Library / Search / Upload,
+ * single-select — same MediaPickerModal flow as VirtualModelModal) → auto-process
+ * at the current size/quality → lively processing state with live % → result.
+ * Changing quality/size re-processes (results cached per size+quality so
+ * switching back is instant). The sidebar is locked while processing; a Cancel
+ * button appears there during a run. Download / Save to gallery / Clear live in
+ * the bottom toolbar with a zoom control; a prompt + "Generate photorealistic"
+ * sends the prepped result to the real generate endpoint (charging is
+ * server-side — the client only surfaces the 402/credits toast).
  */
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   X,
@@ -29,6 +33,7 @@ import {
   ChevronDown,
   Minus,
   Plus,
+  Maximize2,
   User,
   Package,
   Image as ImageIcon,
@@ -38,10 +43,34 @@ import {
   LayoutGrid,
   Video,
 } from "lucide-react";
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { useAuth } from "@/context/AuthContext";
 import { QUALITY_RES } from "@/(lib)/ai-engine/hooks/toolParams";
-import { generateImage } from "@/(lib)/ai-helpers";
-import { buildPayload } from "./buildPayload";
+import {
+  generateProductPhoto,
+  TOOL_ENUM,
+  QUALITY_ENUM,
+} from "@/(lib)/product-photos-api";
+import MediaPickerModal from "@/app/(components)/MediaPickerModal";
+import { stashPendingSave, takePendingSave } from "./pendingSave";
+
+/**
+ * Fetch a hosted image into a Blob the on-device engine can read pixels from.
+ * Tries the URL directly first; if that fails (usually missing CORS headers on
+ * the CDN), retries through our /api/proxy-image route.
+ */
+async function fetchImageBlob(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.blob();
+  } catch {
+    console.warn("⚠️ [on-device] direct image fetch failed — retrying via proxy:", url);
+    const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+    if (!res.ok) throw new Error(`Proxy fetch failed: HTTP ${res.status}`);
+    return await res.blob();
+  }
+}
 
 // Pexels CDN helper for the quality-tier card thumbnails (matches ProductToolModal).
 const px = (id) =>
@@ -178,7 +207,7 @@ function ToolCard({ tool, active, onClick }) {
   return (
     <button
       onClick={() => onClick(tool.id)}
-      className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? "ring-2 ring-violet-500 bg-violet-50" : "bg-gray-100 hover:bg-gray-100"}`}
+      className={`w-full flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? "ring-2 ring-violet-500 bg-violet-50" : "bg-gray-100 hover:bg-gray-100"}`}
     >
       <span className="text-sm font-semibold text-gray-900 leading-tight self-center pl-3.5 flex-1">
         {tool.name}
@@ -201,7 +230,63 @@ function ToolCard({ tool, active, onClick }) {
   );
 }
 
-// Floating panel anchored BELOW its anchor (header dropdown).
+// ── Zoomable canvas surface (react-zoom-pan-pinch) ──
+// Wheel/pinch zoom, drag pan, double-click to reset. The parent owns the ref so
+// the bottom-toolbar controls (− / % / + / fit) drive whichever surface is
+// currently mounted (on-device result or AI-generated view).
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 4;
+
+// Exclusion lists must ALWAYS be arrays — react-zoom-pan-pinch crashes on
+// undefined (isExcludedNode calls .some on it).
+function ZoomCanvas({ zoomRef, onScale, excluded = [], wheelExcluded = [], children }) {
+  return (
+    <TransformWrapper
+      ref={zoomRef}
+      minScale={ZOOM_MIN}
+      maxScale={ZOOM_MAX}
+      centerOnInit
+      centerZoomedOut
+      doubleClick={{ mode: "reset", excluded: wheelExcluded }}
+      wheel={{ step: 0.15, excluded: wheelExcluded }}
+      panning={{ excluded, velocityDisabled: true }}
+      onTransformed={(_, state) => onScale?.(state.scale)}
+    >
+      <TransformComponent
+        wrapperStyle={{ width: "100%", height: "100%" }}
+        contentStyle={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {children}
+      </TransformComponent>
+    </TransformWrapper>
+  );
+}
+
+// ── Popover animations (shared by the header dropdown + option panels) ──
+// The dropdown staggers its children in; items opt in via DROPDOWN_ITEM.
+const DROPDOWN_PANEL = {
+  hidden: { opacity: 0, y: -8, scale: 0.98 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.18, ease: "easeOut", staggerChildren: 0.015, delayChildren: 0.02 },
+  },
+  exit: { opacity: 0, y: -6, scale: 0.98, transition: { duration: 0.12, ease: "easeIn" } },
+};
+const DROPDOWN_ITEM = {
+  hidden: { opacity: 0, y: 6 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.15, ease: "easeOut" } },
+};
+
+// Floating panel anchored BELOW its anchor (header dropdown). Animated —
+// render inside an <AnimatePresence> so the exit plays too.
 function DropdownBelow({ anchorRef, children, width = 460 }) {
   const [pos, setPos] = useState({ top: 0, left: 0 });
   useEffect(() => {
@@ -211,17 +296,22 @@ function DropdownBelow({ anchorRef, children, width = 460 }) {
     }
   }, [anchorRef]);
   return (
-    <div
+    <motion.div
+      variants={DROPDOWN_PANEL}
+      initial="hidden"
+      animate="show"
+      exit="exit"
       className="fixed z-[210] bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto"
-      style={{ top: pos.top, left: pos.left, width }}
+      style={{ top: pos.top, left: pos.left, width, transformOrigin: "top left" }}
       onClick={(e) => e.stopPropagation()}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }
 
 // Floating panel anchored to the RIGHT of the trigger, clamped to the viewport.
+// Animated — render inside an <AnimatePresence> so the exit plays too.
 function FloatingPanel({ anchorRef, children, width = 320 }) {
   const panelRef = useRef(null);
   const [pos, setPos] = useState({ top: -9999, left: -9999 });
@@ -244,14 +334,17 @@ function FloatingPanel({ anchorRef, children, width = 320 }) {
     setPos({ top, left });
   }, [anchorRef, width]);
   return (
-    <div
+    <motion.div
       ref={panelRef}
+      initial={{ opacity: 0, x: -6, scale: 0.98 }}
+      animate={{ opacity: 1, x: 0, scale: 1, transition: { duration: 0.16, ease: "easeOut" } }}
+      exit={{ opacity: 0, x: -4, scale: 0.98, transition: { duration: 0.12, ease: "easeIn" } }}
       className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
-      style={{ top: pos.top, left: pos.left, width }}
+      style={{ top: pos.top, left: pos.left, width, transformOrigin: "left center" }}
       onClick={(e) => e.stopPropagation()}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -273,24 +366,28 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     hasZoom = true,
   } = config;
 
-  const { token, uploadImage } = useAuth();
+  const router = useRouter();
+  const { token, uploadImage, activeBrand, loading: authLoading } = useAuth();
   const isLoggedIn = !!token;
 
-  const fileInputRef = useRef(null);
   const qualityRef = useRef(null);
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
 
-  const [uploadedImage, setUploadedImage] = useState(null); // object URL of source
+  const [uploadedImage, setUploadedImage] = useState(null); // preview URL of source
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
   const [size, setSize] = useState(defaultSize);
   const [quality, setQuality] = useState(defaultQuality);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [prompt, setPrompt] = useState("");
+  const [applyBrandStyle, setApplyBrandStyle] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [zoom, setZoom] = useState(100);
+  const [generatedImage, setGeneratedImage] = useState(null); // hosted URL from Generate
+  const [zoomPct, setZoomPct] = useState(100); // readout only — RZPP owns the transform
+  const zoomRef = useRef(null); // react-zoom-pan-pinch instance
 
   // Cache of already-computed results, keyed by `${size}|${quality}`, so switching
   // back to a setting we've already processed is instant (no fresh run).
@@ -345,17 +442,44 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     });
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file || busy) return;
+  // Kick off processing for a freshly picked File (from either picker path).
+  const startWithFile = (file, previewUrl) => {
     cacheRef.current.clear();
-    setZoom(100);
+    setGeneratedImage(null);
     setUploadedFile(file);
     setUploadedImage((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
+      if (prev) URL.revokeObjectURL(prev); // no-op for non-object URLs
+      return previewUrl || URL.createObjectURL(file);
     });
     process(file, size, quality);
+  };
+
+  // Image comes from the gallery picker (My Library / Search / Upload) — ONE
+  // image only (maxSelectable={1}). A fresh desktop upload carries a File the
+  // engine can read directly; a library/search pick only has a hosted URL, so we
+  // fetch it into a File (proxy fallback for CORS) — either way the downstream
+  // process/cache/re-run flow works on a File exactly as before.
+  const handleApplyFromPicker = async (images = []) => {
+    setPickerOpen(false);
+    const item = images[0];
+    if (!item || busy) return;
+    if (item.file instanceof File) {
+      startWithFile(item.file, item.src || undefined);
+      return;
+    }
+    const url = item.large || item.src || null;
+    if (!url) return;
+    try {
+      const blob = await fetchImageBlob(url);
+      // Name is engine-local only — upload paths re-wrap blobs with fresh names.
+      const file = new File([blob], "gallery-pick.png", {
+        type: blob.type || "image/png",
+      });
+      startWithFile(file, url);
+    } catch (err) {
+      console.error("❌ [on-device] couldn't load the gallery image:", err);
+      toast.error("Couldn't load that image. Please try another one.");
+    }
   };
 
   // Quality/size change → re-process ASAP (or restore from cache). Blocked while
@@ -363,11 +487,13 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   const changeQuality = (q) => {
     setQuality(q);
     setOpenDropdown(null);
+    setGeneratedImage(null); // settings changed — back to the live preview
     if (uploadedFile && !busy) process(uploadedFile, size, q);
   };
   const changeSize = (s) => {
     setSize(s);
     setOpenDropdown(null);
+    setGeneratedImage(null);
     if (uploadedFile && !busy) process(uploadedFile, s, quality);
   };
 
@@ -385,6 +511,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
       return null;
     });
     cacheRef.current.clear();
+    setGeneratedImage(null);
     toast("Canceled — pick another image.");
   };
 
@@ -396,21 +523,65 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
       return null;
     });
     cacheRef.current.clear();
-    setZoom(100);
+    setGeneratedImage(null);
   };
 
-  const handleDownload = () => download("hd", "png", "transparent");
+  // Download whatever is visible: the AI-generated render when shown, otherwise
+  // the on-device result (full-res transparent PNG).
+  const handleDownload = async () => {
+    if (generatedImage) {
+      try {
+        const blob = await fetchImageBlob(generatedImage);
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${config.filePrefix}-generated-${Date.now()}.png`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (err) {
+        console.error(`❌ [${config.toolId}] generated download failed:`, err);
+        toast.error("Couldn't download the generated image.");
+      }
+      return;
+    }
+    download("hd", "png", "transparent");
+  };
 
+  // Save whatever is visible: the AI-generated render when shown (fetched +
+  // re-uploaded into the user's gallery), otherwise the on-device result.
+  // Guests aren't dead-ended: the result is stashed (CacheStorage) and they're
+  // sent to log in with a returnTo that resumes + completes the save.
   const doSave = async () => {
     if (!isLoggedIn) {
-      toast.error("Log in to save to your gallery.");
+      if (!hasResult) {
+        toast.error("Log in to save to your gallery.");
+        return;
+      }
+      try {
+        const blob = generatedImage
+          ? await fetchImageBlob(generatedImage)
+          : await fetch(resultImage).then((r) => r.blob());
+        await stashPendingSave(blob, { toolId: config.toolId, size, quality });
+        toast.info("Log in to finish saving — we'll bring you right back.");
+        router.push(
+          `/login?returnTo=${encodeURIComponent(`/product-photos?resume=${config.toolId}`)}`,
+        );
+      } catch (err) {
+        console.error("❌ pending save stash failed:", err);
+        toast.error("Log in to save to your gallery.");
+      }
       return;
     }
     if (saving) return;
     setSaving(true);
     try {
-      const saved = await tool.saveToGallery("transparent");
-      if (saved !== false) toast.success("Saved to gallery");
+      if (generatedImage) {
+        const blob = await fetchImageBlob(generatedImage);
+        await handleSave(blob);
+        toast.success("Saved to gallery");
+      } else {
+        const saved = await tool.saveToGallery("transparent");
+        if (saved !== false) toast.success("Saved to gallery");
+      }
     } catch (err) {
       console.error("❌ save failed:", err);
       toast.error(err?.message || "Couldn't save to gallery");
@@ -419,8 +590,10 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     }
   };
 
-  // Generate (photoreal refinement): upload the current result, build the payload,
-  // call the endpoint. No image-gen service is wired yet, so it fails gracefully.
+  // Generate (photoreal refinement) — same contract as VirtualModelModal: upload
+  // the current on-device result to get a hosted URL, then POST the structured
+  // payload to /product-photos/generate. Charging happens server-side; the
+  // client (generateProductPhoto) surfaces 402/credits errors as toasts.
   const doGenerate = async () => {
     if (!resultImage || generating) return;
     if (!isLoggedIn) {
@@ -428,6 +601,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
       return;
     }
     setGenerating(true);
+    setOpenDropdown(null);
     try {
       const blob = await fetch(resultImage).then((r) => r.blob());
       const file = new File(
@@ -436,24 +610,36 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
         { type: "image/png" },
       );
       const uploaded = await uploadImage(file);
+      console.log(`🖼️ [${config.toolId}] upload response ←`, uploaded);
       const imageUrl =
-        uploaded?.url || uploaded?.image_url || uploaded?.file_url;
+        uploaded?.url ||
+        uploaded?.image_url ||
+        uploaded?.file_url ||
+        uploaded?.data?.url;
       if (!imageUrl)
         throw new Error("Couldn't get an image URL for generation.");
-      const payload = buildPayload(config.toolId, {
-        imageUrls: [imageUrl],
-        quality,
-        sizeId: size,
-        prompt,
-      });
-      const result = await generateImage(payload);
-      if (result?.url) {
-        tool.setResultBlob?.(await fetch(result.url).then((r) => r.blob()));
-        toast.success("Photorealistic render ready!");
+
+      const payload = {
+        tool: TOOL_ENUM[config.toolId],
+        image: imageUrl,
+        quality: QUALITY_ENUM[quality] || "standard",
+        size,
+        apply_brand_style: applyBrandStyle,
+        prompt: prompt || "",
+      };
+      const result = await generateProductPhoto(payload);
+      console.log(`🎨 [${config.toolId}] generate result ←`, result);
+
+      const resultUrl = result?.url || result?.image_url || result?.data?.url;
+      if (resultUrl) {
+        setGeneratedImage(resultUrl);
+        toast.success("Image generated!");
+      } else {
+        toast("Generated — check the console for the response shape.");
       }
     } catch (err) {
-      console.error("❌ generate failed:", err);
-      toast.error("Photorealistic generation isn't available yet.");
+      // generateProductPhoto already toasts a friendly error; log for debugging.
+      console.error(`❌ [${config.toolId}] generate failed:`, err);
     } finally {
       setGenerating(false);
     }
@@ -467,10 +653,69 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   ); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasResult = !!resultImage;
-  const showEmpty = !uploadedImage && !busy && !failed;
+  const showEmpty = !uploadedImage && !hasResult && !busy && !failed;
   const zoomActive = hasZoom;
 
+  // Live % readout for the zoom control; bails out when the rounded % is
+  // unchanged so pan events don't re-render the modal every frame.
+  const handleZoomScale = (scale) =>
+    setZoomPct((prev) => {
+      const next = Math.round(scale * 100);
+      return next === prev ? prev : next;
+    });
+
+  // Fit-to-view whenever new content lands so everything is visible at once
+  // (e.g. all flat-lay items right after they separate).
+  useEffect(() => {
+    if (!resultImage && !generatedImage) return;
+    const id = requestAnimationFrame(() => {
+      zoomRef.current?.resetTransform(0);
+      setZoomPct(100);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [resultImage, generatedImage]);
+
+  // Resume a guest save-after-login: if this tool stashed a pending save
+  // before redirecting to /login (see doSave), restore the result and — now
+  // that the user is authenticated — complete the save automatically. One-shot
+  // (the stash deletes on read), and gated on auth finishing its initial load
+  // so a just-logged-in user isn't misread as a guest.
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (authLoading || resumedRef.current) return;
+    resumedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      const pending = await takePendingSave(config.toolId);
+      if (!pending || cancelled) return;
+      console.log(`🔖 [${config.toolId}] restoring the pending save from before login`);
+      if (pending.meta.size) setSize(pending.meta.size);
+      if (pending.meta.quality) setQuality(pending.meta.quality);
+      tool.setResultBlob?.(pending.blob);
+      if (!isLoggedIn) {
+        toast.info("Your result is restored — log in to save it.");
+        return;
+      }
+      try {
+        await handleSave(pending.blob);
+        tool.markSaved?.();
+        toast.success("Saved to gallery");
+      } catch (err) {
+        console.error("❌ resume save failed:", err);
+        toast.error("Couldn't finish saving — hit Save to try again.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally not re-run on auth/tool identity churn — the stash is one-shot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading]);
+
   return (
+    // reducedMotion="user": every transform animation inside collapses to a
+    // plain fade for users with prefers-reduced-motion.
+    <MotionConfig reducedMotion="user">
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-3"
       onClick={closeMenus}
@@ -497,27 +742,18 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
               </button>
             </div>
 
-            {/* Upload */}
+            {/* Upload — opens the gallery picker (My Library / Search / Upload) */}
             <div className="px-4 pt-4">
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setPickerOpen(true)}
                 disabled={busy}
                 className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Upload className="w-4 h-4" />
-                Drop a file or{" "}
                 <span className="text-violet-600 font-semibold">
-                  select an image
+                  Select from gallery
                 </span>
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileChange}
-                disabled={busy}
-              />
             </div>
 
             {uploadedImage && (
@@ -567,6 +803,26 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
 
               {renderExtra?.({ tool, busy, quality, size })}
 
+              {/* Brand style — required payload field for Generate. */}
+              <button
+                onClick={() => !busy && setApplyBrandStyle((p) => !p)}
+                disabled={busy}
+                className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="text-gray-900 font-medium">
+                  Apply brand style
+                </span>
+                <span
+                  className={
+                    applyBrandStyle
+                      ? "text-violet-600 font-semibold"
+                      : "text-gray-500"
+                  }
+                >
+                  {applyBrandStyle ? "On" : "Off"}
+                </span>
+              </button>
+
               {/* Prompt — always available (used by Generate). */}
               <div className="rounded-2xl bg-gray-100 px-4 py-3">
                 <textarea
@@ -581,7 +837,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
             </div>
           </div>
 
-          {/* Pinned footer — Generate (always) / Cancel (while processing) */}
+          {/* Pinned footer — Generate (when the tool supports it) / Cancel (while processing) */}
           <div className="px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
             <AnimatePresence mode="wait" initial={false}>
               {busy ? (
@@ -596,7 +852,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                 >
                   <X className="w-4 h-4" /> Cancel
                 </motion.button>
-              ) : (
+              ) : config.hasGenerate === false ? null : (
                 <motion.button
                   key="generate"
                   initial={{ opacity: 0, y: 6 }}
@@ -632,8 +888,8 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
             <X className="w-5 h-5 text-gray-600" />
           </button>
 
-          {/* Canvas / interacting space */}
-          <div className="flex-1 min-h-0 flex items-center justify-center p-8 overflow-auto">
+          {/* Canvas / interacting space — pan/zoom lives inside, so no scrollbars */}
+          <div className="flex-1 min-h-0 flex items-center justify-center p-8 overflow-hidden">
             <AnimatePresence mode="wait" initial={false}>
               {showEmpty ? (
                 <motion.div
@@ -775,6 +1031,48 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                     </div>
                   </div>
                 </motion.div>
+              ) : generatedImage ? (
+                <motion.div
+                  key="generated"
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="relative w-full h-full"
+                >
+                  {zoomActive ? (
+                    <ZoomCanvas
+                      zoomRef={zoomRef}
+                      onScale={handleZoomScale}
+                      excluded={config.zoomExcluded}
+                      wheelExcluded={config.wheelExcluded}
+                    >
+                      <img
+                        src={generatedImage}
+                        alt={`${title} — AI generated`}
+                        className="max-h-[70vh] max-w-full object-contain rounded-2xl shadow-lg"
+                      />
+                    </ZoomCanvas>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <img
+                        src={generatedImage}
+                        alt={`${title} — AI generated`}
+                        className="max-h-[70vh] max-w-full object-contain rounded-2xl shadow-lg"
+                      />
+                    </div>
+                  )}
+                  {/* Fixed overlays — badge + back chip stay put while the image zooms */}
+                  <span className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-full bg-violet-600/90 px-2.5 py-1 text-[11px] font-semibold text-white shadow backdrop-blur pointer-events-none">
+                    <Sparkles className="w-3 h-3" /> AI Generated
+                  </span>
+                  <button
+                    onClick={() => setGeneratedImage(null)}
+                    className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 rounded-full bg-surface/90 border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 shadow hover:bg-gray-100 transition-colors backdrop-blur cursor-pointer"
+                  >
+                    Back to preview
+                  </button>
+                </motion.div>
               ) : (
                 <motion.div
                   key="result"
@@ -782,17 +1080,34 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.25 }}
-                  className="flex items-center justify-center"
-                  style={
+                  className={
                     zoomActive
-                      ? {
-                          transform: `scale(${zoom / 100})`,
-                          transformOrigin: "center",
-                        }
-                      : undefined
+                      ? "relative w-full h-full"
+                      : "relative flex items-center justify-center"
                   }
                 >
-                  {renderResult ? (
+                  {zoomActive ? (
+                    <ZoomCanvas
+                      zoomRef={zoomRef}
+                      onScale={handleZoomScale}
+                      excluded={config.zoomExcluded}
+                      wheelExcluded={config.wheelExcluded}
+                    >
+                      {renderResult ? (
+                        renderResult({ tool, resultImage })
+                      ) : (
+                        <img
+                          src={resultImage}
+                          alt={title}
+                          className="max-h-[70vh] max-w-full object-contain rounded-2xl"
+                          style={{
+                            background:
+                              "repeating-conic-gradient(#e4e4e7 0% 25%, #fff 0% 50%) 50% / 20px 20px",
+                          }}
+                        />
+                      )}
+                    </ZoomCanvas>
+                  ) : renderResult ? (
                     renderResult({ tool, resultImage })
                   ) : (
                     <img
@@ -804,6 +1119,15 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                           "repeating-conic-gradient(#e4e4e7 0% 25%, #fff 0% 50%) 50% / 20px 20px",
                       }}
                     />
+                  )}
+                  {/* Fixed overlay (e.g. background swatches) — stays put while the result zooms */}
+                  {config.renderOverlay && hasResult && (
+                    <div
+                      className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {config.renderOverlay({ tool, busy })}
+                    </div>
                   )}
                 </motion.div>
               )}
@@ -843,19 +1167,28 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
             {zoomActive && (
               <div className="flex items-center gap-1 bg-surface rounded-full border border-gray-200 shadow-sm px-2 py-1">
                 <button
-                  onClick={() => setZoom((z) => Math.max(25, z - 25))}
-                  className="p-1 hover:bg-gray-100 rounded-full cursor-pointer transition-colors"
+                  onClick={() => zoomRef.current?.zoomOut(0.3)}
+                  title="Zoom out"
+                  className="p-1 hover:bg-gray-100 rounded-full cursor-pointer transition-all active:scale-90"
                 >
                   <Minus className="w-3 h-3 text-gray-500" />
                 </button>
                 <span className="text-xs text-gray-500 w-10 text-center">
-                  {zoom}%
+                  {zoomPct}%
                 </span>
                 <button
-                  onClick={() => setZoom((z) => Math.min(200, z + 25))}
-                  className="p-1 hover:bg-gray-100 rounded-full cursor-pointer transition-colors"
+                  onClick={() => zoomRef.current?.zoomIn(0.3)}
+                  title="Zoom in"
+                  className="p-1 hover:bg-gray-100 rounded-full cursor-pointer transition-all active:scale-90"
                 >
                   <Plus className="w-3 h-3 text-gray-500" />
+                </button>
+                <button
+                  onClick={() => zoomRef.current?.resetTransform()}
+                  title="Fit to view"
+                  className="p-1 hover:bg-gray-100 rounded-full cursor-pointer transition-all active:scale-90"
+                >
+                  <Maximize2 className="w-3 h-3 text-gray-500" />
                 </button>
               </div>
             )}
@@ -865,12 +1198,14 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
 
       {/* ── Tool switcher (header dropdown) ── */}
       {toolMenuOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-[205]"
-            onClick={() => setToolMenuOpen(false)}
-          />
-          <DropdownBelow anchorRef={headerRef} width={460}>
+        <div
+          className="fixed inset-0 z-[205]"
+          onClick={() => setToolMenuOpen(false)}
+        />
+      )}
+      <AnimatePresence>
+        {toolMenuOpen && (
+          <DropdownBelow key="tool-menu" anchorRef={headerRef} width={460}>
             <p className="text-xs font-semibold text-gray-500 px-1 mb-2">
               Recently used
             </p>
@@ -879,12 +1214,13 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                 const t = TOOL_LIST.find((x) => x.id === id);
                 if (!t) return null;
                 return (
-                  <ToolCard
-                    key={`recent-${t.id}`}
-                    tool={t}
-                    active={t.id === config.toolId}
-                    onClick={handleToolClick}
-                  />
+                  <motion.div key={`recent-${t.id}`} variants={DROPDOWN_ITEM}>
+                    <ToolCard
+                      tool={t}
+                      active={t.id === config.toolId}
+                      onClick={handleToolClick}
+                    />
+                  </motion.div>
                 );
               })}
             </div>
@@ -893,17 +1229,18 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
             </p>
             <div className="grid grid-cols-2 gap-2">
               {TOOL_LIST.map((t) => (
-                <ToolCard
-                  key={t.id}
-                  tool={t}
-                  active={t.id === config.toolId}
-                  onClick={handleToolClick}
-                />
+                <motion.div key={t.id} variants={DROPDOWN_ITEM}>
+                  <ToolCard
+                    tool={t}
+                    active={t.id === config.toolId}
+                    onClick={handleToolClick}
+                  />
+                </motion.div>
               ))}
             </div>
           </DropdownBelow>
-        </>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* ── Floating dropdowns ── */}
       {openDropdown && (
@@ -913,8 +1250,9 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
         />
       )}
 
+      <AnimatePresence>
       {openDropdown === "quality" && (
-        <FloatingPanel anchorRef={qualityRef} width={380}>
+        <FloatingPanel key="quality-panel" anchorRef={qualityRef} width={380}>
           <div className="p-2 space-y-2">
             {QUALITY_TIERS.map((t) => {
               const active = quality === t.id;
@@ -970,7 +1308,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
       )}
 
       {openDropdown === "size" && (
-        <FloatingPanel anchorRef={sizeRef} width={380}>
+        <FloatingPanel key="size-panel" anchorRef={sizeRef} width={380}>
           <div className="grid grid-cols-3 gap-2.5 p-3">
             {SIZES.map((s) => {
               const active = size === s.id;
@@ -1003,6 +1341,18 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
           </div>
         </FloatingPanel>
       )}
+      </AnimatePresence>
+
+      {/* ── Gallery media picker — pick ONE image (My Library / Search / Upload) ── */}
+      <MediaPickerModal
+        isOpen={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onCancel={() => setPickerOpen(false)}
+        onApply={handleApplyFromPicker}
+        activeBrand={activeBrand}
+        maxSelectable={1}
+      />
     </div>
+    </MotionConfig>
   );
 }

@@ -15,8 +15,9 @@ export const MODEL_CACHE_NAME = "klux-ai-models-v1";
 
 /**
  * Background-removal (salient-object segmentation) models, smallest first.
- * Both are U²-Net-family: 320×320 RGB input normalized with the ImageNet
- * mean/std, one [1,1,320,320] saliency map output used as the alpha mask.
+ * Each entry declares its own input size + normalization; the worker reads
+ * everything from here (stretch-resize to `inputSize`, normalize with
+ * mean/std, first output = the saliency map used as the alpha mask).
  *
  * @type {Record<string, {
  *   file: string, sizeMB: number, license: string, label: string,
@@ -43,6 +44,21 @@ export const SEGMENTATION_MODELS = {
     inputSize: 320,
     mean: [0.485, 0.456, 0.406],
     std: [0.229, 0.224, 0.225],
+  },
+  // Premium tier — IS-Net (DIS, ECCV 2022): best-in-class edges on hair,
+  // straps and fine detail, thanks to its native 1024px input. Big and heavy,
+  // so `qualityToModelKey` only offers it on capable devices (WebGPU, >4 GB)
+  // and quietly downgrades to silueta elsewhere. rembg's official ONNX export
+  // (same release that hosts u2netp/silueta); normalization per rembg's
+  // DisSession: ImageNet mean, std 1.0.
+  isnet: {
+    file: "isnet-general-use.onnx",
+    sizeMB: 178.6,
+    license: "Apache-2.0",
+    label: "Premium (179 MB)",
+    inputSize: 1024,
+    mean: [0.485, 0.456, 0.406],
+    std: [1, 1, 1],
   },
 };
 

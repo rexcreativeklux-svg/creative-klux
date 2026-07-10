@@ -255,7 +255,16 @@ export default function LoginPage() {
     try {
       const msg = await login(email, password);
       showToast(msg);
-      setTimeout(() => router.push("/"), 2000);
+      // Optional ?returnTo= — used by flows that send guests here and bring
+      // them back (e.g. the product-photos pending save). Relative paths only,
+      // so a crafted link can't redirect off-site.
+      const params = new URLSearchParams(window.location.search);
+      const returnTo = params.get("returnTo");
+      const safeReturn =
+        returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+          ? returnTo
+          : "/";
+      setTimeout(() => router.push(safeReturn), 2000);
     } catch (err) {
       setError(err.message);
     } finally {

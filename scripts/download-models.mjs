@@ -9,6 +9,8 @@
 // (Beautifier, Ghost Mannequin, Flat Lay). Only commercially-safe licenses:
 //   u2netp               4.6 MB  Apache-2.0   — bg cutout, fast tier (low-RAM devices)
 //   silueta              43 MB   MIT          — bg cutout, default tier (better edges)
+//   isnet-general-use    179 MB  Apache-2.0   — bg cutout, Premium tier (best edges;
+//                                               browser-gated to WebGPU + >4 GB RAM)
 //   realesr-general-x4v3 4.9 MB  BSD-3-Clause — 4x upscale/enhance (standard)
 //   realesrgan-x4plus    67 MB   BSD-3-Clause — 4x upscale HD tier (WebGPU only)
 // The Ghost Mannequin depth model (Depth Anything V2 Small, Apache-2.0) runs
@@ -46,6 +48,14 @@ const MODELS = [
     file: "silueta.onnx",
     bytes: 44173029,
     url: "https://github.com/danielgatis/rembg/releases/download/v0.0.0/silueta.onnx",
+  },
+  // IS-Net (DIS) — the Premium cutout tier. Only downloaded by the browser when
+  // a capable device actually runs Premium; this script still fetches it so
+  // every deploy can serve it.
+  {
+    file: "isnet-general-use.onnx",
+    bytes: 178648008,
+    url: "https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx",
   },
   // Real-ESRGAN "general x4v3" (SRVGGNetCompact, BSD-3-Clause weights from
   // xinntao's official release) — the standard community ONNX conversion.

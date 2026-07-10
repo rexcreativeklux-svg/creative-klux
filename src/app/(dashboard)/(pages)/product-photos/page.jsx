@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -220,6 +220,23 @@ export default function ProductPhotos() {
     }
     openEditor("start");
   };
+
+  // Resume after login: /product-photos?resume=<toolId> re-opens the on-device
+  // tool so the pending save it stashed before the login redirect can complete
+  // (see OnDeviceToolModal + pendingSave.js). Param is stripped once handled.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const resume = params.get("resume");
+    if (!resume || !ON_DEVICE_TOOL_IDS.includes(resume)) return undefined;
+    const id = requestAnimationFrame(() => {
+      console.log(`🔖 [product-photos] resuming ${resume} after login`);
+      setOnDeviceToolId(resume);
+      router.replace("/product-photos", { scroll: false });
+    });
+    return () => cancelAnimationFrame(id);
+    // Mount-only: reads the URL the page landed with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Search filtering — matches tools and getStarted items
   const q = search.toLowerCase().trim();

@@ -13,6 +13,7 @@ import useGhostMannequin from "@/(lib)/ai-engine/hooks/useGhostMannequin";
 import useFlatLay from "@/(lib)/ai-engine/hooks/useFlatLay";
 import Mannequin3DView from "./Mannequin3DView";
 import FlatLayArrange from "./FlatLayArrange";
+import BackgroundSwatchRow from "./BackgroundSwatchRow";
 
 // Pexels CDN helper (free license, stable URLs) — matches the other modals.
 const px = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=600`;
@@ -26,12 +27,28 @@ export const ON_DEVICE_TOOLS = {
     defaultSize: "square",
     defaultQuality: "High",
     hasGenerate: true, // refine the on-device result to photoreal on the backend
+    // Background swatches make the framed blob change without a size/quality
+    // change, so the modal's per-size|quality cache would serve stale frames.
+    // The hook's own per-quality cache keeps re-runs instant anyway.
+    noResultCache: true,
     sample: {
       before: px(4856500),
       after: px(33245825),
       headline: "Get a polished, professional product image",
-      subtext: "We remove the background and sharpen your product — clean and ready to sell.",
+      subtext: "We color-boost, sharpen and upscale your photo — keep its background or swap in a matched studio color.",
     },
+    // Floating swatch row under the result: Original (keep the photo's
+    // background — the default) + auto-matched studio colors + neutrals +
+    // transparent. Switching re-composes instantly (no AI re-run).
+    renderOverlay: ({ tool, busy }) => (
+      <BackgroundSwatchRow
+        backgrounds={tool.backgrounds}
+        value={tool.background}
+        onChange={tool.setBackground}
+        disabled={busy}
+        showOriginal
+      />
+    ),
   },
 
   mannequin: {
@@ -46,14 +63,21 @@ export const ON_DEVICE_TOOLS = {
       before: px(4109759),
       after: px(37595197),
       headline: "See your garment in an interactive 3D view",
-      subtext: "We build a real depth view you can tilt-look — then refine it to a photoreal render.",
+      subtext: "We build a real depth mesh you can drag-rotate — then refine it to a photoreal render.",
     },
-    // The interactive 3D view already fills the space (you look around with the
-    // cursor), so it opts out of the zoom control.
-    hasZoom: false,
-    // Mount the interactive WebGL 2.5D view; falls back to the flat framed image.
+    // Zoom is live in the 2D view; the 3D canvas ("mannequin-3d") is excluded
+    // from pan AND wheel — there the pointer rotates the garment instead.
+    zoomExcluded: ["mannequin-3d"],
+    wheelExcluded: ["mannequin-3d"],
+    // Mount the interactive WebGL 3D view (drag-rotate mesh, 2D/3D toggle);
+    // falls back to the flat framed image.
     renderResult: ({ tool, resultImage }) => (
-      <Mannequin3DView cutoutUrl={tool.cutoutUrl} depthUrl={tool.depthUrl} fallbackSrc={resultImage} />
+      <Mannequin3DView
+        setAngleExporter={tool.setAngleExporter}
+        cutoutUrl={tool.cutoutUrl}
+        depthUrl={tool.depthUrl}
+        fallbackSrc={resultImage}
+      />
     ),
   },
 
@@ -64,9 +88,12 @@ export const ON_DEVICE_TOOLS = {
     useTool: useFlatLay,
     defaultSize: "square",
     defaultQuality: "High",
+    hasGenerate: true, // refine the arranged flat lay to photoreal on the backend
     // Interactive layout: re-run on size/quality (don't restore a flat cached
     // blob, which would lose the draggable layers).
     noResultCache: true,
+    // Item drags and the context menu must never pan the zoom surface.
+    zoomExcluded: ["flatlay-item", "flatlay-menu"],
     sample: {
       before: px(10597861),
       after: px(8408556),
@@ -75,6 +102,17 @@ export const ON_DEVICE_TOOLS = {
     },
     // Custom result: the interactive arrange surface (drag/scale each item).
     renderResult: ({ tool }) => <FlatLayArrange tool={tool} />,
+    // Floating swatch row under the canvas: matched + curated plain backgrounds
+    // (right-click an item for its own transparent download).
+    renderOverlay: ({ tool, busy }) => (
+      <BackgroundSwatchRow
+        backgrounds={tool.backgrounds}
+        value={tool.background}
+        onChange={tool.setBackground}
+        disabled={busy}
+        showAuto={false}
+      />
+    ),
   },
 };
 

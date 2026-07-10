@@ -8,7 +8,7 @@
     "prebuild": "node scripts/download-models.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "models": "node scripts/download-models.mjs"
   },
   "repository": {
@@ -41,13 +41,17 @@
     "react-markdown": "^10.1.0",
     "react-rnd": "^10.5.3",
     "react-router-dom": "^7.14.2",
+    "react-zoom-pan-pinch": "^4.0.3",
     "recharts": "^3.8.1",
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.6",
     "@tailwindcss/postcss": "^4.2.2",
     "autoprefixer": "^10.5.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.10",
     "postcss": "^8.5.10",
     "tailwindcss": "^4.2.2"
   }

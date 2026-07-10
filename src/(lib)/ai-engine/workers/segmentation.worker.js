@@ -175,7 +175,17 @@ async function removeBackground(modelKey, model, bitmap, progress) {
   const feeds = {
     [firstSession.inputNames[0]]: new ort.Tensor("float32", input, [1, 3, size, size]),
   };
-  const { outputs, session } = await runInference(modelKey, model, feeds, progress);
+  // Keepalive while run() computes: big models (isnet, 1024px input) can spend
+  // well over the client's 45s stall watchdog inside a single inference call —
+  // a heartbeat tick tells it the engine is alive, not hung.
+  const keepalive = setInterval(() => progress(85, "inference"), 10000);
+  let inferred;
+  try {
+    inferred = await runInference(modelKey, model, feeds, progress);
+  } finally {
+    clearInterval(keepalive);
+  }
+  const { outputs, session } = inferred;
   // U²-Net returns several side outputs — the first is the fused final map.
   const out = outputs[session.outputNames[0]];
   const mask = await out.getData();

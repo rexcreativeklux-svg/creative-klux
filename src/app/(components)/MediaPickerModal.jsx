@@ -165,9 +165,16 @@ export default function MediaPickerModal({
   if (!isOpen) return null;
 
   // ── selection helpers ─────────────────────────────────────────────────────
+  // Single-select mode (maxSelectable=1): picking another item just swaps the
+  // selection — no "you can only select 1" error dead-end.
   const toggleImage = (src) => {
     if (selectedImages.includes(src)) {
       setSelectedImages((prev) => prev.filter((s) => s !== src));
+      return;
+    }
+    if (effectiveCap === 1) {
+      setSelectedMedia([]);
+      setSelectedImages([src]);
       return;
     }
     if (selectedImages.length + selectedMedia.length >= effectiveCap) {
@@ -180,6 +187,11 @@ export default function MediaPickerModal({
   const toggleMedia = (src) => {
     if (selectedMedia.includes(src)) {
       setSelectedMedia((prev) => prev.filter((s) => s !== src));
+      return;
+    }
+    if (effectiveCap === 1) {
+      setSelectedImages([]);
+      setSelectedMedia([src]);
       return;
     }
     if (selectedImages.length + selectedMedia.length >= effectiveCap) {

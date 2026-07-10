@@ -36,6 +36,67 @@ export function targetDimensions({ w, h }, quality) {
 }
 
 /**
+ * Frame a FULL photo (background kept) onto a target-ratio canvas — used by the
+ * Beautifier's default "Original background" mode. When the photo's ratio
+ * doesn't match the target, the gap is filled with a blurred cover-scaled copy
+ * of the photo (the pro "blur-extend" look) instead of hard bars.
+ *
+ * @param {Blob} imageBlob The enhanced/upscaled photo, background and all.
+ * @param {object} opts
+ * @param {{w:number,h:number}} opts.ratio Output aspect ratio.
+ * @param {"Standard"|"High"|"Ultra"} opts.quality Output resolution tier.
+ * @param {boolean} [opts.originalSize=false] Keep the photo's OWN ratio (the
+ *   "Original" size id) — no reframing, just capped to the tier's long edge.
+ * @param {(p:{pct:number}) => void} [opts.onProgress]
+ * @returns {Promise<{blob: Blob, width: number, height: number}>}
+ */
+export async function frameToRatio(imageBlob, { ratio, quality, originalSize = false, onProgress } = {}) {
+  const bitmap = await createImageBitmap(imageBlob);
+  onProgress?.({ pct: 20 });
+
+  let width;
+  let height;
+  if (originalSize) {
+    const budget = QUALITY_LONG_EDGE[quality] || QUALITY_LONG_EDGE.High;
+    const scale = Math.min(1, budget / Math.max(bitmap.width, bitmap.height));
+    width = Math.max(1, Math.round(bitmap.width * scale));
+    height = Math.max(1, Math.round(bitmap.height * scale));
+  } else {
+    ({ width, height } = targetDimensions(ratio, quality));
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  const contain = Math.min(width / bitmap.width, height / bitmap.height);
+  const cw = bitmap.width * contain;
+  const ch = bitmap.height * contain;
+
+  // Ratio mismatch → blurred cover fill behind the sharp photo (no hard bars).
+  if (Math.abs(cw - width) > 1 || Math.abs(ch - height) > 1) {
+    const cover = Math.max(width / bitmap.width, height / bitmap.height);
+    const vw = bitmap.width * cover;
+    const vh = bitmap.height * cover;
+    ctx.filter = `blur(${Math.max(12, Math.round(Math.max(width, height) / 40))}px)`;
+    ctx.drawImage(bitmap, (width - vw) / 2, (height - vh) / 2, vw, vh);
+    ctx.filter = "none";
+  }
+
+  ctx.drawImage(bitmap, (width - cw) / 2, (height - ch) / 2, cw, ch);
+  bitmap.close();
+  onProgress?.({ pct: 90 });
+
+  const blob = await new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Compose failed"))), "image/png"),
+  );
+  return { blob, width, height };
+}
+
+/**
  * Compose a cutout onto a sized canvas.
  *
  * @param {Blob} cutoutBlob Transparent PNG cutout (product only).

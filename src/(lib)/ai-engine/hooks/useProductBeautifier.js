@@ -9,71 +9,68 @@ import { SIZE_RATIOS, qualityToModelKey } from "./toolParams";
 
 /**
  * Product Beautifier (on-device): remove the background, upscale/enhance the
- * product (Real-ESRGAN, tiled), then frame it to the chosen size on a clean
- * background. No colorizing — the product's true colors are preserved.
+ * product (Real-ESRGAN, tiled), then frame it to the chosen size. The output
+ * keeps a TRANSPARENT background — the product's true colors are preserved and
+ * nothing is colorized.
  *
- * The heavy cutout+enhance is cached so changing size/quality only re-runs the
- * cheap `fitToSize` compose (via the shared hook's `update`).
+ * Caching: the heavy cutout+enhance is cached PER QUALITY tier. Changing only the
+ * size re-runs the cheap `fitToSize` (which upscales-to-fit so the product fills
+ * the frame — never a plain shrink). Changing quality re-runs the AI. The shell
+ * also caches the final framed blob per size+quality via `params.onCache`.
  *
  * @param {(blob: Blob) => (boolean|Promise<boolean>)} [onSave]
  */
 export default function useProductBeautifier(onSave) {
-  // Cache of the last full run, so size/quality tweaks skip the AI passes.
-  const cacheRef = useRef({ enhancedBlob: null, params: null });
+  // enhanced cutout cached by quality tier, so a size-only change skips the AI.
+  const enhancedByQuality = useRef(new Map());
 
   const dispose = useCallback(() => {
     disposeSegmentationWorker();
     disposeUpscaleWorker();
-    cacheRef.current = { enhancedBlob: null, params: null };
+    enhancedByQuality.current.clear();
   }, []);
 
   const run = useCallback(async (source, params, onProgress) => {
-    const { sizeId, quality } = params;
+    const { sizeId, quality, onCache } = params;
     const ratio = SIZE_RATIOS[sizeId] || SIZE_RATIOS.square;
 
-    // 1) cutout — 0→45% of the bar
-    const { blob: cutout } = await removeBackground(source, {
-      modelKey: qualityToModelKey(quality),
-      onProgress: ({ pct }) => onProgress({ pct: Math.round((pct || 0) * 0.45) }),
-    });
-
-    // 2) enhance/upscale the product — 45→85%
-    let enhanced = cutout;
-    try {
-      const { blob } = await upscaleImage(cutout, {
-        tier: quality === "Ultra" ? "hd" : "standard",
-        onProgress: ({ pct }) => onProgress({ pct: 45 + Math.round((pct || 0) * 0.4) }),
+    let enhanced = enhancedByQuality.current.get(quality);
+    if (!enhanced) {
+      // 1) cutout — 0→45%
+      const { blob: cutout } = await removeBackground(source, {
+        modelKey: qualityToModelKey(quality),
+        onProgress: ({ pct }) => onProgress({ pct: Math.round((pct || 0) * 0.45) }),
       });
-      enhanced = blob;
-    } catch (err) {
-      console.warn("⚠️ beautifier: upscale failed, using cutout:", err?.message);
+
+      // 2) enhance/upscale the product — 45→85%
+      enhanced = cutout;
+      try {
+        const { blob } = await upscaleImage(cutout, {
+          tier: quality === "Ultra" ? "hd" : "standard",
+          onProgress: ({ pct }) => onProgress({ pct: 45 + Math.round((pct || 0) * 0.4) }),
+        });
+        enhanced = blob;
+      } catch (err) {
+        console.warn("⚠️ beautifier: upscale failed, using cutout:", err?.message);
+      }
+      enhancedByQuality.current.set(quality, enhanced);
+    } else {
+      onProgress({ pct: 85 }); // reused the enhanced cutout — jump ahead
     }
-    cacheRef.current = { enhancedBlob: enhanced, params };
 
-    // 3) frame to size — 85→100%
-    const { blob } = await fitToSize(enhanced, { ratio, quality, background: "transparent" });
-    onProgress({ pct: 100 });
-    return { blob };
-  }, []);
-
-  // Fast re-frame when only size/quality changed (no AI re-run).
-  const update = useCallback(async (params, onProgress) => {
-    const enhanced = cacheRef.current.enhancedBlob;
-    if (!enhanced) throw new Error("Nothing to re-frame yet.");
-    const { sizeId, quality } = params;
-    const ratio = SIZE_RATIOS[sizeId] || SIZE_RATIOS.square;
+    // 3) frame to the chosen size on a TRANSPARENT background — 85→100%. fitToSize
+    //    upscales the product to fill the slot when needed (no shrinking).
     const { blob } = await fitToSize(enhanced, {
-      ratio,
-      quality,
-      background: "transparent",
-      onProgress: ({ pct }) => onProgress?.({ pct }),
+      ratio, quality, background: "transparent",
+      onProgress: ({ pct }) => onProgress({ pct: 85 + Math.round((pct || 0) * 0.15) }),
     });
+    onProgress({ pct: 100 });
+    onCache?.(blob);
     return { blob };
   }, []);
 
   return useAiTool({
     run,
-    update,
     dispose,
     onSave,
     filePrefix: "klux-beautified",

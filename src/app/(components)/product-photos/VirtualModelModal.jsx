@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { generateImage, uploadFile } from '@/(lib)/ai-helpers';
+import { generateProductPhoto, TOOL_ENUM, QUALITY_ENUM } from '@/(lib)/product-photos-api';
+import MediaPickerModal from '@/app/(components)/MediaPickerModal';
+import { useAuth } from '@/context/AuthContext';
 import { X, Plus, Upload, Download, Copy, Loader2, MoreHorizontal, ThumbsUp, ThumbsDown, Trash2, Video, RefreshCw, ChevronDown, User, Package, Image as ImageIcon, Scissors, Layers, Shirt, Sparkles, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -197,7 +199,7 @@ function FloatingPanel({ anchorRef, children, width = 320 }) {
 }
 
 export default function VirtualModelModal({ onClose, onSwitchTool }) {
-    const fileInputRef = useRef(null);
+    const { activeBrand, uploadImage } = useAuth();
     const qualityRef = useRef(null);
     const backgroundRef = useRef(null);
     const sizeRef = useRef(null);
@@ -218,8 +220,9 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
     const [generatedImages, setGeneratedImages] = useState([]);
     const [openDropdown, setOpenDropdown] = useState(null);
     const [imageMenu, setImageMenu] = useState(null); // { idx, x, y }
-    const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // cached cloud URL
+    const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // gallery/cloud URL of the picked image
     const [toolMenuOpen, setToolMenuOpen] = useState(false); // header tool switcher
+    const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
 
     // Header tool switcher: clicking the current tool just closes; any other tool
     // tells the parent to swap modals (parent opens the right one + closes this).
@@ -229,43 +232,72 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
         onSwitchTool?.(id);
     };
 
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        setUploadedFile(file);
-        setUploadedImage(URL.createObjectURL(file));
-        setUploadedFileUrl(null); // reset cached url when new file selected
+    // Image comes from the gallery picker (My Library / Search / Upload). We only
+    // use ONE image. A fresh desktop upload carries a File + a LOCAL blob: URL
+    // (not sendable to the backend), so we keep the File and leave the hosted URL
+    // null — it's uploaded on generate to get a real URL. A library/search pick
+    // already has a hosted URL we can send straight through.
+    const handleApplyFromPicker = (images = []) => {
+        const item = images[0];
+        if (!item) return;
+        if (item.file instanceof File) {
+            setUploadedFile(item.file);
+            setUploadedImage(item.src || URL.createObjectURL(item.file));
+            setUploadedFileUrl(null); // resolve a hosted URL on generate
+        } else {
+            const url = item.large || item.src || null;
+            if (!url) return;
+            setUploadedFile(null);
+            setUploadedImage(url);
+            setUploadedFileUrl(url); // already hosted
+        }
+        setPickerOpen(false);
     };
 
     const handleGenerate = async () => {
-        if (!uploadedFile && !uploadedImage) { toast.error('Please upload a product image first'); return; }
+        if (!uploadedFile && !uploadedImage) { toast.error('Please select a product image first'); return; }
         setGenerating(true);
         setOpenDropdown(null);
         try {
-            const modelObj = MODELS.find(m => m.id === selectedModel);
-            const poseObj = POSES.find(p => p.id === selectedPose);
-            const bgObj = BACKGROUNDS.find(b => b.id === background);
-
-            // Upload once and cache the cloud URL
-            let fileUrl = uploadedFileUrl;
-            if (!fileUrl && uploadedFile) {
-                const { file_url } = await uploadFile({ file: uploadedFile });
-                fileUrl = file_url;
-                setUploadedFileUrl(fileUrl);
+            // Resolve the ONE image URL to send. Picks from the gallery already have
+            // a hosted URL; a fresh local upload gets uploaded here to obtain one.
+            let imageUrl = uploadedFileUrl;
+            if (!imageUrl && uploadedFile) {
+                const uploaded = await uploadImage(uploadedFile);
+                console.log('🖼️ [virtual-model] upload response ←', uploaded);
+                imageUrl = uploaded?.url || uploaded?.image_url || uploaded?.file_url || uploaded?.data?.url;
+                setUploadedFileUrl(imageUrl || null);
             }
-            if (!fileUrl) { toast.error('Please upload a product image'); setGenerating(false); return; }
+            if (!imageUrl) { toast.error('Please select a product image'); setGenerating(false); return; }
 
-            const generationPrompt = `Virtual try-on fashion photography. The exact clothing item shown in the reference image must be worn by a ${modelObj?.desc || 'fashion model'}. Do NOT change the garment design, color, pattern or style — keep it identical to the reference. Pose: ${poseObj?.name || 'standing'}. Background: ${bgObj?.name || 'studio'}. ${prompt ? 'Note: ' + prompt + '.' : ''} Photorealistic, commercial fashion shoot, high resolution.`;
+            // Backend contract: POST /product-photos/generate
+            const payload = {
+                tool: TOOL_ENUM.virtual_model,          // "virtual_model"
+                image: imageUrl,                        // single image URL
+                model_name: selectedModel,              // model id, e.g. "jordan"
+                pose: selectedPose,                     // pose id, e.g. "3_4_turn"
+                quality: QUALITY_ENUM[quality] || 'standard',
+                size,                                   // aspect-ratio id
+                apply_brand_style: applyBrandStyle,
+                prompt: prompt || '',
+                // workspace_id omitted for now (confirm source with backend).
+            };
 
-            const result = await generateImage({
-                prompt: generationPrompt,
-                existing_image_urls: [fileUrl],
-            });
+            const result = await generateProductPhoto(payload);
 
-            setGeneratedImages(prev => [result.url, ...prev]);
-            toast.success('Image generated!');
-        } catch {
-            // error already shown by generateImage helper
+            // Log the raw return so we can see its exact shape while consuming it.
+            console.log('🎨 [virtual-model] generate result ←', result);
+
+            const resultUrl = result?.url || result?.image_url || result?.data?.url;
+            if (resultUrl) {
+                setGeneratedImages(prev => [resultUrl, ...prev]);
+                toast.success('Image generated!');
+            } else {
+                toast('Generated — check the console for the response shape.');
+            }
+        } catch (err) {
+            // generateProductPhoto already toasts a friendly error; log for debugging.
+            console.error('❌ [virtual-model] generate failed:', err);
         } finally {
             setGenerating(false);
         }
@@ -311,16 +343,15 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                         </button>
                     </div>
 
-                    {/* Upload */}
+                    {/* Upload — opens the gallery picker (My Library / Search / Upload) */}
                     <div className="px-4 pt-4">
                         <button
-                            onClick={() => fileInputRef.current?.click()}
+                            onClick={() => setPickerOpen(true)}
                             className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors"
                         >
                             <Upload className="w-4 h-4" />
-                            Drop files or <span className="text-violet-600 font-semibold">select images</span>
+                            <span className="text-violet-600 font-semibold">Select from gallery</span>
                         </button>
-                        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                     </div>
 
                     {/* Uploaded thumb */}
@@ -684,6 +715,15 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                     </div>
                 </FloatingPanel>
             )}
+
+            {/* Gallery media picker — pick ONE image (My Library / Search / Upload) */}
+            <MediaPickerModal
+                isOpen={pickerOpen}
+                onClose={() => setPickerOpen(false)}
+                onCancel={() => setPickerOpen(false)}
+                onApply={handleApplyFromPicker}
+                activeBrand={activeBrand}
+            />
         </div>
     );
 }

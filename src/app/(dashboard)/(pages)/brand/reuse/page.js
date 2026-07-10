@@ -119,7 +119,14 @@ const BrandMenu = ({ brand, onEdit, onDelete, light }) => {
 };
 
 // ── brand card (grid view) ────────────────────────────────────────────────────
-const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) => {
+const BrandCard = ({
+  brand,
+  onEdit,
+  onDelete,
+  isSelected,
+  onSelect,
+  isActive,
+}) => {
   const primary = cleanColor(brand.primary_color);
   const secondary = cleanColor(brand.secondary_color);
   const logo = getLogoSrc(brand.logo);
@@ -229,7 +236,14 @@ const BrandCard = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) 
 };
 
 // ── brand row (list view) ─────────────────────────────────────────────────────
-const BrandRow = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) => {
+const BrandRow = ({
+  brand,
+  onEdit,
+  onDelete,
+  isSelected,
+  onSelect,
+  isActive,
+}) => {
   const primary = cleanColor(brand.primary_color);
   const secondary = cleanColor(brand.secondary_color);
   const logo = getLogoSrc(brand.logo);
@@ -246,7 +260,7 @@ const BrandRow = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) =
     >
       {/* Color strip + logo */}
       <div
-        className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center border-2 border-white shadow-md overflow-hidden"
+        className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center border-2 border-white shadow-md overflow-hidden"
         style={{
           background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)`,
         }}
@@ -276,7 +290,7 @@ const BrandRow = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) =
       </div>
 
       {/* Industry */}
-      <div className="hidden sm:block w-28 flex-shrink-0">
+      <div className="hidden sm:block w-28 shrink-0">
         {brand.industry ? (
           <span className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-lg bg-gray-50 border border-gray-200 text-gray-500 w-fit">
             <Building2 className="w-2.5 h-2.5" /> {brand.industry}
@@ -287,7 +301,7 @@ const BrandRow = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) =
       </div>
 
       {/* Colors */}
-      <div className="hidden md:flex items-center gap-1.5 flex-shrink-0 w-40 pr-12">
+      <div className="hidden md:flex items-center gap-1.5 shrink-0 w-40 pr-12">
         <div
           className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
           style={{ background: primary }}
@@ -302,7 +316,7 @@ const BrandRow = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) =
       </div>
 
       {/* Status */}
-      <div className="flex-shrink-0 w-20">
+      <div className="shrink-0 w-20">
         <span
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
             isActive
@@ -318,12 +332,12 @@ const BrandRow = ({ brand, onEdit, onDelete, isSelected, onSelect, isActive }) =
       </div>
 
       {/* Date */}
-      <div className="hidden lg:block flex-shrink-0 text-xs text-gray-400 w-24 text-right">
+      <div className="hidden lg:block shrink-0 text-xs text-gray-400 w-24 text-right">
         {formatDate(brand.created_at)}
       </div>
 
       {/* Menu */}
-      <div className="w-7 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+      <div className="w-7 shrink-0" onClick={(e) => e.stopPropagation()}>
         <BrandMenu
           brand={brand}
           onEdit={onEdit}
@@ -375,7 +389,7 @@ const BrandDetailPanel = ({ brand, onEdit, onClose, isActive }) => {
           </button>
         </div>
         <div className="relative flex items-end gap-4">
-          <div className="w-16 h-16 rounded-full border-2 border-white/80 shadow-xl bg-surface flex items-center justify-center overflow-hidden flex-shrink-0">
+          <div className="w-16 h-16 rounded-full border-2 border-white/80 shadow-xl bg-surface flex items-center justify-center overflow-hidden shrink-0">
             {logo && !logoErr ? (
               <img
                 src={logo}
@@ -446,7 +460,7 @@ const BrandDetailPanel = ({ brand, onEdit, onClose, isActive }) => {
                     key={label}
                     className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5"
                   >
-                    <Icon className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+                    <Icon className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
                     <div className="min-w-0">
                       <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
                         {label}
@@ -490,7 +504,7 @@ const BrandDetailPanel = ({ brand, onEdit, onClose, isActive }) => {
                 ].map(({ label, color }) => (
                   <div key={label} className="flex items-center gap-2.5">
                     <div
-                      className="w-8 h-8 rounded-lg border border-white shadow-sm flex-shrink-0"
+                      className="w-8 h-8 rounded-lg border border-white shadow-sm shrink-0"
                       style={{ background: color }}
                     />
                     <div>
@@ -514,7 +528,7 @@ const BrandDetailPanel = ({ brand, onEdit, onClose, isActive }) => {
                   rel="noopener noreferrer"
                   className="text-xs text-blue-600 font-medium hover:underline break-all flex items-start gap-1"
                 >
-                  <ExternalLink className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                  <ExternalLink className="w-3 h-3 mt-0.5 shrink-0" />
                   {brand.url}
                 </a>
               </div>
@@ -645,7 +659,7 @@ export default function ReusePage({ setActiveTab }) {
         </div>
 
         {/* View toggle */}
-        <div className="flex items-center bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
+        <div className="flex items-center bg-gray-100 rounded-lg p-0.5 shrink-0">
           <button
             onClick={() => setViewMode("grid")}
             title="Grid view"
@@ -727,7 +741,7 @@ export default function ReusePage({ setActiveTab }) {
               {/* Column headers — mirrors BrandRow flex layout */}
               <div className="hidden sm:flex items-center gap-4 px-4 pb-1">
                 {/* Logo placeholder */}
-                <div className="w-10 flex-shrink-0" />
+                <div className="w-10 shrink-0" />
                 {/* Brand */}
                 <div className="flex-1 min-w-0">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
@@ -735,31 +749,31 @@ export default function ReusePage({ setActiveTab }) {
                   </span>
                 </div>
                 {/* Industry */}
-                <div className="w-28 flex-shrink-0">
+                <div className="w-28 shrink-0">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
                     Industry
                   </span>
                 </div>
                 {/* Colors — hidden below md */}
-                <div className="hidden md:flex items-center pr-12 flex-shrink-0 w-40">
+                <div className="hidden md:flex items-center pr-12 shrink-0 w-40">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
                     Colors
                   </span>
                 </div>
                 {/* Status */}
-                <div className="flex-shrink-0 w-20">
+                <div className="shrink-0 w-20">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
                     Status
                   </span>
                 </div>
                 {/* Date — hidden below lg */}
-                <div className="hidden lg:block flex-shrink-0 w-24 text-right">
+                <div className="hidden lg:block shrink-0 w-24 text-right">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
                     Created
                   </span>
                 </div>
                 {/* Menu placeholder */}
-                <div className="w-7 flex-shrink-0" />
+                <div className="w-7 shrink-0" />
               </div>
               {filtered.map((brand) => (
                 <BrandRow

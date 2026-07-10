@@ -48,6 +48,9 @@ export const ON_DEVICE_TOOLS = {
       headline: "See your garment in an interactive 3D view",
       subtext: "We build a real depth view you can tilt-look — then refine it to a photoreal render.",
     },
+    // The interactive 3D view already fills the space (you look around with the
+    // cursor), so it opts out of the zoom control.
+    hasZoom: false,
     // Mount the interactive WebGL 2.5D view; falls back to the flat framed image.
     renderResult: ({ tool, resultImage }) => (
       <Mannequin3DView cutoutUrl={tool.cutoutUrl} depthUrl={tool.depthUrl} fallbackSrc={resultImage} />
@@ -61,6 +64,9 @@ export const ON_DEVICE_TOOLS = {
     useTool: useFlatLay,
     defaultSize: "square",
     defaultQuality: "High",
+    // Interactive layout: re-run on size/quality (don't restore a flat cached
+    // blob, which would lose the draggable layers).
+    noResultCache: true,
     sample: {
       before: px(10597861),
       after: px(8408556),

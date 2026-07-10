@@ -28,7 +28,7 @@ export default function useFlatLay(onSave) {
   }, []);
 
   const run = useCallback(async (source, params, onProgress) => {
-    const { sizeId, quality } = params;
+    const { sizeId, quality, onCache } = params;
     const ratio = SIZE_RATIOS[sizeId] || SIZE_RATIOS.square;
     const { width, height } = targetDimensions(ratio, quality);
     setCanvasSize({ width, height });
@@ -44,12 +44,14 @@ export default function useFlatLay(onSave) {
     const grabbed = await grabObjects(cutout);
     onProgress({ pct: 80 });
 
-    // 3) auto-arrange into a simple centered grid on the white canvas — 80→100%
+    // 3) auto-arrange into a centered grid that FITS the canvas (every item stays
+    //    inside the frame — no need to zoom out to see them all) — 80→100%
     const arranged = autoArrange(grabbed, width, height);
     setItems((prev) => { prev.forEach((it) => URL.revokeObjectURL(it.url)); return arranged; });
 
     const blob = await flattenItems(arranged, width, height);
     onProgress({ pct: 100 });
+    onCache?.(blob);
     return { blob };
   }, []);
 

@@ -93,7 +93,6 @@
 //   return map;
 // }
 
-
 // /**
 //  * For Facebook, int_id is the User ID, NOT the Page ID.
 //  * We need to call /me/accounts to get the page access token and page ID.
@@ -141,7 +140,7 @@
 
 //   if (!image_url) {
 //     // Text-only post
-//     const res = await fetch(
+//     const res = await (
 //       `https://graph.facebook.com/v19.0/${resolvedPageId}/feed?access_token=${encodeURIComponent(resolvedToken)}`,
 //       {
 //         method: 'POST',
@@ -516,16 +515,15 @@
  * }
  */
 
-const POSTS_KEY = 'creativeklux_published_posts';
+const POSTS_KEY = "creativeklux_published_posts";
 
 // ─────────────────────────────────────────────────────────────
 // Meta API Versioning
 // ─────────────────────────────────────────────────────────────
 
-const META_API_VERSION = 'v23.0';
+const META_API_VERSION = "v23.0";
 
 const META_GRAPH_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
-
 
 const META_OAUTH_BASE = `https://www.facebook.com/${META_API_VERSION}`;
 
@@ -535,7 +533,7 @@ const META_OAUTH_BASE = `https://www.facebook.com/${META_API_VERSION}`;
 
 export function getPublishedPosts() {
   try {
-    return JSON.parse(localStorage.getItem(POSTS_KEY) || '[]');
+    return JSON.parse(localStorage.getItem(POSTS_KEY) || "[]");
   } catch {
     return [];
   }
@@ -614,28 +612,28 @@ function buildAccountsMap(integrations) {
     };
 
     switch (i.platform) {
-      case 'facebook':
+      case "facebook":
         map.facebook = {
           ...base,
           page_id: i.int_id,
         };
         break;
 
-      case 'instagram':
+      case "instagram":
         map.instagram = {
           ...base,
           ig_user_id: i.int_id,
         };
         break;
 
-      case 'meta_ads':
+      case "meta_ads":
         map.meta_ads = {
           ...base,
           ad_account_id: i.int_id,
         };
         break;
 
-      case 'youtube':
+      case "youtube":
         map.youtube = {
           ...base,
           channel_id: i.int_id,
@@ -656,7 +654,7 @@ function buildAccountsMap(integrations) {
 export async function fetchFacebookPageId(userAccessToken) {
   try {
     const res = await fetch(
-      `${META_GRAPH_BASE}/me/accounts?access_token=${userAccessToken}&fields=id,name,access_token`
+      `${META_GRAPH_BASE}/me/accounts?access_token=${userAccessToken}&fields=id,name,access_token`,
     );
 
     const data = await res.json();
@@ -690,9 +688,7 @@ export async function publishToFacebook({
   scheduled_publish_time, // optional unix seconds — when set, FB schedules instead of posting now
 }) {
   if (!access_token) {
-    throw new Error(
-      'No access token — reconnect your Facebook account.'
-    );
+    throw new Error("No access token — reconnect your Facebook account.");
   }
 
   let resolvedPageId = page_id;
@@ -711,21 +707,19 @@ export async function publishToFacebook({
   //   resolvedToken = page.page_access_token;
   // }
   if (!page_id) {
-    throw new Error(
-      'Missing Facebook Page ID.'
-    );
+    throw new Error("Missing Facebook Page ID.");
   }
 
   // Text-only post
   if (!image_url) {
     const res = await fetch(
       `${META_GRAPH_BASE}/${resolvedPageId}/feed?access_token=${encodeURIComponent(
-        resolvedToken
+        resolvedToken,
       )}`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           message: caption,
@@ -734,7 +728,7 @@ export async function publishToFacebook({
             ? { published: false, scheduled_publish_time }
             : {}),
         }),
-      }
+      },
     );
 
     const data = await res.json();
@@ -751,12 +745,12 @@ export async function publishToFacebook({
   // Image post
   const res = await fetch(
     `${META_GRAPH_BASE}/${resolvedPageId}/photos?access_token=${encodeURIComponent(
-      resolvedToken
+      resolvedToken,
     )}`,
     {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         url: image_url,
@@ -765,7 +759,7 @@ export async function publishToFacebook({
         published: scheduled_publish_time ? false : true,
         ...(scheduled_publish_time ? { scheduled_publish_time } : {}),
       }),
-    }
+    },
   );
 
   const data = await res.json();
@@ -789,42 +783,35 @@ export async function publishToInstagram({
   caption,
 }) {
   if (!ig_user_id) {
-    throw new Error(
-      'No Instagram Business Account ID — reconnect Instagram.'
-    );
+    throw new Error("No Instagram Business Account ID — reconnect Instagram.");
   }
 
   if (!access_token) {
-    throw new Error(
-      'No access token — reconnect Instagram.'
-    );
+    throw new Error("No access token — reconnect Instagram.");
   }
 
   // Create media container
-  const containerRes = await fetch(
-    `${META_GRAPH_BASE}/${ig_user_id}/media`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        image_url,
-        caption,
-        access_token,
-      }),
-    }
-  );
+  const containerRes = await fetch(`${META_GRAPH_BASE}/${ig_user_id}/media`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      image_url,
+      caption,
+      access_token,
+    }),
+  });
 
   const container = await containerRes.json();
 
   if (container.error) {
     // Surface the full Graph error so we can tell apart permission vs account-restriction vs image issues.
-    console.error('Instagram container error:', container.error);
+    console.error("Instagram container error:", container.error);
     const e = container.error;
     throw new Error(
       `${e.error_user_msg || e.message}` +
-      `${e.code ? ` [code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''}]` : ''}`
+        `${e.code ? ` [code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ""}]` : ""}`,
     );
   }
 
@@ -832,25 +819,25 @@ export async function publishToInstagram({
   const publishRes = await fetch(
     `${META_GRAPH_BASE}/${ig_user_id}/media_publish`,
     {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         creation_id: container.id,
         access_token,
       }),
-    }
+    },
   );
 
   const publishData = await publishRes.json();
 
   if (publishData.error) {
-    console.error('Instagram publish error:', publishData.error);
+    console.error("Instagram publish error:", publishData.error);
     const e = publishData.error;
     throw new Error(
       `${e.error_user_msg || e.message}` +
-      `${e.code ? ` [code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''}]` : ''}`
+        `${e.code ? ` [code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ""}]` : ""}`,
     );
   }
 
@@ -872,9 +859,12 @@ export async function publishToInstagram({
  * account currency, e.g. 5 = $5/day), days (run length), country (ISO-2 code), link (destination).
  */
 const META_ADS_GOALS = {
-  awareness:  { objective: 'OUTCOME_AWARENESS',  optimization_goal: 'REACH' },
-  traffic:    { objective: 'OUTCOME_TRAFFIC',    optimization_goal: 'LINK_CLICKS' },
-  engagement: { objective: 'OUTCOME_ENGAGEMENT', optimization_goal: 'POST_ENGAGEMENT' },
+  awareness: { objective: "OUTCOME_AWARENESS", optimization_goal: "REACH" },
+  traffic: { objective: "OUTCOME_TRAFFIC", optimization_goal: "LINK_CLICKS" },
+  engagement: {
+    objective: "OUTCOME_ENGAGEMENT",
+    optimization_goal: "POST_ENGAGEMENT",
+  },
 };
 
 export async function publishToMetaAds({
@@ -884,44 +874,55 @@ export async function publishToMetaAds({
   image_url,
   message,
   link,
-  goal = 'traffic',
+  goal = "traffic",
   daily_budget,
   days = 7,
-  country = 'US',
+  country = "US",
   ad_name,
 }) {
-  if (!access_token) throw new Error('No access token — reconnect Meta Ads.');
-  if (!ad_account_id) throw new Error('No ad account — reconnect Meta Ads.');
-  if (!page_id) throw new Error('Connect a Facebook Page first — Meta ads run as a Page.');
-  if (!image_url) throw new Error('No image to advertise.');
-  if (!daily_budget || daily_budget <= 0) throw new Error('Enter a daily budget.');
+  if (!access_token) throw new Error("No access token — reconnect Meta Ads.");
+  if (!ad_account_id) throw new Error("No ad account — reconnect Meta Ads.");
+  if (!page_id)
+    throw new Error("Connect a Facebook Page first — Meta ads run as a Page.");
+  if (!image_url) throw new Error("No image to advertise.");
+  if (!daily_budget || daily_budget <= 0)
+    throw new Error("Enter a daily budget.");
 
-  const acct = ad_account_id.startsWith('act_') ? ad_account_id : `act_${ad_account_id}`;
+  const acct = ad_account_id.startsWith("act_")
+    ? ad_account_id
+    : `act_${ad_account_id}`;
   const base = `${META_GRAPH_BASE}/${acct}`;
   const g = META_ADS_GOALS[goal] || META_ADS_GOALS.traffic;
-  const dest = link || 'https://www.facebook.com';
-  const name = ad_name || 'CreativeKlux Ad';
+  const dest = link || "https://www.facebook.com";
+  const name = ad_name || "CreativeKlux Ad";
 
   // Small POST helper that surfaces the full Graph error (logs status + body).
   const post = async (path, body) => {
-    let res, data = {};
+    let res,
+      data = {};
     try {
       res = await fetch(`${base}/${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...body, access_token }),
       });
       data = await res.json();
     } catch (netErr) {
       console.error(`Meta Ads ${path} network/CORS error:`, netErr);
-      throw new Error('Could not reach Meta Ads. Ad-account calls may be blocked from the browser — this likely needs a backend.');
+      throw new Error(
+        "Could not reach Meta Ads. Ad-account calls may be blocked from the browser — this likely needs a backend.",
+      );
     }
     if (!res.ok || data.error) {
       console.error(`Meta Ads ${path} error (HTTP ${res.status}):`, data);
       const e = data.error || {};
-      const msg = e.error_user_msg || e.message ||
+      const msg =
+        e.error_user_msg ||
+        e.message ||
         `Meta Ads "${path}" failed (HTTP ${res.status}). Usually means: the ad account has no payment method, the token lacks ads_management, or the account/app is restricted.`;
-      throw new Error(`${msg}${e.code ? ` [code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''}]` : ''}`);
+      throw new Error(
+        `${msg}${e.code ? ` [code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ""}]` : ""}`,
+      );
     }
     return data;
   };
@@ -932,7 +933,7 @@ export async function publishToMetaAds({
     try {
       await fetch(
         `${META_GRAPH_BASE}/${id}?access_token=${encodeURIComponent(access_token)}`,
-        { method: 'DELETE' }
+        { method: "DELETE" },
       );
     } catch (cleanupErr) {
       console.warn(`Meta Ads cleanup of ${id} failed:`, cleanupErr?.message);
@@ -941,10 +942,10 @@ export async function publishToMetaAds({
 
   // 1. Campaign (the goal/objective). Budget lives on the ad set, so we must explicitly
   //    opt out of campaign-level budget sharing (is_adset_budget_sharing_enabled).
-  const campaign = await post('campaigns', {
+  const campaign = await post("campaigns", {
     name: `${name} — Campaign`,
     objective: g.objective,
-    status: 'ACTIVE',
+    status: "ACTIVE",
     special_ad_categories: [],
     is_adset_budget_sharing_enabled: false,
   });
@@ -955,40 +956,44 @@ export async function publishToMetaAds({
   try {
     // 2. Ad set (budget, schedule, audience). Budget is in the currency's minor units (×100).
     const now = Math.floor(Date.now() / 1000);
-    adset = await post('adsets', {
+    adset = await post("adsets", {
       name: `${name} — Ad Set`,
       campaign_id: campaign.id,
       daily_budget: Math.round(Number(daily_budget) * 100),
-      billing_event: 'IMPRESSIONS',
+      billing_event: "IMPRESSIONS",
       optimization_goal: g.optimization_goal,
-      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+      bid_strategy: "LOWEST_COST_WITHOUT_CAP",
       start_time: now,
       end_time: now + Math.max(1, Number(days)) * 86400,
-      targeting: { geo_locations: { countries: [country] }, age_min: 18, age_max: 65 },
-      status: 'ACTIVE',
+      targeting: {
+        geo_locations: { countries: [country] },
+        age_min: 18,
+        age_max: 65,
+      },
+      status: "ACTIVE",
     });
 
     // 3. Ad creative — use the public image URL directly (`picture`) instead of uploading
     //    to /adimages first (one fewer call, and adimages-by-url is unreliable).
-    creative = await post('adcreatives', {
+    creative = await post("adcreatives", {
       name: `${name} — Creative`,
       object_story_spec: {
         page_id,
         link_data: {
           picture: image_url,
-          message: message || '',
+          message: message || "",
           link: dest,
-          call_to_action: { type: 'LEARN_MORE', value: { link: dest } },
+          call_to_action: { type: "LEARN_MORE", value: { link: dest } },
         },
       },
     });
 
     // 4. Ad (ties the creative to the ad set, live)
-    ad = await post('ads', {
+    ad = await post("ads", {
       name,
       adset_id: adset.id,
       creative: { creative_id: creative.id },
-      status: 'ACTIVE',
+      status: "ACTIVE",
     });
   } catch (err) {
     // Roll back: deleting the campaign cascades to the ad set we may have created.
@@ -1024,9 +1029,9 @@ export async function publishToGoogleAds({
   daily_budget,
   campaign_name,
 }) {
-  const res = await fetch('/api/google-ads/publish', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch("/api/google-ads/publish", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       refresh_token,
       customer_id,
@@ -1041,7 +1046,7 @@ export async function publishToGoogleAds({
     }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Google Ads publish failed');
+  if (!res.ok) throw new Error(data.error || "Google Ads publish failed");
   return data; // { ok, campaign, responses }
 }
 
@@ -1067,10 +1072,10 @@ function ytProxiedSrc(src) {
 function ytLoadImage(url) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () =>
-      reject(new Error('Failed to load the image to build the video.'));
+      reject(new Error("Failed to load the image to build the video."));
     img.src = ytProxiedSrc(url);
   });
 }
@@ -1078,17 +1083,17 @@ function ytLoadImage(url) {
 // Pick a MediaRecorder mime type the browser actually supports. YouTube accepts webm.
 function ytPickMime() {
   const candidates = [
-    'video/webm;codecs=vp9',
-    'video/webm;codecs=vp8',
-    'video/webm',
-    'video/mp4',
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm",
+    "video/mp4",
   ];
-  if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
+  if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported) {
     for (const m of candidates) {
       if (MediaRecorder.isTypeSupported(m)) return m;
     }
   }
-  return 'video/webm';
+  return "video/webm";
 }
 
 /**
@@ -1098,10 +1103,10 @@ function ytPickMime() {
  */
 export async function imageUrlToVideoBlob(
   imageUrl,
-  { durationSec = 5, fps = 30 } = {}
+  { durationSec = 5, fps = 30 } = {},
 ) {
-  if (typeof document === 'undefined' || typeof MediaRecorder === 'undefined') {
-    throw new Error('Video creation is only available in the browser.');
+  if (typeof document === "undefined" || typeof MediaRecorder === "undefined") {
+    throw new Error("Video creation is only available in the browser.");
   }
 
   const img = await ytLoadImage(imageUrl);
@@ -1118,10 +1123,10 @@ export async function imageUrlToVideoBlob(
   w = Math.max(2, w - (w % 2));
   h = Math.max(2, h - (h % 2));
 
-  const canvas = document.createElement('canvas');
+  const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
 
   const stream = canvas.captureStream(fps);
   const mimeType = ytPickMime();
@@ -1144,7 +1149,7 @@ export async function imageUrlToVideoBlob(
     };
     recorder.onerror = (e) => {
       stop();
-      reject(e.error || new Error('Video recording failed.'));
+      reject(e.error || new Error("Video recording failed."));
     };
 
     // Keep the stream alive by continuously redrawing the still frame.
@@ -1155,14 +1160,17 @@ export async function imageUrlToVideoBlob(
     draw();
 
     recorder.start();
-    setTimeout(() => {
-      try {
-        recorder.stop();
-      } catch (err) {
-        stop();
-        reject(err);
-      }
-    }, Math.max(1, durationSec) * 1000);
+    setTimeout(
+      () => {
+        try {
+          recorder.stop();
+        } catch (err) {
+          stop();
+          reject(err);
+        }
+      },
+      Math.max(1, durationSec) * 1000,
+    );
   });
 }
 
@@ -1187,37 +1195,40 @@ export async function publishToYouTube({
   description,
   image_url,
   video,
-  privacyStatus = 'public',
+  privacyStatus = "public",
   publishAt,
   durationSec = 5,
 }) {
   if (!access_token) {
-    throw new Error('No access token — reconnect your YouTube account.');
+    throw new Error("No access token — reconnect your YouTube account.");
   }
 
   // Resolve a video blob: provided video wins, else build one from the image (browser-side).
   let videoBlob = video || null;
   if (!videoBlob) {
     if (!image_url) {
-      throw new Error('Nothing to publish — no video or image was provided.');
+      throw new Error("Nothing to publish — no video or image was provided.");
     }
     videoBlob = await imageUrlToVideoBlob(image_url, { durationSec });
   }
 
   // Hand the blob + metadata to the server route, which uploads to YouTube (no CORS there).
   const form = new FormData();
-  form.append('access_token', access_token);
-  form.append('title', (title || 'Untitled').slice(0, 100));
-  form.append('description', description || '');
-  form.append('privacyStatus', publishAt ? 'private' : privacyStatus);
-  if (publishAt) form.append('publishAt', publishAt);
-  form.append('video', videoBlob, 'creative.webm');
+  form.append("access_token", access_token);
+  form.append("title", (title || "Untitled").slice(0, 100));
+  form.append("description", description || "");
+  form.append("privacyStatus", publishAt ? "private" : privacyStatus);
+  if (publishAt) form.append("publishAt", publishAt);
+  form.append("video", videoBlob, "creative.webm");
 
-  const res = await fetch('/api/youtube/upload', { method: 'POST', body: form });
+  const res = await fetch("/api/youtube/upload", {
+    method: "POST",
+    body: form,
+  });
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok || data.error) {
-    throw new Error(data.error || 'YouTube upload failed.');
+    throw new Error(data.error || "YouTube upload failed.");
   }
 
   return {
@@ -1240,7 +1251,7 @@ export async function publishToYouTube({
 const X_REFRESH_KEY = (id) => `ck_x_refresh_${id}`;
 
 export function getStoredXRefresh(integrationId) {
-  if (typeof window === 'undefined' || !integrationId) return null;
+  if (typeof window === "undefined" || !integrationId) return null;
   try {
     return localStorage.getItem(X_REFRESH_KEY(integrationId));
   } catch {
@@ -1249,7 +1260,7 @@ export function getStoredXRefresh(integrationId) {
 }
 
 export function setStoredXRefresh(integrationId, token) {
-  if (typeof window === 'undefined' || !integrationId || !token) return;
+  if (typeof window === "undefined" || !integrationId || !token) return;
   try {
     localStorage.setItem(X_REFRESH_KEY(integrationId), token);
   } catch {
@@ -1281,13 +1292,13 @@ export async function publishToTwitter({
   const rt = getStoredXRefresh(integration_id) || refresh_token;
   if (!rt) {
     throw new Error(
-      'No saved X session on this device — reconnect your X account here, then try again.'
+      "No saved X session on this device — reconnect your X account here, then try again.",
     );
   }
 
-  const res = await fetch('/api/twitter/post', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch("/api/twitter/post", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: rt, text, image_url }),
   });
   const data = await res.json().catch(() => ({}));
@@ -1299,7 +1310,7 @@ export async function publishToTwitter({
   }
 
   if (!res.ok || data.error) {
-    throw new Error(data.error || 'Failed to post to X.');
+    throw new Error(data.error || "Failed to post to X.");
   }
 
   return {
@@ -1336,21 +1347,21 @@ export async function publishToLinkedIn({
   image_url,
 }) {
   if (!access_token) {
-    throw new Error('No access token — reconnect your LinkedIn account.');
+    throw new Error("No access token — reconnect your LinkedIn account.");
   }
   if (!author_id) {
-    throw new Error('No LinkedIn member id — reconnect your LinkedIn account.');
+    throw new Error("No LinkedIn member id — reconnect your LinkedIn account.");
   }
 
-  const res = await fetch('/api/linkedin/post', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch("/api/linkedin/post", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ access_token, author_id, text, image_url }),
   });
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok || data.error) {
-    throw new Error(data.error || 'Failed to post to LinkedIn.');
+    throw new Error(data.error || "Failed to post to LinkedIn.");
   }
 
   return {
@@ -1371,9 +1382,9 @@ export async function publishToLinkedIn({
 
 /** List the connected account's boards (for the board picker). */
 export async function fetchPinterestBoards(access_token) {
-  const res = await fetch('/api/pinterest/boards', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch("/api/pinterest/boards", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ access_token }),
   });
   const data = await res.json().catch(() => ({}));
@@ -1399,18 +1410,25 @@ export async function publishToPinterest({
   image_url,
   link,
 }) {
-  if (!access_token) throw new Error('No access token — reconnect Pinterest.');
-  if (!board_id) throw new Error('Pick a Pinterest board first.');
-  if (!image_url) throw new Error('Pinterest needs an image to create a pin.');
+  if (!access_token) throw new Error("No access token — reconnect Pinterest.");
+  if (!board_id) throw new Error("Pick a Pinterest board first.");
+  if (!image_url) throw new Error("Pinterest needs an image to create a pin.");
 
-  const res = await fetch('/api/pinterest/pin', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token, board_id, title, description, image_url, link }),
+  const res = await fetch("/api/pinterest/pin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      access_token,
+      board_id,
+      title,
+      description,
+      image_url,
+      link,
+    }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.error) {
-    throw new Error(data.error || 'Failed to create pin.');
+    throw new Error(data.error || "Failed to create pin.");
   }
 
   return { post_id: data.pin_id, url: data.url };
@@ -1434,17 +1452,29 @@ export async function publishToPinterestAds({
   daily_budget,
   campaign_name,
 }) {
-  if (!access_token || !ad_account_id) throw new Error('Reconnect Pinterest Ads — missing token / ad account.');
-  if (!board_id) throw new Error('Pick a Pinterest board first.');
-  if (!image_url) throw new Error('Pinterest needs an image to promote.');
+  if (!access_token || !ad_account_id)
+    throw new Error("Reconnect Pinterest Ads — missing token / ad account.");
+  if (!board_id) throw new Error("Pick a Pinterest board first.");
+  if (!image_url) throw new Error("Pinterest needs an image to promote.");
 
-  const res = await fetch('/api/pinterest-ads/publish', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token, ad_account_id, board_id, image_url, title, description, link, daily_budget, campaign_name }),
+  const res = await fetch("/api/pinterest-ads/publish", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      access_token,
+      ad_account_id,
+      board_id,
+      image_url,
+      title,
+      description,
+      link,
+      daily_budget,
+      campaign_name,
+    }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) throw new Error(data.error || 'Pinterest Ads publish failed');
+  if (!res.ok || data.error)
+    throw new Error(data.error || "Pinterest Ads publish failed");
   return data; // { ok, pin_id, campaign_id, ad_group_id, ad_id }
 }
 
@@ -1471,16 +1501,27 @@ export async function publishToLinkedInAds({
   campaign_name,
   country,
 }) {
-  if (!access_token || !ad_account_id) throw new Error('Reconnect LinkedIn Ads — missing token / ad account.');
-  if (!image_url) throw new Error('LinkedIn ads need an image to promote.');
+  if (!access_token || !ad_account_id)
+    throw new Error("Reconnect LinkedIn Ads — missing token / ad account.");
+  if (!image_url) throw new Error("LinkedIn ads need an image to promote.");
 
-  const res = await fetch('/api/linkedin-ads/publish', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token, ad_account_id, image_url, text, link, daily_budget, campaign_name, country }),
+  const res = await fetch("/api/linkedin-ads/publish", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      access_token,
+      ad_account_id,
+      image_url,
+      text,
+      link,
+      daily_budget,
+      campaign_name,
+      country,
+    }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) throw new Error(data.error || 'LinkedIn Ads publish failed');
+  if (!res.ok || data.error)
+    throw new Error(data.error || "LinkedIn Ads publish failed");
   return data; // { ok, post_urn, campaign_group_urn, campaign_urn, creative_id }
 }
 
@@ -1511,16 +1552,29 @@ export async function publishToSnapchatAds({
   campaign_name,
   country,
 }) {
-  if (!ad_account_id) throw new Error('Reconnect Snapchat Ads — missing ad account.');
-  if (!image_url) throw new Error('Snapchat ads need an image to promote.');
+  if (!ad_account_id)
+    throw new Error("Reconnect Snapchat Ads — missing ad account.");
+  if (!image_url) throw new Error("Snapchat ads need an image to promote.");
 
-  const res = await fetch('/api/snapchat-ads/publish', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token, refresh_token, ad_account_id, image_url, headline, brand_name, link, daily_budget, campaign_name, country }),
+  const res = await fetch("/api/snapchat-ads/publish", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      access_token,
+      refresh_token,
+      ad_account_id,
+      image_url,
+      headline,
+      brand_name,
+      link,
+      daily_budget,
+      campaign_name,
+      country,
+    }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) throw new Error(data.error || 'Snapchat Ads publish failed');
+  if (!res.ok || data.error)
+    throw new Error(data.error || "Snapchat Ads publish failed");
   return data; // { ok, media_id, creative_id, campaign_id, ad_squad_id, ad_id }
 }
 
@@ -1538,7 +1592,7 @@ export async function publishToSnapchatAds({
 const TIKTOK_REFRESH_KEY = (id) => `ck_tiktok_refresh_${id}`;
 
 export function getStoredTikTokRefresh(integrationId) {
-  if (typeof window === 'undefined' || !integrationId) return null;
+  if (typeof window === "undefined" || !integrationId) return null;
   try {
     return localStorage.getItem(TIKTOK_REFRESH_KEY(integrationId));
   } catch {
@@ -1547,7 +1601,7 @@ export function getStoredTikTokRefresh(integrationId) {
 }
 
 export function setStoredTikTokRefresh(integrationId, token) {
-  if (typeof window === 'undefined' || !integrationId || !token) return;
+  if (typeof window === "undefined" || !integrationId || !token) return;
   try {
     localStorage.setItem(TIKTOK_REFRESH_KEY(integrationId), token);
   } catch {
@@ -1580,15 +1634,22 @@ export async function publishToTikTok({
   const rt = getStoredTikTokRefresh(integration_id) || refresh_token;
   if (!rt) {
     throw new Error(
-      'No saved TikTok session on this device — reconnect your TikTok account here, then try again.'
+      "No saved TikTok session on this device — reconnect your TikTok account here, then try again.",
     );
   }
-  if (!image_url) throw new Error('TikTok needs an image to create a photo post.');
+  if (!image_url)
+    throw new Error("TikTok needs an image to create a photo post.");
 
-  const res = await fetch('/api/tiktok/post', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: rt, title, description, image_url, privacy_level }),
+  const res = await fetch("/api/tiktok/post", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      refresh_token: rt,
+      title,
+      description,
+      image_url,
+      privacy_level,
+    }),
   });
   const data = await res.json().catch(() => ({}));
 
@@ -1598,7 +1659,7 @@ export async function publishToTikTok({
   }
 
   if (!res.ok || data.error) {
-    throw new Error(data.error || 'Failed to post to TikTok.');
+    throw new Error(data.error || "Failed to post to TikTok.");
   }
 
   // A publish_id means TikTok accepted it; the post finishes processing async.
@@ -1625,24 +1686,33 @@ export async function publishToTikTokAds({
   campaign_name,
   location_ids,
 }) {
-  if (!access_token || !advertiser_id) throw new Error('Reconnect TikTok Ads — missing token / advertiser.');
+  if (!access_token || !advertiser_id)
+    throw new Error("Reconnect TikTok Ads — missing token / advertiser.");
   // Bridge image → short video (unless a real video Blob is supplied).
-  const blob = video || (image_url ? await imageUrlToVideoBlob(image_url, { durationSec: 5 }) : null);
-  if (!blob) throw new Error('No creative to advertise.');
+  const blob =
+    video ||
+    (image_url
+      ? await imageUrlToVideoBlob(image_url, { durationSec: 5 })
+      : null);
+  if (!blob) throw new Error("No creative to advertise.");
 
   const form = new FormData();
-  form.append('access_token', access_token);
-  form.append('advertiser_id', advertiser_id);
-  form.append('video', blob, 'creative.mp4');
-  form.append('ad_text', ad_text || '');
-  form.append('landing_url', landing_url || '');
-  form.append('daily_budget', String(daily_budget || 2000));
-  form.append('campaign_name', campaign_name || 'Creative Klux Campaign');
-  form.append('location_ids', JSON.stringify(location_ids || []));
+  form.append("access_token", access_token);
+  form.append("advertiser_id", advertiser_id);
+  form.append("video", blob, "creative.mp4");
+  form.append("ad_text", ad_text || "");
+  form.append("landing_url", landing_url || "");
+  form.append("daily_budget", String(daily_budget || 2000));
+  form.append("campaign_name", campaign_name || "Creative Klux Campaign");
+  form.append("location_ids", JSON.stringify(location_ids || []));
 
-  const res = await fetch('/api/tiktok-ads/publish', { method: 'POST', body: form });
+  const res = await fetch("/api/tiktok-ads/publish", {
+    method: "POST",
+    body: form,
+  });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) throw new Error(data.error || 'TikTok Ads publish failed');
+  if (!res.ok || data.error)
+    throw new Error(data.error || "TikTok Ads publish failed");
   return data; // { ok, campaign_id, adgroup_id, ad_ids }
 }
 
@@ -1650,12 +1720,9 @@ export async function publishToTikTokAds({
 // Stats
 // ─────────────────────────────────────────────────────────────
 
-export async function getFacebookPostStats({
-  access_token,
-  post_id,
-}) {
+export async function getFacebookPostStats({ access_token, post_id }) {
   const res = await fetch(
-    `${META_GRAPH_BASE}/${post_id}/insights?metric=post_media_view,post_reactions_like_total,post_reactions_by_type_total&access_token=${access_token}`
+    `${META_GRAPH_BASE}/${post_id}/insights?metric=post_media_view,post_reactions_like_total,post_reactions_by_type_total&access_token=${access_token}`,
   );
 
   const data = await res.json();
@@ -1670,15 +1737,11 @@ export async function getFacebookPostStats({
     metrics[m.name] = m.values?.[0]?.value ?? 0;
   });
 
-  const reactionsByType =
-    metrics.post_reactions_by_type_total || {};
+  const reactionsByType = metrics.post_reactions_by_type_total || {};
 
   const totalLikes =
-    typeof reactionsByType === 'object'
-      ? Object.values(reactionsByType).reduce(
-        (a, v) => a + (v || 0),
-        0
-      )
+    typeof reactionsByType === "object"
+      ? Object.values(reactionsByType).reduce((a, v) => a + (v || 0), 0)
       : metrics.post_reactions_like_total || 0;
 
   return {
@@ -1689,12 +1752,9 @@ export async function getFacebookPostStats({
   };
 }
 
-export async function getInstagramPostStats({
-  access_token,
-  post_id,
-}) {
+export async function getInstagramPostStats({ access_token, post_id }) {
   const res = await fetch(
-    `${META_GRAPH_BASE}/${post_id}/insights?metric=impressions,reach,likes,comments,shares&access_token=${access_token}`
+    `${META_GRAPH_BASE}/${post_id}/insights?metric=impressions,reach,likes,comments,shares&access_token=${access_token}`,
   );
 
   const data = await res.json();
@@ -1718,12 +1778,9 @@ export async function getInstagramPostStats({
   };
 }
 
-export async function getMetaAdsCampaignStats({
-  access_token,
-  campaign_id,
-}) {
+export async function getMetaAdsCampaignStats({ access_token, campaign_id }) {
   const res = await fetch(
-    `${META_GRAPH_BASE}/${campaign_id}/insights?fields=impressions,reach,clicks,ctr&access_token=${access_token}`
+    `${META_GRAPH_BASE}/${campaign_id}/insights?fields=impressions,reach,clicks,ctr&access_token=${access_token}`,
   );
 
   const data = await res.json();
@@ -1751,12 +1808,11 @@ export async function fetchLivePostsFromConnectedAccounts(
   // Optional: called as onTokenRotated(integrationId, newRefreshToken) whenever an X/TikTok
   // refresh rotates the token here, so the caller can persist it to the backend
   // (updateIntegration). Without it, only localStorage is updated (device-local).
-  { onTokenRotated } = {}
+  { onTokenRotated } = {},
 ) {
   const accounts = buildAccountsMap(integrations);
 
   const livePosts = [];
-
 
   // ── Facebook ─────────────────────────
   if (accounts.facebook?.access_token) {
@@ -1768,8 +1824,8 @@ export async function fetchLivePostsFromConnectedAccounts(
       // Skip /me/accounts entirely — use the page token directly
       const postsRes = await fetch(
         `${META_GRAPH_BASE}/${pageId}/posts` +
-        `?fields=id,message,story,created_time,full_picture,permalink_url` +
-        `&limit=20&access_token=${pageToken}`
+          `?fields=id,message,story,created_time,full_picture,permalink_url` +
+          `&limit=20&access_token=${pageToken}`,
       );
 
       const postsData = await postsRes.json();
@@ -1781,7 +1837,8 @@ export async function fetchLivePostsFromConnectedAccounts(
           livePosts.push({
             id: `fb_${post.id}`,
             project_id: null,
-            project_title: post.message?.slice(0, 60) || post.story || "Facebook Post",
+            project_title:
+              post.message?.slice(0, 60) || post.story || "Facebook Post",
             caption: post.message || "",
             image_url: post.full_picture || null,
             platform: "facebook",
@@ -1800,8 +1857,8 @@ export async function fetchLivePostsFromConnectedAccounts(
       // Scheduled (unpublished) posts are NOT in /posts — they live under /scheduled_posts.
       const schedRes = await fetch(
         `${META_GRAPH_BASE}/${pageId}/scheduled_posts` +
-        `?fields=id,message,story,scheduled_publish_time,full_picture,permalink_url` +
-        `&access_token=${pageToken}`
+          `?fields=id,message,story,scheduled_publish_time,full_picture,permalink_url` +
+          `&access_token=${pageToken}`,
       );
       const schedData = await schedRes.json();
       if (schedData.error) {
@@ -1811,7 +1868,10 @@ export async function fetchLivePostsFromConnectedAccounts(
           livePosts.push({
             id: `fb_${post.id}`,
             project_id: null,
-            project_title: post.message?.slice(0, 60) || post.story || "Scheduled Facebook Post",
+            project_title:
+              post.message?.slice(0, 60) ||
+              post.story ||
+              "Scheduled Facebook Post",
             caption: post.message || "",
             image_url: post.full_picture || null,
             platform: "facebook",
@@ -1836,13 +1896,10 @@ export async function fetchLivePostsFromConnectedAccounts(
 
   // ── Instagram ────────────────────────
 
-  if (
-    accounts.instagram?.access_token &&
-    accounts.instagram?.ig_user_id
-  ) {
+  if (accounts.instagram?.access_token && accounts.instagram?.ig_user_id) {
     try {
       const res = await fetch(
-        `${META_GRAPH_BASE}/${accounts.instagram.ig_user_id}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink&limit=20&access_token=${accounts.instagram.access_token}`
+        `${META_GRAPH_BASE}/${accounts.instagram.ig_user_id}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink&limit=20&access_token=${accounts.instagram.access_token}`,
       );
 
       const data = await res.json();
@@ -1852,17 +1909,12 @@ export async function fetchLivePostsFromConnectedAccounts(
           livePosts.push({
             id: `ig_${post.id}`,
             project_id: null,
-            project_title:
-              post.caption?.slice(0, 60) ||
-              'Instagram Post',
-            caption: post.caption || '',
-            image_url:
-              post.media_url ||
-              post.thumbnail_url ||
-              null,
-            platform: 'instagram',
-            type: 'social',
-            status: 'published',
+            project_title: post.caption?.slice(0, 60) || "Instagram Post",
+            caption: post.caption || "",
+            image_url: post.media_url || post.thumbnail_url || null,
+            platform: "instagram",
+            type: "social",
+            status: "published",
             published_at: post.timestamp,
             scheduled_at: null,
             post_id: post.id,
@@ -1873,10 +1925,7 @@ export async function fetchLivePostsFromConnectedAccounts(
         });
       }
     } catch (err) {
-      console.warn(
-        'Instagram live posts fetch failed:',
-        err.message
-      );
+      console.warn("Instagram live posts fetch failed:", err.message);
     }
   }
 
@@ -1888,23 +1937,23 @@ export async function fetchLivePostsFromConnectedAccounts(
 
       // 1. Resolve the channel's "uploads" playlist (holds every video).
       const chRes = await fetch(
-        `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true&access_token=${token}`
+        `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true&access_token=${token}`,
       );
       const chData = await chRes.json();
       const uploads =
         chData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
 
       if (chData.error) {
-        console.warn('YouTube channel fetch error:', chData.error);
+        console.warn("YouTube channel fetch error:", chData.error);
       } else if (uploads) {
         // 2. Recent uploads from that playlist.
         const plRes = await fetch(
-          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploads}&maxResults=20&access_token=${token}`
+          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploads}&maxResults=20&access_token=${token}`,
         );
         const plData = await plRes.json();
 
         if (plData.error) {
-          console.warn('YouTube uploads fetch error:', plData.error);
+          console.warn("YouTube uploads fetch error:", plData.error);
         } else {
           const items = plData.items || [];
           const ids = items
@@ -1916,8 +1965,8 @@ export async function fetchLivePostsFromConnectedAccounts(
           if (ids.length) {
             const vRes = await fetch(
               `https://www.googleapis.com/youtube/v3/videos?part=status&id=${ids.join(
-                ','
-              )}&access_token=${token}`
+                ",",
+              )}&access_token=${token}`,
             );
             const vData = await vRes.json();
             if (!vData.error) {
@@ -1933,22 +1982,21 @@ export async function fetchLivePostsFromConnectedAccounts(
             if (!vid) return;
 
             const st = statusById[vid] || {};
-            const scheduled =
-              st.privacyStatus === 'private' && st.publishAt;
+            const scheduled = st.privacyStatus === "private" && st.publishAt;
 
             livePosts.push({
               id: `yt_${vid}`,
               project_id: null,
-              project_title: s.title?.slice(0, 60) || 'YouTube Video',
-              caption: s.description || '',
+              project_title: s.title?.slice(0, 60) || "YouTube Video",
+              caption: s.description || "",
               image_url:
                 s.thumbnails?.high?.url ||
                 s.thumbnails?.medium?.url ||
                 s.thumbnails?.default?.url ||
                 null,
-              platform: 'youtube',
-              type: 'social',
-              status: scheduled ? 'scheduled' : 'published',
+              platform: "youtube",
+              type: "social",
+              status: scheduled ? "scheduled" : "published",
               published_at: scheduled ? null : s.publishedAt || null,
               scheduled_at: scheduled ? st.publishAt : null,
               post_id: vid,
@@ -1960,7 +2008,7 @@ export async function fetchLivePostsFromConnectedAccounts(
         }
       }
     } catch (err) {
-      console.warn('YouTube live posts fetch failed:', err.message);
+      console.warn("YouTube live posts fetch failed:", err.message);
     }
   }
 
@@ -1968,16 +2016,17 @@ export async function fetchLivePostsFromConnectedAccounts(
   // No browser CORS → go through the server route, which refreshes the token and
   // returns recent tweets. Uses the raw integration record (need id + int_id + refresh).
   {
-    const tw = integrations.find((i) => i.platform === 'twitter');
+    const tw = integrations.find((i) => i.platform === "twitter");
     if (tw && tw.int_id) {
       // Prefer the freshest (localStorage) rotated token; fall back to the backend copy, which
       // is stored in int_token (the single token field; int_refresh_token kept as a fallback).
-      const rt = getStoredXRefresh(tw.id) || tw.int_token || tw.int_refresh_token;
+      const rt =
+        getStoredXRefresh(tw.id) || tw.int_token || tw.int_refresh_token;
       if (rt) {
         try {
-          const res = await fetch('/api/twitter/posts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          const res = await fetch("/api/twitter/posts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refresh_token: rt, user_id: tw.int_id }),
           });
           const data = await res.json().catch(() => ({}));
@@ -1999,12 +2048,12 @@ export async function fetchLivePostsFromConnectedAccounts(
               livePosts.push({
                 id: `tw_${post.id}`,
                 project_id: null,
-                project_title: post.text?.slice(0, 60) || 'Tweet',
-                caption: post.text || '',
+                project_title: post.text?.slice(0, 60) || "Tweet",
+                caption: post.text || "",
                 image_url: media?.url || media?.preview_image_url || null,
-                platform: 'twitter',
-                type: 'social',
-                status: 'published',
+                platform: "twitter",
+                type: "social",
+                status: "published",
                 published_at: post.created_at || null,
                 scheduled_at: null,
                 post_id: post.id,
@@ -2014,10 +2063,10 @@ export async function fetchLivePostsFromConnectedAccounts(
               });
             });
           } else {
-            console.warn('X posts fetch error:', data.error);
+            console.warn("X posts fetch error:", data.error);
           }
         } catch (err) {
-          console.warn('X live posts fetch failed:', err.message);
+          console.warn("X live posts fetch failed:", err.message);
         }
       }
     }
@@ -2027,9 +2076,9 @@ export async function fetchLivePostsFromConnectedAccounts(
   // No browser CORS → list pins via the server route.
   if (accounts.pinterest?.access_token) {
     try {
-      const res = await fetch('/api/pinterest/pins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/pinterest/pins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ access_token: accounts.pinterest.access_token }),
       });
       const data = await res.json().catch(() => ({}));
@@ -2037,20 +2086,20 @@ export async function fetchLivePostsFromConnectedAccounts(
         (data.pins || []).forEach((pin) => {
           const imgs = pin.media?.images || {};
           const image_url =
-            imgs['600x']?.url ||
-            imgs['1200x']?.url ||
-            imgs['400x300']?.url ||
+            imgs["600x"]?.url ||
+            imgs["1200x"]?.url ||
+            imgs["400x300"]?.url ||
             imgs.originals?.url ||
             null;
           livePosts.push({
             id: `pin_${pin.id}`,
             project_id: null,
-            project_title: pin.title?.slice(0, 60) || 'Pinterest Pin',
-            caption: pin.description || pin.title || '',
+            project_title: pin.title?.slice(0, 60) || "Pinterest Pin",
+            caption: pin.description || pin.title || "",
             image_url,
-            platform: 'pinterest',
-            type: 'social',
-            status: 'published',
+            platform: "pinterest",
+            type: "social",
+            status: "published",
             published_at: pin.created_at || null,
             scheduled_at: null,
             post_id: pin.id,
@@ -2060,10 +2109,10 @@ export async function fetchLivePostsFromConnectedAccounts(
           });
         });
       } else {
-        console.warn('Pinterest pins error:', data.error);
+        console.warn("Pinterest pins error:", data.error);
       }
     } catch (err) {
-      console.warn('Pinterest live posts fetch failed:', err.message);
+      console.warn("Pinterest live posts fetch failed:", err.message);
     }
   }
 
@@ -2071,16 +2120,17 @@ export async function fetchLivePostsFromConnectedAccounts(
   // No browser CORS → list posts via the server route, which refreshes the 24h token and
   // returns recent videos/photo posts. Uses the raw integration record (need id + refresh).
   {
-    const tt = integrations.find((i) => i.platform === 'tiktok');
+    const tt = integrations.find((i) => i.platform === "tiktok");
     if (tt) {
       // Prefer the freshest (localStorage) rotated token; fall back to the backend copy, which
       // is stored in int_token (the single token field; int_refresh_token kept as a fallback).
-      const rt = getStoredTikTokRefresh(tt.id) || tt.int_token || tt.int_refresh_token;
+      const rt =
+        getStoredTikTokRefresh(tt.id) || tt.int_token || tt.int_refresh_token;
       if (rt) {
         try {
-          const res = await fetch('/api/tiktok/posts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          const res = await fetch("/api/tiktok/posts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refresh_token: rt }),
           });
           const data = await res.json().catch(() => ({}));
@@ -2099,13 +2149,13 @@ export async function fetchLivePostsFromConnectedAccounts(
                 project_title:
                   v.title?.slice(0, 60) ||
                   v.video_description?.slice(0, 60) ||
-                  'TikTok Post',
-                caption: v.video_description || v.title || '',
+                  "TikTok Post",
+                caption: v.video_description || v.title || "",
                 image_url: v.cover_image_url || null,
-                platform: 'tiktok',
-                type: 'social',
+                platform: "tiktok",
+                type: "social",
                 // TikTok v2 has no API scheduling → everything fetched is published.
-                status: 'published',
+                status: "published",
                 published_at: v.create_time
                   ? new Date(v.create_time * 1000).toISOString()
                   : null,
@@ -2117,10 +2167,10 @@ export async function fetchLivePostsFromConnectedAccounts(
               });
             });
           } else {
-            console.warn('TikTok posts fetch error:', data.error);
+            console.warn("TikTok posts fetch error:", data.error);
           }
         } catch (err) {
-          console.warn('TikTok live posts fetch failed:', err.message);
+          console.warn("TikTok live posts fetch failed:", err.message);
         }
       }
     }
@@ -2128,19 +2178,16 @@ export async function fetchLivePostsFromConnectedAccounts(
 
   // ── Meta Ads ─────────────────────────
 
-  if (
-    accounts.meta_ads?.access_token &&
-    accounts.meta_ads?.ad_account_id
-  ) {
+  if (accounts.meta_ads?.access_token && accounts.meta_ads?.ad_account_id) {
     try {
       const rawAccountId = accounts.meta_ads.ad_account_id;
 
-      const normalizedAccountId = rawAccountId.startsWith('act_')
+      const normalizedAccountId = rawAccountId.startsWith("act_")
         ? rawAccountId
         : `act_${rawAccountId}`;
 
       const res = await fetch(
-        `${META_GRAPH_BASE}/${normalizedAccountId}/campaigns?fields=id,name,status,created_time,objective&limit=20&access_token=${accounts.meta_ads.access_token}`
+        `${META_GRAPH_BASE}/${normalizedAccountId}/campaigns?fields=id,name,status,created_time,objective&limit=20&access_token=${accounts.meta_ads.access_token}`,
       );
 
       const data = await res.json();
@@ -2151,15 +2198,13 @@ export async function fetchLivePostsFromConnectedAccounts(
             id: `meta_campaign_${campaign.id}`,
             project_id: null,
             project_title: campaign.name,
-            caption: `Objective: ${campaign.objective || 'N/A'
-              } · Status: ${campaign.status}`,
+            caption: `Objective: ${
+              campaign.objective || "N/A"
+            } · Status: ${campaign.status}`,
             image_url: null,
-            platform: 'meta_ads',
-            type: 'ad',
-            status:
-              campaign.status === 'ACTIVE'
-                ? 'published'
-                : 'scheduled',
+            platform: "meta_ads",
+            type: "ad",
+            status: campaign.status === "ACTIVE" ? "published" : "scheduled",
             published_at: campaign.created_time,
             // Campaigns have no separate schedule time — use created_time so non-ACTIVE
             // campaigns still land on a calendar day (otherwise they're invisible).
@@ -2171,10 +2216,7 @@ export async function fetchLivePostsFromConnectedAccounts(
         });
       }
     } catch (err) {
-      console.warn(
-        'Meta Ads live fetch failed:',
-        err.message
-      );
+      console.warn("Meta Ads live fetch failed:", err.message);
     }
   }
 
@@ -2186,17 +2228,21 @@ export async function fetchLivePostsFromConnectedAccounts(
   const pushAdCampaigns = (platform, campaigns, isLive, whenOf) => {
     (campaigns || []).forEach((c) => {
       let when = null;
-      try { when = whenOf(c); } catch { when = null; }
+      try {
+        when = whenOf(c);
+      } catch {
+        when = null;
+      }
       const live = isLive(c);
       livePosts.push({
         id: `${platform}_campaign_${c.id}`,
         project_id: null,
         project_title: c.name || `${platform} campaign`,
-        caption: `Status: ${c.status || 'N/A'}`,
+        caption: `Status: ${c.status || "N/A"}`,
         image_url: null,
         platform,
-        type: 'ad',
-        status: live ? 'published' : 'scheduled',
+        type: "ad",
+        status: live ? "published" : "scheduled",
         published_at: when,
         scheduled_at: when, // campaigns have no separate schedule time — use created/start
         post_id: c.id,
@@ -2208,116 +2254,149 @@ export async function fetchLivePostsFromConnectedAccounts(
 
   // Google Ads
   {
-    const gi = integrations.find((i) => i.platform === 'google_ads');
+    const gi = integrations.find((i) => i.platform === "google_ads");
     if (gi?.int_refresh_token && gi.int_id) {
       try {
-        const res = await fetch('/api/google-ads/list', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: gi.int_refresh_token, customer_id: gi.int_id }),
+        const res = await fetch("/api/google-ads/list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            refresh_token: gi.int_refresh_token,
+            customer_id: gi.int_id,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && !data.error) {
           pushAdCampaigns(
-            'google_ads',
+            "google_ads",
             data.campaigns,
-            (c) => c.status === 'ENABLED',
+            (c) => c.status === "ENABLED",
             (c) => (c.start_date ? new Date(c.start_date).toISOString() : null),
           );
-        } else console.warn('Google Ads list error:', data.error);
-      } catch (err) { console.warn('Google Ads live fetch failed:', err.message); }
+        } else console.warn("Google Ads list error:", data.error);
+      } catch (err) {
+        console.warn("Google Ads live fetch failed:", err.message);
+      }
     }
   }
 
   // TikTok Ads
   {
-    const ti = integrations.find((i) => i.platform === 'tiktok_ads');
+    const ti = integrations.find((i) => i.platform === "tiktok_ads");
     if (ti?.int_token && ti.int_id) {
       try {
-        const res = await fetch('/api/tiktok-ads/list', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ access_token: ti.int_token, advertiser_id: ti.int_id }),
+        const res = await fetch("/api/tiktok-ads/list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            access_token: ti.int_token,
+            advertiser_id: ti.int_id,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && !data.error) {
           pushAdCampaigns(
-            'tiktok_ads',
+            "tiktok_ads",
             data.campaigns,
-            (c) => c.status === 'ENABLE',
-            (c) => (c.create_time ? new Date(c.create_time.replace(' ', 'T') + 'Z').toISOString() : null),
+            (c) => c.status === "ENABLE",
+            (c) =>
+              c.create_time
+                ? new Date(c.create_time.replace(" ", "T") + "Z").toISOString()
+                : null,
           );
-        } else console.warn('TikTok Ads list error:', data.error);
-      } catch (err) { console.warn('TikTok Ads live fetch failed:', err.message); }
+        } else console.warn("TikTok Ads list error:", data.error);
+      } catch (err) {
+        console.warn("TikTok Ads live fetch failed:", err.message);
+      }
     }
   }
 
   // Pinterest Ads
   {
-    const pi = integrations.find((i) => i.platform === 'pinterest_ads');
+    const pi = integrations.find((i) => i.platform === "pinterest_ads");
     if (pi?.int_token && pi.int_id) {
       try {
-        const res = await fetch('/api/pinterest-ads/list', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ access_token: pi.int_token, ad_account_id: pi.int_id }),
+        const res = await fetch("/api/pinterest-ads/list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            access_token: pi.int_token,
+            ad_account_id: pi.int_id,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && !data.error) {
           pushAdCampaigns(
-            'pinterest_ads',
+            "pinterest_ads",
             data.campaigns,
-            (c) => c.status === 'ACTIVE',
-            (c) => (c.created_time ? new Date(c.created_time * 1000).toISOString() : null),
+            (c) => c.status === "ACTIVE",
+            (c) =>
+              c.created_time
+                ? new Date(c.created_time * 1000).toISOString()
+                : null,
           );
-        } else console.warn('Pinterest Ads list error:', data.error);
-      } catch (err) { console.warn('Pinterest Ads live fetch failed:', err.message); }
+        } else console.warn("Pinterest Ads list error:", data.error);
+      } catch (err) {
+        console.warn("Pinterest Ads live fetch failed:", err.message);
+      }
     }
   }
 
   // LinkedIn Ads
   {
-    const li = integrations.find((i) => i.platform === 'linkedin_ads');
+    const li = integrations.find((i) => i.platform === "linkedin_ads");
     if (li?.int_token && li.int_id) {
       try {
-        const res = await fetch('/api/linkedin-ads/list', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ access_token: li.int_token, ad_account_id: li.int_id }),
+        const res = await fetch("/api/linkedin-ads/list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            access_token: li.int_token,
+            ad_account_id: li.int_id,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && !data.error) {
           pushAdCampaigns(
-            'linkedin_ads',
+            "linkedin_ads",
             data.campaigns,
-            (c) => c.status === 'ACTIVE',
-            (c) => (c.created_time ? new Date(c.created_time).toISOString() : null),
+            (c) => c.status === "ACTIVE",
+            (c) =>
+              c.created_time ? new Date(c.created_time).toISOString() : null,
           );
-        } else console.warn('LinkedIn Ads list error:', data.error);
-      } catch (err) { console.warn('LinkedIn Ads live fetch failed:', err.message); }
+        } else console.warn("LinkedIn Ads list error:", data.error);
+      } catch (err) {
+        console.warn("LinkedIn Ads live fetch failed:", err.message);
+      }
     }
   }
 
   // Snapchat Ads
   {
-    const si = integrations.find((i) => i.platform === 'snapchat_ads');
+    const si = integrations.find((i) => i.platform === "snapchat_ads");
     if (si?.int_id && (si.int_token || si.int_refresh_token)) {
       try {
-        const res = await fetch('/api/snapchat-ads/list', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ access_token: si.int_token, refresh_token: si.int_refresh_token, ad_account_id: si.int_id }),
+        const res = await fetch("/api/snapchat-ads/list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            access_token: si.int_token,
+            refresh_token: si.int_refresh_token,
+            ad_account_id: si.int_id,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && !data.error) {
           pushAdCampaigns(
-            'snapchat_ads',
+            "snapchat_ads",
             data.campaigns,
-            (c) => c.status === 'ACTIVE',
+            (c) => c.status === "ACTIVE",
             (c) => (c.created_at ? new Date(c.created_at).toISOString() : null),
           );
-        } else console.warn('Snapchat Ads list error:', data.error);
-      } catch (err) { console.warn('Snapchat Ads live fetch failed:', err.message); }
+        } else console.warn("Snapchat Ads list error:", data.error);
+      } catch (err) {
+        console.warn("Snapchat Ads live fetch failed:", err.message);
+      }
     }
   }
 
@@ -2328,29 +2407,24 @@ export async function fetchLivePostsFromConnectedAccounts(
 // Delete / Update
 // ─────────────────────────────────────────────────────────────
 
-export async function deletePostFromPlatform(
-  post,
-  integrations = []
-) {
+export async function deletePostFromPlatform(post, integrations = []) {
   const accounts = buildAccountsMap(integrations);
 
-  if (post.platform === 'facebook' && post.post_id) {
-    const token =
-      post._page_access_token ||
-      accounts.facebook?.access_token;
+  if (post.platform === "facebook" && post.post_id) {
+    const token = post._page_access_token || accounts.facebook?.access_token;
 
     if (token) {
       try {
         await fetch(
           `${META_GRAPH_BASE}/${post.post_id}?access_token=${token}`,
           {
-            method: 'DELETE',
-          }
+            method: "DELETE",
+          },
         );
-      } catch { }
+      } catch {}
     }
   } else if (
-    post.platform === 'meta_ads' &&
+    post.platform === "meta_ads" &&
     accounts.meta_ads?.access_token &&
     post.post_id
   ) {
@@ -2358,10 +2432,10 @@ export async function deletePostFromPlatform(
       await fetch(
         `${META_GRAPH_BASE}/${post.post_id}?access_token=${accounts.meta_ads.access_token}`,
         {
-          method: 'DELETE',
-        }
+          method: "DELETE",
+        },
       );
-    } catch { }
+    } catch {}
   }
 
   deletePublishedPost(post.id);
@@ -2370,27 +2444,25 @@ export async function deletePostFromPlatform(
 export async function updatePostCaptionOnPlatform(
   post,
   newCaption,
-  integrations = []
+  integrations = [],
 ) {
   const accounts = buildAccountsMap(integrations);
 
-  if (post.platform === 'facebook' && post.post_id) {
-    const token =
-      post._page_access_token ||
-      accounts.facebook?.access_token;
+  if (post.platform === "facebook" && post.post_id) {
+    const token = post._page_access_token || accounts.facebook?.access_token;
 
     if (token) {
       const res = await fetch(
         `${META_GRAPH_BASE}/${post.post_id}?access_token=${token}`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             message: newCaption,
           }),
-        }
+        },
       );
 
       const data = await res.json();
@@ -2410,21 +2482,19 @@ export const OAUTH_CONFIGS = {
   facebook: {
     authUrl: `${META_OAUTH_BASE}/dialog/oauth`,
     scope:
-      'pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,ads_management',
+      "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,ads_management",
   },
 
   google_ads: {
-    authUrl:
-      'https://accounts.google.com/o/oauth2/v2/auth',
+    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
 
     scope:
-      'https://www.googleapis.com/auth/adwords https://www.googleapis.com/auth/userinfo.email',
+      "https://www.googleapis.com/auth/adwords https://www.googleapis.com/auth/userinfo.email",
   },
 
   tiktok: {
-    authUrl:
-      'https://www.tiktok.com/v2/auth/authorize/',
+    authUrl: "https://www.tiktok.com/v2/auth/authorize/",
 
-    scope: 'video.upload,video.list',
+    scope: "video.upload,video.list",
   },
 };

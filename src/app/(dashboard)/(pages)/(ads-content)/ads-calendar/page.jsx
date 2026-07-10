@@ -90,7 +90,7 @@ function PostPill({ post, onDelete }) {
           e.stopPropagation();
           onDelete();
         }}
-        className="opacity-0 cursor-pointer group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity ml-auto flex-shrink-0"
+        className="opacity-0 cursor-pointer group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity ml-auto shrink-0"
       >
         <Trash2 className="w-2.5 h-2.5" />
       </button>
@@ -122,7 +122,10 @@ export default function AdsContentCalendar() {
     try {
       const ints = (await fetchIntegrations()) || [];
       setIntegrations(ints);
-      const livePosts = await fetchLivePostsFromConnectedAccounts(ints, { onTokenRotated: (id, rt) => updateIntegration(id, { refresh_token: rt }) });
+      const livePosts = await fetchLivePostsFromConnectedAccounts(ints, {
+        onTokenRotated: (id, rt) =>
+          updateIntegration(id, { refresh_token: rt }),
+      });
 
       // Live (Facebook/Meta) is authoritative for status. Keep a local post ONLY when
       // it's no longer reported live, and never trust a local 'scheduled'.

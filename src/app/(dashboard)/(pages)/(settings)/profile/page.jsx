@@ -36,7 +36,7 @@ export default function AccountSettings() {
             headers: {
               Authorization: `Bearer ${localStorage.getItem("token")}`,
             },
-          }
+          },
         );
         const data = await res.json();
         setSessions(data.sessions || []);
@@ -68,7 +68,7 @@ export default function AccountSettings() {
           method: "POST",
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           body: formData,
-        }
+        },
       );
       if (!res.ok) throw new Error();
       triggerToast("Profile saved");
@@ -93,7 +93,7 @@ export default function AccountSettings() {
             current_password: currentPassword,
             new_password: newPassword,
           }),
-        }
+        },
       );
       if (!res.ok) throw new Error();
       triggerToast("Password updated.");
@@ -113,7 +113,7 @@ export default function AccountSettings() {
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        }
+        },
       );
       triggerToast("Account deleted.");
       setTimeout(() => logout(), 2200);
@@ -132,7 +132,7 @@ export default function AccountSettings() {
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        }
+        },
       );
       setSessions((prev) => prev.filter((s) => s.id !== id));
       triggerToast("Session ended.");
@@ -164,7 +164,6 @@ export default function AccountSettings() {
 
   return (
     <div className=" py-3 space-y-4">
-
       {/* ── HEADER ───────────────────────────────────── */}
       <div className="mb-6">
         <h1 className="text-xl font-medium text-gray-900">Account settings</h1>
@@ -184,22 +183,33 @@ export default function AccountSettings() {
 
         {/* Avatar row */}
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0 text-gray-500 font-medium text-lg">
+          <div className="w-14 h-14 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0 text-gray-500 font-medium text-lg">
             {preview ? (
-              <img src={preview} className="w-full h-full object-cover" alt="Profile" />
+              <img
+                src={preview}
+                className="w-full h-full object-cover"
+                alt="Profile"
+              />
             ) : (
               <span>{initials || "?"}</span>
             )}
           </div>
 
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{name || "Your name"}</p>
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {name || "Your name"}
+            </p>
             <p className="text-xs text-gray-500 truncate">{email}</p>
           </div>
 
-          <label className="cursor-pointer text-xs text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors flex-shrink-0">
+          <label className="cursor-pointer text-xs text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors shrink-0">
             Change photo
-            <input type="file" hidden accept="image/*" onChange={handleFileChange} />
+            <input
+              type="file"
+              hidden
+              accept="image/*"
+              onChange={handleFileChange}
+            />
           </label>
         </div>
 
@@ -299,7 +309,7 @@ export default function AccountSettings() {
               key={s.id}
               className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-3"
             >
-              <div className="w-8 h-8 rounded-full bg-surface border border-gray-200 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-surface border border-gray-200 flex items-center justify-center shrink-0">
                 {s.device?.includes("iPhone") ? (
                   <Smartphone size={13} className="text-gray-500" />
                 ) : (
@@ -324,7 +334,7 @@ export default function AccountSettings() {
               {!s.current && (
                 <button
                   onClick={() => handleTerminate(s.id)}
-                  className="text-xs text-red-500 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50 transition-colors flex-shrink-0"
+                  className="text-xs text-red-500 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50 transition-colors shrink-0"
                 >
                   End
                 </button>

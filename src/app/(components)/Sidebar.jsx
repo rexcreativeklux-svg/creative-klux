@@ -61,17 +61,16 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     }
   };
 
-
   //   const handleLogout = async () => {
   //   await logout();
   //   router.push("/login");
   // };
 
-
   const isActive = (href) =>
     pathname === href || pathname?.startsWith(href + "/");
 
-  const isDropdownActive = (children) => children?.some((c) => isActive(c.href));
+  const isDropdownActive = (children) =>
+    children?.some((c) => isActive(c.href));
 
   const toggleDropdown = (id, e) => {
     e.preventDefault();
@@ -86,8 +85,14 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   // Auto-open dropdown if a child is active
   useEffect(() => {
     const dropdownItems = [
-      { id: "social", children: [{ href: "/created-socials" }, { href: "/social-planner" }] },
-      { id: "ads", children: [{ href: "/created-ads" }, { href: "/ads-planner" }] },
+      {
+        id: "social",
+        children: [{ href: "/created-socials" }, { href: "/social-planner" }],
+      },
+      {
+        id: "ads",
+        children: [{ href: "/created-ads" }, { href: "/ads-planner" }],
+      },
     ];
 
     for (const item of dropdownItems) {
@@ -117,13 +122,21 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   //   return () => document.removeEventListener("mousedown", handleClickOutside);
   // }, [showBottomMenu, showLogoutModal]);
 
-
-
   // ── Nav sections ───────────────────────────────────────────────
   const createItems = [
     { id: "brand", label: "Brand Kits", href: "/brand/reuse", icon: Palette },
-    { id: "creatives", label: "Creative Studio", href: "/creatives", icon: Folder },
-    { id: "product-photos", label: "Product Photos", href: "/product-photos", icon: BookImage },
+    {
+      id: "creatives",
+      label: "Creative Studio",
+      href: "/creatives",
+      icon: Folder,
+    },
+    {
+      id: "product-photos",
+      label: "Product Photos",
+      href: "/product-photos",
+      icon: BookImage,
+    },
   ];
 
   const overviewItems = [
@@ -135,24 +148,50 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     },
   ];
 
-
   const insightsItems = [
     // { id: "brandPulse", label: "Brand Pulse", href: "/brandPulse", icon: Activity },
     // { id: "creativeIQ", label: "Creative IQ", href: "/creativeIQ", icon: Brain },
-
   ];
 
   const toolsItems = [
     // { id: "adGuard", label: "AdGuard", href: "/adGuard", icon: ShieldCheck },
     // { id: "rivalLens", label: "Rival Lens", href: "/rivalLens", icon: Radar },
-    { id: "ad-performance", label: "Ad Performance", href: "/ad-performance", icon: Lightbulb },
-    { id: "market-spy", label: "Market Spy", href: "/market-spy", icon: Search },
-    { id: "ad-guard", label: "Ad Guard AI", href: "/ad-guard-ai", icon: ShieldCheck },
-    { id: "ad-scorer", label: "Ad Scorer AI", href: "/ad-scorer-ai", icon: Star },
-    { id: "creative-comparison", label: "Creative Comparison", href: "/creative-comparison", icon: GitCompareArrows },
-    { id: "magic-studio", label: "Magic Studio", href: "/magic-studio", icon: Sparkles },
-
-
+    {
+      id: "ad-performance",
+      label: "Ad Performance",
+      href: "/ad-performance",
+      icon: Lightbulb,
+    },
+    {
+      id: "market-spy",
+      label: "Market Spy",
+      href: "/market-spy",
+      icon: Search,
+    },
+    {
+      id: "ad-guard",
+      label: "Ad Guard AI",
+      href: "/ad-guard-ai",
+      icon: ShieldCheck,
+    },
+    {
+      id: "ad-scorer",
+      label: "Ad Scorer AI",
+      href: "/ad-scorer-ai",
+      icon: Star,
+    },
+    {
+      id: "creative-comparison",
+      label: "Creative Comparison",
+      href: "/creative-comparison",
+      icon: GitCompareArrows,
+    },
+    {
+      id: "magic-studio",
+      label: "Magic Studio",
+      href: "/magic-studio",
+      icon: Sparkles,
+    },
   ];
 
   const manageItems = [
@@ -211,7 +250,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         `}
         title={!isOpen ? label : undefined}
       >
-        <Icon className={`h-[18px] w-[18px] flex-shrink-0 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`} />
+        <Icon
+          className={`w-4.5 w-4.5 shrink-0 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`}
+        />
         {isOpen && <span className="flex-1 truncate">{label}</span>}
         {isOpen && badge && (
           <span className="text-[10px] font-semibold bg-rose-500 text-white px-1.5 py-0.5 rounded-full leading-none">
@@ -239,11 +280,15 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             ${!isOpen ? "justify-center px-0" : ""}
           `}
         >
-          <Icon className={`h-[18px] w-[18px] flex-shrink-0 ${dropActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`} />
+          <Icon
+            className={`w-4.5 w-4.5 shrink-0 ${dropActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`}
+          />
           {isOpen && (
             <>
               <span className="flex-1 text-left truncate">{label}</span>
-              <ChevronDown className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${dropOpen ? "-rotate-90" : ""}`} />
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 transition-transform duration-200 ${dropOpen ? "-rotate-90" : ""}`}
+              />
             </>
           )}
         </button>
@@ -261,7 +306,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                   className={`flex items-center gap-2.5 px-2 py-2 rounded-md text-xs transition-all duration-150
                     ${childActive ? "text-blue-600 font-semibold" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"}`}
                 >
-                  <ChildIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                  <ChildIcon className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{child.label}</span>
                 </Link>
               );
@@ -285,7 +330,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                   className={`flex items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-gray-100
                     ${isActive(child.href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
                 >
-                  <ChildIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                  <ChildIcon className="h-3.5 w-3.5 shrink-0" />
                   {child.label}
                 </Link>
               );
@@ -325,7 +370,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       >
         {/* Logo row */}
         <div
-          className={`flex items-center h-16 flex-shrink-0 border-b border-gray-200 cursor-pointer
+          className={`flex items-center h-16 shrink-0 border-b border-gray-200 cursor-pointer
             ${isOpen ? "px-4" : "justify-center px-0"}
           `}
           onClick={() => router.push("/")}
@@ -333,7 +378,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           <img
             src="/logoblue.svg"
             alt="Logo"
-            className="w-7 h-7 flex-shrink-0"
+            className="w-7 h-7 shrink-0"
             loading="lazy"
           />
           {isOpen && (
@@ -344,24 +389,26 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         </div>
 
         {/* Scrollable nav area */}
-        <div className={`flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-3 ${isOpen ? "px-3" : "px-2"}`}>
+        <div
+          className={`flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-3 ${isOpen ? "px-3" : "px-2"}`}
+        >
           {renderSection("Overview", overviewItems)}
           {renderSection("Create", createItems)}
           {renderSection("Manage", manageItems)}
           {/* {renderSection("Insights", insightsItems)} */}
           {renderSection("Ai Tools", toolsItems)}
-
         </div>
 
         {/* Theme switcher (UI only) */}
-        <div className="flex-shrink-0 border-t border-gray-200">
+        <div className="shrink-0 border-t border-gray-200">
           <ThemeSwitcher collapsed={!isOpen} />
         </div>
 
-
         {/* Bottom user area */}
-        <div ref={bottomMenuRef} className={`flex-shrink-0 border-t border-gray-200 relative ${isOpen ? "px-3 py-3" : "px-2 py-3"}`}>
-
+        <div
+          ref={bottomMenuRef}
+          className={`shrink-0 border-t border-gray-200 relative ${isOpen ? "px-3 py-3" : "px-2 py-3"}`}
+        >
           {/* Backdrop — closes menu when clicking outside */}
           {showBottomMenu && (
             <div
@@ -383,7 +430,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                     className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-gray-100
               ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
                   >
-                    <Icon className="h-4 w-4 flex-shrink-0 text-gray-500" />
+                    <Icon className="h-4 w-4 shrink-0 text-gray-500" />
                     {label}
                   </Link>
                 ))}
@@ -395,7 +442,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                     }}
                     className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 w-full transition-colors"
                   >
-                    <Power className="h-4 w-4 flex-shrink-0" />
+                    <Power className="h-4 w-4 shrink-0" />
                     Logout
                   </button>
                 </div>
@@ -412,17 +459,23 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       ${isOpen ? "gap-3 px-3 py-2.5" : "justify-center px-0 py-2.5"}
     `}
           >
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold shadow-sm">
+            <div className="h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-sm">
               CK
             </div>
             {isOpen && (
               <div className="flex-1 text-left overflow-hidden">
-                <p className="text-sm font-semibold text-gray-900 truncate leading-tight">Creative Klux</p>
-                <p className="text-xs text-blue-500 font-medium truncate leading-tight">Pro Plan</p>
+                <p className="text-sm font-semibold text-gray-900 truncate leading-tight">
+                  Creative Klux
+                </p>
+                <p className="text-xs text-blue-500 font-medium truncate leading-tight">
+                  Pro Plan
+                </p>
               </div>
             )}
             {isOpen && (
-              <ChevronRight className={`h-4 w-4 text-gray-500 flex-shrink-0 transition-transform duration-200 ${showBottomMenu ? "rotate-90" : "-rotate-90"}`} />
+              <ChevronRight
+                className={`h-4 w-4 text-gray-500 shrink-0 transition-transform duration-200 ${showBottomMenu ? "rotate-90" : "-rotate-90"}`}
+              />
             )}
           </button>
         </div>
@@ -430,58 +483,61 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
       {/* ── Mobile Bottom Nav ──────────────────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-gray-200 flex justify-around items-center py-2 md:hidden">
-        {[...overviewItems, ...createItems, ...manageItems.slice(0, 2), ...insightsItems]
+        {[
+          ...overviewItems,
+          ...createItems,
+          ...manageItems.slice(0, 2),
+          ...insightsItems,
+        ].map((item) => {
+          const { id, label, icon: Icon, href, type, children } = item;
+          const isDropOpen = openDropdown === id;
 
-          .map((item) => {
-            const { id, label, icon: Icon, href, type, children } = item;
-            const isDropOpen = openDropdown === id;
-
-            if (type === "dropdown") {
-              return (
-                <div key={id} className="relative">
-                  <button
-                    onClick={(e) => toggleDropdown(id, e)}
-                    className={`flex flex-col items-center text-xs p-2 rounded-lg ${isDropOpen || isDropdownActive(children) ? "text-blue-600" : "text-gray-500"}`}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span className="mt-0.5 font-medium">{label}</span>
-                  </button>
-                  {isDropOpen && (
-                    <div className="absolute bottom-14 left-1/2 -translate-x-1/2 w-44 bg-surface rounded-xl shadow-xl border border-gray-200 py-1.5 z-50">
-                      <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-500 px-3 py-1.5 border-b border-gray-200">
-                        {label}
-                      </p>
-                      {children.map((child) => {
-                        const ChildIcon = child.icon;
-                        return (
-                          <Link
-                            key={child.href}
-                            href={child.href}
-                            onClick={() => setOpenDropdown(null)}
-                            className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-100 ${isActive(child.href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
-                          >
-                            <ChildIcon className="h-3.5 w-3.5 flex-shrink-0" />
-                            {child.label}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
+          if (type === "dropdown") {
             return (
-              <Link
-                key={id}
-                href={href}
-                className={`flex flex-col items-center text-xs p-2 rounded-lg ${isActive(href) ? "text-blue-600" : "text-gray-500"}`}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="mt-0.5 font-medium">{label}</span>
-              </Link>
+              <div key={id} className="relative">
+                <button
+                  onClick={(e) => toggleDropdown(id, e)}
+                  className={`flex flex-col items-center text-xs p-2 rounded-lg ${isDropOpen || isDropdownActive(children) ? "text-blue-600" : "text-gray-500"}`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="mt-0.5 font-medium">{label}</span>
+                </button>
+                {isDropOpen && (
+                  <div className="absolute bottom-14 left-1/2 -translate-x-1/2 w-44 bg-surface rounded-xl shadow-xl border border-gray-200 py-1.5 z-50">
+                    <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-500 px-3 py-1.5 border-b border-gray-200">
+                      {label}
+                    </p>
+                    {children.map((child) => {
+                      const ChildIcon = child.icon;
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={() => setOpenDropdown(null)}
+                          className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-100 ${isActive(child.href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
+                        >
+                          <ChildIcon className="h-3.5 w-3.5 shrink-0" />
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
-          })}
+          }
+
+          return (
+            <Link
+              key={id}
+              href={href}
+              className={`flex flex-col items-center text-xs p-2 rounded-lg ${isActive(href) ? "text-blue-600" : "text-gray-500"}`}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="mt-0.5 font-medium">{label}</span>
+            </Link>
+          );
+        })}
 
         <div ref={mobileBottomMenuRef} className="relative">
           {showBottomMenu && (
@@ -494,7 +550,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             onClick={() => setShowBottomMenu((p) => !p)}
             className="flex flex-col items-center text-xs p-2 rounded-lg text-gray-500"
           >
-            <div className="h-5 w-5 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[8px] font-bold">
+            <div className="h-5 w-5 rounded-full bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[8px] font-bold">
               CK
             </div>
             <span className="mt-0.5 font-medium">Account</span>
@@ -510,16 +566,19 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                   onClick={() => setShowBottomMenu(false)}
                   className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-100 ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
                 >
-                  <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
                   {label}
                 </Link>
               ))}
               <div className="border-t border-gray-200 mt-1 pt-1">
                 <button
-                  onClick={() => { setShowBottomMenu(false); setShowLogoutModal(true); }}
+                  onClick={() => {
+                    setShowBottomMenu(false);
+                    setShowLogoutModal(true);
+                  }}
                   className="flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 w-full"
                 >
-                  <Power className="h-3.5 w-3.5 flex-shrink-0" />
+                  <Power className="h-3.5 w-3.5 shrink-0" />
                   Logout
                 </button>
               </div>

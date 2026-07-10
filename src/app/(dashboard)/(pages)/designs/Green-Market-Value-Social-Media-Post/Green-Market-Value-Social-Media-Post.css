@@ -1,18 +1,21 @@
 /* Green-Market-Value-Social-Media-Post.css */
 .example-poster {
-    --primary: #04876d;
-    --primary-light: #34d399;
-    --secondary: #fcd134;
-    --secondary-light: #faff9a;
-    --text-on-primary: #ffffff;
-    --text-on-secondary: #028669;
-    --accent-on-secondary: #0e9c796e;
-    --tertiary: #753e4a;
-    --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-    --radius-xl: 1.5rem;
+  --primary: #04876d;
+  --primary-light: #34d399;
+  --secondary: #fcd134;
+  --secondary-light: #faff9a;
+  --text-on-primary: #ffffff;
+  --text-on-secondary: #028669;
+  --accent-on-secondary: #0e9c796e;
+  --tertiary: #753e4a;
+  --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --radius-xl: 1.5rem;
 
-    /* New gradient variables */
-    --gradient-primary: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-    --gradient-yellow: linear-gradient(to bottom right, #fbbf24, #fef08a);
-
+  /* New gradient variables */
+  --linear-primary: linear-gradient(
+    135deg,
+    var(--primary) 0%,
+    var(--primary-light) 100%
+  );
+  --linear-yellow: linear-gradient(to bottom right, #fbbf24, #fef08a);
 }

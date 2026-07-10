@@ -1,16 +1,18 @@
-   .struggling-poster {
-       --primary: #1130e3;
-        --primary-light: #3650e4;
-       --secondary: #caff00;
-       --secondary-light: #abda02;
-       --text-on-primary: #ffffff;
-       --text-on-secondary: #1e293b;
-         --accent-on-secondary: #ebeffb;
-       --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-       --radius-xl: 1.5rem;
+.struggling-poster {
+  --primary: #1130e3;
+  --primary-light: #3650e4;
+  --secondary: #caff00;
+  --secondary-light: #abda02;
+  --text-on-primary: #ffffff;
+  --text-on-secondary: #1e293b;
+  --accent-on-secondary: #ebeffb;
+  --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --radius-xl: 1.5rem;
 
-
-       /* New gradient variables */
-       --gradient-primary: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
- 
-   }
+  /* New gradient variables */
+  --linear-primary: linear-gradient(
+    135deg,
+    var(--primary) 0%,
+    var(--primary-light) 100%
+  );
+}

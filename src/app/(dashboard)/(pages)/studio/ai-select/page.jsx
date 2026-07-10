@@ -2,7 +2,14 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Tv2, Share2, Palette, Wand2, ArrowRight, Sparkles } from "lucide-react";
+import {
+  Tv2,
+  Share2,
+  Palette,
+  Wand2,
+  ArrowRight,
+  Sparkles,
+} from "lucide-react";
 
 const PIPELINE_OPTIONS = [
   {
@@ -96,12 +103,15 @@ function LightCanvas() {
       base: Math.random() * 0.18 + 0.06,
       phase: Math.random() * Math.PI * 2,
       freq: Math.random() * 0.006 + 0.002,
-      rgb: ["59,130,246", "139,92,246", "244,63,94", "16,185,129"][Math.floor(Math.random() * 4)],
+      rgb: ["59,130,246", "139,92,246", "244,63,94", "16,185,129"][
+        Math.floor(Math.random() * 4)
+      ],
     }));
 
     const draw = (ts) => {
       const t = ts * 0.001;
-      const w = W(), h = H();
+      const w = W(),
+        h = H();
       ctx.clearRect(0, 0, w, h);
 
       // white base
@@ -238,7 +248,7 @@ export default function StudioSelectPage() {
           }}
         >
           What will you{" "}
-          <span className="bg-gradient-to-r from-[#003dda] via-blue-300 to-blue-600 bg-clip-text text-transparent">
+          <span className="bg-linear-to-r from-[#003dda] via-blue-300 to-blue-600 bg-clip-text text-transparent">
             create
           </span>{" "}
           today?
@@ -257,7 +267,8 @@ export default function StudioSelectPage() {
         </p>
 
         {/* Cards */}
-        <div className="py-5 pt-10"
+        <div
+          className="py-5 pt-10"
           style={{
             display: "flex",
             gap: 12,
@@ -286,11 +297,10 @@ export default function StudioSelectPage() {
                   textAlign: "left",
                   padding: "18px 18px",
                   borderRadius: 16,
-                  border: `1.5px solid ${isHov ? opt.borderActive : opt.borderIdle
-                    }`,
-                  background: isHov
-                    ? `rgba(${opt.colorRgb}, 0.04)`
-                    : "#ffffff",
+                  border: `1.5px solid ${
+                    isHov ? opt.borderActive : opt.borderIdle
+                  }`,
+                  background: isHov ? `rgba(${opt.colorRgb}, 0.04)` : "#ffffff",
                   cursor: "pointer",
                   transition: "all 0.2s cubic-bezier(0.4,0,0.2,1)",
                   boxShadow: isHov
@@ -489,19 +499,21 @@ export default function StudioSelectPage() {
               alignItems: "center",
               gap: 10,
               borderRadius: 14,
-              border: `1.5px solid ${inputFocused && selectedConfig
+              border: `1.5px solid ${
+                inputFocused && selectedConfig
                   ? `rgba(${selectedConfig.colorRgb}, 0.65)`
                   : inputFocused
                     ? "rgba(99,102,241,0.45)"
                     : "#e2e8f0"
-                }`,
+              }`,
               padding: "11px 12px",
               background: "#fff",
               boxShadow: inputFocused
-                ? `0 0 0 3px ${selectedConfig
-                  ? `rgba(${selectedConfig.colorRgb},0.1)`
-                  : "rgba(99,102,241,0.08)"
-                }, 0 4px 16px rgba(0,0,0,0.06)`
+                ? `0 0 0 3px ${
+                    selectedConfig
+                      ? `rgba(${selectedConfig.colorRgb},0.1)`
+                      : "rgba(99,102,241,0.08)"
+                  }, 0 4px 16px rgba(0,0,0,0.06)`
                 : "0 2px 8px rgba(0,0,0,0.05)",
               transition: "all 0.2s",
             }}

@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { AlignLeft, ChevronDown, ChevronLeft, PanelLeft, PanelLeftClose, X } from "lucide-react";
+import {
+  AlignLeft,
+  ChevronDown,
+  ChevronLeft,
+  PanelLeft,
+  PanelLeftClose,
+  X,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
@@ -15,9 +22,9 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
       brands?.filter((b) =>
         b.name && typeof b.name === "string"
           ? b.name.toLowerCase().includes(searchQuery.toLowerCase())
-          : false
+          : false,
       ) ?? [],
-    [brands, searchQuery]
+    [brands, searchQuery],
   );
 
   const handleRemoveActiveBrand = () => {
@@ -42,8 +49,8 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
   return (
     <div
       className={`fixed top-0 left-0 right-0 z-50 border-custom flex items-center justify-between bg-surface  px-6 h-16
-      ${sidebarOpen ? "left-56 right-0" : "left-15  right-"}`}>
-
+      ${sidebarOpen ? "left-56 right-0" : "left-15  right-"}`}
+    >
       {/* Left — sidebar toggle */}
       <div className="flex items-center gap-3">
         <button
@@ -69,13 +76,14 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
             <span className="flex-1 text-left text-gray-400">Loading...</span>
           ) : activeBrand ? (
             (() => {
-              const { displayName, displayInitial, displayColor } = getDisplayValues(activeBrand);
+              const { displayName, displayInitial, displayColor } =
+                getDisplayValues(activeBrand);
               return (
                 <>
                   {activeBrand.logo &&
-                    typeof activeBrand.logo === "string" &&
-                    activeBrand.logo.trim() &&
-                    !logoFailed[activeBrand.id] ? (
+                  typeof activeBrand.logo === "string" &&
+                  activeBrand.logo.trim() &&
+                  !logoFailed[activeBrand.id] ? (
                     <img
                       src={
                         activeBrand.logo.startsWith("http")
@@ -83,27 +91,34 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
                           : `${process.env.NEXT_PUBLIC_API_URL}${activeBrand.logo}`
                       }
                       alt={displayName}
-                      className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                      className="w-6 h-6 rounded-full object-cover shrink-0"
                       onError={() =>
-                        setLogoFailed((prev) => ({ ...prev, [activeBrand.id]: true }))
+                        setLogoFailed((prev) => ({
+                          ...prev,
+                          [activeBrand.id]: true,
+                        }))
                       }
                     />
                   ) : (
                     <div
-                      className="w-6 h-6 flex items-center justify-center rounded-full text-white text-xs font-semibold flex-shrink-0"
+                      className="w-6 h-6 flex items-center justify-center rounded-full text-white text-xs font-semibold shrink-0"
                       style={{ backgroundColor: displayColor }}
                     >
                       {displayInitial}
                     </div>
                   )}
-                  <span className="flex-1 text-left truncate">{displayName}</span>
+                  <span className="flex-1 text-left truncate">
+                    {displayName}
+                  </span>
                 </>
               );
             })()
           ) : (
             <span className="flex-1 text-left text-gray-400">Select Brand</span>
           )}
-          <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`} />
+          <ChevronDown
+            className={`w-4 h-4 shrink-0 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`}
+          />
         </button>
 
         {/* Dropdown */}
@@ -133,7 +148,7 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
                   onClick={handleRemoveActiveBrand}
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
                 >
-                  <X className="w-3.5 h-3.5 flex-shrink-0" />
+                  <X className="w-3.5 h-3.5 shrink-0" />
                   <span className="font-medium">Remove active brand</span>
                 </button>
               )}
@@ -141,7 +156,8 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
               {/* Brand list */}
               {filteredBrands.length > 0 ? (
                 filteredBrands.map((b) => {
-                  const { displayName, displayInitial, displayColor } = getDisplayValues(b);
+                  const { displayName, displayInitial, displayColor } =
+                    getDisplayValues(b);
                   const isSelected = activeBrand?.id === b.id;
                   return (
                     <button
@@ -151,13 +167,14 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
                         localStorage.setItem("activeBrandId", b.id);
                         setDropdownOpen(false);
                       }}
-                      className={`flex items-center gap-2.5 w-full px-3 py-2.5 text-sm transition-colors hover:bg-gray-50 ${isSelected ? "bg-[#e7eeffe9]" : ""
-                        }`}
+                      className={`flex items-center gap-2.5 w-full px-3 py-2.5 text-sm transition-colors hover:bg-gray-50 ${
+                        isSelected ? "bg-[#e7eeffe9]" : ""
+                      }`}
                     >
                       {b.logo &&
-                        typeof b.logo === "string" &&
-                        b.logo.trim() &&
-                        !logoFailed[b.id] ? (
+                      typeof b.logo === "string" &&
+                      b.logo.trim() &&
+                      !logoFailed[b.id] ? (
                         <img
                           src={
                             b.logo.startsWith("http")
@@ -165,24 +182,26 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
                               : `${process.env.NEXT_PUBLIC_API_URL}${b.logo}`
                           }
                           alt={displayName}
-                          className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                          className="w-6 h-6 rounded-full object-cover shrink-0"
                           onError={() =>
                             setLogoFailed((prev) => ({ ...prev, [b.id]: true }))
                           }
                         />
                       ) : (
                         <div
-                          className="w-6 h-6 flex items-center justify-center rounded-full text-white text-xs font-semibold flex-shrink-0"
+                          className="w-6 h-6 flex items-center justify-center rounded-full text-white text-xs font-semibold shrink-0"
                           style={{ backgroundColor: displayColor }}
                         >
                           {displayInitial}
                         </div>
                       )}
-                      <span className={`truncate ${isSelected ? "text-[#155dfc] font-semibold" : "text-gray-700 font-medium"}`}>
+                      <span
+                        className={`truncate ${isSelected ? "text-[#155dfc] font-semibold" : "text-gray-700 font-medium"}`}
+                      >
                         {displayName}
                       </span>
                       {isSelected && (
-                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#155dfc] flex-shrink-0" />
+                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#155dfc] shrink-0" />
                       )}
                     </button>
                   );

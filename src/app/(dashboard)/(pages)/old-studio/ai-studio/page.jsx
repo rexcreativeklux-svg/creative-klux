@@ -31,7 +31,10 @@ export default function AIStudioPage() {
 
     const timeout = setTimeout(() => {
       if (isModalOpen) {
-        console.log("Fallback: Closing modal and loader after timeout for path:", targetPath);
+        console.log(
+          "Fallback: Closing modal and loader after timeout for path:",
+          targetPath,
+        );
         setIsLoading(false);
         setIsModalOpen(false);
         setTargetPath(null);
@@ -63,7 +66,7 @@ export default function AIStudioPage() {
           strokeWidth={1.5}
         />
       ),
-      bg: "bg-gradient-to-br from-red-100 to-orange-100",
+      bg: "bg-linear-to-br from-red-100 to-orange-100",
       hoverBg: "group-hover:from-red-200 group-hover:to-orange-200",
       decorative: (
         <div className="absolute inset-0 pointer-events-none">
@@ -113,7 +116,7 @@ export default function AIStudioPage() {
           strokeWidth={1.5}
         />
       ),
-      bg: "bg-gradient-to-br from-fuchsia-100 to-pink-100",
+      bg: "bg-linear-to-br from-fuchsia-100 to-pink-100",
       hoverBg: "group-hover:from-fuchsia-200 group-hover:to-pink-200",
       decorative: (
         <div className="absolute inset-0 pointer-events-none">
@@ -151,7 +154,7 @@ export default function AIStudioPage() {
           strokeWidth={1.5}
         />
       ),
-      bg: "bg-gradient-to-br from-yellow-100 to-amber-100",
+      bg: "bg-linear-to-br from-yellow-100 to-amber-100",
       hoverBg: "group-hover:from-yellow-200 group-hover:to-amber-200",
       decorative: (
         <div className="absolute inset-0 pointer-events-none">
@@ -186,7 +189,7 @@ export default function AIStudioPage() {
           strokeWidth={1.5}
         />
       ),
-      bg: "bg-gradient-to-br from-lime-100 to-green-100",
+      bg: "bg-linear-to-br from-lime-100 to-green-100",
       hoverBg: "group-hover:from-lime-200 group-hover:to-green-200",
       decorative: (
         <div className="absolute inset-0 pointer-events-none">
@@ -233,7 +236,7 @@ export default function AIStudioPage() {
           strokeWidth={1.5}
         />
       ),
-      bg: "bg-gradient-to-br from-cyan-100 to-sky-100",
+      bg: "bg-linear-to-br from-cyan-100 to-sky-100",
       hoverBg: "group-hover:from-cyan-200 group-hover:to-sky-200",
       decorative: (
         <div className="absolute inset-0 pointer-events-none">
@@ -272,7 +275,7 @@ export default function AIStudioPage() {
           />
         </div>
       ),
-      bg: "bg-gradient-to-br from-rose-100 to-red-100",
+      bg: "bg-linear-to-br from-rose-100 to-red-100",
       hoverBg: "group-hover:from-rose-200 group-hover:to-red-200",
       decorative: (
         <div className="absolute inset-0 pointer-events-none">
@@ -322,7 +325,7 @@ export default function AIStudioPage() {
           strokeWidth={1.5}
         />
       ),
-      bg: "bg-gradient-to-br from-blue-100 to-indigo-100",
+      bg: "bg-linear-to-br from-blue-100 to-indigo-100",
       hoverBg: "group-hover:from-blue-200 group-hover:to-indigo-200",
       decorative: (
         <div className="absolute inset-0 pointer-events-none">
@@ -363,7 +366,6 @@ export default function AIStudioPage() {
             <span>Create</span>
           </button>
         </div>
-
       </div>
 
       <div className="flex flex-col items-center justify-center text-center py-5">
@@ -372,7 +374,10 @@ export default function AIStudioPage() {
           alt="No ads yet"
           className=" object-cover opacity-70 rounded-lg mb-6"
         />
-        <p className="text-gray-500 text-md mb-4"> Click the create button to kickstart your campaign!</p>
+        <p className="text-gray-500 text-md mb-4">
+          {" "}
+          Click the create button to kickstart your campaign!
+        </p>
 
         <button
           onClick={() => setIsModalOpen(true)}
@@ -381,15 +386,12 @@ export default function AIStudioPage() {
           <Plus className="w-4 h-4" />
           <span>Create</span>
         </button>
-
       </div>
 
       <div className="grid grid-cols-4 gap-4 pb-20 mt-8">
-
-
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-            <div className="relative flex flex-col w-11/12 max-w-5xl max-h-[90vh] bg-gradient-to-b from-gray-50 to-gray-100 p-6 rounded-lg shadow-lg overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+            <div className="relative flex flex-col w-11/12 max-w-5xl max-h-[90vh] bg-linear-to-b from-gray-50 to-gray-100 p-6 rounded-lg shadow-lg overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
               <button
                 onClick={() => {
                   setIsModalOpen(false);
@@ -404,7 +406,7 @@ export default function AIStudioPage() {
                 <X className="w-6 h-6" strokeWidth={2} />
               </button>
               <div className="text-center flex flex-col p-5 pb-5">
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mb-4">
+                <h1 className="text-3xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mb-4">
                   What kind of AI pipeline do you want
                 </h1>
                 <p className="text-gray-600 text-lg">
@@ -430,12 +432,16 @@ export default function AIStudioPage() {
                         {opt.icon}
                       </div>
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-800 mb-3">{opt.name}</h3>
-                    <p className="text-gray-600 leading-relaxed mb-4">{opt.desc}</p>
+                    <h3 className="text-xl font-semibold text-gray-800 mb-3">
+                      {opt.name}
+                    </h3>
+                    <p className="text-gray-600 leading-relaxed mb-4">
+                      {opt.desc}
+                    </p>
                     <div className="absolute top-[40%] left-8 right-10 hidden group-hover:flex flex-row justify-between gap-2 py-4 rounded-b-xl">
                       <div className="w-20">
                         <button
-                          onClick={() => { }}
+                          onClick={() => {}}
                           className="bg-gray-500 cursor-pointer text-white px-2 py-1.5 rounded-md hover:bg-gray-600 transition duration-300 text-sm flex items-center gap-2"
                           disabled={isLoading}
                         >

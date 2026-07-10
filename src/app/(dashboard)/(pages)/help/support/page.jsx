@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { 
-  Search, 
-  MessageCircle, 
-  Mail, 
-  Phone, 
-  Clock, 
-  HelpCircle, 
-  Book, 
-  Video, 
+import {
+  Search,
+  MessageCircle,
+  Mail,
+  Phone,
+  Clock,
+  HelpCircle,
+  Book,
+  Video,
   Zap,
   ChevronDown,
   ChevronUp,
@@ -21,7 +21,7 @@ import {
   Settings,
   CreditCard,
   Rocket,
-  Shield
+  Shield,
 } from "lucide-react";
 
 export default function Support({ activePanel, setActivePanel }) {
@@ -33,7 +33,7 @@ export default function Support({ activePanel, setActivePanel }) {
     email: "",
     subject: "",
     category: "General",
-    message: ""
+    message: "",
   });
   const [showTicketForm, setShowTicketForm] = useState(false);
   const [ticketSubmitted, setTicketSubmitted] = useState(false);
@@ -51,87 +51,99 @@ export default function Support({ activePanel, setActivePanel }) {
     {
       id: 1,
       question: "How do I get started with Creative Klux?",
-      answer: "Getting started is easy! Sign up for a free account, complete the onboarding tutorial, and start creating. You can choose from templates or start from scratch using our AI-powered tools.",
+      answer:
+        "Getting started is easy! Sign up for a free account, complete the onboarding tutorial, and start creating. You can choose from templates or start from scratch using our AI-powered tools.",
       category: "Getting Started",
-      popular: true
+      popular: true,
     },
     {
       id: 2,
       question: "What payment methods do you accept?",
-      answer: "We accept all major credit cards (Visa, MasterCard, American Express), PayPal, and bank transfers for enterprise accounts. All payments are processed securely through our encrypted payment gateway.",
+      answer:
+        "We accept all major credit cards (Visa, MasterCard, American Express), PayPal, and bank transfers for enterprise accounts. All payments are processed securely through our encrypted payment gateway.",
       category: "Account & Billing",
-      popular: true
+      popular: true,
     },
     {
       id: 3,
       question: "Can I cancel my subscription anytime?",
-      answer: "Yes, you can cancel your subscription at any time from your account settings. You'll continue to have access until the end of your billing period. No cancellation fees or hidden charges.",
+      answer:
+        "Yes, you can cancel your subscription at any time from your account settings. You'll continue to have access until the end of your billing period. No cancellation fees or hidden charges.",
       category: "Account & Billing",
-      popular: true
+      popular: true,
     },
     {
       id: 4,
       question: "What AI features are included?",
-      answer: "Creative Klux includes text-to-image generation, text-to-video creation, image variations, background removal, AI writing assistant, script-to-video, and smart design suggestions. All AI features are included in paid plans.",
+      answer:
+        "Creative Klux includes text-to-image generation, text-to-video creation, image variations, background removal, AI writing assistant, script-to-video, and smart design suggestions. All AI features are included in paid plans.",
       category: "Features",
-      popular: true
+      popular: true,
     },
     {
       id: 5,
       question: "How many projects can I create?",
-      answer: "Free accounts can create up to 3 projects. Pro accounts have unlimited projects. Each project can contain multiple assets, designs, and variations.",
+      answer:
+        "Free accounts can create up to 3 projects. Pro accounts have unlimited projects. Each project can contain multiple assets, designs, and variations.",
       category: "Features",
-      popular: false
+      popular: false,
     },
     {
       id: 6,
       question: "Can I collaborate with my team?",
-      answer: "Yes! Team and Enterprise plans include collaboration features like shared workspaces, comments, version history, and role-based permissions. You can invite unlimited team members.",
+      answer:
+        "Yes! Team and Enterprise plans include collaboration features like shared workspaces, comments, version history, and role-based permissions. You can invite unlimited team members.",
       category: "Features",
-      popular: true
+      popular: true,
     },
     {
       id: 7,
       question: "What file formats can I export?",
-      answer: "You can export your creations in PNG, JPG, SVG, PDF, MP4, and GIF formats. We also support high-resolution exports for print materials.",
+      answer:
+        "You can export your creations in PNG, JPG, SVG, PDF, MP4, and GIF formats. We also support high-resolution exports for print materials.",
       category: "Technical",
-      popular: false
+      popular: false,
     },
     {
       id: 8,
       question: "Is my data secure?",
-      answer: "Absolutely. We use bank-level 256-bit SSL encryption for all data transmission. Your files are stored on secure servers with regular backups. We're GDPR compliant and never share your data with third parties.",
+      answer:
+        "Absolutely. We use bank-level 256-bit SSL encryption for all data transmission. Your files are stored on secure servers with regular backups. We're GDPR compliant and never share your data with third parties.",
       category: "Security",
-      popular: true
+      popular: true,
     },
     {
       id: 9,
       question: "Do you offer refunds?",
-      answer: "Yes, we offer a 30-day money-back guarantee for all paid plans. If you're not satisfied, contact our support team within 30 days of purchase for a full refund.",
+      answer:
+        "Yes, we offer a 30-day money-back guarantee for all paid plans. If you're not satisfied, contact our support team within 30 days of purchase for a full refund.",
       category: "Account & Billing",
-      popular: false
+      popular: false,
     },
     {
       id: 10,
       question: "How do I upgrade my plan?",
-      answer: "You can upgrade your plan anytime from the Billing section in your account settings. The upgrade takes effect immediately, and you'll only pay the prorated difference.",
+      answer:
+        "You can upgrade your plan anytime from the Billing section in your account settings. The upgrade takes effect immediately, and you'll only pay the prorated difference.",
       category: "Account & Billing",
-      popular: false
+      popular: false,
     },
     {
       id: 11,
       question: "Can I use Creative Klux offline?",
-      answer: "Creative Klux is a cloud-based platform that requires an internet connection. However, we're working on an offline mode that will be available soon for desktop users.",
+      answer:
+        "Creative Klux is a cloud-based platform that requires an internet connection. However, we're working on an offline mode that will be available soon for desktop users.",
       category: "Technical",
-      popular: false
+      popular: false,
     },
     {
       id: 12,
       question: "What browsers are supported?",
-      answer: "Creative Klux works best on the latest versions of Chrome, Firefox, Safari, and Edge. We recommend using Chrome for the best experience with AI features.",
+      answer:
+        "Creative Klux works best on the latest versions of Chrome, Firefox, Safari, and Edge. We recommend using Chrome for the best experience with AI features.",
       category: "Technical",
-      popular: false
-    }
+      popular: false,
+    },
   ];
 
   const contactMethods = [
@@ -141,7 +153,7 @@ export default function Support({ activePanel, setActivePanel }) {
       description: "Chat with our support team",
       availability: "Mon-Fri, 9 AM - 6 PM EST",
       action: "Start Chat",
-      color: "bg-blue-500"
+      color: "bg-blue-500",
     },
     {
       icon: <Mail className="w-6 h-6" />,
@@ -149,7 +161,7 @@ export default function Support({ activePanel, setActivePanel }) {
       description: "support@creativeklux.com",
       availability: "Response within 24 hours",
       action: "Send Email",
-      color: "bg-purple-500"
+      color: "bg-purple-500",
     },
     {
       icon: <Phone className="w-6 h-6" />,
@@ -157,8 +169,8 @@ export default function Support({ activePanel, setActivePanel }) {
       description: "+1 (555) 123-4567",
       availability: "Enterprise customers only",
       action: "Call Us",
-      color: "bg-green-500"
-    }
+      color: "bg-green-500",
+    },
   ];
 
   const resources = [
@@ -167,39 +179,41 @@ export default function Support({ activePanel, setActivePanel }) {
       title: "Documentation",
       description: "Comprehensive guides and API docs",
       link: "#",
-      color: "bg-orange-100 text-orange-600"
+      color: "bg-orange-100 text-orange-600",
     },
     {
       icon: <Video className="w-8 h-8" />,
       title: "Video Tutorials",
       description: "Step-by-step video guides",
       link: "#",
-      color: "bg-red-100 text-red-600"
+      color: "bg-red-100 text-red-600",
     },
     {
       icon: <Users className="w-8 h-8" />,
       title: "Community Forum",
       description: "Connect with other users",
       link: "#",
-      color: "bg-blue-100 text-blue-600"
+      color: "bg-blue-100 text-blue-600",
     },
     {
       icon: <FileText className="w-8 h-8" />,
       title: "Blog & Updates",
       description: "Latest news and tips",
       link: "#",
-      color: "bg-green-100 text-green-600"
-    }
+      color: "bg-green-100 text-green-600",
+    },
   ];
 
   const filteredFaqs = faqs.filter((faq) => {
-    const matchesSearch = faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch =
+      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
       faq.answer.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === "All" || faq.category === selectedCategory;
+    const matchesCategory =
+      selectedCategory === "All" || faq.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const popularFaqs = faqs.filter(faq => faq.popular);
+  const popularFaqs = faqs.filter((faq) => faq.popular);
 
   const handleTicketSubmit = (e) => {
     e.preventDefault();
@@ -212,7 +226,7 @@ export default function Support({ activePanel, setActivePanel }) {
         email: "",
         subject: "",
         category: "General",
-        message: ""
+        message: "",
       });
     }, 3000);
   };
@@ -225,8 +239,12 @@ export default function Support({ activePanel, setActivePanel }) {
           <div className="inline-flex items-center justify-center w-16 h-16  rounded-2xl mb-4">
             <HelpCircle className="w-12 h-12 text-blue-700" />
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-3">How can we help you?</h1>
-          <p className="text-gray-600 text-md">Search our knowledge base or get in touch with our support team</p>
+          <h1 className="text-4xl font-bold text-gray-900 mb-3">
+            How can we help you?
+          </h1>
+          <p className="text-gray-600 text-md">
+            Search our knowledge base or get in touch with our support team
+          </p>
         </div>
 
         {/* Search Bar */}
@@ -246,11 +264,18 @@ export default function Support({ activePanel, setActivePanel }) {
         {/* Contact Methods */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-24">
           {contactMethods.map((method, index) => (
-            <div key={index} className="bg-surface rounded-xl p-5 hover:shadow hover:border-blue-700 transition-all duration-300 border  cursor-pointer border-gray-200">
-              <div className={`w-12 h-12 ${method.color} rounded-lg flex items-center justify-center text-white mb-4`}>
+            <div
+              key={index}
+              className="bg-surface rounded-xl p-5 hover:shadow hover:border-blue-700 transition-all duration-300 border  cursor-pointer border-gray-200"
+            >
+              <div
+                className={`w-12 h-12 ${method.color} rounded-lg flex items-center justify-center text-white mb-4`}
+              >
                 {method.icon}
               </div>
-              <h3 className="font-bold text-lg text-gray-900 mb-2">{method.title}</h3>
+              <h3 className="font-bold text-lg text-gray-900 mb-2">
+                {method.title}
+              </h3>
               <p className="text-gray-600 text-sm mb-2">{method.description}</p>
               <div className="flex items-center gap-2 text-xs text-gray-500 mb-4">
                 <Clock className="w-3 h-3" />
@@ -264,7 +289,7 @@ export default function Support({ activePanel, setActivePanel }) {
         </div>
 
         {/* Submit a Ticket */}
-        {/* <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-8 mb-12 text-white">
+        {/* <div className="bg-linear-to-r from-blue-600 to-purple-600 rounded-xl p-8 mb-12 text-white">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold mb-2">Need More Help?</h2>
@@ -379,28 +404,34 @@ export default function Support({ activePanel, setActivePanel }) {
 
         {/* Popular FAQs */}
         <div className="mb-12">
-          <h2 className="text-xl font-medium text-gray-900 mb-6">Popular Questions</h2>
+          <h2 className="text-xl font-medium text-gray-900 mb-6">
+            Popular Questions
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {popularFaqs.map((faq) => (
               <div
                 key={faq.id}
                 className="bg-surface rounded-lg p-5 hover:shadow transition-all duration-300 border border-gray-200 cursor-pointer"
-                onClick={() => setExpandedFaq(expandedFaq === faq.id ? null : faq.id)}
+                onClick={() =>
+                  setExpandedFaq(expandedFaq === faq.id ? null : faq.id)
+                }
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="font-medium text-md text-gray-800 flex items-start gap-2">
-                      <HelpCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <HelpCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                       {faq.question}
                     </h3>
                     {expandedFaq === faq.id && (
-                      <p className="text-gray-500 text-sm mt-3 pl-7">{faq.answer}</p>
+                      <p className="text-gray-500 text-sm mt-3 pl-7">
+                        {faq.answer}
+                      </p>
                     )}
                   </div>
                   {expandedFaq === faq.id ? (
-                    <ChevronUp className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    <ChevronUp className="w-5 h-5 text-gray-400 shrink-0" />
                   ) : (
-                    <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    <ChevronDown className="w-5 h-5 text-gray-400 shrink-0" />
                   )}
                 </div>
               </div>
@@ -410,7 +441,9 @@ export default function Support({ activePanel, setActivePanel }) {
 
         {/* Category Filter */}
         <div className="mb-8">
-          <h2 className="text-lg font-medium text-gray-900 mb-6">Browse by Category</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-6">
+            Browse by Category
+          </h2>
           <div className="flex gap-3 overflow-x-auto pb-2">
             {categories.map((category) => (
               <button
@@ -432,13 +465,17 @@ export default function Support({ activePanel, setActivePanel }) {
         {/* All FAQs */}
         <div className="mb-12">
           <h2 className="text-lg font-medium text-gray-900 mb-6">
-            {selectedCategory === "All" ? "All Questions" : `${selectedCategory} Questions`}
+            {selectedCategory === "All"
+              ? "All Questions"
+              : `${selectedCategory} Questions`}
           </h2>
           {filteredFaqs.length === 0 ? (
             <div className="text-center py-12 bg-surface rounded-xl border border-gray-200">
               <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500 text-lg">No questions found</p>
-              <p className="text-gray-400 text-sm mt-2">Try adjusting your search or filters</p>
+              <p className="text-gray-400 text-sm mt-2">
+                Try adjusting your search or filters
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -446,24 +483,30 @@ export default function Support({ activePanel, setActivePanel }) {
                 <div
                   key={faq.id}
                   className="bg-surface rounded-lg p-5 hover:shadow transition-all duration-300 border border-gray-200 cursor-pointer"
-                  onClick={() => setExpandedFaq(expandedFaq === faq.id ? null : faq.id)}
+                  onClick={() =>
+                    setExpandedFaq(expandedFaq === faq.id ? null : faq.id)
+                  }
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
-                        <h3 className="font-medium text-md text-gray-900">{faq.question}</h3>
+                        <h3 className="font-medium text-md text-gray-900">
+                          {faq.question}
+                        </h3>
                         <span className="text-xs bg-blue-100 text-blue-500 px-2 py-1 rounded-full font-medium">
                           {faq.category}
                         </span>
                       </div>
                       {expandedFaq === faq.id && (
-                        <p className="text-gray-600 text-sm mt-3">{faq.answer}</p>
+                        <p className="text-gray-600 text-sm mt-3">
+                          {faq.answer}
+                        </p>
                       )}
                     </div>
                     {expandedFaq === faq.id ? (
-                      <ChevronUp className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                      <ChevronUp className="w-5 h-5 text-gray-400 shrink-0" />
                     ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                      <ChevronDown className="w-5 h-5 text-gray-400 shrink-0" />
                     )}
                   </div>
                 </div>
@@ -474,7 +517,9 @@ export default function Support({ activePanel, setActivePanel }) {
 
         {/* Resources */}
         <div>
-          <h2 className="text-lg font-medium text-gray-900 mb-6">Additional Resources</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-6">
+            Additional Resources
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {resources.map((resource, index) => (
               <a
@@ -482,7 +527,9 @@ export default function Support({ activePanel, setActivePanel }) {
                 href={resource.link}
                 className="bg-surface rounded-lg p-6 hover:scale-105 transition-all duration-300 border border-gray-200 group"
               >
-                <div className={`w-14 h-14 ${resource.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                <div
+                  className={`w-14 h-14 ${resource.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}
+                >
                   {resource.icon}
                 </div>
                 <h3 className="font-bold text-lg text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">

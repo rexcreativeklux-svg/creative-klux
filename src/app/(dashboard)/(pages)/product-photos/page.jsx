@@ -257,8 +257,16 @@ export default function ProductPhotos() {
       )}
       {onDeviceToolId && ON_DEVICE_TOOLS[onDeviceToolId] && (
         <OnDeviceToolModal
+          // Key by tool id so switching tools remounts the modal fresh. Each tool
+          // uses a DIFFERENT engine hook (different internal hook count), so a plain
+          // re-render would break the Rules of Hooks — remounting resets them.
+          key={onDeviceToolId}
           config={ON_DEVICE_TOOLS[onDeviceToolId]}
           onClose={() => setOnDeviceToolId(null)}
+          onSwitchTool={(id) => {
+            setOnDeviceToolId(null);
+            openTool(id);
+          }}
         />
       )}
       {videoOpen && (

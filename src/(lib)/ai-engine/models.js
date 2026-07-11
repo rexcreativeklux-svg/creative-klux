@@ -128,41 +128,42 @@ export const KOKORO_TTS = {
   // ALL 28 voices kokoro-js accepts (its validator + phonemizer are
   // English-only — the ja/zh/… bins in the package can't be used without
   // forking the library). Ordered best-graded first within each accent/gender
-  // group (grades from the Kokoro voice card). Keep in sync with
-  // KOKORO_VOICES in scripts/download-models.mjs. `label` is what users see.
+  // group (`grade` is from the Kokoro voice card). Keep in sync with
+  // KOKORO_VOICES in scripts/download-models.mjs. `label` is the full display
+  // string; `name`/`gender`/`accent` let UIs group voices and show gender icons.
   voices: [
     // US female
-    { id: "af_heart", label: "Heart · US female" }, // A
-    { id: "af_bella", label: "Bella · US female" }, // A-
-    { id: "af_nicole", label: "Nicole · US female" }, // B-
-    { id: "af_aoede", label: "Aoede · US female" }, // C+
-    { id: "af_kore", label: "Kore · US female" }, // C+
-    { id: "af_sarah", label: "Sarah · US female" }, // C+
-    { id: "af_alloy", label: "Alloy · US female" }, // C
-    { id: "af_nova", label: "Nova · US female" }, // C
-    { id: "af_sky", label: "Sky · US female" }, // C-
-    { id: "af_jessica", label: "Jessica · US female" }, // D
-    { id: "af_river", label: "River · US female" }, // D
+    { id: "af_heart", name: "Heart", gender: "female", accent: "US", grade: "A", label: "Heart · US female" },
+    { id: "af_bella", name: "Bella", gender: "female", accent: "US", grade: "A-", label: "Bella · US female" },
+    { id: "af_nicole", name: "Nicole", gender: "female", accent: "US", grade: "B-", label: "Nicole · US female" },
+    { id: "af_aoede", name: "Aoede", gender: "female", accent: "US", grade: "C+", label: "Aoede · US female" },
+    { id: "af_kore", name: "Kore", gender: "female", accent: "US", grade: "C+", label: "Kore · US female" },
+    { id: "af_sarah", name: "Sarah", gender: "female", accent: "US", grade: "C+", label: "Sarah · US female" },
+    { id: "af_alloy", name: "Alloy", gender: "female", accent: "US", grade: "C", label: "Alloy · US female" },
+    { id: "af_nova", name: "Nova", gender: "female", accent: "US", grade: "C", label: "Nova · US female" },
+    { id: "af_sky", name: "Sky", gender: "female", accent: "US", grade: "C-", label: "Sky · US female" },
+    { id: "af_jessica", name: "Jessica", gender: "female", accent: "US", grade: "D", label: "Jessica · US female" },
+    { id: "af_river", name: "River", gender: "female", accent: "US", grade: "D", label: "River · US female" },
     // US male
-    { id: "am_fenrir", label: "Fenrir · US male" }, // C+
-    { id: "am_michael", label: "Michael · US male" }, // C+
-    { id: "am_puck", label: "Puck · US male" }, // C+
-    { id: "am_echo", label: "Echo · US male" }, // D
-    { id: "am_eric", label: "Eric · US male" }, // D
-    { id: "am_liam", label: "Liam · US male" }, // D
-    { id: "am_onyx", label: "Onyx · US male" }, // D
-    { id: "am_santa", label: "Santa · US male" }, // D-
-    { id: "am_adam", label: "Adam · US male" }, // F+
+    { id: "am_fenrir", name: "Fenrir", gender: "male", accent: "US", grade: "C+", label: "Fenrir · US male" },
+    { id: "am_michael", name: "Michael", gender: "male", accent: "US", grade: "C+", label: "Michael · US male" },
+    { id: "am_puck", name: "Puck", gender: "male", accent: "US", grade: "C+", label: "Puck · US male" },
+    { id: "am_echo", name: "Echo", gender: "male", accent: "US", grade: "D", label: "Echo · US male" },
+    { id: "am_eric", name: "Eric", gender: "male", accent: "US", grade: "D", label: "Eric · US male" },
+    { id: "am_liam", name: "Liam", gender: "male", accent: "US", grade: "D", label: "Liam · US male" },
+    { id: "am_onyx", name: "Onyx", gender: "male", accent: "US", grade: "D", label: "Onyx · US male" },
+    { id: "am_santa", name: "Santa", gender: "male", accent: "US", grade: "D-", label: "Santa · US male" },
+    { id: "am_adam", name: "Adam", gender: "male", accent: "US", grade: "F+", label: "Adam · US male" },
     // British female
-    { id: "bf_emma", label: "Emma · British female" }, // B-
-    { id: "bf_isabella", label: "Isabella · British female" }, // C
-    { id: "bf_alice", label: "Alice · British female" }, // D
-    { id: "bf_lily", label: "Lily · British female" }, // D
+    { id: "bf_emma", name: "Emma", gender: "female", accent: "British", grade: "B-", label: "Emma · British female" },
+    { id: "bf_isabella", name: "Isabella", gender: "female", accent: "British", grade: "C", label: "Isabella · British female" },
+    { id: "bf_alice", name: "Alice", gender: "female", accent: "British", grade: "D", label: "Alice · British female" },
+    { id: "bf_lily", name: "Lily", gender: "female", accent: "British", grade: "D", label: "Lily · British female" },
     // British male
-    { id: "bm_george", label: "George · British male" }, // C
-    { id: "bm_fable", label: "Fable · British male" }, // C
-    { id: "bm_lewis", label: "Lewis · British male" }, // D+
-    { id: "bm_daniel", label: "Daniel · British male" }, // D
+    { id: "bm_george", name: "George", gender: "male", accent: "British", grade: "C", label: "George · British male" },
+    { id: "bm_fable", name: "Fable", gender: "male", accent: "British", grade: "C", label: "Fable · British male" },
+    { id: "bm_lewis", name: "Lewis", gender: "male", accent: "British", grade: "D+", label: "Lewis · British male" },
+    { id: "bm_daniel", name: "Daniel", gender: "male", accent: "British", grade: "D", label: "Daniel · British male" },
   ],
 };
 

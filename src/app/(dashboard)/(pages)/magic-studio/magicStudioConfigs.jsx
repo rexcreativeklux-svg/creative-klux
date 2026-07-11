@@ -15,9 +15,11 @@
  *                   cards carry an image/icon + label + description.
  *   • resultType  → how the right canvas renders output
  *                   ("image" | "video" | "audio" | "text")
- *   • generate    → async ({ input, values, helpers }) => result
- *                   Reuses the SAME endpoints the old forms used (/api/pexels,
- *                   /api/transcribe, …) so behavior is preserved.
+ *   • generate    → async ({ input, values, tts }) => result
+ *                   Most categories call the backend (generateMagicStudio);
+ *                   text_to_audio instead runs FULLY ON-DEVICE via the AI
+ *                   engine's `tts` helper the modal passes in (Kokoro-82M in a
+ *                   Web Worker — see src/(lib)/ai-engine).
  *
  * Swap the placeholder Unsplash/Pexels URLs in `samples`/option `img`s for real
  * media whenever ready — drop files in /public and use "/your-file.jpg", or
@@ -59,11 +61,13 @@ import {
   Pencil,
   Grid3x3,
   FileText,
-  Baby,
   Crown,
+  Mars,
+  Venus,
 } from "lucide-react";
 
 import { generateMagicStudio } from "@/(lib)/magic-studio-api";
+import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
 
 // Pexels CDN helper (free license, stable URLs) for rich option-card thumbnails.
 const px = (id) =>
@@ -179,6 +183,23 @@ const IMAGE_STYLES = [
   { value: "vintage", label: "Vintage", desc: "Retro film look", icon: Aperture, img: px(1183434) },
   { value: "neon", label: "Neon / Glow", desc: "Vivid glow", icon: Zap, img: px(1631677) },
 ];
+
+// ── Text-to-Audio voice cards (real Kokoro-82M voices, from the AI engine) ───
+// The on-device model ships 28 English voices; the "voices" panel groups them
+// by accent + gender with a gender icon per row. `top` marks the best-graded
+// voices (A/B on the Kokoro voice card) with a ★ badge.
+const KOKORO_VOICE_ITEMS = KOKORO_TTS.voices.map((v) => ({
+  value: v.id,
+  label: v.name,
+  desc: `${v.accent} · ${v.gender}`,
+  icon: v.gender === "male" ? Mars : Venus,
+  gender: v.gender,
+  group: `${v.accent} ${v.gender} voices`,
+  top: /^[AB]/.test(v.grade),
+}));
+
+// UI speed value → the multiplier the speech engine actually applies.
+const SPEAKING_SPEED = { slow: 0.75, normal: 1, fast: 1.25 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-category configs
@@ -562,7 +583,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     generate: async ({ input, values }) => {
       // Send the audio as multipart form-data so the raw file reaches the backend.
       const form = new FormData();
-      form.append("type", "audio_to_text");
+      form.append("tool", "audio_to_text");
       form.append("audio_file", input);
       form.append("language", values.language);
       form.append("transcript_format", values.format);
@@ -668,21 +689,27 @@ export const MAGIC_STUDIO_CONFIGS = {
     },
   },
 
-  // ── TEXT → AUDIO ─────────────────────────────────────────────────────────────
+  // ── TEXT → AUDIO (fully ON-DEVICE — Kokoro-82M in a Web Worker) ─────────────
+  // Unlike the other categories this never calls the backend: speech is
+  // synthesized locally by the AI engine (see src/(lib)/ai-engine). The modal
+  // passes its `tts` engine (useTextToSpeech) into `generate`, which reports
+  // real progress (engine download → voice → synthesis → polish).
   text_to_audio: {
     id: "text_to_audio",
     title: "Text to Audio",
-    subtitle: "Convert text into natural speech and audio.",
+    subtitle: "Convert text into natural speech — on-device, private & free.",
     Icon: Music,
     color: "bg-indigo-100 text-indigo-600",
     input: "text",
     resultType: "audio",
     generateLabel: "Generate audio",
+    onDevice: true, // modal shows the real-progress processing state
     sample: {
       before: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80",
       after: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80",
       headline: "Give your words a voice",
-      subtext: "Type or paste text, choose a voice and tone — generate natural speech.",
+      subtext:
+        "Pick one of 28 lifelike voices, set speed, format and quality — speech is generated on your device, private and unlimited.",
     },
     inputConfig: {
       label: "Text to convert",
@@ -699,37 +726,11 @@ export const MAGIC_STUDIO_CONFIGS = {
     options: [
       {
         key: "voice",
-        label: "Voice type",
-        panel: "list",
-        width: 320,
-        default: "neutral_ai",
-        items: [
-          { value: "neutral_ai", label: "Neutral AI", desc: "Balanced, clear tone", icon: Cpu },
-          { value: "male", label: "Male", desc: "Deep, confident voice", icon: User },
-          { value: "female", label: "Female", desc: "Clear, warm voice", icon: Heart },
-          { value: "energetic", label: "Energetic", desc: "Upbeat and lively", icon: Zap },
-          { value: "calm", label: "Calm", desc: "Soothing and soft", icon: Leaf },
-          { value: "dramatic", label: "Dramatic", desc: "Expressive and bold", icon: Flame },
-          { value: "childlike", label: "Childlike", desc: "Fun and playful", icon: Baby },
-          { value: "authoritative", label: "Authoritative", desc: "Strong, commanding", icon: Crown },
-        ],
-      },
-      {
-        key: "tone",
-        label: "Speaking tone",
-        panel: "list",
-        width: 320,
-        default: "Professional",
-        items: [
-          { value: "Professional", label: "Professional", desc: "Polished delivery", icon: Briefcase },
-          { value: "Friendly", label: "Friendly", desc: "Warm & approachable", icon: Smile },
-          { value: "Excited", label: "Excited", desc: "High energy", icon: Sparkles },
-          { value: "Serious", label: "Serious", desc: "Measured & grave", icon: Landmark },
-          { value: "Humorous", label: "Humorous", desc: "Light & witty", icon: Laugh },
-          { value: "Empathetic", label: "Empathetic", desc: "Caring & soft", icon: Heart },
-          { value: "Inspirational", label: "Inspirational", desc: "Uplifting", icon: Flame },
-          { value: "Conversational", label: "Conversational", desc: "Natural & relaxed", icon: MessageCircle },
-        ],
+        label: "Voice",
+        panel: "voices",
+        width: 360,
+        default: "af_heart", // best-graded Kokoro voice
+        items: KOKORO_VOICE_ITEMS,
       },
       {
         key: "speed",
@@ -758,28 +759,47 @@ export const MAGIC_STUDIO_CONFIGS = {
         key: "quality",
         label: "Audio quality",
         panel: "list",
-        width: 300,
+        width: 320,
         default: "high",
         items: [
-          { value: "standard", label: "Standard", desc: "Fast generation", icon: Zap },
-          { value: "high", label: "High", desc: "Richer audio", icon: Gauge },
-          { value: "studio", label: "Studio", desc: "Max fidelity", icon: Sparkles },
+          { value: "standard", label: "Standard", desc: "Raw output — fastest", icon: Zap },
+          { value: "high", label: "High", desc: "Normalized, click-free joins", icon: Gauge },
+          { value: "studio", label: "Studio", desc: "Loudness-tuned, fades, max bitrate", icon: Sparkles },
         ],
       },
     ],
-    validate: ({ input }) => (input?.trim() ? null : "Please enter some text to convert."),
-    generate: async ({ input, values }) => {
-      const payload = {
-        tool: "text_to_audio",
-        visual_style: values.voice,
-        speaking_tone: values.tone,
-        speaking_speed: values.speed,
-        export_format: values.format,
-        audio_quality: values.quality,
-        prompt: input.trim(),
+    validate: ({ input }) => {
+      if (!input?.trim()) return "Please enter some text to convert.";
+      if (input.trim().length > 2000) return "Text is limited to 2000 characters.";
+      return null;
+    },
+    generate: async ({ input, values, tts }) => {
+      const item = await tts.generate(input.trim(), {
+        voice: values.voice,
+        speed: SPEAKING_SPEED[values.speed] ?? 1,
+        format: values.format,
+        quality: values.quality,
+      });
+      // The engine already toasted the failure — throw quietly so the modal
+      // doesn't show a second "nothing came back" toast.
+      if (!item) throw new Error("Speech generation failed — please try again.");
+      const voice = KOKORO_TTS.voices.find((v) => v.id === values.voice);
+      return {
+        resultType: "audio",
+        assets: [
+          {
+            id: `tts-${Date.now()}`,
+            type: "audio",
+            src: item.url,
+            preview: item.url,
+            blob: item.blob,
+            duration: item.duration,
+            format: item.format,
+            voiceLabel: voice?.label || "Kokoro voice",
+            alt: input.trim().slice(0, 80),
+          },
+        ],
       };
-      const data = await generateMagicStudio(payload);
-      return normalizeMagicResponse(data, "audio");
     },
   },
 };

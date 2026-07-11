@@ -37,10 +37,13 @@ import {
   Play,
   Pause,
   ImageOff,
+  Star,
+  AudioLines,
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
+import useTextToSpeech from "@/(lib)/ai-engine/hooks/useTextToSpeech";
 import { getCreativeById } from "../studio/creatives";
 import { MAGIC_STUDIO_CONFIGS, getMagicConfig } from "./magicStudioConfigs";
 
@@ -209,6 +212,58 @@ function PanelBody({ option, value, onSelect }) {
     );
   }
 
+  // Voices: rows grouped by accent + gender (Text to Audio's on-device voices).
+  // Items carry `group` (section header), `gender` (icon tint) and `top`
+  // (★ badge for the best-graded voices).
+  if (panel === "voices") {
+    const groups = [];
+    for (const it of items) {
+      const last = groups[groups.length - 1];
+      if (last && last.name === it.group) last.items.push(it);
+      else groups.push({ name: it.group, items: [it] });
+    }
+    return (
+      <div className="p-2 pb-3">
+        {groups.map((group) => (
+          <div key={group.name}>
+            <p className="px-2 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              {group.name}
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {group.items.map((it) => {
+                const active = value === it.value;
+                const Icon = it.icon;
+                const female = it.gender === "female";
+                return (
+                  <button
+                    key={it.value}
+                    onClick={() => onSelect(it.value)}
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border-2 text-left transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-blue-300 bg-surface"}`}
+                  >
+                    <span
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${female ? "bg-pink-100 text-pink-600" : "bg-sky-100 text-sky-600"}`}
+                    >
+                      {Icon && <Icon className="w-3.5 h-3.5" />}
+                    </span>
+                    <span className="flex-1 min-w-0 flex items-center gap-1">
+                      <span className={`text-xs font-semibold truncate ${active ? "text-blue-700" : "text-gray-900"}`}>
+                        {it.label}
+                      </span>
+                      {it.top && (
+                        <Star className="w-3 h-3 shrink-0 text-amber-400 fill-amber-400" />
+                      )}
+                    </span>
+                    {active && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   // Pills: compact chips (export format).
   if (panel === "pills") {
     return (
@@ -264,44 +319,95 @@ function summarize(option, value) {
   return found?.label || value;
 }
 
-// ── Audio result card (play/pause + download) ────────────────────────────────
-function AudioCard({ src, index }) {
+// ── Audio result card (play/pause + waveform + download) ─────────────────────
+// Static bar heights for the decorative waveform (pulses while playing).
+const WAVEFORM_BARS = [
+  8, 14, 20, 12, 24, 16, 10, 22, 18, 26, 14, 9, 20, 28, 16, 12, 22, 10, 18, 24,
+  14, 8, 20, 16, 26, 12, 18, 10,
+];
+
+const formatDuration = (seconds) => {
+  if (!seconds || !Number.isFinite(seconds)) return null;
+  const s = Math.max(1, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+/**
+ * On-device results carry rich meta (voiceLabel, duration, format, blob);
+ * every field is optional so plain backend URLs render fine too.
+ */
+function AudioCard({ asset, index, onDownload }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
+  const [metaDuration, setMetaDuration] = useState(null);
+  const duration = asset.duration || metaDuration;
+
+  // Pause (and drop) the element when the row unmounts.
+  useEffect(() => {
+    const audio = audioRef.current;
+    return () => audio?.pause();
+  }, []);
+
   const toggle = () => {
-    const a = audioRef.current;
-    if (!a) return;
-    if (playing) a.pause();
-    else a.play().catch(() => {});
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) {
+      audio.pause();
+    } else {
+      audio.play().catch((err) => {
+        console.error("❌ [magic-studio] audio playback failed:", err);
+        toast.error("Couldn't play this audio — try downloading it instead.");
+      });
+    }
   };
+
+  const meta = [formatDuration(duration), asset.format?.toUpperCase()]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-surface p-3 shadow-sm">
+    <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-surface p-4 shadow-sm">
+      <audio
+        ref={audioRef}
+        src={asset.src}
+        preload="metadata"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        onLoadedMetadata={(e) => setMetaDuration(e.currentTarget.duration)}
+      />
       <button
         onClick={toggle}
-        className="w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 hover:bg-blue-700 transition-colors cursor-pointer"
+        aria-label={playing ? "Pause" : "Play"}
+        className="w-12 h-12 rounded-full bg-linear-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow hover:opacity-90 transition-opacity cursor-pointer"
       >
         {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
       </button>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900">Audio track {index + 1}</p>
-        <audio
-          ref={audioRef}
-          src={src}
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          onEnded={() => setPlaying(false)}
-          controls
-          className="w-full mt-1.5 h-8"
-        />
+        <p className="text-sm font-semibold text-gray-900 truncate" title={asset.alt}>
+          {asset.voiceLabel || `Audio track ${index + 1}`}
+        </p>
+        <div
+          className={`mt-1.5 flex items-center gap-0.5 ${playing ? "animate-pulse" : ""}`}
+          aria-hidden="true"
+        >
+          {WAVEFORM_BARS.map((h, i) => (
+            <span
+              key={i}
+              className={`w-1 rounded-full ${playing ? "bg-blue-500/70" : "bg-blue-500/25"}`}
+              style={{ height: `${h}px` }}
+            />
+          ))}
+        </div>
+        {meta && <p className="mt-1 text-xs text-gray-400">{meta}</p>}
       </div>
-      <a
-        href={src}
-        download
-        className="shrink-0 p-2 rounded-lg border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+      <button
+        onClick={() => onDownload(asset)}
         title="Download"
+        className="shrink-0 p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
       >
         <Download className="w-4 h-4" />
-      </a>
+      </button>
     </div>
   );
 }
@@ -316,6 +422,11 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   const { activeBrand } = useAuth();
   const creative = getCreativeById(CREATIVE_ID);
   const config = getMagicConfig(categoryId);
+
+  // On-device speech engine (Kokoro-82M in a Web Worker) — only the
+  // text_to_audio category calls it; it stays idle otherwise (the worker
+  // spawns on first generate) and cleans up its worker + URLs on unmount.
+  const tts = useTextToSpeech();
 
   const headerRef = useRef(null);
   const optionRefs = useRef({});
@@ -455,7 +566,8 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     setOpenPanel(null);
     setGenerating(true);
     try {
-      const res = await config.generate({ input: primaryInput, values, activeBrand });
+      const res = await config.generate({ input: primaryInput, values, activeBrand, tts });
+      releaseResultUrls(result); // free the previous on-device audio, if any
       setResult(res);
       if (res?.assets?.length || res?.text) {
         toast.success("Generated successfully!");
@@ -478,7 +590,16 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     }
   };
 
+  // Free object URLs held by on-device results (no-op for backend http URLs —
+  // the engine only releases blob: URLs it handed out itself).
+  const releaseResultUrls = (res) => {
+    res?.assets?.forEach((a) => {
+      if (typeof a.src === "string" && a.src.startsWith("blob:")) tts.release(a.src);
+    });
+  };
+
   const resetResult = () => {
+    releaseResultUrls(result);
     setResult(null);
     setError("");
   };
@@ -503,17 +624,22 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   const downloadAsset = async (asset) => {
     try {
       const url = asset.videoSrc || asset.src || asset.preview;
-      if (!url) return;
-      const res = await fetch(url);
-      const blob = await res.blob();
+      // On-device results already hold their Blob — skip the re-fetch.
+      let blob = asset.blob;
+      if (!blob) {
+        if (!url) return;
+        const res = await fetch(url);
+        blob = await res.blob();
+      }
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       const ext =
-        asset.type === "video" || asset.videoSrc || url.toLowerCase().endsWith(".mp4")
+        asset.format ||
+        (asset.type === "video" || asset.videoSrc || (url || "").toLowerCase().endsWith(".mp4")
           ? "mp4"
           : asset.type === "audio"
             ? "mp3"
-            : "png";
+            : "png");
       a.download = `magic-${asset.id}.${ext}`;
       document.body.appendChild(a);
       a.click();
@@ -658,7 +784,11 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
             <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar p-6 sm:p-8">
               <AnimatePresence mode="wait">
                 {generating ? (
-                  <ProcessingState key="processing" config={config} />
+                  <ProcessingState
+                    key="processing"
+                    config={config}
+                    engine={config.onDevice ? tts : null}
+                  />
                 ) : hasResult ? (
                   <ResultCanvas
                     key="result"
@@ -1034,7 +1164,93 @@ function EmptyState({ config }) {
   );
 }
 
-function ProcessingState({ config }) {
+// The on-device engine reports these stages; the processing state shows them
+// as a growing checklist next to a real progress bar.
+const ENGINE_STAGE_IDS = ["model", "voice", "speak", "finalize"];
+const engineStageLabels = (downloading) => [
+  downloading
+    ? "Downloading the voice engine (one-time)…"
+    : "Loading the voice engine…",
+  "Preparing the voice…",
+  "Synthesizing speech…",
+  "Polishing the audio…",
+];
+
+/**
+ * @param {object} props
+ * @param {object} props.config Active category config (title for the copy).
+ * @param {object|null} [props.engine] On-device engine state (progress, stage,
+ *   downloading) — when present, renders a REAL progress bar + stage checklist
+ *   instead of the indeterminate shimmer.
+ */
+function ProcessingState({ config, engine }) {
+  // ── On-device: real progress + stage checklist ──
+  if (engine) {
+    const stageIndex = Math.max(0, ENGINE_STAGE_IDS.indexOf(engine.stage));
+    const labels = engineStageLabels(engine.downloading);
+    const pct = Math.max(0, Math.min(100, Math.round(engine.progress)));
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="h-full flex items-center justify-center"
+      >
+        <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-linear-to-br from-blue-50 to-indigo-50 dark:from-canvas dark:to-canvas shadow-inner p-8">
+          <motion.div
+            className="pointer-events-none absolute inset-y-0 w-1/3 bg-linear-to-r from-transparent via-white/40 to-transparent"
+            animate={{ x: ["-120%", "320%"] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <div className="relative flex items-center justify-center mb-6">
+            <motion.span
+              className="absolute h-20 w-20 rounded-full border-2 border-blue-400/40"
+              animate={{ scale: [1, 1.35, 1], opacity: [0.6, 0, 0.6] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/80 shadow-lg backdrop-blur">
+              <AudioLines className="h-6 w-6 text-blue-600 animate-pulse" />
+            </span>
+          </div>
+
+          <div className="flex items-end justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">
+              Generating your audio…
+            </span>
+            <span className="text-2xl font-bold text-blue-600 leading-none">{pct}%</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-blue-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-linear-to-r from-blue-600 to-indigo-500 transition-all duration-300 ease-out"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+
+          <div className="mt-5 space-y-2">
+            {labels.slice(0, stageIndex + 1).map((label, i) => (
+              <div key={label} className="flex items-center gap-2 text-xs">
+                {i < stageIndex ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                ) : (
+                  <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin shrink-0" />
+                )}
+                <span className={i < stageIndex ? "text-gray-400" : "text-gray-700 font-medium"}>
+                  {label}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-5 text-center text-[11px] text-gray-400">
+            Generated on your device — private, free, and unlimited.
+          </p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // ── Backend categories: indeterminate shimmer ──
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1165,7 +1381,7 @@ function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied 
       {resultType === "audio" && (
         <div className="space-y-3 max-w-xl">
           {assets.map((a, i) => (
-            <AudioCard key={a.id} src={a.src} index={i} />
+            <AudioCard key={a.id} asset={a} index={i} onDownload={onDownload} />
           ))}
         </div>
       )}

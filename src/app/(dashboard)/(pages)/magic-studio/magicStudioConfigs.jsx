@@ -237,7 +237,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     generate: async ({ input, values }) => {
       const payload = {
         tool: "text_to_image",
-        style: values.style,
+        visual_style: values.style,
         ratio: ratioString(values.ratio),
         prompt: input.trim(),
       };
@@ -309,8 +309,8 @@ export const MAGIC_STUDIO_CONFIGS = {
     validate: ({ input }) => (input?.trim() ? null : "Please enter a prompt."),
     generate: async ({ input, values }) => {
       const payload = {
-        type: "text_to_video",
-        style: values.style,
+        tool: "text_to_video",
+        visual_style: values.style,
         ratio: ratioString(values.ratio),
         duration: values.duration,
         prompt: input.trim(),
@@ -365,8 +365,8 @@ export const MAGIC_STUDIO_CONFIGS = {
       input ? null : "Please pick a source image first.",
     generate: async ({ input, values }) => {
       const payload = {
-        type: "image_variation",
-        style: values.style,
+        tool: "image_variation",
+        visual_style: values.style,
         source_image: input,
       };
       const data = await generateMagicStudio(payload);
@@ -474,8 +474,8 @@ export const MAGIC_STUDIO_CONFIGS = {
     validate: ({ input }) => (input?.trim() ? null : "Please enter a script first."),
     generate: async ({ input, values }) => {
       const payload = {
-        type: "script_to_voiceover",
-        style: values.voice,
+        tool: "script_to_voiceover",
+        visual_style: values.voice,
         narration_tone: values.tone,
         speaking_pace: values.pace,
         ratio: ratioString(values.ratio),
@@ -653,7 +653,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     generate: async ({ values }) => {
       const { personaName, personaAge, personaOccupation, personaTone, contentType, ratio } = values;
       const payload = {
-        type: "persona_generator",
+        tool: "persona_generator",
         name: personaName?.trim(),
         age: personaAge?.trim(),
         occupation: personaOccupation?.trim(),
@@ -770,8 +770,8 @@ export const MAGIC_STUDIO_CONFIGS = {
     validate: ({ input }) => (input?.trim() ? null : "Please enter some text to convert."),
     generate: async ({ input, values }) => {
       const payload = {
-        type: "text_to_audio",
-        style: values.voice,
+        tool: "text_to_audio",
+        visual_style: values.voice,
         speaking_tone: values.tone,
         speaking_speed: values.speed,
         export_format: values.format,

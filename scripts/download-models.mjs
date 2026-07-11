@@ -97,6 +97,51 @@ const MODELS = [
     bytes: null, // ~38 MB weights; presence is enough
     url: "https://huggingface.co/onnx-community/depth-anything-v2-small-ONNX/resolve/main/onnx/model_quantized.onnx_data",
   },
+
+  // Kokoro-82M text-to-speech (Apache-2.0, onnx-community's official ONNX
+  // export). Laid out exactly how transformers.js resolves a local model id
+  // ("kokoro" + env.localModelPath = /models): config + tokenizer + the q8
+  // weights under onnx/. The `bytes: null` entries are tiny JSON files whose
+  // size may drift with upstream metadata edits — download is still verified
+  // to be non-empty.
+  {
+    file: "kokoro/config.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/config.json",
+  },
+  {
+    file: "kokoro/tokenizer.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/tokenizer.json",
+  },
+  {
+    file: "kokoro/tokenizer_config.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/tokenizer_config.json",
+  },
+  {
+    file: "kokoro/onnx/model_quantized.onnx",
+    bytes: 92361116,
+    url: "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/onnx/model_quantized.onnx",
+  },
+];
+
+// Kokoro voice embeddings offered in the Text to Speech tool — all 28 English
+// voices kokoro-js accepts (0.5 MB each, ~14 MB total). The .bin files ship
+// INSIDE the kokoro-js npm package, so they're copied from node_modules — no
+// network needed. Keep in sync with KOKORO_TTS.voices in
+// src/app/libs/ai-engine/models.js.
+const KOKORO_VOICES = [
+  // US female
+  "af_heart", "af_bella", "af_nicole", "af_aoede", "af_kore", "af_sarah",
+  "af_alloy", "af_nova", "af_sky", "af_jessica", "af_river",
+  // US male
+  "am_fenrir", "am_michael", "am_puck", "am_echo", "am_eric", "am_liam",
+  "am_onyx", "am_santa", "am_adam",
+  // British female
+  "bf_emma", "bf_isabella", "bf_alice", "bf_lily",
+  // British male
+  "bm_george", "bm_fable", "bm_lewis", "bm_daniel",
 ];
 
 // The runtime files onnxruntime-web loads at ort.env.wasm.wasmPaths ("/ort/"):

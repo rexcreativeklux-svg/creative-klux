@@ -657,7 +657,7 @@ export const MAGIC_STUDIO_CONFIGS = {
         name: personaName?.trim(),
         age: personaAge?.trim(),
         occupation: personaOccupation?.trim(),
-        communication_tone: personaTone,
+        communication_tone: [personaTone],
         content_type: contentType,
         ratio: ratioString(ratio),
       };

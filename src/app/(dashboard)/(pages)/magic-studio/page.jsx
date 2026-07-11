@@ -33,6 +33,7 @@ import {
 
 import { getCreativeById } from "../studio/creatives";
 import MagicStudioModal from "./MagicStudioModal";
+import useTextToSpeech from "@/app/libs/ai-engine/hooks/useTextToSpeech";
 
 const CREATIVE_ID = "magic_studio";
 

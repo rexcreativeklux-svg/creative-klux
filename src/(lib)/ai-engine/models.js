@@ -105,6 +105,72 @@ export const DEPTH_MODEL = {
   wasmPaths: "/ort-hf/",
 };
 
+/**
+ * Kokoro-82M text-to-speech (Apache-2.0), run through kokoro-js on
+ * transformers.js. Fully self-hosted: the model id resolves against
+ * `localModelPath` (→ /models/kokoro/…), transformers.js's own ONNX runtime
+ * files live in /ort-hf/ (they must match ITS bundled onnxruntime-web
+ * version, not ours), and the voice embeddings are served from
+ * /models/kokoro/voices/. English only (American + British accents).
+ */
+export const KOKORO_TTS = {
+  modelId: "kokoro", // folder name under localModelPath
+  localModelPath: MODEL_BASE_PATH,
+  dtype: "q8", // → onnx/model_quantized.onnx (~92 MB, the browser-friendly tier)
+  sizeMB: 93,
+  license: "Apache-2.0",
+  wasmPaths: "/ort-hf/",
+  // kokoro-js hard-codes its voice downloads to huggingface.co but checks the
+  // "kokoro-voices" CacheStorage first — the worker pre-seeds that cache from
+  // our own files so voices never leave our origin.
+  voiceCacheName: "kokoro-voices",
+  hfVoiceUrlBase: "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices",
+  // ALL 28 voices kokoro-js accepts (its validator + phonemizer are
+  // English-only — the ja/zh/… bins in the package can't be used without
+  // forking the library). Ordered best-graded first within each accent/gender
+  // group (grades from the Kokoro voice card). Keep in sync with
+  // KOKORO_VOICES in scripts/download-models.mjs. `label` is what users see.
+  voices: [
+    // US female
+    { id: "af_heart", label: "Heart · US female" }, // A
+    { id: "af_bella", label: "Bella · US female" }, // A-
+    { id: "af_nicole", label: "Nicole · US female" }, // B-
+    { id: "af_aoede", label: "Aoede · US female" }, // C+
+    { id: "af_kore", label: "Kore · US female" }, // C+
+    { id: "af_sarah", label: "Sarah · US female" }, // C+
+    { id: "af_alloy", label: "Alloy · US female" }, // C
+    { id: "af_nova", label: "Nova · US female" }, // C
+    { id: "af_sky", label: "Sky · US female" }, // C-
+    { id: "af_jessica", label: "Jessica · US female" }, // D
+    { id: "af_river", label: "River · US female" }, // D
+    // US male
+    { id: "am_fenrir", label: "Fenrir · US male" }, // C+
+    { id: "am_michael", label: "Michael · US male" }, // C+
+    { id: "am_puck", label: "Puck · US male" }, // C+
+    { id: "am_echo", label: "Echo · US male" }, // D
+    { id: "am_eric", label: "Eric · US male" }, // D
+    { id: "am_liam", label: "Liam · US male" }, // D
+    { id: "am_onyx", label: "Onyx · US male" }, // D
+    { id: "am_santa", label: "Santa · US male" }, // D-
+    { id: "am_adam", label: "Adam · US male" }, // F+
+    // British female
+    { id: "bf_emma", label: "Emma · British female" }, // B-
+    { id: "bf_isabella", label: "Isabella · British female" }, // C
+    { id: "bf_alice", label: "Alice · British female" }, // D
+    { id: "bf_lily", label: "Lily · British female" }, // D
+    // British male
+    { id: "bm_george", label: "George · British male" }, // C
+    { id: "bm_fable", label: "Fable · British male" }, // C
+    { id: "bm_lewis", label: "Lewis · British male" }, // D+
+    { id: "bm_daniel", label: "Daniel · British male" }, // D
+  ],
+};
+
+/** Same-origin URL a Kokoro voice embedding is served from. */
+export function kokoroVoiceUrl(voiceId) {
+  return `${MODEL_BASE_PATH}/kokoro/voices/${voiceId}.bin`;
+}
+
 /** URL a model file is fetched from (same-origin by default). */
 export function modelUrl(model) {
   return `${MODEL_BASE_PATH}/${model.file}`;

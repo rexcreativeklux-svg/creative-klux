@@ -216,6 +216,25 @@ function copyTransformersOrtRuntime() {
   console.log(`✅ transformers.js ONNX runtime copied to public/ort-hf/ (${files.length} files)`);
 }
 
+// The Kokoro voice embeddings (0.5 MB each) ship inside the kokoro-js npm
+// package — copy the ones the Text to Speech tool offers into public/models/.
+function copyKokoroVoices() {
+  const src = path.join(root, "node_modules", "kokoro-js", "voices");
+  if (!existsSync(src)) {
+    throw new Error("kokoro-js is not installed — run `npm install` first.");
+  }
+  const dest = path.join(MODELS_DIR, "kokoro", "voices");
+  mkdirSync(dest, { recursive: true });
+  for (const voice of KOKORO_VOICES) {
+    const file = `${voice}.bin`;
+    if (!existsSync(path.join(src, file))) {
+      throw new Error(`Voice ${file} missing from kokoro-js/voices — package layout changed?`);
+    }
+    copyFileSync(path.join(src, file), path.join(dest, file));
+  }
+  console.log(`✅ Kokoro voices copied to public/models/kokoro/voices/ (${KOKORO_VOICES.length} voices)`);
+}
+
 try {
   mkdirSync(MODELS_DIR, { recursive: true });
   mkdirSync(ORT_DIR, { recursive: true });

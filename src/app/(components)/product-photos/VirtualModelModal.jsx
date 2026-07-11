@@ -339,16 +339,18 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
 
             // Backend contract: POST /product-photos/generate
             const payload = {
-                tool: TOOL_ENUM.virtual_model,          // "virtual_model"
-                image_url: imageUrl,                        // single image URL
-                model_name: selectedModel,              // model id, e.g. "jordan"
-                model_image_url: MODELS[selectedModel.toLocaleLowerCase()],
-                pose: selectedPose,                     // pose id, e.g. "3_4_turn"
-                quality: QUALITY_ENUM[quality] || 'standard',
-                size,                                   // aspect-ratio id
-                apply_brand_style: applyBrandStyle,
-                prompt: prompt || '',
-                // workspace_id omitted for now (confirm source with backend).
+              tool: TOOL_ENUM.virtual_model, // "virtual_model"
+              image_url: imageUrl, // single image URL
+              model_name: selectedModel, // model id, e.g. "jordan"
+              model_image_url: MODELS.find(
+                (model) => model.id === selectedModel.toLocaleLowerCase(),
+              )?.img,
+              pose: selectedPose, // pose id, e.g. "3_4_turn"
+              quality: QUALITY_ENUM[quality] || "standard",
+              size, // aspect-ratio id
+              apply_brand_style: applyBrandStyle,
+              prompt: prompt || "",
+              // workspace_id omitted for now (confirm source with backend).
             };
 
             const result = await generateProductPhoto(payload);

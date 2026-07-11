@@ -1,589 +1,620 @@
-import { useState, useRef, useEffect } from "react";
-import {
-  removeBackground as engineRemoveBackground,
-  disposeSegmentationWorker,
-} from "@/(lib)/ai-engine/tasks/removeBackground";
-import { generateImage } from "@/(lib)/ai-helpers";
-import {
-  X,
-  Upload,
-  Download,
-  Loader2,
-  MoreHorizontal,
-  RefreshCw,
-  Trash2,
-  Copy,
-  ThumbsUp,
-  ThumbsDown,
-} from "lucide-react";
-import { toast } from "sonner";
+import { useState, useRef, useEffect } from 'react';
+import { generateProductPhoto, TOOL_ENUM, QUALITY_ENUM } from '@/(lib)/product-photos-api';
+import MediaPickerModal from '@/app/(components)/MediaPickerModal';
+import { useAuth } from '@/context/AuthContext';
+import { X, Upload, Download, Copy, Loader2, MoreHorizontal, ThumbsUp, ThumbsDown, Trash2, Video, RefreshCw, ChevronDown, User, Package, Image as ImageIcon, Scissors, Layers, Shirt, Sparkles, LayoutGrid } from 'lucide-react';
+import { toast } from 'sonner';
+
+// Pexels CDN helpers (free license, stable URLs) — mirrors VirtualModelModal.
+const px = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=600`;
+const pxbg = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=320&h=240&fit=crop`;
+
+// Tool list for the header switcher (mirrors the product-photos page tools).
+// `img` is a real thumbnail; if it fails to load the card falls back to the colored icon tile.
+const TOOL_LIST = [
+    { id: 'virtual', name: 'Virtual Model', Icon: User, color: 'bg-pink-100 text-pink-600', img: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=240&q=80' },
+    { id: 'staging', name: 'Product Staging', Icon: Package, color: 'bg-amber-100 text-amber-600', img: 'https://images.unsplash.com/photo-1607082349566-187342175e2f?w=240&q=80' },
+    { id: 'bgremove', name: 'Background Remover', Icon: Scissors, color: 'bg-red-100 text-red-600', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=240&q=80' },
+    { id: 'beautifier', name: 'Product Beautifier', Icon: Sparkles, color: 'bg-yellow-100 text-yellow-600', img: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=240&q=80' },
+    { id: 'start', name: 'Edit with AI', Icon: ImageIcon, color: 'bg-blue-100 text-blue-600', img: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=240&q=80' },
+    { id: 'flatlay', name: 'Flat Lay', Icon: LayoutGrid, color: 'bg-cyan-100 text-cyan-600', img: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=240&q=80' },
+    { id: 'mannequin', name: 'Ghost Mannequin', Icon: Shirt, color: 'bg-emerald-100 text-emerald-600', img: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=240&q=80' },
+    { id: 'batch', name: 'Batch', Icon: Layers, color: 'bg-purple-100 text-purple-600', img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=240&q=80' },
+    { id: 'video', name: 'Video Generator', Icon: Video, color: 'bg-indigo-100 text-indigo-600', img: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=240&q=80' },
+];
+
+const RECENT_TOOL_IDS = ['virtual', 'staging'];
+
+const STAGING_BEFORE = px(2479095);
+const STAGING_AFTER = px(13412090);
+
+// Scenes that shape the staged lifestyle context. The staging payload only
+// carries the shared fields (see docs/product-photos-payloads.md), so the chosen
+// scene travels inside the `prompt` as context — never as a separate field.
+const SCENES = [
+    { id: 'lifestyle', name: 'Lifestyle', desc: 'Person using the product in real life', img: pxbg(3184465) },
+    { id: 'studio', name: 'Studio', desc: 'Clean white / grey studio', img: pxbg(1029243) },
+    { id: 'outdoor', name: 'Outdoor', desc: 'Natural outdoor setting', img: pxbg(957024) },
+    { id: 'kitchen', name: 'Kitchen', desc: 'On a wooden kitchen counter', img: pxbg(1080696) },
+    { id: 'editorial', name: 'Editorial', desc: 'Magazine-style fashion shoot', img: pxbg(291762) },
+    { id: 'social', name: 'Social Media', desc: 'Eye-catching, social-ready', img: pxbg(1092644) },
+];
+
+// Resolution badge shown next to the selected quality (matches Photoroom's 1K/2K/4K chip).
+const QUALITY_RES = { Standard: '1K', High: '2K', Ultra: '4K' };
+
+// Quality tiers shown as rich cards in the Quality dropdown (id matches the `quality` state).
+const QUALITY_TIERS = [
+    {
+        id: 'Ultra', name: 'Premium', tag: 'Ultra', tagColor: 'bg-blue-100 text-blue-700',
+        img: px(6780091),
+        features: ['4k+ resolution', 'Best product accuracy', 'Most realistic scenes', 'Highest quality', 'Consumes most credits'],
+    },
+    {
+        id: 'High', name: 'Advanced', tag: 'Max', tagColor: 'bg-indigo-100 text-indigo-700',
+        img: px(6780038),
+        features: ['2k resolution', 'Better product accuracy', 'Realistic scenes', 'High quality', 'Consumes more credits'],
+    },
+    {
+        id: 'Standard', name: 'Standard', tag: 'Pro', tagColor: 'bg-emerald-100 text-emerald-700',
+        img: px(6780036),
+        features: ['1k resolution', 'Good product accuracy', 'Fast generations', 'Consumes less credits'],
+    },
+];
 
 const SIZES = [
-  { id: "original", name: "Original", w: 1, h: 1, icon: "⊞" },
-  { id: "9_16", name: "Portrait (9:16)", w: 9, h: 16 },
-  { id: "3_4", name: "Portrait (3:4)", w: 3, h: 4 },
-  { id: "2_3", name: "Portrait (2:3)", w: 2, h: 3 },
-  { id: "1_1", name: "Square", w: 1, h: 1 },
-  { id: "3_2", name: "Landscape (3:2)", w: 3, h: 2 },
-  { id: "4_3", name: "Landscape (4:3)", w: 4, h: 3 },
-  { id: "16_9", name: "Landscape (16:9)", w: 16, h: 9 },
+    { id: 'original', name: 'Original', w: 1, h: 1 },
+    { id: 'portrait_9_16', name: 'Portrait (9:16)', w: 9, h: 16 },
+    { id: 'portrait_3_4', name: 'Portrait (3:4)', w: 3, h: 4 },
+    { id: 'portrait_2_3', name: 'Portrait (2:3)', w: 2, h: 3 },
+    { id: 'square', name: 'Square', w: 1, h: 1 },
+    { id: 'landscape_3_2', name: 'Landscape (3:2)', w: 3, h: 2 },
+    { id: 'landscape_4_3', name: 'Landscape (4:3)', w: 4, h: 3 },
+    { id: 'landscape_16_9', name: 'Landscape (16:9)', w: 16, h: 9 },
 ];
 
-const SCENES = [
-  {
-    id: "lifestyle",
-    name: "Lifestyle",
-    desc: "Person using product in real life",
-    img: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&q=70",
-  },
-  {
-    id: "studio",
-    name: "Studio",
-    desc: "Clean white/grey studio",
-    img: "https://images.unsplash.com/photo-1511556532299-8f662fc26c06?w=300&q=70",
-  },
-  {
-    id: "outdoor",
-    name: "Outdoor",
-    desc: "Natural outdoor setting",
-    img: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=300&q=70",
-  },
-  {
-    id: "flat_lay",
-    name: "Flat Lay",
-    desc: "Top-down table composition",
-    img: "https://images.unsplash.com/photo-1517231925375-bf2cb42917a5?w=300&q=70",
-  },
-  {
-    id: "editorial",
-    name: "Editorial",
-    desc: "Magazine-style fashion shoot",
-    img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&q=70",
-  },
-  {
-    id: "social",
-    name: "Social Media",
-    desc: "Eye-catching social media ready",
-    img: "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=300&q=70",
-  },
-];
-
-export default function ProductStagingModal({ onClose }) {
-  const fileInputRef = useRef(null);
-  const [uploadedFile, setUploadedFile] = useState(null);
-  const [uploadedImage, setUploadedImage] = useState(null);
-  const [removedBgUrl, setRemovedBgUrl] = useState(null);
-  const [removingBg, setRemovingBg] = useState(false);
-  const [removingProgress, setRemovingProgress] = useState(0);
-  const [selectedSize, setSelectedSize] = useState("3_2");
-  const [selectedScene, setSelectedScene] = useState("lifestyle");
-  const [applyBrandStyle, setApplyBrandStyle] = useState(false);
-  const [prompt, setPrompt] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [generatedImages, setGeneratedImages] = useState([]);
-  const [imageMenu, setImageMenu] = useState(null);
-  const [showSizePicker, setShowSizePicker] = useState(false);
-
-  const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploadedFile(file);
-    setUploadedImage(URL.createObjectURL(file));
-    setRemovedBgUrl(null);
-
-    // Auto remove background on upload (on-device AI engine).
-    setRemovingBg(true);
-    setRemovingProgress(0);
-    try {
-      const { blob } = await engineRemoveBackground(file, {
-        onProgress: ({ pct }) => setRemovingProgress(pct || 0),
-      });
-      setRemovedBgUrl(URL.createObjectURL(blob));
-      toast.success("Background removed!");
-    } catch (err) {
-      console.error(err);
-      toast.error("Background removal failed — using original image");
-    } finally {
-      setRemovingBg(false);
-      setRemovingProgress(0);
-    }
-  };
-
-  // Free the on-device segmentation worker when this modal closes.
-  useEffect(
-    () => () => {
-      disposeSegmentationWorker();
-    },
-    [],
-  );
-
-  const handleGenerate = async () => {
-    if (!uploadedFile && !uploadedImage) {
-      toast.error("Upload a product image first");
-      return;
-    }
-    setGenerating(true);
-    setShowSizePicker(false);
-    try {
-      // Use the bg-removed version if available, otherwise fall back to original
-      const sourceUrl = removedBgUrl || uploadedImage;
-      const sizeObj = SIZES.find((s) => s.id === selectedSize);
-      const sceneObj = SCENES.find((s) => s.id === selectedScene);
-      const generationPrompt = `Product staging photo: Place this exact product in a ${sceneObj?.name || "lifestyle"} setting — ${sceneObj?.desc}. Keep the product design, colors and details identical to the reference. Professional commercial photography. ${sizeObj ? `Aspect ratio ${sizeObj.w}:${sizeObj.h}.` : ""} ${prompt ? prompt + "." : ""} High quality, ${selectedScene === "editorial" ? "magazine editorial style" : "clean professional product photography"}.`;
-      const result = await generateImage({
-        prompt: generationPrompt,
-        existing_image_urls: [sourceUrl],
-      });
-      setGeneratedImages((prev) => [result.url, ...prev]);
-      toast.success("Image generated!");
-    } catch {
-      // error shown by helper
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleDownload = (url) => {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "product-staged.png";
-    a.target = "_blank";
-    a.click();
-  };
-
-  const sizeObj = SIZES.find((s) => s.id === selectedSize);
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
-      onClick={() => {
-        setShowSizePicker(false);
-        setImageMenu(null);
-      }}
-    >
-      <div
-        className="bg-surface rounded-2xl shadow-2xl flex overflow-hidden"
-        style={{ width: "95vw", height: "92vh", maxWidth: "1500px" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ── Left sidebar ── */}
-        <div className="w-84 border-r border-gray-100 flex flex-col shrink-0 overflow-y-auto">
-          <div className="flex items-center px-4 py-3 border-b border-gray-100">
-            <span className="font-semibold text-sm text-gray-800">
-              Product Staging
-            </span>
-          </div>
-
-          {/* Upload */}
-          <div className="px-3 py-3 border-b border-gray-100">
-            {uploadedImage ? (
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-400 cursor-pointer hover:border-blue-600 hover:shadow-md transition-all relative shrink-0"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Click to replace"
-                >
-                  <img
-                    src={removedBgUrl || uploadedImage}
-                    alt="product"
-                    className="w-full h-full object-contain bg-gray-50"
-                  />
-                  {removingBg && (
-                    <div className="absolute inset-0 bg-surface/70 flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  {removingBg ? (
-                    <div>
-                      <p className="text-[10px] text-gray-500 mb-1">
-                        Removing bg…
-                      </p>
-                      <div className="w-full bg-gray-200 rounded-full h-1">
-                        <div
-                          className="bg-blue-500 h-1 rounded-full transition-all"
-                          style={{ width: `${removingProgress || 5}%` }}
-                        />
-                      </div>
-                      <p className="text-[9px] text-gray-400 mt-0.5">
-                        {removingProgress > 0
-                          ? `${removingProgress}%`
-                          : "Loading…"}
-                      </p>
-                    </div>
-                  ) : removedBgUrl ? (
-                    <p className="text-[10px] text-green-600 font-medium">
-                      ✓ BG removed
-                    </p>
-                  ) : null}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="mt-1 text-[10px] text-blue-500 hover:text-blue-700 cursor-pointer transition-colors font-medium"
-                  >
-                    Replace image
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full border border-dashed border-gray-300 rounded-lg py-4 flex flex-col items-center justify-center gap-1.5 text-xs text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 cursor-pointer transition-all"
-              >
-                <Upload className="w-4 h-4" />
-                Upload product
-              </button>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-          </div>
-
-          {/* Scene selector */}
-          <div className="px-3 py-3 border-b border-gray-100">
-            <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
-              Scene
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {SCENES.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setSelectedScene(s.id)}
-                  className={`relative rounded-lg overflow-hidden border-2 transition-all aspect-video cursor-pointer hover:shadow-md ${selectedScene === s.id ? "border-blue-500 shadow-sm" : "border-gray-200 hover:border-blue-300"}`}
-                  title={s.desc}
-                >
-                  <img
-                    src={s.img}
-                    alt={s.name}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/30 hover:bg-black/20 transition-colors flex items-end">
-                    <span className="text-white text-[9px] font-semibold px-1.5 pb-1 leading-tight">
-                      {s.name}
-                    </span>
-                  </div>
-                  {selectedScene === s.id && (
-                    <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
-                      <span className="text-white text-[8px]">✓</span>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Options */}
-          <div className="flex-1">
-            {/* Size */}
-            <button
-              onClick={() => setShowSizePicker((p) => !p)}
-              className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 hover:text-blue-600 border-b border-gray-100 text-sm transition-colors cursor-pointer"
-            >
-              <span className="text-gray-600">Size</span>
-              <span className="text-gray-400 text-xs hover:text-blue-500 transition-colors">
-                {sizeObj?.name}
-              </span>
-            </button>
-
-            {/* Brand style */}
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 text-sm">
-              <span className="text-gray-600">Apply brand style</span>
-              <button
-                onClick={() => setApplyBrandStyle((p) => !p)}
-                className={`relative w-9 h-5 rounded-full transition-all cursor-pointer ${applyBrandStyle ? "bg-blue-600" : "bg-gray-200 hover:bg-gray-300"}`}
-              >
-                <span
-                  className={`absolute top-0.5 w-4 h-4 bg-surface rounded-full shadow transition-all ${applyBrandStyle ? "left-4" : "left-0.5"}`}
-                />
-              </button>
-            </div>
-
-            {/* Prompt */}
-            <div className="px-4 py-3">
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe the image you want (optional)"
-                className="w-full border border-gray-200 p-4 rounded-lg text-xs text-gray-600 placeholder:text-gray-400 bg-transparent outline-none resize-none leading-relaxed cursor-text focus:placeholder:text-gray-300 transition-colors"
-                rows={3}
-              />
-            </div>
-          </div>
-
-          {/* Generate */}
-          <div className="px-3 pb-4">
-            <button
-              onClick={handleGenerate}
-              disabled={generating || removingBg}
-              className={`
-    w-full py-2.5 rounded-xl text-sm font-semibold text-white
-    flex items-center justify-center gap-2
-    disabled:opacity-60 disabled:cursor-not-allowed
-    cursor-pointer active:scale-95 transition-all
-    ${
-      generating || removingBg
-        ? "bg-gray-400"
-        : "bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
-    }
-  `}
-            >
-              {generating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating…
-                </>
-              ) : removingBg ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Processing…
-                </>
-              ) : (
-                "Generate 1 image"
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* ── Right content ── */}
-        <div className="flex-1 flex flex-col relative bg-[#f8f8f8] dark:bg-canvas">
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 z-10 w-8 h-8 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-300 hover:text-red-500 shadow-sm cursor-pointer transition-all"
-          >
-            <X className="w-4 h-4 text-gray-600" />
-          </button>
-
-          {/* Size picker overlay */}
-          {showSizePicker && (
-            <div
-              className="absolute inset-0 z-20 flex items-center justify-center bg-surface/80 backdrop-blur-sm"
-              onClick={() => setShowSizePicker(false)}
-            >
-              <div
-                className="bg-surface rounded-2xl shadow-2xl border border-gray-100 p-5 w-96"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <h3 className="font-semibold text-gray-800 mb-4">
-                  Choose size
-                </h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {SIZES.map((s) => {
-                    const maxDim = 52;
-                    const bw =
-                      s.w >= s.h ? maxDim : Math.round((maxDim * s.w) / s.h);
-                    const bh =
-                      s.h >= s.w ? maxDim : Math.round((maxDim * s.h) / s.w);
-                    return (
-                      <button
-                        key={s.id}
-                        onClick={() => {
-                          setSelectedSize(s.id);
-                          setShowSizePicker(false);
-                        }}
-                        className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all cursor-pointer hover:shadow-md ${selectedSize === s.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}
-                      >
-                        <div className="flex items-center justify-center h-16">
-                          {s.icon ? (
-                            <div className="w-12 h-12 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-gray-400 text-lg">
-                              {s.icon}
-                            </div>
-                          ) : (
-                            <div
-                              className="border-2 border-gray-300 rounded relative"
-                              style={{ width: bw, height: bh }}
-                            >
-                              {selectedSize === s.id && (
-                                <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-blue-600 rounded-full flex items-center justify-center">
-                                  <span className="text-white text-[7px]">
-                                    ✓
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-gray-600 text-center leading-tight">
-                          {s.name}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {generatedImages.length === 0 && !generating ? (
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <div className="flex items-center gap-6 mb-8">
-                <div
-                  className="w-36 h-36 bg-gray-100 rounded-2xl overflow-hidden flex items-center justify-center shadow cursor-pointer hover:shadow-md hover:bg-gray-50 transition-all"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Upload a product"
-                >
-                  {uploadedImage ? (
-                    <img
-                      src={removedBgUrl || uploadedImage}
-                      alt="product"
-                      className="w-full h-full object-contain p-2"
-                    />
-                  ) : (
-                    <span className="text-5xl">📦</span>
-                  )}
-                </div>
-                <div className="text-gray-300 text-3xl">→</div>
-                <div className="w-36 h-36 bg-surface rounded-2xl shadow flex items-center justify-center overflow-hidden border border-gray-100">
-                  <img
-                    src={SCENES.find((s) => s.id === selectedScene)?.img}
-                    alt="scene"
-                    className="w-full h-full object-cover opacity-80"
-                  />
-                </div>
-              </div>
-              <p className="text-gray-500 text-center text-sm leading-relaxed max-w-xs">
-                Create stunning lifestyle images that tell a story and show your
-                product in action
-              </p>
-              {!uploadedImage && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mt-5 flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 cursor-pointer transition-all"
-                >
-                  <Upload className="w-4 h-4" /> Upload a product image
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="flex-1 overflow-auto p-6">
-              {generating && (
-                <div className="flex items-center justify-center py-12">
-                  <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-                    <p className="text-gray-500 text-sm">
-                      Generating your product staging…
-                    </p>
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-3 gap-4">
-                {generatedImages.map((url, idx) => (
-                  <div
-                    key={idx}
-                    className="relative rounded-xl overflow-hidden group aspect-square bg-gray-100 hover:shadow-lg transition-shadow cursor-default"
-                  >
-                    <img
-                      src={url}
-                      alt={`result ${idx + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setImageMenu((p) =>
-                          p?.idx === idx
-                            ? null
-                            : { idx, x: e.clientX, y: e.clientY },
-                        );
-                      }}
-                      className="absolute top-2 right-2 w-8 h-8 bg-surface/90 rounded-full flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:bg-surface hover:scale-110"
-                    >
-                      <MoreHorizontal className="w-4 h-4 text-gray-600" />
-                    </button>
-                    <button
-                      onClick={() => handleDownload(url)}
-                      className="absolute bottom-2 right-2 bg-surface/90 rounded-lg px-2 py-1 text-xs font-medium text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 cursor-pointer hover:bg-surface hover:text-blue-600 hover:scale-105"
-                    >
-                      <Download className="w-3 h-3" /> Save
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {generatedImages.length > 0 && (
-            <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-surface rounded-full shadow border border-gray-200 px-2 py-1">
-              <button className="p-1 hover:bg-gray-100 rounded-full text-gray-500 cursor-pointer transition-colors">
-                −
-              </button>
-              <button className="p-1 hover:bg-gray-100 rounded-full text-gray-500 cursor-pointer transition-colors">
-                +
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Image context menu */}
-      {imageMenu && (
-        <div
-          className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-100 w-48 py-1"
-          style={{ top: imageMenu.y, left: imageMenu.x }}
-          onClick={(e) => e.stopPropagation()}
+// A single tool card — name on the left, real thumbnail on the right (falls back to icon tile).
+function ToolCard({ tool, active, onClick }) {
+    const [imgOk, setImgOk] = useState(true);
+    const { Icon } = tool;
+    return (
+        <button
+            onClick={() => onClick(tool.id)}
+            className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? 'ring-2 ring-blue-500 bg-blue-50' : 'bg-gray-100 hover:bg-gray-100'}`}
         >
-          {[
-            {
-              label: "Regenerate",
-              icon: RefreshCw,
-              action: () => {
-                handleGenerate();
-                setImageMenu(null);
-              },
-            },
-            {
-              label: "Download",
-              icon: Download,
-              action: () => {
-                handleDownload(generatedImages[imageMenu.idx]);
-                setImageMenu(null);
-              },
-            },
-            {
-              label: "Copy link",
-              icon: Copy,
-              action: () => {
-                navigator.clipboard.writeText(generatedImages[imageMenu.idx]);
-                toast.success("Copied!");
-                setImageMenu(null);
-              },
-            },
-            {
-              label: "Delete",
-              icon: Trash2,
-              red: true,
-              action: () => {
-                setGeneratedImages((p) =>
-                  p.filter((_, i) => i !== imageMenu.idx),
-                );
-                setImageMenu(null);
-              },
-            },
-            {
-              label: "Good result",
-              icon: ThumbsUp,
-              action: () => setImageMenu(null),
-            },
-            {
-              label: "Bad result",
-              icon: ThumbsDown,
-              action: () => setImageMenu(null),
-            },
-          ].map((item) => (
-            <button
-              key={item.label}
-              onClick={() => (item.action ? item.action() : setImageMenu(null))}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors cursor-pointer hover:bg-gray-50 active:bg-gray-100 ${item.red ? "text-red-500 hover:bg-red-50" : "text-gray-700"}`}
-            >
-              <item.icon className="w-4 h-4 shrink-0" />
-              {item.label}
-            </button>
-          ))}
+            <span className="text-sm font-semibold text-gray-900 leading-tight self-center pl-3.5 flex-1">{tool.name}</span>
+            <div className={`w-20 shrink-0 flex items-center justify-center ${tool.color}`}>
+                {imgOk
+                    ? <img src={tool.img} alt={tool.name} className="w-full h-full object-cover" onError={() => setImgOk(false)} />
+                    : <Icon className="w-6 h-6" />}
+            </div>
+        </button>
+    );
+}
+
+// Floating panel anchored BELOW its anchor (header dropdown).
+function DropdownBelow({ anchorRef, children, width = 460 }) {
+    const [pos, setPos] = useState({ top: 0, left: 0 });
+    useEffect(() => {
+        if (anchorRef?.current) {
+            const r = anchorRef.current.getBoundingClientRect();
+            setPos({ top: r.bottom + 6, left: r.left });
+        }
+    }, [anchorRef]);
+    return (
+        <div
+            className="fixed z-210 bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto"
+            style={{ top: pos.top, left: pos.left, width }}
+            onClick={e => e.stopPropagation()}
+        >
+            {children}
         </div>
-      )}
-    </div>
-  );
+    );
+}
+
+// Floating panel rendered at fixed position to escape sidebar overflow clipping.
+// Anchors to the right of the trigger, then clamps into the viewport so it never
+// runs off the bottom/right edge (flips to the left side if there's no room).
+function FloatingPanel({ anchorRef, children, width = 320 }) {
+    const panelRef = useRef(null);
+    const [pos, setPos] = useState({ top: -9999, left: -9999 });
+
+    useEffect(() => {
+        const a = anchorRef?.current;
+        const p = panelRef.current;
+        if (!a || !p) return;
+        const r = a.getBoundingClientRect();
+        const pw = p.offsetWidth || width;
+        const ph = p.offsetHeight;
+        const margin = 12;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        let left = r.right + 4;
+        if (left + pw > vw - margin) left = r.left - pw - 4;      // flip to the left of the trigger
+        if (left < margin) left = vw - pw - margin;               // last resort: pin to right edge
+        left = Math.max(margin, left);
+
+        let top = r.top;
+        if (top + ph > vh - margin) top = vh - ph - margin;       // lift up so the bottom stays visible
+        top = Math.max(margin, top);
+
+        setPos({ top, left });
+    }, [anchorRef, width]);
+
+    return (
+        <div
+            ref={panelRef}
+            className="fixed z-200 bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
+            style={{ top: pos.top, left: pos.left, width }}
+            onClick={e => e.stopPropagation()}
+        >
+            {children}
+        </div>
+    );
+}
+
+export default function ProductStagingModal({ onClose, onSwitchTool }) {
+    const { activeBrand, uploadImage } = useAuth();
+    const qualityRef = useRef(null);
+    const sizeRef = useRef(null);
+    const sceneRef = useRef(null);
+    const headerRef = useRef(null);
+
+    const [uploadedImage, setUploadedImage] = useState(null);
+    const [uploadedFile, setUploadedFile] = useState(null);
+    const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // gallery/cloud URL of the picked image
+    const [selectedScene, setSelectedScene] = useState('lifestyle');
+    const [quality, setQuality] = useState('Standard');
+    const [size, setSize] = useState('square');
+    const [applyBrandStyle, setApplyBrandStyle] = useState(true);
+    const [prompt, setPrompt] = useState('');
+    const [generating, setGenerating] = useState(false);
+    const [generatedImages, setGeneratedImages] = useState([]);
+    const [openDropdown, setOpenDropdown] = useState(null);
+    const [imageMenu, setImageMenu] = useState(null); // { idx, x, y }
+    const [toolMenuOpen, setToolMenuOpen] = useState(false); // header tool switcher
+    const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
+
+    // Header tool switcher: clicking the current tool just closes; any other tool
+    // tells the parent to swap modals (parent opens the right one + closes this).
+    const handleToolClick = (id) => {
+        setToolMenuOpen(false);
+        if (id === 'staging') return; // already here
+        onSwitchTool?.(id);
+    };
+
+    // Image comes from the gallery picker (My Library / Search / Upload). We only
+    // use ONE image. A fresh desktop upload carries a File + a LOCAL blob: URL
+    // (not sendable to the backend), so we keep the File and leave the hosted URL
+    // null — it's uploaded on generate to get a real URL. A library/search pick
+    // already has a hosted URL we can send straight through.
+    const handleApplyFromPicker = (images = []) => {
+        const item = images[0];
+        if (!item) return;
+        if (item.file instanceof File) {
+            setUploadedFile(item.file);
+            setUploadedImage(item.src || URL.createObjectURL(item.file));
+            setUploadedFileUrl(null); // resolve a hosted URL on generate
+        } else {
+            const url = item.large || item.src || null;
+            if (!url) return;
+            setUploadedFile(null);
+            setUploadedImage(url);
+            setUploadedFileUrl(url); // already hosted
+        }
+        setPickerOpen(false);
+    };
+
+    const handleGenerate = async () => {
+        if (!uploadedFile && !uploadedImage) { toast.error('Please select a product image first'); return; }
+        setGenerating(true);
+        setOpenDropdown(null);
+        try {
+            // Resolve the ONE image URL to send. Picks from the gallery already have
+            // a hosted URL; a fresh local upload gets uploaded here to obtain one.
+            let imageUrl = uploadedFileUrl;
+            if (!imageUrl && uploadedFile) {
+                const uploaded = await uploadImage(uploadedFile);
+                console.log('🖼️ [staging] upload response ←', uploaded);
+                imageUrl = uploaded?.url || uploaded?.image_url || uploaded?.file_url || uploaded?.data?.url;
+                setUploadedFileUrl(imageUrl || null);
+            }
+            if (!imageUrl) { toast.error('Please select a product image'); setGenerating(false); return; }
+
+            // Scene context is folded into the prompt (staging carries only the
+            // shared fields — see docs/product-photos-payloads.md).
+            // const sceneObj = SCENES.find(s => s.id === selectedScene);
+            // const sceneNote = sceneObj ? `Scene: ${sceneObj.name} — ${sceneObj.desc}.` : '';
+            // const finalPrompt = [sceneNote, prompt].filter(Boolean).join(' ').trim();
+
+            // Backend contract: POST /product-photos/generate (matches VirtualModelModal's shape).
+            const payload = {
+              tool: TOOL_ENUM.staging, // "product_staging"
+              image_url: imageUrl, // single image URL
+              quality: QUALITY_ENUM[quality] || "standard",
+              size, // aspect-ratio id
+              apply_brand_style: applyBrandStyle,
+              prompt: prompt, // scene context + optional user refinement
+              // workspace_id omitted for now (confirm source with backend).
+            };
+
+            const result = await generateProductPhoto(payload);
+
+            // Log the raw return so we can see its exact shape while consuming it.
+            console.log('🎨 [staging] generate result ←', result);
+
+            const resultUrl = result?.url || result?.image_url || result?.data?.url;
+            if (resultUrl) {
+                setGeneratedImages(prev => [resultUrl, ...prev]);
+                toast.success('Image generated!');
+            } else {
+                toast('Generated — check the console for the response shape.');
+            }
+        } catch (err) {
+            // generateProductPhoto already toasts a friendly error; log for debugging.
+            console.error('❌ [staging] generate failed:', err);
+        } finally {
+            setGenerating(false);
+        }
+    };
+
+    const toggle = (key) => setOpenDropdown(p => p === key ? null : key);
+
+    // const sceneObj = SCENES.find(s => s.id === selectedScene);
+    // const sizeObj = SIZES.find(s => s.id === size);
+
+    const closeAll = () => { setOpenDropdown(null); setImageMenu(null); setToolMenuOpen(false); };
+
+    const handleDownload = (url) => {
+        const a = document.createElement('a');
+        a.href = url; a.download = 'product-staged.png'; a.target = '_blank'; a.click();
+    };
+
+    return (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/40" onClick={closeAll}>
+            <div
+                className="bg-surface rounded-2xl shadow-2xl flex overflow-hidden"
+                style={{ width: '95vw', height: '92vh', maxWidth: '1400px' }}
+                onClick={e => e.stopPropagation()}
+            >
+                {/* ── Left sidebar ── */}
+                {/* Column with a scrollable body and a pinned Generate footer. */}
+                <div className="w-84 border-r border-gray-200 flex flex-col shrink-0">
+
+                    {/* Scrollable content (Generate button stays pinned below) */}
+                    <div className="flex-1 overflow-y-auto min-h-0">
+
+                    {/* Header — click the title to open the tool switcher */}
+                    <div className="px-5 pt-5 pb-1">
+                        <button
+                            ref={headerRef}
+                            onClick={() => setToolMenuOpen(o => !o)}
+                            className="flex items-center gap-2 font-bold text-2xl text-gray-900 hover:opacity-70 transition-opacity"
+                        >
+                            Product Staging
+                            <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${toolMenuOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                    </div>
+
+                    {/* Upload — opens the gallery picker (My Library / Search / Upload) */}
+                    <div className="px-4 pt-4">
+                        <button
+                            onClick={() => setPickerOpen(true)}
+                            className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                        >
+                            <Upload className="w-4 h-4" />
+                            <span className="text-blue-600 font-semibold">Select from gallery</span>
+                        </button>
+                    </div>
+
+                    {/* Uploaded thumb */}
+                    {uploadedImage && (
+                        <div className="px-4 pt-3">
+                            <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500">
+                                <img src={uploadedImage} alt="product" className="w-full h-full object-cover" />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Scene */}
+                    {/* <div className="px-4 pt-4">
+                        <button
+                            ref={sceneRef}
+                            onClick={() => toggle('scene')}
+                            className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === 'scene' ? 'bg-blue-50 ring-2 ring-blue-500' : 'bg-gray-100/70 hover:bg-gray-100'}`}
+                        >
+                            <div className="w-full h-40 rounded-xl overflow-hidden mb-2.5 bg-surface">
+                                <img src={sceneObj?.img} alt={sceneObj?.name} className="w-full h-full object-cover" />
+                            </div>
+                            <span className="text-[11px] text-gray-500">Scene</span>
+                            <span className="text-sm font-semibold text-gray-900">{sceneObj?.name}</span>
+                        </button>
+                    </div> */}
+
+                    {/* Option rows — light gray cards (Photoroom style) */}
+                    <div className="px-4 pt-3 pb-3 space-y-2.5">
+                        {/* Quality */}
+                        <button ref={qualityRef} onClick={() => toggle('quality')}
+                            className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors">
+                            <span className="text-gray-900 font-medium">Quality</span>
+                            <span className="text-gray-500 flex items-center gap-2">
+                                {quality}
+                                <span className="text-[11px] font-bold text-gray-900 bg-surface border border-gray-200 shadow-sm rounded-md px-1.5 py-0.5">{QUALITY_RES[quality]}</span>
+                            </span>
+                        </button>
+
+                        {/* Size */}
+                        <button ref={sizeRef} onClick={() => toggle('size')}
+                            className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors">
+                            <span className="text-gray-900 font-medium">Size</span>
+                            {/* <span className="text-gray-500">{sizeObj?.name}</span> */}
+                        </button>
+
+                        {/* Brand style */}
+                        <button onClick={() => setApplyBrandStyle(p => !p)}
+                            className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors">
+                            <span className="text-gray-900 font-medium">Apply brand style</span>
+                            <span className={applyBrandStyle ? 'text-blue-600 font-semibold' : 'text-gray-500'}>{applyBrandStyle ? 'On' : 'Off'}</span>
+                        </button>
+
+                        {/* Prompt */}
+                        <div className="rounded-2xl bg-gray-100 px-4 py-3">
+                            <textarea
+                                value={prompt}
+                                onChange={e => setPrompt(e.target.value)}
+                                placeholder="Describe the image you want (optional)"
+                                className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed"
+                                rows={4}
+                            />
+                        </div>
+                    </div>
+                    {/* end scrollable content */}
+                    </div>
+
+                    {/* Generate — pinned to the bottom of the sidebar */}
+                    <div className="px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
+                        <button
+                            onClick={handleGenerate}
+                            disabled={generating}
+                            className={`
+    w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white
+    transition-all flex items-center justify-center gap-2
+    disabled:opacity-60
+    ${generating
+                                    ? 'bg-gray-400'
+                                    : 'bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600'
+                                }
+  `}
+                        >
+                            {generating ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Generating…
+                                </>
+                            ) : (
+                                'Generate 1 image'
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* ── Right content ── */}
+                <div className="flex-1 flex flex-col relative bg-[#f8f8f8] dark:bg-canvas">
+                    <button onClick={onClose} className="absolute top-3 right-3 z-10 w-8 h-8 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-100 shadow-sm cursor-pointer">
+                        <X className="w-4 h-4 text-gray-500" />
+                    </button>
+
+                    {generatedImages.length === 0 && !generating ? (
+                        <div className="flex-1 flex flex-col items-center justify-center px-6">
+                            <div className="flex items-center gap-3 mb-9">
+                                <div className="w-44 h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
+                                    <img
+                                        src={uploadedImage || STAGING_BEFORE}
+                                        alt="product"
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                                {/* stylish curved arrow */}
+                                <svg width="72" height="60" viewBox="0 0 72 60" fill="none" className="text-blue-500 shrink-0 -mt-6">
+                                    <path d="M6 44 C 24 8, 50 8, 62 32" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                                    <path d="M62 32 L51 28 M62 32 L55 42" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                <div className="w-44 h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
+                                    <img src={STAGING_AFTER} className="w-full h-full object-cover" />
+                                </div>
+                            </div>
+                            <h3 className="text-gray-900 text-center text-lg font-semibold max-w-sm leading-snug">
+                                Create stunning lifestyle images
+                            </h3>
+                            <p className="text-gray-500 text-center text-sm mt-2 max-w-xs leading-relaxed">
+                                Place your product into a realistic scene that tells a story and shows it in action.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="flex-1 overflow-auto p-6">
+                            {generating && (
+                                <div className="flex items-center justify-center py-12">
+                                    <div className="flex flex-col items-center gap-3">
+                                        <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                                        <p className="text-gray-500 text-sm">Staging your product…</p>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="grid grid-cols-4 gap-3">
+                                {generatedImages.map((url, idx) => (
+                                    <div key={idx} className="relative rounded-xl overflow-hidden group aspect-square bg-gray-100">
+                                        <img src={url} alt={`result ${idx + 1}`} className="w-full h-full object-cover" />
+                                        <button
+                                            onClick={e => {
+                                                e.stopPropagation();
+                                                setImageMenu(p => p?.idx === idx ? null : { idx, x: e.clientX, y: e.clientY });
+                                            }}
+                                            className="absolute top-2 right-2 w-8 h-8 bg-surface/90 rounded-full flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <MoreHorizontal className="w-4 h-4 text-gray-500" />
+                                        </button>
+                                        <button className="absolute bottom-2 right-2 w-7 h-7 bg-surface/80 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <span className="text-xs text-gray-500">⊞</span>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {generatedImages.length > 0 && (
+                        <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-surface rounded-full shadow border border-gray-200 px-2 py-1">
+                            <button className="p-1 hover:bg-gray-100 rounded-full text-gray-500">−</button>
+                            <button className="p-1 hover:bg-gray-100 rounded-full text-gray-500">+</button>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* ── Tool switcher (header dropdown) ── */}
+            {toolMenuOpen && (
+                <>
+                    {/* transparent backdrop to close on outside click */}
+                    <div className="fixed inset-0 z-205" onClick={() => setToolMenuOpen(false)} />
+                    <DropdownBelow anchorRef={headerRef} width={460}>
+                        <p className="text-xs font-semibold text-gray-500 px-1 mb-2">Recently used</p>
+                        <div className="grid grid-cols-2 gap-2 mb-4">
+                            {RECENT_TOOL_IDS.map(id => {
+                                const tool = TOOL_LIST.find(t => t.id === id);
+                                if (!tool) return null;
+                                return <ToolCard key={`recent-${tool.id}`} tool={tool} active={tool.id === 'staging'} onClick={handleToolClick} />;
+                            })}
+                        </div>
+                        <p className="text-xs font-semibold text-gray-500 px-1 mb-2">All tools</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            {TOOL_LIST.map(tool => (
+                                <ToolCard key={tool.id} tool={tool} active={tool.id === 'staging'} onClick={handleToolClick} />
+                            ))}
+                        </div>
+                    </DropdownBelow>
+                </>
+            )}
+
+            {/* ── Floating dropdowns (fixed, above everything) ── */}
+            {/* transparent backdrop closes whichever picker is open on outside click */}
+            {openDropdown && (
+                <div className="fixed inset-0 z-195" onClick={() => setOpenDropdown(null)} />
+            )}
+
+            {openDropdown === 'scene' && (
+                <FloatingPanel anchorRef={sceneRef} width={420}>
+                    <div className="grid grid-cols-3 gap-2.5 p-3">
+                        {SCENES.map(s => {
+                            const active = selectedScene === s.id;
+                            return (
+                                <button key={s.id} onClick={() => { setSelectedScene(s.id); setOpenDropdown(null); }}
+                                    className="flex flex-col items-center gap-1.5" title={s.desc}>
+                                    <div className={`w-full h-24 rounded-xl overflow-hidden relative border-2 transition-colors ${active ? 'border-blue-500' : 'border-transparent hover:border-gray-200'}`}>
+                                        <img src={s.img} alt={s.name} className="w-full h-full object-cover" />
+                                        {active && <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
+                                    </div>
+                                    <span className="text-[10px] text-gray-500 text-center leading-tight">{s.name}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </FloatingPanel>
+            )}
+
+            {openDropdown === 'quality' && (
+                <FloatingPanel anchorRef={qualityRef} width={380}>
+                    <div className="p-2 space-y-2">
+                        {QUALITY_TIERS.map(t => {
+                            const active = quality === t.id;
+                            return (
+                                <button key={t.id} onClick={() => { setQuality(t.id); setOpenDropdown(null); }}
+                                    className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? 'border-blue-500 bg-blue-50/40' : 'border-gray-200 hover:border-gray-200 bg-surface'}`}>
+                                    <div className="w-20 h-28 rounded-xl overflow-hidden bg-gray-100 shrink-0">
+                                        <img src={t.img} alt={t.name} className="w-full h-full object-cover object-top" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-bold text-gray-900">{t.name}</span>
+                                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${t.tagColor}`}>{t.tag}</span>
+                                            </div>
+                                            <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? 'bg-blue-600' : 'border-2 border-gray-200'}`}>
+                                                {active && <span className="text-white text-[10px]">✓</span>}
+                                            </span>
+                                        </div>
+                                        <ul className="mt-1.5 space-y-0.5">
+                                            {t.features.map(f => (
+                                                <li key={f} className="text-[11px] text-gray-500 leading-snug">{f}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </FloatingPanel>
+            )}
+
+            {openDropdown === 'size' && (
+                <FloatingPanel anchorRef={sizeRef} width={380}>
+                    <div className="grid grid-cols-3 gap-2.5 p-3">
+                        {SIZES.map(s => {
+                            const active = size === s.id;
+                            const maxDim = 64;
+                            const bw = s.w >= s.h ? maxDim : Math.round(maxDim * s.w / s.h);
+                            const bh = s.h >= s.w ? maxDim : Math.round(maxDim * s.h / s.w);
+                            return (
+                                <button key={s.id} onClick={() => { setSize(s.id); setOpenDropdown(null); }}
+                                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? 'border-blue-500 bg-blue-50/40' : 'border-gray-200 hover:border-gray-200'}`}>
+                                    <div className="flex items-center justify-center h-20 relative w-full">
+                                        <div className={`rounded-md ${active ? 'bg-blue-300' : 'bg-gray-100'}`} style={{ width: bw, height: bh }} />
+                                        {active && <div className="absolute top-0 right-0 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
+                                    </div>
+                                    <span className="text-[10px] text-gray-500 text-center leading-tight">{s.name}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </FloatingPanel>
+            )}
+
+            {/* Image context menu */}
+            {imageMenu && (
+                <div
+                    className="fixed z-200 bg-surface rounded-xl shadow-2xl border border-gray-200 w-48 py-1"
+                    style={{ top: imageMenu.y, left: imageMenu.x }}
+                    onClick={e => e.stopPropagation()}
+                >
+                    {[
+                        { label: 'Change something', icon: RefreshCw, action: () => { handleGenerate(); setImageMenu(null); } },
+                        { label: 'Other angles', icon: RefreshCw, action: () => { handleGenerate(); setImageMenu(null); } },
+                        { label: 'Generate video', icon: Video },
+                        { label: 'Delete', icon: Trash2, red: true, action: () => { setGeneratedImages(p => p.filter((_, i) => i !== imageMenu.idx)); setImageMenu(null); } },
+                        { label: 'Download', icon: Download, action: () => { handleDownload(generatedImages[imageMenu.idx]); setImageMenu(null); } },
+                        { label: 'Copy link', icon: Copy, action: () => { navigator.clipboard.writeText(generatedImages[imageMenu.idx]); toast.success('Link copied!'); setImageMenu(null); } },
+                        { label: 'Good result', icon: ThumbsUp, action: () => setImageMenu(null) },
+                        { label: 'Bad result', icon: ThumbsDown, action: () => setImageMenu(null) },
+                    ].map(item => (
+                        <button key={item.label}
+                            onClick={() => { if (item.action) item.action(); else setImageMenu(null); }}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-100 transition-colors ${item.red ? 'text-red-500' : 'text-gray-900'}`}>
+                            <item.icon className="w-4 h-4 shrink-0" />
+                            {item.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {/* Gallery media picker — pick ONE image (My Library / Search / Upload) */}
+            <MediaPickerModal
+                isOpen={pickerOpen}
+                onClose={() => setPickerOpen(false)}
+                onCancel={() => setPickerOpen(false)}
+                onApply={handleApplyFromPicker}
+                activeBrand={activeBrand}
+                maxSelectable={1}
+            />
+        </div>
+    );
 }

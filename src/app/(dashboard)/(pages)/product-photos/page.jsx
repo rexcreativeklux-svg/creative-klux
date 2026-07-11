@@ -21,16 +21,15 @@ import {
 import { motion } from "framer-motion";
 import PhotoEditor from "@/app/(components)/product-photos/PhotoEditor";
 import VirtualModelModal from "@/app/(components)/product-photos/VirtualModelModal";
-import ProductToolModal from "@/app/(components)/product-photos/ProductToolModal";
+import ProductStagingModal from "@/app/(components)/product-photos/ProductStagingModal";
 import VideoGeneratorModal from "@/app/(components)/product-photos/VideoGeneratorModal";
 import BackgroundRemoverModal from "@/app/(components)/product-photos/BackgroundRemoverModal";
 import OnDeviceToolModal from "@/app/(components)/product-photos/OnDeviceToolModal";
 import { ON_DEVICE_TOOLS, ON_DEVICE_TOOL_IDS } from "@/app/(components)/product-photos/onDeviceToolConfigs";
 
-// Tools still using the shared ProductToolModal (prose-prompt Generate flow).
-// Beautifier / Ghost Mannequin / Flat Lay now run on-device via OnDeviceToolModal
-// (handled by ON_DEVICE_TOOL_IDS below), so they're excluded here.
-const PRODUCT_TOOL_IDS = ["staging"];
+// Product Staging now has its own dedicated modal (ProductStagingModal) with the
+// gallery picker + structured Generate payload, matching Virtual Model. Beautifier
+// / Ghost Mannequin / Flat Lay run on-device via OnDeviceToolModal (ON_DEVICE_TOOL_IDS).
 
 // const tools = [
 //     { id: 'start',      label: 'Start from a photo',    Icon: Image,      primary: true },
@@ -178,9 +177,9 @@ export default function ProductPhotos() {
   const [editorMode, setEditorMode] = useState("start");
   const router = useRouter();
   const [virtualModelOpen, setVirtualModelOpen] = useState(false);
+  const [stagingOpen, setStagingOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
-  const [toolModalId, setToolModalId] = useState(null); // shared ProductToolModal (staging)
   const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/mannequin/flatlay)
 
   const openEditor = (mode = "start") => {
@@ -192,6 +191,10 @@ export default function ProductPhotos() {
   const openTool = (id) => {
     if (id === "virtual") {
       setVirtualModelOpen(true);
+      return;
+    }
+    if (id === "staging") {
+      setStagingOpen(true);
       return;
     }
     if (id === "video") {
@@ -212,10 +215,6 @@ export default function ProductPhotos() {
     }
     if (ON_DEVICE_TOOL_IDS.includes(id)) {
       setOnDeviceToolId(id);
-      return;
-    }
-    if (PRODUCT_TOOL_IDS.includes(id)) {
-      setToolModalId(id);
       return;
     }
     openEditor("start");
@@ -262,12 +261,11 @@ export default function ProductPhotos() {
           }}
         />
       )}
-      {toolModalId && (
-        <ProductToolModal
-          toolId={toolModalId}
-          onClose={() => setToolModalId(null)}
+      {stagingOpen && (
+        <ProductStagingModal
+          onClose={() => setStagingOpen(false)}
           onSwitchTool={(id) => {
-            setToolModalId(null);
+            setStagingOpen(false);
             openTool(id);
           }}
         />

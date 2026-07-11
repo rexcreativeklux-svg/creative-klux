@@ -3816,7 +3816,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-3"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-3"
       onClick={onClose}
     >
       <div
@@ -4069,7 +4069,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                       const baseReady = imgW != null && imgH != null;
                       return (
                         <div
-                          className={`absolute ${selected ? "outline outline-2 outline-blue-500" : ""}`}
+                          className={`absolute ${selected ? "outline outline-blue-500" : ""}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelected(true);
@@ -4236,7 +4236,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                           }
                         : undefined
                     }
-                    className={`absolute select-none ${isSel ? "outline outline-2 outline-blue-500" : ""}`}
+                    className={`absolute select-none ${isSel ? "outline outline-blue-500" : ""}`}
                     style={{
                       left: layer.x - layer.w / 2,
                       top: layer.y - layer.h / 2,
@@ -4274,12 +4274,12 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                           onKeyDown={(e) => {
                             if (e.key === "Escape") e.currentTarget.blur();
                           }}
-                          className="w-full h-full outline-none whitespace-pre-wrap break-words overflow-hidden cursor-text"
+                          className="w-full h-full outline-none whitespace-pre-wrap -break-words overflow-hidden cursor-text"
                           style={textStyle}
                         />
                       ) : (
                         <div
-                          className="w-full h-full whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
+                          className="w-full h-full whitespace-pre-wrap wrap-break-word overflow-hidden pointer-events-none"
                           style={textStyle}
                         >
                           {layer.text}

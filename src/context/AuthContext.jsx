@@ -1289,7 +1289,9 @@ export function AuthProvider({ children }) {
       // console.log("Fetched images:", data);
 
       // Extract the array from "images" key
-      const images = data.images || [];
+      const images = data.files || [];
+
+      // console.log("Images", images)
 
       // Transform to format your gallery expects
       setMyImages(
@@ -1314,7 +1316,7 @@ export function AuthProvider({ children }) {
       if (!file) throw new Error("No file provided");
 
       const formData = new FormData();
-      formData.append("image", file);
+      formData.append("file", file);
 
       let response;
       try {
@@ -1334,7 +1336,12 @@ export function AuthProvider({ children }) {
 
       const result = await classifyResult({ response });
       if (!result.ok) {
-        console.warn(`[${result.source}] uploadImage:`, result.messageForDevs);
+        console.warn(
+          `[${result.source}] uploadImage:`,
+          result.messageForDevs,
+          "| field errors:",
+          result.errors, // 🔎 backend's exact validation reasons (field → messages)
+        );
         const e = new Error(result.message);
         e.source = result.source;
         e.messageForDevs = result.messageForDevs;

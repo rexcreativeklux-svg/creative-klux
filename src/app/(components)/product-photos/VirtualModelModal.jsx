@@ -12,7 +12,7 @@ const TOOL_LIST = [
     { id: 'staging', name: 'Product Staging', Icon: Package, color: 'bg-amber-100 text-amber-600', img: 'https://images.unsplash.com/photo-1607082349566-187342175e2f?w=240&q=80' },
     { id: 'bgremove', name: 'Background Remover', Icon: Scissors, color: 'bg-red-100 text-red-600', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=240&q=80' },
     { id: 'beautifier', name: 'Product Beautifier', Icon: Sparkles, color: 'bg-yellow-100 text-yellow-600', img: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=240&q=80' },
-    { id: 'start', name: 'Edit with AI', Icon: ImageIcon, color: 'bg-violet-100 text-violet-600', img: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=240&q=80' },
+    { id: 'start', name: 'Edit with AI', Icon: ImageIcon, color: 'bg-blue-100 text-blue-600', img: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=240&q=80' },
     { id: 'flatlay', name: 'Flat Lay', Icon: LayoutGrid, color: 'bg-cyan-100 text-cyan-600', img: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=240&q=80' },
     { id: 'mannequin', name: 'Ghost Mannequin', Icon: Shirt, color: 'bg-emerald-100 text-emerald-600', img: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=240&q=80' },
     { id: 'batch', name: 'Batch', Icon: Layers, color: 'bg-purple-100 text-purple-600', img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=240&q=80' },
@@ -28,7 +28,7 @@ function ToolCard({ tool, active, onClick }) {
     return (
         <button
             onClick={() => onClick(tool.id)}
-            className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? 'ring-2 ring-violet-500 bg-violet-50' : 'bg-gray-100 hover:bg-gray-100'}`}
+            className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? 'ring-2 ring-blue-500 bg-blue-50' : 'bg-gray-100 hover:bg-gray-100'}`}
         >
             <span className="text-sm font-semibold text-gray-900 leading-tight self-center pl-3.5 flex-1">{tool.name}</span>
             <div className={`w-20 shrink-0 flex items-center justify-center ${tool.color}`}>
@@ -65,20 +65,87 @@ function DropdownBelow({ anchorRef, children, width = 460 }) {
 const px = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=600`;
 // Landscape thumbnails for background swatches.
 const pxbg = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=320&h=240&fit=crop`;
-const CLOTHING_IMG = px(45982); // folded sweater — empty-state product placeholder
+const CLOTHING_IMG =
+  "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1783763628-6a5212ac83271.webp";
 
 const MODELS = [
-    { id: 'avery', name: 'Avery', emoji: '👩', desc: 'Woman, straight hair, jeans', img: px(6780091) },
-    { id: 'sam', name: 'Sam', emoji: '👨', desc: 'Man, black tee, grey pants', img: px(29727777) },
-    { id: 'taylor', name: 'Taylor', emoji: '👨', desc: 'Man, white tee, khaki', img: px(37741914) },
-    { id: 'kendall', name: 'Kendall', emoji: '👩', desc: 'Woman, white tee, jeans', img: px(6780038) },
-    { id: 'jordan', name: 'Jordan', emoji: '👨', desc: 'Man, beige outfit', img: px(37218533) },
-    { id: 'casey', name: 'Casey', emoji: '👩', desc: 'Woman, all white', img: px(31215272) },
-    { id: 'alex', name: 'Alex', emoji: '👩', desc: 'Woman, beige set', img: px(6780036) },
-    { id: 'maya', name: 'Maya', emoji: '👩', desc: 'Woman, black outfit', img: px(5421296) },
-    { id: 'reece', name: 'Reece', emoji: '👨', desc: 'Man, casual jeans', img: px(18516993) },
-    { id: 'lara', name: 'Lara', emoji: '👩', desc: 'Woman, blue jeans', img: px(5112737) },
-    { id: 'julia', name: 'Julia', emoji: '👩', desc: 'Woman, light jeans', img: px(31042871) },
+  {
+    id: "avery",
+    name: "Avery",
+    emoji: "👩",
+    desc: "Woman, straight hair, jeans",
+    img: px(6780091),
+  },
+  {
+    id: "sam",
+    name: "Sam",
+    emoji: "👨",
+    desc: "Man, black tee, grey pants",
+    img: px(29727777),
+  },
+  {
+    id: "taylor",
+    name: "Taylor",
+    emoji: "👨",
+    desc: "Man, white tee, khaki",
+    img: px(37741914),
+  },
+  {
+    id: "kendall",
+    name: "Kendall",
+    emoji: "👩",
+    desc: "Woman, white tee, jeans",
+    img: px(6780038),
+  },
+  {
+    id: "jordan",
+    name: "Jordan",
+    emoji: "👨",
+    desc: "Man, beige outfit",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1783764125-6a52149db8770.webp",
+  },
+  {
+    id: "casey",
+    name: "Casey",
+    emoji: "👩",
+    desc: "Woman, all white",
+    img: px(31215272),
+  },
+  {
+    id: "alex",
+    name: "Alex",
+    emoji: "👩",
+    desc: "Woman, beige set",
+    img: px(6780036),
+  },
+  {
+    id: "maya",
+    name: "Maya",
+    emoji: "👩",
+    desc: "Woman, black outfit",
+    img: px(5421296),
+  },
+  {
+    id: "reece",
+    name: "Reece",
+    emoji: "👨",
+    desc: "Man, casual jeans",
+    img: px(18516993),
+  },
+  {
+    id: "lara",
+    name: "Lara",
+    emoji: "👩",
+    desc: "Woman, blue jeans",
+    img: px(5112737),
+  },
+  {
+    id: "julia",
+    name: "Julia",
+    emoji: "👩",
+    desc: "Woman, light jeans",
+    img: px(31042871),
+  },
 ];
 
 const POSES = [
@@ -140,7 +207,7 @@ const QUALITY_RES = { Standard: '1K', High: '2K', Ultra: '4K' };
 // Quality tiers shown as rich cards in the Quality dropdown (id matches the `quality` state).
 const QUALITY_TIERS = [
     {
-        id: 'Ultra', name: 'Premium', tag: 'Ultra', tagColor: 'bg-violet-100 text-violet-700',
+        id: 'Ultra', name: 'Premium', tag: 'Ultra', tagColor: 'bg-blue-100 text-blue-700',
         img: px(6780091),
         features: ['4k+ resolution', 'Best product accuracy', 'Most realistic models', 'Highest quality', 'Consumes most credits'],
     },
@@ -273,7 +340,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
             // Backend contract: POST /product-photos/generate
             const payload = {
                 tool: TOOL_ENUM.virtual_model,          // "virtual_model"
-                image: imageUrl,                        // single image URL
+                image_url: imageUrl,                        // single image URL
                 model_name: selectedModel,              // model id, e.g. "jordan"
                 pose: selectedPose,                     // pose id, e.g. "3_4_turn"
                 quality: QUALITY_ENUM[quality] || 'standard',
@@ -347,17 +414,17 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                     <div className="px-4 pt-4">
                         <button
                             onClick={() => setPickerOpen(true)}
-                            className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors"
+                            className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
                         >
                             <Upload className="w-4 h-4" />
-                            <span className="text-violet-600 font-semibold">Select from gallery</span>
+                            <span className="text-blue-600 font-semibold">Select from gallery</span>
                         </button>
                     </div>
 
                     {/* Uploaded thumb */}
                     {uploadedImage && (
                         <div className="px-4 pt-3">
-                            <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-violet-500">
+                            <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500">
                                 <img src={uploadedImage} alt="product" className="w-full h-full object-cover" />
                             </div>
                         </div>
@@ -370,7 +437,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                             <button
                                 ref={modelRef}
                                 onClick={() => toggle('model')}
-                                className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === 'model' ? 'bg-violet-50 ring-2 ring-violet-500' : 'bg-gray-100/70 hover:bg-gray-100'}`}
+                                className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === 'model' ? 'bg-blue-50 ring-2 ring-blue-500' : 'bg-gray-100/70 hover:bg-gray-100'}`}
                             >
                                 <div className="w-full h-40 rounded-xl overflow-hidden mb-2.5 bg-surface">
                                     <img src={modelObj?.img} alt={modelObj?.name} className="w-full h-full object-contain" />
@@ -383,7 +450,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                             <button
                                 ref={poseRef}
                                 onClick={() => toggle('pose')}
-                                className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === 'pose' ? 'bg-violet-50 ring-2 ring-violet-500' : 'bg-gray-100/70 hover:bg-gray-100'}`}
+                                className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === 'pose' ? 'bg-blue-50 ring-2 ring-blue-500' : 'bg-gray-100/70 hover:bg-gray-100'}`}
                             >
                                 <div className="w-full h-40 rounded-xl overflow-hidden mb-2.5 bg-surface">
                                     <img src={poseObj?.img} alt={poseObj?.name} className="w-full h-full object-contain" />
@@ -427,7 +494,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                         <button onClick={() => setApplyBrandStyle(p => !p)}
                             className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors">
                             <span className="text-gray-900 font-medium">Apply brand style</span>
-                            <span className={applyBrandStyle ? 'text-violet-600 font-semibold' : 'text-gray-500'}>{applyBrandStyle ? 'On' : 'Off'}</span>
+                            <span className={applyBrandStyle ? 'text-blue-600 font-semibold' : 'text-gray-500'}>{applyBrandStyle ? 'On' : 'Off'}</span>
                         </button>
 
                         {/* Prompt */}
@@ -455,7 +522,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
     disabled:opacity-60
     ${generating
                                     ? 'bg-gray-400'
-                                    : 'bg-linear-to-r from-violet-600 to-violet-500 hover:from-violet-700 hover:to-violet-600'
+                                    : 'bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600'
                                 }
   `}
                         >
@@ -488,7 +555,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                                     />
                                 </div>
                                 {/* stylish curved arrow */}
-                                <svg width="72" height="60" viewBox="0 0 72 60" fill="none" className="text-violet-500 shrink-0 -mt-6">
+                                <svg width="72" height="60" viewBox="0 0 72 60" fill="none" className="text-blue-500 shrink-0 -mt-6">
                                     <path d="M6 44 C 24 8, 50 8, 62 32" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
                                     <path d="M62 32 L51 28 M62 32 L55 42" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
@@ -508,7 +575,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                             {generating && (
                                 <div className="flex items-center justify-center py-12">
                                     <div className="flex flex-col items-center gap-3">
-                                        <Loader2 className="w-10 h-10 text-violet-500 animate-spin" />
+                                        <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
                                         <p className="text-gray-500 text-sm">Generating your virtual model…</p>
                                     </div>
                                 </div>
@@ -576,15 +643,15 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
             {openDropdown === 'model' && (
                 <FloatingPanel anchorRef={modelRef} width={310}>
                     <div className="grid grid-cols-4 gap-2 p-3">
-                        <button className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-lg h-24 text-gray-500 hover:border-violet-400 transition-colors">
+                        <button className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-lg h-24 text-gray-500 hover:border-blue-400 transition-colors">
                             <Plus className="w-5 h-5" />
                         </button>
                         {MODELS.map(m => (
                             <button key={m.id} onClick={() => { setSelectedModel(m.id); setOpenDropdown(null); }}
-                                className={`flex flex-col items-center p-1.5 rounded-lg border-2 transition-colors ${selectedModel === m.id ? 'border-violet-500' : 'border-transparent hover:border-gray-200'}`}>
+                                className={`flex flex-col items-center p-1.5 rounded-lg border-2 transition-colors ${selectedModel === m.id ? 'border-blue-500' : 'border-transparent hover:border-gray-200'}`}>
                                 <div className="w-14 h-20 bg-gray-100 rounded-lg overflow-hidden relative mb-1">
                                     <img src={m.img} alt={m.name} className="w-full h-full object-cover object-top" />
-                                    {selectedModel === m.id && <div className="absolute top-1 right-1 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
+                                    {selectedModel === m.id && <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
                                 </div>
                                 <span className="text-[10px] text-gray-500">{m.name}</span>
                             </button>
@@ -598,10 +665,10 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                     <div className="grid grid-cols-4 gap-2 p-3">
                         {POSES.map(p => (
                             <button key={p.id} onClick={() => { setSelectedPose(p.id); setOpenDropdown(null); }}
-                                className={`flex flex-col items-center p-1.5 rounded-lg border-2 transition-colors ${selectedPose === p.id ? 'border-violet-500' : 'border-transparent hover:border-gray-200'}`}>
+                                className={`flex flex-col items-center p-1.5 rounded-lg border-2 transition-colors ${selectedPose === p.id ? 'border-blue-500' : 'border-transparent hover:border-gray-200'}`}>
                                 <div className="w-14 h-20 bg-gray-100 rounded-lg overflow-hidden relative mb-1">
                                     <img src={p.img} alt={p.name} className="w-full h-full object-cover object-top" />
-                                    {selectedPose === p.id && <div className="absolute top-1 right-1 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
+                                    {selectedPose === p.id && <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
                                 </div>
                                 <span className="text-[10px] text-gray-500 text-center leading-tight">{p.name}</span>
                             </button>
@@ -617,7 +684,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                             const active = quality === t.id;
                             return (
                                 <button key={t.id} onClick={() => { setQuality(t.id); setOpenDropdown(null); }}
-                                    className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? 'border-violet-500 bg-violet-50/40' : 'border-gray-200 hover:border-gray-200 bg-surface'}`}>
+                                    className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? 'border-blue-500 bg-blue-50/40' : 'border-gray-200 hover:border-gray-200 bg-surface'}`}>
                                     <div className="w-20 h-28 rounded-xl overflow-hidden bg-gray-100 shrink-0">
                                         <img src={t.img} alt={t.name} className="w-full h-full object-cover object-top" />
                                     </div>
@@ -627,7 +694,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                                                 <span className="font-bold text-gray-900">{t.name}</span>
                                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${t.tagColor}`}>{t.tag}</span>
                                             </div>
-                                            <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? 'bg-violet-600' : 'border-2 border-gray-200'}`}>
+                                            <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? 'bg-blue-600' : 'border-2 border-gray-200'}`}>
                                                 {active && <span className="text-white text-[10px]">✓</span>}
                                             </span>
                                         </div>
@@ -652,11 +719,11 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                             return (
                                 <button key={b.id} onClick={() => { setBackground(b.id); setOpenDropdown(null); }}
                                     className="flex flex-col items-center gap-1.5">
-                                    <div className={`w-full h-20 rounded-xl overflow-hidden relative border-2 transition-colors ${active ? 'border-violet-500' : 'border-transparent hover:border-gray-200'}`}>
+                                    <div className={`w-full h-20 rounded-xl overflow-hidden relative border-2 transition-colors ${active ? 'border-blue-500' : 'border-transparent hover:border-gray-200'}`}>
                                         {b.img
                                             ? <img src={b.img} alt={b.name} className="w-full h-full object-cover" />
                                             : <div className="w-full h-full bg-gray-100 flex items-center justify-center"><Plus className="w-6 h-6 text-gray-500" /></div>}
-                                        {active && <div className="absolute top-1 right-1 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
+                                        {active && <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
                                     </div>
                                     <span className="text-[10px] text-gray-500 text-center leading-tight">{b.name}</span>
                                 </button>
@@ -703,10 +770,10 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                             const bh = s.h >= s.w ? maxDim : Math.round(maxDim * s.h / s.w);
                             return (
                                 <button key={s.id} onClick={() => { setSize(s.id); setOpenDropdown(null); }}
-                                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? 'border-violet-500 bg-violet-50/40' : 'border-gray-200 hover:border-gray-200'}`}>
+                                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? 'border-blue-500 bg-blue-50/40' : 'border-gray-200 hover:border-gray-200'}`}>
                                     <div className="flex items-center justify-center h-20 relative w-full">
-                                        <div className={`rounded-md ${active ? 'bg-violet-300' : 'bg-gray-100'}`} style={{ width: bw, height: bh }} />
-                                        {active && <div className="absolute top-0 right-0 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
+                                        <div className={`rounded-md ${active ? 'bg-blue-300' : 'bg-gray-100'}`} style={{ width: bw, height: bh }} />
+                                        {active && <div className="absolute top-0 right-0 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center"><span className="text-white text-[8px]">✓</span></div>}
                                     </div>
                                     <span className="text-[10px] text-gray-500 text-center leading-tight">{s.name}</span>
                                 </button>

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { uploadFile } from "@/(lib)/ai-helpers";
+import { generateProductPhoto } from "@/(lib)/product-photos-api";
+import MediaPickerModal from "@/app/(components)/MediaPickerModal";
+import { useAuth } from "@/context/AuthContext";
 import {
   X,
   Upload,
@@ -57,7 +59,7 @@ const TOOL_LIST = [
     id: "start",
     name: "Edit with AI",
     Icon: ImageIcon,
-    color: "bg-violet-100 text-violet-600",
+    color: "bg-blue-100 text-blue-600",
     img: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=240&q=80",
   },
   {
@@ -150,7 +152,7 @@ function ToolCard({ tool, active, onClick }) {
   return (
     <button
       onClick={() => onClick(tool.id)}
-      className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? "ring-2 ring-violet-500 bg-violet-50" : "bg-gray-100 hover:bg-gray-100"}`}
+      className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? "ring-2 ring-blue-500 bg-blue-50" : "bg-gray-100 hover:bg-gray-100"}`}
     >
       <span className="text-sm font-semibold text-gray-900 leading-tight self-center pl-3.5 flex-1">
         {tool.name}
@@ -276,12 +278,13 @@ function TemplateRow({ children }) {
 }
 
 export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
-  const fileInputRef = useRef(null);
+  const { activeBrand, uploadImage } = useAuth();
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
 
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // gallery/cloud URL of the picked image
   const [selectedTemplate, setSelectedTemplate] = useState("none");
   const [size, setSize] = useState("square");
   const [prompt, setPrompt] = useState("");
@@ -290,6 +293,7 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const [seeAllOpen, setSeeAllOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
+  const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
 
   const sizeObj = VIDEO_SIZES.find((s) => s.id === size);
 
@@ -305,24 +309,83 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
     onSwitchTool?.(id);
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploadedFile(file);
-    setUploadedImage(URL.createObjectURL(file));
+  // Image comes from the gallery picker (My Library / Search / Upload). We only
+  // use ONE image. A fresh desktop upload carries a File + a LOCAL blob: URL (not
+  // sendable to the backend), so we keep the File and leave the hosted URL null —
+  // it's uploaded on generate to get a real URL. A library/search pick already
+  // has a hosted URL we can send straight through.
+  const handleApplyFromPicker = (images = []) => {
+    const item = images[0];
+    if (!item) return;
+    if (item.file instanceof File) {
+      setUploadedFile(item.file);
+      setUploadedImage(item.src || URL.createObjectURL(item.file));
+      setUploadedFileUrl(null); // resolve a hosted URL on generate
+    } else {
+      const url = item.large || item.src || null;
+      if (!url) return;
+      setUploadedFile(null);
+      setUploadedImage(url);
+      setUploadedFileUrl(url); // already hosted
+    }
+    setPickerOpen(false);
   };
 
   const handleGenerate = async () => {
     if (!uploadedFile && !uploadedImage) {
-      toast.error("Please upload a product image first");
+      toast.error("Please select a product image first");
       return;
     }
     setGenerating(true);
+    setOpenDropdown(null);
     try {
-      if (uploadedFile) await uploadFile({ file: uploadedFile });
-      toast("Video generation is coming soon.");
-    } catch {
-      // upload helper surfaces its own error
+      // Resolve the ONE image URL to send. Picks from the gallery already have a
+      // hosted URL; a fresh local upload gets uploaded here to obtain one.
+      let imageUrl = uploadedFileUrl;
+      if (!imageUrl && uploadedFile) {
+        const uploaded = await uploadImage(uploadedFile);
+        console.log("🖼️ [video] upload response ←", uploaded);
+        imageUrl =
+          uploaded?.url ||
+          uploaded?.image_url ||
+          uploaded?.file_url ||
+          uploaded?.data?.url;
+        setUploadedFileUrl(imageUrl || null);
+      }
+      if (!imageUrl) {
+        toast.error("Please select a product image");
+        setGenerating(false);
+        return;
+      }
+
+      // Backend contract: POST /product-photos/generate (video). Matches the
+      // VirtualModel key style — single `image_url` — plus the video-only
+      // `template_id` and reduced `size` set (see docs/product-photos-payloads.md).
+      const payload = {
+        tool: "video",
+        image_url: imageUrl,
+        template_id: selectedTemplate, // "none" for no template, else a template id
+        size, // "square" | "portrait_9_16" | "landscape_16_9"
+        prompt: prompt || "",
+      };
+
+      const result = await generateProductPhoto(payload);
+
+      // Log the raw return so we can see its exact shape while consuming it.
+      // Video is async on the backend — it may return a job id rather than a URL.
+      console.log("🎬 [video] generate result ←", result);
+
+      const resultUrl = result?.url || result?.video_url || result?.data?.url;
+      if (resultUrl) {
+        toast.success("Video generated!");
+      } else if (result?.job_id) {
+        toast("Your video is processing — we'll notify you when it's ready.");
+      } else {
+        toast("Requested — check the console for the response shape.");
+      }
+    } catch (err) {
+      // generateProductPhoto already toasts a friendly error; log for debugging.
+      console.error("❌ [video] generate failed:", err);
     } finally {
       setGenerating(false);
     }
@@ -360,35 +423,26 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
               </button>
             </div>
 
-            {/* Upload */}
+            {/* Upload — opens the gallery picker (My Library / Search / Upload) */}
             <div className="px-4 pt-4">
               <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors"
+                onClick={() => setPickerOpen(true)}
+                className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
               >
                 <Upload className="w-4 h-4" />
-                Drop files or{" "}
-                <span className="text-violet-600 font-semibold">
-                  select images
+                <span className="text-blue-600 font-semibold">
+                  Select from gallery
                 </span>
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileChange}
-              />
               <p className="text-xs text-gray-500 leading-relaxed mt-2">
-                Increase product fidelity by adding up to four photos with
-                different angles
+                Pick a clear product photo to animate into a short video.
               </p>
             </div>
 
             {/* Uploaded thumb */}
             {uploadedImage && (
               <div className="px-4 pt-3">
-                <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-violet-500">
+                <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500">
                   <img
                     src={uploadedImage}
                     alt="product"
@@ -413,11 +467,11 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
                 {/* No template tile */}
                 <button
                   onClick={() => setSelectedTemplate("none")}
-                  className={`shrink-0 w-24 h-32 rounded-xl overflow-hidden relative flex items-center justify-center text-white text-xs font-medium bg-linear-to-br from-gray-700 to-gray-900 border-2 transition-colors ${selectedTemplate === "none" ? "border-violet-500" : "border-transparent"}`}
+                  className={`shrink-0 w-24 h-32 rounded-xl overflow-hidden relative flex items-center justify-center text-white text-xs font-medium bg-linear-to-br from-gray-700 to-gray-900 border-2 transition-colors ${selectedTemplate === "none" ? "border-blue-500" : "border-transparent"}`}
                 >
                   No template
                   {selectedTemplate === "none" && (
-                    <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-violet-600 rounded-full flex items-center justify-center">
+                    <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
                       <Check className="w-3 h-3 text-white" />
                     </span>
                   )}
@@ -426,7 +480,7 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
                   <button
                     key={t.id}
                     onClick={() => setSelectedTemplate(t.id)}
-                    className={`shrink-0 w-24 h-32 rounded-xl overflow-hidden relative border-2 transition-colors ${selectedTemplate === t.id ? "border-violet-500" : "border-transparent"}`}
+                    className={`shrink-0 w-24 h-32 rounded-xl overflow-hidden relative border-2 transition-colors ${selectedTemplate === t.id ? "border-blue-500" : "border-transparent"}`}
                   >
                     <img
                       src={t.img}
@@ -434,7 +488,7 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
                       className="w-full h-full object-cover object-top"
                     />
                     {selectedTemplate === t.id && (
-                      <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-violet-600 rounded-full flex items-center justify-center">
+                      <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
                         <Check className="w-3 h-3 text-white" />
                       </span>
                     )}
@@ -472,7 +526,7 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className={`w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 ${generating ? "bg-gray-400" : "bg-linear-to-r from-violet-600 to-violet-500 hover:from-violet-700 hover:to-violet-600"}`}
+              className={`w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 ${generating ? "bg-gray-400" : "bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"}`}
             >
               {generating ? (
                 <>
@@ -484,7 +538,7 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
             </button>
             <p className="text-center text-xs text-gray-500 mt-2.5">
               Generating videos will use{" "}
-              <span className="text-violet-600 font-medium">AI credits</span>.
+              <span className="text-blue-600 font-medium">AI credits</span>.
             </p>
           </div>
         </div>
@@ -512,7 +566,7 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
                 height="60"
                 viewBox="0 0 72 60"
                 fill="none"
-                className="text-violet-500 shrink-0 -mt-6"
+                className="text-blue-500 shrink-0 -mt-6"
               >
                 <path
                   d="M6 44 C 24 8, 50 8, 62 32"
@@ -611,15 +665,15 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
                     setSize(s.id);
                     setOpenDropdown(null);
                   }}
-                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? "border-violet-500 bg-violet-50/40" : "border-gray-200 hover:border-gray-200"}`}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-gray-200"}`}
                 >
                   <div className="flex items-center justify-center h-20 relative w-full">
                     <div
-                      className={`rounded-md ${active ? "bg-violet-300" : "bg-gray-100"}`}
+                      className={`rounded-md ${active ? "bg-blue-300" : "bg-gray-100"}`}
                       style={{ width: bw, height: bh }}
                     />
                     {active && (
-                      <div className="absolute top-0 right-0 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center">
+                      <div className="absolute top-0 right-0 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
                         <Check className="w-2.5 h-2.5 text-white" />
                       </div>
                     )}
@@ -675,7 +729,7 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
                       setSelectedTemplate(t.id);
                       setSeeAllOpen(false);
                     }}
-                    className={`aspect-[3/4] rounded-xl overflow-hidden relative border-2 transition-colors ${selectedTemplate === t.id ? "border-violet-500" : "border-transparent hover:border-gray-200"}`}
+                    className={`aspect-[3/4] rounded-xl overflow-hidden relative border-2 transition-colors ${selectedTemplate === t.id ? "border-blue-500" : "border-transparent hover:border-gray-200"}`}
                   >
                     <img
                       src={t.img}
@@ -683,7 +737,7 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
                       className="w-full h-full object-cover object-top"
                     />
                     {selectedTemplate === t.id && (
-                      <span className="absolute top-2 right-2 w-5 h-5 bg-violet-600 rounded-full flex items-center justify-center">
+                      <span className="absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
                         <Check className="w-3 h-3 text-white" />
                       </span>
                     )}
@@ -694,6 +748,16 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
           </div>
         </div>
       )}
+
+      {/* ── Gallery media picker — pick ONE image (My Library / Search / Upload) ── */}
+      <MediaPickerModal
+        isOpen={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onCancel={() => setPickerOpen(false)}
+        onApply={handleApplyFromPicker}
+        activeBrand={activeBrand}
+        maxSelectable={1}
+      />
     </div>
   );
 }

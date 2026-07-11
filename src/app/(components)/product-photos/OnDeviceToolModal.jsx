@@ -110,7 +110,7 @@ const TOOL_LIST = [
     id: "start",
     name: "Edit with AI",
     Icon: ImageIcon,
-    color: "bg-violet-100 text-violet-600",
+    color: "bg-blue-100 text-blue-600",
     img: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=240&q=80",
   },
   {
@@ -161,7 +161,7 @@ const QUALITY_TIERS = [
     id: "Ultra",
     name: "Premium",
     tag: "Ultra",
-    tagColor: "bg-violet-100 text-violet-700",
+    tagColor: "bg-blue-100 text-blue-700",
     img: px(6780091),
     features: [
       "4k+ resolution",
@@ -207,7 +207,7 @@ function ToolCard({ tool, active, onClick }) {
   return (
     <button
       onClick={() => onClick(tool.id)}
-      className={`w-full flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? "ring-2 ring-violet-500 bg-violet-50" : "bg-gray-100 hover:bg-gray-100"}`}
+      className={`w-full flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? "ring-2 ring-blue-500 bg-blue-50" : "bg-gray-100 hover:bg-gray-100"}`}
     >
       <span className="text-sm font-semibold text-gray-900 leading-tight self-center pl-3.5 flex-1">
         {tool.name}
@@ -595,7 +595,17 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   // payload to /product-photos/generate. Charging happens server-side; the
   // client (generateProductPhoto) surfaces 402/credits errors as toasts.
   const doGenerate = async () => {
-    if (!resultImage || generating) return;
+    if (generating) return;
+    // Validate before generating — mirror the other modals' "no image" toast so a
+    // click with nothing to work on gives clear feedback instead of doing nothing.
+    if (!uploadedImage && !resultImage) {
+      toast.error("Please select a product image first");
+      return;
+    }
+    if (!resultImage) {
+      toast.error("Please wait for your image to finish processing");
+      return;
+    }
     if (!isLoggedIn) {
       toast.error("Log in to generate a photorealistic render.");
       return;
@@ -621,7 +631,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
 
       const payload = {
         tool: TOOL_ENUM[config.toolId],
-        image: imageUrl,
+        image_url: imageUrl,
         quality: QUALITY_ENUM[quality] || "standard",
         size,
         apply_brand_style: applyBrandStyle,
@@ -747,10 +757,10 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
               <button
                 onClick={() => setPickerOpen(true)}
                 disabled={busy}
-                className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Upload className="w-4 h-4" />
-                <span className="text-violet-600 font-semibold">
+                <span className="text-blue-600 font-semibold">
                   Select from gallery
                 </span>
               </button>
@@ -758,7 +768,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
 
             {uploadedImage && (
               <div className="px-4 pt-3">
-                <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-violet-500">
+                <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500">
                   <img
                     src={uploadedImage}
                     alt="product"
@@ -815,7 +825,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                 <span
                   className={
                     applyBrandStyle
-                      ? "text-violet-600 font-semibold"
+                      ? "text-blue-600 font-semibold"
                       : "text-gray-500"
                   }
                 >
@@ -860,8 +870,8 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.18 }}
                   onClick={doGenerate}
-                  disabled={generating || !hasResult}
-                  className="w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 bg-linear-to-r from-violet-600 to-violet-500 hover:from-violet-700 hover:to-violet-600"
+                  disabled={generating}
+                  className="w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
                 >
                   {generating ? (
                     <>
@@ -913,7 +923,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                       height="60"
                       viewBox="0 0 72 60"
                       fill="none"
-                      className="text-violet-500 shrink-0 -mt-6"
+                      className="text-blue-500 shrink-0 -mt-6"
                     >
                       <path
                         d="M6 44 C 24 8, 50 8, 62 32"
@@ -964,7 +974,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                   </p>
                   <button
                     onClick={handleClear}
-                    className="mt-1 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700"
+                    className="mt-1 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
                   >
                     <RotateCcw className="h-4 w-4" /> Try another image
                   </button>
@@ -978,7 +988,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                   transition={{ duration: 0.2 }}
                   className="w-full max-w-md"
                 >
-                  <div className="relative aspect-square w-full overflow-hidden rounded-3xl bg-linear-to-br from-violet-50 to-indigo-50 dark:from-canvas dark:to-canvas shadow-inner">
+                  <div className="relative aspect-square w-full overflow-hidden rounded-3xl bg-linear-to-br from-blue-50 to-indigo-50 dark:from-canvas dark:to-canvas shadow-inner">
                     {uploadedImage && (
                       <img
                         src={uploadedImage}
@@ -998,7 +1008,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
                       <div className="relative flex items-center justify-center">
                         <motion.span
-                          className="absolute h-20 w-20 rounded-full border-2 border-violet-400/40"
+                          className="absolute h-20 w-20 rounded-full border-2 border-blue-400/40"
                           animate={{
                             scale: [1, 1.35, 1],
                             opacity: [0.6, 0, 0.6],
@@ -1010,20 +1020,20 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                           }}
                         />
                         <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/80 shadow-lg backdrop-blur">
-                          <Sparkles className="h-6 w-6 text-violet-600 animate-pulse" />
+                          <Sparkles className="h-6 w-6 text-blue-600 animate-pulse" />
                         </span>
                       </div>
                       <div className="flex flex-col items-center gap-1">
                         <span className="text-sm font-medium text-gray-700">
                           Working on your image…
                         </span>
-                        <span className="text-xs font-bold text-violet-600">
+                        <span className="text-xs font-bold text-blue-600">
                           {uploadProgress}%
                         </span>
                       </div>
                       <div className="w-40 h-1.5 rounded-full bg-white/50 overflow-hidden">
                         <motion.div
-                          className="h-full rounded-full bg-linear-to-r from-violet-500 to-indigo-500"
+                          className="h-full rounded-full bg-linear-to-r from-blue-500 to-indigo-500"
                           animate={{ width: `${Math.max(6, uploadProgress)}%` }}
                           transition={{ ease: "easeOut", duration: 0.4 }}
                         />
@@ -1063,7 +1073,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                     </div>
                   )}
                   {/* Fixed overlays — badge + back chip stay put while the image zooms */}
-                  <span className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-full bg-violet-600/90 px-2.5 py-1 text-[11px] font-semibold text-white shadow backdrop-blur pointer-events-none">
+                  <span className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1 text-[11px] font-semibold text-white shadow backdrop-blur pointer-events-none">
                     <Sparkles className="w-3 h-3" /> AI Generated
                   </span>
                   <button
@@ -1140,14 +1150,14 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
               <button
                 onClick={handleDownload}
                 disabled={!hasResult || busy}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Download className="w-3.5 h-3.5" /> Download
               </button>
               <button
                 onClick={doSave}
                 disabled={!hasResult || saving || busy}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-100 hover:border-violet-400 hover:text-violet-600 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-100 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {saving ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1159,7 +1169,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
               <button
                 onClick={handleClear}
                 disabled={(!uploadedImage && !hasResult) || busy}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-100 hover:border-violet-400 hover:text-violet-600 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-100 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Clear
               </button>
@@ -1260,7 +1270,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                 <button
                   key={t.id}
                   onClick={() => changeQuality(t.id)}
-                  className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? "border-violet-500 bg-violet-50/40" : "border-gray-200 hover:border-gray-200 bg-surface"}`}
+                  className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-gray-200 bg-surface"}`}
                 >
                   <div className="w-20 h-28 rounded-xl overflow-hidden bg-gray-100 shrink-0">
                     <img
@@ -1282,7 +1292,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                         </span>
                       </div>
                       <span
-                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? "bg-violet-600" : "border-2 border-gray-200"}`}
+                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? "bg-blue-600" : "border-2 border-gray-200"}`}
                       >
                         {active && (
                           <span className="text-white text-[10px]">✓</span>
@@ -1319,15 +1329,15 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                 <button
                   key={s.id}
                   onClick={() => changeSize(s.id)}
-                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? "border-violet-500 bg-violet-50/40" : "border-gray-200 hover:border-gray-200"}`}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-gray-200"}`}
                 >
                   <div className="flex items-center justify-center h-20 relative w-full">
                     <div
-                      className={`rounded-md ${active ? "bg-violet-300" : "bg-gray-100"}`}
+                      className={`rounded-md ${active ? "bg-blue-300" : "bg-gray-100"}`}
                       style={{ width: bw, height: bh }}
                     />
                     {active && (
-                      <div className="absolute top-0 right-0 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center">
+                      <div className="absolute top-0 right-0 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
                         <span className="text-white text-[8px]">✓</span>
                       </div>
                     )}

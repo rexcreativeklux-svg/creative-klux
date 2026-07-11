@@ -5,6 +5,7 @@ import useAiTool from "./useAiTool";
 import { removeBackground, disposeSegmentationWorker } from "../tasks/removeBackground";
 import { estimateDepth, disposeDepthWorker } from "../tasks/estimateDepth";
 import { fitToSize } from "../compose/fitToSize";
+import { createSourceCache } from "./sourceCache";
 import { SIZE_RATIOS, qualityToModelKey } from "./toolParams";
 
 /**
@@ -19,16 +20,19 @@ import { SIZE_RATIOS, qualityToModelKey } from "./toolParams";
  * Download/Save then capture the CURRENT 3D ANGLE instead of the flat frame
  * (this hook wraps the shared download/saveToGallery to check the ref first).
  *
- * Caching: cutout+depth are cached per quality tier, so a size-only change just
- * re-frames; a quality change re-runs the AI.
+ * Caching: cutout+depth are cached per (sourceKey, quality) — see
+ * sourceCache.js — so within the same source image a size-only change just
+ * re-frames and a cached quality restores instantly (rebuilding the 3D pair
+ * too); when the working image changes the caller bumps `params.sourceKey`
+ * and the AI correctly re-runs. `peekCached` lets the caller skip the skeleton.
  *
  * @param {(blob: Blob) => (boolean|Promise<boolean>)} [onSave]
  */
 export default function useGhostMannequin(onSave) {
   const [cutoutUrl, setCutoutUrl] = useState(null);
   const [depthUrl, setDepthUrl] = useState(null);
-  // { cutoutBlob, depthBlob } cached per quality tier.
-  const byQuality = useRef(new Map());
+  // (sourceKey, quality) → { cutoutBlob, depthBlob }.
+  const cacheRef = useRef(createSourceCache());
   // Set by Mannequin3DView while 3D is on: () => Promise<Blob> of the current angle.
   const angleExportRef = useRef(null);
   const setAngleExporter = useCallback((fn) => {
@@ -44,14 +48,14 @@ export default function useGhostMannequin(onSave) {
     disposeSegmentationWorker();
     disposeDepthWorker();
     setPair(null, null);
-    byQuality.current.clear();
+    cacheRef.current.clear();
   }, [setPair]);
 
   const run = useCallback(async (source, params, onProgress) => {
-    const { sizeId, quality, onCache } = params;
+    const { sizeId, quality, onCache, sourceKey = "default" } = params;
     const ratio = SIZE_RATIOS[sizeId] || SIZE_RATIOS.square;
 
-    let entry = byQuality.current.get(quality);
+    let entry = cacheRef.current.get(sourceKey, quality);
     if (!entry) {
       // 1) garment cutout — 0→40%
       const { blob: cutout } = await removeBackground(source, {
@@ -70,7 +74,7 @@ export default function useGhostMannequin(onSave) {
         console.warn("⚠️ mannequin: depth failed, showing flat cutout:", err?.message);
       }
       entry = { cutoutBlob: cutout, depthBlob: depth };
-      byQuality.current.set(quality, entry);
+      cacheRef.current.set(sourceKey, quality, entry);
     } else {
       onProgress({ pct: 85 });
     }
@@ -93,6 +97,13 @@ export default function useGhostMannequin(onSave) {
     downloadToast: "Preparing the AI engine — a one-time download, then it's instant.",
   });
   const { download: baseDownload, saveToGallery: baseSave, markSaved } = tool;
+
+  // True when a run for (sourceKey, quality) would restore from cache — the
+  // caller uses this to run "soft" (no processing skeleton, instant feel).
+  const peekCached = useCallback(
+    ({ sourceKey = "default", quality }) => cacheRef.current.has(sourceKey, quality),
+    [],
+  );
 
   // Download: the current 3D angle when the 3D view is live, else the flat result.
   const download = useCallback(
@@ -142,5 +153,5 @@ export default function useGhostMannequin(onSave) {
     [onSave, baseSave, markSaved],
   );
 
-  return { ...tool, download, saveToGallery, cutoutUrl, depthUrl, setAngleExporter };
+  return { ...tool, download, saveToGallery, cutoutUrl, depthUrl, setAngleExporter, peekCached };
 }

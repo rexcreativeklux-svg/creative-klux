@@ -27,10 +27,6 @@ export const ON_DEVICE_TOOLS = {
     defaultSize: "square",
     defaultQuality: "High",
     hasGenerate: true, // refine the on-device result to photoreal on the backend
-    // Background swatches make the framed blob change without a size/quality
-    // change, so the modal's per-size|quality cache would serve stale frames.
-    // The hook's own per-quality cache keeps re-runs instant anyway.
-    noResultCache: true,
     sample: {
       before: px(4856500),
       after: px(33245825),
@@ -89,9 +85,6 @@ export const ON_DEVICE_TOOLS = {
     defaultSize: "square",
     defaultQuality: "High",
     hasGenerate: true, // refine the arranged flat lay to photoreal on the backend
-    // Interactive layout: re-run on size/quality (don't restore a flat cached
-    // blob, which would lose the draggable layers).
-    noResultCache: true,
     // Item drags and the context menu must never pan the zoom surface.
     zoomExcluded: ["flatlay-item", "flatlay-menu"],
     sample: {

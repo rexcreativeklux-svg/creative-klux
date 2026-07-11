@@ -7,6 +7,7 @@ import { upscaleImage, disposeUpscaleWorker } from "../tasks/upscaleImage";
 import { enhanceImage, disposeEnhanceWorker } from "../tasks/enhanceImage";
 import { fitToSize, frameToRatio } from "../compose/fitToSize";
 import { extractProductColor, deriveBackgrounds } from "../compose/productPalette";
+import { createSourceCache } from "./sourceCache";
 import { SIZE_RATIOS, qualityToModelKey } from "./toolParams";
 
 /**
@@ -24,7 +25,11 @@ import { SIZE_RATIOS, qualityToModelKey } from "./toolParams";
  *      cheap re-compose — no AI re-run.
  *
  * Caching: the enhanced+upscaled photo, its cutout and the color analysis are
- * cached PER QUALITY tier, so size/background changes are instant.
+ * cached per (sourceKey, quality) — see sourceCache.js. Within the same source
+ * image, size/background/quality switches are instant; when the working image
+ * changes (new pick, adopted AI render) the caller bumps `params.sourceKey` and
+ * everything correctly re-runs. `peekCached({sourceKey, quality})` lets the
+ * caller know a re-run will be instant (so it can skip the processing skeleton).
  *
  * Extra state over the shared hook: `backgrounds` ({auto, swatches}),
  * `background` ("original" | "auto" | "transparent" | css color) and
@@ -33,11 +38,11 @@ import { SIZE_RATIOS, qualityToModelKey } from "./toolParams";
  * @param {(blob: Blob) => (boolean|Promise<boolean>)} [onSave]
  */
 export default function useProductBeautifier(onSave) {
-  // quality → { full, cutout, colorInfo } — full = enhanced+upscaled photo
-  // (background kept), cutout = the same pixels with the mask applied.
-  const byQuality = useRef(new Map());
+  // (sourceKey, quality) → { full, cutout, colorInfo } — full = enhanced+
+  // upscaled photo (background kept), cutout = same pixels with the mask applied.
+  const cacheRef = useRef(createSourceCache());
   const backgroundRef = useRef("original");
-  const lastParamsRef = useRef(null); // { sizeId, quality }
+  const lastParamsRef = useRef(null); // { sizeId, quality, sourceKey }
   const refitTokenRef = useRef(0); // discard superseded background re-composes
   const [background, setBackgroundState] = useState("original");
   const [backgrounds, setBackgrounds] = useState(null); // { auto, swatches }
@@ -46,14 +51,14 @@ export default function useProductBeautifier(onSave) {
     disposeSegmentationWorker();
     disposeUpscaleWorker();
     disposeEnhanceWorker();
-    byQuality.current.clear();
+    cacheRef.current.clear();
   }, []);
 
   const run = useCallback(async (source, params, onProgress) => {
-    const { sizeId, quality, onCache } = params;
-    lastParamsRef.current = { sizeId, quality };
+    const { sizeId, quality, onCache, sourceKey = "default" } = params;
+    lastParamsRef.current = { sizeId, quality, sourceKey };
 
-    let cached = byQuality.current.get(quality);
+    let cached = cacheRef.current.get(sourceKey, quality);
     if (!cached) {
       // 1) smart color enhance on the ORIGINAL photo (background kept) — 0→25%.
       //    Capped at the upscaler's 1024px input budget (see enhanceImage docs).
@@ -99,7 +104,7 @@ export default function useProductBeautifier(onSave) {
       }
 
       cached = { full, cutout, colorInfo };
-      byQuality.current.set(quality, cached);
+      cacheRef.current.set(sourceKey, quality, cached);
     } else {
       onProgress({ pct: 85 }); // reused the enhanced photo — jump ahead
     }
@@ -126,13 +131,20 @@ export default function useProductBeautifier(onSave) {
   });
   const { setResultBlob } = tool;
 
+  // True when a run for (sourceKey, quality) would restore from cache — the
+  // caller uses this to run "soft" (no processing skeleton, instant feel).
+  const peekCached = useCallback(
+    ({ sourceKey = "default", quality }) => cacheRef.current.has(sourceKey, quality),
+    [],
+  );
+
   // Swatch click: re-compose from the cached enhanced photo/cutout — instant.
   const setBackground = useCallback(
     async (next) => {
       backgroundRef.current = next;
       setBackgroundState(next);
       const params = lastParamsRef.current;
-      const cached = params && byQuality.current.get(params.quality);
+      const cached = params && cacheRef.current.get(params.sourceKey, params.quality);
       if (!cached) return;
       if (next !== "original" && !cached.cutout) return; // swatches need the cutout
       const token = (refitTokenRef.current += 1);
@@ -148,7 +160,7 @@ export default function useProductBeautifier(onSave) {
     [setResultBlob],
   );
 
-  return { ...tool, background, backgrounds, setBackground };
+  return { ...tool, background, backgrounds, setBackground, peekCached };
 }
 
 /**

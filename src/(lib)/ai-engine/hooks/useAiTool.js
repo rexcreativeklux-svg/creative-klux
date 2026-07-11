@@ -97,10 +97,17 @@ export default function useAiTool({
       const token = (tokenRef.current += 1);
       const isCurrent = () => token === tokenRef.current;
 
-      setResultBlob(null);
-      setProcessing(true);
-      setFailed(false);
-      setUploadProgress(0);
+      // Soft run: the tool told the caller this source+params combo is already
+      // cached (see each tool's `peekCached`), so the re-process lands in a
+      // moment. Keep the current result on screen — no skeleton, no flicker —
+      // and just swap the blob when it's ready.
+      const soft = !!params.soft;
+      if (!soft) {
+        setResultBlob(null);
+        setProcessing(true);
+        setFailed(false);
+        setUploadProgress(0);
+      }
 
       // Watchdog: if the engine makes NO progress for this long, it's hung (a
       // wedged worker, an unsupported device) — fail loudly instead of leaving
@@ -130,6 +137,7 @@ export default function useAiTool({
         if (!isCurrent()) return; // a newer run / cancel won
 
         setResultBlob(blob);
+        setFailed(false); // a soft run may be recovering from an earlier failure
         setIsDirty(true); // a fresh result is unsaved work
         console.log(`✅ ${filePrefix}: processed on-device`);
       } catch (err) {
@@ -138,11 +146,14 @@ export default function useAiTool({
         console.error(`❌ ${filePrefix}: processing failed:`, err);
         toast.error(`Failed — ${err?.message || "couldn't process this image"}. Please try another image.`);
         // Flag the failure so the UI shows a recovery state instead of a
-        // skeleton that never resolves.
-        setFailed(true);
-        processorRef.current.onError?.(err);
+        // skeleton that never resolves. A failed SOFT run keeps the current
+        // result on screen instead — nothing was taken away from the user.
+        if (!soft) {
+          setFailed(true);
+          processorRef.current.onError?.(err);
+        }
       } finally {
-        if (isCurrent()) setProcessing(false);
+        if (isCurrent() && !soft) setProcessing(false);
       }
     },
     [setResultBlob, handleProgress, filePrefix],
@@ -233,15 +244,25 @@ export default function useAiTool({
     [filePrefix, emptyMessage],
   );
 
-  // Cancel the in-flight run: bump the token so its result is discarded, and
-  // drop back to the empty state.
-  const cancel = useCallback(() => {
-    tokenRef.current += 1;
-    setResultBlob(null);
-    setProcessing(false);
-    setFailed(false);
-    setUploadProgress(0);
-  }, [setResultBlob]);
+  // Cancel the in-flight run: bump the token so its result is discarded.
+  // `restoreBlob` (optional) puts a previously completed result back on screen
+  // — the caller owns "what was last good" — otherwise the result is empty
+  // (the caller keeps its source image, so this is NOT a full reset).
+  const cancel = useCallback(
+    (restoreBlob = null) => {
+      tokenRef.current += 1;
+      setResultBlob(restoreBlob);
+      setProcessing(false);
+      setFailed(false);
+      setUploadProgress(0);
+    },
+    [setResultBlob],
+  );
+
+  // Synchronous access to the current full-res result blob. Callers that feed
+  // the result onward (e.g. the backend Generate upload) use this instead of
+  // fetching the object URL — which could be revoked mid-flight by a newer run.
+  const getResultBlob = useCallback(() => resultBlobRef.current, []);
 
   const reset = useCallback(() => {
     tokenRef.current += 1; // cancel any in-flight run
@@ -265,6 +286,7 @@ export default function useAiTool({
     download,
     cancel,
     reset,
+    getResultBlob,
     // Advanced: let a tool (e.g. Flat Lay) swap the result blob in place after
     // the user edits the on-screen composition, so Download/Save stay in sync.
     setResultBlob,

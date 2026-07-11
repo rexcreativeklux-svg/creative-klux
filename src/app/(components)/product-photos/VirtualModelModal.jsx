@@ -342,6 +342,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                 tool: TOOL_ENUM.virtual_model,          // "virtual_model"
                 image_url: imageUrl,                        // single image URL
                 model_name: selectedModel,              // model id, e.g. "jordan"
+                model_image_url: MODELS[selectedModel.toLocaleLowerCase()],
                 pose: selectedPose,                     // pose id, e.g. "3_4_turn"
                 quality: QUALITY_ENUM[quality] || 'standard',
                 size,                                   // aspect-ratio id

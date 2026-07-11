@@ -219,7 +219,7 @@ function FloatingPanel({ anchorRef, children, width = 320 }) {
   return (
     <div
       ref={panelRef}
-      className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
+      className="fixed z-200 bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
       style={{ top: pos.top, left: pos.left, width }}
       onClick={(e) => e.stopPropagation()}
     >

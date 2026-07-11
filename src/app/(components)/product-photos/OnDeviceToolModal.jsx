@@ -6,15 +6,34 @@
  * (ProductToolModal header switcher + quality/size dropdowns, BackgroundRemover
  * bottom toolbar + zoom) and drives an on-device engine hook underneath.
  *
+ * The whole modal revolves around ONE rule — the ACTIVE image:
+ *   AI render (when open) → on-device result → source photo.
+ * Whatever is on the canvas is what Download/Save export AND what the next
+ * operation (either engine) takes as input, so the view is always truthful.
+ *
  * Flow: pick an image from the gallery picker (My Library / Search / Upload,
- * single-select — same MediaPickerModal flow as VirtualModelModal) → auto-process
- * at the current size/quality → lively processing state with live % → result.
- * Changing quality/size re-processes (results cached per size+quality so
- * switching back is instant). The sidebar is locked while processing; a Cancel
- * button appears there during a run. Download / Save to gallery / Clear live in
- * the bottom toolbar with a zoom control; a prompt + "Generate photorealistic"
- * sends the prepped result to the real generate endpoint (charging is
- * server-side — the client only surfaces the 402/credits toast).
+ * single-select) → auto-process at the current size/quality → result. The two
+ * engines chain freely off the active image:
+ *   • "Generate photorealistic" sends the active image to the backend (the
+ *     on-device result when one exists, the raw source right after a Cancel,
+ *     or the previous AI render's hosted URL — no re-upload — for AI-on-AI
+ *     refinement with a new prompt). Charging is server-side; the client only
+ *     surfaces the 402/credits toast.
+ *   • While the AI render is open, changing size/quality (or "Continue
+ *     on-device") ADOPTS it: the render becomes the working source — a new
+ *     source generation — and the on-device pipeline re-processes it.
+ *   • "Back to preview" / "View AI render" flip between the AI render and the
+ *     on-device result instantly (nothing is recomputed or re-fetched).
+ *
+ * Caching accuracy: on-device results are cached inside each tool hook keyed by
+ * (source generation, quality) — see sourceCache.js. Switching back to an
+ * already-processed quality is instant, but ONLY while the underlying image is
+ * unchanged: after adopting an AI render the same quality correctly re-runs,
+ * because the pixels changed. Cached re-runs go "soft" (no skeleton flash).
+ *
+ * Cancel never discards the user's image: canceling a run restores the last
+ * completed result (reverting size/quality to match it), or falls back to the
+ * source photo in a ready state; canceling a Generate just drops the response.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -42,6 +61,7 @@ import {
   Shirt,
   LayoutGrid,
   Video,
+  Wand2,
 } from "lucide-react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { useAuth } from "@/context/AuthContext";
@@ -70,6 +90,38 @@ async function fetchImageBlob(url) {
     if (!res.ok) throw new Error(`Proxy fetch failed: HTTP ${res.status}`);
     return await res.blob();
   }
+}
+
+/**
+ * Revoke an object URL — no-op for hosted (http/data) URLs. Object URLs live in
+ * exactly ONE place at a time here (the working source preview), so the only
+ * release sites are: replacing the source (new pick / AI adoption), Clear, and
+ * unmount.
+ */
+function releaseUrl(url) {
+  if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
+}
+
+/**
+ * Decode an image URL before swapping it on-screen so the reveal is instant and
+ * complete (no half-loaded paint). Resolves regardless after a timeout — worst
+ * case the <img> finishes loading in place.
+ */
+function preloadImage(url) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(done, 8000);
+    const img = new Image();
+    img.onload = done;
+    img.onerror = done;
+    img.src = url;
+  });
 }
 
 // Pexels CDN helper for the quality-tier card thumbnails (matches ProductToolModal).
@@ -374,8 +426,10 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
 
-  const [uploadedImage, setUploadedImage] = useState(null); // preview URL of source
+  // ── The working source: what the on-device pipeline consumes ──
+  const [uploadedImage, setUploadedImage] = useState(null); // preview URL — object URL for fresh uploads, hosted URL for gallery picks / adopted AI renders
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [sourceKind, setSourceKind] = useState("upload"); // "upload" | "ai" — is the working source an adopted AI render?
   const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
   const [size, setSize] = useState(defaultSize);
   const [quality, setQuality] = useState(defaultQuality);
@@ -385,13 +439,27 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   const [prompt, setPrompt] = useState("");
   const [applyBrandStyle, setApplyBrandStyle] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState(null); // hosted URL from Generate
+  const [generatedImage, setGeneratedImage] = useState(null); // hosted URL from Generate — the AI render view when set
+  const [parkedAiUrl, setParkedAiUrl] = useState(null); // "Back to preview" parks the render here so "View AI render" can flip back instantly
+  const [adopting, setAdopting] = useState(false); // fetching the AI render so on-device editing can continue from it
   const [zoomPct, setZoomPct] = useState(100); // readout only — RZPP owns the transform
   const zoomRef = useRef(null); // react-zoom-pan-pinch instance
 
-  // Cache of already-computed results, keyed by `${size}|${quality}`, so switching
-  // back to a setting we've already processed is instant (no fresh run).
-  const cacheRef = useRef(new Map());
+  // Source GENERATION id — bumps whenever the working image's pixels change (new
+  // pick, adopted AI render, clear). Every on-device cache is keyed by it (see
+  // sourceCache.js), which is what makes cached switches accurate: a cached
+  // quality is instant only while it's truly the same picture.
+  const sourceIdRef = useRef(0);
+  // The last COMPLETED on-device run — Cancel restores it (blob + the settings
+  // that produced it) instead of throwing the user's work away.
+  const lastGoodRef = useRef(null); // { blob, sourceId, size, quality }
+  // Stale-guards: bumping a token makes any in-flight response a no-op.
+  const generateTokenRef = useRef(0);
+  const adoptTokenRef = useRef(0);
+  const adoptPrevRef = useRef(null); // { size, quality } to revert if adoption is canceled/fails
+  // Mirror for unmount cleanup (the cleanup closure would otherwise see the
+  // first render's value and leak the final object URL).
+  const uploadedImageRef = useRef(null);
 
   const handleSave = async (blob) => {
     if (!isLoggedIn) return false;
@@ -415,40 +483,65 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   } = tool;
 
   const sizeObj = SIZES.find((s) => s.id === size);
-  const busy = processing;
+  const busy = processing || adopting; // the on-device pipeline is (re)building
+  const locked = busy || generating; // either engine is working — options locked
+
+  // The ACTIVE image — what the canvas shows, what Download/Save export, and
+  // what the next operation (either engine) takes as input.
+  const activeKind = generatedImage
+    ? "ai"
+    : resultImage
+      ? "local"
+      : uploadedImage
+        ? "source"
+        : null;
 
   const closeMenus = () => {
     setOpenDropdown(null);
     setToolMenuOpen(false);
   };
 
-  // Process (or restore from cache) at a given size/quality. Tools with an
-  // interactive result (Flat Lay) opt out of the blob cache — they must re-run so
-  // their live layer state is rebuilt, not a stale flattened image.
+  // Process the working source at a given size/quality. Caching lives INSIDE
+  // each tool hook, keyed by (source generation, quality): when the tool says
+  // this combo is already cached (peekCached), the run goes "soft" — the
+  // current result stays on screen and just swaps when ready (no skeleton
+  // flash); a fresh combo shows the full processing state. Flat Lay never
+  // caches (its interactive layers must be rebuilt), so it always runs hard.
   const process = (file, nextSize, nextQuality) => {
-    const key = `${nextSize}|${nextQuality}`;
-    if (!config.noResultCache) {
-      const cached = cacheRef.current.get(key);
-      if (cached) {
-        tool.setResultBlob?.(cached);
-        return;
-      }
-    }
-    toast.info(`Processing your ${title.toLowerCase()}…`);
+    const sourceKey = sourceIdRef.current;
+    const soft = !!tool.peekCached?.({ sourceKey, quality: nextQuality });
+    if (!soft) toast.info(`Processing your ${title.toLowerCase()}…`);
     run(file, {
       sizeId: nextSize,
       quality: nextQuality,
-      onCache: config.noResultCache ? undefined : (blob) => cacheRef.current.set(key, blob),
+      sourceKey,
+      soft,
+      // Every completed run reports its blob — it's what Cancel restores.
+      onCache: (blob) => {
+        lastGoodRef.current = {
+          blob,
+          sourceId: sourceKey,
+          size: nextSize,
+          quality: nextQuality,
+        };
+      },
     });
   };
 
   // Kick off processing for a freshly picked File (from either picker path).
+  // A brand-new source = a new source generation: caches keyed to the old image
+  // can never be served for it, and any AI render belongs to the previous chain.
   const startWithFile = (file, previewUrl) => {
-    cacheRef.current.clear();
+    sourceIdRef.current += 1;
+    generateTokenRef.current += 1; // a pending Generate targets the old image — drop it
+    setGenerating(false);
+    lastGoodRef.current = null;
+    setSourceKind("upload");
     setGeneratedImage(null);
+    setParkedAiUrl(null);
     setUploadedFile(file);
     setUploadedImage((prev) => {
-      if (prev) URL.revokeObjectURL(prev); // no-op for non-object URLs
+      releaseUrl(prev);
       return previewUrl || URL.createObjectURL(file);
     });
     process(file, size, quality);
@@ -482,19 +575,88 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     }
   };
 
-  // Quality/size change → re-process ASAP (or restore from cache). Blocked while
-  // busy (the controls are disabled then anyway).
+  // Continue editing the AI render on-device: it becomes the working source —
+  // a NEW source generation, so nothing cached for the previous image can ever
+  // be served for it — then the pipeline re-processes it at the requested
+  // settings. The fetch is cancellable; on failure nothing is lost (the AI
+  // view stays exactly as it was, settings reverted).
+  const adoptGenerated = async (nextSize, nextQuality) => {
+    const url = generatedImage;
+    if (!url || adopting) return;
+    const token = (adoptTokenRef.current += 1);
+    adoptPrevRef.current = { size, quality };
+    setSize(nextSize);
+    setQuality(nextQuality);
+    setAdopting(true);
+    toast.info("Continuing from the AI render — bringing it on-device…");
+    try {
+      const blob = await fetchImageBlob(url);
+      if (token !== adoptTokenRef.current) return; // canceled — AI view untouched
+      const file = new File([blob], `${config.filePrefix}-ai-${Date.now()}.png`, {
+        type: blob.type || "image/png",
+      });
+      sourceIdRef.current += 1;
+      lastGoodRef.current = null; // the previous result belongs to the old source
+      setSourceKind("ai");
+      setUploadedFile(file);
+      setUploadedImage((prev) => {
+        releaseUrl(prev);
+        return url; // hosted URL — doubles as the source thumb
+      });
+      setGeneratedImage(null);
+      setParkedAiUrl(null); // the render IS the source now — nothing to flip back to
+      setAdopting(false);
+      process(file, nextSize, nextQuality);
+    } catch (err) {
+      if (token !== adoptTokenRef.current) return;
+      console.error(`❌ [${config.toolId}] couldn't fetch the AI render for on-device editing:`, err);
+      toast.error("Couldn't load the AI render for on-device editing — please try again.");
+      const prev = adoptPrevRef.current;
+      if (prev) {
+        setSize(prev.size);
+        setQuality(prev.quality);
+      }
+      setAdopting(false);
+    }
+  };
+
+  // Quality/size change → re-process ASAP (soft-restored from cache when this
+  // source+quality already ran). While the AI render is open, changing a
+  // setting means "keep going from THIS image" — it adopts the render first.
   const changeQuality = (q) => {
-    setQuality(q);
     setOpenDropdown(null);
-    setGeneratedImage(null); // settings changed — back to the live preview
-    if (uploadedFile && !busy) process(uploadedFile, size, q);
+    if (locked) return; // controls are disabled then anyway
+    if (generatedImage) {
+      adoptGenerated(size, q);
+      return;
+    }
+    setQuality(q);
+    if (uploadedFile) process(uploadedFile, size, q);
   };
   const changeSize = (s) => {
-    setSize(s);
     setOpenDropdown(null);
+    if (locked) return;
+    if (generatedImage) {
+      adoptGenerated(s, quality);
+      return;
+    }
+    setSize(s);
+    if (uploadedFile) process(uploadedFile, s, quality);
+  };
+
+  // Park the AI render and show the on-device result (or source) again —
+  // instant, nothing is recomputed, and the render stays one click away.
+  const backToPreview = () => {
+    if (!generatedImage || locked) return;
+    setParkedAiUrl(generatedImage);
     setGeneratedImage(null);
-    if (uploadedFile && !busy) process(uploadedFile, s, quality);
+  };
+
+  // Bring the parked AI render back on top — instant (the image is cached).
+  const viewAiRender = () => {
+    if (!parkedAiUrl || locked) return;
+    setGeneratedImage(parkedAiUrl);
+    setParkedAiUrl(null);
   };
 
   const handleToolClick = (id) => {
@@ -503,27 +665,61 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     onSwitchTool?.(id);
   };
 
+  // Cancel whatever is in flight — the user's image is NEVER discarded:
+  //  • adopting: abort the fetch; the AI view never left, settings revert.
+  //  • generating: drop the pending response; the current view is untouched.
+  //  • processing: restore the last completed result for THIS source (and the
+  //    settings that produced it, re-processed soft so tool state like swatches
+  //    stays truthful), or fall back to the source photo in a ready state.
   const handleCancel = () => {
-    cancel();
-    setUploadedFile(null);
-    setUploadedImage((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-    cacheRef.current.clear();
-    setGeneratedImage(null);
-    toast("Canceled — pick another image.");
+    if (adopting) {
+      adoptTokenRef.current += 1;
+      setAdopting(false);
+      const prev = adoptPrevRef.current;
+      if (prev) {
+        setSize(prev.size);
+        setQuality(prev.quality);
+      }
+      toast("Canceled — still on the AI render.");
+      return;
+    }
+    if (generating) {
+      generateTokenRef.current += 1; // the late response will be ignored
+      setGenerating(false);
+      toast("Generation canceled — your current image is untouched.");
+      return;
+    }
+    const good = lastGoodRef.current;
+    const restorable = good && good.sourceId === sourceIdRef.current;
+    cancel(restorable ? good.blob : null);
+    if (restorable && uploadedFile) {
+      setSize(good.size);
+      setQuality(good.quality);
+      process(uploadedFile, good.size, good.quality);
+      toast("Canceled — back to your previous result.");
+    } else {
+      zoomRef.current?.resetTransform(0);
+      setZoomPct(100);
+      toast("Canceled — your image is still here. Re-run on-device or generate with AI.");
+    }
   };
 
   const handleClear = () => {
+    generateTokenRef.current += 1; // drop any in-flight generate/adoption
+    adoptTokenRef.current += 1;
+    setGenerating(false);
+    setAdopting(false);
     reset();
     setUploadedFile(null);
     setUploadedImage((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
+      releaseUrl(prev);
       return null;
     });
-    cacheRef.current.clear();
     setGeneratedImage(null);
+    setParkedAiUrl(null);
+    setSourceKind("upload");
+    lastGoodRef.current = null;
+    sourceIdRef.current += 1; // caches keyed to the cleared image are dead
   };
 
   // Download whatever is visible: the AI-generated render when shown, otherwise

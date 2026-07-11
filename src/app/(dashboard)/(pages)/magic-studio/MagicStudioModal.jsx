@@ -448,6 +448,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     const err = config.validate?.({ input: primaryInput, values });
     if (err) {
       setError(err);
+      toast.error(err);
       return;
     }
     setError("");
@@ -462,9 +463,16 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
         toast("Nothing came back — try adjusting your inputs.");
       }
     } catch (e) {
+      // generateMagicStudio already surfaces a friendly toast; keep an in-modal
+      // banner for context and log for debugging. Clearing `generating` in the
+      // finally block dismisses the processing state so the user can retry.
       console.error(`❌ [magic-studio:${categoryId}] generate failed:`, e);
-      setError(e?.message || "Generation failed. Please try again.");
-      toast.error(e?.message || "Generation failed. Please try again.");
+      const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        "Generation failed. Please try again.";
+      setError(msg);
     } finally {
       setGenerating(false);
     }
@@ -562,11 +570,11 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
               </div>
 
               {/* Error */}
-              {error && (
+              {/* {error && (
                 <div className="mx-4 mt-3 flex items-start gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
                   <X className="w-3.5 h-3.5 mt-0.5 shrink-0" /> {error}
                 </div>
-              )}
+              )} */}
 
               {/* ── Primary input ── */}
               <div className="px-4 pt-4">

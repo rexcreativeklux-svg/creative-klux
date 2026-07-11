@@ -21,6 +21,20 @@ export const TOOL_ENUM = {
   mannequin: "ghost_mannequin",
 };
 
+// Get the active brand id from local storage (if any) and include it in the request payload. This is used to apply the brand style to the generated product photo.
+// export function getBrandIdFromLocalStorage() {
+//   try {
+//     const activeBrand = localStorage.getItem("activeBrand");
+//     console.log("Retrieved activeBrand from localStorage:", activeBrand);
+//   } catch (err) {
+//     console.error("Failed to read activeBrandId from localStorage:", err);
+//     return null;
+//   }
+// }
+
+// getBrandIdFromLocalStorage();
+
+
 /** UI quality tiers → backend quality strings. */
 export const QUALITY_ENUM = { Standard: "standard", High: "high", Ultra: "ultra" };
 
@@ -34,6 +48,8 @@ const BASE_URL = "https://api.creativeklux.com/api/creativeklux-userend";
  */
 export async function generateProductPhoto(payload) {
   console.log("📡 [product-photos/generate] request →", payload);
+  const activeBrand = localStorage.getItem("activeBrand");
+  console.log("Retrieved activeBrand from localStorage:", activeBrand);
   try {
     const { data } = await api.post(`${BASE_URL}/product-photos/generate`, payload);
     console.log("✅ [product-photos/generate] response ←", data);

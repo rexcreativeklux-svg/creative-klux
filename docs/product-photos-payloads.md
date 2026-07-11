@@ -251,3 +251,74 @@ Keep the current convention the front-end already handles:
 - Any other error → generic "generation failed" toast.
 
 Return a clear `message` field on errors for debugging.
+
+
+Text to Image
+{
+  "type": "text_to_image",
+  "style": "cinematic",
+  "ratio": "1:1",
+  "prompt" ""
+}
+
+Text to Video
+{
+  "type": "text_to_video",
+  "style": "cinematic",
+  "ratio": "1:1",
+  "duration": "",
+  "prompt": ""
+}
+
+Image Variations
+{
+  "type": "image_variation",
+  "style": "sketch",
+  "source_image": "",
+}
+
+Script to Voiceover
+{
+  "type": "script_to_voiceover",
+  "style": "deep_male",
+  "narration_tone": "",
+  "speaking_pace": "",
+  "ratio": "",
+  "export_format": ""
+  "prompt": ""
+}
+
+Audio to Text
+{
+  "type": "audio_to_text",
+  "audio_file": "",
+  "language": "",
+  "transcript_format": "",
+  "transcript_quality": "",
+}
+
+Text to Audio
+{
+  "type": "text_to_audio",
+  "style": "cinematic",
+  "speaking_tone": "",
+  "speaking_speed": "",
+  "export_format": "",
+  "audio_quality": ""
+  "prompt": ""
+}
+
+Persona Generator
+{
+  "type": "persona_generator",
+  "name": "",
+  "age": "",
+  "occupation": "",
+  "communication_tone": "",
+  "content_type": ""
+  "ratio": ""
+}
+
+
+
+Increase number, 

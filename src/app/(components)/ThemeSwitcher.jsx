@@ -35,7 +35,7 @@ export default function ThemeSwitcher({ collapsed = false }) {
             aria-pressed={active}
             className={`flex items-center justify-center w-7 h-7 rounded-full transition-all cursor-pointer ${
               active
-                ? "bg-violet-600 text-white shadow-sm"
+                ? "bg-blue-600 text-white shadow-sm"
                 : "text-gray-400 hover:text-gray-600 hover:bg-gray-200"
             }`}
           >

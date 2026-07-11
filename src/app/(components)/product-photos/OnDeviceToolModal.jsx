@@ -722,8 +722,9 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     sourceIdRef.current += 1; // caches keyed to the cleared image are dead
   };
 
-  // Download whatever is visible: the AI-generated render when shown, otherwise
-  // the on-device result (full-res transparent PNG).
+  // Download the ACTIVE image: AI render → on-device result (full-res PNG) →
+  // the source photo itself (e.g. right after a Cancel). What you see is
+  // exactly what you get.
   const handleDownload = async () => {
     if (generatedImage) {
       try {
@@ -739,23 +740,40 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
       }
       return;
     }
-    download("hd", "png", "transparent");
+    if (resultImage) {
+      download("hd", "png", "transparent");
+      return;
+    }
+    if (uploadedFile || uploadedImage) {
+      try {
+        const blob = uploadedFile || (await fetchImageBlob(uploadedImage));
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${config.filePrefix}-source-${Date.now()}.png`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (err) {
+        console.error(`❌ [${config.toolId}] source download failed:`, err);
+        toast.error("Couldn't download the image.");
+      }
+    }
   };
 
-  // Save whatever is visible: the AI-generated render when shown (fetched +
-  // re-uploaded into the user's gallery), otherwise the on-device result.
-  // Guests aren't dead-ended: the result is stashed (CacheStorage) and they're
+  // Save the ACTIVE image: the AI render when shown (fetched + re-uploaded into
+  // the user's gallery), the on-device result, or the source photo itself.
+  // Guests aren't dead-ended: the image is stashed (CacheStorage) and they're
   // sent to log in with a returnTo that resumes + completes the save.
   const doSave = async () => {
     if (!isLoggedIn) {
-      if (!hasResult) {
+      if (!activeKind) {
         toast.error("Log in to save to your gallery.");
         return;
       }
       try {
         const blob = generatedImage
           ? await fetchImageBlob(generatedImage)
-          : await fetch(resultImage).then((r) => r.blob());
+          : tool.getResultBlob?.() || uploadedFile;
+        if (!blob) throw new Error("nothing to stash");
         await stashPendingSave(blob, { toolId: config.toolId, size, quality });
         toast.info("Log in to finish saving — we'll bring you right back.");
         router.push(
@@ -774,9 +792,12 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
         const blob = await fetchImageBlob(generatedImage);
         await handleSave(blob);
         toast.success("Saved to gallery");
-      } else {
+      } else if (resultImage) {
         const saved = await tool.saveToGallery("transparent");
         if (saved !== false) toast.success("Saved to gallery");
+      } else if (uploadedFile) {
+        await handleSave(uploadedFile);
+        toast.success("Saved to gallery");
       }
     } catch (err) {
       console.error("❌ save failed:", err);
@@ -786,44 +807,53 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     }
   };
 
-  // Generate (photoreal refinement) — same contract as VirtualModelModal: upload
-  // the current on-device result to get a hosted URL, then POST the structured
-  // payload to /product-photos/generate. Charging happens server-side; the
-  // client (generateProductPhoto) surfaces 402/credits errors as toasts.
+  // Generate (photoreal refinement) — the ACTIVE image is the input:
+  //  • AI render open   → its hosted URL is sent directly (no re-upload round-
+  //    trip) — AI-on-AI refinement, e.g. with a new prompt.
+  //  • on-device result → uploaded to get a hosted URL, then generated from
+  //    (same contract as VirtualModelModal).
+  //  • source only (e.g. right after Cancel) → the picked photo itself is
+  //    uploaded and generated from — canceling on-device never blocks the API.
+  // Cancellable: a bumped token makes the late response a no-op. Charging is
+  // server-side; generateProductPhoto surfaces 402/credits errors as toasts.
   const doGenerate = async () => {
-    if (generating) return;
-    // Validate before generating — mirror the other modals' "no image" toast so a
-    // click with nothing to work on gives clear feedback instead of doing nothing.
-    if (!uploadedImage && !resultImage) {
+    if (generating || busy) return;
+    // Mirror the other modals' "no image" toast so a click with nothing to
+    // work on gives clear feedback instead of doing nothing.
+    if (!activeKind) {
       toast.error("Please select a product image first");
-      return;
-    }
-    if (!resultImage) {
-      toast.error("Please wait for your image to finish processing");
       return;
     }
     if (!isLoggedIn) {
       toast.error("Log in to generate a photorealistic render.");
       return;
     }
+    const token = (generateTokenRef.current += 1);
     setGenerating(true);
     setOpenDropdown(null);
     try {
-      const blob = await fetch(resultImage).then((r) => r.blob());
-      const file = new File(
-        [blob],
-        `${config.filePrefix}-src-${Date.now()}.png`,
-        { type: "image/png" },
-      );
-      const uploaded = await uploadImage(file);
-      console.log(`🖼️ [${config.toolId}] upload response ←`, uploaded);
-      const imageUrl =
-        uploaded?.url ||
-        uploaded?.image_url ||
-        uploaded?.file_url ||
-        uploaded?.data?.url;
-      if (!imageUrl)
-        throw new Error("Couldn't get an image URL for generation.");
+      let imageUrl;
+      if (activeKind === "ai") {
+        imageUrl = generatedImage; // already hosted by the backend — reuse as-is
+      } else {
+        const blob =
+          activeKind === "local" ? tool.getResultBlob?.() : uploadedFile;
+        if (!blob) throw new Error("Couldn't read the current image.");
+        const file = new File(
+          [blob],
+          `${config.filePrefix}-src-${Date.now()}.png`,
+          { type: blob.type || "image/png" },
+        );
+        const uploaded = await uploadImage(file);
+        console.log(`🖼️ [${config.toolId}] upload response ←`, uploaded);
+        imageUrl =
+          uploaded?.url ||
+          uploaded?.image_url ||
+          uploaded?.file_url ||
+          uploaded?.data?.url;
+        if (!imageUrl)
+          throw new Error("Couldn't get an image URL for generation.");
+      }
 
       const payload = {
         tool: TOOL_ENUM[config.toolId],
@@ -835,9 +865,13 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
       };
       const result = await generateProductPhoto(payload);
       console.log(`🎨 [${config.toolId}] generate result ←`, result);
+      if (token !== generateTokenRef.current) return; // canceled/superseded — drop it
 
       const resultUrl = result?.url || result?.image_url || result?.data?.url;
       if (resultUrl) {
+        await preloadImage(resultUrl); // decode first — the reveal is instant
+        if (token !== generateTokenRef.current) return;
+        setParkedAiUrl(null); // a fresh render supersedes any parked one
         setGeneratedImage(resultUrl);
         toast.success("Image generated!");
       } else {
@@ -847,16 +881,16 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
       // generateProductPhoto already toasts a friendly error; log for debugging.
       console.error(`❌ [${config.toolId}] generate failed:`, err);
     } finally {
-      setGenerating(false);
+      if (token === generateTokenRef.current) setGenerating(false);
     }
   };
 
-  useEffect(
-    () => () => {
-      if (uploadedImage) URL.revokeObjectURL(uploadedImage);
-    },
-    [],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+  // Unmount cleanup via a ref mirror — a [] cleanup closure would only ever see
+  // the first render's (null) URL and leak the final object URL.
+  useEffect(() => {
+    uploadedImageRef.current = uploadedImage;
+  }, [uploadedImage]);
+  useEffect(() => () => releaseUrl(uploadedImageRef.current), []);
 
   const hasResult = !!resultImage;
   const showEmpty = !uploadedImage && !hasResult && !busy && !failed;
@@ -870,16 +904,17 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
       return next === prev ? prev : next;
     });
 
-  // Fit-to-view whenever new content lands so everything is visible at once
-  // (e.g. all flat-lay items right after they separate).
+  // Fit-to-view whenever the visible content changes surface (result lands, AI
+  // render opens/closes, source-ready view mounts) so everything is visible at
+  // once (e.g. all flat-lay items right after they separate).
   useEffect(() => {
-    if (!resultImage && !generatedImage) return;
+    if (!resultImage && !generatedImage && !uploadedImage) return;
     const id = requestAnimationFrame(() => {
       zoomRef.current?.resetTransform(0);
       setZoomPct(100);
     });
     return () => cancelAnimationFrame(id);
-  }, [resultImage, generatedImage]);
+  }, [resultImage, generatedImage, uploadedImage]);
 
   // Resume a guest save-after-login: if this tool stashed a pending save
   // before redirecting to /login (see doSave), restore the result and — now
@@ -962,14 +997,21 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
               </button>
             </div>
 
-            {uploadedImage && (
+            {/* Working-image thumb — always the ACTIVE image (the AI render when
+                it's open, else the source), badged when it came from the AI. */}
+            {(generatedImage || uploadedImage) && (
               <div className="px-4 pt-3">
-                <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500">
+                <div className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500">
                   <img
-                    src={uploadedImage}
+                    src={generatedImage || uploadedImage}
                     alt="product"
                     className="w-full h-full object-cover"
                   />
+                  {(generatedImage || sourceKind === "ai") && (
+                    <span className="absolute bottom-0.5 right-0.5 rounded bg-blue-600/90 px-1 text-[9px] font-bold text-white leading-tight pointer-events-none">
+                      AI
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -979,10 +1021,10 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
               <button
                 ref={qualityRef}
                 onClick={() =>
-                  !busy &&
+                  !locked &&
                   setOpenDropdown((d) => (d === "quality" ? null : "quality"))
                 }
-                disabled={busy}
+                disabled={locked}
                 className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="text-gray-900 font-medium">Quality</span>
@@ -997,22 +1039,22 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
               <button
                 ref={sizeRef}
                 onClick={() =>
-                  !busy &&
+                  !locked &&
                   setOpenDropdown((d) => (d === "size" ? null : "size"))
                 }
-                disabled={busy}
+                disabled={locked}
                 className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="text-gray-900 font-medium">Size</span>
                 <span className="text-gray-500">{sizeObj?.name}</span>
               </button>
 
-              {renderExtra?.({ tool, busy, quality, size })}
+              {renderExtra?.({ tool, busy: locked, quality, size })}
 
               {/* Brand style — required payload field for Generate. */}
               <button
-                onClick={() => !busy && setApplyBrandStyle((p) => !p)}
-                disabled={busy}
+                onClick={() => !locked && setApplyBrandStyle((p) => !p)}
+                disabled={locked}
                 className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="text-gray-900 font-medium">
@@ -1043,10 +1085,12 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
             </div>
           </div>
 
-          {/* Pinned footer — Generate (when the tool supports it) / Cancel (while processing) */}
+          {/* Pinned footer — Generate (when the tool supports it), or Cancel
+              while ANY engine is working (on-device run, AI-render adoption,
+              or backend generate — the label shows which). */}
           <div className="px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
             <AnimatePresence mode="wait" initial={false}>
-              {busy ? (
+              {busy || generating ? (
                 <motion.button
                   key="cancel"
                   initial={{ opacity: 0, y: 6 }}
@@ -1056,7 +1100,16 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                   onClick={handleCancel}
                   className="w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
                 >
-                  <X className="w-4 h-4" /> Cancel
+                  {generating && !busy ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Generating… —
+                      Cancel
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4" /> Cancel
+                    </>
+                  )}
                 </motion.button>
               ) : config.hasGenerate === false ? null : (
                 <motion.button
@@ -1066,18 +1119,9 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.18 }}
                   onClick={doGenerate}
-                  disabled={generating}
                   className="w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
                 >
-                  {generating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Generating…
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" /> Generate photorealistic
-                    </>
-                  )}
+                  <Sparkles className="w-4 h-4" /> Generate photorealistic
                 </motion.button>
               )}
             </AnimatePresence>
@@ -1175,7 +1219,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                     <RotateCcw className="h-4 w-4" /> Try another image
                   </button>
                 </motion.div>
-              ) : busy ? (
+              ) : processing ? (
                 <motion.div
                   key="processing"
                   initial={{ opacity: 0 }}
@@ -1268,18 +1312,39 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                       />
                     </div>
                   )}
-                  {/* Fixed overlays — badge + back chip stay put while the image zooms */}
+                  {/* Fixed overlays — badge + action chips stay put while the image zooms */}
                   <span className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1 text-[11px] font-semibold text-white shadow backdrop-blur pointer-events-none">
                     <Sparkles className="w-3 h-3" /> AI Generated
                   </span>
-                  <button
-                    onClick={() => setGeneratedImage(null)}
-                    className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 rounded-full bg-surface/90 border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 shadow hover:bg-gray-100 transition-colors backdrop-blur cursor-pointer"
-                  >
-                    Back to preview
-                  </button>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
+                    {/* Park the render and flip back to the on-device view — instant. */}
+                    <button
+                      onClick={backToPreview}
+                      disabled={adopting}
+                      className="rounded-full bg-surface/90 border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 shadow hover:bg-gray-100 transition-colors backdrop-blur cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Back to preview
+                    </button>
+                    {/* Adopt the render as the working source and keep editing it
+                        on-device (same as changing size/quality while it's open). */}
+                    <button
+                      onClick={() => adoptGenerated(size, quality)}
+                      disabled={adopting || generating}
+                      className="flex items-center gap-1.5 rounded-full bg-blue-600/90 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-blue-700 transition-colors backdrop-blur cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {adopting ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" /> Preparing…
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="w-3 h-3" /> Continue on-device
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </motion.div>
-              ) : (
+              ) : resultImage ? (
                 <motion.div
                   key="result"
                   initial={{ opacity: 0, scale: 0.98 }}
@@ -1326,6 +1391,15 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                       }}
                     />
                   )}
+                  {/* A parked AI render is one click away — flip back instantly. */}
+                  {parkedAiUrl && (
+                    <button
+                      onClick={viewAiRender}
+                      className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow hover:bg-blue-700 transition-colors backdrop-blur cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3" /> View AI render
+                    </button>
+                  )}
                   {/* Fixed overlay (e.g. background swatches) — stays put while the result zooms */}
                   {config.renderOverlay && hasResult && (
                     <div
@@ -1336,23 +1410,77 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                     </div>
                   )}
                 </motion.div>
+              ) : (
+                // Source-ready: the picked photo is the active image (a run was
+                // canceled or undone) — nothing is lost. Re-run on-device from
+                // here, or Generate straight from the source via the footer.
+                <motion.div
+                  key="ready"
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="relative w-full h-full"
+                >
+                  {zoomActive ? (
+                    <ZoomCanvas
+                      zoomRef={zoomRef}
+                      onScale={handleZoomScale}
+                      excluded={config.zoomExcluded}
+                      wheelExcluded={config.wheelExcluded}
+                    >
+                      <img
+                        src={uploadedImage}
+                        alt={`${title} — source`}
+                        className="max-h-[70vh] max-w-full object-contain rounded-2xl shadow-lg"
+                      />
+                    </ZoomCanvas>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <img
+                        src={uploadedImage}
+                        alt={`${title} — source`}
+                        className="max-h-[70vh] max-w-full object-contain rounded-2xl shadow-lg"
+                      />
+                    </div>
+                  )}
+                  {parkedAiUrl && (
+                    <button
+                      onClick={viewAiRender}
+                      className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow hover:bg-blue-700 transition-colors backdrop-blur cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3" /> View AI render
+                    </button>
+                  )}
+                  <button
+                    onClick={() =>
+                      uploadedFile && !locked && process(uploadedFile, size, quality)
+                    }
+                    disabled={!uploadedFile || locked}
+                    className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full bg-blue-600/90 px-3.5 py-1.5 text-xs font-semibold text-white shadow hover:bg-blue-700 transition-colors backdrop-blur cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <Wand2 className="w-3.5 h-3.5" /> Process on-device
+                  </button>
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          {/* Bottom toolbar — Download/Save/Clear (left) + zoom (right) */}
+          {/* Bottom toolbar — Download/Save/Clear (left) + zoom (right). All
+              three act on the ACTIVE image, so they're available whenever one
+              exists (even mid-Generate — the current view is still exportable). */}
           <div className="shrink-0 flex items-center justify-between px-5 py-3 bg-surface/90 backdrop-blur-sm border-t border-gray-200">
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDownload}
-                disabled={!hasResult || busy}
+                disabled={!activeKind || busy}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Download className="w-3.5 h-3.5" /> Download
               </button>
               <button
                 onClick={doSave}
-                disabled={!hasResult || saving || busy}
+                disabled={!activeKind || saving || busy}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-100 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {saving ? (
@@ -1364,7 +1492,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
               </button>
               <button
                 onClick={handleClear}
-                disabled={(!uploadedImage && !hasResult) || busy}
+                disabled={!activeKind || busy}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-100 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Clear

@@ -63,12 +63,101 @@ import {
   Crown,
 } from "lucide-react";
 
+import { generateMagicStudio } from "@/(lib)/magic-studio-api";
+
 // Pexels CDN helper (free license, stable URLs) for rich option-card thumbnails.
 const px = (id) =>
   `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=300`;
 
-// Proxy helpers (mirrors what the old forms used).
-const proxyMedia = (url) => `/api/proxy-media?url=${encodeURIComponent(url)}`;
+// ── Backend payload/response helpers ─────────────────────────────────────────
+// The Magic Studio modal renders results from a normalized shape:
+//   { assets: [{ id, type, src, videoSrc?, thumbnail?, alt?, content? }], text?, resultType? }
+// The backend response shape isn't rigidly fixed, so `normalizeMagicResponse`
+// accepts the common shapes (a bare url, { url }, { assets }, arrays, { text })
+// and maps them onto that shape for the given result type.
+
+// UI ratio value ("square" | "landscape" | "portrait" | "wide") → "1:1" style
+// string the backend expects. Falls back to passing the value straight through.
+const RATIO_STRING = {
+  square: "1:1",
+  landscape: "16:9",
+  portrait: "9:16",
+  wide: "21:9",
+};
+const ratioString = (v) => RATIO_STRING[v] || v || "";
+
+// Pull an array of raw items out of whatever the backend returned.
+function extractItems(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  // Common container keys, in priority order.
+  const container =
+    data.assets || data.results || data.data || data.items || data.urls || data.images || data.videos;
+  if (Array.isArray(container)) return container;
+  // Single-result shapes: { url } / { src } / { video_url } / { audio_url }.
+  const single = data.url || data.src || data.video_url || data.audio_url || data.image_url;
+  if (single) return [data];
+  return [];
+}
+
+// Pull a usable media URL off one raw item (item may itself be a string URL).
+function itemUrl(item) {
+  if (!item) return null;
+  if (typeof item === "string") return item;
+  return (
+    item.src ||
+    item.url ||
+    item.video_url ||
+    item.videoSrc ||
+    item.audio_url ||
+    item.image_url ||
+    item.preview ||
+    null
+  );
+}
+
+/**
+ * Normalize a backend response into the modal's render shape.
+ * @param {object|Array} data       Raw response from generateMagicStudio.
+ * @param {string} resultType       "image" | "video" | "audio" | "text".
+ * @returns {{ assets?: Array, text?: string, resultType: string }}
+ */
+function normalizeMagicResponse(data, resultType) {
+  // Transcript / text tools: prefer an explicit text field.
+  if (resultType === "text") {
+    const text =
+      data?.text || data?.transcript || data?.transcription || data?.result || data?.content;
+    if (typeof text === "string" && text.trim()) return { text, resultType: "text" };
+    // Otherwise fall through to asset extraction (e.g. persona text blocks).
+  }
+
+  const items = extractItems(data);
+  const assets = items
+    .map((item, i) => {
+      const url = itemUrl(item);
+      // Text asset (persona "Text" content type) — no URL, has copy.
+      const content = typeof item === "object" ? item.content || item.text : null;
+      if (!url && content) {
+        return { id: item.id || `magic-txt-${i}`, type: "text", content };
+      }
+      if (!url) return null;
+      const id = (typeof item === "object" && item.id) || `magic-${resultType}-${i}`;
+      const thumbnail =
+        typeof item === "object" ? item.thumbnail || item.poster || item.image : undefined;
+      return {
+        id: String(id),
+        type: resultType,
+        src: url,
+        preview: url,
+        videoSrc: resultType === "video" ? url : undefined,
+        thumbnail,
+        alt: (typeof item === "object" && item.alt) || `Result ${i + 1}`,
+      };
+    })
+    .filter(Boolean);
+
+  return { assets, resultType };
+}
 
 // ── Shared aspect-ratio option set (rich cards render a scaled frame) ─────────
 const RATIO_SQUARE = { value: "square", label: "Square", ratio: "1:1", w: 1, h: 1 };
@@ -90,83 +179,6 @@ const IMAGE_STYLES = [
   { value: "vintage", label: "Vintage", desc: "Retro film look", icon: Aperture, img: px(1183434) },
   { value: "neon", label: "Neon / Glow", desc: "Vivid glow", icon: Zap, img: px(1631677) },
 ];
-
-// Style keyword map for pexels queries (kept from the old forms).
-const STYLE_KEYWORDS = {
-  photorealistic: "realistic cinematic high quality",
-  cinematic: "cinematic dramatic lighting",
-  anime: "anime japanese animation",
-  cartoon: "cartoon animated colorful",
-  watercolor: "watercolor painting style",
-  oil_painting: "oil painting style",
-  cyberpunk: "cyberpunk neon futuristic",
-  abstract: "abstract surreal",
-  minimalist: "minimalist clean aesthetic",
-  vintage: "vintage retro film",
-  neon: "neon glow vibrant",
-};
-
-const orientationOf = (ratio) =>
-  ratio === "portrait" ? "portrait" : ratio === "landscape" || ratio === "wide" ? "landscape" : "square";
-
-// ── Pexels result mappers ────────────────────────────────────────────────────
-function mapPhotos(photos = [], count) {
-  return photos.slice(0, count).map((p, i) => ({
-    id: `img-${p.id}-${i}`,
-    type: "image",
-    src: p.src?.large2x || p.src?.large || p.src?.medium,
-    preview: p.src?.large2x || p.src?.large || p.src?.medium,
-    large: p.src?.large2x,
-    alt: p.alt || `Result ${i + 1}`,
-  }));
-}
-
-function mapVideos(videos = [], count, { proxy = false } = {}) {
-  return videos.slice(0, count).map((v, i) => {
-    const hd = v.video_files?.find((f) => f.quality === "hd") || v.video_files?.[0];
-    const link = hd?.link || "";
-    const src = proxy ? proxyMedia(link) : link;
-    return {
-      id: `vid-${v.id}-${i}`,
-      type: "video",
-      src,
-      preview: src,
-      videoSrc: src,
-      thumbnail: proxy ? proxyMedia(v.image || "") : v.image,
-      alt: `Video ${i + 1}`,
-      duration: v.duration,
-    };
-  });
-}
-
-async function fetchPexels(query, { type = "photos", perPage = 12, orientation } = {}) {
-  const params = new URLSearchParams({ query, per_page: String(perPage) });
-  if (type === "videos") params.set("type", "videos");
-  if (orientation) params.set("orientation", orientation);
-  const res = await fetch(`/api/pexels?${params.toString()}`);
-  return res.json();
-}
-
-// Extract 3 salient keywords from a block of text (from ScriptToVoiceover).
-function extractKeywords(text) {
-  const stop = new Set([
-    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with",
-    "by", "from", "about", "our", "is", "are", "was", "were", "be", "been", "being",
-    "will", "would", "can", "could", "should", "may", "might", "this", "that", "these",
-    "those", "have", "has", "had", "into", "through", "welcome", "we", "you", "your",
-    "their", "its", "they", "where", "when", "who", "how", "what", "every", "already",
-    "start", "starts", "here", "than", "more", "most", "some", "just", "let",
-  ]);
-  const words = (text.toLowerCase().match(/\b\w+\b/g) || []).filter(
-    (w) => w.length > 3 && !stop.has(w),
-  );
-  const freq = {};
-  words.forEach((w) => (freq[w] = (freq[w] || 0) + 1));
-  return Object.entries(freq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([w]) => w);
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-category configs
@@ -223,14 +235,14 @@ export const MAGIC_STUDIO_CONFIGS = {
     ],
     validate: ({ input }) => (input?.trim() ? null : "Please enter a prompt."),
     generate: async ({ input, values }) => {
-      const kw = STYLE_KEYWORDS[values.style] || "";
-      const query = `${input} ${kw} high quality professional`.trim();
-      const data = await fetchPexels(query, {
-        type: "photos",
-        perPage: 8,
-        orientation: orientationOf(values.ratio),
-      });
-      return { assets: mapPhotos(data.photos, 4) };
+      const payload = {
+        tool: "text_to_image",
+        style: values.style,
+        ratio: ratioString(values.ratio),
+        prompt: input.trim(),
+      };
+      const data = await generateMagicStudio(payload);
+      return normalizeMagicResponse(data, "image");
     },
   },
 
@@ -296,14 +308,15 @@ export const MAGIC_STUDIO_CONFIGS = {
     ],
     validate: ({ input }) => (input?.trim() ? null : "Please enter a prompt."),
     generate: async ({ input, values }) => {
-      const kw = STYLE_KEYWORDS[values.style] || "";
-      const query = `${input} ${kw}`.trim();
-      const data = await fetchPexels(query, { type: "videos", perPage: 8 });
-      const assets = mapVideos(data.videos, 4, { proxy: true }).map((a) => ({
-        ...a,
+      const payload = {
+        type: "text_to_video",
+        style: values.style,
+        ratio: ratioString(values.ratio),
         duration: values.duration,
-      }));
-      return { assets };
+        prompt: input.trim(),
+      };
+      const data = await generateMagicStudio(payload);
+      return normalizeMagicResponse(data, "video");
     },
   },
 
@@ -350,14 +363,14 @@ export const MAGIC_STUDIO_CONFIGS = {
     ],
     validate: ({ input }) =>
       input ? null : "Please pick a source image first.",
-    generate: async ({ values }) => {
-      const query = [
-        "professional creative variation",
-        "different angle, lighting, composition",
-        values.style || "high quality",
-      ].join(", ");
-      const data = await fetchPexels(query, { type: "photos", perPage: 16 });
-      return { assets: mapPhotos(data.photos, 8) };
+    generate: async ({ input, values }) => {
+      const payload = {
+        type: "image_variation",
+        style: values.style,
+        source_image: input,
+      };
+      const data = await generateMagicStudio(payload);
+      return normalizeMagicResponse(data, "image");
     },
   },
 
@@ -460,55 +473,17 @@ export const MAGIC_STUDIO_CONFIGS = {
     ],
     validate: ({ input }) => (input?.trim() ? null : "Please enter a script first."),
     generate: async ({ input, values }) => {
-      const keywords = extractKeywords(input);
-      const all = [];
-      for (const kw of keywords) {
-        const data = await fetchPexels(kw, { type: "videos", perPage: 10 });
-        if (data.videos?.length) all.push(...data.videos);
-      }
-      if (all.length < 5) {
-        for (const term of ["business", "people", "office", "creative team"]) {
-          const data = await fetchPexels(term, { type: "videos", perPage: 8 });
-          if (data.videos?.length) all.push(...data.videos);
-          if (all.length >= 12) break;
-        }
-      }
-      const unique = Array.from(new Map(all.map((v) => [v.id, v])).values());
-      let filtered = unique;
-      if (values.ratio === "portrait") {
-        const v = unique.filter((x) => x.height > x.width);
-        if (v.length) filtered = v;
-      } else if (values.ratio === "square") {
-        const v = unique.filter((x) => {
-          const r = x.width / x.height;
-          return r >= 0.85 && r <= 1.15;
-        });
-        if (v.length) filtered = v;
-      } else {
-        const v = unique.filter((x) => x.width > x.height);
-        if (v.length) filtered = v;
-      }
-      const selected = filtered.sort(() => Math.random() - 0.5).slice(0, 4);
-      const assets = selected.map((v, i) => {
-        const hd =
-          v.video_files?.find((f) => f.quality === "hd" && f.width <= 1920) ||
-          v.video_files?.find((f) => f.quality === "sd") ||
-          v.video_files?.[0];
-        const link = hd?.link || "";
-        return {
-          id: `stv-${v.id}-${i}`,
-          type: "video",
-          src: link,
-          preview: link,
-          videoSrc: link,
-          thumbnail: v.image,
-          alt: `Voiceover video ${i + 1}`,
-          duration: v.duration,
-          voice: values.voice,
-          tone: values.tone,
-        };
-      });
-      return { assets };
+      const payload = {
+        type: "script_to_voiceover",
+        style: values.voice,
+        narration_tone: values.tone,
+        speaking_pace: values.pace,
+        ratio: ratioString(values.ratio),
+        export_format: values.format,
+        prompt: input.trim(),
+      };
+      const data = await generateMagicStudio(payload);
+      return normalizeMagicResponse(data, "video");
     },
   },
 
@@ -585,15 +560,15 @@ export const MAGIC_STUDIO_CONFIGS = {
     ],
     validate: ({ input }) => (input ? null : "Please upload an audio file."),
     generate: async ({ input, values }) => {
+      // Send the audio as multipart form-data so the raw file reaches the backend.
       const form = new FormData();
-      form.append("audio", input);
+      form.append("type", "audio_to_text");
+      form.append("audio_file", input);
       form.append("language", values.language);
-      form.append("format", values.format);
-      form.append("quality", values.quality);
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Transcription failed");
-      return { text: data.text || "No transcription returned." };
+      form.append("transcript_format", values.format);
+      form.append("transcript_quality", values.quality);
+      const data = await generateMagicStudio(form);
+      return normalizeMagicResponse(data, "text");
     },
   },
 
@@ -677,77 +652,19 @@ export const MAGIC_STUDIO_CONFIGS = {
     },
     generate: async ({ values }) => {
       const { personaName, personaAge, personaOccupation, personaTone, contentType, ratio } = values;
-      const count = 4;
-
-      if (contentType === "text") {
-        const assets = Array.from({ length: count }, (_, i) => ({
-          id: `pbg-txt-${i}`,
-          type: "text",
-          content: `Sample content ${i + 1} for ${personaName}, a ${personaAge}-year-old ${personaOccupation} with a ${personaTone} tone.`,
-        }));
-        return { assets, resultType: "text" };
-      }
-
-      const queries = [];
-      if (personaOccupation) {
-        queries.push(personaOccupation.toLowerCase());
-        queries.push(`${personaOccupation.toLowerCase()} professional`);
-      }
-      if (personaTone)
-        queries.push(`${personaTone.toLowerCase()} ${contentType === "video" ? "video" : "person"}`);
-      queries.push("business professional", "professional portrait");
-
-      const orientation = orientationOf(ratio);
-
-      if (contentType === "video") {
-        const all = [];
-        for (const q of queries) {
-          const data = await fetchPexels(q, { type: "videos", perPage: 15, orientation });
-          all.push(...(data.videos || []));
-          if (all.length >= count * 3) break;
-        }
-        const unique = Array.from(new Map(all.map((v) => [v.id, v])).values());
-        const assets = unique
-          .sort(() => Math.random() - 0.5)
-          .slice(0, count)
-          .map((v, i) => {
-            const hd = v.video_files?.find((f) => f.quality === "hd") || v.video_files?.[0];
-            const link = proxyMedia(hd?.link || "");
-            return {
-              id: `pbg-vid-${v.id}-${i}`,
-              type: "video",
-              src: link,
-              videoSrc: link,
-              preview: link,
-              thumbnail: proxyMedia(v.image || ""),
-              alt: `Persona video ${i + 1}`,
-              duration: v.duration,
-            };
-          });
-        return { assets, resultType: "video" };
-      }
-
-      // image (default)
-      const all = [];
-      for (const q of queries) {
-        const data = await fetchPexels(q, { type: "photos", perPage: 15, orientation });
-        all.push(...(data.photos || []));
-        if (all.length >= count * 3) break;
-      }
-      const unique = Array.from(new Map(all.map((p) => [p.id, p])).values());
-      const assets = unique
-        .sort(() => Math.random() - 0.5)
-        .slice(0, count)
-        .map((p, i) => ({
-          id: `pbg-img-${p.id}-${i}`,
-          type: "image",
-          src: p.src?.large2x || p.src?.large || p.src?.medium,
-          preview: p.src?.large2x || p.src?.large || p.src?.medium,
-          large: p.src?.large2x,
-          thumbnail: p.src?.medium,
-          alt: p.alt || `Persona image ${i + 1}`,
-        }));
-      return { assets, resultType: "image" };
+      const payload = {
+        type: "persona_generator",
+        name: personaName?.trim(),
+        age: personaAge?.trim(),
+        occupation: personaOccupation?.trim(),
+        communication_tone: personaTone,
+        content_type: contentType,
+        ratio: ratioString(ratio),
+      };
+      const data = await generateMagicStudio(payload);
+      // The chosen content type decides how the right canvas renders the result.
+      const resultType = contentType === "text" ? "text" : contentType === "video" ? "video" : "image";
+      return normalizeMagicResponse(data, resultType);
     },
   },
 
@@ -851,17 +768,18 @@ export const MAGIC_STUDIO_CONFIGS = {
       },
     ],
     validate: ({ input }) => (input?.trim() ? null : "Please enter some text to convert."),
-    generate: async () => {
-      // TTS backend not wired yet — mirror the old form's sample output so the
-      // result canvas (audio player) works end-to-end.
-      await new Promise((r) => setTimeout(r, 1400));
-      const sample = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-      const assets = Array.from({ length: 3 }, (_, i) => ({
-        id: `tta-${Date.now()}-${i}`,
-        type: "audio",
-        src: sample,
-      }));
-      return { assets };
+    generate: async ({ input, values }) => {
+      const payload = {
+        type: "text_to_audio",
+        style: values.voice,
+        speaking_tone: values.tone,
+        speaking_speed: values.speed,
+        export_format: values.format,
+        audio_quality: values.quality,
+        prompt: input.trim(),
+      };
+      const data = await generateMagicStudio(payload);
+      return normalizeMagicResponse(data, "audio");
     },
   },
 };

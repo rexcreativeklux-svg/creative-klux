@@ -3763,7 +3763,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     }
   };
 
-  // Save the edited image to the user's Image Gallery (/image-gallery).
+  // Save the edited image to the user's Image Gallery (/gallery).
   const handleSave = async () => {
     if (!displayImage || saving) return;
     setSaving(true);

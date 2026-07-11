@@ -79,7 +79,7 @@ export function AuthProvider({ children }) {
   const API_FETCH_AD_ACCOUNTS_URL = `${BASE_URL}/ad-accounts`;
   const API_CONNECT_AD_ACCOUNTS_URL = `${BASE_URL}/ad-accounts/connect`;
   const API_DELETE_SOCIAL_ACCOUNT_URL = `${BASE_URL}/social-accounts/disconnect`;
-  const API_IMAGE_GALLERY_URL = `${BASE_URL}/image-gallery`;
+  const API_IMAGE_GALLERY_URL = `${BASE_URL}/gallery`;
   const API_FETCH_TUTORIAL_VIDEOS = `${BASE_URL}/tutorial-videos`;
   const API_AI_CHAT_URL = `${BASE_URL}/creatives/ai-creative`;
   const SAVE_DESIGN_URL = `${BASE_URL}/creative-designs`;
@@ -1354,7 +1354,7 @@ export function AuthProvider({ children }) {
       if (!imageId) throw new Error("Image ID is required");
 
       try {
-        const res = await authFetch(`${BASE_URL}/image-gallery/${imageId}`, {
+        const res = await authFetch(`${BASE_URL}/gallery/${imageId}`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`,

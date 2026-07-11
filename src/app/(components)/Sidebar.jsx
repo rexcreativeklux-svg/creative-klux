@@ -137,6 +137,12 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       href: "/product-photos",
       icon: BookImage,
     },
+    {
+      id: "magic-studio",
+      label: "Magic Studio",
+      href: "/magic-studio",
+      icon: Sparkles,
+    },
   ];
 
   const overviewItems = [
@@ -185,12 +191,6 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       label: "Creative Comparison",
       href: "/creative-comparison",
       icon: GitCompareArrows,
-    },
-    {
-      id: "magic-studio",
-      label: "Magic Studio",
-      href: "/magic-studio",
-      icon: Sparkles,
     },
   ];
 
@@ -396,7 +396,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           {renderSection("Create", createItems)}
           {renderSection("Manage", manageItems)}
           {/* {renderSection("Insights", insightsItems)} */}
-          {renderSection("Ai Tools", toolsItems)}
+          {renderSection("Ad Intelligence", toolsItems)}
         </div>
 
         {/* Theme switcher (UI only) */}

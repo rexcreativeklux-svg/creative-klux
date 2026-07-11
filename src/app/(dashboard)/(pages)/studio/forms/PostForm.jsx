@@ -3,8 +3,17 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Globe, Loader2, FileUp, X, CheckCircle2, ChevronRight,
-  Sparkles, Images, Scan, Type, Hash,
+  Globe,
+  Loader2,
+  FileUp,
+  X,
+  CheckCircle2,
+  ChevronRight,
+  Sparkles,
+  Images,
+  Scan,
+  Type,
+  Hash,
 } from "lucide-react";
 import FullOverlayLoader from "@/app/(components)/loaders/full-overlay-loader";
 import { useAuth } from "@/context/AuthContext";
@@ -15,93 +24,118 @@ import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const SIZE_OPTIONS = [
-  { value: "1200x627",  label: "LinkedIn Horizontal" },
-  { value: "627x627",   label: "LinkedIn Square" },
+  { value: "1200x627", label: "LinkedIn Horizontal" },
+  { value: "627x627", label: "LinkedIn Square" },
   { value: "1080x1080", label: "Instagram Square" },
   { value: "1080x1350", label: "Instagram Portrait" },
   { value: "1080x1920", label: "Stories / Reels" },
-  { value: "1200x630",  label: "Facebook Feed" },
-  { value: "1600x900",  label: "Twitter / X Post" },
+  { value: "1200x630", label: "Facebook Feed" },
+  { value: "1600x900", label: "Twitter / X Post" },
   { value: "1000x1500", label: "Pinterest Pin" },
 ];
 
 const CAMPAIGN_GOALS = [
-  "Brand Awareness", "Engagement", "Sales", "Lead Generation", "Website Traffic",
+  "Brand Awareness",
+  "Engagement",
+  "Sales",
+  "Lead Generation",
+  "Website Traffic",
 ];
 
 const AUDIENCES = [
-  { value: "B2B",           label: "B2B",           desc: "Business owners, startups, agencies" },
-  { value: "B2C",           label: "B2C",           desc: "End consumers, everyday users" },
-  { value: "Casual",        label: "Casual",        desc: "Broad social media audience" },
-  { value: "Inspirational", label: "Inspirational", desc: "Entrepreneurs & creators" },
-  { value: "Sales",         label: "Sales",         desc: "Hot leads, ad audiences" },
+  { value: "B2B", label: "B2B", desc: "Business owners, startups, agencies" },
+  { value: "B2C", label: "B2C", desc: "End consumers, everyday users" },
+  { value: "Casual", label: "Casual", desc: "Broad social media audience" },
+  {
+    value: "Inspirational",
+    label: "Inspirational",
+    desc: "Entrepreneurs & creators",
+  },
+  { value: "Sales", label: "Sales", desc: "Hot leads, ad audiences" },
 ];
 
 const FILE_FORMATS = ["PNG", "JPEG", "WEBP", "AVIF"];
 
 const TONES = [
-  { value: "professional",  label: "Professional" },
-  { value: "casual",        label: "Casual" },
-  { value: "humorous",      label: "Humorous" },
+  { value: "professional", label: "Professional" },
+  { value: "casual", label: "Casual" },
+  { value: "humorous", label: "Humorous" },
   { value: "inspirational", label: "Inspirational" },
-  { value: "urgent",        label: "Urgent" },
-  { value: "educational",   label: "Educational" },
+  { value: "urgent", label: "Urgent" },
+  { value: "educational", label: "Educational" },
 ];
 
 const PLATFORMS = [
   { value: "instagram", label: "Instagram" },
-  { value: "linkedin",  label: "LinkedIn" },
-  { value: "facebook",  label: "Facebook" },
-  { value: "twitter",   label: "Twitter / X" },
-  { value: "tiktok",    label: "TikTok" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "facebook", label: "Facebook" },
+  { value: "twitter", label: "Twitter / X" },
+  { value: "tiktok", label: "TikTok" },
   { value: "pinterest", label: "Pinterest" },
 ];
 
-const BRAND_COLORS = [
-  "#2563eb", "#0ea5e9", "#8b5cf6", "#ec4899", "#ef4444",
-];
+const BRAND_COLORS = ["#2563eb", "#0ea5e9", "#8b5cf6", "#ec4899", "#ef4444"];
 
 const STEPS = [
-  { id: 1, label: "Post Details",           icon: Type },
+  { id: 1, label: "Post Details", icon: Type },
   { id: 2, label: "Size, Goals & Audience", icon: Scan },
-  { id: 3, label: "Background Image",       icon: Images },
+  { id: 3, label: "Background Image", icon: Images },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PostsForm = ({
-  formData, setFormData, activeBrand, sendUrl, showToast, onResult,
-  generateCustomCreative, creative, categoryId, fetchDesignTemplates,
+  formData,
+  setFormData,
+  activeBrand,
+  sendUrl,
+  showToast,
+  onResult,
+  generateCustomCreative,
+  creative,
+  categoryId,
+  fetchDesignTemplates,
 }) => {
   const { uploadImage, activeBrandId } = useAuth();
 
-  const [step, setStep]                     = useState(1);
-  const [error, setError]                   = useState("");
-  const [brandUrl, setBrandUrl]             = useState(activeBrand?.url || activeBrand?.source_url || "");
+  const [step, setStep] = useState(1);
+  const [error, setError] = useState("");
+  const [brandUrl, setBrandUrl] = useState(
+    activeBrand?.url || activeBrand?.source_url || "",
+  );
   const [importingBrand, setImportingBrand] = useState(false);
-  const [generating, setGenerating]         = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   // ── image state ──────────────────────────────────────────────────────────
-  const [imageSrc, setImageSrc]                 = useState([]);
-  const [croppedImages, setCroppedImages]       = useState([]);
+  const [imageSrc, setImageSrc] = useState([]);
+  const [croppedImages, setCroppedImages] = useState([]);
   const [currentCropIndex, setCurrentCropIndex] = useState(0);
-  const [showCropper, setShowCropper]           = useState(false);
-  const [crop, setCrop]                         = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
-  const [completedCrop, setCompletedCrop]       = useState(null);
-  const [imageSrcMeta, setImageSrcMeta]         = useState([]);
+  const [showCropper, setShowCropper] = useState(false);
+  const [crop, setCrop] = useState({
+    unit: "%",
+    width: 90,
+    height: 90,
+    x: 5,
+    y: 5,
+  });
+  const [completedCrop, setCompletedCrop] = useState(null);
+  const [imageSrcMeta, setImageSrcMeta] = useState([]);
 
-  const cropperRef   = useRef(null);
+  const cropperRef = useRef(null);
   const logoInputRef = useRef(null);
 
   // ── modal state ───────────────────────────────────────────────────────────
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
 
-  useEffect(() => { setCompletedCrop(null); }, [currentCropIndex]);
+  useEffect(() => {
+    setCompletedCrop(null);
+  }, [currentCropIndex]);
 
   // Sync first cropped image → live preview
   useEffect(() => {
     const first = croppedImages.find(Boolean);
-    if (first?.previewUrl) setFormData((p) => ({ ...p, backgroundImage: first.previewUrl }));
+    if (first?.previewUrl)
+      setFormData((p) => ({ ...p, backgroundImage: first.previewUrl }));
   }, [croppedImages]);
 
   // ── field helper ──────────────────────────────────────────────────────────
@@ -109,7 +143,11 @@ const PostsForm = ({
   // brandColor and primaryColor always reflect the same value regardless of
   // which key the parent or payload consumer reads.
   const field = (key, value) => {
-    if (key === "primaryColor" || key === "secondaryColor" || key === "brandColor")
+    if (
+      key === "primaryColor" ||
+      key === "secondaryColor" ||
+      key === "brandColor"
+    )
       value = value.startsWith("#") ? value : `#${value}`;
 
     setFormData((prev) => ({
@@ -118,7 +156,7 @@ const PostsForm = ({
 
       // ✅ keep brandColor ↔ primaryColor in sync (mirrors ImageAdsForm pattern)
       ...(key === "primaryColor" && { brandColor: value }),
-      ...(key === "brandColor"   && { primaryColor: value }),
+      ...(key === "brandColor" && { primaryColor: value }),
     }));
 
     setError("");
@@ -126,7 +164,12 @@ const PostsForm = ({
 
   const togglePlatform = (val) => {
     const current = formData.platforms || [];
-    field("platforms", current.includes(val) ? current.filter((v) => v !== val) : [...current, val]);
+    field(
+      "platforms",
+      current.includes(val)
+        ? current.filter((v) => v !== val)
+        : [...current, val],
+    );
   };
 
   // ── URL import ────────────────────────────────────────────────────────────
@@ -139,21 +182,24 @@ const PostsForm = ({
       const d = r.data?.data || r.data || {};
       setFormData((p) => ({
         ...p,
-        brandName:      d.name        || "",
-        description:    d.description || "",
+        brandName: d.name || "",
+        description: d.description || "",
         // sync both color keys on import
-        primaryColor:   d.primary_color   || "#2563eb",
-        brandColor:     d.primary_color   || "#2563eb",
+        primaryColor: d.primary_color || "#2563eb",
+        brandColor: d.primary_color || "#2563eb",
         secondaryColor: d.secondary_color || "#0ea5e9",
-        font:           d.font || "Montserrat",
-        caption:        p.caption || `Discover ${d.name}!`,
-        hashtags:       p.hashtags?.length ? p.hashtags : ["#SocialMedia", "#Brand"],
-        logo:           d.logo || "",
+        font: d.font || "Montserrat",
+        caption: p.caption || `Discover ${d.name}!`,
+        hashtags: p.hashtags?.length ? p.hashtags : ["#SocialMedia", "#Brand"],
+        logo: d.logo || "",
         importedImages: d.images?.map((i) => i.url).filter(Boolean) || [],
       }));
       showToast("Brand imported!");
-    } catch { setError("Failed to import brand. Check the URL."); }
-    finally   { setImportingBrand(false); }
+    } catch {
+      setError("Failed to import brand. Check the URL.");
+    } finally {
+      setImportingBrand(false);
+    }
   };
 
   const handleLogoUpload = (e) => {
@@ -172,24 +218,26 @@ const PostsForm = ({
           images.map(async (item, idx) => {
             if (item.file instanceof File) {
               item.file.previewUrl = item.src;
-              item.file.sourceUrl  = null;
+              item.file.sourceUrl = null;
               return item.file;
             }
-            const url      = item.large || item.src;
+            const url = item.large || item.src;
             const fetchUrl = url.startsWith("http")
               ? `/api/proxy-image?url=${encodeURIComponent(url)}`
               : url;
-            const res  = await fetch(fetchUrl);
+            const res = await fetch(fetchUrl);
             const blob = await res.blob();
-            const file = new File([blob], `selected-${Date.now()}-${idx}`, { type: blob.type || "image/png" });
+            const file = new File([blob], `selected-${Date.now()}-${idx}`, {
+              type: blob.type || "image/png",
+            });
             file.previewUrl = URL.createObjectURL(blob);
-            file.sourceUrl  = item.large || item.src || null;
+            file.sourceUrl = item.large || item.src || null;
             return file;
-          })
+          }),
         );
 
         const previewUrls = processedFiles.map((f) => f.previewUrl);
-        const sourceUrls  = processedFiles.map((f) => f.sourceUrl || null);
+        const sourceUrls = processedFiles.map((f) => f.sourceUrl || null);
 
         if (!showCropper) {
           setImageSrc(previewUrls);
@@ -199,7 +247,10 @@ const PostsForm = ({
         } else {
           setImageSrc((prev) => [...prev, ...previewUrls]);
           setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
-          setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
+          setCroppedImages((prev) => [
+            ...prev,
+            ...Array(previewUrls.length).fill(null),
+          ]);
           setCurrentCropIndex(imageSrc.length);
         }
 
@@ -213,10 +264,10 @@ const PostsForm = ({
 
     if (media.length > 0) {
       const videoObjects = media.map((src, i) => ({
-        id:         `video-${Date.now()}-${i}`,
+        id: `video-${Date.now()}-${i}`,
         previewUrl: src,
-        thumbnail:  src,
-        type:       "video",
+        thumbnail: src,
+        type: "video",
       }));
       setCroppedImages((prev) => [...prev, ...videoObjects]);
       showToast(`Added ${media.length} media item(s)`);
@@ -229,27 +280,31 @@ const PostsForm = ({
   const handleBrandImageUse = (imageObjs) => {
     const pseudos = imageObjs.map((imageObj) => ({
       previewUrl: imageObj.src,
-      sourceUrl:  imageObj.src,
-      name:       imageObj.alt || "brand-image",
-      type:       "image/jpeg",
+      sourceUrl: imageObj.src,
+      name: imageObj.alt || "brand-image",
+      type: "image/jpeg",
     }));
     setCroppedImages((prev) => [...prev, ...pseudos]);
-    showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+    showToast(
+      `${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`,
+    );
   };
 
   const handleBrandImageCrop = async (imageObjs) => {
     for (const imageObj of imageObjs) {
       const originalUrl = imageObj.src;
-      let cropperUrl    = originalUrl;
+      let cropperUrl = originalUrl;
       try {
-        const res  = await fetch(`/api/proxy-image?url=${encodeURIComponent(originalUrl)}`);
+        const res = await fetch(
+          `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`,
+        );
         const blob = await res.blob();
         cropperUrl = URL.createObjectURL(blob);
       } catch (err) {
         console.warn("Proxy failed, falling back to original URL", err);
       }
-      setImageSrc((prev)      => [...prev, cropperUrl]);
-      setImageSrcMeta((prev)  => [...prev, originalUrl]);
+      setImageSrc((prev) => [...prev, cropperUrl]);
+      setImageSrcMeta((prev) => [...prev, originalUrl]);
       setCroppedImages((prev) => [...prev, null]);
     }
     if (!showCropper) setCurrentCropIndex(0);
@@ -263,22 +318,29 @@ const PostsForm = ({
     if (!image) return;
 
     const canvas = document.createElement("canvas");
-    const ctx    = canvas.getContext("2d");
-    const scaleX = image.naturalWidth  / image.width;
+    const ctx = canvas.getContext("2d");
+    const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
-    canvas.width  = completedCrop.width;
+    canvas.width = completedCrop.width;
     canvas.height = completedCrop.height;
     ctx.drawImage(
       image,
-      completedCrop.x * scaleX, completedCrop.y * scaleY,
-      completedCrop.width * scaleX, completedCrop.height * scaleY,
-      0, 0, canvas.width, canvas.height
+      completedCrop.x * scaleX,
+      completedCrop.y * scaleY,
+      completedCrop.width * scaleX,
+      completedCrop.height * scaleY,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
     );
 
     const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
-    const file = new File([blob], `cropped-${currentCropIndex}.png`, { type: "image/png" });
+    const file = new File([blob], `cropped-${currentCropIndex}.png`, {
+      type: "image/png",
+    });
     file.previewUrl = URL.createObjectURL(blob);
-    file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
+    file.sourceUrl = imageSrcMeta[currentCropIndex] || null;
 
     setCroppedImages((prev) => {
       const updated = [...prev];
@@ -298,27 +360,36 @@ const PostsForm = ({
   // ── Skip crop ─────────────────────────────────────────────────────────────
   const handleSkipCrop = () => {
     const url = imageSrc[currentCropIndex];
-    fetch(url).then((r) => r.blob()).then((blob) => {
-      const file = new File([blob], `original-${currentCropIndex}.png`, { type: blob.type });
-      file.previewUrl = url;
-      file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
-      setCroppedImages((prev) => { const u = [...prev]; u[currentCropIndex] = file; return u; });
-      if (currentCropIndex < imageSrc.length - 1) {
-        setCurrentCropIndex((prev) => prev + 1);
-        setCrop({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
-      } else {
-        setShowCropper(false);
-      }
-    });
+    fetch(url)
+      .then((r) => r.blob())
+      .then((blob) => {
+        const file = new File([blob], `original-${currentCropIndex}.png`, {
+          type: blob.type,
+        });
+        file.previewUrl = url;
+        file.sourceUrl = imageSrcMeta[currentCropIndex] || null;
+        setCroppedImages((prev) => {
+          const u = [...prev];
+          u[currentCropIndex] = file;
+          return u;
+        });
+        if (currentCropIndex < imageSrc.length - 1) {
+          setCurrentCropIndex((prev) => prev + 1);
+          setCrop({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
+        } else {
+          setShowCropper(false);
+        }
+      });
   };
 
   // ── Remove cropped image ──────────────────────────────────────────────────
   const removeCroppedImage = (idx) => {
-    const next  = croppedImages.filter((_, i) => i !== idx);
+    const next = croppedImages.filter((_, i) => i !== idx);
     const first = next.find(Boolean);
     setCroppedImages(next);
     setFormData((p) => ({ ...p, backgroundImage: first?.previewUrl || null }));
-    if (idx <= currentCropIndex && currentCropIndex > 0) setCurrentCropIndex((prev) => prev - 1);
+    if (idx <= currentCropIndex && currentCropIndex > 0)
+      setCurrentCropIndex((prev) => prev - 1);
   };
 
   // ── Previous crop ─────────────────────────────────────────────────────────
@@ -332,8 +403,15 @@ const PostsForm = ({
 
   // ── Step navigation ───────────────────────────────────────────────────────
   const handleContinue = () => {
-    if (step === 1 && !formData.brandName) return setError("Brand name is required.");
-    if (step === 2 && (!formData.size || !formData.campaignGoal || !formData.audience || !formData.fileFormat))
+    if (step === 1 && !formData.brandName)
+      return setError("Brand name is required.");
+    if (
+      step === 2 &&
+      (!formData.size ||
+        !formData.campaignGoal ||
+        !formData.audience ||
+        !formData.fileFormat)
+    )
       return setError("Please complete all fields before continuing.");
     if (step === 3 && croppedImages.filter(Boolean).length === 0)
       return setError("Select at least one background image.");
@@ -347,7 +425,8 @@ const PostsForm = ({
   const handleGenerate = async () => {
     if (!formData.size) {
       const msg = "Please select a post size.";
-      setError(msg); showToast(msg);
+      setError(msg);
+      showToast(msg);
       return;
     }
 
@@ -358,7 +437,7 @@ const PostsForm = ({
 
     try {
       // Resolve the selected size's label (Scraive category) from its value.
-      const sizeOpt   = SIZE_OPTIONS.find((s) => s.value === formData.size);
+      const sizeOpt = SIZE_OPTIONS.find((s) => s.value === formData.size);
       const sizeLabel = sizeOpt?.label || formData.size;
 
       // 1. FETCH DESIGN TEMPLATES FIRST
@@ -371,7 +450,8 @@ const PostsForm = ({
       if (!templateRes.ok) {
         setGenerating(false);
         const msg = templateRes.message || "Failed to fetch templates.";
-        setError(msg); showToast(msg);
+        setError(msg);
+        showToast(msg);
         return;
       }
 
@@ -379,66 +459,78 @@ const PostsForm = ({
       if (!templates.length) {
         setGenerating(false);
         const msg = "No templates found for this size.";
-        setError(msg); showToast(msg);
+        setError(msg);
+        showToast(msg);
         return;
       }
       const selectedTemplates = templates;
 
-      // 2. RESOLVE IMAGE URLs — upload File items to /image-gallery
+      // 2. RESOLVE IMAGE URLs — upload File items to /gallery
       const resolvedUrls = await Promise.all(
         validImages.map(async (item) => {
-          if (typeof item?.sourceUrl === "string" && item.sourceUrl.startsWith("http")) {
+          if (
+            typeof item?.sourceUrl === "string" &&
+            item.sourceUrl.startsWith("http")
+          ) {
             return item.sourceUrl;
           }
           if (item instanceof File) {
             try {
               const result = await uploadImage(item);
               const url =
-                result?.image_url || result?.url || result?.data?.image_url || null;
-              return typeof url === "string" && url.startsWith("http") ? url : null;
+                result?.image_url ||
+                result?.url ||
+                result?.data?.image_url ||
+                null;
+              return typeof url === "string" && url.startsWith("http")
+                ? url
+                : null;
             } catch (err) {
               console.error("uploadImage failed:", err);
               return null;
             }
           }
-          if (typeof item?.previewUrl === "string" && item.previewUrl.startsWith("http")) {
+          if (
+            typeof item?.previewUrl === "string" &&
+            item.previewUrl.startsWith("http")
+          ) {
             return item.previewUrl;
           }
           return null;
-        })
+        }),
       );
 
       const imageUrls = resolvedUrls.filter(Boolean);
 
       // 3. BUILD PAYLOAD
       const payload = {
-        creativeType: creative?.id,        // "social_creative" → creative_type "social"
-        categoryType: categoryId,          // "posts" → create_sub_type
-        brand_id:     activeBrandId,
+        creativeType: creative?.id, // "social_creative" → creative_type "social"
+        categoryType: categoryId, // "posts" → create_sub_type
+        brand_id: activeBrandId,
 
-        brandName:    formData.brandName    || null,
-        description:  formData.description  || null,
-        brandColor:   formData.brandColor   ?? formData.primaryColor ?? null,
-        logo:         formData.logo         || null,
-        visualStyle:  formData.visualStyle  || null,
-        font:         formData.font         || null,
-        sourceUrl:    brandUrl              || null,
+        brandName: formData.brandName || null,
+        description: formData.description || null,
+        brandColor: formData.brandColor ?? formData.primaryColor ?? null,
+        logo: formData.logo || null,
+        visualStyle: formData.visualStyle || null,
+        font: formData.font || null,
+        sourceUrl: brandUrl || null,
 
-        size:         formData.size,
+        size: formData.size,
         campaignGoal: formData.campaignGoal || null,
-        audience:     formData.audience     || null,
-        fileFormat:   formData.fileFormat   || null,
+        audience: formData.audience || null,
+        fileFormat: formData.fileFormat || null,
 
-        caption:      formData.caption      || null,
-        hashtags:     formData.hashtags     || [],
-        tone:         formData.tone         || null,
-        platforms:    formData.platforms    || [],
+        caption: formData.caption || null,
+        hashtags: formData.hashtags || [],
+        tone: formData.tone || null,
+        platforms: formData.platforms || [],
 
-        category:     sizeLabel?.toLowerCase().replace(/\s+/g, "_"),
-        type_size:    formData.size,
-        images:       imageUrls,
-        templates:    selectedTemplates,
-        generatedAt:  new Date().toISOString(),
+        category: sizeLabel?.toLowerCase().replace(/\s+/g, "_"),
+        type_size: formData.size,
+        images: imageUrls,
+        templates: selectedTemplates,
+        generatedAt: new Date().toISOString(),
       };
 
       // 4. STREAM BATCHES
@@ -480,7 +572,8 @@ const PostsForm = ({
     } catch (err) {
       console.error(err);
       const msg = err.message || "Generation failed. Please try again.";
-      setError(msg); showToast(msg);
+      setError(msg);
+      showToast(msg);
     } finally {
       setGenerating(false);
     }
@@ -507,19 +600,31 @@ const PostsForm = ({
                   onClick={() => step > s.id && setStep(s.id)}
                   className={`flex flex-1 items-center gap-2 min-w-0 ${step > s.id ? "cursor-pointer" : "cursor-default"}`}
                 >
-                  <div className={`shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
-                    step > s.id    ? "border-emerald-600 bg-emerald-600 text-white"
-                    : step === s.id ? "border-emerald-600 text-emerald-600 bg-surface"
-                    : "border-gray-200 text-gray-300"
-                  }`}>
-                    {step > s.id ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+                  <div
+                    className={`shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
+                      step > s.id
+                        ? "border-emerald-600 bg-emerald-600 text-white"
+                        : step === s.id
+                          ? "border-emerald-600 text-emerald-600 bg-surface"
+                          : "border-gray-200 text-gray-300"
+                    }`}
+                  >
+                    {step > s.id ? (
+                      <CheckCircle2 className="w-4 h-4" />
+                    ) : (
+                      <Icon className="w-4 h-4" />
+                    )}
                   </div>
-                  <span className={`hidden sm:block text-xs font-medium truncate ${step >= s.id ? "text-gray-700" : "text-gray-300"}`}>
+                  <span
+                    className={`hidden sm:block text-xs font-medium truncate ${step >= s.id ? "text-gray-700" : "text-gray-300"}`}
+                  >
                     {s.label}
                   </span>
                 </button>
                 {idx < STEPS.length - 1 && (
-                  <div className={`h-0.5 flex-1 rounded-full transition-all ${step > s.id ? "bg-emerald-600" : "bg-gray-200"}`} />
+                  <div
+                    className={`h-0.5 flex-1 rounded-full transition-all ${step > s.id ? "bg-emerald-600" : "bg-gray-200"}`}
+                  />
                 )}
               </React.Fragment>
             );
@@ -529,7 +634,6 @@ const PostsForm = ({
 
       {/* ── Step content ─────────────────────────────────────────────────── */}
       <div className="bg-surface px-2 rounded-lg py-2 flex flex-col gap-6">
-
         {error && (
           <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
             <X className="w-4 h-4 mt-0.5 shrink-0" /> {error}
@@ -545,12 +649,17 @@ const PostsForm = ({
             <div className="border border-emerald-100 rounded-xl p-4 bg-emerald-50/40">
               <div className="flex items-center gap-2 mb-3">
                 <Globe className="w-4 h-4 text-emerald-600" />
-                <span className="text-sm font-medium text-gray-700">Import from URL</span>
-                <span className="text-xs text-gray-400 ml-auto">Auto-fills brand info</span>
+                <span className="text-sm font-medium text-gray-700">
+                  Import from URL
+                </span>
+                <span className="text-xs text-gray-400 ml-auto">
+                  Auto-fills brand info
+                </span>
               </div>
               <div className="flex gap-2">
                 <input
-                  type="url" value={brandUrl}
+                  type="url"
+                  value={brandUrl}
                   onChange={(e) => setBrandUrl(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleImportBrand()}
                   placeholder="https://yourdomain.com/"
@@ -561,7 +670,11 @@ const PostsForm = ({
                   disabled={importingBrand || !brandUrl.trim()}
                   className="px-5 py-1.5 bg-emerald-600 cursor-pointer text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2 shrink-0"
                 >
-                  {importingBrand ? <Loader2 className="w-4 h-4 animate-spin" /> : "Import"}
+                  {importingBrand ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "Import"
+                  )}
                 </button>
               </div>
             </div>
@@ -569,7 +682,8 @@ const PostsForm = ({
             <div className="">
               <Field label="Brand Name / Project Name" required>
                 <input
-                  type="text" value={formData.brandName}
+                  type="text"
+                  value={formData.brandName}
                   onChange={(e) => field("brandName", e.target.value)}
                   placeholder="Your Brand"
                   className={inputCls}
@@ -672,7 +786,9 @@ const PostsForm = ({
                         key={hex}
                         onClick={() => field("primaryColor", hex)}
                         className={`w-7 h-7 rounded-md cursor-pointer border-2 transition-transform hover:scale-110 ${
-                          formData.primaryColor === hex ? "border-gray-800 scale-110" : "border-transparent"
+                          formData.primaryColor === hex
+                            ? "border-gray-800 scale-110"
+                            : "border-transparent"
                         }`}
                         style={{ background: hex }}
                         title={hex}
@@ -695,7 +811,8 @@ const PostsForm = ({
                       type="text"
                       value={formData.primaryColor || "#2563eb"}
                       onChange={(e) =>
-                        /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) && field("primaryColor", e.target.value)
+                        /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) &&
+                        field("primaryColor", e.target.value)
                       }
                       className={`${inputCls} w-24! flex-none px-2 text-sm font-mono`}
                       maxLength={7}
@@ -712,10 +829,20 @@ const PostsForm = ({
                   >
                     <FileUp className="w-4 h-4" /> Upload
                   </button>
-                  <input type="file" accept="image/*" className="hidden" ref={logoInputRef} onChange={handleLogoUpload} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    ref={logoInputRef}
+                    onChange={handleLogoUpload}
+                  />
                   {formData.logo && (
                     <div className="w-10 h-10 border border-gray-200 rounded-lg overflow-hidden shrink-0">
-                      <img src={formData.logo} alt="logo" className="w-full h-full object-contain" />
+                      <img
+                        src={formData.logo}
+                        alt="logo"
+                        className="w-full h-full object-contain"
+                      />
                     </div>
                   )}
                 </div>
@@ -742,7 +869,11 @@ const PostsForm = ({
                     }`}
                   >
                     <p className="text-xs font-semibold">{s.label}</p>
-                    <p className={`text-[10px] mt-0.5 ${formData.size === s.value ? "text-emerald-500" : "text-gray-400"}`}>{s.value}</p>
+                    <p
+                      className={`text-[10px] mt-0.5 ${formData.size === s.value ? "text-emerald-500" : "text-gray-400"}`}
+                    >
+                      {s.value}
+                    </p>
                   </button>
                 ))}
               </div>
@@ -773,10 +904,16 @@ const PostsForm = ({
                     key={a.value}
                     onClick={() => field("audience", a.value)}
                     className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
-                      formData.audience === a.value ? "border-emerald-600 bg-emerald-50" : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                      formData.audience === a.value
+                        ? "border-emerald-600 bg-emerald-50"
+                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
                     }`}
                   >
-                    <p className={`text-xs font-semibold ${formData.audience === a.value ? "text-emerald-700" : "text-gray-700"}`}>{a.label}</p>
+                    <p
+                      className={`text-xs font-semibold ${formData.audience === a.value ? "text-emerald-700" : "text-gray-700"}`}
+                    >
+                      {a.label}
+                    </p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{a.desc}</p>
                   </button>
                 ))}
@@ -795,7 +932,8 @@ const PostsForm = ({
                         : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
                     }`}
                   >
-                    {f}{f === "PNG" && " ✓"}
+                    {f}
+                    {f === "PNG" && " ✓"}
                   </button>
                 ))}
               </div>
@@ -827,17 +965,26 @@ const PostsForm = ({
                 <div className="grid grid-cols-5 gap-2">
                   {croppedImages.map((item, index) => {
                     if (!item) return null;
-                    const url     = item?.previewUrl;
+                    const url = item?.previewUrl;
                     const isVideo = item?.type?.includes?.("video");
                     return (
                       <div key={index} className="relative group">
                         {isVideo ? (
                           <video
-                            src={url} poster={item.thumbnail}
+                            src={url}
+                            poster={item.thumbnail}
                             className="w-full h-auto object-cover rounded-xl border border-gray-200 shadow-sm"
-                            muted loop playsInline preload="metadata"
-                            onMouseEnter={(e) => e.target.play().catch(() => {})}
-                            onMouseLeave={(e) => { e.target.pause(); e.target.currentTime = 0; }}
+                            muted
+                            loop
+                            playsInline
+                            preload="metadata"
+                            onMouseEnter={(e) =>
+                              e.target.play().catch(() => {})
+                            }
+                            onMouseLeave={(e) => {
+                              e.target.pause();
+                              e.target.currentTime = 0;
+                            }}
                           />
                         ) : url ? (
                           <img
@@ -847,11 +994,16 @@ const PostsForm = ({
                           />
                         ) : (
                           <div className="w-full h-24 bg-gray-100 border-2 border-dashed rounded-xl flex items-center justify-center">
-                            <span className="text-xs text-gray-400">No media</span>
+                            <span className="text-xs text-gray-400">
+                              No media
+                            </span>
                           </div>
                         )}
                         <button
-                          onClick={(e) => { e.stopPropagation(); removeCroppedImage(index); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeCroppedImage(index);
+                          }}
                           className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition bg-red-500 text-white rounded-full p-1 hover:bg-red-600 cursor-pointer"
                         >
                           <X className="w-3 h-3" />
@@ -872,11 +1024,18 @@ const PostsForm = ({
                 <FileUp className="w-5 h-5 text-gray-400" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-semibold text-gray-700">Upload or Search More Images</p>
-                <p className="text-xs text-gray-400 mt-1">Search web, magic studio, or upload from device</p>
+                <p className="text-sm font-semibold text-gray-700">
+                  Upload or Search More Images
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Search web, magic studio, or upload from device
+                </p>
               </div>
               <button
-                onClick={(e) => { e.stopPropagation(); setMediaPickerOpen(true); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMediaPickerOpen(true);
+                }}
                 className="px-5 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition cursor-pointer flex items-center gap-2"
               >
                 <Images className="w-4 h-4" /> Choose Media
@@ -886,7 +1045,9 @@ const PostsForm = ({
         )}
 
         {/* ── Navigation ── */}
-        <div className={`flex gap-3 pt-2 ${step > 1 ? "justify-between" : "justify-end"}`}>
+        <div
+          className={`flex gap-3 pt-2 ${step > 1 ? "justify-between" : "justify-end"}`}
+        >
           {step > 1 && (
             <button
               onClick={() => setStep((p) => p - 1)}
@@ -908,10 +1069,13 @@ const PostsForm = ({
               disabled={generating}
               className="px-3 py-2 bg-emerald-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 hover:scale-105 flex items-center gap-2 transition disabled:opacity-60"
             >
-              {generating
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <><Sparkles className="w-4 h-4" /> Generate Posts</>
-              }
+              {generating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" /> Generate Posts
+                </>
+              )}
             </button>
           )}
         </div>
@@ -950,13 +1114,19 @@ const PostsForm = ({
         showToast={showToast}
       />
 
-      {generating && <FullOverlayLoader title="Generating your posts" subtitle="Crafting copy, layout & visuals" />}
+      {generating && (
+        <FullOverlayLoader
+          title="Generating your posts"
+          subtitle="Crafting copy, layout & visuals"
+        />
+      )}
     </>
   );
 };
 
 // ── shared micro-components ───────────────────────────────────────────────────
-const inputCls = "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent";
+const inputCls =
+  "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent";
 
 const SectionTitle = ({ children }) => (
   <h3 className="font-semibold text-gray-900 text-base">{children}</h3>
@@ -965,7 +1135,8 @@ const SectionTitle = ({ children }) => (
 const Field = ({ label, required, children }) => (
   <div className="flex flex-col gap-1.5">
     <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-      {label}{required && <span className="text-red-400">*</span>}
+      {label}
+      {required && <span className="text-red-400">*</span>}
     </label>
     {children}
   </div>

@@ -538,7 +538,7 @@ const BgRemovalModal = ({ image, onClose, onApply }) => {
     try {
       const formData = new FormData();
       formData.append("image", resultBlob, "bg-removed.png");
-      const res = await api.post("/image-gallery", formData, {
+      const res = await api.post("/gallery", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       const savedUrl = res.data?.image ?? res.data?.image_url ?? res.data?.url;
@@ -950,7 +950,7 @@ const CropModal = ({ image, onClose, onApply }) => {
         try {
           const formData = new FormData();
           formData.append("image", blob, "cropped.jpg");
-          const res = await api.post("/image-gallery", formData, {
+          const res = await api.post("/gallery", formData, {
             headers: { "Content-Type": "multipart/form-data" },
           });
           const savedUrl =
@@ -1319,7 +1319,7 @@ const ImageUploadModal = ({
   // ── My Images ─────────────────────────────────────────────
   const fetchMyImages = useCallback(async () => {
     try {
-      const res = await api.get("/image-gallery");
+      const res = await api.get("/gallery");
       const raw = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.images)
@@ -1458,7 +1458,7 @@ const ImageUploadModal = ({
     const formData = new FormData();
     formData.append("image", file);
     try {
-      await api.post("/image-gallery", formData, {
+      await api.post("/gallery", formData, {
         onUploadProgress: (e) => {
           if (e.total)
             setUploadProgress(Math.round((e.loaded * 100) / e.total));
@@ -1795,7 +1795,7 @@ const ImageUploadModal = ({
                       onCopyLink={handleCopyLink}
                       onDelete={async (id) => {
                         try {
-                          await api.delete(`/image-gallery/${id}`);
+                          await api.delete(`/gallery/${id}`);
                         } catch {}
                         fetchMyImages();
                       }}

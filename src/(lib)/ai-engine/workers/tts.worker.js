@@ -34,6 +34,7 @@ import { KokoroTTS } from "kokoro-js";
 import { env, RawAudio } from "@huggingface/transformers";
 import { Mp3Encoder } from "@breezystack/lamejs";
 import { KOKORO_TTS, kokoroVoiceUrl } from "../models";
+import { normalizeSpeechText } from "../tasks/normalizeSpeechText";
 
 // Self-hosted everything: no requests to huggingface.co for model/tokenizer,
 // and the runtime .wasm comes from our public folder (version-matched to the
@@ -286,8 +287,15 @@ function encodeMp3(samples, sampleRate, kbps) {
 
 /** Chunked synthesis → stitched, polished, encoded audio blob. */
 async function synthesize({ text: rawText, voice: voiceId, speed = 1, format, quality }, progress) {
-  const text = String(rawText || "").trim();
-  if (!text) throw new Error("Enter some text to convert to speech.");
+  const cleaned = String(rawText || "").trim();
+  if (!cleaned) throw new Error("Enter some text to convert to speech.");
+  // Text normalization: rewrite numbers/currency/dates/times/units/abbreviations
+  // /interjections into speakable words BEFORE chunking + phonemization, so e.g.
+  // "$1,200.50" and "4:30 PM" and "Shh" come out right (see normalizeSpeechText).
+  const text = normalizeSpeechText(cleaned);
+  if (text !== cleaned) {
+    console.log("🔤 AI engine TTS: normalized input →", text.slice(0, 200));
+  }
   const voice = KOKORO_TTS.voices.some((v) => v.id === voiceId)
     ? voiceId
     : KOKORO_TTS.voices[0].id;

@@ -31,20 +31,11 @@ export const ON_DEVICE_TOOLS = {
       before: px(4856500),
       after: px(33245825),
       headline: "Get a polished, professional product image",
-      subtext: "We color-boost, sharpen and upscale your photo — keep its background or swap in a matched studio color.",
+      subtext: "We color-boost, sharpen and upscale your photo — the product's original background is kept as-is.",
     },
-    // Floating swatch row under the result: Original (keep the photo's
-    // background — the default) + auto-matched studio colors + neutrals +
-    // transparent. Switching re-composes instantly (no AI re-run).
-    renderOverlay: ({ tool, busy }) => (
-      <BackgroundSwatchRow
-        backgrounds={tool.backgrounds}
-        value={tool.background}
-        onChange={tool.setBackground}
-        disabled={busy}
-        showOriginal
-      />
-    ),
+    // No background swatches here: Beautifier only beautifies the product and
+    // always keeps the photo's original background (it never removes or swaps
+    // it). Background swapping lives in the Background Remover tool instead.
   },
 
   mannequin: {
@@ -55,6 +46,10 @@ export const ON_DEVICE_TOOLS = {
     defaultSize: "portrait_3_4",
     defaultQuality: "High",
     hasGenerate: true, // refine the 3D preview to a photoreal worn render
+    // API-only for now: the on-device 3D pipeline is disabled — the user picks
+    // an image (nothing runs) then hits "Generate photorealistic" to render via
+    // the backend. Flip this off to bring back the on-device 3D preview below.
+    apiOnly: true,
     sample: {
       before: px(4109759),
       after: px(37595197),

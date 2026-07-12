@@ -416,6 +416,12 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     renderResult,
     renderExtra,
     hasZoom = true,
+    // API-only tools (e.g. Ghost Mannequin, for now): skip ALL on-device
+    // processing — the user picks an image (nothing runs), then hits the footer
+    // "Generate photorealistic" to produce a render via the backend. The
+    // on-device engine hook is still mounted but never invoked, so it can be
+    // re-enabled later by flipping this flag off.
+    apiOnly = false,
   } = config;
 
   const router = useRouter();
@@ -544,7 +550,9 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
       releaseUrl(prev);
       return previewUrl || URL.createObjectURL(file);
     });
-    process(file, size, quality);
+    // API-only tools don't auto-run on-device: the source just sits ready for
+    // the user to hit "Generate photorealistic" (backend).
+    if (!apiOnly) process(file, size, quality);
   };
 
   // Image comes from the gallery picker (My Library / Search / Upload) — ONE
@@ -626,6 +634,12 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   const changeQuality = (q) => {
     setOpenDropdown(null);
     if (locked) return; // controls are disabled then anyway
+    // API-only: just record the setting for the next backend Generate — never
+    // adopt the render on-device or re-run the local pipeline.
+    if (apiOnly) {
+      setQuality(q);
+      return;
+    }
     if (generatedImage) {
       adoptGenerated(size, q);
       return;
@@ -636,6 +650,10 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   const changeSize = (s) => {
     setOpenDropdown(null);
     if (locked) return;
+    if (apiOnly) {
+      setSize(s);
+      return;
+    }
     if (generatedImage) {
       adoptGenerated(s, quality);
       return;
@@ -895,6 +913,10 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   const hasResult = !!resultImage;
   const showEmpty = !uploadedImage && !hasResult && !busy && !failed;
   const zoomActive = hasZoom;
+  // Download/Save act on a produced RESULT (on-device output or AI render) — NOT
+  // a bare uploaded source. So after an upload that's canceled before it finishes
+  // processing, those actions stay disabled (there's nothing to export yet).
+  const hasExportable = !!(generatedImage || resultImage);
 
   // Live % readout for the zoom control; bails out when the rounded % is
   // unchanged so pan events don't re-render the modal every frame.
@@ -1326,22 +1348,25 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                       Back to preview
                     </button>
                     {/* Adopt the render as the working source and keep editing it
-                        on-device (same as changing size/quality while it's open). */}
-                    <button
-                      onClick={() => adoptGenerated(size, quality)}
-                      disabled={adopting || generating}
-                      className="flex items-center gap-1.5 rounded-full bg-blue-600/90 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-blue-700 transition-colors backdrop-blur cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {adopting ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin" /> Preparing…
-                        </>
-                      ) : (
-                        <>
-                          <Wand2 className="w-3 h-3" /> Continue on-device
-                        </>
-                      )}
-                    </button>
+                        on-device (same as changing size/quality while it's open).
+                        Hidden for API-only tools — there's no on-device pipeline. */}
+                    {!apiOnly && (
+                      <button
+                        onClick={() => adoptGenerated(size, quality)}
+                        disabled={adopting || generating}
+                        className="flex items-center gap-1.5 rounded-full bg-blue-600/90 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-blue-700 transition-colors backdrop-blur cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {adopting ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" /> Preparing…
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="w-3 h-3" /> Continue on-device
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               ) : resultImage ? (
@@ -1452,15 +1477,19 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                       <Sparkles className="w-3 h-3" /> View AI render
                     </button>
                   )}
-                  <button
-                    onClick={() =>
-                      uploadedFile && !locked && process(uploadedFile, size, quality)
-                    }
-                    disabled={!uploadedFile || locked}
-                    className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full bg-blue-600/90 px-3.5 py-1.5 text-xs font-semibold text-white shadow hover:bg-blue-700 transition-colors backdrop-blur cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <Wand2 className="w-3.5 h-3.5" /> Process on-device
-                  </button>
+                  {/* On-device processing entry point — hidden for API-only
+                      tools, which generate exclusively via the backend footer. */}
+                  {!apiOnly && (
+                    <button
+                      onClick={() =>
+                        uploadedFile && !locked && process(uploadedFile, size, quality)
+                      }
+                      disabled={!uploadedFile || locked}
+                      className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full bg-blue-600/90 px-3.5 py-1.5 text-xs font-semibold text-white shadow hover:bg-blue-700 transition-colors backdrop-blur cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <Wand2 className="w-3.5 h-3.5" /> Process on-device
+                    </button>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1473,14 +1502,14 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDownload}
-                disabled={!activeKind || busy}
+                disabled={!hasExportable || busy}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Download className="w-3.5 h-3.5" /> Download
               </button>
               <button
                 onClick={doSave}
-                disabled={!activeKind || saving || busy}
+                disabled={!hasExportable || saving || busy}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-100 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {saving ? (

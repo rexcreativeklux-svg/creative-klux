@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -39,10 +40,15 @@ import {
   ImageOff,
   Star,
   AudioLines,
+  MoreHorizontal,
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
+import ResultActionsMenu, {
+  buildResultActions,
+} from "@/app/(components)/product-photos/ResultActionsMenu";
+import { saveUrlToGallery } from "@/app/(components)/product-photos/saveToGallery";
 import useTextToSpeech from "@/(lib)/ai-engine/hooks/useTextToSpeech";
 import { getCreativeById } from "../studio/creatives";
 import { MAGIC_STUDIO_CONFIGS, getMagicConfig } from "./magicStudioConfigs";
@@ -336,7 +342,7 @@ const formatDuration = (seconds) => {
  * On-device results carry rich meta (voiceLabel, duration, format, blob);
  * every field is optional so plain backend URLs render fine too.
  */
-function AudioCard({ asset, index, onDownload }) {
+function AudioCard({ asset, index, onDownload, onOpenMenu }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [metaDuration, setMetaDuration] = useState(null);
@@ -408,6 +414,13 @@ function AudioCard({ asset, index, onDownload }) {
       >
         <Download className="w-4 h-4" />
       </button>
+      <button
+        onClick={(e) => onOpenMenu(asset, e)}
+        aria-label="Result actions"
+        className="shrink-0 p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
+      >
+        <MoreHorizontal className="w-4 h-4" />
+      </button>
     </div>
   );
 }
@@ -419,7 +432,8 @@ function AudioCard({ asset, index, onDownload }) {
  * @param {() => void} props.onClose
  */
 export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
-  const { activeBrand } = useAuth();
+  const { activeBrand, uploadImage } = useAuth();
+  const router = useRouter();
   const creative = getCreativeById(CREATIVE_ID);
   const config = getMagicConfig(categoryId);
 
@@ -459,6 +473,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState(null); // { assets?, text?, resultType? }
   const [copied, setCopied] = useState(false);
+  const [assetMenu, setAssetMenu] = useState(null); // { asset, x, y } — result ⋯ menu
 
   const fileInputRef = useRef(null);
 
@@ -564,6 +579,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     }
     setError("");
     setOpenPanel(null);
+    setAssetMenu(null);
     setGenerating(true);
     try {
       const res = await config.generate({ input: primaryInput, values, activeBrand, tts });
@@ -601,6 +617,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   const resetResult = () => {
     releaseResultUrls(result);
     setResult(null);
+    setAssetMenu(null);
     setError("");
   };
 
@@ -649,6 +666,106 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
       console.error("❌ download failed:", e);
       toast.error("Couldn't download that asset.");
     }
+  };
+
+  // ── Result ⋯ menu (shared with the Product Photos modals) ──────────────────
+  // Open the menu at the clicked ⋯ (toggles closed if the same asset is reopened).
+  const openAssetMenu = (asset, e) => {
+    e.stopPropagation();
+    setAssetMenu((p) =>
+      p?.asset?.id === asset.id ? null : { asset, x: e.clientX, y: e.clientY },
+    );
+  };
+
+  const copyLink = async (url) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied!");
+    } catch {
+      toast.error("Couldn't copy the link.");
+    }
+  };
+
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied!");
+    } catch {
+      toast.error("Couldn't copy to clipboard.");
+    }
+  };
+
+  // Save an image asset to the user's gallery (on-device blobs upload directly;
+  // hosted results are fetched then uploaded — see saveUrlToGallery). A loading
+  // toast gives immediate feedback, then resolves to success/error.
+  const saveAssetToGallery = async (asset) => {
+    const t = toast.loading("Saving to gallery…");
+    try {
+      if (asset.blob) {
+        await uploadImage(
+          new File([asset.blob], `magic-${asset.id}.png`, {
+            type: asset.blob.type || "image/png",
+          }),
+        );
+      } else {
+        const url = asset.src;
+        if (!url) throw new Error("Nothing to save.");
+        await saveUrlToGallery(url, uploadImage, { filePrefix: "magic-image" });
+      }
+      toast.success("Saved to gallery", { id: t });
+    } catch (err) {
+      console.error("❌ [magic-studio] save to gallery failed:", err);
+      toast.error(err?.message || "Couldn't save to gallery", { id: t });
+    }
+  };
+
+  // Hand an image result to the Product Photos Video Generator, preselected —
+  // Magic Studio has no image-to-video category of its own.
+  const generateVideoFromAsset = (asset) => {
+    const url = asset.src;
+    if (!url) {
+      toast.error("This result can't be turned into a video.");
+      return;
+    }
+    onClose?.();
+    router.push(`/product-photos?tool=video&image=${encodeURIComponent(url)}`);
+  };
+
+  // Remove one asset from the current result (frees its on-device blob URL).
+  const deleteAsset = (asset) => {
+    if (typeof asset.src === "string" && asset.src.startsWith("blob:")) {
+      tts.release(asset.src);
+    }
+    setResult((r) =>
+      r ? { ...r, assets: (r.assets || []).filter((a) => a.id !== asset.id) } : r,
+    );
+  };
+
+  // Per-type action set — each result type shows only the actions that apply.
+  const buildAssetActions = (asset, type) => {
+    const url = asset.videoSrc || asset.src || null;
+    const isHttp = typeof url === "string" && /^https?:/i.test(url);
+    if (type === "image") {
+      return buildResultActions({
+        onGenerateVideo: () => generateVideoFromAsset(asset),
+        onDownload: () => downloadAsset(asset),
+        onCopyLink: isHttp ? () => copyLink(url) : undefined,
+        onSaveToGallery: () => saveAssetToGallery(asset),
+        onDelete: () => deleteAsset(asset),
+      });
+    }
+    if (type === "video" || type === "audio") {
+      return buildResultActions({
+        onDownload: () => downloadAsset(asset),
+        onCopyLink: isHttp ? () => copyLink(url) : undefined,
+        onDelete: () => deleteAsset(asset),
+      });
+    }
+    // text (persona cards)
+    return buildResultActions({
+      onCopy: asset.content ? () => copyText(asset.content) : undefined,
+      onDelete: () => deleteAsset(asset),
+    });
   };
 
   if (!config) return null;
@@ -798,6 +915,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
                     onDownload={downloadAsset}
                     onCopy={copyTranscript}
                     copied={copied}
+                    onOpenMenu={openAssetMenu}
                   />
                 ) : (
                   <EmptyState key="empty" config={config} />
@@ -875,6 +993,16 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
           activeBrand={activeBrand}
           maxSelectable={1}
         />
+
+        {/* ── Result actions menu (shared with the Product Photos modals) ── */}
+        {assetMenu && (
+          <ResultActionsMenu
+            x={assetMenu.x}
+            y={assetMenu.y}
+            onClose={() => setAssetMenu(null)}
+            actions={buildAssetActions(assetMenu.asset, resultType)}
+          />
+        )}
       </div>
     </MotionConfig>
   );
@@ -1285,7 +1413,7 @@ function ProcessingState({ config, engine }) {
   );
 }
 
-function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied }) {
+function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied, onOpenMenu }) {
   const assets = result?.assets || [];
 
   return (
@@ -1328,8 +1456,15 @@ function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied 
       {resultType === "text" && !result?.text && assets.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {assets.map((a) => (
-            <div key={a.id} className="rounded-2xl border border-gray-200 bg-surface p-4">
-              <p className="text-sm text-gray-700 leading-relaxed">{a.content}</p>
+            <div key={a.id} className="relative group rounded-2xl border border-gray-200 bg-surface p-4">
+              <button
+                onClick={(e) => onOpenMenu(a, e)}
+                aria-label="Result actions"
+                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+              <p className="text-sm text-gray-700 leading-relaxed pr-8">{a.content}</p>
             </div>
           ))}
         </div>
@@ -1343,10 +1478,11 @@ function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied 
               <img src={a.src} alt={a.alt} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-linear-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <button
-                onClick={() => onDownload(a)}
-                className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                onClick={(e) => onOpenMenu(a, e)}
+                aria-label="Result actions"
+                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
               >
-                <Download className="w-4 h-4" />
+                <MoreHorizontal className="w-4 h-4" />
               </button>
             </div>
           ))}
@@ -1367,10 +1503,11 @@ function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied 
                 className="w-full h-auto max-h-72 object-contain bg-black"
               />
               <button
-                onClick={() => onDownload(a)}
+                onClick={(e) => onOpenMenu(a, e)}
+                aria-label="Result actions"
                 className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
               >
-                <Download className="w-4 h-4" />
+                <MoreHorizontal className="w-4 h-4" />
               </button>
             </div>
           ))}
@@ -1381,7 +1518,13 @@ function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied 
       {resultType === "audio" && (
         <div className="space-y-3 max-w-xl">
           {assets.map((a, i) => (
-            <AudioCard key={a.id} asset={a} index={i} onDownload={onDownload} />
+            <AudioCard
+              key={a.id}
+              asset={a}
+              index={i}
+              onDownload={onDownload}
+              onOpenMenu={onOpenMenu}
+            />
           ))}
         </div>
       )}

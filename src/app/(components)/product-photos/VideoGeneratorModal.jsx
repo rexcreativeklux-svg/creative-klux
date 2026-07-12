@@ -277,14 +277,23 @@ function TemplateRow({ children }) {
   );
 }
 
-export default function VideoGeneratorModal({ onClose, onSwitchTool }) {
+/**
+ * @param {object} props
+ * @param {() => void} props.onClose
+ * @param {(id: string, opts?: object) => void} [props.onSwitchTool]
+ * @param {string|null} [props.initialImageUrl] Preselect this hosted image (from a
+ *   result's "Generate video") so the user can generate straight away.
+ */
+export default function VideoGeneratorModal({ onClose, onSwitchTool, initialImageUrl = null }) {
   const { activeBrand, uploadImage } = useAuth();
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
 
-  const [uploadedImage, setUploadedImage] = useState(null);
+  // Seeded from `initialImageUrl` when opened via a result's "Generate video" —
+  // it's an already-hosted URL, so it doubles as the preview and the send URL.
+  const [uploadedImage, setUploadedImage] = useState(initialImageUrl || null);
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // gallery/cloud URL of the picked image
+  const [uploadedFileUrl, setUploadedFileUrl] = useState(initialImageUrl || null); // gallery/cloud URL of the picked image
   const [selectedTemplate, setSelectedTemplate] = useState("none");
   const [size, setSize] = useState("square");
   const [prompt, setPrompt] = useState("");

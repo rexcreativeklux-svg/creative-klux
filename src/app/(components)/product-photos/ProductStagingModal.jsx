@@ -2,8 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { generateProductPhoto, TOOL_ENUM, QUALITY_ENUM } from '@/(lib)/product-photos-api';
 import MediaPickerModal from '@/app/(components)/MediaPickerModal';
 import { useAuth } from '@/context/AuthContext';
-import { X, Upload, Download, Copy, Loader2, MoreHorizontal, ThumbsUp, ThumbsDown, Trash2, Video, RefreshCw, ChevronDown, User, Package, Image as ImageIcon, Scissors, Layers, Shirt, Sparkles, LayoutGrid } from 'lucide-react';
+import { X, Upload, Loader2, MoreHorizontal, Video, ChevronDown, User, Package, Image as ImageIcon, Scissors, Layers, Shirt, Sparkles, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
+import ResultActionsMenu, { buildResultActions } from './ResultActionsMenu';
+import { saveUrlToGallery, downloadImageUrl } from './saveToGallery';
+
+// Appended to the prompt when the user picks "Other angles" on a result.
+const ANGLE_INSTRUCTION =
+    'Show the product from a different camera angle and perspective, keeping the same product, scene, lighting and styling.';
 
 // Pexels CDN helpers (free license, stable URLs) — mirrors VirtualModelModal.
 const px = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=600`;
@@ -206,10 +212,14 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
         setPickerOpen(false);
     };
 
-    const handleGenerate = async () => {
+    // `promptOverride` lets result-menu actions (e.g. "Other angles") regenerate
+    // with a tweaked prompt without mutating the sidebar's prompt state.
+    const handleGenerate = async ({ promptOverride } = {}) => {
         if (!uploadedFile && !uploadedImage) { toast.error('Please select a product image first'); return; }
+        const promptToSend = promptOverride != null ? promptOverride : prompt;
         setGenerating(true);
         setOpenDropdown(null);
+        setImageMenu(null);
         try {
             // Resolve the ONE image URL to send. Picks from the gallery already have
             // a hosted URL; a fresh local upload gets uploaded here to obtain one.
@@ -235,7 +245,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
               quality: QUALITY_ENUM[quality] || "standard",
               size, // aspect-ratio id
               apply_brand_style: applyBrandStyle,
-              prompt: prompt, // scene context + optional user refinement
+              prompt: promptToSend, // scene context + optional user refinement
               // workspace_id omitted for now (confirm source with backend).
             };
 
@@ -266,9 +276,37 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
 
     const closeAll = () => { setOpenDropdown(null); setImageMenu(null); setToolMenuOpen(false); };
 
-    const handleDownload = (url) => {
-        const a = document.createElement('a');
-        a.href = url; a.download = 'product-staged.png'; a.target = '_blank'; a.click();
+    const handleDownload = async (url) => {
+        const t = toast.loading('Downloading…');
+        try {
+            await downloadImageUrl(url, { filePrefix: 'product-staged' });
+            toast.success('Downloaded', { id: t });
+        } catch (err) {
+            console.error('❌ [staging] download failed:', err);
+            toast.error(err?.message || "Couldn't download the image", { id: t });
+        }
+    };
+
+    // ── Result menu actions ──
+    // "Change something": focus the prompt so the user can describe the edit.
+    // Focus by id (not a ref) so the callback never reads a ref during render.
+    const handleChangeSomething = () => document.getElementById('product-staging-prompt')?.focus();
+    // "Other angles": regenerate with an appended angle instruction.
+    const handleOtherAngles = () =>
+        handleGenerate({ promptOverride: [prompt.trim(), ANGLE_INSTRUCTION].filter(Boolean).join(' ') });
+    // "Generate video": hand this image to the Video Generator, preselected.
+    const handleGenerateVideo = (url) => onSwitchTool?.('video', { initialImageUrl: url });
+    // "Save to gallery": fetch the hosted result and upload it into the gallery.
+    // A loading toast gives immediate feedback, then resolves to success/error.
+    const handleSaveToGallery = async (url) => {
+        const t = toast.loading('Saving to gallery…');
+        try {
+            await saveUrlToGallery(url, uploadImage, { filePrefix: 'product-staged' });
+            toast.success('Saved to gallery', { id: t });
+        } catch (err) {
+            console.error('❌ [staging] save to gallery failed:', err);
+            toast.error(err?.message || "Couldn't save to gallery", { id: t });
+        }
     };
 
     return (
@@ -361,6 +399,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                         {/* Prompt */}
                         <div className="rounded-2xl bg-gray-100 px-4 py-3">
                             <textarea
+                                id="product-staging-prompt"
                                 value={prompt}
                                 onChange={e => setPrompt(e.target.value)}
                                 placeholder="Describe the image you want (optional)"
@@ -375,7 +414,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                     {/* Generate — pinned to the bottom of the sidebar */}
                     <div className="px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
                         <button
-                            onClick={handleGenerate}
+                            onClick={() => handleGenerate()}
                             disabled={generating}
                             className={`
     w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white
@@ -463,12 +502,6 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                         </div>
                     )}
 
-                    {generatedImages.length > 0 && (
-                        <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-surface rounded-full shadow border border-gray-200 px-2 py-1">
-                            <button className="p-1 hover:bg-gray-100 rounded-full text-gray-500">−</button>
-                            <button className="p-1 hover:bg-gray-100 rounded-full text-gray-500">+</button>
-                        </div>
-                    )}
                 </div>
             </div>
 
@@ -579,31 +612,22 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                 </FloatingPanel>
             )}
 
-            {/* Image context menu */}
+            {/* Result actions menu (shared across the AI product-photo modals) */}
             {imageMenu && (
-                <div
-                    className="fixed z-200 bg-surface rounded-xl shadow-2xl border border-gray-200 w-48 py-1"
-                    style={{ top: imageMenu.y, left: imageMenu.x }}
-                    onClick={e => e.stopPropagation()}
-                >
-                    {[
-                        { label: 'Change something', icon: RefreshCw, action: () => { handleGenerate(); setImageMenu(null); } },
-                        { label: 'Other angles', icon: RefreshCw, action: () => { handleGenerate(); setImageMenu(null); } },
-                        { label: 'Generate video', icon: Video },
-                        { label: 'Delete', icon: Trash2, red: true, action: () => { setGeneratedImages(p => p.filter((_, i) => i !== imageMenu.idx)); setImageMenu(null); } },
-                        { label: 'Download', icon: Download, action: () => { handleDownload(generatedImages[imageMenu.idx]); setImageMenu(null); } },
-                        { label: 'Copy link', icon: Copy, action: () => { navigator.clipboard.writeText(generatedImages[imageMenu.idx]); toast.success('Link copied!'); setImageMenu(null); } },
-                        { label: 'Good result', icon: ThumbsUp, action: () => setImageMenu(null) },
-                        { label: 'Bad result', icon: ThumbsDown, action: () => setImageMenu(null) },
-                    ].map(item => (
-                        <button key={item.label}
-                            onClick={() => { if (item.action) item.action(); else setImageMenu(null); }}
-                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-100 transition-colors ${item.red ? 'text-red-500' : 'text-gray-900'}`}>
-                            <item.icon className="w-4 h-4 shrink-0" />
-                            {item.label}
-                        </button>
-                    ))}
-                </div>
+                <ResultActionsMenu
+                    x={imageMenu.x}
+                    y={imageMenu.y}
+                    onClose={() => setImageMenu(null)}
+                    actions={buildResultActions({
+                        onChangeSomething: handleChangeSomething,
+                        onOtherAngles: handleOtherAngles,
+                        onGenerateVideo: () => handleGenerateVideo(generatedImages[imageMenu.idx]),
+                        onDownload: () => handleDownload(generatedImages[imageMenu.idx]),
+                        onCopyLink: () => { navigator.clipboard.writeText(generatedImages[imageMenu.idx]); toast.success('Link copied!'); },
+                        onSaveToGallery: () => handleSaveToGallery(generatedImages[imageMenu.idx]),
+                        onDelete: () => setGeneratedImages(p => p.filter((_, i) => i !== imageMenu.idx)),
+                    })}
+                />
             )}
 
             {/* Gallery media picker — pick ONE image (My Library / Search / Upload) */}

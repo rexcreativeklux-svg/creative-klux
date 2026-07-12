@@ -179,6 +179,7 @@ export default function ProductPhotos() {
   const [virtualModelOpen, setVirtualModelOpen] = useState(false);
   const [stagingOpen, setStagingOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
+  const [videoInitialImage, setVideoInitialImage] = useState(null); // preselect (from a result's "Generate video")
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
   const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/mannequin/flatlay)
 
@@ -188,7 +189,9 @@ export default function ProductPhotos() {
   };
 
   // Central tool router — used by the tool grid AND the in-modal tool switcher.
-  const openTool = (id) => {
+  // `opts.initialImageUrl` lets a result's "Generate video" preselect that image
+  // in the Video Generator (see VirtualModel/Staging result menus).
+  const openTool = (id, opts = {}) => {
     if (id === "virtual") {
       setVirtualModelOpen(true);
       return;
@@ -198,6 +201,7 @@ export default function ProductPhotos() {
       return;
     }
     if (id === "video") {
+      setVideoInitialImage(opts.initialImageUrl || null);
       setVideoOpen(true);
       return;
     }
@@ -220,19 +224,37 @@ export default function ProductPhotos() {
     openEditor("start");
   };
 
-  // Resume after login: /product-photos?resume=<toolId> re-opens the on-device
-  // tool so the pending save it stashed before the login redirect can complete
-  // (see OnDeviceToolModal + pendingSave.js). Param is stripped once handled.
+  // Mount-time URL handlers (both strip their params once handled):
+  //  • ?resume=<toolId> — re-opens an on-device tool after a login redirect so
+  //    its stashed pending save can complete (OnDeviceToolModal + pendingSave.js).
+  //  • ?tool=video&image=<url> — opens the Video Generator with that image
+  //    preselected, used by Magic Studio's cross-page "Generate video" action.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const resume = params.get("resume");
-    if (!resume || !ON_DEVICE_TOOL_IDS.includes(resume)) return undefined;
-    const id = requestAnimationFrame(() => {
-      console.log(`🔖 [product-photos] resuming ${resume} after login`);
-      setOnDeviceToolId(resume);
-      router.replace("/product-photos", { scroll: false });
-    });
-    return () => cancelAnimationFrame(id);
+    const tool = params.get("tool");
+    const image = params.get("image");
+
+    if (resume && ON_DEVICE_TOOL_IDS.includes(resume)) {
+      const id = requestAnimationFrame(() => {
+        console.log(`🔖 [product-photos] resuming ${resume} after login`);
+        setOnDeviceToolId(resume);
+        router.replace("/product-photos", { scroll: false });
+      });
+      return () => cancelAnimationFrame(id);
+    }
+
+    if (tool === "video") {
+      const id = requestAnimationFrame(() => {
+        console.log(`🎬 [product-photos] opening Video Generator${image ? " with a preselected image" : ""}`);
+        setVideoInitialImage(image || null);
+        setVideoOpen(true);
+        router.replace("/product-photos", { scroll: false });
+      });
+      return () => cancelAnimationFrame(id);
+    }
+
+    return undefined;
     // Mount-only: reads the URL the page landed with.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -255,18 +277,18 @@ export default function ProductPhotos() {
       {virtualModelOpen && (
         <VirtualModelModal
           onClose={() => setVirtualModelOpen(false)}
-          onSwitchTool={(id) => {
+          onSwitchTool={(id, opts) => {
             setVirtualModelOpen(false);
-            openTool(id);
+            openTool(id, opts);
           }}
         />
       )}
       {stagingOpen && (
         <ProductStagingModal
           onClose={() => setStagingOpen(false)}
-          onSwitchTool={(id) => {
+          onSwitchTool={(id, opts) => {
             setStagingOpen(false);
-            openTool(id);
+            openTool(id, opts);
           }}
         />
       )}
@@ -278,18 +300,23 @@ export default function ProductPhotos() {
           key={onDeviceToolId}
           config={ON_DEVICE_TOOLS[onDeviceToolId]}
           onClose={() => setOnDeviceToolId(null)}
-          onSwitchTool={(id) => {
+          onSwitchTool={(id, opts) => {
             setOnDeviceToolId(null);
-            openTool(id);
+            openTool(id, opts);
           }}
         />
       )}
       {videoOpen && (
         <VideoGeneratorModal
-          onClose={() => setVideoOpen(false)}
-          onSwitchTool={(id) => {
+          initialImageUrl={videoInitialImage}
+          onClose={() => {
             setVideoOpen(false);
-            openTool(id);
+            setVideoInitialImage(null);
+          }}
+          onSwitchTool={(id, opts) => {
+            setVideoOpen(false);
+            setVideoInitialImage(null);
+            openTool(id, opts);
           }}
         />
       )}

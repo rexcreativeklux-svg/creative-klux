@@ -302,7 +302,7 @@ function ZoomCanvas({ zoomRef, onScale, excluded = [], wheelExcluded = [], child
       doubleClick={{ mode: "reset", excluded: wheelExcluded }}
       wheel={{ step: 0.15, excluded: wheelExcluded }}
       panning={{ excluded, velocityDisabled: true }}
-      onTransformed={(_, state) => onScale?.(state.scale)}
+      onTransform={(_, state) => onScale?.(state.scale)}
     >
       <TransformComponent
         wrapperStyle={{ width: "100%", height: "100%" }}

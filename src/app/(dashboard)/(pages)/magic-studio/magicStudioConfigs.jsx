@@ -386,7 +386,7 @@ export const MAGIC_STUDIO_CONFIGS = {
       input ? null : "Please pick a source image first.",
     generate: async ({ input, values }) => {
       const payload = {
-        tool: "image_variation",
+        tool: "image_to_variation",
         visual_style: values.style,
         source_image: input,
       };

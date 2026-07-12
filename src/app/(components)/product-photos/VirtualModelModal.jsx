@@ -271,13 +271,13 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
     const backgroundRef = useRef(null);
     const sizeRef = useRef(null);
     const modelRef = useRef(null);
-    const poseRef = useRef(null);
+    // const poseRef = useRef(null);
     const headerRef = useRef(null);
 
     const [uploadedImage, setUploadedImage] = useState(null);
     const [uploadedFile, setUploadedFile] = useState(null);
     const [selectedModel, setSelectedModel] = useState('jordan');
-    const [selectedPose, setSelectedPose] = useState('3_4_turn');
+    // const [selectedPose, setSelectedPose] = useState('3_4_turn');
     const [quality, setQuality] = useState('Standard');
     const [background, setBackground] = useState('concrete_studio');
     const [size, setSize] = useState('portrait_2_3');
@@ -345,7 +345,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
               model_image_url: MODELS.find(
                 (model) => model.id === selectedModel.toLocaleLowerCase(),
               )?.img,
-              pose: selectedPose, // pose id, e.g. "3_4_turn"
+            //   pose: selectedPose, // pose id, e.g. "3_4_turn"
               quality: QUALITY_ENUM[quality] || "standard",
               size, // aspect-ratio id
               apply_brand_style: applyBrandStyle,
@@ -376,7 +376,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
     const toggle = (key) => setOpenDropdown(p => p === key ? null : key);
 
     const modelObj = MODELS.find(m => m.id === selectedModel);
-    const poseObj = POSES.find(p => p.id === selectedPose);
+    // const poseObj = POSES.find(p => p.id === selectedPose);
     const bgObj = BACKGROUNDS.find(b => b.id === background);
     const sizeObj = SIZES.find(s => s.id === size);
 
@@ -450,7 +450,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                             </button>
 
                             {/* Pose button */}
-                            <button
+                            {/* <button
                                 ref={poseRef}
                                 onClick={() => toggle('pose')}
                                 className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === 'pose' ? 'bg-blue-50 ring-2 ring-blue-500' : 'bg-gray-100/70 hover:bg-gray-100'}`}
@@ -460,7 +460,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                                 </div>
                                 <span className="text-[11px] text-gray-500">Pose</span>
                                 <span className="text-sm font-semibold text-gray-900">{poseObj?.name}</span>
-                            </button>
+                            </button> */}
                         </div>
                     </div>
 
@@ -663,7 +663,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                 </FloatingPanel>
             )}
 
-            {openDropdown === 'pose' && (
+            {/* {openDropdown === 'pose' && (
                 <FloatingPanel anchorRef={poseRef} width={310}>
                     <div className="grid grid-cols-4 gap-2 p-3">
                         {POSES.map(p => (
@@ -678,7 +678,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                         ))}
                     </div>
                 </FloatingPanel>
-            )}
+            )} */}
 
             {openDropdown === 'quality' && (
                 <FloatingPanel anchorRef={qualityRef} width={380}>

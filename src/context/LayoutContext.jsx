@@ -1,4 +1,4 @@
-j// context/LayoutContext.js
+// context/LayoutContext.js
 "use client";
 import { createContext, useContext, useState } from "react";
 

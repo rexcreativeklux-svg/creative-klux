@@ -695,22 +695,33 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     }
   };
 
-  // Save an image asset to the user's gallery (on-device blobs upload directly;
-  // hosted results are fetched then uploaded — see saveUrlToGallery). A loading
-  // toast gives immediate feedback, then resolves to success/error.
-  const saveAssetToGallery = async (asset) => {
+  // Save an asset to the user's gallery. On-device results (e.g. Text-to-Audio)
+  // carry their Blob directly, so we upload it with a type-correct name/MIME
+  // (audio → .mp3/.wav, image → .png); hosted results are fetched then uploaded
+  // (see saveUrlToGallery). All saves go through the shared /gallery endpoint
+  // (uploadImage). A loading toast gives immediate feedback, then resolves.
+  const saveAssetToGallery = async (asset, type) => {
     const t = toast.loading("Saving to gallery…");
     try {
       if (asset.blob) {
+        const ext =
+          type === "audio"
+            ? asset.format || (asset.blob.type?.includes("wav") ? "wav" : "mp3")
+            : "png";
+        const mime =
+          asset.blob.type ||
+          (type === "audio"
+            ? ext === "wav"
+              ? "audio/wav"
+              : "audio/mpeg"
+            : "image/png");
         await uploadImage(
-          new File([asset.blob], `magic-${asset.id}.png`, {
-            type: asset.blob.type || "image/png",
-          }),
+          new File([asset.blob], `magic-${type}-${asset.id}.${ext}`, { type: mime }),
         );
       } else {
         const url = asset.src;
         if (!url) throw new Error("Nothing to save.");
-        await saveUrlToGallery(url, uploadImage, { filePrefix: "magic-image" });
+        await saveUrlToGallery(url, uploadImage, { filePrefix: `magic-${type}` });
       }
       toast.success("Saved to gallery", { id: t });
     } catch (err) {
@@ -750,11 +761,19 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
         onGenerateVideo: () => generateVideoFromAsset(asset),
         onDownload: () => downloadAsset(asset),
         onCopyLink: isHttp ? () => copyLink(url) : undefined,
-        onSaveToGallery: () => saveAssetToGallery(asset),
+        onSaveToGallery: () => saveAssetToGallery(asset, "image"),
         onDelete: () => deleteAsset(asset),
       });
     }
-    if (type === "video" || type === "audio") {
+    if (type === "audio") {
+      return buildResultActions({
+        onDownload: () => downloadAsset(asset),
+        onCopyLink: isHttp ? () => copyLink(url) : undefined,
+        onSaveToGallery: () => saveAssetToGallery(asset, "audio"),
+        onDelete: () => deleteAsset(asset),
+      });
+    }
+    if (type === "video") {
       return buildResultActions({
         onDownload: () => downloadAsset(asset),
         onCopyLink: isHttp ? () => copyLink(url) : undefined,

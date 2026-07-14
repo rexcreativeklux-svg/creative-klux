@@ -297,7 +297,7 @@ export default function VideoGeneratorModal({
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
 
-  // The product photos to animate. Each item:
+  // The Product Studio to animate. Each item:
   //   { id, preview, file, url }
   //   • preview — URL used for the <img> thumbnail (always present)
   //   • file    — the File for a fresh desktop upload (null for gallery/search picks)
@@ -515,7 +515,7 @@ export default function VideoGeneratorModal({
                 </span>
               </button>
               <p className="text-xs text-gray-500 leading-relaxed mt-2">
-                Pick up to {MAX_IMAGES} clear product photos — different angles
+                Pick up to {MAX_IMAGES} clear Product Studio — different angles
                 improve the video.
               </p>
             </div>

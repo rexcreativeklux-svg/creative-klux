@@ -5,7 +5,7 @@
 // git-ignored (models are big binaries), so every dev — and every deploy —
 // runs this once after `npm install`. No dependencies, Node 18+ only.
 //
-// This is the trimmed registry for the Product Photos on-device tools
+// This is the trimmed registry for the Product Studio on-device tools
 // (Beautifier, Ghost Mannequin, Flat Lay). Only commercially-safe licenses:
 //   u2netp               4.6 MB  Apache-2.0   — bg cutout, fast tier (low-RAM devices)
 //   silueta              43 MB   MIT          — bg cutout, default tier (better edges)
@@ -124,6 +124,75 @@ const MODELS = [
     bytes: 92361116,
     url: "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/onnx/model_quantized.onnx",
   },
+
+  // Whisper Base (multilingual) speech-to-text (OpenAI weights, MIT; onnx-
+  // community's official ONNX export). Powers Magic Studio's on-device "Audio to
+  // Text". Laid out how transformers.js resolves a local model id ("whisper-base"
+  // + env.localModelPath = /models): config + generation/preprocessor config +
+  // tokenizer files at the root, q8 weights under onnx/. The `bytes: null`
+  // entries are tiny JSON/text files whose size may drift with upstream metadata
+  // edits — download is still verified to be non-empty. The two q8 onnx files
+  // (encoder + merged decoder) ARE pinned, so a truncated download is caught.
+  {
+    file: "whisper-base/config.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/config.json",
+  },
+  {
+    file: "whisper-base/generation_config.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/generation_config.json",
+  },
+  {
+    file: "whisper-base/preprocessor_config.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/preprocessor_config.json",
+  },
+  {
+    file: "whisper-base/tokenizer.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/tokenizer.json",
+  },
+  {
+    file: "whisper-base/tokenizer_config.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/tokenizer_config.json",
+  },
+  {
+    file: "whisper-base/vocab.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/vocab.json",
+  },
+  {
+    file: "whisper-base/merges.txt",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/merges.txt",
+  },
+  {
+    file: "whisper-base/added_tokens.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/added_tokens.json",
+  },
+  {
+    file: "whisper-base/special_tokens_map.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/special_tokens_map.json",
+  },
+  {
+    file: "whisper-base/normalizer.json",
+    bytes: null,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/normalizer.json",
+  },
+  {
+    file: "whisper-base/onnx/encoder_model_quantized.onnx",
+    bytes: 23201314,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/encoder_model_quantized.onnx",
+  },
+  {
+    file: "whisper-base/onnx/decoder_model_merged_quantized.onnx",
+    bytes: 53693315,
+    url: "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/decoder_model_merged_quantized.onnx",
+  },
 ];
 
 // Kokoro voice embeddings offered in the Text to Speech tool — all 28 English
@@ -133,15 +202,37 @@ const MODELS = [
 // src/app/libs/ai-engine/models.js.
 const KOKORO_VOICES = [
   // US female
-  "af_heart", "af_bella", "af_nicole", "af_aoede", "af_kore", "af_sarah",
-  "af_alloy", "af_nova", "af_sky", "af_jessica", "af_river",
+  "af_heart",
+  "af_bella",
+  "af_nicole",
+  "af_aoede",
+  "af_kore",
+  "af_sarah",
+  "af_alloy",
+  "af_nova",
+  "af_sky",
+  "af_jessica",
+  "af_river",
   // US male
-  "am_fenrir", "am_michael", "am_puck", "am_echo", "am_eric", "am_liam",
-  "am_onyx", "am_santa", "am_adam",
+  "am_fenrir",
+  "am_michael",
+  "am_puck",
+  "am_echo",
+  "am_eric",
+  "am_liam",
+  "am_onyx",
+  "am_santa",
+  "am_adam",
   // British female
-  "bf_emma", "bf_isabella", "bf_alice", "bf_lily",
+  "bf_emma",
+  "bf_isabella",
+  "bf_alice",
+  "bf_lily",
   // British male
-  "bm_george", "bm_fable", "bm_lewis", "bm_daniel",
+  "bm_george",
+  "bm_fable",
+  "bm_lewis",
+  "bm_daniel",
 ];
 
 // The runtime files onnxruntime-web loads at ort.env.wasm.wasmPaths ("/ort/"):
@@ -185,35 +276,55 @@ async function downloadModel({ file, bytes, url }) {
 function copyOrtRuntime() {
   const dist = path.join(root, "node_modules", "onnxruntime-web", "dist");
   if (!existsSync(dist)) {
-    throw new Error("onnxruntime-web is not installed — run `npm install` first.");
+    throw new Error(
+      "onnxruntime-web is not installed — run `npm install` first.",
+    );
   }
   for (const file of ORT_FILES) {
     const src = path.join(dist, file);
     if (!existsSync(src)) {
-      throw new Error(`Missing ${file} in onnxruntime-web/dist — package layout changed?`);
+      throw new Error(
+        `Missing ${file} in onnxruntime-web/dist — package layout changed?`,
+      );
     }
     copyFileSync(src, path.join(ORT_DIR, file));
   }
-  console.log(`✅ ONNX Runtime web files copied to public/ort/ (${ORT_FILES.length} files)`);
+  console.log(
+    `✅ ONNX Runtime web files copied to public/ort/ (${ORT_FILES.length} files)`,
+  );
 }
 
 // transformers.js bundles its OWN onnxruntime-web build; its runtime .wasm files
 // must match THAT version, so they're copied from the transformers dist into a
 // separate public folder (/ort-hf/), never mixed with the /ort/ files above.
 function copyTransformersOrtRuntime() {
-  const dist = path.join(root, "node_modules", "@huggingface", "transformers", "dist");
+  const dist = path.join(
+    root,
+    "node_modules",
+    "@huggingface",
+    "transformers",
+    "dist",
+  );
   if (!existsSync(dist)) {
-    throw new Error("@huggingface/transformers is not installed — run `npm install` first.");
+    throw new Error(
+      "@huggingface/transformers is not installed — run `npm install` first.",
+    );
   }
-  const files = readdirSync(dist).filter((f) => f.startsWith("ort-") && /\.(wasm|mjs)$/.test(f));
+  const files = readdirSync(dist).filter(
+    (f) => f.startsWith("ort-") && /\.(wasm|mjs)$/.test(f),
+  );
   if (files.length === 0) {
-    throw new Error("No ort-*.wasm files in @huggingface/transformers/dist — package layout changed?");
+    throw new Error(
+      "No ort-*.wasm files in @huggingface/transformers/dist — package layout changed?",
+    );
   }
   mkdirSync(ORT_HF_DIR, { recursive: true });
   for (const file of files) {
     copyFileSync(path.join(dist, file), path.join(ORT_HF_DIR, file));
   }
-  console.log(`✅ transformers.js ONNX runtime copied to public/ort-hf/ (${files.length} files)`);
+  console.log(
+    `✅ transformers.js ONNX runtime copied to public/ort-hf/ (${files.length} files)`,
+  );
 }
 
 // The Kokoro voice embeddings (0.5 MB each) ship inside the kokoro-js npm
@@ -228,11 +339,15 @@ function copyKokoroVoices() {
   for (const voice of KOKORO_VOICES) {
     const file = `${voice}.bin`;
     if (!existsSync(path.join(src, file))) {
-      throw new Error(`Voice ${file} missing from kokoro-js/voices — package layout changed?`);
+      throw new Error(
+        `Voice ${file} missing from kokoro-js/voices — package layout changed?`,
+      );
     }
     copyFileSync(path.join(src, file), path.join(dest, file));
   }
-  console.log(`✅ Kokoro voices copied to public/models/kokoro/voices/ (${KOKORO_VOICES.length} voices)`);
+  console.log(
+    `✅ Kokoro voices copied to public/models/kokoro/voices/ (${KOKORO_VOICES.length} voices)`,
+  );
 }
 
 try {

@@ -1,4 +1,4 @@
-// Pure-canvas compositor shared by the on-device Product Photos tools. Places a
+// Pure-canvas compositor shared by the on-device Product Studio tools. Places a
 // transparent product cutout onto a target-size canvas (aspect ratio + quality
 // resolution), centered with padding, on a chosen background. If the product is
 // small relative to the target slot, it's upscaled first (via the engine's
@@ -31,7 +31,8 @@ const QUALITY_UPSCALE_TIER = {
  */
 export function targetDimensions({ w, h }, quality) {
   const longEdge = QUALITY_LONG_EDGE[quality] || QUALITY_LONG_EDGE.High;
-  if (w >= h) return { width: longEdge, height: Math.round((longEdge * h) / w) };
+  if (w >= h)
+    return { width: longEdge, height: Math.round((longEdge * h) / w) };
   return { width: Math.round((longEdge * w) / h), height: longEdge };
 }
 
@@ -50,7 +51,10 @@ export function targetDimensions({ w, h }, quality) {
  * @param {(p:{pct:number}) => void} [opts.onProgress]
  * @returns {Promise<{blob: Blob, width: number, height: number}>}
  */
-export async function frameToRatio(imageBlob, { ratio, quality, originalSize = false, onProgress } = {}) {
+export async function frameToRatio(
+  imageBlob,
+  { ratio, quality, originalSize = false, onProgress } = {},
+) {
   const bitmap = await createImageBitmap(imageBlob);
   onProgress?.({ pct: 20 });
 
@@ -91,7 +95,10 @@ export async function frameToRatio(imageBlob, { ratio, quality, originalSize = f
   onProgress?.({ pct: 90 });
 
   const blob = await new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Compose failed"))), "image/png"),
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("Compose failed"))),
+      "image/png",
+    ),
   );
   return { blob, width, height };
 }
@@ -109,14 +116,17 @@ export async function frameToRatio(imageBlob, { ratio, quality, originalSize = f
  * @param {(p:{pct:number}) => void} [opts.onProgress] Progress for the upscale step.
  * @returns {Promise<{blob: Blob, width: number, height: number}>} Composited PNG.
  */
-export async function fitToSize(cutoutBlob, {
-  ratio,
-  quality,
-  padding = 0.08,
-  background = "transparent",
-  align = "center",
-  onProgress,
-} = {}) {
+export async function fitToSize(
+  cutoutBlob,
+  {
+    ratio,
+    quality,
+    padding = 0.08,
+    background = "transparent",
+    align = "center",
+    onProgress,
+  } = {},
+) {
   const { width, height } = targetDimensions(ratio, quality);
   const pad = Math.max(0, Math.min(0.4, padding));
   // The area the product may occupy inside the padded slot.
@@ -130,7 +140,9 @@ export async function fitToSize(cutoutBlob, {
   // shortfall is meaningful — a 4× tiled pass is not free.
   const fitScale = Math.min(slotW / bitmap.width, slotH / bitmap.height);
   if (fitScale > 1.15) {
-    console.log(`🔎 fitToSize: product small for slot (×${fitScale.toFixed(2)}) — upscaling to fit`);
+    console.log(
+      `🔎 fitToSize: product small for slot (×${fitScale.toFixed(2)}) — upscaling to fit`,
+    );
     try {
       const { blob: upBlob } = await upscaleImage(cutoutBlob, {
         tier: QUALITY_UPSCALE_TIER[quality] || "standard",
@@ -141,7 +153,10 @@ export async function fitToSize(cutoutBlob, {
     } catch (err) {
       // Upscaling is an enhancement, not a requirement — if it fails we still
       // compose with the original cutout (canvas will bilinear-scale it).
-      console.warn("⚠️ fitToSize: upscale-to-fit failed, composing original:", err?.message);
+      console.warn(
+        "⚠️ fitToSize: upscale-to-fit failed, composing original:",
+        err?.message,
+      );
     }
   }
 
@@ -168,7 +183,10 @@ export async function fitToSize(cutoutBlob, {
   bitmap.close();
 
   const blob = await new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Compose failed"))), "image/png"),
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("Compose failed"))),
+      "image/png",
+    ),
   );
   return { blob, width, height };
 }

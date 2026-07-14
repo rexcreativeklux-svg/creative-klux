@@ -2,7 +2,6 @@ node_modules
 .next/
 node_modules/
 .env
-
 note.txt
 
 # AI engine assets — big binaries, fetched by `npm run models` (see

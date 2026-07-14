@@ -1721,7 +1721,14 @@ function Slider({ label, value, min, max, onChange, unit = "" }) {
 }
 
 export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
-  const { uploadMedia, myImages = [], activeBrand, sendUrl } = useAuth();
+  const { uploadMedia, myImages = [], activeBrand, sendUrl, user } = useAuth();
+  // Avatar initial from the signed-in user's name (falls back to email).
+  const userInitial = (user?.name || user?.email || "?")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  const [compareOpen, setCompareOpen] = useState(false); // Before/After overlay (panels button)
+  const [subjectRemoved, setSubjectRemoved] = useState(false); // deleted the image → transparent canvas + Background panel
   const fileInputRef = useRef(null);
   const imgRef = useRef(null);
   const insertFileRef = useRef(null);

@@ -1,4 +1,4 @@
-// API client for the Product Photos "Generate" (photoreal) endpoint.
+// API client for the Product Studio "Generate" (photoreal) endpoint.
 //
 // Backend contract (POST /product-studio/generate) — send any of:
 //   tool, image, prompt, quality, size, apply_brand_style, workspace_id,
@@ -44,7 +44,7 @@ export const QUALITY_ENUM = {
 const BASE_URL = "https://api.creativeklux.com/api/creativeklux-userend";
 
 /**
- * Call the Product Photos generate endpoint.
+ * Call the Product Studio generate endpoint.
  *
  * @param {object} payload The request body (already shaped for the backend).
  * @returns {Promise<object>} The response data (e.g. { url, id, credits_used }).

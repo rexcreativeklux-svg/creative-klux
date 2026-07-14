@@ -1,4 +1,4 @@
-// Shared size/quality parameters for the on-device Product Photos tools.
+// Shared size/quality parameters for the on-device Product Studio tools.
 // Kept in one place so Beautifier, Ghost Mannequin and Flat Lay stay consistent
 // with each other and with the size/quality pickers the modals already show.
 
@@ -39,12 +39,16 @@ export async function qualityToModelKey(quality) {
   if (quality === "Ultra") {
     const mem = deviceMemoryGB();
     if (mem !== null && mem <= 4) {
-      console.log(`📉 AI engine: ~${mem} GB RAM — Premium uses the Advanced cutout (silueta)`);
+      console.log(
+        `📉 AI engine: ~${mem} GB RAM — Premium uses the Advanced cutout (silueta)`,
+      );
       return "silueta";
     }
     const providers = await pickExecutionProviders();
     if (!providers.includes("webgpu")) {
-      console.log("📉 AI engine: no WebGPU — Premium uses the Advanced cutout (silueta)");
+      console.log(
+        "📉 AI engine: no WebGPU — Premium uses the Advanced cutout (silueta)",
+      );
       return "silueta";
     }
     return "isnet";

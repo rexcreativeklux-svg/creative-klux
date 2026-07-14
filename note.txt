@@ -1,5 +1,3 @@
-Gallery show different file types..
+Product beautifier original size, and background issues
 
-Video progress keep showing and making more calls till status becoemes  completed then show result.
-
-Get and display generation history with message that it expires in 30days...
+Using this endpoints "product-studio/history to fetch history, /product-studio/{id} to delete, /magic-studio/history to fetch history, /magic-studio/{id} to delete" wiring it inside this files @src/(lib)/product-studio-api.js and @src/(lib)/magic-studio-api.js  . Then in the product studio modal "virtual model", "product stagging", "ghost mannequin", "product beautifier", "flat lay", "video generatory" and magic studio modals as well. So the delete now works well by deleting from the history but onde

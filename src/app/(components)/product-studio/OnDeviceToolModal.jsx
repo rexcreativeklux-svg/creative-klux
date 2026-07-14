@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Shared shell for the on-device Product Photos tools (Beautifier, Ghost
+ * Shared shell for the on-device Product Studio tools (Beautifier, Ghost
  * Mannequin, Flat Lay). It keeps the exact look of the other product modals
  * (ProductToolModal header switcher + quality/size dropdowns, BackgroundRemover
  * bottom toolbar + zoom) and drives an on-device engine hook underneath.

@@ -1,6 +1,6 @@
 # Creative-Klux AI Engine
 
-Self-hosted, on-device AI for the Product Photos tools. Models run **in the
+Self-hosted, on-device AI for the Product Studio tools. Models run **in the
 user's browser** (ONNX Runtime Web: WebGPU when available, WASM everywhere else)
 inside Web Workers — no third-party AI services, nothing uploaded, no lag. Ported
 from the Design-Editor engine (same architecture), trimmed to the models these
@@ -49,12 +49,12 @@ Only commercially-safe licenses here (Apache-2.0 / MIT / BSD). **Never** add
 `@imgly/background-removal` (AGPL), BRIA RMBG models (non-commercial), or
 CodeFormer (non-commercial).
 
-| Model | Task | License | Size |
-|---|---|---|---|
-| `u2netp` | background removal (fast tier, ≤2 GB devices) | Apache-2.0 | 4.6 MB |
-| `silueta` | background removal (default) | MIT | 43 MB |
-| `realesr-general-x4v3` | 4× enhance/upscale (standard) | BSD-3-Clause | 4.9 MB |
-| `realesrgan-x4plus` | 4× enhance HD tier (WebGPU only) | BSD-3-Clause | 67 MB |
+| Model                  | Task                                          | License      | Size   |
+| ---------------------- | --------------------------------------------- | ------------ | ------ |
+| `u2netp`               | background removal (fast tier, ≤2 GB devices) | Apache-2.0   | 4.6 MB |
+| `silueta`              | background removal (default)                  | MIT          | 43 MB  |
+| `realesr-general-x4v3` | 4× enhance/upscale (standard)                 | BSD-3-Clause | 4.9 MB |
+| `realesrgan-x4plus`    | 4× enhance HD tier (WebGPU only)              | BSD-3-Clause | 67 MB  |
 
 The **Ghost Mannequin depth model** (Depth Anything V2 Small, Apache-2.0) runs
 through transformers.js and is added in that tool's phase — not wired here yet.

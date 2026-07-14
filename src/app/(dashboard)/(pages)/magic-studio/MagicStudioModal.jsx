@@ -3,7 +3,7 @@
 /**
  * MagicStudioModal.jsx
  * ─────────────────────────────────────────────────────────────────────────────
- * Two-side modal shell for Magic Studio, modeled on the Product Photos modals
+ * Two-side modal shell for Magic Studio, modeled on the Product Studio modals
  * (ProductToolModal / OnDeviceToolModal):
  *
  *   ┌ left sidebar ───────────────┬ right canvas ───────────────┐
@@ -40,16 +40,22 @@ import {
   Star,
   AudioLines,
   MoreHorizontal,
+  Mic,
+  Square,
+  Clock,
+  Type,
+  Languages,
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
-import AudioCard from "@/app/(components)/gallery/AudioCard";
+import AudioCard, { formatClock } from "@/app/(components)/gallery/AudioCard";
 import ResultActionsMenu, {
   buildResultActions,
 } from "@/app/(components)/product-studio/ResultActionsMenu";
 import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGallery";
 import useTextToSpeech from "@/(lib)/ai-engine/hooks/useTextToSpeech";
+import useSpeechToText from "@/(lib)/ai-engine/hooks/useSpeechToText";
 import { getCreativeById } from "../studio/creatives";
 import {
   MAGIC_STUDIO_CONFIGS,
@@ -555,6 +561,120 @@ function useVoicePreview(tts) {
   return { loadingId, playingId, toggle, stop };
 }
 
+// Auto-stop cap for mic recordings — matches the STT engine's duration cap so a
+// forgotten recording can't grow past what the transcriber will accept.
+const MAX_RECORD_SECONDS = 30 * 60;
+
+/**
+ * Microphone capture for the Audio-to-Text tool. Records with MediaRecorder,
+ * then hands the finished clip (wrapped as a File) to `onComplete`, which feeds
+ * it into the EXACT same on-device transcription path as an uploaded file
+ * (record → stop → transcribe — consistent with the "progress → final text" UX).
+ * Tracks elapsed time, auto-stops at the cap, and always releases the mic. The
+ * callback is read through a ref so the latest closure runs without re-subscribing.
+ *
+ * @param {(file: File) => void} onComplete Receives the recorded audio.
+ * @returns {{ recording: boolean, elapsed: number, start: () => void, stop: () => void }}
+ */
+function useMicRecorder(onComplete) {
+  // Keep the latest callback in a ref so `onstop` always runs the current
+  // closure — updated in an effect, never during render.
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  const recorderRef = useRef(null);
+  const streamRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
+  const [recording, setRecording] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const releaseStream = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    clearTimer();
+  };
+
+  const stop = () => {
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") recorder.stop(); // fires onstop → file
+    setRecording(false);
+    clearTimer();
+  };
+
+  const start = async () => {
+    if (recording) return;
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      toast.error("Recording isn't supported in this browser.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data?.size) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const type = recorder.mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
+        releaseStream();
+        if (blob.size > 0) {
+          // Wrap as a File so the upload UI (name/size) and the decoder treat a
+          // recording exactly like an uploaded clip.
+          const ext = type.includes("mp4") || type.includes("mpeg") ? "m4a" : "webm";
+          const file = new File([blob], `recording-${Date.now()}.${ext}`, { type });
+          onCompleteRef.current?.(file);
+        }
+      };
+      recorder.start();
+      recorderRef.current = recorder;
+      setElapsed(0);
+      setRecording(true);
+      timerRef.current = setInterval(() => {
+        setElapsed((s) => {
+          const next = s + 1;
+          if (next >= MAX_RECORD_SECONDS) stop();
+          return next;
+        });
+      }, 1000);
+      console.log("🎙️ [magic-studio] mic recording started");
+    } catch (err) {
+      console.error("❌ [magic-studio] mic access failed:", err);
+      releaseStream();
+      toast.error("Couldn't access the microphone — check your browser permissions.");
+    }
+  };
+
+  // Stop + release the mic on unmount (covers closing the modal mid-record).
+  // Inlined (touches only stable refs) so it needs no effect dependencies.
+  useEffect(
+    () => () => {
+      try {
+        const recorder = recorderRef.current;
+        if (recorder && recorder.state !== "inactive") recorder.stop();
+      } catch {
+        /* already stopped */
+      }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      if (timerRef.current) clearInterval(timerRef.current);
+    },
+    [],
+  );
+
+  return { recording, elapsed, start, stop };
+}
+
 /**
  * @param {object}   props
  * @param {string}   props.categoryId  Category id from studio/creatives.js.
@@ -575,6 +695,16 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   // On-device voice auditioning for the Text-to-Audio voice picker — shares the
   // same Kokoro engine as generation (see useVoicePreview).
   const voicePreview = useVoicePreview(tts);
+
+  // On-device speech-to-text engine (Whisper Base in a Web Worker) — only the
+  // audio_to_text category calls it; it stays idle otherwise (the worker spawns
+  // on first transcribe) and disposes its worker on unmount.
+  const stt = useSpeechToText();
+
+  // The active on-device engine that drives the processing state's REAL progress
+  // bar + stage checklist, chosen by the config's `engine` tag ("tts" | "stt").
+  const onDeviceEngine =
+    config?.engine === "stt" ? stt : config?.engine === "tts" ? tts : null;
 
   const headerRef = useRef(null);
   const optionRefs = useRef({});
@@ -598,6 +728,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   const [imageInput, setImageInput] = useState(null); // { file?, url, preview }
   const [audioInput, setAudioInput] = useState(null); // File
   const [audioMeta, setAudioMeta] = useState(null); // { previewUrl, duration }
+  const [audioMode, setAudioMode] = useState("upload"); // "upload" | "record" (Audio to Text)
 
   const [openPanel, setOpenPanel] = useState(null); // option key
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -706,6 +837,11 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
       setAudioMeta((m) => ({ ...m, duration: probe.duration }));
   };
 
+  // Mic capture for Audio-to-Text — a finished recording flows through the same
+  // handler as an uploaded file, so preview, duration probe and transcription
+  // are all identical to the upload path.
+  const recorder = useMicRecorder(handleAudioFile);
+
   // ── Inspire (fills the text input, or persona fields) ──────────────────────
   const handleInspire = () => {
     const list = config?.inputConfig?.inspire;
@@ -776,6 +912,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
         values,
         activeBrand,
         tts,
+        stt,
       });
 
       // Async video jobs come back as { pending, jobId } — keep the processing
@@ -840,6 +977,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     setSwitcherOpen(false);
     if (id === categoryId) return;
     voicePreview.stop();
+    recorder.stop(); // don't leave the mic recording when leaving the tool
     onSwitch?.(id);
   };
 
@@ -886,7 +1024,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     }
   };
 
-  // ── Result ⋯ menu (shared with the Product Photos modals) ──────────────────
+  // ── Result ⋯ menu (shared with the Product Studio modals) ──────────────────
   // Open the menu at the clicked ⋯ (toggles closed if the same asset is reopened).
   const openAssetMenu = (asset, e) => {
     e.stopPropagation();
@@ -952,7 +1090,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     }
   };
 
-  // Hand an image result to the Product Photos Video Generator, preselected —
+  // Hand an image result to the Product Studio Video Generator, preselected —
   // Magic Studio has no image-to-video category of its own.
   const generateVideoFromAsset = (asset) => {
     const url = asset.src;
@@ -1081,9 +1219,13 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
                   audioMeta={audioMeta}
                   onAudioFile={handleAudioFile}
                   clearAudio={() => {
+                    recorder.stop();
                     setAudioInput(null);
                     setAudioMeta(null);
                   }}
+                  audioMode={audioMode}
+                  setAudioMode={setAudioMode}
+                  recorder={recorder}
                   fileInputRef={fileInputRef}
                   onInspire={handleInspire}
                   wordCount={wordCount}
@@ -1120,7 +1262,9 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
             <div className="px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
               <button
                 onClick={handleGenerate}
-                disabled={generating || Boolean(voicePreview.loadingId)}
+                disabled={
+                  generating || Boolean(voicePreview.loadingId) || recorder.recording
+                }
                 className="w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
               >
                 {generating ? (
@@ -1152,7 +1296,8 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
                   <ProcessingState
                     key="processing"
                     config={config}
-                    engine={config.onDevice ? tts : null}
+                    engineType={config.engine}
+                    engine={config.onDevice ? onDeviceEngine : null}
                   />
                 ) : hasResult ? (
                   <ResultCanvas
@@ -1176,7 +1321,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
         {/* Click-away catcher — a click anywhere outside an open panel/dropdown
             dismisses it without closing the modal. Rendered only while something
             is open; sits above the modal content but below the panels (z-220),
-            mirroring the Product Photos modals. The modal body's own
+            mirroring the Product Studio modals. The modal body's own
             stopPropagation otherwise swallows these clicks. */}
         {(openPanel || switcherOpen) && (
           <div className="fixed inset-0 z-210" onClick={closeMenus} />
@@ -1254,7 +1399,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
           maxSelectable={1}
         />
 
-        {/* ── Result actions menu (shared with the Product Photos modals) ── */}
+        {/* ── Result actions menu (shared with the Product Studio modals) ── */}
         {assetMenu && (
           <ResultActionsMenu
             x={assetMenu.x}
@@ -1284,6 +1429,9 @@ function PrimaryInput({
   audioMeta,
   onAudioFile,
   clearAudio,
+  audioMode,
+  setAudioMode,
+  recorder,
   fileInputRef,
   onInspire,
   wordCount,
@@ -1373,14 +1521,16 @@ function PrimaryInput({
     );
   }
 
-  // Audio upload (Audio to Text).
+  // Audio: upload a file OR record from the mic (Audio to Text).
   if (config.input === "audio") {
+    const isRecording = recorder?.recording;
     return (
       <div>
         <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
           {ic.label}
         </label>
         {audioInput ? (
+          // ── Chosen clip (uploaded file or finished recording) ──
           <div className="border border-blue-200 bg-blue-50/40 rounded-2xl p-4">
             <div className="flex items-start gap-3">
               <div className="bg-blue-100 p-2.5 rounded-lg shrink-0">
@@ -1393,7 +1543,7 @@ function PrimaryInput({
                 <p className="text-[10px] text-gray-500 mt-0.5">
                   {(audioInput.size / 1024 / 1024).toFixed(2)} MB
                   {audioMeta?.duration
-                    ? ` · ${Math.floor(audioMeta.duration / 60)}:${String(Math.round(audioMeta.duration % 60)).padStart(2, "0")}`
+                    ? ` · ${formatClock(audioMeta.duration)}`
                     : ""}
                 </p>
               </div>
@@ -1413,18 +1563,84 @@ function PrimaryInput({
             )}
           </div>
         ) : (
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 flex flex-col items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:bg-blue-50/40 transition-colors"
-          >
-            <Upload className="w-5 h-5" />
-            <span className="text-blue-600 font-semibold">Upload audio</span>
-            {ic.helper && (
-              <span className="text-[11px] text-gray-400 text-center px-4">
-                {ic.helper}
-              </span>
+          <>
+            {/* Upload | Record toggle */}
+            <div className="flex p-1 bg-gray-100 rounded-xl mb-3">
+              {[
+                { id: "upload", label: "Upload", Icon: Upload },
+                { id: "record", label: "Record", Icon: Mic },
+              ].map((tab) => {
+                const active = audioMode === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => !isRecording && setAudioMode(tab.id)}
+                    disabled={isRecording}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 ${active ? "bg-surface text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                  >
+                    <tab.Icon className="w-3.5 h-3.5" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {audioMode === "record" ? (
+              // ── Record from the mic ──
+              <div className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 flex flex-col items-center justify-center gap-3">
+                {isRecording ? (
+                  <>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                      <span className="relative flex h-3 w-3">
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
+                        <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+                      </span>
+                      <span className="tabular-nums">
+                        {formatClock(recorder.elapsed)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={recorder.stop}
+                      className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors cursor-pointer"
+                    >
+                      <Square className="w-3.5 h-3.5 fill-white" />
+                      Stop &amp; use
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={recorder.start}
+                      aria-label="Start recording"
+                      className="w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-lg transition-colors cursor-pointer"
+                    >
+                      <Mic className="w-6 h-6" />
+                    </button>
+                    <span className="text-blue-600 font-semibold text-sm">
+                      Tap to record
+                    </span>
+                    <span className="text-[11px] text-gray-400 text-center px-4">
+                      Record straight from your microphone
+                    </span>
+                  </>
+                )}
+              </div>
+            ) : (
+              // ── Upload a file ──
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 flex flex-col items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:bg-blue-50/40 transition-colors"
+              >
+                <Upload className="w-5 h-5" />
+                <span className="text-blue-600 font-semibold">Upload audio</span>
+                {ic.helper && (
+                  <span className="text-[11px] text-gray-400 text-center px-4">
+                    {ic.helper}
+                  </span>
+                )}
+              </button>
             )}
-          </button>
+          </>
         )}
         <input
           ref={fileInputRef}
@@ -1597,30 +1813,50 @@ function EmptyState({ config }) {
   );
 }
 
-// The on-device engine reports these stages; the processing state shows them
-// as a growing checklist next to a real progress bar.
-const ENGINE_STAGE_IDS = ["model", "voice", "speak", "finalize"];
-const engineStageLabels = (downloading) => [
-  downloading
-    ? "Downloading the voice engine (one-time)…"
-    : "Loading the voice engine…",
-  "Preparing the voice…",
-  "Synthesizing speech…",
-  "Polishing the audio…",
-];
+// Per-engine processing flows: each on-device engine reports these stages,
+// shown as a growing checklist next to a REAL progress bar (vs the backend
+// tools' indeterminate shimmer). Keyed by the config's `engine` tag.
+const ENGINE_FLOWS = {
+  tts: {
+    ids: ["model", "voice", "speak", "finalize"],
+    labels: (downloading) => [
+      downloading
+        ? "Downloading the voice engine (one-time)…"
+        : "Loading the voice engine…",
+      "Preparing the voice…",
+      "Synthesizing speech…",
+      "Polishing the audio…",
+    ],
+    title: "Generating your audio…",
+  },
+  stt: {
+    ids: ["prepare", "model", "transcribe", "format"],
+    labels: (downloading) => [
+      "Reading the audio…",
+      downloading
+        ? "Downloading the transcription engine (one-time)…"
+        : "Loading the transcription engine…",
+      "Transcribing speech…",
+      "Formatting the transcript…",
+    ],
+    title: "Transcribing your audio…",
+  },
+};
 
 /**
  * @param {object} props
  * @param {object} props.config Active category config (title for the copy).
+ * @param {string} [props.engineType] Which on-device flow to show ("tts" | "stt").
  * @param {object|null} [props.engine] On-device engine state (progress, stage,
  *   downloading) — when present, renders a REAL progress bar + stage checklist
  *   instead of the indeterminate shimmer.
  */
-function ProcessingState({ config, engine }) {
+function ProcessingState({ config, engine, engineType }) {
   // ── On-device: real progress + stage checklist ──
   if (engine) {
-    const stageIndex = Math.max(0, ENGINE_STAGE_IDS.indexOf(engine.stage));
-    const labels = engineStageLabels(engine.downloading);
+    const flow = ENGINE_FLOWS[engineType] || ENGINE_FLOWS.tts;
+    const stageIndex = Math.max(0, flow.ids.indexOf(engine.stage));
+    const labels = flow.labels(engine.downloading);
     const pct = Math.max(0, Math.min(100, Math.round(engine.progress)));
     return (
       <motion.div
@@ -1653,7 +1889,7 @@ function ProcessingState({ config, engine }) {
 
           <div className="flex items-end justify-between mb-2">
             <span className="text-sm font-medium text-gray-700">
-              Generating your audio…
+              {flow.title}
             </span>
             <span className="text-2xl font-bold text-blue-600 leading-none">
               {pct}%
@@ -1688,7 +1924,7 @@ function ProcessingState({ config, engine }) {
           </div>
 
           <p className="mt-5 text-center text-[11px] text-gray-400">
-            Generated on your device — private, free, and unlimited.
+            Runs on your device — private, free, and unlimited.
           </p>
         </div>
       </motion.div>
@@ -1784,6 +2020,29 @@ function ResultCanvas({
           <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
             {result.text}
           </p>
+          {result.meta && (
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-gray-100 pt-3 text-[11px] text-gray-400">
+              <span className="flex items-center gap-1.5">
+                <Languages className="w-3.5 h-3.5" />
+                {result.meta.languageLabel}
+              </span>
+              {result.meta.durationSec > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  {formatClock(result.meta.durationSec)}
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <Type className="w-3.5 h-3.5" />
+                {result.meta.words} {result.meta.words === 1 ? "word" : "words"}
+              </span>
+              {result.meta.formatLabel && (
+                <span className="ml-auto font-medium text-gray-300">
+                  {result.meta.formatLabel}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -390,6 +390,41 @@ const KOKORO_VOICE_ITEMS = KOKORO_TTS.voices.map((v) => ({
 // UI speed value → the multiplier the speech engine actually applies.
 const SPEAKING_SPEED = { slow: 0.75, normal: 1, fast: 1.25 };
 
+// ── Audio-to-Text languages (real Whisper-base codes, from the AI engine) ────
+// `auto` lets Whisper detect the spoken language; every other value is a
+// 2-letter code the multilingual model accepts. Shared by the language option
+// and the result's meta line so labels stay in sync.
+const TRANSCRIBE_LANGUAGES = [
+  { value: "auto", label: "Auto Detect", flag: "🌐" },
+  { value: "en", label: "English", flag: "🇺🇸" },
+  { value: "es", label: "Spanish", flag: "🇪🇸" },
+  { value: "fr", label: "French", flag: "🇫🇷" },
+  { value: "de", label: "German", flag: "🇩🇪" },
+  { value: "it", label: "Italian", flag: "🇮🇹" },
+  { value: "pt", label: "Portuguese", flag: "🇧🇷" },
+  { value: "zh", label: "Chinese", flag: "🇨🇳" },
+  { value: "ja", label: "Japanese", flag: "🇯🇵" },
+  { value: "ko", label: "Korean", flag: "🇰🇷" },
+  { value: "ar", label: "Arabic", flag: "🇸🇦" },
+  { value: "hi", label: "Hindi", flag: "🇮🇳" },
+  { value: "ru", label: "Russian", flag: "🇷🇺" },
+  { value: "nl", label: "Dutch", flag: "🇳🇱" },
+];
+
+// Friendly language line for the transcript's meta row.
+const transcriptLanguageLabel = (code) => {
+  if (!code || code === "auto") return "Auto-detected";
+  return TRANSCRIBE_LANGUAGES.find((l) => l.value === code)?.label || code.toUpperCase();
+};
+
+// Transcript-format value → label for the result's meta row.
+const FORMAT_LABELS = {
+  plain: "Plain text",
+  punctuated: "Punctuated",
+  paragraphs: "Paragraphs",
+  timestamped: "Timestamped",
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-category configs
 // ─────────────────────────────────────────────────────────────────────────────
@@ -877,12 +912,14 @@ export const MAGIC_STUDIO_CONFIGS = {
   audio_to_text: {
     id: "audio_to_text",
     title: "Audio to Text",
-    subtitle: "Transcribe audio into clean, usable text.",
+    subtitle: "Transcribe speech into clean text — on-device, private & free.",
     Icon: AudioLines,
     color: "bg-amber-100 text-amber-600",
     input: "audio",
     resultType: "text",
     generateLabel: "Transcribe audio",
+    onDevice: true, // modal shows the real-progress processing state
+    engine: "stt", // which on-device engine the modal wires into `generate`
     sample: {
       before:
         "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=400&q=80",
@@ -890,10 +927,10 @@ export const MAGIC_STUDIO_CONFIGS = {
         "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&q=80",
       headline: "Accurate transcripts in a click",
       subtext:
-        "Upload audio, pick a language and format — get clean, ready-to-use text.",
+        "Upload or record audio, pick a language and format — get clean, ready-to-use text, transcribed on your device.",
     },
     inputConfig: {
-      label: "Audio file",
+      label: "Audio",
       accept: ".mp3,.wav,.ogg,.m4a,.webm",
       helper: "MP3 · WAV · OGG · M4A · WEBM · up to 100 MB",
     },
@@ -904,22 +941,7 @@ export const MAGIC_STUDIO_CONFIGS = {
         panel: "flags",
         width: 340,
         default: "auto",
-        items: [
-          { value: "auto", label: "Auto Detect", flag: "🌐" },
-          { value: "en", label: "English", flag: "🇺🇸" },
-          { value: "es", label: "Spanish", flag: "🇪🇸" },
-          { value: "fr", label: "French", flag: "🇫🇷" },
-          { value: "de", label: "German", flag: "🇩🇪" },
-          { value: "it", label: "Italian", flag: "🇮🇹" },
-          { value: "pt", label: "Portuguese", flag: "🇧🇷" },
-          { value: "zh", label: "Chinese", flag: "🇨🇳" },
-          { value: "ja", label: "Japanese", flag: "🇯🇵" },
-          { value: "ko", label: "Korean", flag: "🇰🇷" },
-          { value: "ar", label: "Arabic", flag: "🇸🇦" },
-          { value: "hi", label: "Hindi", flag: "🇮🇳" },
-          { value: "ru", label: "Russian", flag: "🇷🇺" },
-          { value: "nl", label: "Dutch", flag: "🇳🇱" },
-        ],
+        items: TRANSCRIBE_LANGUAGES,
       },
       {
         key: "format",
@@ -977,17 +999,31 @@ export const MAGIC_STUDIO_CONFIGS = {
         ],
       },
     ],
-    validate: ({ input }) => (input ? null : "Please upload an audio file."),
-    generate: async ({ input, values }) => {
-      // Send the audio as multipart form-data so the raw file reaches the backend.
-      const form = new FormData();
-      form.append("tool", "audio_to_text");
-      form.append("audio_file", input);
-      form.append("language", values.language);
-      form.append("transcript_format", values.format);
-      form.append("transcript_quality", values.quality);
-      const data = await generateMagicStudio(form);
-      return normalizeMagicResponse(data, "text");
+    validate: ({ input }) => (input ? null : "Please upload or record some audio."),
+    generate: async ({ input, values, stt }) => {
+      // Fully on-device — the modal passes its Whisper engine (useSpeechToText),
+      // which reports real progress (decode → engine download → transcribe →
+      // format). Nothing is uploaded.
+      const result = await stt.transcribe(input, {
+        language: values.language,
+        format: values.format,
+        quality: values.quality,
+      });
+      // The engine already toasted the failure — throw quietly so the modal
+      // doesn't show a second "nothing came back" toast.
+      if (!result) throw new Error("Transcription failed — please try again.");
+      const text = (result.text || "").trim();
+      if (!text) throw new Error("No speech was detected in that audio.");
+      return {
+        resultType: "text",
+        text,
+        meta: {
+          words: result.words,
+          durationSec: result.durationSec,
+          languageLabel: transcriptLanguageLabel(result.language),
+          formatLabel: FORMAT_LABELS[values.format] || FORMAT_LABELS.punctuated,
+        },
+      };
     },
   },
 
@@ -1156,6 +1192,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "audio",
     generateLabel: "Generate audio",
     onDevice: true, // modal shows the real-progress processing state
+    engine: "tts", // which on-device engine the modal wires into `generate`
     sample: {
       before:
         "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80",

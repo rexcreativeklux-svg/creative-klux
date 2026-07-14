@@ -3,7 +3,7 @@
 /**
  * Magic Studio — modal-driven redesign
  * ─────────────────────────────────────────────────────────────────────────────
- * Mirrors the Product Photos layout: a grid of category "tool" buttons at the
+ * Mirrors the Product Studio layout: a grid of category "tool" buttons at the
  * top, and a mixed "Inspiration" showcase gallery below to keep the page alive.
  * Clicking a category button — or any inspiration card — opens that category's
  * form inside a modal (MagicStudioModal), where the user generates, previews,
@@ -49,9 +49,15 @@ const CATEGORY_META = {
     accent: "#db2777",
     blurb: "Turn a prompt into on-brand images.",
     samples: [
-      { img: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=600&q=80" },
-      { img: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&q=80" },
-      { img: "https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=600&q=80" },
+      {
+        img: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=600&q=80",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&q=80",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=600&q=80",
+      },
     ],
   },
   text_to_video: {
@@ -60,9 +66,18 @@ const CATEGORY_META = {
     accent: "#7c3aed",
     blurb: "Generate short-form video from text.",
     samples: [
-      { img: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=600&q=80", kind: "video" },
-      { img: "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&q=80", kind: "video" },
-      { img: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=600&q=80", kind: "video" },
+      {
+        img: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=600&q=80",
+        kind: "video",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&q=80",
+        kind: "video",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=600&q=80",
+        kind: "video",
+      },
     ],
   },
   image_to_variations: {
@@ -71,9 +86,15 @@ const CATEGORY_META = {
     accent: "#2563eb",
     blurb: "Spin one image into many variations.",
     samples: [
-      { img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80" },
-      { img: "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=600&q=80" },
-      { img: "https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?w=600&q=80" },
+      {
+        img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=600&q=80",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?w=600&q=80",
+      },
     ],
   },
   script_to_voiceover: {
@@ -82,9 +103,18 @@ const CATEGORY_META = {
     accent: "#059669",
     blurb: "Script → voiceover → finished video.",
     samples: [
-      { img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=600&q=80", kind: "video" },
-      { img: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=600&q=80", kind: "video" },
-      { img: "https://images.unsplash.com/photo-1590650153855-d9e808231d41?w=600&q=80", kind: "video" },
+      {
+        img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=600&q=80",
+        kind: "video",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=600&q=80",
+        kind: "video",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1590650153855-d9e808231d41?w=600&q=80",
+        kind: "video",
+      },
     ],
   },
   audio_to_text: {
@@ -93,9 +123,15 @@ const CATEGORY_META = {
     accent: "#d97706",
     blurb: "Transcribe audio into clean text.",
     samples: [
-      { img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=600&q=80" },
-      { img: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=600&q=80" },
-      { img: "https://images.unsplash.com/photo-1487215078519-e21cc028cb29?w=600&q=80" },
+      {
+        img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=600&q=80",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=600&q=80",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1487215078519-e21cc028cb29?w=600&q=80",
+      },
     ],
   },
   persona_generator: {
@@ -104,9 +140,15 @@ const CATEGORY_META = {
     accent: "#0891b2",
     blurb: "Create content tuned to a persona.",
     samples: [
-      { img: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&q=80" },
-      { img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=600&q=80" },
-      { img: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=600&q=80" },
+      {
+        img: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&q=80",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=600&q=80",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=600&q=80",
+      },
     ],
   },
   text_to_audio: {
@@ -115,9 +157,15 @@ const CATEGORY_META = {
     accent: "#4f46e5",
     blurb: "Turn text into speech and audio.",
     samples: [
-      { img: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80" },
-      { img: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80" },
-      { img: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80" },
+      {
+        img: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80",
+      },
+      {
+        img: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80",
+      },
     ],
   },
 };
@@ -305,20 +353,18 @@ export default function MagicStudioPage() {
         )}
 
         {/* ── Empty search state ── */}
-        {q &&
-          filteredCategories.length === 0 &&
-          inspiration.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
-              <Search className="w-8 h-8" />
-              <p className="text-sm">No results for &quot;{search}&quot;</p>
-              <button
-                onClick={() => setSearch("")}
-                className="text-sm text-blue-500 hover:underline cursor-pointer"
-              >
-                Clear search
-              </button>
-            </div>
-          )}
+        {q && filteredCategories.length === 0 && inspiration.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
+            <Search className="w-8 h-8" />
+            <p className="text-sm">No results for &quot;{search}&quot;</p>
+            <button
+              onClick={() => setSearch("")}
+              className="text-sm text-blue-500 hover:underline cursor-pointer"
+            >
+              Clear search
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Category modal ── */}

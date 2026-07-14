@@ -133,7 +133,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     },
     {
       id: "product-studio",
-      label: "Product Photos",
+      label: "Product Studio",
       href: "/product-studio",
       icon: BookImage,
     },

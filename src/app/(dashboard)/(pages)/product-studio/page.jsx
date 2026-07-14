@@ -334,7 +334,7 @@ export default function ProductPhotos() {
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Product Photos</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Product Studio</h1>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input

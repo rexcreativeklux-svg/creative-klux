@@ -167,6 +167,35 @@ export const KOKORO_TTS = {
   ],
 };
 
+/**
+ * Whisper Base (multilingual) speech-to-text, run through transformers.js — the
+ * on-device engine behind Magic Studio's "Audio to Text". Self-hosted exactly
+ * like the depth + Kokoro models: the model id resolves against `localModelPath`
+ * (→ /models/whisper-base/…), transformers.js's OWN onnxruntime-web wasm comes
+ * from /ort-hf/ (version-matched to its bundle, NOT our top-level /ort/), and
+ * nothing is ever fetched from huggingface.co at runtime.
+ *
+ * We use the q8 (`quantized`) tier — the browser-friendly size that keeps good
+ * accuracy: encoder_model_quantized.onnx (~23 MB) + decoder_model_merged_
+ * quantized.onnx (~54 MB) ≈ 77 MB, downloaded ONCE then cached offline. Whisper
+ * emits punctuation + casing natively; the worker post-processes it into the
+ * chosen transcript format (see tasks/formatTranscript). Multilingual: `auto`
+ * lets Whisper detect the spoken language; otherwise a 2-letter code is passed.
+ */
+export const WHISPER_STT = {
+  modelId: "whisper-base", // folder name under localModelPath
+  localModelPath: MODEL_BASE_PATH,
+  dtype: "q8", // → onnx/{encoder_model,decoder_model_merged}_quantized.onnx (~77 MB)
+  sizeMB: 77,
+  license: "MIT", // OpenAI Whisper weights (MIT); onnx-community ONNX export
+  wasmPaths: "/ort-hf/",
+  sampleRate: 16000, // Whisper's audio front-end expects 16 kHz mono
+  // Language codes offered in the Audio-to-Text picker — all valid Whisper
+  // codes. `auto` (detect) is handled by the worker, not listed here. Keep in
+  // sync with the audio_to_text `language` option in magicStudioConfigs.jsx.
+  languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "ar", "hi", "ru", "nl"],
+};
+
 /** Same-origin URL a Kokoro voice embedding is served from. */
 export function kokoroVoiceUrl(voiceId) {
   return `${MODEL_BASE_PATH}/kokoro/voices/${voiceId}.bin`;

@@ -1,7 +1,7 @@
-# Product Photos — Tool Payload Spec (for Backend)
+# Product Studio — Tool Payload Spec (for Backend)
 
 This document defines the **request payload** the front-end will send for each quick-action
-tool on the Product Photos page. One endpoint per tool (or a single endpoint with a `tool`
+tool on the Product Studio page. One endpoint per tool (or a single endpoint with a `tool`
 discriminator — backend's choice; see "Endpoint shape" at the bottom).
 
 ## Context / how it works today
@@ -189,7 +189,7 @@ and a reduced `size` set. Async by nature — see response note.
 | Field         | Type       | Required | Notes                                                                         |
 | ------------- | ---------- | -------- | ----------------------------------------------------------------------------- |
 | `tool`        | `"video"`  | yes      |                                                                               |
-| `image_urls`  | `string[]` | yes      | 1–4 product photos (different angles improve fidelity).                       |
+| `image_urls`  | `string[]` | yes      | 1–4 Product Studio (different angles improve fidelity).                       |
 | `template_id` | `string`   | yes      | `"none"` for no template, otherwise a template id (e.g. `"Dresses-6780091"`). |
 | `size`        | enum       | yes      | `square` \| `portrait_9_16` \| `landscape_16_9` only.                         |
 | `prompt`      | `string`   | no       | Optional description of the desired motion/video.                             |

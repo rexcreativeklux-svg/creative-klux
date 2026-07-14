@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "models": "node scripts/download-models.mjs"
+    "models": "node scripts/download-models.mjs",
+    "voice-samples": "node scripts/generate-voice-samples.mjs"
   },
   "repository": {
     "type": "git",

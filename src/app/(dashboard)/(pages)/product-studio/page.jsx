@@ -19,13 +19,16 @@ import {
   Layers,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import VirtualModelModal from "@/app/(components)/product-photos/VirtualModelModal";
-import ProductStagingModal from "@/app/(components)/product-photos/ProductStagingModal";
-import VideoGeneratorModal from "@/app/(components)/product-photos/VideoGeneratorModal";
-import BackgroundRemoverModal from "@/app/(components)/product-photos/BackgroundRemoverModal";
-import OnDeviceToolModal from "@/app/(components)/product-photos/OnDeviceToolModal";
-import AddImagesModal from "@/app/(components)/product-photos/add-images/AddImagesModal";
-import { ON_DEVICE_TOOLS, ON_DEVICE_TOOL_IDS } from "@/app/(components)/product-photos/onDeviceToolConfigs";
+import VirtualModelModal from "@/app/(components)/product-studio/VirtualModelModal";
+import ProductStagingModal from "@/app/(components)/product-studio/ProductStagingModal";
+import VideoGeneratorModal from "@/app/(components)/product-studio/VideoGeneratorModal";
+import BackgroundRemoverModal from "@/app/(components)/product-studio/BackgroundRemoverModal";
+import OnDeviceToolModal from "@/app/(components)/product-studio/OnDeviceToolModal";
+import AddImagesModal from "@/app/(components)/product-studio/add-images/AddImagesModal";
+import {
+  ON_DEVICE_TOOLS,
+  ON_DEVICE_TOOL_IDS,
+} from "@/app/(components)/product-studio/onDeviceToolConfigs";
 
 // Product Staging now has its own dedicated modal (ProductStagingModal) with the
 // gallery picker + structured Generate payload, matching Virtual Model. Beautifier
@@ -208,7 +211,7 @@ export default function ProductPhotos() {
       return;
     }
     if (id === "batch") {
-      router.push("/product-photos/batch");
+      router.push("/product-studio/batch");
       return;
     }
     if (id === "all") {
@@ -235,19 +238,21 @@ export default function ProductPhotos() {
 
     if (resume && ON_DEVICE_TOOL_IDS.includes(resume)) {
       const id = requestAnimationFrame(() => {
-        console.log(`🔖 [product-photos] resuming ${resume} after login`);
+        console.log(`🔖 [product-studio] resuming ${resume} after login`);
         setOnDeviceToolId(resume);
-        router.replace("/product-photos", { scroll: false });
+        router.replace("/product-studio", { scroll: false });
       });
       return () => cancelAnimationFrame(id);
     }
 
     if (tool === "video") {
       const id = requestAnimationFrame(() => {
-        console.log(`🎬 [product-photos] opening Video Generator${image ? " with a preselected image" : ""}`);
+        console.log(
+          `🎬 [product-studio] opening Video Generator${image ? " with a preselected image" : ""}`,
+        );
         setVideoInitialImage(image || null);
         setVideoOpen(true);
-        router.replace("/product-photos", { scroll: false });
+        router.replace("/product-studio", { scroll: false });
       });
       return () => cancelAnimationFrame(id);
     }

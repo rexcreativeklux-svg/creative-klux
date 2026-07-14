@@ -46,11 +46,13 @@ async function refreshAccessToken(refresh_token) {
   };
 }
 
-async function uploadImage(image_url, access_token) {
+async function uploadMedia(image_url, access_token) {
   // Download the image server-side (X needs the bytes; the browser can't reach X anyway).
   const imgRes = await fetch(image_url);
   if (!imgRes.ok) {
-    const err = new Error("Couldn't download the image to attach to the tweet.");
+    const err = new Error(
+      "Couldn't download the image to attach to the tweet.",
+    );
     err.status = 400;
     throw err;
   }
@@ -96,7 +98,7 @@ export async function POST(req) {
     if (!refresh_token) {
       return Response.json(
         { error: "Missing X session token — reconnect your X account." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -108,7 +110,7 @@ export async function POST(req) {
     // 2. Optional media.
     let media_ids;
     if (image_url) {
-      const mediaId = await uploadImage(image_url, access_token);
+      const mediaId = await uploadMedia(image_url, access_token);
       if (mediaId) media_ids = [String(mediaId)];
     }
 
@@ -119,8 +121,11 @@ export async function POST(req) {
     if (media_ids) body.media = { media_ids };
     if (!body.text && !body.media) {
       return Response.json(
-        { error: "Nothing to post — add a caption or an image.", refresh_token: newRefresh },
-        { status: 400 }
+        {
+          error: "Nothing to post — add a caption or an image.",
+          refresh_token: newRefresh,
+        },
+        { status: 400 },
       );
     }
 
@@ -144,7 +149,7 @@ export async function POST(req) {
       // Still return the rotated refresh token so the caller can persist it.
       return Response.json(
         { error: msg, details: tweetData, refresh_token: newRefresh },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -158,8 +163,11 @@ export async function POST(req) {
     // succeeded (rotating the token) before a later step threw, so the caller must persist
     // the new one or the next attempt uses a dead token.
     return Response.json(
-      { error: err.message || "X publish failed", refresh_token: rotatedRefresh },
-      { status: err.status || 500 }
+      {
+        error: err.message || "X publish failed",
+        refresh_token: rotatedRefresh,
+      },
+      { status: err.status || 500 },
     );
   }
 }

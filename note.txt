@@ -1,0 +1,5 @@
+Gallery show different file types..
+
+Video progress keep showing and making more calls till status becoemes  completed then show result.
+
+Get and display generation history with message that it expires in 30days...

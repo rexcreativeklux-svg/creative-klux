@@ -2,7 +2,7 @@
 
 /**
  * ResultActionsMenu — the single, reusable action popover shown for a generated
- * result across the product-photo AI modals (Virtual Model, Product Staging) and
+ * result across the product-studio AI modals (Virtual Model, Product Staging) and
  * Magic Studio. Extracted from the per-modal context menus so every surface uses
  * the exact same look + behavior.
  *
@@ -56,21 +56,41 @@ export function buildResultActions({
 } = {}) {
   const items = [];
   if (onChangeSomething)
-    items.push({ label: "Change something", icon: Pencil, onClick: onChangeSomething });
+    items.push({
+      label: "Change something",
+      icon: Pencil,
+      onClick: onChangeSomething,
+    });
   if (onOtherAngles)
-    items.push({ label: "Other angles", icon: RefreshCw, onClick: onOtherAngles });
+    items.push({
+      label: "Other angles",
+      icon: RefreshCw,
+      onClick: onOtherAngles,
+    });
   if (onGenerateVideo)
-    items.push({ label: "Generate video", icon: Video, onClick: onGenerateVideo });
+    items.push({
+      label: "Generate video",
+      icon: Video,
+      onClick: onGenerateVideo,
+    });
   if (onDownload)
     items.push({ label: "Download", icon: Download, onClick: onDownload });
   if (onCopyLink)
     items.push({ label: "Copy link", icon: Copy, onClick: onCopyLink });
-  if (onCopy)
-    items.push({ label: "Copy", icon: Copy, onClick: onCopy });
+  if (onCopy) items.push({ label: "Copy", icon: Copy, onClick: onCopy });
   if (onSaveToGallery)
-    items.push({ label: "Save to gallery", icon: Bookmark, onClick: onSaveToGallery });
+    items.push({
+      label: "Save to gallery",
+      icon: Bookmark,
+      onClick: onSaveToGallery,
+    });
   if (onDelete)
-    items.push({ label: "Delete", icon: Trash2, onClick: onDelete, danger: true });
+    items.push({
+      label: "Delete",
+      icon: Trash2,
+      onClick: onDelete,
+      danger: true,
+    });
   return items;
 }
 
@@ -95,9 +115,15 @@ export default function ResultActionsMenu({ x, y, actions, onClose }) {
     const h = el.offsetHeight;
     let left = x;
     let top = y;
-    if (left + w > window.innerWidth - margin) left = window.innerWidth - w - margin;
-    if (top + h > window.innerHeight - margin) top = window.innerHeight - h - margin;
-    setPos({ top: Math.max(margin, top), left: Math.max(margin, left), ready: true });
+    if (left + w > window.innerWidth - margin)
+      left = window.innerWidth - w - margin;
+    if (top + h > window.innerHeight - margin)
+      top = window.innerHeight - h - margin;
+    setPos({
+      top: Math.max(margin, top),
+      left: Math.max(margin, left),
+      ready: true,
+    });
   }, [x, y, actions]);
 
   // Escape closes (matches the other dropdowns in these modals).

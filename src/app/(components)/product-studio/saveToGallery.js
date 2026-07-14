@@ -17,9 +17,15 @@ async function fetchHostedBlob(url) {
   try {
     const res = await fetch(url, { mode: "cors" });
     if (res.ok) return await res.blob();
-    console.warn(`↩️ [save-to-gallery] direct fetch HTTP ${res.status}, trying proxy:`, url);
+    console.warn(
+      `↩️ [save-to-gallery] direct fetch HTTP ${res.status}, trying proxy:`,
+      url,
+    );
   } catch (err) {
-    console.warn("↩️ [save-to-gallery] direct fetch blocked (CORS?), trying proxy:", err?.message || err);
+    console.warn(
+      "↩️ [save-to-gallery] direct fetch blocked (CORS?), trying proxy:",
+      err?.message || err,
+    );
   }
   const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
   if (!res.ok) throw new Error(`Couldn't load the image (HTTP ${res.status}).`);
@@ -30,20 +36,25 @@ async function fetchHostedBlob(url) {
  * Fetch a hosted result image and upload it into the user's gallery.
  *
  * @param {string} url The hosted result URL.
- * @param {(file: File) => Promise<unknown>} uploadImage The auth context uploader.
+ * @param {(file: File) => Promise<unknown>} uploadMedia The auth context uploader.
  * @param {object} [opts]
  * @param {string} [opts.filePrefix] File name prefix (e.g. "virtual-model").
- * @returns {Promise<unknown>} The uploadImage response.
+ * @returns {Promise<unknown>} The uploadMedia response.
  */
-export async function saveUrlToGallery(url, uploadImage, { filePrefix = "klux" } = {}) {
+export async function saveUrlToGallery(
+  url,
+  uploadMedia,
+  { filePrefix = "klux" } = {},
+) {
   if (!url) throw new Error("Nothing to save.");
-  if (typeof uploadImage !== "function") throw new Error("Log in to save to your gallery.");
+  if (typeof uploadMedia !== "function")
+    throw new Error("Log in to save to your gallery.");
   const blob = await fetchHostedBlob(url);
   const file = new File([blob], `${filePrefix}-${Date.now()}.png`, {
     type: blob.type || "image/png",
   });
   console.log(`💾 [save-to-gallery] uploading ${filePrefix} result to gallery`);
-  return uploadImage(file);
+  return uploadMedia(file);
 }
 
 /**

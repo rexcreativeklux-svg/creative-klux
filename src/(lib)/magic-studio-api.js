@@ -14,7 +14,7 @@
 //
 // Auth (Bearer token) is attached by the axios interceptor. Uses the app's
 // shared axios instance so baseURL + auth are consistent with the rest of the app.
-// Mirrors src/(lib)/product-photos-api.js.
+// Mirrors src/(lib)/product-studio-api.js.
 
 import api from "@/app/api/axios";
 import { toast } from "sonner";
@@ -30,25 +30,68 @@ const BASE_URL = "https://api.creativeklux.com/api/creativeklux-userend";
  */
 export async function generateMagicStudio(payload) {
   const isForm = typeof FormData !== "undefined" && payload instanceof FormData;
-  console.log("📡 [magic-studio/generate] request →", isForm ? "[FormData]" : payload);
+  console.log(
+    "📡 [magic-studio/generate] request →",
+    isForm ? "[FormData]" : payload,
+  );
   try {
-    const { data } = await api.post(`${BASE_URL}/magic-studio/generate`, payload, {
-      // Let the browser set the multipart boundary for FormData uploads.
-      headers: isForm ? { "Content-Type": "multipart/form-data" } : undefined,
-    });
+    const { data } = await api.post(
+      `${BASE_URL}/magic-studio/generate`,
+      payload,
+      {
+        // Let the browser set the multipart boundary for FormData uploads.
+        headers: isForm ? { "Content-Type": "multipart/form-data" } : undefined,
+      },
+    );
     console.log("✅ [magic-studio/generate] response ←", data);
     return data;
   } catch (err) {
     const status = err?.response?.status;
     const data = err?.response?.data;
-    console.error("❌ [magic-studio/generate] failed:", { status, data, message: err?.message });
+    console.error("❌ [magic-studio/generate] failed:", {
+      status,
+      data,
+      message: err?.message,
+    });
 
     const serverMsg = data?.message || data?.error || err?.message || "";
     if (status === 402 || /limit|credits?/i.test(serverMsg)) {
-      toast.error("Monthly AI credits limit reached. Please upgrade your plan to continue.", { duration: 6000 });
+      toast.error(
+        "Monthly AI credits limit reached. Please upgrade your plan to continue.",
+        { duration: 6000 },
+      );
     } else {
       toast.error(serverMsg || "AI generation failed. Please try again.");
     }
+    throw err;
+  }
+}
+
+/**
+ * Poll a Magic Studio video job's status. The job id comes from the initial
+ * generate response — no request body is needed, the id is in the URL.
+ *
+ * @param {string|number} id The generation/job id returned by generateMagicStudio.
+ * @returns {Promise<object>} The status payload (e.g. { status, video_url? }).
+ */
+export async function checkVideoGenerationStatus(id) {
+  console.log("📡 [magic-studio/status] checking video job:", id);
+
+  try {
+    const { data } = await api.post(`${BASE_URL}/magic-studio/${id}/status`);
+    console.log("✅ [magic-studio/status] response ←", data);
+    return data;
+  } catch (err) {
+    const status = err?.response?.status;
+    const data = err?.response?.data;
+    console.error("❌ [magic-studio/status] failed:", {
+      status,
+      data,
+      message: err?.message,
+    });
+
+    const serverMsg = data?.message || data?.error || err?.message || "";
+    toast.error(serverMsg || "Couldn't check video status. Please try again.");
     throw err;
   }
 }

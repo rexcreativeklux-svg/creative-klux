@@ -1,13 +1,22 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
-import { FloatingAnimation, FloatingElements } from '@/app/(components)/FloatingAnimation';
-import { MoreVertical, Download, PlusCircle, ArrowBigLeft, ArrowLeft } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import React, { useState, useRef, useEffect } from "react";
+import {
+  FloatingAnimation,
+  FloatingElements,
+} from "@/app/(components)/FloatingAnimation";
+import {
+  MoreVertical,
+  Download,
+  PlusCircle,
+  ArrowBigLeft,
+  ArrowLeft,
+} from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
-  const { uploadImage } = useAuth();
-  const [inputData, setInputData] = useState({ persona: '', style: '' });
+  const { uploadMedia } = useAuth();
+  const [inputData, setInputData] = useState({ persona: "", style: "" });
   const [outputs, setOutputs] = useState([]);
   const [loading, setLoading] = useState({ generate: false });
   const [styleDropdownOpen, setStyleDropdownOpen] = useState(false);
@@ -15,53 +24,96 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
   const styleDropdownRef = useRef(null);
 
   const styleOptions = [
-    { value: 'Realistic', label: 'Realistic', image: 'https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=200' },
-    { value: 'Cartoon', label: 'Cartoon', image: 'https://images.pexels.com/photos/1762851/pexels-photo-1762851.jpeg?auto=compress&cs=tinysrgb&w=200' },
-    { value: 'Anime', label: 'Anime', image: 'https://images.pexels.com/photos/669319/pexels-photo-669319.jpeg?auto=compress&cs=tinysrgb&w=200' },
-    { value: 'Abstract', label: 'Abstract', image: 'https://images.pexels.com/photos/2110951/pexels-photo-2110951.jpeg?auto=compress&cs=tinysrgb&w=200' },
-    { value: 'Watercolor', label: 'Watercolor', image: 'https://images.pexels.com/photos/1591447/pexels-photo-1591447.jpeg?auto=compress&cs=tinysrgb&w=200' },
-    { value: 'Surreal', label: 'Surreal', image: 'https://images.pexels.com/photos/3640877/pexels-photo-3640877.jpeg?auto=compress&cs=tinysrgb&w=200' },
-    { value: 'Minimalist', label: 'Minimalist', image: 'https://images.pexels.com/photos/2258539/pexels-photo-2258539.jpeg?auto=compress&cs=tinysrgb&w=200' },
-    { value: 'Retro', label: 'Retro', image: 'https://images.pexels.com/photos/1656663/pexels-photo-1656663.jpeg?auto=compress&cs=tinysrgb&w=200' },
+    {
+      value: "Realistic",
+      label: "Realistic",
+      image:
+        "https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=200",
+    },
+    {
+      value: "Cartoon",
+      label: "Cartoon",
+      image:
+        "https://images.pexels.com/photos/1762851/pexels-photo-1762851.jpeg?auto=compress&cs=tinysrgb&w=200",
+    },
+    {
+      value: "Anime",
+      label: "Anime",
+      image:
+        "https://images.pexels.com/photos/669319/pexels-photo-669319.jpeg?auto=compress&cs=tinysrgb&w=200",
+    },
+    {
+      value: "Abstract",
+      label: "Abstract",
+      image:
+        "https://images.pexels.com/photos/2110951/pexels-photo-2110951.jpeg?auto=compress&cs=tinysrgb&w=200",
+    },
+    {
+      value: "Watercolor",
+      label: "Watercolor",
+      image:
+        "https://images.pexels.com/photos/1591447/pexels-photo-1591447.jpeg?auto=compress&cs=tinysrgb&w=200",
+    },
+    {
+      value: "Surreal",
+      label: "Surreal",
+      image:
+        "https://images.pexels.com/photos/3640877/pexels-photo-3640877.jpeg?auto=compress&cs=tinysrgb&w=200",
+    },
+    {
+      value: "Minimalist",
+      label: "Minimalist",
+      image:
+        "https://images.pexels.com/photos/2258539/pexels-photo-2258539.jpeg?auto=compress&cs=tinysrgb&w=200",
+    },
+    {
+      value: "Retro",
+      label: "Retro",
+      image:
+        "https://images.pexels.com/photos/1656663/pexels-photo-1656663.jpeg?auto=compress&cs=tinysrgb&w=200",
+    },
   ];
 
   const personaPrompts = [
-    'A confident young entrepreneur in a modern office',
-    'A creative digital nomad working from a tropical beach',
-    'A stylish fashion influencer posing in Paris',
-    'A wise elderly professor in a library',
-    'A futuristic cyberpunk character with neon lights',
-    'A cheerful barista serving coffee with a smile',
-    'A professional chef cooking in a high-end kitchen',
-    'A calm yoga instructor meditating at sunrise',
-    'A bold streetwear model in Tokyo at night',
-    'A passionate musician performing on stage',
+    "A confident young entrepreneur in a modern office",
+    "A creative digital nomad working from a tropical beach",
+    "A stylish fashion influencer posing in Paris",
+    "A wise elderly professor in a library",
+    "A futuristic cyberpunk character with neon lights",
+    "A cheerful barista serving coffee with a smile",
+    "A professional chef cooking in a high-end kitchen",
+    "A calm yoga instructor meditating at sunrise",
+    "A bold streetwear model in Tokyo at night",
+    "A passionate musician performing on stage",
   ];
 
-  const selectedStyle = styleOptions.find(o => o.value === inputData.style);
+  const selectedStyle = styleOptions.find((o) => o.value === inputData.style);
 
   const handleInspireMe = () => {
-    const random = personaPrompts[Math.floor(Math.random() * personaPrompts.length)];
-    setInputData(prev => ({ ...prev, persona: random }));
+    const random =
+      personaPrompts[Math.floor(Math.random() * personaPrompts.length)];
+    setInputData((prev) => ({ ...prev, persona: random }));
   };
 
   const handleStyleChange = (value) => {
-    setInputData(prev => ({ ...prev, style: value }));
+    setInputData((prev) => ({ ...prev, style: value }));
     setStyleDropdownOpen(false);
   };
 
-  const toggleStyleDropdown = () => setStyleDropdownOpen(prev => !prev);
+  const toggleStyleDropdown = () => setStyleDropdownOpen((prev) => !prev);
 
   const searchPexelsPersonas = async (query) => {
     if (!query.trim()) return [];
     try {
-      const res = await fetch(`/api/pexels?query=${encodeURIComponent(query)}&per_page=50`);
+      const res = await fetch(
+        `/api/pexels?query=${encodeURIComponent(query)}&per_page=50`,
+      );
       const data = await res.json();
       if (data.error || !data.photos) return [];
 
       return data.photos.map((photo, i) => ({
         id: `persona-${photo.id}-${i}`,
-        type: 'image',
+        type: "image",
         src: photo.src.large2x || photo.src.large,
         thumbnail: photo.src.medium,
         alt: photo.alt || `Persona: ${query}`,
@@ -76,7 +128,7 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
 
   const handleGenerateImage = async () => {
     if (!inputData.persona.trim()) {
-      alert('Please enter a persona description.');
+      alert("Please enter a persona description.");
       return;
     }
 
@@ -86,39 +138,57 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
     let finalPrompt = inputData.persona;
     if (inputData.style) {
       const styleMap = {
-        'Realistic': 'photorealistic portrait, highly detailed face',
-        'Cartoon': 'cartoon character, animated style',
-        'Anime': 'anime character, japanese animation style',
-        'Abstract': 'abstract surreal portrait',
-        'Watercolor': 'soft watercolor painting, artistic portrait',
-        'Surreal': 'dreamlike surreal person, dali style',
-        'Minimalist': 'minimalist clean portrait, simple background',
-        'Retro': 'vintage retro portrait, 80s aesthetic'
+        Realistic: "photorealistic portrait, highly detailed face",
+        Cartoon: "cartoon character, animated style",
+        Anime: "anime character, japanese animation style",
+        Abstract: "abstract surreal portrait",
+        Watercolor: "soft watercolor painting, artistic portrait",
+        Surreal: "dreamlike surreal person, dali style",
+        Minimalist: "minimalist clean portrait, simple background",
+        Retro: "vintage retro portrait, 80s aesthetic",
       };
       finalPrompt += `, ${styleMap[inputData.style] || inputData.style.toLowerCase()}, professional portrait, sharp focus`;
     } else {
-      finalPrompt += ', photorealistic portrait, professional, sharp';
+      finalPrompt += ", photorealistic portrait, professional, sharp";
     }
 
     const results = await searchPexelsPersonas(finalPrompt);
 
     setTimeout(() => {
-      setOutputs(results.length > 0 ? results : [
-        { id: 'fallback-1', type: 'image', src: 'https://images.pexels.com/photos/3763188/pexels-photo-3763188.jpeg', thumbnail: '...', alt: 'Confident professional' },
-        { id: 'fallback-2', type: 'image', src: 'https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg', thumbnail: '...', alt: 'Creative artist' },
-      ]);
+      setOutputs(
+        results.length > 0
+          ? results
+          : [
+              {
+                id: "fallback-1",
+                type: "image",
+                src: "https://images.pexels.com/photos/3763188/pexels-photo-3763188.jpeg",
+                thumbnail: "...",
+                alt: "Confident professional",
+              },
+              {
+                id: "fallback-2",
+                type: "image",
+                src: "https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg",
+                thumbnail: "...",
+                alt: "Creative artist",
+              },
+            ],
+      );
       setLoading({ generate: false });
     }, 3800);
   };
 
   const handleDownload = async (url) => {
     try {
-      const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+      const res = await fetch(
+        `/api/proxy-image?url=${encodeURIComponent(url)}`,
+      );
       if (!res.ok) throw new Error();
       const blob = await res.blob();
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `persona-${Date.now()}.${blob.type.split('/')[1] || 'jpg'}`;
+      a.download = `persona-${Date.now()}.${blob.type.split("/")[1] || "jpg"}`;
       a.click();
       URL.revokeObjectURL(a.href);
     } catch {
@@ -128,11 +198,15 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
 
   const handleAddToBrand = async (url) => {
     try {
-      const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+      const res = await fetch(
+        `/api/proxy-image?url=${encodeURIComponent(url)}`,
+      );
       if (!res.ok) throw new Error();
       const blob = await res.blob();
-      const file = new File([blob], `persona-brand-${Date.now()}.jpg`, { type: blob.type });
-      await uploadImage(file);
+      const file = new File([blob], `persona-brand-${Date.now()}.jpg`, {
+        type: blob.type,
+      });
+      await uploadMedia(file);
       alert("Added to your brand library!");
     } catch {
       alert("Failed to add to brand");
@@ -141,12 +215,15 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (styleDropdownRef.current && !styleDropdownRef.current.contains(e.target)) {
+      if (
+        styleDropdownRef.current &&
+        !styleDropdownRef.current.contains(e.target)
+      ) {
         setStyleDropdownOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   return (
@@ -155,8 +232,12 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
         <div className="flex flex-col gap-8 p-3">
           <div>
             <div className="flex flex-col pb-5 justify-center">
-              <h1 className="font-medium text-lg text-blue-700">Persona Generator</h1>
-              <p className="text-gray-600 text-xs">Describe a person and generate realistic portraits.</p>
+              <h1 className="font-medium text-lg text-blue-700">
+                Persona Generator
+              </h1>
+              <p className="text-gray-600 text-xs">
+                Describe a person and generate realistic portraits.
+              </p>
             </div>
 
             <div className="space-y-8">
@@ -164,7 +245,12 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
                 <textarea
                   placeholder="e.g., 'A confident young entrepreneur in a modern office'"
                   value={inputData.persona}
-                  onChange={(e) => setInputData(prev => ({ ...prev, persona: e.target.value }))}
+                  onChange={(e) =>
+                    setInputData((prev) => ({
+                      ...prev,
+                      persona: e.target.value,
+                    }))
+                  }
                   className="w-full p-3 border border-gray-200 rounded-sm focus:outline-none focus:ring-2 focus:ring-blue-700 h-32 text-gray-700 text-sm resize-none"
                 />
                 <button
@@ -176,16 +262,22 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Style (Optional)</label>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Style (Optional)
+                </label>
                 <div className="relative " ref={styleDropdownRef}>
                   <button
                     onClick={toggleStyleDropdown}
                     className="w-full p-3 border cursor-pointer bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 flex items-center gap-2"
                   >
                     {selectedStyle && (
-                      <img src={selectedStyle.image} alt={selectedStyle.label} className="w-6 h-6 object-cover rounded" />
+                      <img
+                        src={selectedStyle.image}
+                        alt={selectedStyle.label}
+                        className="w-6 h-6 object-cover rounded"
+                      />
                     )}
-                    <span>{inputData.style || 'Default (Realistic)'}</span>
+                    <span>{inputData.style || "Default (Realistic)"}</span>
                   </button>
 
                   {styleDropdownOpen && (
@@ -194,17 +286,20 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
                         <button
                           key={option.value}
                           onClick={() => handleStyleChange(option.value)}
-                          className={`flex flex-col cursor-pointer items-center p-3 rounded-lg border transition ${inputData.style === option.value
-                            ? 'border-blue-700 bg-blue-50'
-                            : 'border-gray-200 hover:border-blue-500'
-                            }`}
+                          className={`flex flex-col cursor-pointer items-center p-3 rounded-lg border transition ${
+                            inputData.style === option.value
+                              ? "border-blue-700 bg-blue-50"
+                              : "border-gray-200 hover:border-blue-500"
+                          }`}
                         >
                           <img
                             src={option.image}
                             alt={option.label}
                             className="w-full h-24 object-cover rounded-md mb-2"
                           />
-                          <span className="text-xs font-medium text-gray-700">{option.label}</span>
+                          <span className="text-xs font-medium text-gray-700">
+                            {option.label}
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -221,7 +316,7 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
                   {loading.generate ? (
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   ) : (
-                    'Generate '
+                    "Generate "
                   )}
                 </button>
               </div>
@@ -230,7 +325,7 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
         </div>
       ) : (
         <div className="p-3 relative">
-          <div className='flex sticky top-0 pt-3  z-50 bg-surface flex-row border-b border-b-gray-200  justify-between'>
+          <div className="flex sticky top-0 pt-3  z-50 bg-surface flex-row border-b border-b-gray-200  justify-between">
             <h2 className="font-medium px-2 flex justify-center items-center text-lg text-blue-700 mb-4">
               Generated Personas
             </h2>
@@ -249,11 +344,10 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
             </div>
           </div>
 
-
           {/* MASONRY GRID */}
           <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-4 py-2 space-y-4">
             {outputs.map((img) => {
-              const isSelected = selectedMedia.some(m => m.id === img.id);
+              const isSelected = selectedMedia.some((m) => m.id === img.id);
               const menuId = `persona-menu-${img.id}`;
 
               return (
@@ -323,12 +417,8 @@ const PersonaBasedGeneratorTab = ({ selectedMedia, handleSelectMedia }) => {
               );
             })}
           </div>
-
-
         </div>
       )}
-
-
 
       {loading.generate && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">

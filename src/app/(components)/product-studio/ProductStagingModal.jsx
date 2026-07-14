@@ -1,17 +1,17 @@
 import { useState, useRef, useEffect } from "react";
-import { generateImage, uploadFile } from "@/(lib)/ai-helpers";
+import {
+  generateProductPhoto,
+  TOOL_ENUM,
+  QUALITY_ENUM,
+} from "@/(lib)/product-studio-api";
+import MediaPickerModal from "@/app/(components)/MediaPickerModal";
+import { useAuth } from "@/context/AuthContext";
 import {
   X,
   Upload,
-  Download,
-  Copy,
   Loader2,
   MoreHorizontal,
-  ThumbsUp,
-  ThumbsDown,
-  Trash2,
   Video,
-  RefreshCw,
   ChevronDown,
   User,
   Package,
@@ -23,12 +23,21 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
+import ResultActionsMenu, { buildResultActions } from "./ResultActionsMenu";
+import { saveUrlToGallery, downloadImageUrl } from "./saveToGallery";
 
-// Pexels CDN helper (free license, stable URLs). Resize by height — no crop.
+// Appended to the prompt when the user picks "Other angles" on a result.
+const ANGLE_INSTRUCTION =
+  "Show the product from a different camera angle and perspective, keeping the same product, scene, lighting and styling.";
+
+// Pexels CDN helpers (free license, stable URLs) — mirrors VirtualModelModal.
 const px = (id) =>
   `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=600`;
+const pxbg = (id) =>
+  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=320&h=240&fit=crop`;
 
-// Tool list for the header switcher (mirrors the product-photos page tools).
+// Tool list for the header switcher (mirrors the product-studio page tools).
+// `img` is a real thumbnail; if it fails to load the card falls back to the colored icon tile.
 const TOOL_LIST = [
   {
     id: "virtual",
@@ -62,7 +71,7 @@ const TOOL_LIST = [
     id: "start",
     name: "Edit with AI",
     Icon: ImageIcon,
-    color: "bg-violet-100 text-violet-600",
+    color: "bg-blue-100 text-blue-600",
     img: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=240&q=80",
   },
   {
@@ -94,31 +103,69 @@ const TOOL_LIST = [
     img: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=240&q=80",
   },
 ];
+
 const RECENT_TOOL_IDS = ["virtual", "staging"];
 
-const SIZES = [
-  { id: "original", name: "Original", w: 1, h: 1 },
-  { id: "portrait_9_16", name: "Portrait (9:16)", w: 9, h: 16 },
-  { id: "portrait_3_4", name: "Portrait (3:4)", w: 3, h: 4 },
-  { id: "portrait_2_3", name: "Portrait (2:3)", w: 2, h: 3 },
-  { id: "square", name: "Square", w: 1, h: 1 },
-  { id: "landscape_3_2", name: "Landscape (3:2)", w: 3, h: 2 },
-  { id: "landscape_4_3", name: "Landscape (4:3)", w: 4, h: 3 },
-  { id: "landscape_16_9", name: "Landscape (16:9)", w: 16, h: 9 },
+const STAGING_BEFORE = px(2479095);
+const STAGING_AFTER = px(13412090);
+
+// Scenes that shape the staged lifestyle context. The staging payload only
+// carries the shared fields (see docs/product-studio-payloads.md), so the chosen
+// scene travels inside the `prompt` as context — never as a separate field.
+const SCENES = [
+  {
+    id: "lifestyle",
+    name: "Lifestyle",
+    desc: "Person using the product in real life",
+    img: pxbg(3184465),
+  },
+  {
+    id: "studio",
+    name: "Studio",
+    desc: "Clean white / grey studio",
+    img: pxbg(1029243),
+  },
+  {
+    id: "outdoor",
+    name: "Outdoor",
+    desc: "Natural outdoor setting",
+    img: pxbg(957024),
+  },
+  {
+    id: "kitchen",
+    name: "Kitchen",
+    desc: "On a wooden kitchen counter",
+    img: pxbg(1080696),
+  },
+  {
+    id: "editorial",
+    name: "Editorial",
+    desc: "Magazine-style fashion shoot",
+    img: pxbg(291762),
+  },
+  {
+    id: "social",
+    name: "Social Media",
+    desc: "Eye-catching, social-ready",
+    img: pxbg(1092644),
+  },
 ];
 
+// Resolution badge shown next to the selected quality (matches Photoroom's 1K/2K/4K chip).
 const QUALITY_RES = { Standard: "1K", High: "2K", Ultra: "4K" };
+
+// Quality tiers shown as rich cards in the Quality dropdown (id matches the `quality` state).
 const QUALITY_TIERS = [
   {
     id: "Ultra",
     name: "Premium",
     tag: "Ultra",
-    tagColor: "bg-violet-100 text-violet-700",
+    tagColor: "bg-blue-100 text-blue-700",
     img: px(6780091),
     features: [
       "4k+ resolution",
       "Best product accuracy",
-      "Most realistic results",
+      "Most realistic scenes",
       "Highest quality",
       "Consumes most credits",
     ],
@@ -132,7 +179,7 @@ const QUALITY_TIERS = [
     features: [
       "2k resolution",
       "Better product accuracy",
-      "Realistic results",
+      "Realistic scenes",
       "High quality",
       "Consumes more credits",
     ],
@@ -152,55 +199,25 @@ const QUALITY_TIERS = [
   },
 ];
 
-// Per-tool configuration: title, the two preview images, the description, and the
-// generation prompt. This is the ONLY thing that differs between these tools.
-const TOOL_CONFIGS = {
-  staging: {
-    title: "Product Staging",
-    beforeImg: px(2479095),
-    afterImg: px(13412090),
-    headline: "Create stunning lifestyle images",
-    subtext: "Tell a story and show your product in action.",
-    prompt:
-      "Professional product staging photography. Place the product from the reference image into a realistic lifestyle scene that tells a story and shows it in use. Keep the product identical — same shape, color and label. Photorealistic, commercial quality, natural lighting.",
-  },
-  mannequin: {
-    title: "Ghost Mannequin",
-    beforeImg: px(4109759),
-    afterImg: px(37595197),
-    headline: "Display your garment on a 3D ghost mannequin",
-    subtext: "Professional styling — no model needed.",
-    prompt:
-      "Ghost mannequin product photography. Display the garment from the reference image on an invisible 3D mannequin form so it shows its natural worn shape. Keep the garment identical — same design, color and pattern. Clean white background, professional e-commerce styling.",
-  },
-  beautifier: {
-    title: "Product Beautifier",
-    beforeImg: px(4856500),
-    afterImg: px(33245825),
-    headline: "Get a polished, professional product image",
-    subtext: "Clean lighting, sharp focus, ready to sell.",
-    prompt:
-      "Polished professional product photography. Enhance the product from the reference image with clean studio lighting, sharp focus and a refined, uncluttered background. Keep the product identical. High-end commercial quality.",
-  },
-  flatlay: {
-    title: "Flat Lay",
-    beforeImg: px(10597861),
-    afterImg: px(8408556),
-    headline: "Visualize your product laid flat",
-    subtext: "Neatly arranged on a clean, neutral surface.",
-    prompt:
-      "Flat lay product photography. Lay the product from the reference image flat on a clean, neutral surface, neatly arranged and evenly lit, top-down view. Keep the product identical. Minimal, professional styling.",
-  },
-};
+const SIZES = [
+  { id: "original", name: "Original", w: 1, h: 1 },
+  { id: "portrait_9_16", name: "Portrait (9:16)", w: 9, h: 16 },
+  { id: "portrait_3_4", name: "Portrait (3:4)", w: 3, h: 4 },
+  { id: "portrait_2_3", name: "Portrait (2:3)", w: 2, h: 3 },
+  { id: "square", name: "Square", w: 1, h: 1 },
+  { id: "landscape_3_2", name: "Landscape (3:2)", w: 3, h: 2 },
+  { id: "landscape_4_3", name: "Landscape (4:3)", w: 4, h: 3 },
+  { id: "landscape_16_9", name: "Landscape (16:9)", w: 16, h: 9 },
+];
 
-// A single tool card for the header switcher — name left, thumbnail right.
+// A single tool card — name on the left, real thumbnail on the right (falls back to icon tile).
 function ToolCard({ tool, active, onClick }) {
   const [imgOk, setImgOk] = useState(true);
   const { Icon } = tool;
   return (
     <button
       onClick={() => onClick(tool.id)}
-      className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? "ring-2 ring-violet-500 bg-violet-50" : "bg-gray-100 hover:bg-gray-100"}`}
+      className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? "ring-2 ring-blue-500 bg-blue-50" : "bg-gray-100 hover:bg-gray-100"}`}
     >
       <span className="text-sm font-semibold text-gray-900 leading-tight self-center pl-3.5 flex-1">
         {tool.name}
@@ -234,7 +251,7 @@ function DropdownBelow({ anchorRef, children, width = 460 }) {
   }, [anchorRef]);
   return (
     <div
-      className="fixed z-[210] bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto"
+      className="fixed z-210 bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto"
       style={{ top: pos.top, left: pos.left, width }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -243,10 +260,13 @@ function DropdownBelow({ anchorRef, children, width = 460 }) {
   );
 }
 
-// Floating panel anchored to the RIGHT of the trigger, clamped into the viewport.
+// Floating panel rendered at fixed position to escape sidebar overflow clipping.
+// Anchors to the right of the trigger, then clamps into the viewport so it never
+// runs off the bottom/right edge (flips to the left side if there's no room).
 function FloatingPanel({ anchorRef, children, width = 320 }) {
   const panelRef = useRef(null);
   const [pos, setPos] = useState({ top: -9999, left: -9999 });
+
   useEffect(() => {
     const a = anchorRef?.current;
     const p = panelRef.current;
@@ -257,19 +277,23 @@ function FloatingPanel({ anchorRef, children, width = 320 }) {
     const margin = 12;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+
     let left = r.right + 4;
-    if (left + pw > vw - margin) left = r.left - pw - 4;
-    if (left < margin) left = vw - pw - margin;
+    if (left + pw > vw - margin) left = r.left - pw - 4; // flip to the left of the trigger
+    if (left < margin) left = vw - pw - margin; // last resort: pin to right edge
     left = Math.max(margin, left);
+
     let top = r.top;
-    if (top + ph > vh - margin) top = vh - ph - margin;
+    if (top + ph > vh - margin) top = vh - ph - margin; // lift up so the bottom stays visible
     top = Math.max(margin, top);
+
     setPos({ top, left });
   }, [anchorRef, width]);
+
   return (
     <div
       ref={panelRef}
-      className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
+      className="fixed z-200 bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
       style={{ top: pos.top, left: pos.left, width }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -278,96 +302,181 @@ function FloatingPanel({ anchorRef, children, width = 320 }) {
   );
 }
 
-export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
-  const cfg = TOOL_CONFIGS[toolId] || TOOL_CONFIGS.staging;
-
-  const fileInputRef = useRef(null);
+export default function ProductStagingModal({ onClose, onSwitchTool }) {
+  const { activeBrand, uploadMedia } = useAuth();
   const qualityRef = useRef(null);
   const sizeRef = useRef(null);
+  const sceneRef = useRef(null);
   const headerRef = useRef(null);
 
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [uploadedFileUrl, setUploadedFileUrl] = useState(null);
-  const [quality, setQuality] = useState("High");
+  const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // gallery/cloud URL of the picked image
+  const [selectedScene, setSelectedScene] = useState("lifestyle");
+  const [quality, setQuality] = useState("Standard");
   const [size, setSize] = useState("square");
-  const [applyBrandStyle, setApplyBrandStyle] = useState(false);
+  const [applyBrandStyle, setApplyBrandStyle] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generatedImages, setGeneratedImages] = useState([]);
   const [openDropdown, setOpenDropdown] = useState(null);
-  const [imageMenu, setImageMenu] = useState(null);
-  const [toolMenuOpen, setToolMenuOpen] = useState(false);
+  const [imageMenu, setImageMenu] = useState(null); // { idx, x, y }
+  const [toolMenuOpen, setToolMenuOpen] = useState(false); // header tool switcher
+  const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
 
-  const sizeObj = SIZES.find((s) => s.id === size);
+  // Header tool switcher: clicking the current tool just closes; any other tool
+  // tells the parent to swap modals (parent opens the right one + closes this).
+  const handleToolClick = (id) => {
+    setToolMenuOpen(false);
+    if (id === "staging") return; // already here
+    onSwitchTool?.(id);
+  };
+
+  // Image comes from the gallery picker (My Library / Search / Upload). We only
+  // use ONE image. A fresh desktop upload carries a File + a LOCAL blob: URL
+  // (not sendable to the backend), so we keep the File and leave the hosted URL
+  // null — it's uploaded on generate to get a real URL. A library/search pick
+  // already has a hosted URL we can send straight through.
+  const handleApplyFromPicker = (images = []) => {
+    const item = images[0];
+    if (!item) return;
+    if (item.file instanceof File) {
+      setUploadedFile(item.file);
+      setUploadedImage(item.src || URL.createObjectURL(item.file));
+      setUploadedFileUrl(null); // resolve a hosted URL on generate
+    } else {
+      const url = item.large || item.src || null;
+      if (!url) return;
+      setUploadedFile(null);
+      setUploadedImage(url);
+      setUploadedFileUrl(url); // already hosted
+    }
+    setPickerOpen(false);
+  };
+
+  // `promptOverride` lets result-menu actions (e.g. "Other angles") regenerate
+  // with a tweaked prompt without mutating the sidebar's prompt state.
+  const handleGenerate = async ({ promptOverride } = {}) => {
+    if (!uploadedFile && !uploadedImage) {
+      toast.error("Please select a product image first");
+      return;
+    }
+    const promptToSend = promptOverride != null ? promptOverride : prompt;
+    setGenerating(true);
+    setOpenDropdown(null);
+    setImageMenu(null);
+    try {
+      // Resolve the ONE image URL to send. Picks from the gallery already have
+      // a hosted URL; a fresh local upload gets uploaded here to obtain one.
+      let imageUrl = uploadedFileUrl;
+      if (!imageUrl && uploadedFile) {
+        const uploaded = await uploadMedia(uploadedFile);
+        console.log("🖼️ [staging] upload response ←", uploaded);
+        imageUrl =
+          uploaded?.url ||
+          uploaded?.image_url ||
+          uploaded?.file_url ||
+          uploaded?.data?.url;
+        setUploadedFileUrl(imageUrl || null);
+      }
+      if (!imageUrl) {
+        toast.error("Please select a product image");
+        setGenerating(false);
+        return;
+      }
+
+      // Scene context is folded into the prompt (staging carries only the
+      // shared fields — see docs/product-studio-payloads.md).
+      // const sceneObj = SCENES.find(s => s.id === selectedScene);
+      // const sceneNote = sceneObj ? `Scene: ${sceneObj.name} — ${sceneObj.desc}.` : '';
+      // const finalPrompt = [sceneNote, prompt].filter(Boolean).join(' ').trim();
+
+      // Backend contract: POST /product-studio/generate (matches VirtualModelModal's shape).
+      const payload = {
+        tool: TOOL_ENUM.staging, // "product_staging"
+        image_url: imageUrl, // single image URL
+        quality: QUALITY_ENUM[quality] || "standard",
+        size, // aspect-ratio id
+        apply_brand_style: applyBrandStyle,
+        prompt: promptToSend, // scene context + optional user refinement
+        // workspace_id omitted for now (confirm source with backend).
+      };
+
+      const result = await generateProductPhoto(payload);
+
+      // Log the raw return so we can see its exact shape while consuming it.
+      console.log("🎨 [staging] generate result ←", result);
+
+      const resultUrl = result?.url || result?.image_url || result?.data?.url;
+      if (resultUrl) {
+        setGeneratedImages((prev) => [resultUrl, ...prev]);
+        toast.success("Image generated!");
+      } else {
+        toast("Generated — check the console for the response shape.");
+      }
+    } catch (err) {
+      // generateProductPhoto already toasts a friendly error; log for debugging.
+      console.error("❌ [staging] generate failed:", err);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const toggle = (key) => setOpenDropdown((p) => (p === key ? null : key));
+
+  // const sceneObj = SCENES.find(s => s.id === selectedScene);
+  // const sizeObj = SIZES.find(s => s.id === size);
+
   const closeAll = () => {
     setOpenDropdown(null);
     setImageMenu(null);
     setToolMenuOpen(false);
   };
 
-  const handleToolClick = (id) => {
-    setToolMenuOpen(false);
-    if (id === toolId) return;
-    onSwitchTool?.(id);
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploadedFile(file);
-    setUploadedImage(URL.createObjectURL(file));
-    setUploadedFileUrl(null);
-  };
-
-  const handleGenerate = async () => {
-    if (!uploadedFile && !uploadedImage) {
-      toast.error("Please upload a product image first");
-      return;
-    }
-    setGenerating(true);
-    setOpenDropdown(null);
+  const handleDownload = async (url) => {
+    const t = toast.loading("Downloading…");
     try {
-      let fileUrl = uploadedFileUrl;
-      if (!fileUrl && uploadedFile) {
-        const { file_url } = await uploadFile({ file: uploadedFile });
-        fileUrl = file_url;
-        setUploadedFileUrl(fileUrl);
-      }
-      if (!fileUrl) {
-        toast.error("Please upload a product image");
-        setGenerating(false);
-        return;
-      }
-
-      const generationPrompt = `${cfg.prompt}${prompt ? " Note: " + prompt + "." : ""} Photorealistic, high resolution.`;
-      const result = await generateImage({
-        prompt: generationPrompt,
-        existing_image_urls: [fileUrl],
-      });
-
-      setGeneratedImages((prev) => [result.url, ...prev]);
-      toast.success("Image generated!");
-    } catch {
-      // error already shown by generateImage helper
-    } finally {
-      setGenerating(false);
+      await downloadImageUrl(url, { filePrefix: "product-staged" });
+      toast.success("Downloaded", { id: t });
+    } catch (err) {
+      console.error("❌ [staging] download failed:", err);
+      toast.error(err?.message || "Couldn't download the image", { id: t });
     }
   };
 
-  const handleDownload = (url) => {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${toolId}.png`;
-    a.target = "_blank";
-    a.click();
+  // ── Result menu actions ──
+  // "Change something": focus the prompt so the user can describe the edit.
+  // Focus by id (not a ref) so the callback never reads a ref during render.
+  const handleChangeSomething = () =>
+    document.getElementById("product-staging-prompt")?.focus();
+  // "Other angles": regenerate with an appended angle instruction.
+  const handleOtherAngles = () =>
+    handleGenerate({
+      promptOverride: [prompt.trim(), ANGLE_INSTRUCTION]
+        .filter(Boolean)
+        .join(" "),
+    });
+  // "Generate video": hand this image to the Video Generator, preselected.
+  const handleGenerateVideo = (url) =>
+    onSwitchTool?.("video", { initialImageUrl: url });
+  // "Save to gallery": fetch the hosted result and upload it into the gallery.
+  // A loading toast gives immediate feedback, then resolves to success/error.
+  const handleSaveToGallery = async (url) => {
+    const t = toast.loading("Saving to gallery…");
+    try {
+      await saveUrlToGallery(url, uploadMedia, {
+        filePrefix: "product-staged",
+      });
+      toast.success("Saved to gallery", { id: t });
+    } catch (err) {
+      console.error("❌ [staging] save to gallery failed:", err);
+      toast.error(err?.message || "Couldn't save to gallery", { id: t });
+    }
   };
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-black/40"
       onClick={closeAll}
     >
       <div
@@ -376,6 +485,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Left sidebar ── */}
+        {/* Column with a scrollable body and a pinned Generate footer. */}
         <div className="w-84 border-r border-gray-200 flex flex-col shrink-0">
           {/* Scrollable content (Generate button stays pinned below) */}
           <div className="flex-1 overflow-y-auto min-h-0">
@@ -386,38 +496,30 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                 onClick={() => setToolMenuOpen((o) => !o)}
                 className="flex items-center gap-2 font-bold text-2xl text-gray-900 hover:opacity-70 transition-opacity"
               >
-                {cfg.title}
+                Product Staging
                 <ChevronDown
                   className={`w-5 h-5 text-gray-500 transition-transform ${toolMenuOpen ? "rotate-180" : ""}`}
                 />
               </button>
             </div>
 
-            {/* Upload */}
+            {/* Upload — opens the gallery picker (My Library / Search / Upload) */}
             <div className="px-4 pt-4">
               <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors"
+                onClick={() => setPickerOpen(true)}
+                className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
               >
                 <Upload className="w-4 h-4" />
-                Drop a file or{" "}
-                <span className="text-violet-600 font-semibold">
-                  select an image
+                <span className="text-blue-600 font-semibold">
+                  Select from gallery
                 </span>
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileChange}
-              />
             </div>
 
             {/* Uploaded thumb */}
             {uploadedImage && (
               <div className="px-4 pt-3">
-                <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-violet-500">
+                <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500">
                   <img
                     src={uploadedImage}
                     alt="product"
@@ -427,8 +529,23 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
               </div>
             )}
 
-            {/* Option rows */}
-            <div className="px-4 pt-4 pb-3 space-y-2.5">
+            {/* Scene */}
+            {/* <div className="px-4 pt-4">
+                        <button
+                            ref={sceneRef}
+                            onClick={() => toggle('scene')}
+                            className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === 'scene' ? 'bg-blue-50 ring-2 ring-blue-500' : 'bg-gray-100/70 hover:bg-gray-100'}`}
+                        >
+                            <div className="w-full h-40 rounded-xl overflow-hidden mb-2.5 bg-surface">
+                                <img src={sceneObj?.img} alt={sceneObj?.name} className="w-full h-full object-cover" />
+                            </div>
+                            <span className="text-[11px] text-gray-500">Scene</span>
+                            <span className="text-sm font-semibold text-gray-900">{sceneObj?.name}</span>
+                        </button>
+                    </div> */}
+
+            {/* Option rows — light gray cards (Photoroom style) */}
+            <div className="px-4 pt-3 pb-3 space-y-2.5">
               {/* Quality */}
               <button
                 ref={qualityRef}
@@ -437,7 +554,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
               >
                 <span className="text-gray-900 font-medium">Quality</span>
                 <span className="text-gray-500 flex items-center gap-2">
-                  {QUALITY_TIERS.find((t) => t.id === quality)?.name || quality}
+                  {quality}
                   <span className="text-[11px] font-bold text-gray-900 bg-surface border border-gray-200 shadow-sm rounded-md px-1.5 py-0.5">
                     {QUALITY_RES[quality]}
                   </span>
@@ -451,7 +568,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                 className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors"
               >
                 <span className="text-gray-900 font-medium">Size</span>
-                <span className="text-gray-500">{sizeObj?.name}</span>
+                {/* <span className="text-gray-500">{sizeObj?.name}</span> */}
               </button>
 
               {/* Brand style */}
@@ -465,7 +582,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                 <span
                   className={
                     applyBrandStyle
-                      ? "text-violet-600 font-semibold"
+                      ? "text-blue-600 font-semibold"
                       : "text-gray-500"
                   }
                 >
@@ -476,6 +593,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
               {/* Prompt */}
               <div className="rounded-2xl bg-gray-100 px-4 py-3">
                 <textarea
+                  id="product-staging-prompt"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the image you want (optional)"
@@ -484,19 +602,29 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                 />
               </div>
             </div>
+            {/* end scrollable content */}
           </div>
-          {/* end scrollable content */}
 
           {/* Generate — pinned to the bottom of the sidebar */}
           <div className="px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
             <button
-              onClick={handleGenerate}
+              onClick={() => handleGenerate()}
               disabled={generating}
-              className={`w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 ${generating ? "bg-gray-400" : "bg-linear-to-r from-violet-600 to-violet-500 hover:from-violet-700 hover:to-violet-600"}`}
+              className={`
+    w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white
+    transition-all flex items-center justify-center gap-2
+    disabled:opacity-60
+    ${
+      generating
+        ? "bg-gray-400"
+        : "bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+    }
+  `}
             >
               {generating ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Generating…
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating…
                 </>
               ) : (
                 "Generate 1 image"
@@ -519,8 +647,8 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
               <div className="flex items-center gap-3 mb-9">
                 <div className="w-44 h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
                   <img
-                    src={uploadedImage || cfg.beforeImg}
-                    alt="before"
+                    src={uploadedImage || STAGING_BEFORE}
+                    alt="product"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -530,7 +658,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                   height="60"
                   viewBox="0 0 72 60"
                   fill="none"
-                  className="text-violet-500 shrink-0 -mt-6"
+                  className="text-blue-500 shrink-0 -mt-6"
                 >
                   <path
                     d="M6 44 C 24 8, 50 8, 62 32"
@@ -548,17 +676,17 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                 </svg>
                 <div className="w-44 h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
                   <img
-                    src={cfg.afterImg}
-                    alt="after"
+                    src={STAGING_AFTER}
                     className="w-full h-full object-cover"
                   />
                 </div>
               </div>
               <h3 className="text-gray-900 text-center text-lg font-semibold max-w-sm leading-snug">
-                {cfg.headline}
+                Create stunning lifestyle images
               </h3>
               <p className="text-gray-500 text-center text-sm mt-2 max-w-xs leading-relaxed">
-                {cfg.subtext}
+                Place your product into a realistic scene that tells a story and
+                shows it in action.
               </p>
             </div>
           ) : (
@@ -566,9 +694,9 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
               {generating && (
                 <div className="flex items-center justify-center py-12">
                   <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-10 h-10 text-violet-500 animate-spin" />
+                    <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
                     <p className="text-gray-500 text-sm">
-                      Generating your image…
+                      Staging your product…
                     </p>
                   </div>
                 </div>
@@ -597,6 +725,9 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                     >
                       <MoreHorizontal className="w-4 h-4 text-gray-500" />
                     </button>
+                    <button className="absolute bottom-2 right-2 w-7 h-7 bg-surface/80 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-xs text-gray-500">⊞</span>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -608,8 +739,9 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
       {/* ── Tool switcher (header dropdown) ── */}
       {toolMenuOpen && (
         <>
+          {/* transparent backdrop to close on outside click */}
           <div
-            className="fixed inset-0 z-[205]"
+            className="fixed inset-0 z-205"
             onClick={() => setToolMenuOpen(false)}
           />
           <DropdownBelow anchorRef={headerRef} width={460}>
@@ -624,7 +756,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                   <ToolCard
                     key={`recent-${tool.id}`}
                     tool={tool}
-                    active={tool.id === toolId}
+                    active={tool.id === "staging"}
                     onClick={handleToolClick}
                   />
                 );
@@ -638,7 +770,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                 <ToolCard
                   key={tool.id}
                   tool={tool}
-                  active={tool.id === toolId}
+                  active={tool.id === "staging"}
                   onClick={handleToolClick}
                 />
               ))}
@@ -647,12 +779,52 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
         </>
       )}
 
-      {/* ── Floating dropdowns ── */}
+      {/* ── Floating dropdowns (fixed, above everything) ── */}
+      {/* transparent backdrop closes whichever picker is open on outside click */}
       {openDropdown && (
         <div
-          className="fixed inset-0 z-[195]"
+          className="fixed inset-0 z-195"
           onClick={() => setOpenDropdown(null)}
         />
+      )}
+
+      {openDropdown === "scene" && (
+        <FloatingPanel anchorRef={sceneRef} width={420}>
+          <div className="grid grid-cols-3 gap-2.5 p-3">
+            {SCENES.map((s) => {
+              const active = selectedScene === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    setSelectedScene(s.id);
+                    setOpenDropdown(null);
+                  }}
+                  className="flex flex-col items-center gap-1.5"
+                  title={s.desc}
+                >
+                  <div
+                    className={`w-full h-24 rounded-xl overflow-hidden relative border-2 transition-colors ${active ? "border-blue-500" : "border-transparent hover:border-gray-200"}`}
+                  >
+                    <img
+                      src={s.img}
+                      alt={s.name}
+                      className="w-full h-full object-cover"
+                    />
+                    {active && (
+                      <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
+                        <span className="text-white text-[8px]">✓</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-gray-500 text-center leading-tight">
+                    {s.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </FloatingPanel>
       )}
 
       {openDropdown === "quality" && (
@@ -667,7 +839,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                     setQuality(t.id);
                     setOpenDropdown(null);
                   }}
-                  className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? "border-violet-500 bg-violet-50/40" : "border-gray-200 hover:border-gray-200 bg-surface"}`}
+                  className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-gray-200 bg-surface"}`}
                 >
                   <div className="w-20 h-28 rounded-xl overflow-hidden bg-gray-100 shrink-0">
                     <img
@@ -689,7 +861,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                         </span>
                       </div>
                       <span
-                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? "bg-violet-600" : "border-2 border-gray-200"}`}
+                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? "bg-blue-600" : "border-2 border-gray-200"}`}
                       >
                         {active && (
                           <span className="text-white text-[10px]">✓</span>
@@ -729,15 +901,15 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                     setSize(s.id);
                     setOpenDropdown(null);
                   }}
-                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? "border-violet-500 bg-violet-50/40" : "border-gray-200 hover:border-gray-200"}`}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-gray-200"}`}
                 >
                   <div className="flex items-center justify-center h-20 relative w-full">
                     <div
-                      className={`rounded-md ${active ? "bg-violet-300" : "bg-gray-100"}`}
+                      className={`rounded-md ${active ? "bg-blue-300" : "bg-gray-100"}`}
                       style={{ width: bw, height: bh }}
                     />
                     {active && (
-                      <div className="absolute top-0 right-0 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center">
+                      <div className="absolute top-0 right-0 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
                         <span className="text-white text-[8px]">✓</span>
                       </div>
                     )}
@@ -752,76 +924,41 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
         </FloatingPanel>
       )}
 
-      {/* Image context menu */}
+      {/* Result actions menu (shared across the AI product-studio modals) */}
       {imageMenu && (
-        <div
-          className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-200 w-48 py-1"
-          style={{ top: imageMenu.y, left: imageMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {[
-            {
-              label: "Change something",
-              icon: RefreshCw,
-              action: () => {
-                handleGenerate();
-                setImageMenu(null);
-              },
+        <ResultActionsMenu
+          x={imageMenu.x}
+          y={imageMenu.y}
+          onClose={() => setImageMenu(null)}
+          actions={buildResultActions({
+            onChangeSomething: handleChangeSomething,
+            onOtherAngles: handleOtherAngles,
+            onGenerateVideo: () =>
+              handleGenerateVideo(generatedImages[imageMenu.idx]),
+            onDownload: () => handleDownload(generatedImages[imageMenu.idx]),
+            onCopyLink: () => {
+              navigator.clipboard.writeText(generatedImages[imageMenu.idx]);
+              toast.success("Link copied!");
             },
-            { label: "Generate video", icon: Video },
-            {
-              label: "Delete",
-              icon: Trash2,
-              red: true,
-              action: () => {
-                setGeneratedImages((p) =>
-                  p.filter((_, i) => i !== imageMenu.idx),
-                );
-                setImageMenu(null);
-              },
-            },
-            {
-              label: "Download",
-              icon: Download,
-              action: () => {
-                handleDownload(generatedImages[imageMenu.idx]);
-                setImageMenu(null);
-              },
-            },
-            {
-              label: "Copy link",
-              icon: Copy,
-              action: () => {
-                navigator.clipboard.writeText(generatedImages[imageMenu.idx]);
-                toast.success("Link copied!");
-                setImageMenu(null);
-              },
-            },
-            {
-              label: "Good result",
-              icon: ThumbsUp,
-              action: () => setImageMenu(null),
-            },
-            {
-              label: "Bad result",
-              icon: ThumbsDown,
-              action: () => setImageMenu(null),
-            },
-          ].map((item) => (
-            <button
-              key={item.label}
-              onClick={() => {
-                if (item.action) item.action();
-                else setImageMenu(null);
-              }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-100 transition-colors ${item.red ? "text-red-500" : "text-gray-900"}`}
-            >
-              <item.icon className="w-4 h-4 shrink-0" />
-              {item.label}
-            </button>
-          ))}
-        </div>
+            onSaveToGallery: () =>
+              handleSaveToGallery(generatedImages[imageMenu.idx]),
+            onDelete: () =>
+              setGeneratedImages((p) =>
+                p.filter((_, i) => i !== imageMenu.idx),
+              ),
+          })}
+        />
       )}
+
+      {/* Gallery media picker — pick ONE image (My Library / Search / Upload) */}
+      <MediaPickerModal
+        isOpen={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onCancel={() => setPickerOpen(false)}
+        onApply={handleApplyFromPicker}
+        activeBrand={activeBrand}
+        maxSelectable={1}
+      />
     </div>
   );
 }

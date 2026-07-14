@@ -1,6 +1,6 @@
 // API client for the Product Photos "Generate" (photoreal) endpoint.
 //
-// Backend contract (POST /product-photos/generate) — send any of:
+// Backend contract (POST /product-studio/generate) — send any of:
 //   tool, image, prompt, quality, size, apply_brand_style, workspace_id,
 //   model_name, pose
 // `tool` is one of: product_staging | product_beautifier | flat_lay |
@@ -34,9 +34,12 @@ export const TOOL_ENUM = {
 
 // getBrandIdFromLocalStorage();
 
-
 /** UI quality tiers → backend quality strings. */
-export const QUALITY_ENUM = { Standard: "standard", High: "high", Ultra: "ultra" };
+export const QUALITY_ENUM = {
+  Standard: "standard",
+  High: "high",
+  Ultra: "ultra",
+};
 
 const BASE_URL = "https://api.creativeklux.com/api/creativeklux-userend";
 
@@ -47,21 +50,29 @@ const BASE_URL = "https://api.creativeklux.com/api/creativeklux-userend";
  * @returns {Promise<object>} The response data (e.g. { url, id, credits_used }).
  */
 export async function generateProductPhoto(payload) {
-  console.log("📡 [product-photos/generate] request →", payload);
-  const activeBrand = localStorage.getItem("activeBrand");
-  console.log("Retrieved activeBrand from localStorage:", activeBrand);
+  console.log("📡 [product-studio/generate] request →", payload);
   try {
-    const { data } = await api.post(`${BASE_URL}/product-photos/generate`, payload);
-    console.log("✅ [product-photos/generate] response ←", data);
+    const { data } = await api.post(
+      `${BASE_URL}/product-studio/generate`,
+      payload,
+    );
+    console.log("✅ [product-studio/generate] response ←", data);
     return data;
   } catch (err) {
     const status = err?.response?.status;
     const data = err?.response?.data;
-    console.error("❌ [product-photos/generate] failed:", { status, data, message: err?.message });
+    console.error("❌ [product-studio/generate] failed:", {
+      status,
+      data,
+      message: err?.message,
+    });
 
     const serverMsg = data?.message || data?.error || err?.message || "";
     if (status === 402 || /limit|credits?/i.test(serverMsg)) {
-      toast.error("Monthly AI credits limit reached. Please upgrade your plan to continue.", { duration: 6000 });
+      toast.error(
+        "Monthly AI credits limit reached. Please upgrade your plan to continue.",
+        { duration: 6000 },
+      );
     } else {
       toast.error(serverMsg || "AI generation failed. Please try again.");
     }

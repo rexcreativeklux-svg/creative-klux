@@ -29,7 +29,6 @@ import {
   ChevronDown,
   Loader2,
   Sparkles,
-  Download,
   Copy,
   Check,
   RotateCcw,
@@ -45,17 +44,28 @@ import {
 
 import { useAuth } from "@/context/AuthContext";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
+import AudioCard from "@/app/(components)/gallery/AudioCard";
 import ResultActionsMenu, {
   buildResultActions,
-} from "@/app/(components)/product-photos/ResultActionsMenu";
-import { saveUrlToGallery } from "@/app/(components)/product-photos/saveToGallery";
+} from "@/app/(components)/product-studio/ResultActionsMenu";
+import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGallery";
 import useTextToSpeech from "@/(lib)/ai-engine/hooks/useTextToSpeech";
 import { getCreativeById } from "../studio/creatives";
-import { MAGIC_STUDIO_CONFIGS, getMagicConfig } from "./magicStudioConfigs";
+import {
+  MAGIC_STUDIO_CONFIGS,
+  getMagicConfig,
+  getVideoStatus,
+  normalizeVideoResult,
+} from "./magicStudioConfigs";
+import { checkVideoGenerationStatus } from "@/(lib)/magic-studio-api";
 
 const CREATIVE_ID = "magic_studio";
 
-// ── Side-anchored floating panel (product-photos styling) ────────────────────
+// Async video jobs: poll the status endpoint every 15s, giving up after ~5 min.
+const VIDEO_POLL_INTERVAL_MS = 15000;
+const VIDEO_POLL_MAX_ATTEMPTS = 20; // 20 × 15s ≈ 5 minutes
+
+// ── Side-anchored floating panel (product-studio styling) ────────────────────
 // Anchored to the RIGHT of its trigger, clamped into the viewport. Rendered
 // inside <AnimatePresence> so the exit plays.
 function FloatingPanel({ anchorRef, children, width = 340 }) {
@@ -74,7 +84,8 @@ function FloatingPanel({ anchorRef, children, width = 340 }) {
     if (left < margin) left = window.innerWidth - pw - margin;
     left = Math.max(margin, left);
     let top = r.top;
-    if (top + ph > window.innerHeight - margin) top = window.innerHeight - ph - margin;
+    if (top + ph > window.innerHeight - margin)
+      top = window.innerHeight - ph - margin;
     top = Math.max(margin, top);
     setPos({ top, left });
   }, [anchorRef, width]);
@@ -82,10 +93,25 @@ function FloatingPanel({ anchorRef, children, width = 340 }) {
     <motion.div
       ref={panelRef}
       initial={{ opacity: 0, x: -6, scale: 0.98 }}
-      animate={{ opacity: 1, x: 0, scale: 1, transition: { duration: 0.16, ease: "easeOut" } }}
-      exit={{ opacity: 0, x: -4, scale: 0.98, transition: { duration: 0.12, ease: "easeIn" } }}
+      animate={{
+        opacity: 1,
+        x: 0,
+        scale: 1,
+        transition: { duration: 0.16, ease: "easeOut" },
+      }}
+      exit={{
+        opacity: 0,
+        x: -4,
+        scale: 0.98,
+        transition: { duration: 0.12, ease: "easeIn" },
+      }}
       className="fixed z-220 bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto hide-scrollbar"
-      style={{ top: pos.top, left: pos.left, width, transformOrigin: "left center" }}
+      style={{
+        top: pos.top,
+        left: pos.left,
+        width,
+        transformOrigin: "left center",
+      }}
       onClick={(e) => e.stopPropagation()}
     >
       {children}
@@ -105,10 +131,25 @@ function DropdownBelow({ anchorRef, children, width = 320 }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: -8, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1, transition: { duration: 0.16, ease: "easeOut" } }}
-      exit={{ opacity: 0, y: -6, scale: 0.98, transition: { duration: 0.12, ease: "easeIn" } }}
+      animate={{
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        transition: { duration: 0.16, ease: "easeOut" },
+      }}
+      exit={{
+        opacity: 0,
+        y: -6,
+        scale: 0.98,
+        transition: { duration: 0.12, ease: "easeIn" },
+      }}
       className="fixed z-220 bg-surface rounded-2xl shadow-2xl border border-gray-200 p-2 max-h-[80vh] overflow-y-auto hide-scrollbar"
-      style={{ top: pos.top, left: pos.left, width, transformOrigin: "top left" }}
+      style={{
+        top: pos.top,
+        left: pos.left,
+        width,
+        transformOrigin: "top left",
+      }}
       onClick={(e) => e.stopPropagation()}
     >
       {children}
@@ -117,7 +158,7 @@ function DropdownBelow({ anchorRef, children, width = 320 }) {
 }
 
 // ── Panel body variants (rich option cards) ──────────────────────────────────
-function PanelBody({ option, value, onSelect }) {
+function PanelBody({ option, value, onSelect, voicePreview }) {
   const { panel, items } = option;
 
   // Image cards: thumbnail + label + description (Visual style).
@@ -135,7 +176,11 @@ function PanelBody({ option, value, onSelect }) {
             >
               <div className="relative w-full h-20 bg-gray-100">
                 {it.img && (
-                  <img src={it.img} alt={it.label} className="w-full h-full object-cover" />
+                  <img
+                    src={it.img}
+                    alt={it.label}
+                    className="w-full h-full object-cover"
+                  />
                 )}
                 {active && (
                   <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center shadow">
@@ -145,10 +190,22 @@ function PanelBody({ option, value, onSelect }) {
               </div>
               <div className="px-2.5 py-2">
                 <div className="flex items-center gap-1.5">
-                  {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${active ? "text-blue-600" : "text-gray-400"}`} />}
-                  <span className={`text-xs font-bold ${active ? "text-blue-700" : "text-gray-900"}`}>{it.label}</span>
+                  {Icon && (
+                    <Icon
+                      className={`w-3.5 h-3.5 shrink-0 ${active ? "text-blue-600" : "text-gray-400"}`}
+                    />
+                  )}
+                  <span
+                    className={`text-xs font-bold ${active ? "text-blue-700" : "text-gray-900"}`}
+                  >
+                    {it.label}
+                  </span>
                 </div>
-                {it.desc && <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">{it.desc}</p>}
+                {it.desc && (
+                  <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
+                    {it.desc}
+                  </p>
+                )}
               </div>
             </button>
           );
@@ -183,7 +240,9 @@ function PanelBody({ option, value, onSelect }) {
                   </span>
                 )}
               </div>
-              <span className={`text-[11px] font-semibold ${active ? "text-blue-700" : "text-gray-700"}`}>
+              <span
+                className={`text-[11px] font-semibold ${active ? "text-blue-700" : "text-gray-700"}`}
+              >
                 {it.label}
               </span>
               <span className="text-[9px] text-gray-400">{it.ratio}</span>
@@ -207,10 +266,14 @@ function PanelBody({ option, value, onSelect }) {
               className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-blue-300"}`}
             >
               <span className="text-lg leading-none">{it.flag}</span>
-              <span className={`text-xs font-semibold flex-1 ${active ? "text-blue-700" : "text-gray-700"}`}>
+              <span
+                className={`text-xs font-semibold flex-1 ${active ? "text-blue-700" : "text-gray-700"}`}
+              >
                 {it.label}
               </span>
-              {active && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+              {active && (
+                <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              )}
             </button>
           );
         })}
@@ -220,7 +283,8 @@ function PanelBody({ option, value, onSelect }) {
 
   // Voices: rows grouped by accent + gender (Text to Audio's on-device voices).
   // Items carry `group` (section header), `gender` (icon tint) and `top`
-  // (★ badge for the best-graded voices).
+  // (★ badge for the best-graded voices). Each row has a ▶ button that auditions
+  // the voice on-device (see useVoicePreview); clicking the row body still selects.
   if (panel === "voices") {
     const groups = [];
     for (const it of items) {
@@ -229,7 +293,11 @@ function PanelBody({ option, value, onSelect }) {
       else groups.push({ name: it.group, items: [it] });
     }
     return (
-      <div className="p-2 pb-3">
+      <div className="p-2 pb-3 max-h-150">
+        <p className="px-2 pt-1 pb-2 text-[11px] leading-snug text-gray-400">
+          Tap <Play className="inline w-3 h-3 -mt-0.5" /> to hear a sample of
+          each voice before you pick.
+        </p>
         {groups.map((group) => (
           <div key={group.name}>
             <p className="px-2 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
@@ -240,27 +308,53 @@ function PanelBody({ option, value, onSelect }) {
                 const active = value === it.value;
                 const Icon = it.icon;
                 const female = it.gender === "female";
+                const isLoading = voicePreview?.loadingId === it.value;
+                const isPlaying = voicePreview?.playingId === it.value;
                 return (
-                  <button
+                  <div
                     key={it.value}
-                    onClick={() => onSelect(it.value)}
-                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border-2 text-left transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-blue-300 bg-surface"}`}
+                    className={`flex items-center rounded-xl border-2 transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-blue-300 bg-surface"}`}
                   >
-                    <span
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${female ? "bg-pink-100 text-pink-600" : "bg-sky-100 text-sky-600"}`}
+                    <button
+                      onClick={() => onSelect(it.value)}
+                      className="flex items-center gap-2 pl-2.5 pr-1 py-2 flex-1 min-w-0 text-left cursor-pointer"
                     >
-                      {Icon && <Icon className="w-3.5 h-3.5" />}
-                    </span>
-                    <span className="flex-1 min-w-0 flex items-center gap-1">
-                      <span className={`text-xs font-semibold truncate ${active ? "text-blue-700" : "text-gray-900"}`}>
-                        {it.label}
+                      <span
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${female ? "bg-pink-100 text-pink-600" : "bg-sky-100 text-sky-600"}`}
+                      >
+                        {Icon && <Icon className="w-3.5 h-3.5" />}
                       </span>
-                      {it.top && (
-                        <Star className="w-3 h-3 shrink-0 text-amber-400 fill-amber-400" />
-                      )}
-                    </span>
-                    {active && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
-                  </button>
+                      <span className="flex-1 min-w-0 flex items-center gap-1">
+                        <span
+                          className={`text-xs font-semibold truncate ${active ? "text-blue-700" : "text-gray-900"}`}
+                        >
+                          {it.label}
+                        </span>
+                        {it.top && (
+                          <Star className="w-3 h-3 shrink-0 text-amber-400 fill-amber-400" />
+                        )}
+                      </span>
+                    </button>
+                    {voicePreview && (
+                      <button
+                        onClick={() => voicePreview.toggle(it)}
+                        aria-label={
+                          isPlaying
+                            ? `Stop ${it.label} sample`
+                            : `Play ${it.label} sample`
+                        }
+                        className={`shrink-0 w-7 h-7 mr-1 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${isPlaying ? "bg-blue-600 text-white" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"}`}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : isPlaying ? (
+                          <Pause className="w-3 h-3" />
+                        ) : (
+                          <Play className="w-3 h-3" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -302,14 +396,26 @@ function PanelBody({ option, value, onSelect }) {
             onClick={() => onSelect(it.value)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 text-left transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-blue-300 bg-surface"}`}
           >
-            <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${active ? "bg-blue-100" : "bg-gray-100"}`}>
-              {Icon && <Icon className={`w-4 h-4 ${active ? "text-blue-600" : "text-gray-500"}`} />}
+            <span
+              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${active ? "bg-blue-100" : "bg-gray-100"}`}
+            >
+              {Icon && (
+                <Icon
+                  className={`w-4 h-4 ${active ? "text-blue-600" : "text-gray-500"}`}
+                />
+              )}
             </span>
             <span className="flex-1 min-w-0">
-              <span className={`block text-sm font-semibold ${active ? "text-blue-700" : "text-gray-900"}`}>
+              <span
+                className={`block text-sm font-semibold ${active ? "text-blue-700" : "text-gray-900"}`}
+              >
                 {it.label}
               </span>
-              {it.desc && <span className="block text-[11px] text-gray-500 leading-snug">{it.desc}</span>}
+              {it.desc && (
+                <span className="block text-[11px] text-gray-500 leading-snug">
+                  {it.desc}
+                </span>
+              )}
             </span>
             {active && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
           </button>
@@ -325,104 +431,128 @@ function summarize(option, value) {
   return found?.label || value;
 }
 
-// ── Audio result card (play/pause + waveform + download) ─────────────────────
-// Static bar heights for the decorative waveform (pulses while playing).
-const WAVEFORM_BARS = [
-  8, 14, 20, 12, 24, 16, 10, 22, 18, 26, 14, 9, 20, 28, 16, 12, 22, 10, 18, 24,
-  14, 8, 20, 16, 26, 12, 18, 10,
-];
-
-const formatDuration = (seconds) => {
-  if (!seconds || !Number.isFinite(seconds)) return null;
-  const s = Math.max(1, Math.round(seconds));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
+// Short line each voice "introduces itself" with when auditioned in the picker.
+const voicePreviewLine = (name) =>
+  `Hi, I'm ${name}. This is how I sound. Let's make something great together.`;
 
 /**
- * On-device results carry rich meta (voiceLabel, duration, format, blob);
- * every field is optional so plain backend URLs render fine too.
+ * Voice auditioning for the Text-to-Audio voice picker.
+ *
+ * Prefers a pre-generated static clip at /voice-samples/{id}.mp3 (produced by
+ * `npm run voice-samples`) so a tap on ▶ plays instantly with no download. If a
+ * sample is missing it falls back to synthesizing the intro line on-device with
+ * the SAME Kokoro engine used for real generations. Resolved clips are cached in
+ * memory (per session) and play through one shared <audio> element. Because
+ * there is a single speech worker, synthesis previews are serialized (one at a
+ * time) and the caller stops previews before a real generation — the worker is
+ * never asked to do two things at once.
+ *
+ * @param {ReturnType<typeof useTextToSpeech>} tts The shared speech engine.
+ * @returns {{ loadingId: string|null, playingId: string|null,
+ *   toggle: (voice: {value: string, label: string}) => void, stop: () => void }}
  */
-function AudioCard({ asset, index, onDownload, onOpenMenu }) {
+function useVoicePreview(tts) {
   const audioRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
-  const [metaDuration, setMetaDuration] = useState(null);
-  const duration = asset.duration || metaDuration;
+  const cacheRef = useRef(new Map()); // voiceId → object URL of its sample clip
+  const [loadingId, setLoadingId] = useState(null);
+  const [playingId, setPlayingId] = useState(null);
 
-  // Pause (and drop) the element when the row unmounts.
-  useEffect(() => {
-    const audio = audioRef.current;
-    return () => audio?.pause();
-  }, []);
+  // One shared element, created on first use (inside a user gesture).
+  const getAudio = () => {
+    if (!audioRef.current) {
+      const audio = new Audio();
+      audio.addEventListener("ended", () => setPlayingId(null));
+      audioRef.current = audio;
+    }
+    return audioRef.current;
+  };
 
-  const toggle = () => {
+  const stop = () => {
     const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) {
+    if (audio) {
       audio.pause();
-    } else {
-      audio.play().catch((err) => {
-        console.error("❌ [magic-studio] audio playback failed:", err);
-        toast.error("Couldn't play this audio — try downloading it instead.");
+      audio.currentTime = 0;
+    }
+    setPlayingId(null);
+  };
+
+  // Audition a voice: toggles off if it's already playing; otherwise plays its
+  // cached clip, the static sample, or a freshly synthesized one — in that order.
+  // No-ops while a clip is resolving so the single worker only runs one job.
+  const toggle = async (voice) => {
+    const id = voice.value;
+    if (playingId === id) {
+      stop();
+      return;
+    }
+    if (loadingId) return; // a synth is already in flight — one at a time
+
+    const audio = getAudio();
+    audio.pause();
+    audio.currentTime = 0;
+    setPlayingId(null);
+
+    const cached = cacheRef.current.get(id);
+    if (cached) {
+      audio.src = cached;
+      audio
+        .play()
+        .then(() => setPlayingId(id))
+        .catch((err) =>
+          console.error(
+            "❌ [magic-studio] voice preview playback failed:",
+            err,
+          ),
+        );
+      return;
+    }
+
+    try {
+      setLoadingId(id);
+
+      // 1) Pre-generated static sample (npm run voice-samples) — instant, no
+      //    engine download. Probe it first; if it isn't there, synthesize.
+      const staticUrl = `/voice-samples/${id}.mp3`;
+      let hasStatic = false;
+      try {
+        const res = await fetch(staticUrl, { method: "HEAD" });
+        hasStatic = res.ok;
+      } catch {
+        hasStatic = false; // offline / blocked — fall through to synthesis
+      }
+      if (hasStatic) {
+        cacheRef.current.set(id, staticUrl);
+        audio.src = staticUrl;
+        await audio.play();
+        setPlayingId(id);
+        return;
+      }
+
+      // 2) Fallback: synthesize on-device (the first one downloads the ~93 MB
+      //    engine; the tts hook shows its own toast for that).
+      const item = await tts.generate(voicePreviewLine(voice.label), {
+        voice: id,
+        speed: 1,
+        format: "wav", // fastest — skip MP3 encoding for a throwaway sample
+        quality: "standard",
       });
+      if (!item) return; // failed/superseded — the engine already toasted
+      cacheRef.current.set(id, item.url);
+      audio.src = item.url;
+      await audio.play();
+      setPlayingId(id);
+    } catch (err) {
+      console.error("❌ [magic-studio] voice preview failed:", err);
+      toast.error("Couldn't play that voice sample — please try again.");
+    } finally {
+      setLoadingId(null);
     }
   };
 
-  const meta = [formatDuration(duration), asset.format?.toUpperCase()]
-    .filter(Boolean)
-    .join(" · ");
+  // Stop playback if the modal unmounts (the tts hook revokes the URLs itself).
+  useEffect(() => () => audioRef.current?.pause(), []);
 
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-surface p-4 shadow-sm">
-      <audio
-        ref={audioRef}
-        src={asset.src}
-        preload="metadata"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
-        onLoadedMetadata={(e) => setMetaDuration(e.currentTarget.duration)}
-      />
-      <button
-        onClick={toggle}
-        aria-label={playing ? "Pause" : "Play"}
-        className="w-12 h-12 rounded-full bg-linear-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow hover:opacity-90 transition-opacity cursor-pointer"
-      >
-        {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
-      </button>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate" title={asset.alt}>
-          {asset.voiceLabel || `Audio track ${index + 1}`}
-        </p>
-        <div
-          className={`mt-1.5 flex items-center gap-0.5 ${playing ? "animate-pulse" : ""}`}
-          aria-hidden="true"
-        >
-          {WAVEFORM_BARS.map((h, i) => (
-            <span
-              key={i}
-              className={`w-1 rounded-full ${playing ? "bg-blue-500/70" : "bg-blue-500/25"}`}
-              style={{ height: `${h}px` }}
-            />
-          ))}
-        </div>
-        {meta && <p className="mt-1 text-xs text-gray-400">{meta}</p>}
-      </div>
-      <button
-        onClick={() => onDownload(asset)}
-        title="Download"
-        className="shrink-0 p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
-      >
-        <Download className="w-4 h-4" />
-      </button>
-      <button
-        onClick={(e) => onOpenMenu(asset, e)}
-        aria-label="Result actions"
-        className="shrink-0 p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
-      >
-        <MoreHorizontal className="w-4 h-4" />
-      </button>
-    </div>
-  );
+  return { loadingId, playingId, toggle, stop };
 }
 
 /**
@@ -432,7 +562,7 @@ function AudioCard({ asset, index, onDownload, onOpenMenu }) {
  * @param {() => void} props.onClose
  */
 export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
-  const { activeBrand, uploadImage } = useAuth();
+  const { activeBrand, uploadMedia } = useAuth();
   const router = useRouter();
   const creative = getCreativeById(CREATIVE_ID);
   const config = getMagicConfig(categoryId);
@@ -441,6 +571,10 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   // text_to_audio category calls it; it stays idle otherwise (the worker
   // spawns on first generate) and cleans up its worker + URLs on unmount.
   const tts = useTextToSpeech();
+
+  // On-device voice auditioning for the Text-to-Audio voice picker — shares the
+  // same Kokoro engine as generation (see useVoicePreview).
+  const voicePreview = useVoicePreview(tts);
 
   const headerRef = useRef(null);
   const optionRefs = useRef({});
@@ -476,6 +610,19 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   const [assetMenu, setAssetMenu] = useState(null); // { asset, x, y } — result ⋯ menu
 
   const fileInputRef = useRef(null);
+  // Holds the in-flight video status poll so it can be cancelled on unmount.
+  const pollRef = useRef({ cancelled: false, timer: null });
+
+  // Cancel any in-flight video status polling when the modal unmounts. A
+  // category switch re-keys (remounts) the modal, so this also covers switching
+  // tools mid-poll — no setState fires after unmount.
+  useEffect(
+    () => () => {
+      pollRef.current.cancelled = true;
+      if (pollRef.current.timer) clearTimeout(pollRef.current.timer);
+    },
+    [],
+  );
 
   // Body scroll lock + Escape-to-close.
   useEffect(() => {
@@ -530,7 +677,12 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     if (!item) return;
     if (item.file instanceof File) {
       const objectUrl = URL.createObjectURL(item.file);
-      setImageInput({ file: item.file, url: item.src || objectUrl, preview: objectUrl, objectUrl });
+      setImageInput({
+        file: item.file,
+        url: item.src || objectUrl,
+        preview: objectUrl,
+        objectUrl,
+      });
     } else {
       const url = item.large || item.src;
       if (!url) return;
@@ -569,6 +721,42 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     setError("");
   };
 
+  // Poll a pending video job until it completes. Resolves with the final status
+  // payload; rejects on backend failure or after ~5 minutes. Cancels silently if
+  // the modal unmounts mid-poll (see the cleanup effect above).
+  const pollVideoJob = (jobId) =>
+    new Promise((resolve, reject) => {
+      pollRef.current = { cancelled: false, timer: null };
+      let attempts = 0;
+      const tick = async () => {
+        if (pollRef.current.cancelled) return;
+        attempts += 1;
+        try {
+          const data = await checkVideoGenerationStatus(jobId);
+          if (pollRef.current.cancelled) return;
+          const status = getVideoStatus(data);
+          if (status === "completed") return resolve(data);
+          if (status === "failed") {
+            return reject(
+              new Error("Video generation failed. Please try again."),
+            );
+          }
+          if (attempts >= VIDEO_POLL_MAX_ATTEMPTS) {
+            return reject(
+              new Error(
+                "Your video is taking longer than expected. Check your gallery shortly.",
+              ),
+            );
+          }
+          pollRef.current.timer = setTimeout(tick, VIDEO_POLL_INTERVAL_MS);
+        } catch (err) {
+          if (pollRef.current.cancelled) return;
+          reject(err);
+        }
+      };
+      pollRef.current.timer = setTimeout(tick, VIDEO_POLL_INTERVAL_MS);
+    });
+
   // ── Generate ───────────────────────────────────────────────────────────────
   const handleGenerate = async () => {
     const err = config.validate?.({ input: primaryInput, values });
@@ -580,15 +768,41 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     setError("");
     setOpenPanel(null);
     setAssetMenu(null);
+    voicePreview.stop(); // free the shared speech worker for the real run
     setGenerating(true);
     try {
-      const res = await config.generate({ input: primaryInput, values, activeBrand, tts });
-      releaseResultUrls(result); // free the previous on-device audio, if any
-      setResult(res);
-      if (res?.assets?.length || res?.text) {
-        toast.success("Generated successfully!");
+      const res = await config.generate({
+        input: primaryInput,
+        values,
+        activeBrand,
+        tts,
+      });
+
+      // Async video jobs come back as { pending, jobId } — keep the processing
+      // state up and poll the status endpoint until the backend reports it's
+      // completed, then render the finished video.
+      if (res?.pending) {
+        if (!res.jobId) {
+          throw new Error("Video started but no job id was returned.");
+        }
+        toast("Your video is generating — this can take a minute…");
+        const finalData = await pollVideoJob(res.jobId);
+        const finalResult = normalizeVideoResult(finalData);
+        releaseResultUrls(result);
+        setResult(finalResult);
+        if (finalResult.assets?.length) {
+          toast.success("Your video is ready!");
+        } else {
+          toast("Video finished but no file came back.");
+        }
       } else {
-        toast("Nothing came back — try adjusting your inputs.");
+        releaseResultUrls(result); // free the previous on-device audio, if any
+        setResult(res);
+        if (res?.assets?.length || res?.text) {
+          toast.success("Generated successfully!");
+        } else {
+          toast("Nothing came back — try adjusting your inputs.");
+        }
       }
     } catch (e) {
       // generateMagicStudio already surfaces a friendly toast; keep an in-modal
@@ -610,7 +824,8 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   // the engine only releases blob: URLs it handed out itself).
   const releaseResultUrls = (res) => {
     res?.assets?.forEach((a) => {
-      if (typeof a.src === "string" && a.src.startsWith("blob:")) tts.release(a.src);
+      if (typeof a.src === "string" && a.src.startsWith("blob:"))
+        tts.release(a.src);
     });
   };
 
@@ -624,6 +839,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   const handleSwitch = (id) => {
     setSwitcherOpen(false);
     if (id === categoryId) return;
+    voicePreview.stop();
     onSwitch?.(id);
   };
 
@@ -652,7 +868,9 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
       a.href = URL.createObjectURL(blob);
       const ext =
         asset.format ||
-        (asset.type === "video" || asset.videoSrc || (url || "").toLowerCase().endsWith(".mp4")
+        (asset.type === "video" ||
+        asset.videoSrc ||
+        (url || "").toLowerCase().endsWith(".mp4")
           ? "mp4"
           : asset.type === "audio"
             ? "mp3"
@@ -699,7 +917,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   // carry their Blob directly, so we upload it with a type-correct name/MIME
   // (audio → .mp3/.wav, image → .png); hosted results are fetched then uploaded
   // (see saveUrlToGallery). All saves go through the shared /gallery endpoint
-  // (uploadImage). A loading toast gives immediate feedback, then resolves.
+  // (uploadMedia). A loading toast gives immediate feedback, then resolves.
   const saveAssetToGallery = async (asset, type) => {
     const t = toast.loading("Saving to gallery…");
     try {
@@ -715,13 +933,17 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
               ? "audio/wav"
               : "audio/mpeg"
             : "image/png");
-        await uploadImage(
-          new File([asset.blob], `magic-${type}-${asset.id}.${ext}`, { type: mime }),
+        await uploadMedia(
+          new File([asset.blob], `magic-${type}-${asset.id}.${ext}`, {
+            type: mime,
+          }),
         );
       } else {
         const url = asset.src;
         if (!url) throw new Error("Nothing to save.");
-        await saveUrlToGallery(url, uploadImage, { filePrefix: `magic-${type}` });
+        await saveUrlToGallery(url, uploadMedia, {
+          filePrefix: `magic-${type}`,
+        });
       }
       toast.success("Saved to gallery", { id: t });
     } catch (err) {
@@ -739,7 +961,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
       return;
     }
     onClose?.();
-    router.push(`/product-photos?tool=video&image=${encodeURIComponent(url)}`);
+    router.push(`/product-studio?tool=video&image=${encodeURIComponent(url)}`);
   };
 
   // Remove one asset from the current result (frees its on-device blob URL).
@@ -748,7 +970,9 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
       tts.release(asset.src);
     }
     setResult((r) =>
-      r ? { ...r, assets: (r.assets || []).filter((a) => a.id !== asset.id) } : r,
+      r
+        ? { ...r, assets: (r.assets || []).filter((a) => a.id !== asset.id) }
+        : r,
     );
   };
 
@@ -793,7 +1017,8 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   const readTime = Math.max(5, Math.round(wordCount / 2.5));
   const hasResult = !!(result?.assets?.length || result?.text);
   const resultType =
-    result?.resultType || (config.resultType === "auto" ? "image" : config.resultType);
+    result?.resultType ||
+    (config.resultType === "auto" ? "image" : config.resultType);
 
   // Category list for the switcher.
   const categories = creative?.categories || [];
@@ -873,11 +1098,15 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
                     key={option.key}
                     ref={(el) => (optionRefs.current[option.key] = el)}
                     onClick={() =>
-                      setOpenPanel((p) => (p === option.key ? null : option.key))
+                      setOpenPanel((p) =>
+                        p === option.key ? null : option.key,
+                      )
                     }
                     className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gray-100 hover:bg-gray-200/70 text-sm transition-colors cursor-pointer"
                   >
-                    <span className="text-gray-900 font-medium">{option.label}</span>
+                    <span className="text-gray-900 font-medium">
+                      {option.label}
+                    </span>
                     <span className="text-blue-600 font-semibold flex items-center gap-1.5">
                       {summarize(option, values[option.key])}
                       <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
@@ -891,7 +1120,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
             <div className="px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
               <button
                 onClick={handleGenerate}
-                disabled={generating}
+                disabled={generating || Boolean(voicePreview.loadingId)}
                 className="w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
               >
                 {generating ? (
@@ -944,6 +1173,15 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
           </div>
         </div>
 
+        {/* Click-away catcher — a click anywhere outside an open panel/dropdown
+            dismisses it without closing the modal. Rendered only while something
+            is open; sits above the modal content but below the panels (z-220),
+            mirroring the Product Photos modals. The modal body's own
+            stopPropagation otherwise swallows these clicks. */}
+        {(openPanel || switcherOpen) && (
+          <div className="fixed inset-0 z-210" onClick={closeMenus} />
+        )}
+
         {/* ── Category switcher ── */}
         <AnimatePresence>
           {switcherOpen && (
@@ -967,7 +1205,9 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
                       >
                         {Icon && <Icon className="w-4 h-4" />}
                       </span>
-                      <span className={`text-sm font-semibold ${active ? "text-blue-700" : "text-gray-900"}`}>
+                      <span
+                        className={`text-sm font-semibold ${active ? "text-blue-700" : "text-gray-900"}`}
+                      >
                         {cat.label}
                       </span>
                     </button>
@@ -993,6 +1233,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
                   <PanelBody
                     option={option}
                     value={values[option.key]}
+                    voicePreview={voicePreview}
                     onSelect={(val) => {
                       setValue(option.key, val);
                       setOpenPanel(null);
@@ -1098,7 +1339,11 @@ function PrimaryInput({
         </label>
         {imageInput ? (
           <div className="relative rounded-2xl overflow-hidden border-2 border-blue-500">
-            <img src={imageInput.preview} alt="source" className="w-full h-40 object-cover" />
+            <img
+              src={imageInput.preview}
+              alt="source"
+              className="w-full h-40 object-cover"
+            />
             <button
               onClick={clearImage}
               className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
@@ -1119,7 +1364,9 @@ function PrimaryInput({
           >
             <Upload className="w-5 h-5" />
             <span className="text-blue-600 font-semibold">Select an image</span>
-            {ic.helper && <span className="text-[11px] text-gray-400">{ic.helper}</span>}
+            {ic.helper && (
+              <span className="text-[11px] text-gray-400">{ic.helper}</span>
+            )}
           </button>
         )}
       </div>
@@ -1140,7 +1387,9 @@ function PrimaryInput({
                 <FileAudio className="w-5 h-5 text-blue-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-800 truncate">{audioInput.name}</p>
+                <p className="text-sm font-semibold text-gray-800 truncate">
+                  {audioInput.name}
+                </p>
                 <p className="text-[10px] text-gray-500 mt-0.5">
                   {(audioInput.size / 1024 / 1024).toFixed(2)} MB
                   {audioMeta?.duration
@@ -1156,7 +1405,11 @@ function PrimaryInput({
               </button>
             </div>
             {audioMeta?.previewUrl && (
-              <audio src={audioMeta.previewUrl} controls className="w-full mt-3 h-8" />
+              <audio
+                src={audioMeta.previewUrl}
+                controls
+                className="w-full mt-3 h-8"
+              />
             )}
           </div>
         ) : (
@@ -1166,7 +1419,11 @@ function PrimaryInput({
           >
             <Upload className="w-5 h-5" />
             <span className="text-blue-600 font-semibold">Upload audio</span>
-            {ic.helper && <span className="text-[11px] text-gray-400 text-center px-4">{ic.helper}</span>}
+            {ic.helper && (
+              <span className="text-[11px] text-gray-400 text-center px-4">
+                {ic.helper}
+              </span>
+            )}
           </button>
         )}
         <input
@@ -1207,7 +1464,9 @@ function PrimaryInput({
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Age</label>
+          <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
+            Age
+          </label>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {ic.ageGroups.map((a) => (
               <button
@@ -1228,7 +1487,9 @@ function PrimaryInput({
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Occupation</label>
+          <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
+            Occupation
+          </label>
           <input
             value={values.personaOccupation}
             onChange={(e) => setValue("personaOccupation", e.target.value)}
@@ -1291,14 +1552,39 @@ function EmptyState({ config }) {
     >
       <div className="flex items-center gap-3 mb-9">
         <div className="w-40 h-52 sm:w-44 sm:h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
-          <img src={sample.before} alt="before" className="w-full h-full object-cover" />
+          <img
+            src={sample.before}
+            alt="before"
+            className="w-full h-full object-cover"
+          />
         </div>
-        <svg width="72" height="60" viewBox="0 0 72 60" fill="none" className="text-blue-500 shrink-0 -mt-6">
-          <path d="M6 44 C 24 8, 50 8, 62 32" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-          <path d="M62 32 L51 28 M62 32 L55 42" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <svg
+          width="72"
+          height="60"
+          viewBox="0 0 72 60"
+          fill="none"
+          className="text-blue-500 shrink-0 -mt-6"
+        >
+          <path
+            d="M6 44 C 24 8, 50 8, 62 32"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+          <path
+            d="M62 32 L51 28 M62 32 L55 42"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
         <div className="w-40 h-52 sm:w-44 sm:h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
-          <img src={sample.after} alt="after" className="w-full h-full object-cover" />
+          <img
+            src={sample.after}
+            alt="after"
+            className="w-full h-full object-cover"
+          />
         </div>
       </div>
       <h3 className="text-gray-900 text-center text-lg font-semibold max-w-sm leading-snug">
@@ -1354,7 +1640,11 @@ function ProcessingState({ config, engine }) {
             <motion.span
               className="absolute h-20 w-20 rounded-full border-2 border-blue-400/40"
               animate={{ scale: [1, 1.35, 1], opacity: [0.6, 0, 0.6] }}
-              transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+              transition={{
+                duration: 1.8,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
             />
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/80 shadow-lg backdrop-blur">
               <AudioLines className="h-6 w-6 text-blue-600 animate-pulse" />
@@ -1365,7 +1655,9 @@ function ProcessingState({ config, engine }) {
             <span className="text-sm font-medium text-gray-700">
               Generating your audio…
             </span>
-            <span className="text-2xl font-bold text-blue-600 leading-none">{pct}%</span>
+            <span className="text-2xl font-bold text-blue-600 leading-none">
+              {pct}%
+            </span>
           </div>
           <div className="h-2 w-full rounded-full bg-blue-100 overflow-hidden">
             <div
@@ -1382,7 +1674,13 @@ function ProcessingState({ config, engine }) {
                 ) : (
                   <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin shrink-0" />
                 )}
-                <span className={i < stageIndex ? "text-gray-400" : "text-gray-700 font-medium"}>
+                <span
+                  className={
+                    i < stageIndex
+                      ? "text-gray-400"
+                      : "text-gray-700 font-medium"
+                  }
+                >
                   {label}
                 </span>
               </div>
@@ -1417,7 +1715,11 @@ function ProcessingState({ config, engine }) {
             <motion.span
               className="absolute h-20 w-20 rounded-full border-2 border-blue-400/40"
               animate={{ scale: [1, 1.35, 1], opacity: [0.6, 0, 0.6] }}
-              transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+              transition={{
+                duration: 1.8,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
             />
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/80 shadow-lg backdrop-blur">
               <Sparkles className="h-6 w-6 text-blue-600 animate-pulse" />
@@ -1432,7 +1734,15 @@ function ProcessingState({ config, engine }) {
   );
 }
 
-function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied, onOpenMenu }) {
+function ResultCanvas({
+  resultType,
+  result,
+  onReset,
+  onDownload,
+  onCopy,
+  copied,
+  onOpenMenu,
+}) {
   const assets = result?.assets || [];
 
   return (
@@ -1456,12 +1766,18 @@ function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied,
       {resultType === "text" && result?.text && (
         <div className="rounded-2xl border border-gray-200 bg-surface p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-gray-500">Transcript</span>
+            <span className="text-xs font-semibold text-gray-500">
+              Transcript
+            </span>
             <button
               onClick={onCopy}
               className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
             >
-              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? (
+                <Check className="w-3.5 h-3.5" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
@@ -1475,7 +1791,10 @@ function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied,
       {resultType === "text" && !result?.text && assets.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {assets.map((a) => (
-            <div key={a.id} className="relative group rounded-2xl border border-gray-200 bg-surface p-4">
+            <div
+              key={a.id}
+              className="relative group rounded-2xl border border-gray-200 bg-surface p-4"
+            >
               <button
                 onClick={(e) => onOpenMenu(a, e)}
                 aria-label="Result actions"
@@ -1483,7 +1802,9 @@ function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied,
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
-              <p className="text-sm text-gray-700 leading-relaxed pr-8">{a.content}</p>
+              <p className="text-sm text-gray-700 leading-relaxed pr-8">
+                {a.content}
+              </p>
             </div>
           ))}
         </div>
@@ -1493,8 +1814,15 @@ function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied,
       {resultType === "image" && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           {assets.map((a) => (
-            <div key={a.id} className="relative group rounded-2xl overflow-hidden bg-gray-100 aspect-square">
-              <img src={a.src} alt={a.alt} className="w-full h-full object-cover" />
+            <div
+              key={a.id}
+              className="relative group rounded-2xl overflow-hidden bg-gray-100 aspect-square"
+            >
+              <img
+                src={a.src}
+                alt={a.alt}
+                className="w-full h-full object-cover"
+              />
               <div className="absolute inset-0 bg-linear-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <button
                 onClick={(e) => onOpenMenu(a, e)}
@@ -1512,7 +1840,10 @@ function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied,
       {resultType === "video" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {assets.map((a) => (
-            <div key={a.id} className="relative group rounded-2xl overflow-hidden bg-black">
+            <div
+              key={a.id}
+              className="relative group rounded-2xl overflow-hidden bg-black"
+            >
               <video
                 src={a.videoSrc || a.src}
                 poster={a.thumbnail}
@@ -1552,7 +1883,9 @@ function ResultCanvas({ resultType, result, onReset, onDownload, onCopy, copied,
       {assets.length === 0 && !result?.text && (
         <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-3">
           <ImageOff className="w-8 h-8" />
-          <p className="text-sm">No results came back. Try adjusting your inputs.</p>
+          <p className="text-sm">
+            No results came back. Try adjusting your inputs.
+          </p>
         </div>
       )}
     </motion.div>

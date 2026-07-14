@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import useDesignEditor from "./useDesignEditor";
@@ -12,7 +18,11 @@ import { renderDesignToBlob } from "./renderDesign";
 import { SHAPES, aspectOf, isStraightLine, isBendableLine } from "./shapes";
 import { ensureEditorFontsLoaded } from "./fonts";
 import { strokeToElement, pointsToPath } from "./drawUtils";
-import { defaultCurvePoints, elbowPoints, insertCurvePoint } from "./curveUtils";
+import {
+  defaultCurvePoints,
+  elbowPoints,
+  insertCurvePoint,
+} from "./curveUtils";
 import { measureText } from "./textFit";
 
 const DRAW_TOOLS = ["pen", "marker", "highlighter", "eraser"];
@@ -32,7 +42,7 @@ const MAX_ZOOM = 4;
  * route or dropped into a modal / any surface.
  */
 export default function DesignEditor({ design, onSave, onBack }) {
-  const { updateDesignById, uploadImage } = useAuth();
+  const { updateDesignById, uploadMedia } = useAuth();
   const editor = useDesignEditor(design);
   const {
     canvas,
@@ -64,7 +74,12 @@ export default function DesignEditor({ design, onSave, onBack }) {
   const stageInnerRef = useRef(null);
 
   // Drawing tool state (Tools panel). type 'select' = normal editing.
-  const [tool, setTool] = useState({ type: "select", color: "#ef4444", size: 6, opacity: 1 });
+  const [tool, setTool] = useState({
+    type: "select",
+    color: "#ef4444",
+    size: 6,
+    opacity: 1,
+  });
   const [liveStroke, setLiveStroke] = useState(null);
   const strokeRef = useRef([]);
   const drawingRef = useRef(false);
@@ -78,7 +93,10 @@ export default function DesignEditor({ design, onSave, onBack }) {
   // ── Freehand drawing ──────────────────────────────────────────────────
   const canvasPoint = (e) => {
     const rect = stageInnerRef.current.getBoundingClientRect();
-    return { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom };
+    return {
+      x: (e.clientX - rect.left) / zoom,
+      y: (e.clientY - rect.top) / zoom,
+    };
   };
 
   const eraseAt = (pt) => {
@@ -214,7 +232,12 @@ export default function DesignEditor({ design, onSave, onBack }) {
     e.currentTarget.setPointerCapture?.(e.pointerId);
     commit();
     const bp = bendPoint(selLine, lineEndpoints(selLine));
-    bendDragRef.current = { id: selLine.id, mx: bp.mx, my: bp.my, perp: bp.perp };
+    bendDragRef.current = {
+      id: selLine.id,
+      mx: bp.mx,
+      my: bp.my,
+      perp: bp.perp,
+    };
   };
 
   const onBendMove = (e) => {
@@ -236,7 +259,9 @@ export default function DesignEditor({ design, onSave, onBack }) {
   // positions live in the element's vb space, mapped to/from canvas coords.
   const curveDragRef = useRef(null);
   const selCurve =
-    selectedElement && selectedElement.type === "curve" ? selectedElement : null;
+    selectedElement && selectedElement.type === "curve"
+      ? selectedElement
+      : null;
 
   // Add-node mode only makes sense for a selected line/curve.
   useEffect(() => {
@@ -442,7 +467,9 @@ export default function DesignEditor({ design, onSave, onBack }) {
       width: Math.round(w),
       height: Math.round(h),
       fill: opts.fill ?? (isStroke ? "#111111" : "#6366f1"),
-      borderRadius: isRounded ? Math.round(Math.min(w, h) * 0.14) : opts.borderRadius ?? 0,
+      borderRadius: isRounded
+        ? Math.round(Math.min(w, h) * 0.14)
+        : (opts.borderRadius ?? 0),
       ...(initialBend !== undefined ? { bend: initialBend } : {}),
     });
   };
@@ -547,7 +574,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
       });
       // Upload for a durable URL (blob: dies on reload / can't be saved).
       try {
-        const res = await uploadImage(file);
+        const res = await uploadMedia(file);
         const url =
           res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
         if (url) updateElement(id, { src: url }, { record: false });
@@ -684,7 +711,9 @@ export default function DesignEditor({ design, onSave, onBack }) {
             imageFile: handleAddImage,
           }}
           setBackground={setBackground}
-          background={typeof bg === "string" && bg.startsWith("#") ? bg : "#ffffff"}
+          background={
+            typeof bg === "string" && bg.startsWith("#") ? bg : "#ffffff"
+          }
           editor={editor}
           designId={design?.id}
           tool={tool}
@@ -741,20 +770,24 @@ export default function DesignEditor({ design, onSave, onBack }) {
                 }
               }}
             >
-              {elements.filter((el) => !el.hidden).map((el) => (
-                <EditorElement
-                  key={el.id}
-                  element={el}
-                  zoom={zoom}
-                  selected={el.id === selectedId}
-                  editing={el.id === editingId}
-                  onSelect={selectElement}
-                  onChange={(patch, opts) => updateElement(el.id, patch, opts)}
-                  onStartEdit={setEditingId}
-                  onEndEdit={() => setEditingId(null)}
-                  onCurveAddPoint={addCurveNodeAt}
-                />
-              ))}
+              {elements
+                .filter((el) => !el.hidden)
+                .map((el) => (
+                  <EditorElement
+                    key={el.id}
+                    element={el}
+                    zoom={zoom}
+                    selected={el.id === selectedId}
+                    editing={el.id === editingId}
+                    onSelect={selectElement}
+                    onChange={(patch, opts) =>
+                      updateElement(el.id, patch, opts)
+                    }
+                    onStartEdit={setEditingId}
+                    onEndEdit={() => setEditingId(null)}
+                    onCurveAddPoint={addCurveNodeAt}
+                  />
+                ))}
 
               {/* Line endpoint handles — reshape a selected straight line */}
               {selLine && !isDrawTool && (
@@ -817,7 +850,12 @@ export default function DesignEditor({ design, onSave, onBack }) {
                   <svg
                     width={canvas.width}
                     height={canvas.height}
-                    style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible" }}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      pointerEvents: "none",
+                      overflow: "visible",
+                    }}
                   >
                     {liveStroke?.length > 0 && tool.type !== "eraser" && (
                       <path
@@ -825,10 +863,15 @@ export default function DesignEditor({ design, onSave, onBack }) {
                         fill="none"
                         stroke={tool.color}
                         strokeWidth={tool.size}
-                        strokeLinecap={tool.type === "marker" ? "butt" : "round"}
+                        strokeLinecap={
+                          tool.type === "marker" ? "butt" : "round"
+                        }
                         strokeLinejoin="round"
                         opacity={tool.opacity}
-                        style={{ mixBlendMode: tool.type === "highlighter" ? "multiply" : "normal" }}
+                        style={{
+                          mixBlendMode:
+                            tool.type === "highlighter" ? "multiply" : "normal",
+                        }}
                       />
                     )}
                   </svg>
@@ -877,7 +920,12 @@ function LineHandles({ el, zoom, endpoints, onDown, onMove, onUp, bend }) {
 
   return (
     <div
-      style={{ position: "absolute", inset: 0, zIndex: 45, pointerEvents: "none" }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 45,
+        pointerEvents: "none",
+      }}
     >
       {/* thin guide connecting the endpoints */}
       <svg
@@ -936,7 +984,12 @@ function CurveHandles({
 
   return (
     <div
-      style={{ position: "absolute", inset: 0, zIndex: 45, pointerEvents: "none" }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 45,
+        pointerEvents: "none",
+      }}
     >
       {canvasPts.map((p, i) => (
         <div

@@ -1430,8 +1430,8 @@ export default function BackgroundRemoverModal({
       triggerDownload(
         dataUrl,
         batchMode
-          ? safeName(batchItems[activeIndex]?.name, "product-photo")
-          : "product-photo.png",
+          ? safeName(batchItems[activeIndex]?.name, "product-studio")
+          : "product-studio.png",
       );
     } catch {
       toast.error(

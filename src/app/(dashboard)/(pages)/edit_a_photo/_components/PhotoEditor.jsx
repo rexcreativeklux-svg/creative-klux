@@ -1721,7 +1721,7 @@ function Slider({ label, value, min, max, onChange, unit = "" }) {
 }
 
 export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
-  const { uploadImage, myImages = [], activeBrand, sendUrl, user } = useAuth();
+  const { uploadMedia, myImages = [], activeBrand, sendUrl, user } = useAuth();
   // Avatar initial from the signed-in user's name (falls back to email).
   const userInitial = (user?.name || user?.email || "?")
     .trim()
@@ -2507,7 +2507,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     try {
       const urls = [];
       for (const f of files) {
-        const res = await uploadImage(f);
+        const res = await uploadMedia(f);
         const url =
           res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
         if (url) urls.push(url);
@@ -3081,14 +3081,16 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     try {
       const blob = await exportBlob();
       if (!blob) throw new Error("Export failed");
-      const file = new File([blob], "product-photo.png", { type: "image/png" });
+      const file = new File([blob], "product-studio.png", {
+        type: "image/png",
+      });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: "Product photo" });
       } else {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "product-photo.png";
+        a.download = "product-studio.png";
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
         toast.info("Sharing not supported here — downloaded instead.");
@@ -3723,7 +3725,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `product-photo.${ext}`;
+      a.download = `product-studio.${ext}`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
@@ -3742,7 +3744,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       const file = new File([blob], `edited-${Date.now()}.png`, {
         type: "image/png",
       });
-      await uploadImage(file);
+      await uploadMedia(file);
       toast.success("Saved to your Image Gallery");
     } catch (err) {
       console.error("Save error:", err);

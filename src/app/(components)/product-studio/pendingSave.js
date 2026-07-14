@@ -3,7 +3,7 @@
 // Flow: a guest hits Save → the result blob + meta are stashed here (in
 // CacheStorage — blob-friendly, survives the login page-reload, unlike
 // sessionStorage's ~5 MB string limit) → redirect to
-// /login?returnTo=/product-photos?resume=<toolId> → after login the page
+// /login?returnTo=/product-studio?resume=<toolId> → after login the page
 // re-opens the tool, the modal takes the stash (one-shot) and completes the
 // save automatically.
 

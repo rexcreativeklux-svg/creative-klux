@@ -256,7 +256,7 @@ export default function LoginPage() {
       const msg = await login(email, password);
       showToast(msg);
       // Optional ?returnTo= — used by flows that send guests here and bring
-      // them back (e.g. the product-photos pending save). Relative paths only,
+      // them back (e.g. the product-studio pending save). Relative paths only,
       // so a crafted link can't redirect off-site.
       const params = new URLSearchParams(window.location.search);
       const returnTo = params.get("returnTo");

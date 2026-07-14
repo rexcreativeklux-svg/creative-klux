@@ -132,9 +132,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       icon: Folder,
     },
     {
-      id: "product-photos",
+      id: "product-studio",
       label: "Product Photos",
-      href: "/product-photos",
+      href: "/product-studio",
       icon: BookImage,
     },
     {
@@ -348,7 +348,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const renderSection = (title, items) => (
     <div className="flex flex-col gap-0.5">
       {isOpen && (
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500 px-3 mb-1 mt-1">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 mb-1 mt-1">
           {title}
         </p>
       )}

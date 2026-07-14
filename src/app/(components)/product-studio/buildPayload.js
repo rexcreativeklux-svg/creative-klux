@@ -1,5 +1,5 @@
 // Assembles the structured "Generate" (photoreal) payload each on-device tool
-// sends to the backend, per docs/product-photos-payloads.md. The on-device tools
+// sends to the backend, per docs/product-studio-payloads.md. The on-device tools
 // prep the image locally; Generate is the optional refinement step that turns the
 // prepped result into a photorealistic render on the backend GPU.
 //
@@ -23,7 +23,10 @@ const QUALITY_RES = { Standard: "standard", High: "high", Ultra: "ultra" };
  * @param {boolean} [ctx.applyBrandStyle=false]
  * @returns {object} The request body to POST to the generate endpoint.
  */
-export function buildPayload(toolId, { imageUrls, quality, sizeId, prompt = "", applyBrandStyle = false }) {
+export function buildPayload(
+  toolId,
+  { imageUrls, quality, sizeId, prompt = "", applyBrandStyle = false },
+) {
   const base = {
     tool: toolId,
     image_urls: imageUrls,

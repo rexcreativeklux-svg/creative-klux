@@ -18,7 +18,7 @@ function EditAPhoto() {
     <PhotoEditor
       mode={mode}
       initialImageUrl={image || null}
-      onClose={() => router.push("/product-photos")}
+      onClose={() => router.push("/product-studio")}
     />
   );
 }

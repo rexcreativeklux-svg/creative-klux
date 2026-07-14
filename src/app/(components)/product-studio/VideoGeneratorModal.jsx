@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { generateProductPhoto } from "@/(lib)/product-photos-api";
+import { generateProductPhoto } from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -25,7 +25,7 @@ import { toast } from "sonner";
 const px = (id) =>
   `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=600`;
 
-// Tool list for the header switcher (mirrors the product-photos page tools).
+// Tool list for the header switcher (mirrors the product-studio page tools).
 const TOOL_LIST = [
   {
     id: "virtual",
@@ -99,6 +99,10 @@ const VIDEO_SIZES = [
   { id: "portrait_9_16", name: "Portrait (9:16)", w: 9, h: 16 },
   { id: "landscape_16_9", name: "Landscape (16:9)", w: 16, h: 9 },
 ];
+
+// Video accepts up to 4 input photos — different angles improve fidelity.
+// See docs/product-studio-payloads.md (video `image_urls`: 1–4).
+const MAX_IMAGES = 4;
 
 const TEMPLATE_CATEGORIES = [
   "All",
@@ -284,16 +288,34 @@ function TemplateRow({ children }) {
  * @param {string|null} [props.initialImageUrl] Preselect this hosted image (from a
  *   result's "Generate video") so the user can generate straight away.
  */
-export default function VideoGeneratorModal({ onClose, onSwitchTool, initialImageUrl = null }) {
-  const { activeBrand, uploadImage } = useAuth();
+export default function VideoGeneratorModal({
+  onClose,
+  onSwitchTool,
+  initialImageUrl = null,
+}) {
+  const { activeBrand, uploadMedia } = useAuth();
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
 
+  // The product photos to animate. Each item:
+  //   { id, preview, file, url }
+  //   • preview — URL used for the <img> thumbnail (always present)
+  //   • file    — the File for a fresh desktop upload (null for gallery/search picks)
+  //   • url     — an already-hosted URL (null for fresh uploads until resolved on generate)
   // Seeded from `initialImageUrl` when opened via a result's "Generate video" —
-  // it's an already-hosted URL, so it doubles as the preview and the send URL.
-  const [uploadedImage, setUploadedImage] = useState(initialImageUrl || null);
-  const [uploadedFile, setUploadedFile] = useState(null);
-  const [uploadedFileUrl, setUploadedFileUrl] = useState(initialImageUrl || null); // gallery/cloud URL of the picked image
+  // that's already a hosted URL, so it doubles as the preview and the send URL.
+  const [uploadedImages, setUploadedImages] = useState(() =>
+    initialImageUrl
+      ? [
+          {
+            id: `seed-${Date.now()}`,
+            preview: initialImageUrl,
+            file: null,
+            url: initialImageUrl,
+          },
+        ]
+      : [],
+  );
   const [selectedTemplate, setSelectedTemplate] = useState("none");
   const [size, setSize] = useState("square");
   const [prompt, setPrompt] = useState("");
@@ -318,61 +340,108 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool, initialImag
     onSwitchTool?.(id);
   };
 
-  // Image comes from the gallery picker (My Library / Search / Upload). We only
-  // use ONE image. A fresh desktop upload carries a File + a LOCAL blob: URL (not
-  // sendable to the backend), so we keep the File and leave the hosted URL null —
-  // it's uploaded on generate to get a real URL. A library/search pick already
-  // has a hosted URL we can send straight through.
-  const handleApplyFromPicker = (images = []) => {
-    const item = images[0];
-    if (!item) return;
-    if (item.file instanceof File) {
-      setUploadedFile(item.file);
-      setUploadedImage(item.src || URL.createObjectURL(item.file));
-      setUploadedFileUrl(null); // resolve a hosted URL on generate
-    } else {
-      const url = item.large || item.src || null;
-      if (!url) return;
-      setUploadedFile(null);
-      setUploadedImage(url);
-      setUploadedFileUrl(url); // already hosted
+  // Guard the picker so we never exceed the input cap. When already at the max we
+  // tell the user to remove one rather than silently dropping their pick.
+  const openPicker = () => {
+    if (uploadedImages.length >= MAX_IMAGES) {
+      toast.error(
+        `You can add up to ${MAX_IMAGES} images. Remove one to add another.`,
+      );
+      return;
     }
-    setPickerOpen(false);
+    setPickerOpen(true);
   };
 
+  // Images come from the gallery picker (My Library / Search / Upload). A fresh
+  // desktop upload carries a File + a LOCAL blob: URL (not sendable to the
+  // backend), so we keep the File and leave the hosted URL null — it's uploaded on
+  // generate to get a real URL. A library/search pick already has a hosted URL we
+  // can send straight through. Appends to the current set, capped at MAX_IMAGES.
+  const handleApplyFromPicker = (images = []) => {
+    setPickerOpen(false);
+    if (!Array.isArray(images) || images.length === 0) return;
+
+    setUploadedImages((prev) => {
+      const remaining = MAX_IMAGES - prev.length;
+      if (remaining <= 0) return prev;
+
+      const mapped = images
+        .slice(0, remaining)
+        .map((image, i) => {
+          const id = image.id ?? `img-${Date.now()}-${i}`;
+          if (image.file instanceof File) {
+            return {
+              id,
+              preview: image.src || URL.createObjectURL(image.file),
+              file: image.file,
+              url: null, // resolve a hosted URL on generate
+            };
+          }
+          const url = image.large || image.src || null;
+          return url ? { id, preview: url, file: null, url } : null;
+        })
+        .filter(Boolean);
+
+      if (images.length > remaining) {
+        toast.error(
+          `Only ${remaining} more image${remaining === 1 ? "" : "s"} added — the max is ${MAX_IMAGES}.`,
+        );
+      }
+      return [...prev, ...mapped];
+    });
+  };
+
+  // Drop one image from the set by id.
+  const removeImage = (id) =>
+    setUploadedImages((prev) => prev.filter((img) => img.id !== id));
+
   const handleGenerate = async () => {
-    if (!uploadedFile && !uploadedImage) {
+    if (uploadedImages.length === 0) {
       toast.error("Please select a product image first");
       return;
     }
     setGenerating(true);
     setOpenDropdown(null);
     try {
-      // Resolve the ONE image URL to send. Picks from the gallery already have a
-      // hosted URL; a fresh local upload gets uploaded here to obtain one.
-      let imageUrl = uploadedFileUrl;
-      if (!imageUrl && uploadedFile) {
-        const uploaded = await uploadImage(uploadedFile);
+      // Resolve every image to a hosted URL. Gallery/search picks already have one;
+      // fresh local uploads are uploaded here to obtain one. We upload sequentially
+      // so a failure is easy to attribute, and cache resolved URLs back into state
+      // so a retry doesn't re-upload the same file.
+      const nextImages = [...uploadedImages];
+      const imageUrls = [];
+      for (let i = 0; i < nextImages.length; i++) {
+        const img = nextImages[i];
+        if (img.url) {
+          imageUrls.push(img.url);
+          continue;
+        }
+        if (!img.file) continue;
+        const uploaded = await uploadMedia(img.file);
         console.log("🖼️ [video] upload response ←", uploaded);
-        imageUrl =
+        const url =
           uploaded?.url ||
           uploaded?.image_url ||
           uploaded?.file_url ||
           uploaded?.data?.url;
-        setUploadedFileUrl(imageUrl || null);
+        if (url) {
+          nextImages[i] = { ...img, url };
+          imageUrls.push(url);
+        }
       }
-      if (!imageUrl) {
+      setUploadedImages(nextImages); // cache any newly-resolved URLs
+
+      if (imageUrls.length === 0) {
         toast.error("Please select a product image");
         setGenerating(false);
         return;
       }
 
-      // Backend contract: POST /product-photos/generate (video). Matches the
-      // VirtualModel key style — single `image_url` — plus the video-only
-      // `template_id` and reduced `size` set (see docs/product-photos-payloads.md).
+      // Backend contract: POST /product-studio/generate (video). Video takes
+      // `image_urls` (1–4 photos) plus the video-only `template_id` and reduced
+      // `size` set (see docs/product-studio-payloads.md).
       const payload = {
         tool: "video",
-        image_url: imageUrl,
+        image_urls: imageUrls,
         template_id: selectedTemplate, // "none" for no template, else a template id
         size, // "square" | "portrait_9_16" | "landscape_16_9"
         prompt: prompt || "",
@@ -407,7 +476,7 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool, initialImag
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-black/40"
       onClick={closeAll}
     >
       <div
@@ -435,29 +504,49 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool, initialImag
             {/* Upload — opens the gallery picker (My Library / Search / Upload) */}
             <div className="px-4 pt-4">
               <button
-                onClick={() => setPickerOpen(true)}
+                onClick={openPicker}
                 className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
               >
                 <Upload className="w-4 h-4" />
                 <span className="text-blue-600 font-semibold">
-                  Select from gallery
+                  {uploadedImages.length > 0
+                    ? "Add more images"
+                    : "Select from gallery"}
                 </span>
               </button>
               <p className="text-xs text-gray-500 leading-relaxed mt-2">
-                Pick a clear product photo to animate into a short video.
+                Pick up to {MAX_IMAGES} clear product photos — different angles
+                improve the video.
               </p>
             </div>
 
-            {/* Uploaded thumb */}
-            {uploadedImage && (
+            {/* Uploaded thumbnails — remove any with the hover ✕ */}
+            {uploadedImages.length > 0 && (
               <div className="px-4 pt-3">
-                <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500">
-                  <img
-                    src={uploadedImage}
-                    alt="product"
-                    className="w-full h-full object-cover"
-                  />
+                <div className="flex flex-wrap gap-2">
+                  {uploadedImages.map((img) => (
+                    <div
+                      key={img.id}
+                      className="group relative w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500"
+                    >
+                      <img
+                        src={img.preview}
+                        alt="product"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={() => removeImage(img.id)}
+                        aria-label="Remove image"
+                        className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {uploadedImages.length} of {MAX_IMAGES} selected
+                </p>
               </div>
             )}
 
@@ -565,7 +654,7 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool, initialImag
             <div className="flex items-center gap-3 mb-9">
               <div className="w-44 h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
                 <img
-                  src={uploadedImage || VID_BEFORE}
+                  src={VID_BEFORE}
                   alt="before"
                   className="w-full h-full object-cover"
                 />
@@ -765,7 +854,7 @@ export default function VideoGeneratorModal({ onClose, onSwitchTool, initialImag
         onCancel={() => setPickerOpen(false)}
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
-        maxSelectable={1}
+        maxSelectable={Math.max(1, MAX_IMAGES - uploadedImages.length)}
       />
     </div>
   );

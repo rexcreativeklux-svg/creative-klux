@@ -25,8 +25,28 @@ function DesignCanvas({ variation, maxWidth = 220, maxHeight = 180 }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !variation) return;
+
+    // The involk_llm backend returns `canvas` as a JSON STRING that itself wraps
+    // { canvas: {width,height,background}, elements: [...] }. Other callers pass an
+    // already-parsed canvas object with a top-level `elements` array. Support both.
+    let design = variation.canvas;
+    if (typeof design === "string") {
+      try {
+        design = JSON.parse(design);
+      } catch {
+        design = null;
+      }
+    }
+    const canvasSpec = design?.canvas || design;
+    const elements = Array.isArray(variation.elements)
+      ? variation.elements
+      : Array.isArray(design?.elements)
+        ? design.elements
+        : [];
+    if (!canvasSpec) return;
+
     const ctx = canvas.getContext("2d");
-    const { width, height, background } = variation.canvas;
+    const { width, height, background } = canvasSpec;
 
     canvas.width = width;
     canvas.height = height;
@@ -34,7 +54,7 @@ function DesignCanvas({ variation, maxWidth = 220, maxHeight = 180 }) {
     ctx.fillStyle = background || "#ffffff";
     ctx.fillRect(0, 0, width, height);
 
-    variation.elements.forEach((el) => {
+    elements.forEach((el) => {
       ctx.save();
       ctx.globalAlpha = el.opacity ?? 1;
 
@@ -83,7 +103,7 @@ function DesignCanvas({ variation, maxWidth = 220, maxHeight = 180 }) {
       if (el.type === "text") {
         const size = el.fontSize || 16;
         const weight = el.fontWeight || "normal";
-        const align = el.textAlign || "left";
+        const align = el.textAlign || el.align || "left";
         const family = el.fontFamily || "DM Sans";
         ctx.font = `${weight} ${size}px '${family}', sans-serif`;
         ctx.fillStyle = el.color || el.fill || "#000000";

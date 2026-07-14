@@ -6,6 +6,10 @@ import AiBackgroundsPanel from "./AiBackgroundsPanel";
 import CustomBackgroundPanel from "./CustomBackgroundPanel";
 import RecentUploadsCarousel from "./RecentUploadsCarousel";
 import RecentUploadsPanel from "./RecentUploadsPanel";
+import BackgroundLibrary from "./BackgroundLibrary";
+import BackgroundCategoryPanel from "./BackgroundCategoryPanel";
+import InfinitePexelsGrid from "./InfinitePexelsGrid";
+import ColorBackgroundPanel from "./ColorBackgroundPanel";
 import {
   removeBackground as engineRemoveBackground,
   disposeSegmentationWorker,
@@ -37,6 +41,7 @@ import {
   EyeOff,
   ChevronUp,
   ChevronDown,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -1046,60 +1051,11 @@ const BG_SOLIDS = [
   "#ddd6fe",
   "#fbcfe8",
 ];
-const BG_GRADIENTS = [
-  { from: "#f093fb", to: "#f5576c" },
-  { from: "#4facfe", to: "#00f2fe" },
-  { from: "#43e97b", to: "#38f9d7" },
-  { from: "#fa709a", to: "#fee140" },
-  { from: "#a18cd1", to: "#fbc2eb" },
-  { from: "#0f2027", to: "#2c5364" },
-];
 const BG_IMAGES = [
   7897470, 16042675, 3847496, 34658646, 7130564, 2463329, 6793893, 8559014,
 ].map(ckpx);
 const gradientCss = (g) => `linear-gradient(135deg, ${g.from}, ${g.to})`;
 
-// Curated colour palettes for the Backgrounds → Color tab.
-const NEUTRAL_TONES = [
-  "#f4f1ea",
-  "#e7ded0",
-  "#cdbfae",
-  "#e9e7e2",
-  "#dfe2dc",
-  "#c2c8bf",
-  "#fbfbf9",
-  "#dfe3e6",
-  "#c4ccd2",
-  "#aab4bd",
-  "#8b97a1",
-  "#6b7780",
-];
-const SOFT_PASTELS = [
-  "#fdf6e3",
-  "#eaf3e0",
-  "#e0ecf4",
-  "#efe6f6",
-  "#fbe7ea",
-  "#f7e8da",
-  "#f3ead8",
-  "#e2efe0",
-  "#dfeaf2",
-  "#e8e0f0",
-  "#f0dde0",
-  "#f5e5d2",
-];
-const VIBRANT_COLORS = [
-  "#ef4444",
-  "#f97316",
-  "#eab308",
-  "#22c55e",
-  "#06b6d4",
-  "#3b82f6",
-  "#8b5cf6",
-  "#ec4899",
-  "#111827",
-  "#ffffff",
-];
 
 // Image-background library (verified Pexels IDs, shared with the bg-remover).
 const BG_LIBRARY = [
@@ -1897,9 +1853,17 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   // ── Backgrounds panel ─────────────────────────────────────────────────
   const [bgTab, setBgTab] = useState("color"); // 'color' | 'image'
   const [bgSearchQuery, setBgSearchQuery] = useState("");
-  const [bgSearchResults, setBgSearchResults] = useState([]);
-  const [bgSearching, setBgSearching] = useState(false);
+  const [bgCategory, setBgCategory] = useState(null); // opened library category
+  const [bgQueryDebounced, setBgQueryDebounced] = useState("");
   const bgFileRef = useRef(null);
+
+  // Debounce the background search box (state set only inside the timer, so it
+  // never runs synchronously in the effect). The debounced value drives the
+  // infinite results grid, which remounts per query via its key.
+  useEffect(() => {
+    const t = setTimeout(() => setBgQueryDebounced(bgSearchQuery.trim()), 400);
+    return () => clearTimeout(t);
+  }, [bgSearchQuery]);
 
   // Edit Cutout (manual eraser)
   const [cutoutOpen, setCutoutOpen] = useState(false);
@@ -2795,46 +2759,12 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   };
 
   // ── Backgrounds helpers ───────────────────────────────────────────────
-  const swatchBtn = (c) => (
-    <button
-      key={c}
-      onClick={() => setCanvasBg({ type: "color", value: c })}
-      title={c}
-      className={`w-9 h-9 rounded-lg border cursor-pointer ${canvasBg.type === "color" && canvasBg.value === c ? "ring-2 ring-blue-500" : "border-gray-200"}`}
-      style={{ background: c }}
-    />
-  );
   const onBgFileChange = (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
     setCanvasBg({ type: "image", src: URL.createObjectURL(file) });
   };
-  const runBgSearch = async () => {
-    const q = bgSearchQuery.trim();
-    if (!q) return;
-    setBgSearching(true);
-    try {
-      const res = await fetch(
-        `/api/pexels?query=${encodeURIComponent(q)}&per_page=18`,
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Search failed");
-      setBgSearchResults(
-        (data.photos || []).map((p) => ({
-          id: p.id,
-          thumb: p.src?.medium || p.src?.small,
-          full: p.src?.large || p.src?.large2x || p.src?.original,
-        })),
-      );
-    } catch (err) {
-      toast.error(err.message || "Search failed");
-      setBgSearchResults([]);
-    } finally {
-      setBgSearching(false);
-    }
-  };
-
   // ── Layers ────────────────────────────────────────────────────────────
   const genId = () =>
     `l_${Date.now().toString(36)}_${Math.round(performance.now() * 1000) % 100000}`;
@@ -3853,6 +3783,28 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
               }
             : { background: "white" };
 
+  // Small preview of the current background for panel headers (color / gradient /
+  // image thumbnail, or a checkerboard when transparent) — so the header reflects
+  // what's on the canvas instead of always showing an empty swatch.
+  const bgSwatchStyle =
+    canvasBg.type === "color"
+      ? { background: canvasBg.value }
+      : canvasBg.type === "gradient"
+        ? { background: gradientCss(canvasBg) }
+        : canvasBg.type === "image"
+          ? {
+              backgroundImage: `url(${canvasBg.src})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }
+          : {
+              background:
+                "linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)",
+              backgroundSize: "10px 10px",
+              backgroundPosition: "0 0, 0 5px, 5px -5px, -5px 0",
+              backgroundColor: "#f0f0f0",
+            };
+
   return (
     <div className="fixed inset-0 z-[100] flex">
       <div
@@ -3896,8 +3848,12 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
         {compareOpen && (
           <BeforeAfterView
-            before={originalUrl}
-            after={displayImage}
+            beforeSrc={originalUrl}
+            afterSrc={displayImage}
+            backgroundStyle={boxBackground}
+            backgroundImage={
+              canvasBg.type === "image" ? canvasBg.src : null
+            }
             onClose={() => setCompareOpen(false)}
           />
         )}
@@ -4900,14 +4856,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
               <div className="flex flex-col max-h-full">
                 <div className="flex items-center gap-3 px-4 py-4">
                   <span
-                    className="w-9 h-9 rounded-lg border border-gray-200 shrink-0"
-                    style={{
-                      background:
-                        "linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)",
-                      backgroundSize: "10px 10px",
-                      backgroundPosition: "0 0, 0 5px, 5px -5px, -5px 0",
-                      backgroundColor: "#f0f0f0",
-                    }}
+                    className="w-9 h-9 rounded-lg border border-gray-200 shrink-0 bg-center bg-cover"
+                    style={bgSwatchStyle}
                   />
                   <span className="font-semibold text-base text-gray-900">
                     {canvasBg.type === "none"
@@ -4925,8 +4875,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   <button
                     onClick={() => {
                       setActiveTool("backgrounds");
-                      setBgTab("image");
-                      bgFileRef.current?.click();
+                      setBgCategory(null);
                     }}
                     className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-medium hover:border-blue-400 transition-colors cursor-pointer"
                   >
@@ -4935,8 +4884,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   </button>
                   <button
                     onClick={() => {
-                      setActiveTool("backgrounds");
-                      setBgTab("color");
+                      setActiveTool("colorbg");
                       setCanvasBg({ type: "color", value: "#ffffff" });
                     }}
                     className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-medium hover:border-blue-400 transition-colors cursor-pointer"
@@ -4985,127 +4933,118 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                 onSelect={(src) => setCanvasBg({ type: "image", src })}
                 onBack={() => setActiveTool("backgrounds")}
               />
+            ) : activeTool === "colorbg" ? (
+              <ColorBackgroundPanel
+                canvasBg={canvasBg}
+                onApply={(bg) => setCanvasBg(bg)}
+                palettes={kit?.palettes || []}
+                removeBg={removeBg}
+                canRemoveBg={!!originalUrl && !processing}
+                onRemoveBg={() => handleRemoveBgToggle(!removeBg)}
+                onAiBg={() => setActiveTool("aibg")}
+                onImageBg={() => {
+                  setActiveTool("backgrounds");
+                  setBgCategory(null);
+                }}
+                onInspiration={() => setActiveTool("custombg")}
+                onSave={() => toast("Saved to your backgrounds — coming soon")}
+              />
             ) : activeTool === "backgrounds" ? (
-              <div className="flex flex-col max-h-full">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                  <span className="font-semibold text-base text-gray-900">
-                    Background
-                  </span>
-                  <button
-                    onClick={() => setActiveTool(null)}
-                    className="p-1 rounded hover:bg-gray-100 cursor-pointer"
-                  >
-                    <X className="w-4 h-4 text-gray-400" />
-                  </button>
-                </div>
-
-                <div className="p-4 overflow-y-auto space-y-5">
-                    <>
-                      {/* Upload */}
-                      <button
-                        onClick={() => bgFileRef.current?.click()}
-                        className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 cursor-pointer transition-all"
-                      >
-                        <Upload className="w-4 h-4" /> Drop a file or select an
-                        image
-                      </button>
-                      <input
-                        ref={bgFileRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={onBgFileChange}
+              bgCategory ? (
+                <BackgroundCategoryPanel
+                  category={bgCategory}
+                  onBack={() => setBgCategory(null)}
+                  onApply={(src) => setCanvasBg({ type: "image", src })}
+                  selectedSrc={
+                    canvasBg.type === "image" ? canvasBg.src : null
+                  }
+                />
+              ) : (
+                <div className="flex flex-col max-h-full">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span
+                        className="w-8 h-8 rounded-lg border border-gray-200 shrink-0 bg-center bg-cover"
+                        style={bgSwatchStyle}
                       />
+                      <span className="font-semibold text-base text-gray-900">
+                        Background
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setActiveTool(null);
+                        setBgCategory(null);
+                      }}
+                      className="p-1 rounded hover:bg-gray-100 cursor-pointer"
+                    >
+                      <X className="w-4 h-4 text-gray-400" />
+                    </button>
+                  </div>
 
-                      {/* Recent uploads (horizontal carousel + See all) */}
-                      <RecentUploadsCarousel
-                        images={myImages}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                    {/* Upload */}
+                    <button
+                      onClick={() => bgFileRef.current?.click()}
+                      className="w-full flex flex-col items-center justify-center gap-2 py-10 border-2 border-dashed border-gray-200 rounded-2xl text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 cursor-pointer transition-all"
+                    >
+                      <Upload className="w-6 h-6" />
+                      <span>
+                        Drop a file or{" "}
+                        <span className="text-blue-600 font-semibold">
+                          select an image
+                        </span>
+                      </span>
+                    </button>
+                    <input
+                      ref={bgFileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={onBgFileChange}
+                    />
+
+                    {/* Recent uploads (horizontal carousel + See all) */}
+                    <RecentUploadsCarousel
+                      images={myImages}
+                      selectedSrc={
+                        canvasBg.type === "image" ? canvasBg.src : null
+                      }
+                      onSelect={(src) => setCanvasBg({ type: "image", src })}
+                      onSeeAll={() => setActiveTool("recentuploads")}
+                    />
+
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <input
+                        value={bgSearchQuery}
+                        onChange={(e) => setBgSearchQuery(e.target.value)}
+                        placeholder="Search backgrounds"
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-gray-100 text-sm outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
+                      />
+                    </div>
+
+                    {/* Search results (infinite) OR the grouped library */}
+                    {bgQueryDebounced ? (
+                      <InfinitePexelsGrid
+                        key={bgQueryDebounced}
+                        query={bgQueryDebounced}
+                        onApply={(src) =>
+                          setCanvasBg({ type: "image", src })
+                        }
                         selectedSrc={
                           canvasBg.type === "image" ? canvasBg.src : null
                         }
-                        onSelect={(src) =>
-                          setCanvasBg({ type: "image", src })
-                        }
-                        onSeeAll={() => setActiveTool("recentuploads")}
                       />
-
-                      {/* Search */}
-                      <div>
-                        <div className="relative">
-                          <input
-                            value={bgSearchQuery}
-                            onChange={(e) => setBgSearchQuery(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") runBgSearch();
-                            }}
-                            placeholder="Search backgrounds"
-                            className="w-full pl-3 pr-9 py-2.5 rounded-xl bg-gray-100 text-sm outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
-                          />
-                          <button
-                            onClick={runBgSearch}
-                            disabled={bgSearching || !bgSearchQuery.trim()}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-blue-600 disabled:opacity-40 cursor-pointer"
-                          >
-                            {bgSearching ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4" />
-                            )}
-                          </button>
-                        </div>
-                        {bgSearchResults.length > 0 && (
-                          <div className="grid grid-cols-3 gap-2 mt-2">
-                            {bgSearchResults.map((r) => (
-                              <button
-                                key={r.id}
-                                onClick={() =>
-                                  setCanvasBg({ type: "image", src: r.full })
-                                }
-                                className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 cursor-pointer bg-gray-100"
-                              >
-                                <img
-                                  src={r.thumb}
-                                  alt=""
-                                  className="w-full h-full object-cover"
-                                />
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Library by category */}
-                      {BG_LIBRARY.map((group) => (
-                        <div key={group.category}>
-                          <p className="text-xs font-semibold text-gray-600 mb-2">
-                            {group.category}
-                          </p>
-                          <div className="grid grid-cols-3 gap-2">
-                            {group.images.map((src) => (
-                              <button
-                                key={src}
-                                onClick={() =>
-                                  setCanvasBg({ type: "image", src })
-                                }
-                                className={`aspect-square rounded-lg overflow-hidden border cursor-pointer ${canvasBg.type === "image" && canvasBg.src === src ? "ring-2 ring-blue-500" : "border-gray-200 hover:border-blue-400"}`}
-                              >
-                                <img
-                                  src={src}
-                                  alt=""
-                                  className="w-full h-full object-cover"
-                                />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                      <p className="text-[10px] text-gray-400">
-                        Tip: turn on “Remove bg” above so your product sits on
-                        the new background.
-                      </p>
-                    </>
+                    ) : (
+                      <BackgroundLibrary
+                        onOpenCategory={(cat) => setBgCategory(cat)}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
+              )
             ) : activeTool === "resize" ? (
               (() => {
                 const q = resizeQuery.trim().toLowerCase();

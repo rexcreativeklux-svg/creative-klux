@@ -1,15 +1,25 @@
 import { useRef, useState } from "react";
 import { X, MoveHorizontal } from "lucide-react";
 
-// Full-screen Before/After comparison (the top-bar "panels" button). A draggable
-// vertical divider reveals the original (`before`) on the left and the edited
-// result (`after`) on the right. Self-contained — drag state lives here.
-export default function BeforeAfterView({ before, after, onClose }) {
+// Full-screen Before/After comparison (the top-bar "panels" button). A vertical
+// divider follows the cursor: the ORIGINAL photo shows on the left, the edited
+// composite (subject on the current background) on the right — matching Photoroom.
+//
+//   beforeSrc      — original uploaded image (with its original background)
+//   afterSrc       — the cut-out subject (same framing as the original)
+//   backgroundStyle— canvas background fill (color / gradient / white for image)
+//   backgroundImage— src when the background is an image (rendered under subject)
+export default function BeforeAfterView({
+  beforeSrc,
+  afterSrc,
+  backgroundStyle,
+  backgroundImage,
+  onClose,
+}) {
   const [pos, setPos] = useState(50); // % of width showing "before" (from left)
   const boxRef = useRef(null);
 
-  // The divider follows the cursor anywhere on the page (no click needed).
-  // clientX is mapped to the image box and clamped to its edges.
+  // Divider follows the cursor anywhere on the page (no click/drag needed).
   const updateFromX = (clientX) => {
     const el = boxRef.current;
     if (!el) return;
@@ -31,22 +41,34 @@ export default function BeforeAfterView({ before, after, onClose }) {
         <X className="w-5 h-5" />
       </button>
 
-      {/* Image compare box (wraps to the After image's rendered size) */}
+      {/* Compare box — sized by the subject image; both sides overlay it 1:1 so
+          the subject stays put and only the background changes across the wipe. */}
       <div ref={boxRef} className="relative inline-block touch-none">
-
-        {/* After (base) sets the box size */}
+        {/* AFTER: background fill + optional bg image + subject (base = sizes box) */}
+        <div className="absolute inset-0" style={backgroundStyle}>
+          {backgroundImage && (
+            <img
+              src={backgroundImage}
+              alt=""
+              draggable={false}
+              className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+            />
+          )}
+        </div>
         <img
-          src={after}
+          src={afterSrc}
           alt="After"
           draggable={false}
-          className="block max-h-[85vh] max-w-[92vw] w-auto h-auto pointer-events-none"
+          className="relative block max-h-[85vh] max-w-[92vw] w-auto h-auto object-contain pointer-events-none"
         />
-        {/* Before, clipped to the left `pos%` */}
+
+        {/* BEFORE: the original photo, clipped to the left `pos%` (covers the
+            after composite, showing the original background on that side). */}
         <img
-          src={before}
+          src={beforeSrc}
           alt="Before"
           draggable={false}
-          className="absolute inset-0 w-full h-full pointer-events-none"
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
           style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}
         />
 

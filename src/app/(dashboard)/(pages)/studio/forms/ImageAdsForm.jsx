@@ -116,7 +116,7 @@ const ImageAdsForm = ({
   categoryId,
   fetchDesignTemplates, // ← new prop passed from StudioPage via commonProps
 }) => {
-  const { uploadImage, activeBrandId } = useAuth();
+  const { uploadMedia, activeBrandId } = useAuth();
 
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
@@ -550,7 +550,7 @@ const ImageAdsForm = ({
           }
           if (item instanceof File) {
             try {
-              const result = await uploadImage(item);
+              const result = await uploadMedia(item);
               const url =
                 result?.image_url ||
                 result?.url ||
@@ -560,7 +560,7 @@ const ImageAdsForm = ({
                 ? url
                 : null;
             } catch (err) {
-              console.error("uploadImage failed:", err);
+              console.error("uploadMedia failed:", err);
               return null;
             }
           }

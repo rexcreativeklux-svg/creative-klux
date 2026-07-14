@@ -27,7 +27,8 @@ function liHeaders(access_token) {
 // the token is missing `w_member_social` — i.e. "Share on LinkedIn" wasn't approved when
 // the user connected, so they need to approve it and RECONNECT (the old token can't gain it).
 function liError(status, data, fallback) {
-  const base = data?.message || fallback || `LinkedIn request failed (${status}).`;
+  const base =
+    data?.message || fallback || `LinkedIn request failed (${status}).`;
   if (status === 401 || status === 403) {
     return `${base} — your LinkedIn token is missing the posting permission (w_member_social). Approve "Share on LinkedIn" in your LinkedIn app, then DISCONNECT and RECONNECT LinkedIn here so a fresh token is issued. [HTTP ${status}${data?.serviceErrorCode ? `/${data.serviceErrorCode}` : ""}]`;
   }
@@ -35,7 +36,7 @@ function liError(status, data, fallback) {
 }
 
 // Registers an image, uploads the bytes, and returns the image URN to attach to a post.
-async function uploadImage(image_url, author, access_token) {
+async function uploadMedia(image_url, author, access_token) {
   // 1. Initialize the upload → LinkedIn gives back an uploadUrl + the image URN.
   const initRes = await fetch(`${REST_BASE}/images?action=initializeUpload`, {
     method: "POST",
@@ -45,7 +46,9 @@ async function uploadImage(image_url, author, access_token) {
   const initData = await initRes.json().catch(() => ({}));
   if (!initRes.ok) {
     console.error("LinkedIn image init error:", initRes.status, initData);
-    throw new Error(liError(initRes.status, initData, "LinkedIn image init failed."));
+    throw new Error(
+      liError(initRes.status, initData, "LinkedIn image init failed."),
+    );
   }
   const uploadUrl = initData.value?.uploadUrl;
   const imageUrn = initData.value?.image;
@@ -69,7 +72,9 @@ async function uploadImage(image_url, author, access_token) {
   });
   if (!upRes.ok) {
     const t = await upRes.text().catch(() => "");
-    throw new Error(`LinkedIn image upload failed (${upRes.status}). ${t.slice(0, 200)}`);
+    throw new Error(
+      `LinkedIn image upload failed (${upRes.status}). ${t.slice(0, 200)}`,
+    );
   }
 
   return imageUrn;
@@ -82,13 +87,13 @@ export async function POST(req) {
     if (!access_token) {
       return Response.json(
         { error: "Missing access token — reconnect LinkedIn." },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (!author_id) {
       return Response.json(
         { error: "Missing LinkedIn member id — reconnect LinkedIn." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -102,9 +107,11 @@ export async function POST(req) {
     console.log(
       "LinkedIn token probe:",
       probe.status,
-      "tokenLength:", access_token?.length,
-      "tokenTail:", access_token?.slice(-6),
-      probeData?.sub ? "(sub present)" : probeData
+      "tokenLength:",
+      access_token?.length,
+      "tokenTail:",
+      access_token?.slice(-6),
+      probeData?.sub ? "(sub present)" : probeData,
     );
     if (!probe.ok) {
       return Response.json(
@@ -112,7 +119,7 @@ export async function POST(req) {
           error: `Your LinkedIn token itself is invalid or expired (sign-in check failed: HTTP ${probe.status}). This is NOT a permissions issue — the token is bad. Disconnect and reconnect LinkedIn to mint a new one.`,
           details: probeData,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
     // Token is valid for sign-in. Prefer the member id the token itself reports (probeData.sub)
@@ -125,7 +132,7 @@ export async function POST(req) {
     // Optional image (3-step upload above).
     let imageUrn;
     if (image_url) {
-      imageUrn = await uploadImage(image_url, author, access_token);
+      imageUrn = await uploadMedia(image_url, author, access_token);
     }
 
     // Create the post (REST Posts API).
@@ -157,8 +164,11 @@ export async function POST(req) {
       const err = await postRes.json().catch(() => ({}));
       console.error("LinkedIn post error:", postRes.status, err);
       return Response.json(
-        { error: liError(postRes.status, err, "LinkedIn post failed."), details: err },
-        { status: 400 }
+        {
+          error: liError(postRes.status, err, "LinkedIn post failed."),
+          details: err,
+        },
+        { status: 400 },
       );
     }
 
@@ -172,7 +182,7 @@ export async function POST(req) {
   } catch (err) {
     return Response.json(
       { error: err.message || "LinkedIn publish failed" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

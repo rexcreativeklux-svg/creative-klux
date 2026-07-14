@@ -22,6 +22,10 @@ export function AuthProvider({ children }) {
   const [brandsLoading, setBrandsLoading] = useState(true);
   const [activeBrand, setActiveBrandState] = useState(null);
 
+  // Gallery
+  const [myGallery, setMyGallery] = useState([]);
+  const [myGalleryLoading, setMyGalleryLoading] = useState(false);
+
   const [teams, setTeams] = useState([]);
   const [teamsLoading, setTeamsLoading] = useState(true);
   const [myImages, setMyImages] = useState([]);
@@ -79,7 +83,7 @@ export function AuthProvider({ children }) {
   const API_FETCH_AD_ACCOUNTS_URL = `${BASE_URL}/ad-accounts`;
   const API_CONNECT_AD_ACCOUNTS_URL = `${BASE_URL}/ad-accounts/connect`;
   const API_DELETE_SOCIAL_ACCOUNT_URL = `${BASE_URL}/social-accounts/disconnect`;
-  const API_IMAGE_GALLERY_URL = `${BASE_URL}/gallery`;
+  const API_GALLERY_URL = `${BASE_URL}/gallery`;
   const API_FETCH_TUTORIAL_VIDEOS = `${BASE_URL}/tutorial-videos`;
   const API_AI_CHAT_URL = `${BASE_URL}/creatives/ai-creative`;
   const SAVE_DESIGN_URL = `${BASE_URL}/creative-designs`;
@@ -1268,6 +1272,47 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const fetchGallery = useCallback(async () => {
+    if (!token) {
+      setMyGallery([]);
+      setMyGalleryLoading(false);
+      return;
+    }
+
+    setMyGalleryLoading(true);
+
+    try {
+      const res = await authFetch(API_GALLERY_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json(); // ← Now parsing JSON
+
+      // Extract the array from "media" key
+      const media = data.files || [];
+
+      // console.log(media)
+
+      // Transform to format gallery expects
+      setMyGallery(
+        media.map((m) => ({
+          id: m.id,
+          type: m.type,
+          src: m.image_url, // ← This is the correct URL field
+          alt: m.image_name,
+          filename: m.image_name,
+        })),
+      );
+    } catch (err) {
+      console.error("Failed to fetch media:", err);
+      setMyGallery([]);
+    } finally {
+      setMyGalleryLoading(false);
+    }
+  }, [token]);
+
   const fetchMyImages = useCallback(async () => {
     if (!token) {
       setMyImages([]);
@@ -1278,7 +1323,7 @@ export function AuthProvider({ children }) {
     setMyImagesLoading(true);
 
     try {
-      const res = await authFetch(API_IMAGE_GALLERY_URL, {
+      const res = await authFetch(API_GALLERY_URL, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -1289,7 +1334,10 @@ export function AuthProvider({ children }) {
       // console.log("Fetched images:", data);
 
       // Extract the array from "images" key
-      const images = data.files || [];
+      const images =
+        data.files.filter(
+          (file) => file.type === "image" || file.type === "",
+        ) || [];
 
       // console.log("Images", images)
 
@@ -1310,7 +1358,7 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-  const uploadImage = useCallback(
+  const uploadMedia = useCallback(
     async (file) => {
       if (!token) throw new Error("Not authenticated");
       if (!file) throw new Error("No file provided");
@@ -1320,14 +1368,14 @@ export function AuthProvider({ children }) {
 
       let response;
       try {
-        response = await authFetch(API_IMAGE_GALLERY_URL, {
+        response = await authFetch(API_GALLERY_URL, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
         });
       } catch (error) {
         const result = await classifyResult({ error });
-        console.warn(`[${result.source}] uploadImage:`, result.messageForDevs);
+        console.warn(`[${result.source}] uploadMedia:`, result.messageForDevs);
         const e = new Error(result.message);
         e.source = result.source;
         e.messageForDevs = result.messageForDevs;
@@ -1337,7 +1385,7 @@ export function AuthProvider({ children }) {
       const result = await classifyResult({ response });
       if (!result.ok) {
         console.warn(
-          `[${result.source}] uploadImage:`,
+          `[${result.source}] uploadMedia:`,
           result.messageForDevs,
           "| field errors:",
           result.errors, // 🔎 backend's exact validation reasons (field → messages)
@@ -2802,7 +2850,10 @@ export function AuthProvider({ children }) {
         myImages,
         myImagesLoading,
         fetchMyImages,
-        uploadImage,
+        myGallery,
+        myGalleryLoading,
+        fetchGallery,
+        uploadMedia,
         deleteImage,
         verifyEmail,
         resendVerificationCode,

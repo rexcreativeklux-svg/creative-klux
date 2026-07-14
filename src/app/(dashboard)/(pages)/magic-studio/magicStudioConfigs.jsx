@@ -4,14 +4,14 @@
  * magicStudioConfigs.jsx
  * ─────────────────────────────────────────────────────────────────────────────
  * Per-category configuration for the two-side Magic Studio modal
- * (MagicStudioModal). Modeled on product-photos' `onDeviceToolConfigs` — the
+ * (MagicStudioModal). Modeled on product-studio' `onDeviceToolConfigs` — the
  * modal shell is generic and every category is described here as data:
  *
  *   • header      → title, accent, sample before/after + copy for the empty state
  *   • input       → which primary input the left sidebar renders
  *                   ("prompt" | "script" | "text" | "image" | "audio" | "persona")
  *   • options     → the option ROWS in the sidebar. Each row opens a rich,
- *                   side-anchored FloatingPanel (product-photos styling) whose
+ *                   side-anchored FloatingPanel (product-studio styling) whose
  *                   cards carry an image/icon + label + description.
  *   • resultType  → how the right canvas renders output
  *                   ("image" | "video" | "audio" | "text")
@@ -96,10 +96,17 @@ function extractItems(data) {
   if (Array.isArray(data)) return data;
   // Common container keys, in priority order.
   const container =
-    data.assets || data.results || data.data || data.items || data.urls || data.images || data.videos;
+    data.assets ||
+    data.results ||
+    data.data ||
+    data.items ||
+    data.urls ||
+    data.images ||
+    data.videos;
   if (Array.isArray(container)) return container;
   // Single-result shapes: { url } / { src } / { video_url } / { audio_url }.
-  const single = data.url || data.src || data.video_url || data.audio_url || data.image_url;
+  const single =
+    data.url || data.src || data.video_url || data.audio_url || data.image_url;
   if (single) return [data];
   return [];
 }
@@ -130,8 +137,13 @@ function normalizeMagicResponse(data, resultType) {
   // Transcript / text tools: prefer an explicit text field.
   if (resultType === "text") {
     const text =
-      data?.text || data?.transcript || data?.transcription || data?.result || data?.content;
-    if (typeof text === "string" && text.trim()) return { text, resultType: "text" };
+      data?.text ||
+      data?.transcript ||
+      data?.transcription ||
+      data?.result ||
+      data?.content;
+    if (typeof text === "string" && text.trim())
+      return { text, resultType: "text" };
     // Otherwise fall through to asset extraction (e.g. persona text blocks).
   }
 
@@ -140,14 +152,18 @@ function normalizeMagicResponse(data, resultType) {
     .map((item, i) => {
       const url = itemUrl(item);
       // Text asset (persona "Text" content type) — no URL, has copy.
-      const content = typeof item === "object" ? item.content || item.text : null;
+      const content =
+        typeof item === "object" ? item.content || item.text : null;
       if (!url && content) {
         return { id: item.id || `magic-txt-${i}`, type: "text", content };
       }
       if (!url) return null;
-      const id = (typeof item === "object" && item.id) || `magic-${resultType}-${i}`;
+      const id =
+        (typeof item === "object" && item.id) || `magic-${resultType}-${i}`;
       const thumbnail =
-        typeof item === "object" ? item.thumbnail || item.poster || item.image : undefined;
+        typeof item === "object"
+          ? item.thumbnail || item.poster || item.image
+          : undefined;
       return {
         id: String(id),
         type: resultType,
@@ -163,25 +179,198 @@ function normalizeMagicResponse(data, resultType) {
   return { assets, resultType };
 }
 
+// ── Async video jobs ─────────────────────────────────────────────────────────
+// Video tools (text_to_video, script_to_voiceover) are asynchronous on the
+// backend: the generate call returns a job id + "processing" status instead of a
+// finished URL, and the modal polls checkVideoGenerationStatus until it reports
+// "completed". These helpers keep the (field-name-tolerant) response handling in
+// one place so both video tools and the modal agree on the shape.
+
+// Statuses that mean the job is done / permanently failed. Anything else while a
+// job exists is treated as still "processing".
+const VIDEO_DONE_STATES = [
+  "completed",
+  "complete",
+  "done",
+  "success",
+  "succeeded",
+  "ready",
+  "finished",
+];
+const VIDEO_FAILED_STATES = [
+  "failed",
+  "error",
+  "errored",
+  "cancelled",
+  "canceled",
+];
+
+/** Tolerantly pull the job id out of the initial generate response. */
+export function extractVideoJobId(data) {
+  return (
+    data?.id ??
+    data?.job_id ??
+    data?.jobId ??
+    data?.video_id ??
+    data?.videoId ??
+    data?.generation_id ??
+    data?.data?.id ??
+    data?.data?.job_id ??
+    null
+  );
+}
+
+/** Normalize a status/final response into the modal's render shape. */
+export function normalizeVideoResult(data) {
+  return normalizeMagicResponse(data, "video");
+}
+
+/**
+ * Classify a status response → "completed" | "processing" | "failed".
+ * Trusts an explicit `status` field; otherwise infers from whether a usable
+ * video URL is present yet.
+ */
+export function getVideoStatus(data) {
+  const s = String(data?.status ?? data?.data?.status ?? "")
+    .toLowerCase()
+    .trim();
+  if (s) {
+    if (VIDEO_DONE_STATES.includes(s)) return "completed";
+    if (VIDEO_FAILED_STATES.includes(s)) return "failed";
+    return "processing";
+  }
+  return normalizeMagicResponse(data, "video").assets.length > 0
+    ? "completed"
+    : "processing";
+}
+
+/**
+ * Kick off an async video generation. POSTs the payload, then either returns a
+ * finished result (fast path, if a URL already came back) or a pending
+ * descriptor { pending, jobId } for the modal to poll on. Shared by both video
+ * tools so the async contract lives in exactly one spot.
+ */
+async function startVideoGeneration(payload) {
+  const data = await generateMagicStudio(payload);
+  const immediate = normalizeMagicResponse(data, "video");
+  if (immediate.assets.length > 0) return immediate; // already finished
+  return {
+    resultType: "video",
+    pending: true,
+    jobId: extractVideoJobId(data),
+    raw: data,
+  };
+}
+
 // ── Shared aspect-ratio option set (rich cards render a scaled frame) ─────────
-const RATIO_SQUARE = { value: "square", label: "Square", ratio: "1:1", w: 1, h: 1 };
-const RATIO_LANDSCAPE = { value: "landscape", label: "Landscape", ratio: "16:9", w: 16, h: 9 };
-const RATIO_PORTRAIT = { value: "portrait", label: "Portrait", ratio: "9:16", w: 9, h: 16 };
-const RATIO_WIDE = { value: "wide", label: "Ultra Wide", ratio: "21:9", w: 21, h: 9 };
+const RATIO_SQUARE = {
+  value: "square",
+  label: "Square",
+  ratio: "1:1",
+  w: 1,
+  h: 1,
+};
+const RATIO_LANDSCAPE = {
+  value: "landscape",
+  label: "Landscape",
+  ratio: "16:9",
+  w: 16,
+  h: 9,
+};
+const RATIO_PORTRAIT = {
+  value: "portrait",
+  label: "Portrait",
+  ratio: "9:16",
+  w: 9,
+  h: 16,
+};
+const RATIO_WIDE = {
+  value: "wide",
+  label: "Ultra Wide",
+  ratio: "21:9",
+  w: 21,
+  h: 9,
+};
 
 // ── Visual-style cards (shared between Text-to-Image / Text-to-Video) ─────────
 const IMAGE_STYLES = [
-  { value: "photorealistic", label: "Photorealistic", desc: "True-to-life detail", icon: Camera, img: px(1707820) },
-  { value: "cinematic", label: "Cinematic", desc: "Film-grade lighting", icon: Film, img: px(2873486) },
-  { value: "anime", label: "Anime", desc: "Japanese animation", icon: Star, img: px(1183992) },
-  { value: "cartoon", label: "Cartoon", desc: "Bold & playful", icon: Smile, img: px(207983) },
-  { value: "watercolor", label: "Watercolor", desc: "Soft painted washes", icon: Droplet, img: px(1053687) },
-  { value: "oil_painting", label: "Oil Painting", desc: "Rich brush texture", icon: Palette, img: px(1585325) },
-  { value: "cyberpunk", label: "Cyberpunk", desc: "Neon futuristic", icon: Cpu, img: px(2311602) },
-  { value: "abstract", label: "Abstract", desc: "Shapes & color", icon: Shapes, img: px(1616403) },
-  { value: "minimalist", label: "Minimalist", desc: "Clean & simple", icon: Minus, img: px(1103970) },
-  { value: "vintage", label: "Vintage", desc: "Retro film look", icon: Aperture, img: px(1183434) },
-  { value: "neon", label: "Neon / Glow", desc: "Vivid glow", icon: Zap, img: px(1631677) },
+  {
+    value: "photorealistic",
+    label: "Photorealistic",
+    desc: "True-to-life detail",
+    icon: Camera,
+    img: px(1707820),
+  },
+  {
+    value: "cinematic",
+    label: "Cinematic",
+    desc: "Film-grade lighting",
+    icon: Film,
+    img: px(2873486),
+  },
+  {
+    value: "anime",
+    label: "Anime",
+    desc: "Japanese animation",
+    icon: Star,
+    img: px(1183992),
+  },
+  {
+    value: "cartoon",
+    label: "Cartoon",
+    desc: "Bold & playful",
+    icon: Smile,
+    img: px(207983),
+  },
+  {
+    value: "watercolor",
+    label: "Watercolor",
+    desc: "Soft painted washes",
+    icon: Droplet,
+    img: px(1053687),
+  },
+  {
+    value: "oil_painting",
+    label: "Oil Painting",
+    desc: "Rich brush texture",
+    icon: Palette,
+    img: px(1585325),
+  },
+  {
+    value: "cyberpunk",
+    label: "Cyberpunk",
+    desc: "Neon futuristic",
+    icon: Cpu,
+    img: px(2311602),
+  },
+  {
+    value: "abstract",
+    label: "Abstract",
+    desc: "Shapes & color",
+    icon: Shapes,
+    img: px(1616403),
+  },
+  {
+    value: "minimalist",
+    label: "Minimalist",
+    desc: "Clean & simple",
+    icon: Minus,
+    img: px(1103970),
+  },
+  {
+    value: "vintage",
+    label: "Vintage",
+    desc: "Retro film look",
+    icon: Aperture,
+    img: px(1183434),
+  },
+  {
+    value: "neon",
+    label: "Neon / Glow",
+    desc: "Vivid glow",
+    icon: Zap,
+    img: px(1631677),
+  },
 ];
 
 // ── Text-to-Audio voice cards (real Kokoro-82M voices, from the AI engine) ───
@@ -217,10 +406,13 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "image",
     generateLabel: "Generate images",
     sample: {
-      before: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80",
-      after: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=400&q=80",
+      before:
+        "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80",
+      after:
+        "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=400&q=80",
       headline: "Describe it — we'll create it",
-      subtext: "Write a prompt, pick a style, and generate on-brand images in seconds.",
+      subtext:
+        "Write a prompt, pick a style, and generate on-brand images in seconds.",
     },
     inputConfig: {
       label: "Text prompt",
@@ -278,10 +470,13 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "video",
     generateLabel: "Generate videos",
     sample: {
-      before: "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400&q=80",
-      after: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=400&q=80",
+      before:
+        "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400&q=80",
+      after:
+        "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=400&q=80",
       headline: "From a sentence to a scene",
-      subtext: "Describe the motion, pick a duration and format — generate short-form video.",
+      subtext:
+        "Describe the motion, pick a duration and format — generate short-form video.",
     },
     inputConfig: {
       label: "Video prompt",
@@ -336,8 +531,9 @@ export const MAGIC_STUDIO_CONFIGS = {
         duration: values.duration,
         prompt: input.trim(),
       };
-      const data = await generateMagicStudio(payload);
-      return normalizeMagicResponse(data, "video");
+      // Async on the backend → returns a finished result or a { pending, jobId }
+      // descriptor the modal polls on.
+      return startVideoGeneration(payload);
     },
   },
 
@@ -352,10 +548,13 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "image",
     generateLabel: "Generate variations",
     sample: {
-      before: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80",
-      after: "https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?w=400&q=80",
+      before:
+        "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80",
+      after:
+        "https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?w=400&q=80",
       headline: "One image, many directions",
-      subtext: "Pick a source image and a style — get a fresh set of on-brand variations.",
+      subtext:
+        "Pick a source image and a style — get a fresh set of on-brand variations.",
     },
     inputConfig: {
       label: "Source image",
@@ -369,16 +568,76 @@ export const MAGIC_STUDIO_CONFIGS = {
         width: 380,
         default: "Vintage Sepia",
         items: [
-          { value: "Vintage Sepia", label: "Vintage Sepia", desc: "Warm retro tone", icon: Aperture, img: px(1183434) },
-          { value: "Futuristic Cyberpunk", label: "Cyberpunk", desc: "Neon futuristic", icon: Cpu, img: px(2311602) },
-          { value: "Watercolor Painting", label: "Watercolor", desc: "Soft washes", icon: Droplet, img: px(1053687) },
-          { value: "Pixel Art", label: "Pixel Art", desc: "Retro pixels", icon: Grid3x3, img: px(1293269) },
-          { value: "Oil Painting", label: "Oil Painting", desc: "Rich texture", icon: Palette, img: px(1585325) },
-          { value: "Sketch Drawing", label: "Sketch", desc: "Hand-drawn", icon: Pencil, img: px(1109541) },
-          { value: "Cartoon Style", label: "Cartoon", desc: "Bold & playful", icon: Smile, img: px(207983) },
-          { value: "Abstract Art", label: "Abstract", desc: "Shapes & color", icon: Shapes, img: px(1616403) },
-          { value: "Cinematic", label: "Cinematic", desc: "Film-grade", icon: Film, img: px(2873486) },
-          { value: "Minimalist", label: "Minimalist", desc: "Clean & simple", icon: Minus, img: px(1103970) },
+          {
+            value: "Vintage Sepia",
+            label: "Vintage Sepia",
+            desc: "Warm retro tone",
+            icon: Aperture,
+            img: px(1183434),
+          },
+          {
+            value: "Futuristic Cyberpunk",
+            label: "Cyberpunk",
+            desc: "Neon futuristic",
+            icon: Cpu,
+            img: px(2311602),
+          },
+          {
+            value: "Watercolor Painting",
+            label: "Watercolor",
+            desc: "Soft washes",
+            icon: Droplet,
+            img: px(1053687),
+          },
+          {
+            value: "Pixel Art",
+            label: "Pixel Art",
+            desc: "Retro pixels",
+            icon: Grid3x3,
+            img: px(1293269),
+          },
+          {
+            value: "Oil Painting",
+            label: "Oil Painting",
+            desc: "Rich texture",
+            icon: Palette,
+            img: px(1585325),
+          },
+          {
+            value: "Sketch Drawing",
+            label: "Sketch",
+            desc: "Hand-drawn",
+            icon: Pencil,
+            img: px(1109541),
+          },
+          {
+            value: "Cartoon Style",
+            label: "Cartoon",
+            desc: "Bold & playful",
+            icon: Smile,
+            img: px(207983),
+          },
+          {
+            value: "Abstract Art",
+            label: "Abstract",
+            desc: "Shapes & color",
+            icon: Shapes,
+            img: px(1616403),
+          },
+          {
+            value: "Cinematic",
+            label: "Cinematic",
+            desc: "Film-grade",
+            icon: Film,
+            img: px(2873486),
+          },
+          {
+            value: "Minimalist",
+            label: "Minimalist",
+            desc: "Clean & simple",
+            icon: Minus,
+            img: px(1103970),
+          },
         ],
       },
     ],
@@ -406,10 +665,13 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "video",
     generateLabel: "Generate video",
     sample: {
-      before: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=400&q=80",
-      after: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=400&q=80",
+      before:
+        "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=400&q=80",
+      after:
+        "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=400&q=80",
       headline: "Turn a script into a narrated video",
-      subtext: "Write your script, choose a voice and tone — we assemble matching footage.",
+      subtext:
+        "Write your script, choose a voice and tone — we assemble matching footage.",
     },
     inputConfig: {
       label: "Script",
@@ -431,14 +693,54 @@ export const MAGIC_STUDIO_CONFIGS = {
         width: 340,
         default: "neutral_ai",
         items: [
-          { value: "male_deep", label: "Deep male", desc: "Rich & authoritative", icon: Mic },
-          { value: "male_neutral", label: "Neutral male", desc: "Clear & professional", icon: User },
-          { value: "female_warm", label: "Warm female", desc: "Friendly & engaging", icon: Heart },
-          { value: "female_pro", label: "Pro female", desc: "Polished & confident", icon: Mic },
-          { value: "energetic", label: "Energetic", desc: "Upbeat & exciting", icon: Zap },
-          { value: "calm", label: "Calm & soothing", desc: "Relaxed & meditative", icon: Leaf },
-          { value: "dramatic", label: "Dramatic", desc: "Powerful & intense", icon: Flame },
-          { value: "neutral_ai", label: "Neutral AI", desc: "Clean synthetic voice", icon: Cpu },
+          {
+            value: "male_deep",
+            label: "Deep male",
+            desc: "Rich & authoritative",
+            icon: Mic,
+          },
+          {
+            value: "male_neutral",
+            label: "Neutral male",
+            desc: "Clear & professional",
+            icon: User,
+          },
+          {
+            value: "female_warm",
+            label: "Warm female",
+            desc: "Friendly & engaging",
+            icon: Heart,
+          },
+          {
+            value: "female_pro",
+            label: "Pro female",
+            desc: "Polished & confident",
+            icon: Mic,
+          },
+          {
+            value: "energetic",
+            label: "Energetic",
+            desc: "Upbeat & exciting",
+            icon: Zap,
+          },
+          {
+            value: "calm",
+            label: "Calm & soothing",
+            desc: "Relaxed & meditative",
+            icon: Leaf,
+          },
+          {
+            value: "dramatic",
+            label: "Dramatic",
+            desc: "Powerful & intense",
+            icon: Flame,
+          },
+          {
+            value: "neutral_ai",
+            label: "Neutral AI",
+            desc: "Clean synthetic voice",
+            icon: Cpu,
+          },
         ],
       },
       {
@@ -448,14 +750,54 @@ export const MAGIC_STUDIO_CONFIGS = {
         width: 320,
         default: "Conversational",
         items: [
-          { value: "Conversational", label: "Conversational", desc: "Natural & relaxed", icon: MessageCircle },
-          { value: "Formal", label: "Formal", desc: "Structured & precise", icon: Landmark },
-          { value: "Inspirational", label: "Inspirational", desc: "Uplifting & bold", icon: Sparkles },
-          { value: "Urgent", label: "Urgent", desc: "Fast & compelling", icon: AlarmClock },
-          { value: "Storytelling", label: "Storytelling", desc: "Narrative flow", icon: BookOpen },
-          { value: "Informative", label: "Informative", desc: "Clear & factual", icon: Info },
-          { value: "Humorous", label: "Humorous", desc: "Light & witty", icon: Laugh },
-          { value: "Empathetic", label: "Empathetic", desc: "Warm & caring", icon: Heart },
+          {
+            value: "Conversational",
+            label: "Conversational",
+            desc: "Natural & relaxed",
+            icon: MessageCircle,
+          },
+          {
+            value: "Formal",
+            label: "Formal",
+            desc: "Structured & precise",
+            icon: Landmark,
+          },
+          {
+            value: "Inspirational",
+            label: "Inspirational",
+            desc: "Uplifting & bold",
+            icon: Sparkles,
+          },
+          {
+            value: "Urgent",
+            label: "Urgent",
+            desc: "Fast & compelling",
+            icon: AlarmClock,
+          },
+          {
+            value: "Storytelling",
+            label: "Storytelling",
+            desc: "Narrative flow",
+            icon: BookOpen,
+          },
+          {
+            value: "Informative",
+            label: "Informative",
+            desc: "Clear & factual",
+            icon: Info,
+          },
+          {
+            value: "Humorous",
+            label: "Humorous",
+            desc: "Light & witty",
+            icon: Laugh,
+          },
+          {
+            value: "Empathetic",
+            label: "Empathetic",
+            desc: "Warm & caring",
+            icon: Heart,
+          },
         ],
       },
       {
@@ -465,10 +807,30 @@ export const MAGIC_STUDIO_CONFIGS = {
         width: 320,
         default: "normal",
         items: [
-          { value: "slow", label: "Slow", desc: "0.75× — contemplative", icon: Gauge },
-          { value: "normal", label: "Normal", desc: "1× — balanced", icon: Gauge },
-          { value: "fast", label: "Fast", desc: "1.25× — energetic", icon: Gauge },
-          { value: "rapid", label: "Rapid", desc: "1.5× — punchy", icon: Gauge },
+          {
+            value: "slow",
+            label: "Slow",
+            desc: "0.75× — contemplative",
+            icon: Gauge,
+          },
+          {
+            value: "normal",
+            label: "Normal",
+            desc: "1× — balanced",
+            icon: Gauge,
+          },
+          {
+            value: "fast",
+            label: "Fast",
+            desc: "1.25× — energetic",
+            icon: Gauge,
+          },
+          {
+            value: "rapid",
+            label: "Rapid",
+            desc: "1.5× — punchy",
+            icon: Gauge,
+          },
         ],
       },
       {
@@ -484,17 +846,17 @@ export const MAGIC_STUDIO_CONFIGS = {
         label: "Export format",
         panel: "pills",
         width: 300,
-        default: "MP4",
+        default: "mp4",
         items: [
           { value: "mp4", label: "MP4" },
-          { value: "mp3", label: "MP3" },
-          { value: "wav", label: "WAV" },
+          { value: "mkv", label: "MKV" },
           { value: "webm", label: "WebM" },
           { value: "mov", label: "MOV" },
         ],
       },
     ],
-    validate: ({ input }) => (input?.trim() ? null : "Please enter a script first."),
+    validate: ({ input }) =>
+      input?.trim() ? null : "Please enter a script first.",
     generate: async ({ input, values }) => {
       const payload = {
         tool: "script_to_voiceover",
@@ -505,8 +867,9 @@ export const MAGIC_STUDIO_CONFIGS = {
         export_format: values.format,
         prompt: input.trim(),
       };
-      const data = await generateMagicStudio(payload);
-      return normalizeMagicResponse(data, "video");
+      // Async on the backend → returns a finished result or a { pending, jobId }
+      // descriptor the modal polls on.
+      return startVideoGeneration(payload);
     },
   },
 
@@ -521,10 +884,13 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "text",
     generateLabel: "Transcribe audio",
     sample: {
-      before: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=400&q=80",
-      after: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&q=80",
+      before:
+        "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=400&q=80",
+      after:
+        "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&q=80",
       headline: "Accurate transcripts in a click",
-      subtext: "Upload audio, pick a language and format — get clean, ready-to-use text.",
+      subtext:
+        "Upload audio, pick a language and format — get clean, ready-to-use text.",
     },
     inputConfig: {
       label: "Audio file",
@@ -562,10 +928,30 @@ export const MAGIC_STUDIO_CONFIGS = {
         width: 320,
         default: "punctuated",
         items: [
-          { value: "plain", label: "Plain Text", desc: "Raw transcript only", icon: FileText },
-          { value: "punctuated", label: "Punctuated", desc: "Auto-add punctuation", icon: FileText },
-          { value: "paragraphs", label: "Paragraphs", desc: "Split into paragraphs", icon: FileText },
-          { value: "timestamped", label: "Timestamped", desc: "Include time markers", icon: Clock },
+          {
+            value: "plain",
+            label: "Plain Text",
+            desc: "Raw transcript only",
+            icon: FileText,
+          },
+          {
+            value: "punctuated",
+            label: "Punctuated",
+            desc: "Auto-add punctuation",
+            icon: FileText,
+          },
+          {
+            value: "paragraphs",
+            label: "Paragraphs",
+            desc: "Split into paragraphs",
+            icon: FileText,
+          },
+          {
+            value: "timestamped",
+            label: "Timestamped",
+            desc: "Include time markers",
+            icon: Clock,
+          },
         ],
       },
       {
@@ -576,8 +962,18 @@ export const MAGIC_STUDIO_CONFIGS = {
         default: "balanced",
         items: [
           { value: "fast", label: "Fast", desc: "Quick turnaround", icon: Zap },
-          { value: "balanced", label: "Balanced", desc: "Speed + accuracy", icon: Gauge },
-          { value: "accurate", label: "Accurate", desc: "Maximum precision", icon: Sparkles },
+          {
+            value: "balanced",
+            label: "Balanced",
+            desc: "Speed + accuracy",
+            icon: Gauge,
+          },
+          {
+            value: "accurate",
+            label: "Accurate",
+            desc: "Maximum precision",
+            icon: Sparkles,
+          },
         ],
       },
     ],
@@ -606,23 +1002,49 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "auto", // resolved from the chosen content type at generate time
     generateLabel: "Generate content",
     sample: {
-      before: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80",
-      after: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&q=80",
+      before:
+        "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80",
+      after:
+        "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&q=80",
       headline: "Content tuned to a persona",
-      subtext: "Define who you're speaking to, and generate content shaped to fit them.",
+      subtext:
+        "Define who you're speaking to, and generate content shaped to fit them.",
     },
     inputConfig: {
       inspire: [
-        { name: "Amara Osei", occupation: "Marketing Manager", tone: "Friendly" },
-        { name: "Raj Patel", occupation: "Software Engineer", tone: "Professional" },
-        { name: "Sofia Reyes", occupation: "Creative Director", tone: "Inspirational" },
-        { name: "James Whitfield", occupation: "Sales Executive", tone: "Bold" },
+        {
+          name: "Amara Osei",
+          occupation: "Marketing Manager",
+          tone: "Friendly",
+        },
+        {
+          name: "Raj Patel",
+          occupation: "Software Engineer",
+          tone: "Professional",
+        },
+        {
+          name: "Sofia Reyes",
+          occupation: "Creative Director",
+          tone: "Inspirational",
+        },
+        {
+          name: "James Whitfield",
+          occupation: "Sales Executive",
+          tone: "Bold",
+        },
         { name: "Yuki Tanaka", occupation: "Product Manager", tone: "Casual" },
       ],
       occupations: [
-        "Marketing Manager", "Software Engineer", "Entrepreneur", "Sales Executive",
-        "Creative Director", "Product Manager", "HR Specialist", "Financial Analyst",
-        "Teacher", "Consultant",
+        "Marketing Manager",
+        "Software Engineer",
+        "Entrepreneur",
+        "Sales Executive",
+        "Creative Director",
+        "Product Manager",
+        "HR Specialist",
+        "Financial Analyst",
+        "Teacher",
+        "Consultant",
       ],
       ageGroups: [
         { value: "18-24", label: "18–24", desc: "Gen Z" },
@@ -652,9 +1074,24 @@ export const MAGIC_STUDIO_CONFIGS = {
         width: 300,
         default: "image",
         items: [
-          { value: "text", label: "Text", desc: "Copy & captions", icon: FileText },
-          { value: "image", label: "Image", desc: "Visual content", icon: FileImage },
-          { value: "video", label: "Video", desc: "Motion content", icon: Film },
+          {
+            value: "text",
+            label: "Text",
+            desc: "Copy & captions",
+            icon: FileText,
+          },
+          {
+            value: "image",
+            label: "Image",
+            desc: "Visual content",
+            icon: FileImage,
+          },
+          {
+            value: "video",
+            label: "Video",
+            desc: "Motion content",
+            icon: Film,
+          },
         ],
       },
       {
@@ -669,12 +1106,20 @@ export const MAGIC_STUDIO_CONFIGS = {
     validate: ({ values }) => {
       if (!values.personaName?.trim()) return "Please enter a persona name.";
       if (!values.personaAge?.trim()) return "Please select or enter an age.";
-      if (!values.personaOccupation?.trim()) return "Please enter an occupation.";
+      if (!values.personaOccupation?.trim())
+        return "Please enter an occupation.";
       if (!values.personaTone) return "Please select a tone.";
       return null;
     },
     generate: async ({ values }) => {
-      const { personaName, personaAge, personaOccupation, personaTone, contentType, ratio } = values;
+      const {
+        personaName,
+        personaAge,
+        personaOccupation,
+        personaTone,
+        contentType,
+        ratio,
+      } = values;
       const payload = {
         tool: "persona_generator",
         name: personaName?.trim(),
@@ -686,7 +1131,12 @@ export const MAGIC_STUDIO_CONFIGS = {
       };
       const data = await generateMagicStudio(payload);
       // The chosen content type decides how the right canvas renders the result.
-      const resultType = contentType === "text" ? "text" : contentType === "video" ? "video" : "image";
+      const resultType =
+        contentType === "text"
+          ? "text"
+          : contentType === "video"
+            ? "video"
+            : "image";
       return normalizeMagicResponse(data, resultType);
     },
   },
@@ -707,8 +1157,10 @@ export const MAGIC_STUDIO_CONFIGS = {
     generateLabel: "Generate audio",
     onDevice: true, // modal shows the real-progress processing state
     sample: {
-      before: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80",
-      after: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80",
+      before:
+        "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80",
+      after:
+        "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80",
       headline: "Give your words a voice",
       subtext:
         "Pick one of 28 lifelike voices, set speed, format and quality — speech is generated on your device, private and unlimited.",
@@ -753,8 +1205,18 @@ export const MAGIC_STUDIO_CONFIGS = {
         width: 300,
         default: "mp3",
         items: [
-          { value: "mp3", label: "MP3", desc: "Best compatibility", icon: Music },
-          { value: "wav", label: "WAV", desc: "Lossless quality", icon: AudioLines },
+          {
+            value: "mp3",
+            label: "MP3",
+            desc: "Best compatibility",
+            icon: Music,
+          },
+          {
+            value: "wav",
+            label: "WAV",
+            desc: "Lossless quality",
+            icon: AudioLines,
+          },
         ],
       },
       {
@@ -764,15 +1226,31 @@ export const MAGIC_STUDIO_CONFIGS = {
         width: 320,
         default: "high",
         items: [
-          { value: "standard", label: "Standard", desc: "Raw output — fastest", icon: Zap },
-          { value: "high", label: "High", desc: "Normalized, click-free joins", icon: Gauge },
-          { value: "studio", label: "Studio", desc: "Loudness-tuned, fades, max bitrate", icon: Sparkles },
+          {
+            value: "standard",
+            label: "Standard",
+            desc: "Raw output — fastest",
+            icon: Zap,
+          },
+          {
+            value: "high",
+            label: "High",
+            desc: "Normalized, click-free joins",
+            icon: Gauge,
+          },
+          {
+            value: "studio",
+            label: "Studio",
+            desc: "Loudness-tuned, fades, max bitrate",
+            icon: Sparkles,
+          },
         ],
       },
     ],
     validate: ({ input }) => {
       if (!input?.trim()) return "Please enter some text to convert.";
-      if (input.trim().length > 2000) return "Text is limited to 2000 characters.";
+      if (input.trim().length > 2000)
+        return "Text is limited to 2000 characters.";
       return null;
     },
     generate: async ({ input, values, tts }) => {
@@ -784,7 +1262,8 @@ export const MAGIC_STUDIO_CONFIGS = {
       });
       // The engine already toasted the failure — throw quietly so the modal
       // doesn't show a second "nothing came back" toast.
-      if (!item) throw new Error("Speech generation failed — please try again.");
+      if (!item)
+        throw new Error("Speech generation failed — please try again.");
       const voice = KOKORO_TTS.voices.find((v) => v.id === values.voice);
       return {
         resultType: "audio",

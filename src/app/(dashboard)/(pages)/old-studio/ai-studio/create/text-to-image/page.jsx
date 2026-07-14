@@ -1,17 +1,24 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Image, MoreVertical, Download, ArrowLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import Breadcrumbs from '@/app/(components)/Breadcrumbs';
-import { FloatingAnimation, FloatingElements } from '@/app/(components)/FloatingAnimation';
+import React, { useState, useRef, useEffect } from "react";
+import { Image, MoreVertical, Download, ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import Breadcrumbs from "@/app/(components)/Breadcrumbs";
+import {
+  FloatingAnimation,
+  FloatingElements,
+} from "@/app/(components)/FloatingAnimation";
 
 const TextToImagePipelinePage = () => {
   const router = useRouter();
-  const { activeBrand, uploadImage } = useAuth();
+  const { activeBrand, uploadMedia } = useAuth();
 
-  const [inputData, setInputData] = useState({ text: '', style: '', layout: 'Square' });
+  const [inputData, setInputData] = useState({
+    text: "",
+    style: "",
+    layout: "Square",
+  });
   const [outputs, setOutputs] = useState([]);
   const [loading, setLoading] = useState({ generate: false });
   const [menuOpen, setMenuOpen] = useState(null);
@@ -32,86 +39,166 @@ const TextToImagePipelinePage = () => {
   ];
 
   const styleOptions = [
-    { value: 'Photorealistic', image: 'https://images.pexels.com/photos/206359/pexels-photo-206359.jpeg?auto=compress&cs=tinysrgb&w=200', label: 'Photorealistic' },
-    { value: 'Cartoon', image: 'https://images.pexels.com/photos/1632790/pexels-photo-1632790.jpeg?auto=compress&cs=tinysrgb&w=200', label: 'Cartoon' },
-    { value: 'Abstract', image: 'https://images.pexels.com/photos/2110951/pexels-photo-2110951.jpeg?auto=compress&cs=tinysrgb&w=200', label: 'Abstract' },
-    { value: 'Anime', image: 'https://images.pexels.com/photos/3601441/pexels-photo-3601441.jpeg?auto=compress&cs=tinysrgb&w=200', label: 'Anime' },
-    { value: 'Watercolor', image: 'https://images.pexels.com/photos/208139/pexels-photo-208139.jpeg?auto=compress&cs=tinysrgb&w=200', label: 'Watercolor' },
-    { value: 'Oil Painting', image: 'https://images.pexels.com/photos/102127/pexels-photo-102127.jpeg?auto=compress&cs=tinysrgb&w=200', label: 'Oil Painting' },
-    { value: 'Cyberpunk', image: 'https://images.pexels.com/photos/373543/pexels-photo-373543.jpeg?auto=compress&cs=tinysrgb&w=200', label: 'Cyberpunk' },
-    { value: 'Minimalist', image: 'https://images.pexels.com/photos/583842/pexels-photo-583842.jpeg?auto=compress&cs=tinysrgb&w=200', label: 'Minimalist' },
+    {
+      value: "Photorealistic",
+      image:
+        "https://images.pexels.com/photos/206359/pexels-photo-206359.jpeg?auto=compress&cs=tinysrgb&w=200",
+      label: "Photorealistic",
+    },
+    {
+      value: "Cartoon",
+      image:
+        "https://images.pexels.com/photos/1632790/pexels-photo-1632790.jpeg?auto=compress&cs=tinysrgb&w=200",
+      label: "Cartoon",
+    },
+    {
+      value: "Abstract",
+      image:
+        "https://images.pexels.com/photos/2110951/pexels-photo-2110951.jpeg?auto=compress&cs=tinysrgb&w=200",
+      label: "Abstract",
+    },
+    {
+      value: "Anime",
+      image:
+        "https://images.pexels.com/photos/3601441/pexels-photo-3601441.jpeg?auto=compress&cs=tinysrgb&w=200",
+      label: "Anime",
+    },
+    {
+      value: "Watercolor",
+      image:
+        "https://images.pexels.com/photos/208139/pexels-photo-208139.jpeg?auto=compress&cs=tinysrgb&w=200",
+      label: "Watercolor",
+    },
+    {
+      value: "Oil Painting",
+      image:
+        "https://images.pexels.com/photos/102127/pexels-photo-102127.jpeg?auto=compress&cs=tinysrgb&w=200",
+      label: "Oil Painting",
+    },
+    {
+      value: "Cyberpunk",
+      image:
+        "https://images.pexels.com/photos/373543/pexels-photo-373543.jpeg?auto=compress&cs=tinysrgb&w=200",
+      label: "Cyberpunk",
+    },
+    {
+      value: "Minimalist",
+      image:
+        "https://images.pexels.com/photos/583842/pexels-photo-583842.jpeg?auto=compress&cs=tinysrgb&w=200",
+      label: "Minimalist",
+    },
   ];
 
   const layoutOptions = [
     {
-      value: 'Square',
+      value: "Square",
       svg: (
-        <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="10" y="10" width="60" height="60" stroke="#4B5563" strokeWidth="1" />
+        <svg
+          width="80"
+          height="80"
+          viewBox="0 0 80 80"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <rect
+            x="10"
+            y="10"
+            width="60"
+            height="60"
+            stroke="#4B5563"
+            strokeWidth="1"
+          />
         </svg>
       ),
-      label: 'Square',
+      label: "Square",
     },
     {
-      value: 'Landscape',
+      value: "Landscape",
       svg: (
-        <svg width="100" height="50" viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="10" y="5" width="80" height="40" stroke="#4B5563" strokeWidth="1" />
+        <svg
+          width="100"
+          height="50"
+          viewBox="0 0 100 50"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <rect
+            x="10"
+            y="5"
+            width="80"
+            height="40"
+            stroke="#4B5563"
+            strokeWidth="1"
+          />
         </svg>
       ),
-      label: 'Landscape',
+      label: "Landscape",
     },
     {
-      value: 'Portrait',
+      value: "Portrait",
       svg: (
-        <svg width="50" height="100" viewBox="0 0 50 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="5" y="10" width="40" height="80" stroke="#4B5563" strokeWidth="1" />
+        <svg
+          width="50"
+          height="100"
+          viewBox="0 0 50 100"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <rect
+            x="5"
+            y="10"
+            width="40"
+            height="80"
+            stroke="#4B5563"
+            strokeWidth="1"
+          />
         </svg>
       ),
-      label: 'Portrait',
+      label: "Portrait",
     },
   ];
 
   const staticImages = [
-    'https://images.pexels.com/photos/2471234/pexels-photo-2471234.jpeg?auto=compress&cs=tinysrgb&w=200',
-    'https://images.pexels.com/photos/2387418/pexels-photo-2387418.jpeg?auto=compress&cs=tinysrgb&w=200',
-    'https://images.pexels.com/photos/3165335/pexels-photo-3165335.jpeg?auto=compress&cs=tinysrgb&w=200',
-    'https://images.pexels.com/photos/2696064/pexels-photo-2696064.jpeg?auto=compress&cs=tinysrgb&w=200',
-    'https://images.pexels.com/photos/259588/pexels-photo-259588.jpeg?auto=compress&cs=tinysrgb&w=200',
+    "https://images.pexels.com/photos/2471234/pexels-photo-2471234.jpeg?auto=compress&cs=tinysrgb&w=200",
+    "https://images.pexels.com/photos/2387418/pexels-photo-2387418.jpeg?auto=compress&cs=tinysrgb&w=200",
+    "https://images.pexels.com/photos/3165335/pexels-photo-3165335.jpeg?auto=compress&cs=tinysrgb&w=200",
+    "https://images.pexels.com/photos/2696064/pexels-photo-2696064.jpeg?auto=compress&cs=tinysrgb&w=200",
+    "https://images.pexels.com/photos/259588/pexels-photo-259588.jpeg?auto=compress&cs=tinysrgb&w=200",
   ];
 
   const handleInspireMe = () => {
-    const randomPrompt = inspirePrompts[Math.floor(Math.random() * inspirePrompts.length)];
-    setInputData(prev => ({ ...prev, text: randomPrompt }));
+    const randomPrompt =
+      inspirePrompts[Math.floor(Math.random() * inspirePrompts.length)];
+    setInputData((prev) => ({ ...prev, text: randomPrompt }));
   };
 
   const handleInputChange = (e) => {
-    setInputData(prev => ({ ...prev, text: e.target.value }));
+    setInputData((prev) => ({ ...prev, text: e.target.value }));
   };
 
   const handleStyleChange = (style) => {
-    setInputData(prev => ({ ...prev, style }));
+    setInputData((prev) => ({ ...prev, style }));
     setStyleDropdownOpen(false);
   };
 
   const handleLayoutChange = (layout) => {
-    setInputData(prev => ({ ...prev, layout }));
+    setInputData((prev) => ({ ...prev, layout }));
     setLayoutDropdownOpen(false);
   };
 
   const toggleStyleDropdown = () => {
-    setStyleDropdownOpen(prev => !prev);
+    setStyleDropdownOpen((prev) => !prev);
     setLayoutDropdownOpen(false);
   };
 
   const toggleLayoutDropdown = () => {
-    setLayoutDropdownOpen(prev => !prev);
+    setLayoutDropdownOpen((prev) => !prev);
     setStyleDropdownOpen(false);
   };
 
   const handleGenerateImage = async () => {
     if (!inputData.text.trim()) {
-      alert('Please enter a text prompt first.');
+      alert("Please enter a text prompt first.");
       return;
     }
 
@@ -119,17 +206,24 @@ const TextToImagePipelinePage = () => {
     setOutputs([]);
 
     const styleKeyword = inputData.style ? inputData.style.toLowerCase() : "";
-    const layoutKeyword = inputData.layout === 'Portrait' ? 'vertical' : inputData.layout === 'Landscape' ? 'horizontal' : 'square';
+    const layoutKeyword =
+      inputData.layout === "Portrait"
+        ? "vertical"
+        : inputData.layout === "Landscape"
+          ? "horizontal"
+          : "square";
 
     const query = `${inputData.text} ${styleKeyword} style ${layoutKeyword} high quality professional photography`;
 
     try {
-      const res = await fetch(`/api/pexels?query=${encodeURIComponent(query)}&per_page=20&orientation=${inputData.layout.toLowerCase()}`);
+      const res = await fetch(
+        `/api/pexels?query=${encodeURIComponent(query)}&per_page=20&orientation=${inputData.layout.toLowerCase()}`,
+      );
       const data = await res.json();
 
       const newOutputs = (data.photos || []).map((photo, i) => ({
         id: `pexels-${photo.id}-${i}`,
-        type: 'image',
+        type: "image",
         src: photo.src.large2x || photo.src.large || photo.src.medium,
         alt: photo.alt || `Generated from "${inputData.text}"`,
       }));
@@ -151,7 +245,7 @@ const TextToImagePipelinePage = () => {
       const res = await fetch(img.src);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `generated-${Date.now()}.jpg`;
       a.click();
@@ -168,8 +262,10 @@ const TextToImagePipelinePage = () => {
     try {
       const res = await fetch(img.src);
       const blob = await res.blob();
-      const file = new File([blob], `text-to-image-${Date.now()}.jpg`, { type: blob.type });
-      await uploadImage(file);
+      const file = new File([blob], `text-to-image-${Date.now()}.jpg`, {
+        type: blob.type,
+      });
+      await uploadMedia(file);
       alert("Image added to your brand library!");
     } catch (err) {
       alert("Failed to add to brand");
@@ -182,7 +278,7 @@ const TextToImagePipelinePage = () => {
 
   const handleBack = () => {
     setOutputs([]);
-    setInputData({ text: '', style: '', layout: 'Square' });
+    setInputData({ text: "", style: "", layout: "Square" });
     setStyleDropdownOpen(false);
     setLayoutDropdownOpen(false);
   };
@@ -190,18 +286,22 @@ const TextToImagePipelinePage = () => {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
-        styleDropdownRef.current && !styleDropdownRef.current.contains(event.target) &&
-        layoutDropdownRef.current && !layoutDropdownRef.current.contains(event.target)
+        styleDropdownRef.current &&
+        !styleDropdownRef.current.contains(event.target) &&
+        layoutDropdownRef.current &&
+        !layoutDropdownRef.current.contains(event.target)
       ) {
         setStyleDropdownOpen(false);
         setLayoutDropdownOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const selectedStyle = styleOptions.find(option => option.value === inputData.style);
+  const selectedStyle = styleOptions.find(
+    (option) => option.value === inputData.style,
+  );
 
   return (
     <div className="px-14">
@@ -209,9 +309,9 @@ const TextToImagePipelinePage = () => {
 
       <Breadcrumbs
         items={[
-          { name: 'Creatives', href: '/creatives' },
-          { name: 'AI Studio', href: null },
-          { name: 'Text to Image', href: '/creatives/ai-studio/text-to-image' },
+          { name: "Creatives", href: "/creatives" },
+          { name: "AI Studio", href: null },
+          { name: "Text to Image", href: "/creatives/ai-studio/text-to-image" },
         ]}
       />
 
@@ -227,8 +327,13 @@ const TextToImagePipelinePage = () => {
                       <Image className="text-blue-700 w-6 h-6" />
                     </div>
                     <div className="flex flex-col justify-center">
-                      <h1 className="font-medium text-lg text-blue-700">Input Text Prompt</h1>
-                      <p className="text-gray-600 text-xs">Enter a text prompt or get inspired to generate your image.</p>
+                      <h1 className="font-medium text-lg text-blue-700">
+                        Input Text Prompt
+                      </h1>
+                      <p className="text-gray-600 text-xs">
+                        Enter a text prompt or get inspired to generate your
+                        image.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -249,7 +354,9 @@ const TextToImagePipelinePage = () => {
                   </div>
                   <div className="flex gap-4">
                     <div className="flex-1">
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">Style</label>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Style
+                      </label>
                       <div className="relative" ref={styleDropdownRef}>
                         <button
                           onClick={toggleStyleDropdown}
@@ -262,7 +369,7 @@ const TextToImagePipelinePage = () => {
                               className="w-6 h-6 object-cover rounded"
                             />
                           )}
-                          {inputData.style || 'Select a style'}
+                          {inputData.style || "Select a style"}
                         </button>
                         {styleDropdownOpen && (
                           <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-4 gap-5 p-3">
@@ -270,15 +377,20 @@ const TextToImagePipelinePage = () => {
                               <button
                                 key={option.value}
                                 onClick={() => handleStyleChange(option.value)}
-                                className={`flex flex-col items-center p-2 border rounded-md transition duration-200 ${inputData.style === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-surface hover:border-blue-700'
-                                  }`}
+                                className={`flex flex-col items-center p-2 border rounded-md transition duration-200 ${
+                                  inputData.style === option.value
+                                    ? "border-blue-700 bg-blue-50"
+                                    : "border-gray-200 bg-surface hover:border-blue-700"
+                                }`}
                               >
                                 <img
                                   src={option.image}
                                   alt={option.label}
                                   className="w-full h-20 object-cover rounded-md mb-2"
                                 />
-                                <span className="text-sm text-gray-700">{option.label}</span>
+                                <span className="text-sm text-gray-700">
+                                  {option.label}
+                                </span>
                               </button>
                             ))}
                           </div>
@@ -286,13 +398,15 @@ const TextToImagePipelinePage = () => {
                       </div>
                     </div>
                     <div className="flex-1">
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">Layout</label>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Layout
+                      </label>
                       <div className="relative" ref={layoutDropdownRef}>
                         <button
                           onClick={toggleLayoutDropdown}
                           className="w-full p-3 border bg-surface border-gray-200 rounded-md text-left text-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-700 transition duration-200"
                         >
-                          {inputData.layout || 'Select a layout'}
+                          {inputData.layout || "Select a layout"}
                         </button>
                         {layoutDropdownOpen && (
                           <div className="absolute z-10 mt-2 w-full bg-surface border border-gray-200 rounded-md shadow-lg grid grid-cols-3 gap-2 p-2">
@@ -300,11 +414,16 @@ const TextToImagePipelinePage = () => {
                               <button
                                 key={option.value}
                                 onClick={() => handleLayoutChange(option.value)}
-                                className={`flex flex-col items-center justify-center p-2 border rounded-md transition duration-200 ${inputData.layout === option.value ? 'border-blue-700 bg-blue-50' : 'border-gray-200 bg-surface hover:border-blue-700'
-                                  }`}
+                                className={`flex flex-col items-center justify-center p-2 border rounded-md transition duration-200 ${
+                                  inputData.layout === option.value
+                                    ? "border-blue-700 bg-blue-50"
+                                    : "border-gray-200 bg-surface hover:border-blue-700"
+                                }`}
                               >
                                 <div className="mb-2">{option.svg}</div>
-                                <span className="text-sm text-gray-700">{option.label}</span>
+                                <span className="text-sm text-gray-700">
+                                  {option.label}
+                                </span>
                               </button>
                             ))}
                           </div>
@@ -320,7 +439,7 @@ const TextToImagePipelinePage = () => {
                     {loading.generate ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     ) : (
-                      'Generate Images'
+                      "Generate Images"
                     )}
                   </button>
                 </div>
@@ -329,10 +448,15 @@ const TextToImagePipelinePage = () => {
               {/* Your original static images section */}
               <div>
                 <div className="">
-                  <h2 className="font-medium text-lg text-blue-700 mb-4">Generated Images</h2>
+                  <h2 className="font-medium text-lg text-blue-700 mb-4">
+                    Generated Images
+                  </h2>
                   <div className="grid grid-cols-5 gap-4">
                     {staticImages.map((image, index) => (
-                      <div key={index} className="relative bg-surface h-35 border border-gray-200 rounded-lg overflow-hidden">
+                      <div
+                        key={index}
+                        className="relative bg-surface h-35 border border-gray-200 rounded-lg overflow-hidden"
+                      >
                         <img
                           src={image}
                           alt={`Sample Image ${index + 1}`}
@@ -350,10 +474,13 @@ const TextToImagePipelinePage = () => {
               {/* Header with Back button aligned */}
               <div className="text-sm flex justify-between items-center border-b p-2 border-b-gray-200 mb-6">
                 <div className="flex items-center gap-3">
-
                   <div>
-                    <h1 className="font-medium text-lg text-blue-700">Generated Images</h1>
-                    <p className="text-gray-600 text-xs">Review and select your generated images.</p>
+                    <h1 className="font-medium text-lg text-blue-700">
+                      Generated Images
+                    </h1>
+                    <p className="text-gray-600 text-xs">
+                      Review and select your generated images.
+                    </p>
                   </div>
                 </div>
 
@@ -402,7 +529,9 @@ const TextToImagePipelinePage = () => {
                       className="w-full h-auto object-cover"
                     />
                     <div className="p-2">
-                      <p className="text-xs text-gray-500">Style: {inputData.style || 'Default'}</p>
+                      <p className="text-xs text-gray-500">
+                        Style: {inputData.style || "Default"}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -413,7 +542,10 @@ const TextToImagePipelinePage = () => {
           {loading.generate && (
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
               <div className="relative w-[300px] h-[200px] bg-gray-50 rounded-lg overflow-hidden flex flex-col items-center justify-center">
-                <FloatingAnimation animationDuration="3s" showProgressBar={true}>
+                <FloatingAnimation
+                  animationDuration="3s"
+                  showProgressBar={true}
+                >
                   <FloatingElements.ImageFile />
                 </FloatingAnimation>
               </div>

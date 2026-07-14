@@ -1,8 +1,14 @@
 // components/LibraryMediaModal.jsx — ONLY shows images from fetchMyImages()
-import { FolderOpen, FileUp, MoreVertical, Download, Trash2 } from 'lucide-react';
-import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import Toast from './Toast';
+import {
+  FolderOpen,
+  FileUp,
+  MoreVertical,
+  Download,
+  Trash2,
+} from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { useAuth } from "@/context/AuthContext";
+import Toast from "./Toast";
 
 const MAX_IMAGES = 5;
 
@@ -16,7 +22,14 @@ export default function LibraryMediaModal({
   // importedImages prop is still accepted but completely ignored now
   importedImages = [],
 }) {
-  const { token, uploadImage, fetchMyImages, deleteImage, myImages = [], myImagesLoading } = useAuth();
+  const {
+    token,
+    uploadMedia,
+    fetchMyImages,
+    deleteImage,
+    myImages = [],
+    myImagesLoading,
+  } = useAuth();
   const [localSelected, setLocalSelected] = useState(selectedImages);
   const [menuOpen, setMenuOpen] = useState(null);
   const [toast, setToast] = useState({ isOpen: false, message: "" });
@@ -40,21 +53,23 @@ export default function LibraryMediaModal({
     const files = Array.from(e.target.files);
     if (!files.length) return;
 
-    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
     if (imageFiles.length === 0) {
       showToast("Please select image files only");
-      e.target.value = '';
+      e.target.value = "";
       return;
     }
 
-    showToast(`Uploading ${imageFiles.length} image${imageFiles.length > 1 ? 's' : ''}...`);
+    showToast(
+      `Uploading ${imageFiles.length} image${imageFiles.length > 1 ? "s" : ""}...`,
+    );
 
     let uploaded = 0;
     let firstError = null;
 
     for (const file of imageFiles) {
       try {
-        await uploadImage(file);
+        await uploadMedia(file);
         uploaded++;
       } catch (err) {
         firstError = err;
@@ -63,7 +78,9 @@ export default function LibraryMediaModal({
     }
 
     if (uploaded > 0) {
-      showToast(`${uploaded} image${uploaded > 1 ? 's' : ''} uploaded successfully!`);
+      showToast(
+        `${uploaded} image${uploaded > 1 ? "s" : ""} uploaded successfully!`,
+      );
       await fetchMyImages();
     } else if (firstError) {
       showToast(`failed: ${firstError.message}`);
@@ -71,17 +88,17 @@ export default function LibraryMediaModal({
       showToast("Upload failed");
     }
 
-    e.target.value = '';
+    e.target.value = "";
   };
 
   const handleImageSelect = (src) => {
     if (localSelected.includes(src)) {
-      setLocalSelected(prev => prev.filter(s => s !== src));
+      setLocalSelected((prev) => prev.filter((s) => s !== src));
       onSelectImage(src);
     } else if (localSelected.length >= MAX_IMAGES) {
       showToast("You can only select up to 5 images");
     } else {
-      setLocalSelected(prev => [...prev, src]);
+      setLocalSelected((prev) => [...prev, src]);
       onSelectImage(src);
     }
   };
@@ -94,7 +111,12 @@ export default function LibraryMediaModal({
 
   return (
     <>
-      <Toast isOpen={toast.isOpen} message={toast.message} onClose={closeToast} duration={2500} />
+      <Toast
+        isOpen={toast.isOpen}
+        message={toast.message}
+        onClose={closeToast}
+        duration={2500}
+      />
 
       <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
         <div className="bg-surface rounded-lg p-6 w-[80%] h-[85%] flex flex-col">
@@ -121,7 +143,14 @@ export default function LibraryMediaModal({
               <FileUp className="w-5 h-5" />
               Upload New Image
             </button>
-            <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleUpload} />
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*"
+              className="hidden"
+              onChange={handleUpload}
+            />
           </div>
 
           {/* Image Grid */}
@@ -133,14 +162,19 @@ export default function LibraryMediaModal({
             ) : imagesToShow.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-gray-500">
                 <FolderOpen className="w-16 h-16 mb-4 text-gray-300" />
-                <p className="text-lg font-medium mb-2">No images in your library</p>
+                <p className="text-lg font-medium mb-2">
+                  No images in your library
+                </p>
                 <p className="text-sm">Upload images to get started</p>
               </div>
             ) : (
               <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 space-y-3">
                 {imagesToShow.map((img, i) => {
-                  const url = typeof img === 'string' ? img : (img.src || img.image_url || img.url);
-                  const hasId = typeof img === 'object' && img.id;
+                  const url =
+                    typeof img === "string"
+                      ? img
+                      : img.src || img.image_url || img.url;
+                  const hasId = typeof img === "object" && img.id;
                   const isSelected = localSelected.includes(url);
                   const menuId = `lib-${hasId ? img.id : i}`;
 
@@ -158,7 +192,9 @@ export default function LibraryMediaModal({
                           src={url}
                           alt={`Library image ${i + 1}`}
                           className="w-full h-auto block rounded-lg"
-                          onError={(e) => (e.currentTarget.style.display = 'none')}
+                          onError={(e) =>
+                            (e.currentTarget.style.display = "none")
+                          }
                         />
 
                         {isSelected && (
@@ -183,14 +219,16 @@ export default function LibraryMediaModal({
                                 showToast("Downloading...");
 
                                 try {
-                                  const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+                                  const res = await fetch(
+                                    `/api/proxy-image?url=${encodeURIComponent(url)}`,
+                                  );
                                   if (!res.ok) throw new Error();
                                   const blob = await res.blob();
                                   const blobUrl = URL.createObjectURL(blob);
 
-                                  const a = document.createElement('a');
+                                  const a = document.createElement("a");
                                   a.href = blobUrl;
-                                  a.download = `image-${Date.now()}.${blob.type.split('/')[1] || 'jpg'}`;
+                                  a.download = `image-${Date.now()}.${blob.type.split("/")[1] || "jpg"}`;
                                   document.body.appendChild(a);
                                   a.click();
                                   document.body.removeChild(a);
@@ -212,7 +250,9 @@ export default function LibraryMediaModal({
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  if (!confirm("Delete this image permanently?")) {
+                                  if (
+                                    !confirm("Delete this image permanently?")
+                                  ) {
                                     setMenuOpen(null);
                                     return;
                                   }
@@ -222,7 +262,9 @@ export default function LibraryMediaModal({
                                     showToast("Image deleted successfully");
                                     await fetchMyImages();
                                   } catch (err) {
-                                    showToast(err.message || "Failed to delete image");
+                                    showToast(
+                                      err.message || "Failed to delete image",
+                                    );
                                   } finally {
                                     setMenuOpen(null);
                                   }

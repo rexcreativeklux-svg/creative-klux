@@ -1,426 +1,430 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+// app/(dashboard)/(pages)/gallery/ImageGallery.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// The user's media gallery. Media-type tabs (Images · Videos · Audio · Docs) are
+// the primary navigation; Search (Pexels stock) and Upload are toolbar actions.
+// The library, and Pexels results, both render through the shared <MediaCard> so
+// every gallery surface in the app looks and behaves the same.
+
+import { useState, useCallback } from "react";
 import {
-    Search,
-    Image as ImageIcon,
-    Upload,
-    MoreVertical,
-    FolderOpen,
-    CloudUpload,
-    Loader2,
-    Download,
-    Link2,
-    ExternalLink,
-    FolderPlus,
-    Trash2,
+  Search,
+  Image as ImageIcon,
+  Upload,
+  CloudUpload,
+  Loader2,
+  FolderPlus,
+  ArrowLeft,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import NotificationModal from "@/app/(components)/NotificationModal";
-import { toast } from "sonner";
+import useGalleryMedia from "@/app/(components)/gallery/useGalleryMedia";
+import MediaTypeTabs from "@/app/(components)/gallery/MediaTypeTabs";
+import MediaCard from "@/app/(components)/gallery/MediaCard";
+import { galleryGridClass } from "@/app/(components)/gallery/mediaTypes";
+import { downloadGalleryItem } from "@/app/(components)/gallery/downloadMedia";
+import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGallery";
+import { FILE_LIMITS, getFileCategory } from "@/utils/helpers";
 
 export default function ImageGallery() {
-    const {
-        token,
-        myImages,
-        myImagesLoading,
-        fetchMyImages,
-        uploadImage,
-        deleteImage
-    } = useAuth();
+  const { uploadMedia, deleteImage } = useAuth();
+  const { tabs, activeType, setActiveType, items, counts, loading, refresh } =
+    useGalleryMedia();
 
-    const [activeTab, setActiveTab] = useState("myImages");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [mediaType, setMediaType] = useState("Images");
-    const [searchResults, setSearchResults] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isDragging, setIsDragging] = useState(false);
-    const [openMenu, setOpenMenu] = useState(null);
-    const [notification, setNotification] = useState(null);
+  // ── Toolbar / modes ──────────────────────────────────────────────────────
+  const [searchMode, setSearchMode] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [notification, setNotification] = useState(null);
 
-    useEffect(() => {
-        if (token) fetchMyImages();
-    }, [token, fetchMyImages]);
+  // ── Pexels search state ──────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState("");
+  const [pexelsType, setPexelsType] = useState("Images");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
-    const showNotification = (title, message, type = "info") => {
-        setNotification({ title, message, type });
-    };
+  const notify = (title, message, type = "info") =>
+    setNotification({ title, message, type });
 
-    const getVideoUrl = (videoFiles) => {
-        if (!videoFiles || videoFiles.length === 0) return null;
-        const hd = videoFiles.find(f => f.quality === "hd");
-        return (hd || videoFiles[0]).link;
-    };
+  // ── Shared item actions (library) ────────────────────────────────────────
+  const copyLink = (item) => {
+    navigator.clipboard.writeText(item.src);
+    toast.success("Link copied to clipboard");
+  };
 
-    const downloadMedia = (url, filename) => {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename || "download";
-        a.click();
-        showNotification("Download started", `${filename || "Media"} is downloading`, "success");
-    };
+  const downloadItem = async (item) => {
+    try {
+      await downloadGalleryItem(item);
+    } catch (err) {
+      // Cross-origin CDNs may block a fetch → fall back to opening the file.
+      console.warn("↩️ [gallery] download failed, opening in tab:", err);
+      toast.error("Couldn't download that file — opening it instead.");
+      window.open(
+        item.downloadUrl || item.src,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    }
+  };
 
-    const copyLink = (url) => {
-        navigator.clipboard.writeText(url);
-        toast.success("URL copied to clipboard");
-        setOpenMenu(null);
-    };
+  const deleteItem = async (item) => {
+    if (!confirm("Delete this permanently? This cannot be undone.")) return;
+    notify("Deleting…", "Please wait", "info");
+    try {
+      await deleteImage(item.id);
+      await refresh?.();
+      notify("Deleted!", "Item permanently removed", "success");
+    } catch (err) {
+      notify(
+        "Delete failed",
+        err.message || "Could not delete the item",
+        "error",
+      );
+    }
+  };
 
-    const searchPexels = async () => {
-        if (!searchQuery.trim()) return;
-        setIsLoading(true);
-        try {
-            const type = mediaType === "Images" ? "photos" : "videos";
-            const res = await fetch(`/api/pexels?query=${encodeURIComponent(searchQuery)}&type=${type}`);
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            setSearchResults(mediaType === "Images" ? data.photos || [] : data.videos || []);
-        } catch (err) {
-            showNotification("Search failed", err.message || "Try again later", "error");
-        } finally {
-            setIsLoading(false);
+  // ── Upload (images) ──────────────────────────────────────────────────────
+  const handleFileUpload = useCallback(
+    async (files) => {
+      if (!files?.length) return;
+
+      // 1. Validate type + size per file (plain toasts for rejections).
+      const valid = Array.from(files).filter((file) => {
+        const category = getFileCategory(file);
+        if (!category) {
+          toast.error(`${file.name} isn't a supported file type.`);
+          return false;
         }
-    };
+        const maxSize = FILE_LIMITS[category];
+        if (file.size > maxSize) {
+          const maxMB = maxSize / (1024 * 1024);
+          toast.error(
+            `${file.name} is too large — max ${maxMB}MB for ${category}s.`,
+          );
+          return false;
+        }
+        return true;
+      });
 
-    const saveToMyImages = (item) => {
-        // In future: save to backend
-        setOpenMenu(null);
-    };
+      if (!valid.length) return;
 
-    const handleFileUpload = async (files) => {
-        if (!files) return;
+      // 2. Upload each survivor (one loading toast, resolved at the end).
+      const toastId = toast.loading(`Uploading ${valid.length} file(s)…`);
+      setIsUploading(true);
+      let ok = 0;
+      let lastError = null;
+      const uploadedCategories = new Set(); // Track what types were uploaded
 
-        const validFiles = Array.from(files).filter((file) => {
-            if (!file.type.startsWith("image/")) {
-                showNotification("Invalid file", `${file.name} is not an image`, "error");
-                return false;
-            }
-            if (file.size > 5 * 1024 * 1024) {
-                showNotification("File too large", `${file.name} exceeds 5MB limit`, "error");
-                return false;
-            }
-            return true;
+      for (const file of valid) {
+        try {
+          await uploadMedia(file);
+          uploadedCategories.add(getFileCategory(file));
+          ok++;
+        } catch (err) {
+          console.error(`❌ [gallery] upload failed for ${file.name}:`, err);
+          lastError = err;
+        }
+      }
+
+      // 3. Refresh + report the outcome on the same toast.
+      await refresh?.();
+      setIsUploading(false);
+
+      if (ok > 0) {
+        // Jump to the tab of what we just uploaded.
+        const firstCategory = Array.from(uploadedCategories)[0];
+        if (firstCategory) setActiveType(firstCategory);
+        toast.success(`${ok} file(s) uploaded successfully`, { id: toastId });
+      } else {
+        toast.error(lastError?.message || "Nothing was uploaded", {
+          id: toastId,
         });
+      }
+    },
+    [uploadMedia, refresh, setActiveType],
+  );
 
-        if (validFiles.length === 0) return;
+  const handleDrop = useCallback(
+    (e) => {
+      e.preventDefault();
+      setIsDragging(false);
+      handleFileUpload(e.dataTransfer.files);
+    },
+    [handleFileUpload],
+  );
 
-        // THIS IS THE KEY LINE → Show uploading modal immediately
-        showNotification("Uploading Images...", `Processing ${validFiles.length} file(s)`, "info");
+  // ── Pexels search ────────────────────────────────────────────────────────
+  const getVideoUrl = (videoFiles) => {
+    if (!videoFiles?.length) return null;
+    const hd = videoFiles.find((f) => f.quality === "hd");
+    return (hd || videoFiles[0]).link;
+  };
 
-        setIsLoading(true);
-        let successCount = 0;
-        let failureCount = 0;
+  const runSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearchLoading(true);
+    try {
+      const type = pexelsType === "Images" ? "photos" : "videos";
+      const res = await fetch(
+        `/api/pexels?query=${encodeURIComponent(searchQuery)}&type=${type}`,
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const raw =
+        pexelsType === "Images" ? data.photos || [] : data.videos || [];
+      // Normalize into the shared MediaCard item shape.
+      setSearchResults(
+        pexelsType === "Images"
+          ? raw.map((p) => ({
+              id: `px-${p.id}`,
+              type: "image",
+              src: p.src?.medium || p.src?.original,
+              alt: p.alt || "Pexels photo",
+              filename: `pexels-${p.id}.jpg`,
+              downloadUrl: p.src?.original || p.src?.large,
+            }))
+          : raw.map((p) => {
+              const link = getVideoUrl(p.video_files);
+              return {
+                id: `px-${p.id}`,
+                type: "video",
+                src: link,
+                alt: "Pexels video",
+                filename: `pexels-${p.id}.mp4`,
+                downloadUrl: link,
+              };
+            }),
+      );
+    } catch (err) {
+      notify("Search failed", err.message || "Try again later", "error");
+    } finally {
+      setSearchLoading(false);
+    }
+  };
 
-        let lastError = null;
+  const saveSearchPhoto = async (item) => {
+    notify("Saving…", "Adding to your gallery", "info");
+    try {
+      await saveUrlToGallery(item.downloadUrl || item.src, uploadMedia, {
+        filePrefix: "pexels",
+      });
+      await refresh?.();
+      notify("Saved!", "Added to your gallery", "success");
+    } catch (err) {
+      notify(
+        "Save failed",
+        err.message || "Could not save to gallery",
+        "error",
+      );
+    }
+  };
 
-        try {
-            for (const file of validFiles) {
-                try {
-                    await uploadImage(file);
-                    successCount++;
-                } catch (err) {
-                    console.error(`Failed to upload ${file.name}:`, err);
-                    failureCount++;
-                    lastError = err; // Store the last error to show user
-                }
-            }
+  const closeSearch = () => {
+    setSearchMode(false);
+    setSearchResults([]);
+    setSearchQuery("");
+  };
 
-            // Clear the "Uploading..." modal by replacing it
-            if (successCount > 0) {
-                showNotification(
-                    "Upload Complete!",
-                    `${successCount} image(s) uploaded successfully`,
-                    "success"
-                );
-                setActiveTab("myImages");
-            }
+  // ── Render ────────────────────────────────────────────────────────────────
+  const activeLabel = tabs.find((t) => t.id === activeType)?.label || "media";
 
-            if (failureCount > 0) {
-                // Show the actual error message from the last failed upload
-                showNotification(
-                    "Upload Failed",
-                    lastError?.message || `${failureCount} image(s) could not be uploaded`,
-                    "error"
-                );
-            }
+  return (
+    <>
+      <div className="min-h-screen px-4 sm:px-8 lg:px-12 py-6">
+        {/* Header */}
+        <header className="bg-blue-600 text-white px-6 sm:px-8 py-6 rounded-xl shadow-lg mb-6">
+          <div className="flex items-center gap-3">
+            <ImageIcon size={30} />
+            <div>
+              <h1 className="text-2xl font-bold leading-none">My Gallery</h1>
+              <p className="text-sm text-white/80 mt-1">
+                All your media in one place — images, videos, audio &amp; docs.
+              </p>
+            </div>
+          </div>
+        </header>
 
-            if (successCount === 0 && failureCount === 0) {
-                showNotification("No Changes", "Nothing was uploaded", "warning");
-            }
-
-        } catch (err) {
-            showNotification("Upload Failed", err.message || "Unknown error occurred", "error");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleDrop = useCallback((e) => {
-        e.preventDefault();
-        setIsDragging(false);
-        handleFileUpload(e.dataTransfer.files);
-    }, [handleFileUpload]);
-
-    const tabs = [
-        { id: "search", label: "Search Results", icon: Search },
-        { id: "myImages", label: "My Images", icon: FolderOpen },
-        { id: "upload", label: "Upload", icon: Upload },
-    ];
-
-    const isSearchTab = activeTab === "search";
-    const currentItems = isSearchTab ? searchResults : myImages;
-
-    return (
-        <>
-            <div className="min-h-screen px-12 py-6">
-                <header className="bg-[#155dfc] text-white px-8 py-6 rounded-md shadow-lg mb-8">
-                    <div className="flex items-center gap-3">
-                        <ImageIcon size={32} />
-                        <h1 className="text-2xl font-bold">Image Library</h1>
-                    </div>
-                </header>
-
-                <div className="mx-auto">
-                    <div className="bg-surface rounded-md p-6 shadow mb-8">
-                        <div className="flex flex-wrap gap-4 items-center">
-                            <input
-                                type="text"
-                                placeholder="Search millions of free images & videos..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && searchPexels()}
-                                className="flex-1 min-w-[300px] px-5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#155dfc]/30"
-                            />
-                            <select
-                                value={mediaType}
-                                onChange={(e) => setMediaType(e.target.value)}
-                                className="px-3 py-2 border cursor-pointer border-gray-200 rounded-lg"
-                            >
-                                <option value="Images">Images</option>
-                                <option value="Videos">Videos</option>
-                            </select>
-                            <button
-                                onClick={searchPexels}
-                                disabled={isLoading}
-                                className="px-8 py-2 bg-[#155dfc] cursor-pointer hover:bg-[#155dfc]/90 text-white rounded-lg flex items-center gap-2 transition-all shadow-md"
-                            >
-                                {isLoading ? <Loader2 className="animate-spin" size={22} /> : <Search size={22} />}
-                                Search
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-10 mb-8 border-b-2 border-gray-200">
-                        {tabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`pb-4 px-2 cursor-pointer flex items-center gap-3 font-medium transition-all duration-200 border-b-2 -mb-[2px] ${activeTab === tab.id
-                                    ? "border-[#155dfc] text-[#155dfc]"
-                                    : "border-transparent text-gray-600 hover:text-[#155dfc]"
-                                    }`}
-                            >
-                                <tab.icon size={22} />
-                                {tab.label}
-                                {tab.id === "myImages" && myImagesLoading && (
-                                    <Loader2 className="animate-spin ml-2" size={18} />
-                                )}
-                            </button>
-                        ))}
-                    </div>
-
-                    {(activeTab === "search" || activeTab === "myImages") && (
-                        <>
-                            {myImagesLoading && activeTab === "myImages" ? (
-                                <div className="text-center py-32">
-                                    <Loader2 className="mx-auto animate-spin" size={48} />
-                                    <p className="mt-4 text-gray-500">Loading your images...</p>
-                                </div>
-                            ) : currentItems.length === 0 ? (
-                                <div className="text-center py-32 text-gray-500 text-xl">
-                                    {isSearchTab
-                                        ? "Search for images or videos to see results"
-                                        : "No images yet. Upload or save from search!"}
-                                </div>
-                            ) : (
-                                <div className="columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6">
-                                    {currentItems.map((item) => {
-                                        const isVid = item.isVideo || "video_files" in item;
-                                        const id = item.id || `s-${item.id}`;
-                                        const src = isVid ? item.image || item.src : item.src?.medium || item.src;
-                                        const videoUrl = isVid ? (item.videoUrl || getVideoUrl(item.video_files)) : null;
-
-                                        return (
-                                            <div
-                                                key={id}
-                                                className={`relative group break-inside-avoid mb-6 rounded-lg cursor-pointer overflow-visible border border-gray-100 transition duration-200 shadow ${openMenu === id ? "" : "hover:scale-105"}`}
-                                            >
-                                                {isVid ? (
-                                                    <div className="aspect-[4/3]  bg-black">
-                                                        <video
-                                                            src={videoUrl}
-                                                            poster={src}
-                                                            className="w-full h-full object-cover"
-                                                            controls
-                                                            controlsList="nodownload"
-                                                            preload="metadata"
-                                                            playsInline
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <img
-                                                        src={src}
-                                                        alt={item.alt || "Image"}
-                                                        className="w-full h-auto  rounded-lg"
-                                                        loading="lazy"
-                                                    />
-                                                )}
-
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setOpenMenu(openMenu === id ? null : id);
-                                                    }}
-                                                    className="absolute cursor-pointer top-2 text-white hover:text-gray-900 right-2 p-2 hover:bg-black/40 bg-black/60 backdrop-blur-sm rounded-full  transition-all duration-200 shadow z-10"
-                                                >
-                                                    <MoreVertical size={12} />
-                                                </button>
-
-                                                {openMenu === id && (
-                                                    <div className="absolute top-12 right-0 bg-surface rounded-xl shadow-2xl py-3 z-50 min-w-[210px] border border-gray-200">
-                                                        {isSearchTab ? (
-                                                            <>
-                                                                {!isVid && (
-                                                                    <button
-                                                                        onClick={() => { saveToMyImages(item); setOpenMenu(null); }}
-                                                                        className="w-full cursor-pointer flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
-                                                                    >
-                                                                        <FolderPlus size={18} /> Save to My Images
-                                                                    </button>
-                                                                )}
-                                                                <button
-                                                                    onClick={() => { downloadMedia(isVid ? videoUrl : item.src?.original || src, `pexels-${item.id}`); setOpenMenu(null); }}
-                                                                    className="w-full cursor-pointer flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
-                                                                >
-                                                                    <Download size={18} /> Download
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => { copyLink(isVid ? videoUrl : item.src?.original || src); }}
-                                                                    className="w-full cursor-pointer flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
-                                                                >
-                                                                    <Link2 size={18} /> Copy Link
-                                                                </button>
-                                                                {item.url && (
-                                                                    <a
-                                                                        href={item.url}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="w-full flex cursor-pointer items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
-                                                                    >
-                                                                        <ExternalLink size={18} /> View on Pexels
-                                                                    </a>
-                                                                )}
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => { downloadMedia(isVid ? videoUrl : src, item.filename || item.alt); setOpenMenu(null); }}
-                                                                    className="w-full cursor-pointer flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
-                                                                >
-                                                                    <Download size={18} /> Download
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => { copyLink(isVid ? videoUrl : src); }}
-                                                                    className="w-full cursor-pointer flex items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-100 text-sm font-medium"
-                                                                >
-                                                                    <Link2 size={18} /> Copy URL
-                                                                </button>
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        if (!confirm("Delete this image permanently? This cannot be undone.")) {
-                                                                            setOpenMenu(null);
-                                                                            return;
-                                                                        }
-
-                                                                        // ← SHOW FEEDBACK INSTANTLY
-                                                                        showNotification("Deleting Image...", "Please wait", "info");
-
-                                                                        try {
-                                                                            await deleteImage(item.id);
-
-
-                                                                            showNotification("Deleted!", "Image permanently removed", "success");
-                                                                        } catch (err) {
-                                                                            showNotification(
-                                                                                "Delete Failed",
-                                                                                err.message || "Could not delete the image",
-                                                                                "error"
-                                                                            );
-                                                                        } finally {
-                                                                            setOpenMenu(null);
-                                                                        }
-                                                                    }}
-                                                                    className="w-full flex items-center cursor-pointer gap-3 px-5 py-2.5 text-left hover:bg-red-50 text-sm font-medium text-red-600 transition-colors"
-                                                                >
-                                                                    <Trash2 size={18} />
-                                                                    Delete
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {/* {!isSearchTab && (
-                                                    <div className="absolute bottom-2 left-2">
-                                                        <span className="bg-black/70 text-white px-1 py-1 rounded-lg text-xs backdrop-blur">
-                                                            {isVid ? "My Video" : "My Image"}
-                                                        </span>
-                                                    </div>
-                                                )} */}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {activeTab === "upload" && (
-                        <div
-                            onDrop={handleDrop}
-                            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                            onDragLeave={() => setIsDragging(false)}
-                            onClick={() => document.getElementById("file-input")?.click()}
-                            className={`border-4 border-dashed rounded-3xl p-32 text-center cursor-pointer transition-all ${isDragging ? "border-[#155dfc] bg-blue-50" : "border-gray-300 hover:border-gray-400"
-                                }`}
-                        >
-                            <input
-                                id="file-input"
-                                type="file"
-                                multiple
-                                accept="image/*"
-                                onChange={(e) => handleFileUpload(e.target.files)}
-                                className="hidden"
-                            />
-                            <CloudUpload size={80} className="mx-auto mb-6 text-gray-400" />
-                            <p className="text-2xl font-bold text-gray-700 mb-3">Drop images here or click to upload</p>
-                            <p className="text-gray-500">JPG, PNG, GIF • Max 5MB each</p>
-                        </div>
-                    )}
-                </div>
-
-                {openMenu && <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />}
+        {searchMode ? (
+          /* ══ SEARCH MODE (Pexels stock) ══════════════════════════════════ */
+          <div>
+            <div className="flex items-center gap-3 mb-5">
+              <button
+                onClick={closeSearch}
+                className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                <ArrowLeft size={18} /> Back to gallery
+              </button>
+            </div>
+            <div className="bg-surface rounded-xl p-4 shadow-sm border border-gray-100 mb-6">
+              <div className="flex flex-wrap gap-3 items-center">
+                <input
+                  type="text"
+                  placeholder="Search millions of free stock images & videos…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && runSearch()}
+                  className="flex-1 min-w-60 px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  autoFocus
+                />
+                <select
+                  value={pexelsType}
+                  onChange={(e) => setPexelsType(e.target.value)}
+                  className="px-3 py-2.5 border cursor-pointer border-gray-200 rounded-lg"
+                >
+                  <option value="Images">Images</option>
+                  <option value="Videos">Videos</option>
+                </select>
+                <button
+                  onClick={runSearch}
+                  disabled={searchLoading}
+                  className="px-6 py-2.5 bg-blue-600 cursor-pointer hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors shadow-sm disabled:opacity-60"
+                >
+                  {searchLoading ? (
+                    <Loader2 className="animate-spin" size={20} />
+                  ) : (
+                    <Search size={20} />
+                  )}
+                  Search
+                </button>
+              </div>
             </div>
 
-            {/* Notification Modal */}
-            <NotificationModal
-                isOpen={!!notification}
-                onClose={() => setNotification(null)}
-                title={notification?.title}
-                message={notification?.message}
-                type={notification?.type || "info"}
-                duration={3000}
-            />
-        </>
-    );
+            {searchLoading ? (
+              <div className="text-center py-24">
+                <Loader2
+                  className="mx-auto animate-spin text-blue-500"
+                  size={44}
+                />
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="text-center py-24 text-gray-400">
+                Search for images or videos to see results.
+              </div>
+            ) : (
+              <div
+                className={galleryGridClass(
+                  pexelsType === "Videos" ? "video" : "image",
+                )}
+              >
+                {searchResults.map((item) => (
+                  <MediaCard
+                    key={item.id}
+                    item={item}
+                    onDownload={downloadItem}
+                    onCopyLink={copyLink}
+                    extraActions={
+                      item.type === "image"
+                        ? [
+                            {
+                              icon: FolderPlus,
+                              label: "Save to gallery",
+                              onClick: saveSearchPhoto,
+                            },
+                          ]
+                        : []
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ══ LIBRARY MODE ════════════════════════════════════════════════ */
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+          >
+            {/* Toolbar: media-type tabs (primary) + Search / Upload actions */}
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-6">
+              <MediaTypeTabs
+                tabs={tabs}
+                active={activeType}
+                onChange={setActiveType}
+                counts={counts}
+                variant="primary"
+              />
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setSearchMode(true)}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  <Search size={18} /> Search stock
+                </button>
+                <label className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
+                  {isUploading ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <Upload size={18} />
+                  )}
+                  Upload
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*, audio/*, video/*, .pdf, .doc, .docx, .xls, .xlsx, .txt"
+                    onChange={(e) => handleFileUpload(e.target.files)}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Content */}
+            {loading ? (
+              <div className="text-center py-28">
+                <Loader2
+                  className="mx-auto animate-spin text-blue-500"
+                  size={44}
+                />
+                <p className="mt-4 text-gray-500">Loading your gallery…</p>
+              </div>
+            ) : items.length === 0 ? (
+              <div
+                className={`text-center py-24 rounded-2xl border-2 border-dashed transition-colors ${
+                  isDragging ? "border-blue-500 bg-blue-50" : "border-gray-200"
+                }`}
+              >
+                <CloudUpload size={56} className="mx-auto mb-4 text-gray-300" />
+                <p className="text-lg font-semibold text-gray-600">
+                  No {activeLabel.toLowerCase()} yet
+                </p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {activeType === "image"
+                    ? "Drop images here or use Upload to get started."
+                    : `Your ${activeLabel.toLowerCase()} will appear here once you create or save some.`}
+                </p>
+              </div>
+            ) : (
+              <div className={galleryGridClass(activeType)}>
+                {items.map((item, i) => (
+                  <MediaCard
+                    key={item.id}
+                    item={item}
+                    index={i}
+                    onDownload={downloadItem}
+                    onCopyLink={copyLink}
+                    onDelete={deleteItem}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <NotificationModal
+        isOpen={!!notification}
+        onClose={() => setNotification(null)}
+        title={notification?.title}
+        message={notification?.message}
+        type={notification?.type || "info"}
+        duration={3000}
+      />
+    </>
+  );
 }

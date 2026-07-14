@@ -11,7 +11,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
-import BackgroundRemoverModal from "@/app/(components)/product-photos/BackgroundRemoverModal";
+import BackgroundRemoverModal from "@/app/(components)/product-studio/BackgroundRemoverModal";
 
 // Horizontal row with hidden scrollbar + arrows that appear on hover and hide
 // at the start/end of the scroll.
@@ -149,7 +149,7 @@ export default function BatchPage() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => router.push("/product-photos")}
+          onClick={() => router.push("/product-studio")}
           className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
         >
           <ChevronLeft className="w-5 h-5" />

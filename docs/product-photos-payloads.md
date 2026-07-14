@@ -26,14 +26,14 @@ discriminator — backend's choice; see "Endpoint shape" at the bottom).
 
 **Shared fields present on every image tool:**
 
-| Field            | Type                         | Required | Notes |
-|------------------|------------------------------|----------|-------|
-| `tool`           | `string` (enum, see below)   | yes      | Discriminator: `virtual_model` \| `staging` \| `mannequin` \| `beautifier` \| `flatlay` \| `video` |
-| `image_urls`     | `string[]`                   | yes      | Uploaded product photo URL(s). Currently always length 1; video may accept up to 4 angles. |
-| `quality`        | `"standard" \| "high" \| "ultra"` | yes | Maps to resolution: `standard`=1K, `high`=2K, `ultra`=4K. |
-| `size`           | `string` (enum, see below)   | yes      | Output aspect ratio. |
-| `apply_brand_style` | `boolean`                 | yes      | If true, backend applies the user's saved brand style/kit. |
-| `prompt`         | `string`                     | no       | Optional free-text refinement from the user. May be empty. |
+| Field               | Type                              | Required | Notes                                                                                              |
+| ------------------- | --------------------------------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `tool`              | `string` (enum, see below)        | yes      | Discriminator: `virtual_model` \| `staging` \| `mannequin` \| `beautifier` \| `flatlay` \| `video` |
+| `image_urls`        | `string[]`                        | yes      | Uploaded product photo URL(s). Currently always length 1; video may accept up to 4 angles.         |
+| `quality`           | `"standard" \| "high" \| "ultra"` | yes      | Maps to resolution: `standard`=1K, `high`=2K, `ultra`=4K.                                          |
+| `size`              | `string` (enum, see below)        | yes      | Output aspect ratio.                                                                               |
+| `apply_brand_style` | `boolean`                         | yes      | If true, backend applies the user's saved brand style/kit.                                         |
+| `prompt`            | `string`                          | no       | Optional free-text refinement from the user. May be empty.                                         |
 
 **`quality` → resolution map**
 
@@ -66,16 +66,16 @@ Puts the uploaded garment on an AI model, with a chosen model, pose, and backgro
 
 **Extra fields**
 
-| Field         | Type     | Required | Notes |
-|---------------|----------|----------|-------|
-| `model_id`    | `string` | yes      | Preset model id (see enum). Custom uploads → `"custom"` + `model_image_url`. |
-| `pose_id`     | `string` | yes      | Preset pose id (see enum). `"random"` lets backend pick. |
-| `background_id` | `string` | yes    | Preset background id. `"custom"` → send `background_image_url`. |
-| `model_image_url` | `string` | conditional | Required only when `model_id === "custom"`. |
-| `background_image_url` | `string` | conditional | Required only when `background_id === "custom"`. |
+| Field                  | Type     | Required    | Notes                                                                        |
+| ---------------------- | -------- | ----------- | ---------------------------------------------------------------------------- |
+| `model_id`             | `string` | yes         | Preset model id (see enum). Custom uploads → `"custom"` + `model_image_url`. |
+| `pose_id`              | `string` | yes         | Preset pose id (see enum). `"random"` lets backend pick.                     |
+| `background_id`        | `string` | yes         | Preset background id. `"custom"` → send `background_image_url`.              |
+| `model_image_url`      | `string` | conditional | Required only when `model_id === "custom"`.                                  |
+| `background_image_url` | `string` | conditional | Required only when `background_id === "custom"`.                             |
 
 `model_id` enum: `avery, sam, taylor, kendall, jordan, casey, alex, maya, reece, lara, julia, custom`
-(front-end also sends a human `model_description` string per model, e.g. *"Man, beige outfit"* — optional, for logging/prompt help.)
+(front-end also sends a human `model_description` string per model, e.g. _"Man, beige outfit"_ — optional, for logging/prompt help.)
 
 `pose_id` enum: `random, standing, 3_4_turn, power_stance, walking, hand_pocket, crossed_arms, back, over_shoulder, seated, adjusting, playful`
 
@@ -186,13 +186,13 @@ and a reduced `size` set. Async by nature — see response note.
 
 **Fields**
 
-| Field         | Type       | Required | Notes |
-|---------------|------------|----------|-------|
-| `tool`        | `"video"`  | yes      | |
-| `image_urls`  | `string[]` | yes      | 1–4 product photos (different angles improve fidelity). |
+| Field         | Type       | Required | Notes                                                                         |
+| ------------- | ---------- | -------- | ----------------------------------------------------------------------------- |
+| `tool`        | `"video"`  | yes      |                                                                               |
+| `image_urls`  | `string[]` | yes      | 1–4 product photos (different angles improve fidelity).                       |
 | `template_id` | `string`   | yes      | `"none"` for no template, otherwise a template id (e.g. `"Dresses-6780091"`). |
-| `size`        | enum       | yes      | `square` \| `portrait_9_16` \| `landscape_16_9` only. |
-| `prompt`      | `string`   | no       | Optional description of the desired motion/video. |
+| `size`        | enum       | yes      | `square` \| `portrait_9_16` \| `landscape_16_9` only.                         |
+| `prompt`      | `string`   | no       | Optional description of the desired motion/video.                             |
 
 **Example payload**
 
@@ -216,30 +216,39 @@ and a reduced `size` set. Async by nature — see response note.
 Two equally fine options — pick one and tell the front-end:
 
 **A. One endpoint, `tool` discriminator (recommended — matches these payloads 1:1)**
+
 ```
-POST /api/product-photos/generate      -> images (tools 1–5)
-POST /api/product-photos/generate-video -> video (tool 6, async)
+POST /api/product-studio/generate      -> images (tools 1–5)
+POST /api/product-studio/generate-video -> video (tool 6, async)
 ```
 
 **B. One endpoint per tool**
+
 ```
-POST /api/product-photos/virtual-model
-POST /api/product-photos/staging
-POST /api/product-photos/mannequin
-POST /api/product-photos/beautifier
-POST /api/product-photos/flatlay
-POST /api/product-photos/video
+POST /api/product-studio/virtual-model
+POST /api/product-studio/staging
+POST /api/product-studio/mannequin
+POST /api/product-studio/beautifier
+POST /api/product-studio/flatlay
+POST /api/product-studio/video
 ```
 
 ## Expected responses
 
 **Image tools (1–5)** — synchronous is fine:
+
 ```json
-{ "url": "https://cdn.example.com/results/abc.png", "id": "gen_abc", "credits_used": 2 }
+{
+  "url": "https://cdn.example.com/results/abc.png",
+  "id": "gen_abc",
+  "credits_used": 2
+}
 ```
+
 (Front-end currently reads `result.url`.)
 
 **Video (6)** — likely async; return a job id to poll or a webhook/SSE:
+
 ```json
 { "job_id": "vid_abc", "status": "processing" }
 ```
@@ -247,78 +256,76 @@ POST /api/product-photos/video
 ## Errors
 
 Keep the current convention the front-end already handles:
+
 - **402 / "limit" / "credits"** in the message → front-end shows the "credits limit reached" toast.
 - Any other error → generic "generation failed" toast.
 
 Return a clear `message` field on errors for debugging.
 
-
 Text to Image
 {
-  "type": "text_to_image",
-  "style": "cinematic",
-  "ratio": "1:1",
-  "prompt" ""
+"type": "text_to_image",
+"style": "cinematic",
+"ratio": "1:1",
+"prompt" ""
 }
 
 Text to Video
 {
-  "type": "text_to_video",
-  "style": "cinematic",
-  "ratio": "1:1",
-  "duration": "",
-  "prompt": ""
+"type": "text_to_video",
+"style": "cinematic",
+"ratio": "1:1",
+"duration": "",
+"prompt": ""
 }
 
 Image Variations
 {
-  "type": "image_variation",
-  "style": "sketch",
-  "source_image": "",
+"type": "image_variation",
+"style": "sketch",
+"source_image": "",
 }
 
 Script to Voiceover
 {
-  "type": "script_to_voiceover",
-  "style": "deep_male",
-  "narration_tone": "",
-  "speaking_pace": "",
-  "ratio": "",
-  "export_format": ""
-  "prompt": ""
+"type": "script_to_voiceover",
+"style": "deep_male",
+"narration_tone": "",
+"speaking_pace": "",
+"ratio": "",
+"export_format": ""
+"prompt": ""
 }
 
 Audio to Text
 {
-  "type": "audio_to_text",
-  "audio_file": "",
-  "language": "",
-  "transcript_format": "",
-  "transcript_quality": "",
+"type": "audio_to_text",
+"audio_file": "",
+"language": "",
+"transcript_format": "",
+"transcript_quality": "",
 }
 
 Text to Audio
 {
-  "type": "text_to_audio",
-  "style": "cinematic",
-  "speaking_tone": "",
-  "speaking_speed": "",
-  "export_format": "",
-  "audio_quality": ""
-  "prompt": ""
+"type": "text_to_audio",
+"style": "cinematic",
+"speaking_tone": "",
+"speaking_speed": "",
+"export_format": "",
+"audio_quality": ""
+"prompt": ""
 }
 
 Persona Generator
 {
-  "type": "persona_generator",
-  "name": "",
-  "age": "",
-  "occupation": "",
-  "communication_tone": "",
-  "content_type": ""
-  "ratio": ""
+"type": "persona_generator",
+"name": "",
+"age": "",
+"occupation": "",
+"communication_tone": "",
+"content_type": ""
+"ratio": ""
 }
 
-
-
-Increase number, 
+Increase number,

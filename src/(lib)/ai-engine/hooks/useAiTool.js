@@ -14,7 +14,7 @@ const PREVIEW_MAX_PX = 1200;
  *
  * Saving is intentionally injected (not hard-wired to auth here) so the shared
  * engine stays app-agnostic: a tool passes `onSave(blob)` that persists the blob
- * however the app wants (e.g. `useAuth().uploadImage`), and owns the logged-out
+ * however the app wants (e.g. `useAuth().uploadMedia`), and owns the logged-out
  * redirect-and-return flow. The panel/tool awaits `saveToGallery()`.
  *
  * @param {object} processor
@@ -54,7 +54,13 @@ export default function useAiTool({
   // Only announce the one-time model download once per mount.
   const toastedDownloadRef = useRef(false);
   // Keep the latest processor fns without re-creating callbacks.
-  const processorRef = useRef({ runTask, updateTask, dispose, onSave, onError });
+  const processorRef = useRef({
+    runTask,
+    updateTask,
+    dispose,
+    onSave,
+    onError,
+  });
   processorRef.current = { runTask, updateTask, dispose, onSave, onError };
 
   const markSaved = useCallback(() => setIsDirty(false), []);
@@ -118,7 +124,11 @@ export default function useAiTool({
       const armStall = (reject) => {
         clearTimeout(stallTimer);
         stallTimer = setTimeout(() => {
-          reject(new Error("this is taking too long — it may not run on this device"));
+          reject(
+            new Error(
+              "this is taking too long — it may not run on this device",
+            ),
+          );
         }, STALL_MS);
       };
 
@@ -144,7 +154,9 @@ export default function useAiTool({
         clearTimeout(stallTimer);
         if (!isCurrent()) return;
         console.error(`❌ ${filePrefix}: processing failed:`, err);
-        toast.error(`Failed — ${err?.message || "couldn't process this image"}. Please try another image.`);
+        toast.error(
+          `Failed — ${err?.message || "couldn't process this image"}. Please try another image.`,
+        );
         // Flag the failure so the UI shows a recovery state instead of a
         // skeleton that never resolves. A failed SOFT run keeps the current
         // result on screen instead — nothing was taken away from the user.
@@ -222,7 +234,9 @@ export default function useAiTool({
       }
       const variant = type === "hd" ? "hd" : "preview";
       const fmt = format === "jpg" ? "jpg" : "png";
-      console.log(`💾 ${filePrefix}: downloading ${variant} as ${fmt} (background: ${background})`);
+      console.log(
+        `💾 ${filePrefix}: downloading ${variant} as ${fmt} (background: ${background})`,
+      );
 
       exportBlob(blob, variant, fmt, background)
         .then((outBlob) => {
@@ -294,7 +308,12 @@ export default function useAiTool({
 }
 
 /** Re-encode a full-res PNG result for a size/format/background request. */
-export async function exportBlob(blob, variant, fmt, background = "transparent") {
+export async function exportBlob(
+  blob,
+  variant,
+  fmt,
+  background = "transparent",
+) {
   const hasBackground = background && background !== "transparent";
   // Full-size transparent PNG is exactly the stored blob — no re-encode needed.
   if (variant === "hd" && fmt === "png" && !hasBackground) return blob;

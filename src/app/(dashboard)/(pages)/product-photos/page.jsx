@@ -19,12 +19,12 @@ import {
   Layers,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import PhotoEditor from "@/app/(components)/product-photos/PhotoEditor";
 import VirtualModelModal from "@/app/(components)/product-photos/VirtualModelModal";
 import ProductStagingModal from "@/app/(components)/product-photos/ProductStagingModal";
 import VideoGeneratorModal from "@/app/(components)/product-photos/VideoGeneratorModal";
 import BackgroundRemoverModal from "@/app/(components)/product-photos/BackgroundRemoverModal";
 import OnDeviceToolModal from "@/app/(components)/product-photos/OnDeviceToolModal";
+import AddImagesModal from "@/app/(components)/product-photos/add-images/AddImagesModal";
 import { ON_DEVICE_TOOLS, ON_DEVICE_TOOL_IDS } from "@/app/(components)/product-photos/onDeviceToolConfigs";
 
 // Product Staging now has its own dedicated modal (ProductStagingModal) with the
@@ -173,8 +173,7 @@ function ProductIcon({ className = "" }) {
 
 export default function ProductPhotos() {
   const [search, setSearch] = useState("");
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorMode, setEditorMode] = useState("start");
+  const [addImagesOpen, setAddImagesOpen] = useState(false); // Photoroom-style picker (the "Edit a photo" flow)
   const router = useRouter();
   const [virtualModelOpen, setVirtualModelOpen] = useState(false);
   const [stagingOpen, setStagingOpen] = useState(false);
@@ -183,10 +182,9 @@ export default function ProductPhotos() {
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
   const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/mannequin/flatlay)
 
-  const openEditor = (mode = "start") => {
-    setEditorMode(mode);
-    setEditorOpen(true);
-  };
+  // The "Edit a photo" flow opens the Photoroom-style Add images picker first;
+  // picking an image there navigates to /edit_a_photo with it preloaded.
+  const openAddImages = () => setAddImagesOpen(true);
 
   // Central tool router — used by the tool grid AND the in-modal tool switcher.
   // `opts.initialImageUrl` lets a result's "Generate video" preselect that image
@@ -221,7 +219,7 @@ export default function ProductPhotos() {
       setOnDeviceToolId(id);
       return;
     }
-    openEditor("start");
+    openAddImages();
   };
 
   // Mount-time URL handlers (both strip their params once handled):
@@ -323,8 +321,16 @@ export default function ProductPhotos() {
       {bgRemoverOpen && (
         <BackgroundRemoverModal onClose={() => setBgRemoverOpen(false)} />
       )}
-      {editorOpen && (
-        <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />
+      {addImagesOpen && (
+        <AddImagesModal
+          onClose={() => setAddImagesOpen(false)}
+          onAdd={(images) => {
+            setAddImagesOpen(false);
+            const url = images?.[0]?.url;
+            if (!url) return;
+            router.push(`/edit_a_photo?image=${encodeURIComponent(url)}`);
+          }}
+        />
       )}
 
       {/* ── Header ── */}
@@ -394,7 +400,7 @@ export default function ProductPhotos() {
               {filteredGetStarted.map((item, i) => (
                 <motion.button
                   key={i}
-                  onClick={() => openEditor("start")}
+                  onClick={openAddImages}
                   whileHover={{ scale: 1.02 }}
                   className="relative rounded-2xl overflow-hidden aspect-4/3 group cursor-pointer"
                 >
@@ -426,7 +432,7 @@ export default function ProductPhotos() {
               {filteredClassics.map((c, i) => (
                 <button
                   key={i}
-                  onClick={() => openEditor("start")}
+                  onClick={openAddImages}
                   className="flex flex-col items-center gap-2 cursor-pointer"
                 >
                   <div
@@ -453,7 +459,7 @@ export default function ProductPhotos() {
               {filteredStudio.map((color, i) => (
                 <button
                   key={i}
-                  onClick={() => openEditor("start")}
+                  onClick={openAddImages}
                   className="w-20 h-20 rounded-xl border border-gray-200 flex items-center justify-center hover:border-blue-400 transition-all cursor-pointer"
                   style={{ backgroundColor: color }}
                 >

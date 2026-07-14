@@ -1,4 +1,11 @@
 import { useState, useRef, useEffect } from "react";
+import EditorTopBar from "./EditorTopBar";
+import BeforeAfterView from "./BeforeAfterView";
+import ImageToolbar from "./ImageToolbar";
+import AiBackgroundsPanel from "./AiBackgroundsPanel";
+import CustomBackgroundPanel from "./CustomBackgroundPanel";
+import RecentUploadsCarousel from "./RecentUploadsCarousel";
+import RecentUploadsPanel from "./RecentUploadsPanel";
 import {
   removeBackground as engineRemoveBackground,
   disposeSegmentationWorker,
@@ -6,10 +13,7 @@ import {
 import {
   X,
   Undo,
-  Redo,
   Plus,
-  Download,
-  Share2,
   ChevronRight,
   AlignCenter,
   AlignVerticalJustifyCenter,
@@ -1761,7 +1765,14 @@ function Slider({ label, value, min, max, onChange, unit = "" }) {
 }
 
 export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
-  const { uploadImage, myImages = [], activeBrand, sendUrl } = useAuth();
+  const { uploadImage, myImages = [], activeBrand, sendUrl, user } = useAuth();
+  // Avatar initial from the signed-in user's name (falls back to email).
+  const userInitial = (user?.name || user?.email || "?")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  const [compareOpen, setCompareOpen] = useState(false); // Before/After overlay (panels button)
+  const [subjectRemoved, setSubjectRemoved] = useState(false); // deleted the image → transparent canvas + Background panel
   const fileInputRef = useRef(null);
   const imgRef = useRef(null);
   const insertFileRef = useRef(null);
@@ -3014,16 +3025,17 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       w: e.target.naturalWidth || 1,
       h: e.target.naturalHeight || 1,
     };
-    const r = nat.w / nat.h;
-    let w = canvasSize.w * 0.7,
-      h = w / r;
-    if (h > canvasSize.h * 0.8) {
-      h = canvasSize.h * 0.8;
-      w = h * r;
-    }
-    imgFitRef.current = { w, h };
-    setImgW(w);
-    setImgH(h);
+    // Canvas takes the image's own aspect ratio (capped to the preview box) and
+    // the image fills it — the opened image IS the canvas.
+    const box = fitPreview(nat.w, nat.h);
+    setCanvasSize(box);
+    setExportSize({ w: nat.w, h: nat.h }); // export at the image's native resolution
+    imgFitRef.current = { w: box.w, h: box.h };
+    setImgW(box.w);
+    setImgH(box.h);
+    setPosX(0);
+    setPosY(0);
+    setScale(100);
   };
   const onImgResizeDown = (e, k) => {
     e.stopPropagation();
@@ -3284,6 +3296,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     setOriginalUrl(url);
     setProcessedUrl(null);
     setRemoveBg(false);
+    setSubjectRemoved(false);
     setSelected(true);
     setImgW(null);
     setImgH(null); // refit the new image to its own ratio
@@ -3291,10 +3304,36 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     setPosY(0);
     setScale(100);
 
-    if (mode === "bgremove") {
-      await runBgRemoval(url);
-    }
+    // Every opened image gets its background removed first.
+    await runBgRemoval(url);
   };
+
+  // Delete the subject: keep the (image-sized) canvas as a transparent surface
+  // and drop the selection so the Background panel shows.
+  const handleDeleteImage = () => {
+    setOriginalUrl(null);
+    setProcessedUrl(null);
+    setSelected(false);
+    setRemoveBg(false);
+    setImgW(null);
+    setImgH(null);
+    setSubjectRemoved(true);
+    setCanvasBg({ type: "none" });
+    setActiveTool(null);
+  };
+
+  // Auto-remove the background of the image the editor opened with
+  // (initialImageUrl), so an opened image always lands as a clean cutout.
+  // Ref-guarded so React StrictMode's double-mount doesn't run it twice.
+  const didAutoRemoveRef = useRef(false);
+  useEffect(() => {
+    if (initialImageUrl && !didAutoRemoveRef.current) {
+      didAutoRemoveRef.current = true;
+      runBgRemoval(initialImageUrl);
+    }
+    // Mount-only: acts on the image the editor was opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRemoveBgToggle = async (val) => {
     if (val && originalUrl) {
@@ -3804,7 +3843,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         ? { background: gradientCss(canvasBg) }
         : canvasBg.type === "image"
           ? { backgroundColor: "#fff" }
-          : removeBg
+          : removeBg || subjectRemoved
             ? {
                 background:
                   "linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)",
@@ -3815,115 +3854,53 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
             : { background: "white" };
 
   return (
-    <div
-      className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-3"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[100] flex">
       <div
-        className="bg-[#efefef] dark:bg-canvas flex flex-col overflow-hidden text-gray-900 rounded-2xl shadow-2xl w-full h-full"
-        style={{ width: "95vw", height: "92vh", maxWidth: "1400px" }}
-        onClick={(e) => {
-          e.stopPropagation();
-          setSelected(false);
-        }}
+        className="bg-[#efefef] dark:bg-canvas flex flex-col overflow-hidden text-gray-900 w-full h-full"
+        onClick={() => setSelected(false)}
       >
         {/* Top Bar */}
-        <div
-          className="bg-surface border-b border-gray-200 flex items-center px-4 py-2 gap-4 z-10"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center gap-1">
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg cursor-pointer"
-            >
-              <X className="w-4 h-4 text-gray-500" />
-            </button>
-            <button
-              onClick={handleUndo}
-              disabled={!canUndo}
-              className="p-2 hover:bg-gray-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-              title="Undo"
-            >
-              <Undo className="w-4 h-4 text-gray-500" />
-            </button>
-            <button
-              onClick={handleRedo}
-              disabled={!canRedo}
-              className="p-2 hover:bg-gray-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-              title="Redo"
-            >
-              <Redo className="w-4 h-4 text-gray-500" />
-            </button>
-          </div>
+        <EditorTopBar
+          onClose={onClose}
+          onUndo={handleUndo}
+          canUndo={canUndo}
+          onRedo={handleRedo}
+          canRedo={canRedo}
+          tools={topTools}
+          onToolClick={handleTopTool}
+          canExport={!!displayImage}
+          userInitial={userInitial}
+          userEmail={user?.email}
+          userName={user?.name}
+          onMenuAction={(id) => {
+            const labels = {
+              video: "Generate video",
+              duplicate: "Duplicate",
+              template: "Turn into Template",
+              delete: "Delete",
+            };
+            toast(`${labels[id] || id} — coming soon`);
+          }}
+          onTogglePanel={() => {
+            if (!displayImage) {
+              toast.error("Add an image first");
+              return;
+            }
+            setCompareOpen(true);
+          }}
+          downloadMenuOpen={downloadMenuOpen}
+          setDownloadMenuOpen={setDownloadMenuOpen}
+          onDownload={handleDownload}
+          onShare={handleShare}
+        />
 
-          <div className="flex items-center gap-0.5 flex-1 justify-center">
-            {topTools.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => handleTopTool(id)}
-                className="flex flex-col items-center gap-0.5 px-3 py-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-              >
-                <Icon className="w-4 h-4 text-gray-500" />
-                <span className="text-[10px] text-gray-500">{label}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
-              D
-            </div>
-            <div className="relative">
-              <button
-                onClick={() => setDownloadMenuOpen((o) => !o)}
-                disabled={!displayImage}
-                className="flex items-center gap-2 border border-blue-500 text-blue-600 text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-              >
-                <Download className="w-4 h-4" /> Download
-                <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform ${downloadMenuOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-              {downloadMenuOpen && (
-                <>
-                  {/* click-away backdrop */}
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setDownloadMenuOpen(false)}
-                  />
-                  <div className="absolute right-0 mt-1 w-44 bg-surface border border-gray-200 rounded-lg shadow-lg py-1 z-50">
-                    <button
-                      onClick={() => {
-                        setDownloadMenuOpen(false);
-                        handleDownload("png");
-                      }}
-                      className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
-                    >
-                      <span className="font-medium">PNG</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setDownloadMenuOpen(false);
-                        handleDownload("jpeg");
-                      }}
-                      className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
-                    >
-                      <span className="font-medium">JPEG</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-            <button
-              onClick={handleShare}
-              disabled={!displayImage}
-              className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-            >
-              <Share2 className="w-4 h-4" /> Share
-            </button>
-          </div>
-        </div>
+        {compareOpen && (
+          <BeforeAfterView
+            before={originalUrl}
+            after={displayImage}
+            onClose={() => setCompareOpen(false)}
+          />
+        )}
 
         {/* Main */}
         <div className="flex flex-1 overflow-hidden">
@@ -3933,15 +3910,17 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
             onClick={() => setSelected(false)}
           >
             <div
-              className="relative rounded-lg shadow-sm overflow-hidden"
+              className="relative"
+              style={{ width: canvasSize.w, height: canvasSize.h }}
+            >
+            <div
+              className="absolute inset-0 rounded-lg shadow-sm overflow-hidden"
               style={{
-                width: canvasSize.w,
-                height: canvasSize.h,
                 ...boxBackground,
                 ...(canvasRound ? { borderRadius: "50%" } : {}),
               }}
               onClick={(e) => {
-                if (!displayImage) {
+                if (!displayImage && !subjectRemoved) {
                   e.stopPropagation();
                   fileInputRef.current?.click();
                 }
@@ -3955,7 +3934,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   style={{ zIndex: 0 }}
                 />
               )}
-              {!displayImage && !processing ? (
+              {!displayImage && !processing && !subjectRemoved ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-black/5 transition-colors">
                   <div className="w-16 h-16 rounded-2xl bg-blue-100 flex items-center justify-center mb-4">
                     <ImageIcon className="w-8 h-8 text-blue-500" />
@@ -4073,6 +4052,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelected(true);
+                            setActiveTool(null); // show the Object panel
                           }}
                           onPointerDown={onImgPointerDown}
                           onPointerMove={onImgPointerMove}
@@ -4126,34 +4106,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                   }}
                                 />
                               ))}
-                              <div
-                                className="absolute -top-10 left-0 flex items-center gap-1 bg-surface rounded-lg shadow px-2 py-1 z-10"
-                                onPointerDown={(e) => e.stopPropagation()}
-                              >
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOriginalUrl(null);
-                                    setProcessedUrl(null);
-                                    setSelected(false);
-                                    setRemoveBg(false);
-                                    setImgW(null);
-                                    setImgH(null);
-                                  }}
-                                  className="p-1 hover:bg-gray-100 rounded text-gray-500 text-sm cursor-pointer"
-                                >
-                                  🗑
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    fileInputRef.current?.click();
-                                  }}
-                                  className="p-1 hover:bg-gray-100 rounded text-gray-500 text-xs font-medium cursor-pointer"
-                                >
-                                  Replace
-                                </button>
-                              </div>
+                              {/* Selection toolbar is rendered outside the clipped
+                                  canvas box (see ImageToolbar below). */}
                             </>
                           )}
                           <img
@@ -4438,6 +4392,23 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   </div>
                 );
               })}
+            </div>
+              {/* Selection toolbar — rendered OUTSIDE the clipped canvas box so it
+                  stays visible even when the image fills/overflows the corners. */}
+              {selected && displayImage && imgW != null && imgH != null && (
+                <ImageToolbar
+                  style={{
+                    left: canvasSize.w / 2 + posX - imgW / 2,
+                    top: canvasSize.h / 2 + posY - imgH / 2 - 48,
+                  }}
+                  onDelete={handleDeleteImage}
+                  onDuplicate={() => toast("Duplicate — coming soon")}
+                  onLayersOrder={() => setActiveTool("layers")}
+                  onReplace={() => fileInputRef.current?.click()}
+                  onEditCutout={openCutout}
+                  onRetouch={() => toast("Retouch — coming soon")}
+                />
+              )}
             </div>
 
             <input
@@ -4923,6 +4894,97 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   </div>
                 )}
               </div>
+            ) : !activeTool && !selected ? (
+              // Background context (clicked the background / no image selected):
+              // offer the three ways to fill it (matches Photoroom's panel).
+              <div className="flex flex-col max-h-full">
+                <div className="flex items-center gap-3 px-4 py-4">
+                  <span
+                    className="w-9 h-9 rounded-lg border border-gray-200 shrink-0"
+                    style={{
+                      background:
+                        "linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)",
+                      backgroundSize: "10px 10px",
+                      backgroundPosition: "0 0, 0 5px, 5px -5px, -5px 0",
+                      backgroundColor: "#f0f0f0",
+                    }}
+                  />
+                  <span className="font-semibold text-base text-gray-900">
+                    {canvasBg.type === "none"
+                      ? "Transparent Background"
+                      : "Background"}
+                  </span>
+                </div>
+                <div className="px-4 pb-4 space-y-3">
+                  <button
+                    onClick={() => setActiveTool("aibg")}
+                    className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl bg-blue-50 text-blue-700 font-medium hover:bg-blue-100 transition-colors cursor-pointer"
+                  >
+                    <Layers className="w-5 h-5 shrink-0" /> Add an AI background
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTool("backgrounds");
+                      setBgTab("image");
+                      bgFileRef.current?.click();
+                    }}
+                    className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-medium hover:border-blue-400 transition-colors cursor-pointer"
+                  >
+                    <ImageIcon className="w-5 h-5 shrink-0" /> Add image as
+                    background
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTool("backgrounds");
+                      setBgTab("color");
+                      setCanvasBg({ type: "color", value: "#ffffff" });
+                    }}
+                    className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-medium hover:border-blue-400 transition-colors cursor-pointer"
+                  >
+                    <span
+                      className="w-5 h-5 rounded-full border border-gray-200 shrink-0"
+                      style={{
+                        background:
+                          "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)",
+                      }}
+                    />
+                    Add a solid color
+                  </button>
+                </div>
+                {/* Bg image picker (also lives in the full panel) */}
+                <input
+                  ref={bgFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onBgFileChange}
+                />
+              </div>
+            ) : activeTool === "aibg" ? (
+              <AiBackgroundsPanel
+                onApply={(url) => {
+                  setCanvasBg({ type: "image", src: url });
+                }}
+                onClose={() => setActiveTool(null)}
+                onCreate={() => setActiveTool("custombg")}
+              />
+            ) : activeTool === "custombg" ? (
+              <CustomBackgroundPanel
+                onBack={() => setActiveTool("aibg")}
+                onApply={(url) => {
+                  setCanvasBg({ type: "image", src: url });
+                }}
+                onGenerate={() =>
+                  toast("Background generation — coming soon")
+                }
+              />
+            ) : activeTool === "recentuploads" ? (
+              <RecentUploadsPanel
+                images={myImages}
+                selectedSrc={canvasBg.type === "image" ? canvasBg.src : null}
+                onSelect={(src) => setCanvasBg({ type: "image", src })}
+                onBack={() => setActiveTool("backgrounds")}
+              />
             ) : activeTool === "backgrounds" ? (
               <div className="flex flex-col max-h-full">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
@@ -4937,141 +4999,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   </button>
                 </div>
 
-                {/* Quick actions */}
-                <div className="flex gap-2 px-4 pt-3">
-                  <button
-                    onClick={() => setCanvasBg({ type: "none" })}
-                    className={`flex-1 py-2 rounded-lg border text-xs font-medium cursor-pointer ${canvasBg.type === "none" ? "border-blue-500 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-600 hover:border-blue-400"}`}
-                  >
-                    Transparent
-                  </button>
-                  <button
-                    onClick={() => handleRemoveBgToggle(!removeBg)}
-                    disabled={!originalUrl || processing}
-                    className={`flex-1 py-2 rounded-lg border text-xs font-medium cursor-pointer disabled:opacity-40 ${removeBg ? "border-blue-500 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-600 hover:border-blue-400"}`}
-                  >
-                    {removeBg ? "Bg removed" : "Remove bg"}
-                  </button>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex gap-1 px-3 pt-3">
-                  {[
-                    { id: "color", label: "Color" },
-                    { id: "image", label: "Image" },
-                  ].map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => setBgTab(t.id)}
-                      className={`flex-1 text-xs font-semibold py-1.5 rounded-lg cursor-pointer ${bgTab === t.id ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-
                 <div className="p-4 overflow-y-auto space-y-5">
-                  {bgTab === "color" ? (
-                    <>
-                      {/* Custom picker */}
-                      <div className="flex items-center gap-3">
-                        <label
-                          className="relative w-10 h-10 rounded-full overflow-hidden border border-gray-200 cursor-pointer shrink-0"
-                          style={{
-                            background:
-                              "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)",
-                          }}
-                        >
-                          <input
-                            type="color"
-                            className="absolute inset-0 opacity-0 cursor-pointer"
-                            value={
-                              canvasBg.type === "color"
-                                ? canvasBg.value
-                                : "#ffffff"
-                            }
-                            onChange={(e) =>
-                              setCanvasBg({
-                                type: "color",
-                                value: e.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <span className="text-sm text-gray-600">
-                          {canvasBg.type === "color"
-                            ? canvasBg.value.toUpperCase()
-                            : "Pick a color"}
-                        </span>
-                      </div>
-
-                      {/* Brand kit palettes */}
-                      {(kit?.palettes || [])
-                        .filter((p) => p.colors.length)
-                        .map((p) => (
-                          <div key={p.id}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <p className="text-xs font-semibold text-gray-600 truncate">
-                                {p.name}
-                              </p>
-                              <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
-                                Brand kit
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {p.colors.map(swatchBtn)}
-                            </div>
-                          </div>
-                        ))}
-
-                      {/* Curated palettes */}
-                      <div>
-                        <p className="text-xs font-semibold text-gray-600 mb-2">
-                          Neutral tones
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {NEUTRAL_TONES.map(swatchBtn)}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-gray-600 mb-2">
-                          Soft pastels
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {SOFT_PASTELS.map(swatchBtn)}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-gray-600 mb-2">
-                          Vibrant
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {VIBRANT_COLORS.map(swatchBtn)}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-gray-600 mb-2">
-                          Gradients
-                        </p>
-                        <div className="grid grid-cols-3 gap-2">
-                          {BG_GRADIENTS.map((g, i) => (
-                            <button
-                              key={i}
-                              onClick={() =>
-                                setCanvasBg({
-                                  type: "gradient",
-                                  from: g.from,
-                                  to: g.to,
-                                })
-                              }
-                              className={`aspect-video rounded-lg border cursor-pointer ${canvasBg.type === "gradient" && canvasBg.from === g.from ? "ring-2 ring-blue-500" : "border-gray-200"}`}
-                              style={{ background: gradientCss(g) }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  ) : (
                     <>
                       {/* Upload */}
                       <button
@@ -5089,31 +5017,17 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                         onChange={onBgFileChange}
                       />
 
-                      {/* Recent uploads */}
-                      {myImages.length > 0 && (
-                        <div>
-                          <p className="text-xs font-semibold text-gray-600 mb-2">
-                            Recent uploads
-                          </p>
-                          <div className="grid grid-cols-3 gap-2">
-                            {myImages.slice(0, 6).map((img) => (
-                              <button
-                                key={img.id}
-                                onClick={() =>
-                                  setCanvasBg({ type: "image", src: img.src })
-                                }
-                                className={`aspect-square rounded-lg overflow-hidden border cursor-pointer bg-gray-100 ${canvasBg.type === "image" && canvasBg.src === img.src ? "ring-2 ring-blue-500" : "border-gray-200 hover:border-blue-400"}`}
-                              >
-                                <img
-                                  src={img.src}
-                                  alt={img.alt || ""}
-                                  className="w-full h-full object-cover"
-                                />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      {/* Recent uploads (horizontal carousel + See all) */}
+                      <RecentUploadsCarousel
+                        images={myImages}
+                        selectedSrc={
+                          canvasBg.type === "image" ? canvasBg.src : null
+                        }
+                        onSelect={(src) =>
+                          setCanvasBg({ type: "image", src })
+                        }
+                        onSeeAll={() => setActiveTool("recentuploads")}
+                      />
 
                       {/* Search */}
                       <div>
@@ -5190,7 +5104,6 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                         the new background.
                       </p>
                     </>
-                  )}
                 </div>
               </div>
             ) : activeTool === "resize" ? (

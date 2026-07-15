@@ -51,10 +51,7 @@ import {
 // (renderDesignToCanvas) so a creative's thumbnail matches exactly what opens in
 // /design/[id] — including web-font loading, library shapes, background images,
 // and text layout. No editing behavior is pulled in; this is pure paint.
-// `maxHeight` (px) bounds the preview to a fixed height and scales the whole
-// design to fit inside it (object-fit: contain — letterboxed, never stretched).
-// Omit it to keep the default full-width behavior used by the grid cards.
-function DesignCanvas({ variation, maxHeight }) {
+function DesignCanvas({ variation }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -90,25 +87,11 @@ function DesignCanvas({ variation, maxHeight }) {
   return (
     <canvas
       ref={canvasRef}
-      style={
-        maxHeight
-          ? {
-              // Fit the whole design inside the fixed height, preserving aspect
-              // ratio (canvas has intrinsic w/h, so this behaves like contain).
-              maxWidth: "100%",
-              maxHeight,
-              width: "auto",
-              height: "auto",
-              borderRadius: 8,
-              display: "block",
-            }
-          : {
-              width: "100%",
-              height: "auto",
-              borderRadius: 8,
-              display: "block",
-            }
-      }
+      style={{
+        width: "100%",
+        height: "auto",
+        display: "block",
+      }}
     />
   );
 }
@@ -1227,15 +1210,16 @@ const Sidebar = ({
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        {/* Canvas Preview with hovering Edit button */}
+        {/* Canvas Preview with hovering Edit button.
+            Fixed-height crop window: the design fills the full width and any
+            part below the fixed height is clipped (overflow-hidden), top-aligned. */}
         <div
-          className="relative bg-gray-50 border-b border-gray-100 flex items-center justify-center p-4 group/preview"
-          style={{ minHeight: 200 }}
+          className="relative bg-gray-50 border-b border-gray-100 overflow-hidden flex items-start justify-center group/preview"
+          style={{ height: 280 }}
         >
           {hasCanvas ? (
             <DesignCanvas
               variation={{ canvas: c.canvas, elements: c.elements }}
-              maxHeight={260}
             />
           ) : c.image ? (
             <img

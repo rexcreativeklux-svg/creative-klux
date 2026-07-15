@@ -16,6 +16,9 @@ import {
   RotateCw,
   Move,
   Trash2,
+  ChevronRight,
+  FlipHorizontal,
+  FlipVertical,
 } from "lucide-react";
 import { Toggle, PosField } from "./editorShared";
 
@@ -231,7 +234,7 @@ export default function TextPanel({
         {/* Alignment · width/wrap · spacing · curvature */}
         <div className="flex items-center gap-2">
           {/* Alignment */}
-          <div className="flex items-center gap-0.5 border border-gray-200 rounded-xl p-1">
+          <div className="flex items-center gap-0.5">
             {[
               { id: "left", Icon: AlignLeft },
               { id: "center", Icon: AlignCenter },
@@ -251,8 +254,10 @@ export default function TextPanel({
             ))}
           </div>
 
+          <span className="w-px h-6 bg-gray-200 shrink-0 mx-1" />
+
           {/* Auto/fixed width + wrap */}
-          <div className="flex items-center gap-0.5 border border-gray-200 rounded-xl p-1">
+          <div className="flex items-center gap-0.5">
             <button
               onClick={() => set({ autoWidth: !t.autoWidth })}
               title={t.autoWidth ? "Auto width" : "Fixed width"}
@@ -277,10 +282,10 @@ export default function TextPanel({
             </button>
           </div>
 
-          <span className="w-px h-6 bg-gray-200 shrink-0" />
+          <span className="w-px h-6 bg-gray-200 shrink-0 ml-auto" />
 
           {/* Line/letter spacing */}
-          <div className="relative ml-auto">
+          <div className="relative">
             <button
               onClick={() => {
                 setSpacingOpen((o) => !o);
@@ -413,23 +418,47 @@ export default function TextPanel({
         {/* Text background — same swatches as Color, applied to the box */}
         <div className="rounded-2xl border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2.5">
-            <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() =>
+                setOpenSection((s) => (s === "textbg" ? null : "textbg"))
+              }
+              className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer"
+            >
               <span className="w-8 h-8 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center shrink-0 font-bold text-sm">
                 A
               </span>
               <span className="text-sm text-gray-900 truncate">
                 Text background
               </span>
+            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Toggle
+                enabled={!!t.bgColor}
+                onChange={(v) =>
+                  set({ bgColor: v ? t.bgColor || "#000000" : null })
+                }
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (openSection === "textbg") {
+                    setOpenSection(null);
+                  } else {
+                    if (!t.bgColor) set({ bgColor: "#000000" });
+                    setOpenSection("textbg");
+                  }
+                }}
+                className="p-0.5 cursor-pointer"
+                aria-label="Open text background"
+              >
+                <ChevronRight
+                  className={`w-4 h-4 text-gray-400 transition-transform ${openSection === "textbg" ? "rotate-90" : ""}`}
+                />
+              </button>
             </div>
-            <Toggle
-              enabled={!!t.bgColor}
-              onChange={(v) =>
-                set({ bgColor: v ? t.bgColor || "#000000" : null })
-              }
-            />
           </div>
-          {t.bgColor && (
-            <div className="px-3 pb-3">
+          {openSection === "textbg" && t.bgColor && (
+            <div className="px-3 pb-3 bg-gray-50">
               <div className="flex items-center gap-2 flex-wrap">
                 {TEXT_COLORS.map((c) => (
                   <button
@@ -533,16 +562,32 @@ export default function TextPanel({
                     unit="°"
                   />
                 </div>
-                <button
-                  onClick={() => {
-                    const n = Math.round(t.rotation || 0) + 90;
-                    set({ rotation: n > 180 ? n - 360 : n });
-                  }}
-                  title="Rotate 90°"
-                  className="w-10 h-10 flex items-center justify-center border border-gray-200 rounded-lg text-gray-600 hover:border-blue-400 cursor-pointer"
-                >
-                  <RotateCw className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      const n = Math.round(t.rotation || 0) + 90;
+                      set({ rotation: n > 180 ? n - 360 : n });
+                    }}
+                    title="Rotate 90°"
+                    className="w-10 h-10 flex items-center justify-center border border-gray-200 rounded-lg text-gray-600 hover:border-blue-400 cursor-pointer"
+                  >
+                    <RotateCw className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => set({ flipH: !t.flipH })}
+                    title="Flip horizontal"
+                    className={`w-10 h-10 flex items-center justify-center border rounded-lg cursor-pointer ${t.flipH ? "border-blue-500 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-600 hover:border-blue-400"}`}
+                  >
+                    <FlipHorizontal className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => set({ flipV: !t.flipV })}
+                    title="Flip vertical"
+                    className={`w-10 h-10 flex items-center justify-center border rounded-lg cursor-pointer ${t.flipV ? "border-blue-500 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-600 hover:border-blue-400"}`}
+                  >
+                    <FlipVertical className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           )}

@@ -4748,6 +4748,10 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                     layer.autoWidth || layer.wrap === false
                       ? "nowrap"
                       : "pre-wrap",
+                  transform:
+                    layer.flipH || layer.flipV
+                      ? `scaleX(${layer.flipH ? -1 : 1}) scaleY(${layer.flipV ? -1 : 1})`
+                      : undefined,
                   textAlign: layer.align,
                   fontFamily: layer.fontFamily
                     ? `'${layer.fontFamily}', 'DM Sans', sans-serif`

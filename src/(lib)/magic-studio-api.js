@@ -246,7 +246,7 @@ export async function checkVideoGenerationStatus(id) {
   console.log("📡 [magic-studio/status] checking video job:", id);
 
   try {
-    const { data } = await api.post(`${BASE_URL}/magic-studio/${id}/status`);
+    const { data } = await api.get(`${BASE_URL}/magic-studio/${id}/status`);
     console.log("✅ [magic-studio/status] response ←", data);
     return data;
   } catch (err) {

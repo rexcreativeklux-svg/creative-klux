@@ -8,6 +8,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { RadialBarChart, RadialBar } from "recharts";
+// Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
+// so these thumbnails match exactly what opens in the editor.
+import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const scoreColor = (score) => {
@@ -50,70 +53,29 @@ function MiniDesignCanvas({ canvasData, elements, maxW = 180, maxH = 110 }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvasData) return;
-    const ctx = canvas.getContext("2d");
-    const { width, height, background } = canvasData;
-    canvas.width = width;
-    canvas.height = height;
-    ctx.fillStyle = background || "#fff";
-    ctx.fillRect(0, 0, width, height);
 
-    (elements || []).forEach((el) => {
-      ctx.save();
-      ctx.globalAlpha = el.opacity ?? 1;
-      if (el.rotation) {
-        const cx = el.x + (el.width || 0) / 2;
-        const cy = el.y + (el.height || 0) / 2;
-        ctx.translate(cx, cy);
-        ctx.rotate((el.rotation * Math.PI) / 180);
-        ctx.translate(-cx, -cy);
+    let cancelled = false;
+    (async () => {
+      try {
+        const off = await renderDesignToCanvas({
+          canvas: canvasData,
+          elements: elements || [],
+        });
+        if (cancelled || !canvasRef.current) return;
+        const target = canvasRef.current;
+        target.width = off.width;
+        target.height = off.height;
+        const ctx = target.getContext("2d");
+        ctx.clearRect(0, 0, off.width, off.height);
+        ctx.drawImage(off, 0, 0);
+      } catch {
+        /* leave blank if rendering fails */
       }
-      if (el.type === "shape") {
-        ctx.fillStyle = el.fill || "transparent";
-        ctx.strokeStyle = el.stroke || "transparent";
-        ctx.lineWidth = el.strokeWidth || 0;
-        if (el.shape === "circle") {
-          const r = (el.width || 0) / 2;
-          ctx.beginPath();
-          ctx.arc(el.x + r, el.y + r, r, 0, Math.PI * 2);
-          ctx.fill();
-          if (el.strokeWidth) ctx.stroke();
-        } else {
-          const r = el.borderRadius || 0;
-          if (r) {
-            ctx.beginPath();
-            ctx.roundRect(el.x, el.y, el.width, el.height, r);
-            ctx.fill();
-            if (el.strokeWidth) ctx.stroke();
-          } else {
-            ctx.fillRect(el.x, el.y, el.width, el.height);
-            if (el.strokeWidth) ctx.strokeRect(el.x, el.y, el.width, el.height);
-          }
-        }
-      }
-      if (el.type === "text") {
-        const size = el.fontSize || 16;
-        ctx.font = `${el.fontWeight || "normal"} ${size}px 'DM Sans', sans-serif`;
-        ctx.fillStyle = el.fill || el.color || "#000";
-        ctx.textAlign = el.textAlign || "left";
-        const x = el.textAlign === "center"
-          ? el.x + (el.width || 0) / 2
-          : el.textAlign === "right"
-            ? el.x + (el.width || 0)
-            : el.x;
-        const text = (el.content || el.text || "").trim();
-        ctx.fillText(text.length > 30 ? text.slice(0, 30) + "…" : text, x, el.y + size);
-      }
-      if (el.type === "image" && (el.src || el.url)) {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => {
-          const c = canvasRef.current;
-          if (c) c.getContext("2d").drawImage(img, el.x, el.y, el.width, el.height);
-        };
-        img.src = el.src || el.url;
-      }
-      ctx.restore();
-    });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [canvasData, elements]);
 
   if (!canvasData) return null;

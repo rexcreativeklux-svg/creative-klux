@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 
 // A single square thumbnail with a Photoroom-style checkbox in the top-left.
 // `item` = { id, url, name }. Selection state + toggling live in the parent so
@@ -32,6 +32,13 @@ export default function SelectableImageCard({ item, selected, onToggle }) {
       {/* Selected ring */}
       {selected && (
         <span className="absolute inset-0 rounded-xl ring-2 ring-gray-900 pointer-events-none" />
+      )}
+
+      {/* Uploading overlay (while the file saves to the gallery) */}
+      {item.uploading && (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none">
+          <Loader2 className="w-5 h-5 animate-spin text-white" />
+        </span>
       )}
     </button>
   );

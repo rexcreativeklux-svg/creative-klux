@@ -49,6 +49,12 @@ import {
   fetchPinterestBoards,
 } from "@/(lib)/integration";
 import { LINKEDIN_POSTING_ENABLED } from "@/(lib)/linkedinConfig";
+// Shared, read-only renderer — same one the editor (/design/[id]) uses to paint
+// and export, so the publish preview and the uploaded PNG match the real design.
+import {
+  renderDesignToCanvas,
+  renderDesignToBlob,
+} from "@/(lib)/design/renderDesign";
 
 // ── Platform catalog ─────────────────────────────────────────────────────────
 // `kind` decides which list shows for a creative's category.
@@ -218,13 +224,6 @@ const captionForPublish = (text = "") => {
     : text.slice(0, idx).toUpperCase() + text.slice(idx);
 };
 
-// Route external http(s) images through our proxy so they load CORS-safe (same-origin)
-// when drawn onto a canvas — otherwise canvas export taints/drops them. Leaves data:/blob: alone.
-const proxiedSrc = (src) =>
-  typeof src === "string" && /^https?:\/\//i.test(src)
-    ? `/api/proxy-image?url=${encodeURIComponent(src)}`
-    : src;
-
 // ── Design visual ─────────────────────────────────────────────────────────────
 // Renders the actual creative: a rendered image_url if present, otherwise the
 // canvas+elements (same as the My Creations cards) so the post shows the real design.
@@ -233,96 +232,29 @@ function DesignCanvas({ canvas, elements }) {
   useEffect(() => {
     const c = canvasRef.current;
     if (!c || !canvas) return;
-    const ctx = c.getContext("2d");
-    const { width, height, background } = canvas;
-    c.width = width;
-    c.height = height;
-    ctx.fillStyle = background || "#ffffff";
-    ctx.fillRect(0, 0, width, height);
-    (elements || []).forEach((el) => {
-      ctx.save();
-      ctx.globalAlpha = el.opacity ?? 1;
-      if (el.rotation) {
-        const cx = el.x + (el.width || 0) / 2,
-          cy = el.y + (el.height || 0) / 2;
-        ctx.translate(cx, cy);
-        ctx.rotate((el.rotation * Math.PI) / 180);
-        ctx.translate(-cx, -cy);
-      }
-      if (el.type === "shape") {
-        ctx.fillStyle = el.fill || "transparent";
-        ctx.strokeStyle = el.stroke || "transparent";
-        ctx.lineWidth = el.strokeWidth || 0;
-        if (el.shape === "circle") {
-          const r = (el.width || 0) / 2;
-          ctx.beginPath();
-          ctx.arc(el.x + r, el.y + r, r, 0, Math.PI * 2);
-          ctx.fill();
-          if (el.strokeWidth) ctx.stroke();
-        } else if (el.shape === "triangle") {
-          const w = el.width || 0,
-            h = el.height || 0;
-          ctx.beginPath();
-          ctx.moveTo(el.x + w / 2, el.y);
-          ctx.lineTo(el.x + w, el.y + h);
-          ctx.lineTo(el.x, el.y + h);
-          ctx.closePath();
-          ctx.fill();
-          if (el.strokeWidth) ctx.stroke();
-        } else {
-          const r = el.borderRadius || 0;
-          if (r) {
-            ctx.beginPath();
-            ctx.roundRect(el.x, el.y, el.width, el.height, r);
-            ctx.fill();
-            if (el.strokeWidth) ctx.stroke();
-          } else {
-            ctx.fillRect(el.x, el.y, el.width, el.height);
-            if (el.strokeWidth) ctx.strokeRect(el.x, el.y, el.width, el.height);
-          }
-        }
-      }
-      if (el.type === "text") {
-        const size = el.fontSize || 16;
-        ctx.font = `${el.fontWeight || "normal"} ${size}px 'DM Sans', sans-serif`;
-        ctx.fillStyle = el.fill || el.color || "#000000";
-        const align = el.textAlign || "left";
-        ctx.textAlign = align;
-        const x =
-          align === "center"
-            ? el.x + (el.width || 0) / 2
-            : align === "right"
-              ? el.x + (el.width || 0)
-              : el.x;
-        const textContent =
-          typeof el.content === "string"
-            ? el.content
-            : typeof el.text === "string"
-              ? el.text
-              : "";
-        const words = textContent.trim().split(/\s+/);
-        const lineMaxW = el.width || 9999;
-        let line = "",
-          lineY = el.y + size;
-        words.forEach((word) => {
-          const test = line ? line + " " + word : word;
-          if (ctx.measureText(test).width > lineMaxW && line) {
-            ctx.fillText(line, x, lineY);
-            line = word;
-            lineY += size * 1.35;
-          } else line = test;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const off = await renderDesignToCanvas({
+          canvas,
+          elements: elements || [],
         });
-        if (line) ctx.fillText(line, x, lineY);
+        if (cancelled || !canvasRef.current) return;
+        const target = canvasRef.current;
+        target.width = off.width;
+        target.height = off.height;
+        const ctx = target.getContext("2d");
+        ctx.clearRect(0, 0, off.width, off.height);
+        ctx.drawImage(off, 0, 0);
+      } catch {
+        /* leave blank if rendering fails */
       }
-      if (el.type === "image" && el.src) {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () =>
-          c.getContext("2d").drawImage(img, el.x, el.y, el.width, el.height);
-        img.src = proxiedSrc(el.src);
-      }
-      ctx.restore();
-    });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [canvas, elements]);
   if (!canvas) return null;
   return (
@@ -351,123 +283,8 @@ const DesignVisual = ({ image, canvas, elements, className = "" }) => {
 // and published. Preloads all image elements first so they're baked into the export.
 async function renderDesignToFile(canvas, elements, filename = "creative.png") {
   if (!canvas) return null;
-  const { width, height, background } = canvas;
-  const off = document.createElement("canvas");
-  off.width = width;
-  off.height = height;
-  const ctx = off.getContext("2d");
-  ctx.fillStyle = background || "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-
-  // Preload image elements up front (async) so they're drawn before we export.
-  const imgEls = (elements || []).filter((el) => el.type === "image" && el.src);
-  const loaded = await Promise.all(
-    imgEls.map(
-      (el) =>
-        new Promise((resolve) => {
-          const img = new Image();
-          img.crossOrigin = "anonymous";
-          img.onload = () => resolve([el, img]);
-          img.onerror = () => resolve(null);
-          img.src = proxiedSrc(el.src);
-        }),
-    ),
-  );
-  const imgMap = new Map(loaded.filter(Boolean));
-
-  (elements || []).forEach((el) => {
-    ctx.save();
-    ctx.globalAlpha = el.opacity ?? 1;
-    if (el.rotation) {
-      const cx = el.x + (el.width || 0) / 2,
-        cy = el.y + (el.height || 0) / 2;
-      ctx.translate(cx, cy);
-      ctx.rotate((el.rotation * Math.PI) / 180);
-      ctx.translate(-cx, -cy);
-    }
-    if (el.type === "shape") {
-      ctx.fillStyle = el.fill || "transparent";
-      ctx.strokeStyle = el.stroke || "transparent";
-      ctx.lineWidth = el.strokeWidth || 0;
-      if (el.shape === "circle") {
-        const r = (el.width || 0) / 2;
-        ctx.beginPath();
-        ctx.arc(el.x + r, el.y + r, r, 0, Math.PI * 2);
-        ctx.fill();
-        if (el.strokeWidth) ctx.stroke();
-      } else if (el.shape === "triangle") {
-        const w = el.width || 0,
-          h = el.height || 0;
-        ctx.beginPath();
-        ctx.moveTo(el.x + w / 2, el.y);
-        ctx.lineTo(el.x + w, el.y + h);
-        ctx.lineTo(el.x, el.y + h);
-        ctx.closePath();
-        ctx.fill();
-        if (el.strokeWidth) ctx.stroke();
-      } else {
-        const r = el.borderRadius || 0;
-        if (r) {
-          ctx.beginPath();
-          ctx.roundRect(el.x, el.y, el.width, el.height, r);
-          ctx.fill();
-          if (el.strokeWidth) ctx.stroke();
-        } else {
-          ctx.fillRect(el.x, el.y, el.width, el.height);
-          if (el.strokeWidth) ctx.strokeRect(el.x, el.y, el.width, el.height);
-        }
-      }
-    }
-    if (el.type === "text") {
-      const size = el.fontSize || 16;
-      ctx.font = `${el.fontWeight || "normal"} ${size}px 'DM Sans', sans-serif`;
-      ctx.fillStyle = el.fill || el.color || "#000000";
-      const align = el.textAlign || "left";
-      ctx.textAlign = align;
-      const x =
-        align === "center"
-          ? el.x + (el.width || 0) / 2
-          : align === "right"
-            ? el.x + (el.width || 0)
-            : el.x;
-      const textContent =
-        typeof el.content === "string"
-          ? el.content
-          : typeof el.text === "string"
-            ? el.text
-            : "";
-      const words = textContent.trim().split(/\s+/);
-      const lineMaxW = el.width || 9999;
-      let line = "",
-        lineY = el.y + size;
-      words.forEach((word) => {
-        const test = line ? line + " " + word : word;
-        if (ctx.measureText(test).width > lineMaxW && line) {
-          ctx.fillText(line, x, lineY);
-          line = word;
-          lineY += size * 1.35;
-        } else line = test;
-      });
-      if (line) ctx.fillText(line, x, lineY);
-    }
-    if (el.type === "image" && imgMap.has(el)) {
-      ctx.drawImage(imgMap.get(el), el.x, el.y, el.width, el.height);
-    }
-    ctx.restore();
-  });
-
-  return await new Promise((resolve, reject) => {
-    try {
-      off.toBlob((blob) => {
-        resolve(
-          blob ? new File([blob], filename, { type: "image/png" }) : null,
-        );
-      }, "image/png");
-    } catch (err) {
-      // Cross-origin images without CORS headers "taint" the canvas and block export.
-      reject(err);
-    }
-  });
+  const blob = await renderDesignToBlob({ canvas, elements: elements || [] });
+  return blob ? new File([blob], filename, { type: "image/png" }) : null;
 }
 
 // ── Platform tile ─────────────────────────────────────────────────────────────

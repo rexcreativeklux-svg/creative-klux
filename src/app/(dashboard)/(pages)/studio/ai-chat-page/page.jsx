@@ -12,6 +12,9 @@ import AiChatInput from "./aiChatInput";
 import AiChatTypingIndicator from "./aiChatTypingIndicator";
 import AiPreviewIdle from "./aiPreviewIdle";
 import Toast from "@/app/(components)/Toast";
+// Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
+// so these previews match exactly what opens in the editor.
+import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
 
 /* ─── config ───────────────────────────────────────────────── */
 
@@ -90,113 +93,30 @@ function DesignCanvas({ variation }) {
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !variation) return;
-    const ctx = canvas.getContext("2d");
-    const { width, height, background } = variation.canvas;
+    if (!canvas || !variation?.canvas) return;
 
-    canvas.width = width;
-    canvas.height = height;
-
-    /* background */
-    ctx.fillStyle = background || "#ffffff";
-    ctx.fillRect(0, 0, width, height);
-
-    variation.elements.forEach((el) => {
-      ctx.save();
-      ctx.globalAlpha = el.opacity ?? 1;
-
-      if (el.rotation) {
-        const cx = el.x + (el.width || 0) / 2;
-        const cy = el.y + (el.height || 0) / 2;
-        ctx.translate(cx, cy);
-        ctx.rotate((el.rotation * Math.PI) / 180);
-        ctx.translate(-cx, -cy);
-      }
-
-      if (el.type === "shape") {
-        ctx.fillStyle = el.fill || "transparent";
-        ctx.strokeStyle = el.stroke || "transparent";
-        ctx.lineWidth = el.strokeWidth || 0;
-
-        if (el.shape === "circle") {
-          const r = (el.width || 0) / 2;
-          ctx.beginPath();
-          ctx.arc(el.x + r, el.y + r, r, 0, Math.PI * 2);
-          ctx.fill();
-          if (el.strokeWidth) ctx.stroke();
-        } else if (el.shape === "triangle") {
-          const w = el.width || 0, h = el.height || 0;
-          ctx.beginPath();
-          ctx.moveTo(el.x + w / 2, el.y);
-          ctx.lineTo(el.x + w, el.y + h);
-          ctx.lineTo(el.x, el.y + h);
-          ctx.closePath();
-          ctx.fill();
-          if (el.strokeWidth) ctx.stroke();
-        } else {
-          /* rectangle (default) */
-          const r = el.borderRadius || 0;
-          if (r) {
-            ctx.beginPath();
-            ctx.roundRect(el.x, el.y, el.width, el.height, r);
-            ctx.fill();
-            if (el.strokeWidth) ctx.stroke();
-          } else {
-            ctx.fillRect(el.x, el.y, el.width, el.height);
-            if (el.strokeWidth) ctx.strokeRect(el.x, el.y, el.width, el.height);
-          }
-        }
-      }
-
-      if (el.type === "text") {
-        const size = el.fontSize || 16;
-        const weight = el.fontWeight || "normal";
-        const align = el.textAlign || "left";
-        ctx.font = `${weight} ${size}px 'DM Sans', sans-serif`;
-        ctx.fillStyle = el.color || "#000000";
-        ctx.textAlign = align;
-
-        const x = align === "center"
-          ? el.x + (el.width || 0) / 2
-          : align === "right"
-            ? el.x + (el.width || 0)
-            : el.x;
-
-        /* word-wrap helper */
-        const maxW = el.width || 9999;
-        const text = typeof el.content === "string"
-          ? el.content
-          : typeof el.text === "string"
-            ? el.text
-            : "";
-
-        const words = text.trim().split(/\s+/);
-
-        let line = "", lineY = el.y + size;
-        words.forEach((word) => {
-          const test = line ? line + " " + word : word;
-          if (ctx.measureText(test).width > maxW && line) {
-            ctx.fillText(line, x, lineY);
-            line = word;
-            lineY += size * 1.35;
-          } else {
-            line = test;
-          }
+    let cancelled = false;
+    (async () => {
+      try {
+        const off = await renderDesignToCanvas({
+          canvas: variation.canvas,
+          elements: variation.elements || [],
         });
-        if (line) ctx.fillText(line, x, lineY);
+        if (cancelled || !canvasRef.current) return;
+        const target = canvasRef.current;
+        target.width = off.width;
+        target.height = off.height;
+        const ctx = target.getContext("2d");
+        ctx.clearRect(0, 0, off.width, off.height);
+        ctx.drawImage(off, 0, 0);
+      } catch {
+        /* leave blank if rendering fails */
       }
+    })();
 
-      if (el.type === "image" && el.src) {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => {
-          canvas.getContext("2d").drawImage(img, el.x, el.y, el.width, el.height);
-        };
-        img.src = el.src;
-      }
-
-      ctx.restore();
-    });
+    return () => {
+      cancelled = true;
+    };
   }, [variation]);
 
   if (!variation) return null;

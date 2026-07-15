@@ -8,6 +8,7 @@ import {
   ArrowLeftRight,
   Scissors,
   Wand2,
+  Pencil,
 } from "lucide-react";
 
 // Floating toolbar shown above the selected image: a Delete button + a "⋯"
@@ -23,6 +24,12 @@ export default function ImageToolbar({
   onReplace,
   onEditCutout,
   onRetouch,
+  // Optional: when provided, a pencil "Edit" button appears in the toolbar and an
+  // Edit item in the ⋯ menu (used by text layers).
+  onEdit,
+  // ids to omit from the ⋯ menu (e.g. Edit Cutout / Retouch for image layers
+  // until Phase 2 wires per-layer cutout + bg-removal).
+  hiddenItems = [],
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -40,17 +47,29 @@ export default function ImageToolbar({
     { id: "replace", label: "Replace", icon: ArrowLeftRight, onClick: onReplace, divider: true },
     { id: "cutout", label: "Edit Cutout", icon: Scissors, onClick: onEditCutout },
     { id: "retouch", label: "Retouch", icon: Wand2, onClick: onRetouch },
-  ];
+    ...(onEdit
+      ? [{ id: "edit", label: "Edit", icon: Pencil, onClick: onEdit, divider: true }]
+      : []),
+  ].filter((it) => !hiddenItems.includes(it.id));
 
   return (
     <div
-      className="absolute z-[80]"
+      className="absolute z-[100]"
       style={style}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Toolbar row */}
       <div className="flex items-center gap-1 bg-surface rounded-xl shadow-lg border border-gray-100 px-1.5 py-1">
+        {onEdit && (
+          <button
+            onClick={onEdit}
+            title="Edit"
+            className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 cursor-pointer"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+        )}
         <button
           onClick={onDelete}
           title="Delete"

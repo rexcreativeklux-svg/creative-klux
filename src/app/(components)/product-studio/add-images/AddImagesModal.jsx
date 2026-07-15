@@ -28,6 +28,7 @@ export default function AddImagesModal({ onClose, onAdd, maxSelectable = 1 }) {
     myImages = [],
     myImagesLoading,
     fetchMyImages,
+    uploadMedia,
     token,
   } = useAuth();
 
@@ -88,8 +89,11 @@ export default function AddImagesModal({ onClose, onAdd, maxSelectable = 1 }) {
     [maxSelectable],
   );
 
-  // Uploaded/dropped files become local items (object URLs) that are usable in
-  // the editor immediately and are auto-selected.
+  // Uploaded/dropped files show instantly (object-URL preview) and are
+  // auto-selected, then upload to the gallery in the background. On success the
+  // blob URL is swapped for the saved gallery URL everywhere the item appears
+  // (grid + selection), so the editor and future sessions get a persisted image
+  // instead of a dead blob. On failure the optimistic item is dropped.
   const handleFiles = useCallback(
     (files) => {
       const items = files.map((file, i) => ({
@@ -98,6 +102,7 @@ export default function AddImagesModal({ onClose, onAdd, maxSelectable = 1 }) {
         name: file.name,
         file,
         source: "upload",
+        uploading: true,
       }));
       setLocalUploads((prev) => [...items, ...prev]);
       setSelected((prev) =>
@@ -105,8 +110,37 @@ export default function AddImagesModal({ onClose, onAdd, maxSelectable = 1 }) {
           ? [items[0]]
           : [...items, ...prev].slice(0, maxSelectable),
       );
+
+      items.forEach(async (item) => {
+        try {
+          const res = await uploadMedia(item.file);
+          const savedUrl =
+            res?.file?.image_url ||
+            res?.file?.url ||
+            res?.image_url ||
+            res?.url ||
+            res?.data?.image_url ||
+            res?.data?.url;
+          if (!savedUrl) throw new Error("Upload succeeded but no URL returned");
+          const persist = (arr) =>
+            arr.map((it) =>
+              it.id === item.id
+                ? { ...it, url: savedUrl, file: undefined, uploading: false }
+                : it,
+            );
+          setLocalUploads(persist);
+          setSelected(persist);
+          URL.revokeObjectURL(item.url);
+        } catch (err) {
+          toast.error(err?.message || "Upload failed");
+          const drop = (arr) => arr.filter((it) => it.id !== item.id);
+          setLocalUploads(drop);
+          setSelected(drop);
+          URL.revokeObjectURL(item.url);
+        }
+      });
     },
-    [maxSelectable],
+    [maxSelectable, uploadMedia],
   );
 
   const handleAdd = () => {
@@ -209,12 +243,16 @@ export default function AddImagesModal({ onClose, onAdd, maxSelectable = 1 }) {
             )}
             <button
               onClick={handleAdd}
-              disabled={selected.length === 0}
+              disabled={
+                selected.length === 0 || selected.some((s) => s.uploading)
+              }
               className="px-6 py-2.5 rounded-xl text-sm font-semibold text-gray-50 bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
-              {selected.length > 1
-                ? `Add ${selected.length} images`
-                : "Add image"}
+              {selected.some((s) => s.uploading)
+                ? "Uploading…"
+                : selected.length > 1
+                  ? `Add ${selected.length} images`
+                  : "Add image"}
             </button>
           </div>
         </div>

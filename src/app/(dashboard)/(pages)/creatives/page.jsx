@@ -51,7 +51,10 @@ import {
 // (renderDesignToCanvas) so a creative's thumbnail matches exactly what opens in
 // /design/[id] — including web-font loading, library shapes, background images,
 // and text layout. No editing behavior is pulled in; this is pure paint.
-function DesignCanvas({ variation }) {
+// `maxHeight` (px) bounds the preview to a fixed height and scales the whole
+// design to fit inside it (object-fit: contain — letterboxed, never stretched).
+// Omit it to keep the default full-width behavior used by the grid cards.
+function DesignCanvas({ variation, maxHeight }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -87,12 +90,25 @@ function DesignCanvas({ variation }) {
   return (
     <canvas
       ref={canvasRef}
-      style={{
-        width: "100%",
-        height: "auto",
-        borderRadius: 8,
-        display: "block",
-      }}
+      style={
+        maxHeight
+          ? {
+              // Fit the whole design inside the fixed height, preserving aspect
+              // ratio (canvas has intrinsic w/h, so this behaves like contain).
+              maxWidth: "100%",
+              maxHeight,
+              width: "auto",
+              height: "auto",
+              borderRadius: 8,
+              display: "block",
+            }
+          : {
+              width: "100%",
+              height: "auto",
+              borderRadius: 8,
+              display: "block",
+            }
+      }
     />
   );
 }
@@ -1219,8 +1235,7 @@ const Sidebar = ({
           {hasCanvas ? (
             <DesignCanvas
               variation={{ canvas: c.canvas, elements: c.elements }}
-              maxW={360}
-              maxH={240}
+              maxHeight={260}
             />
           ) : c.image ? (
             <img

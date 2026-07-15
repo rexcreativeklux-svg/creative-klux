@@ -1,7 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
 import EditorTopBar from "./EditorTopBar";
 import BeforeAfterView from "./BeforeAfterView";
 import ImageToolbar from "./ImageToolbar";
+import ImagePanel from "./ImagePanel";
+import TextPanel from "./TextPanel";
+import { Slider, FILTERS } from "./editorShared";
 import AiBackgroundsPanel from "./AiBackgroundsPanel";
 import CustomBackgroundPanel from "./CustomBackgroundPanel";
 import RecentUploadsCarousel from "./RecentUploadsCarousel";
@@ -65,30 +68,6 @@ const CANVAS_H = 440;
 const EXPORT_SCALE = 2;
 
 // Shadow colour swatches for the Photoroom-style shadow panel.
-const SHADOW_SWATCHES = [
-  "#000000",
-  "#374151",
-  "#1e3a8a",
-  "#7c2d12",
-  "#581c87",
-  "#0f766e",
-];
-
-// Blend modes — the CSS value doubles as the canvas globalCompositeOperation
-// (except 'normal' → 'source-over'). Blends the product against its background.
-const BLEND_MODES = [
-  "normal",
-  "multiply",
-  "darken",
-  "screen",
-  "lighten",
-  "overlay",
-  "soft-light",
-  "hard-light",
-  "difference",
-  "luminosity",
-];
-
 // hex (#rgb / #rrggbb) → rgba() string at the given alpha. Lets the shadow take an
 // arbitrary colour instead of being hardcoded black.
 const hexToRgba = (hex, alpha = 1) => {
@@ -949,7 +928,7 @@ const processBlur = (img, type, amt) => {
 
 // ── Texture: posterize / line / color (baked) ──────────────────────────────
 const TEXTURE_MAXD = 1400;
-const TEXTURE_DEFAULTS = { posterize: 10, line: 50, color: 50 };
+// TEXTURE_DEFAULTS moved into ./ImagePanel (only used by the Image panel).
 const processTexture = (img, type, amt) => {
   if (!amt || amt <= 0) return null;
   let w = img.naturalWidth || img.width || 1;
@@ -1034,6 +1013,87 @@ const opaqueBounds = (img, w, h) => {
   }
   if (!found) return { top: 0, bottom: h - 1 };
   return { top, bottom };
+};
+
+// A solid-colour silhouette of an image's opaque pixels — used to paint the
+// outline halo and the cast shadow (canvas equivalent of the preview's alpha
+// drop-shadow).
+const makeSilhouetteCanvas = (img, w, h, color) => {
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.ceil(w));
+  c.height = Math.max(1, Math.ceil(h));
+  const cx = c.getContext("2d");
+  cx.drawImage(img, 0, 0, c.width, c.height);
+  cx.globalCompositeOperation = "source-in";
+  cx.fillStyle = color;
+  cx.fillRect(0, 0, c.width, c.height);
+  return c;
+};
+
+// Floor / cast shadow sprite (silhouette mirrored at the base, squashed by
+// Shortness, blurred and faded). Returns { url, pad, spriteW, spriteH } in
+// preview px. Shared by the base image and every image layer.
+const makeFloorShadowSprite = (img, pw0, ph0, p) => {
+  const pw = Math.max(1, Math.round(pw0));
+  const ph = Math.max(1, Math.round(ph0));
+  const sil = makeSilhouetteCanvas(img, pw, ph, p.shadowColor);
+  const vScale = 0.6 * (1 - p.shadowShortness / 100) + 0.08;
+  const shadowH = ph * vScale;
+  const pad = Math.ceil(p.shadowBlur * 3 + 6);
+  const spriteW = pw + pad * 2;
+  const spriteH = Math.ceil(shadowH) + pad * 2;
+  const c = document.createElement("canvas");
+  c.width = spriteW;
+  c.height = spriteH;
+  const cx = c.getContext("2d");
+  cx.translate(pad, pad);
+  cx.filter = p.shadowBlur > 0 ? `blur(${p.shadowBlur}px)` : "none";
+  cx.save();
+  cx.scale(1, -vScale);
+  cx.drawImage(sil, 0, -ph, pw, ph);
+  cx.restore();
+  cx.filter = "none";
+  cx.globalCompositeOperation = "destination-in";
+  const g = cx.createLinearGradient(0, 0, 0, shadowH);
+  g.addColorStop(0, "rgba(0,0,0,1)");
+  g.addColorStop(0.7, "rgba(0,0,0,0.45)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  cx.fillStyle = g;
+  cx.fillRect(-pad, -pad, spriteW, spriteH);
+  cx.globalCompositeOperation = "source-over";
+  return { url: c.toDataURL("image/png"), pad, spriteW, spriteH };
+};
+
+// Reflection sprite (image mirrored below its real base, faded out). Returns
+// { url, topFrac, heightFrac } (fractions of the box height). Shared by base +
+// image layers.
+const makeReflectionSprite = (img, pw0, ph0) => {
+  const pw = Math.max(1, Math.round(pw0));
+  const ph = Math.max(1, Math.round(ph0));
+  const { top, bottom } = opaqueBounds(img, pw, ph);
+  const contentH = Math.max(1, bottom - top + 1);
+  const c = document.createElement("canvas");
+  c.width = pw;
+  c.height = contentH;
+  const cx = c.getContext("2d");
+  cx.save();
+  cx.translate(0, bottom);
+  cx.scale(1, -1);
+  // Sharp mirror copy (no blur) so the reflection clearly shows the image.
+  cx.drawImage(img, 0, 0, pw, ph);
+  cx.restore();
+  // Mirror-like fade: nearly opaque at the contact edge, tapering gradually so
+  // the mirrored image stays clearly readable well down the reflection.
+  cx.globalCompositeOperation = "destination-in";
+  const g = cx.createLinearGradient(0, 0, 0, contentH);
+  g.addColorStop(0, "rgba(0,0,0,0.98)");
+  g.addColorStop(0.4, "rgba(0,0,0,0.7)");
+  g.addColorStop(0.75, "rgba(0,0,0,0.32)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, pw, contentH);
+  cx.globalCompositeOperation = "source-over";
+  return { url: c.toDataURL("image/png"), topFrac: bottom / ph, heightFrac: contentH / ph };
 };
 
 // ── Backgrounds / Resize / Templates data ──
@@ -1528,40 +1588,7 @@ const PROFILE_TEMPLATES = [
 ];
 // Photoroom-style filter presets — each is a CSS filter string that works in the
 // preview AND the canvas export (ctx.filter). Applied on top of the baked pixels.
-const FILTERS = [
-  { id: "none", label: "None", css: "" },
-  {
-    id: "noir",
-    label: "Noir",
-    css: "grayscale(1) contrast(1.45) brightness(0.92)",
-  },
-  {
-    id: "fade",
-    label: "Fade",
-    css: "contrast(0.85) brightness(1.12) saturate(0.82) sepia(0.12)",
-  },
-  { id: "mono", label: "Mono", css: "grayscale(1) contrast(1.1)" },
-  {
-    id: "process",
-    label: "Process",
-    css: "contrast(1.2) saturate(1.55) hue-rotate(-12deg)",
-  },
-  {
-    id: "tonal",
-    label: "Tonal",
-    css: "grayscale(1) contrast(1.22) brightness(1.05)",
-  },
-  {
-    id: "chrome",
-    label: "Chrome",
-    css: "saturate(1.5) contrast(1.18) brightness(1.05)",
-  },
-  {
-    id: "sepia",
-    label: "Sepia",
-    css: "sepia(0.78) contrast(1.05) brightness(1.02)",
-  },
-];
+// FILTERS now lives in ./editorShared (shared with ImagePanel).
 // Legacy ids still referenced by the Templates "Photo Filters" group.
 const FILTER_LEGACY = {
   grayscale: "grayscale(1)",
@@ -1663,61 +1690,201 @@ const TEMPLATE_GROUPS = [
   },
 ];
 
-function Toggle({ enabled, onChange }) {
-  return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onChange(!enabled);
-      }}
-      className={`relative w-10 h-5 rounded-full transition-all shrink-0 ${enabled ? "bg-blue-600" : "bg-gray-100"}`}
-    >
-      <span
-        className={`absolute top-0.5 w-4 h-4 bg-surface rounded-full shadow transition-all ${enabled ? "left-5" : "left-0.5"}`}
-      />
-    </button>
+// Toggle / PosField / Slider now live in ./editorShared (shared with ImagePanel).
+
+// ── Per-image effect model ────────────────────────────────────────────────
+// Every image (the base image AND every inserted image layer) shares the same
+// Image panel. These are the panel-editable effect props with their defaults —
+// the base image keeps them as flat component state; an image layer stores them
+// on `layer.img`. Geometry (position/size) and source URLs are NOT here (they
+// stay base-flat / layer top-level). See the "active image" adapter below.
+const IMG_DEFAULTS = {
+  removeBg: false,
+  // Adjust
+  brightness: 0,
+  contrast: 0,
+  saturation: 0,
+  highlights: 0,
+  shadowsAdj: 0,
+  sharpen: 0,
+  hue: 0,
+  warmth: 0,
+  adjOpacity: 100,
+  // Transform
+  rotation: 0,
+  flipH: false,
+  flipV: false,
+  scale: 100,
+  tile: 1,
+  hPersp: 0,
+  vPersp: 0,
+  // Blur + filter + texture
+  blurAmount: 0,
+  blurType: "gaussian",
+  selectedFilter: "none",
+  textureType: "posterize",
+  textureAmount: 10,
+  // Shadow
+  shadowBlur: 10,
+  shadowOpacity: 50,
+  shadowColor: "#000000",
+  shadowX: 0,
+  shadowY: 12,
+  shadowMode: "drop",
+  shadowShortness: 50,
+  // Outline
+  outlineColor: "#7c3aed",
+  outlineWidth: 3,
+  outlineBlur: 0,
+  // Reflection
+  reflectionOpacity: 75,
+  reflectionGap: 0,
+  reflectionX: 0,
+  reflectionAngle: 0,
+  // Blend
+  blendMode: "normal",
+  toggles: {
+    shadows: false,
+    outline: false,
+    reflection: false,
+    blur: false,
+    filter: false,
+    texture: false,
+  },
+};
+
+// Outline halo directions (8-way stacked drop-shadows tracing the alpha edge).
+const OUTLINE_DIRS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+];
+
+// CSS filter string for an image given its effect props. Shared by the base
+// image preview and every image layer so they render identically.
+//   bakeAdjust=true  (base): the Adjust sliders are already baked into the
+//                    pixels (adjustedUrl), so only the Filter preset + outline
+//                    + drop-shadow are emitted.
+//   bakeAdjust=false (layers, Phase 1): the CSS-expressible Adjust subset
+//                    (brightness/contrast/saturation/hue) is emitted inline so
+//                    it previews live without a bake pipeline.
+function buildImageFilter(p, { bakeAdjust = true } = {}) {
+  const parts = [];
+  if (p.toggles?.filter) {
+    const f = filterCss(p.selectedFilter);
+    if (f) parts.push(f);
+  }
+  if (!bakeAdjust) {
+    if (p.brightness) parts.push(`brightness(${1 + p.brightness / 100})`);
+    if (p.contrast) parts.push(`contrast(${1 + p.contrast / 100})`);
+    if (p.saturation) parts.push(`saturate(${1 + p.saturation / 100})`);
+    if (p.hue) parts.push(`hue-rotate(${p.hue}deg)`);
+  }
+  if (p.toggles?.outline) {
+    for (const [dx, dy] of OUTLINE_DIRS)
+      parts.push(
+        `drop-shadow(${dx * p.outlineWidth}px ${dy * p.outlineWidth}px ${p.outlineBlur}px ${p.outlineColor})`,
+      );
+  }
+  if (p.toggles?.shadows && p.shadowMode === "drop")
+    parts.push(
+      `drop-shadow(${p.shadowX}px ${p.shadowY}px ${p.shadowBlur * 2}px ${hexToRgba(p.shadowColor, p.shadowOpacity / 100)})`,
+    );
+  return parts.join(" ");
+}
+
+// CSS transform for an image. The base bakes uniform scale into its box, so it
+// passes includeScale=false and keeps rotate on the <img>; an image layer keeps
+// rotate on its container (with the resize handles) and previews scale via CSS.
+function buildImageTransform(
+  p,
+  { includeRotate = true, includeScale = false } = {},
+) {
+  const parts = [];
+  if (includeRotate) parts.push(`rotate(${p.rotation || 0}deg)`);
+  parts.push(`scaleX(${p.flipH ? -1 : 1})`);
+  parts.push(`scaleY(${p.flipV ? -1 : 1})`);
+  if (includeScale) parts.push(`scale(${(p.scale ?? 100) / 100})`);
+  return parts.join(" ");
+}
+
+// Does an image's props need the (async, pixel-level) bake pipeline?
+// Covers the effects that can't be expressed as a CSS filter: the full Adjust
+// set, tile/perspective, blur and texture. (Filter preset, outline, drop shadow,
+// blend, opacity, flip, scale are CSS/canvas and handled without a bake.)
+function layerNeedsBake(p) {
+  return !!(
+    p.brightness ||
+    p.contrast ||
+    p.saturation ||
+    p.highlights ||
+    p.shadowsAdj ||
+    p.sharpen ||
+    p.hue ||
+    p.warmth ||
+    p.tile > 1 ||
+    p.hPersp ||
+    p.vPersp ||
+    (p.toggles?.blur && p.blurAmount > 0) ||
+    (p.toggles?.texture && p.textureAmount > 0)
   );
 }
 
-function PosField({ label, value, onChange, unit = "", min }) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[11px] text-gray-500">{label}</span>
-      <div className="flex items-center bg-surface border border-gray-200 rounded-lg px-2 focus-within:border-blue-400">
-        <input
-          type="number"
-          value={value}
-          min={min}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            if (!Number.isNaN(n)) onChange(n);
-          }}
-          className="w-full py-1.5 text-sm text-gray-800 bg-transparent outline-none"
-        />
-        {unit && <span className="text-xs text-gray-400 pl-1">{unit}</span>}
-      </div>
-    </label>
-  );
-}
-
-function Slider({ label, value, min, max, onChange, unit = "" }) {
-  return (
-    <div className="flex items-center gap-3 py-1">
-      <span className="text-xs text-gray-500 w-24 shrink-0">{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 h-1.5 accent-blue-600"
-      />
-      <span className="text-xs text-gray-500 w-8 text-right">
-        {value}
-        {unit}
-      </span>
-    </div>
-  );
+// Bake an image's pixel-level effects into a PNG data URL, mirroring the base
+// image's chained pipeline (adjust → tile/perspective → blur → texture). Used
+// for both the live preview of image layers and their export, so a layer looks
+// the same as the base image would with the same settings. Returns the original
+// src when nothing needs baking.
+async function computeRenderSrc(srcUrl, p) {
+  let src = srcUrl;
+  if (
+    p.brightness ||
+    p.contrast ||
+    p.saturation ||
+    p.highlights ||
+    p.shadowsAdj ||
+    p.sharpen ||
+    p.hue ||
+    p.warmth
+  ) {
+    const img = await loadImageEl(src);
+    const c = processAdjustments(img, {
+      brightness: p.brightness,
+      contrast: p.contrast,
+      saturation: p.saturation,
+      highlights: p.highlights,
+      shadows: p.shadowsAdj,
+      sharpen: p.sharpen,
+      hue: p.hue,
+      warmth: p.warmth,
+    });
+    if (c) src = c.toDataURL("image/png");
+  }
+  if (p.tile > 1 || p.hPersp || p.vPersp) {
+    const img = await loadImageEl(src);
+    const c = processTransform(img, {
+      tile: p.tile,
+      hPersp: p.hPersp,
+      vPersp: p.vPersp,
+    });
+    if (c) src = c.toDataURL("image/png");
+  }
+  if (p.toggles?.blur && p.blurAmount > 0) {
+    const img = await loadImageEl(src);
+    const c = processBlur(img, p.blurType, p.blurAmount);
+    if (c) src = c.toDataURL("image/png");
+  }
+  if (p.toggles?.texture && p.textureAmount > 0) {
+    const img = await loadImageEl(src);
+    const c = processTexture(img, p.textureType, p.textureAmount);
+    if (c) src = c.toDataURL("image/png");
+  }
+  return src;
 }
 
 export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
@@ -1732,6 +1899,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   const fileInputRef = useRef(null);
   const imgRef = useRef(null);
   const insertFileRef = useRef(null);
+  const layerReplaceRef = useRef(null); // replace a selected image layer's src
   const [saving, setSaving] = useState(false);
 
   // ── Layer system (overlay elements on top of the base image) ──────────
@@ -1867,6 +2035,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
   // Edit Cutout (manual eraser)
   const [cutoutOpen, setCutoutOpen] = useState(false);
+  const [cutoutTarget, setCutoutTarget] = useState(null); // null = base, else layerId
   const [brushSize, setBrushSize] = useState(40);
   const cutoutCanvasRef = useRef(null);
   const cutoutDrawing = useRef(false);
@@ -1919,7 +2088,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   const [outlineBlur, setOutlineBlur] = useState(0);
 
   // Reflection (mirrored copy below the object) — opacity / move / angle.
-  const [reflectionOpacity, setReflectionOpacity] = useState(50);
+  const [reflectionOpacity, setReflectionOpacity] = useState(75);
   const [reflectionGap, setReflectionGap] = useState(0); // vertical gap (Move Y)
   const [reflectionX, setReflectionX] = useState(0); // horizontal nudge (Move X)
   const [reflectionAngle, setReflectionAngle] = useState(0);
@@ -1974,17 +2143,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   // rectangular image box. CSS box-shadow + CSS outline trace the box; an
   // alpha-aware `drop-shadow` traces the transparent edge instead. Shared by the
   // live preview and the canvas export so they stay in sync.
-  const OUTLINE_DIRS = [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
-    [1, 1],
-    [1, -1],
-    [-1, 1],
-    [-1, -1],
-  ];
-
+  // (OUTLINE_DIRS now lives at module scope — shared with buildImageFilter.)
   const effectsFilter = [
     // Outline: stacked drop-shadows trace the alpha edge (8 directions). Width =
     // offset distance, Blur = softness/glow, Color = the halo colour.
@@ -2174,43 +2333,12 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       try {
         const img = await loadImageEl(renderSrc);
         if (cancelled) return;
-        const pw = Math.max(1, Math.round(imgW));
-        const ph = Math.max(1, Math.round(imgH));
-        const sil = makeSilhouetteCanvas(img, pw, ph, shadowColor);
-        const vScale = 0.6 * (1 - shadowShortness / 100) + 0.08; // 0.08 (short) … 0.68 (long)
-        const shadowH = ph * vScale;
-        const pad = Math.ceil(shadowBlur * 3 + 6);
-        const spriteW = pw + pad * 2;
-        const spriteH = Math.ceil(shadowH) + pad * 2;
-        const c = document.createElement("canvas");
-        c.width = spriteW;
-        c.height = spriteH;
-        const cx = c.getContext("2d");
-        cx.translate(pad, pad);
-        cx.filter = shadowBlur > 0 ? `blur(${shadowBlur}px)` : "none";
-        // Mirror at the base + squash: the silhouette's feet sit at sprite y=0,
-        // the shadow extends downward to y=shadowH.
-        cx.save();
-        cx.scale(1, -vScale);
-        cx.drawImage(sil, 0, -ph, pw, ph);
-        cx.restore();
-        cx.filter = "none";
-        // Fade the far end of the cast shadow out.
-        cx.globalCompositeOperation = "destination-in";
-        const g = cx.createLinearGradient(0, 0, 0, shadowH);
-        g.addColorStop(0, "rgba(0,0,0,1)");
-        g.addColorStop(0.7, "rgba(0,0,0,0.45)");
-        g.addColorStop(1, "rgba(0,0,0,0)");
-        cx.fillStyle = g;
-        cx.fillRect(-pad, -pad, spriteW, spriteH);
-        cx.globalCompositeOperation = "source-over";
-        if (!cancelled)
-          setFloorShadow({
-            url: c.toDataURL("image/png"),
-            pad,
-            spriteW,
-            spriteH,
-          });
+        const sprite = makeFloorShadowSprite(img, imgW, imgH, {
+          shadowColor,
+          shadowBlur,
+          shadowShortness,
+        });
+        if (!cancelled) setFloorShadow(sprite);
       } catch {
         if (!cancelled) setFloorShadow(null);
       }
@@ -2244,37 +2372,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       try {
         const img = await loadImageEl(renderSrc);
         if (cancelled) return;
-        const pw = Math.max(1, Math.round(imgW));
-        const ph = Math.max(1, Math.round(imgH));
-        const { top, bottom } = opaqueBounds(img, pw, ph); // content rows in box space
-        const contentH = Math.max(1, bottom - top + 1);
-        const c = document.createElement("canvas");
-        c.width = pw;
-        c.height = contentH;
-        const cx = c.getContext("2d");
-        // Mirror anchored at the base: sprite row 0 = the product's lowest
-        // opaque row, growing downward into the shoe's reflection.
-        cx.save();
-        cx.translate(0, bottom);
-        cx.scale(1, -1);
-        cx.drawImage(img, 0, 0, pw, ph);
-        cx.restore();
-        // Fade out away from the contact edge.
-        cx.globalCompositeOperation = "destination-in";
-        const g = cx.createLinearGradient(0, 0, 0, contentH);
-        g.addColorStop(0, "rgba(0,0,0,0.85)");
-        g.addColorStop(0.6, "rgba(0,0,0,0)");
-        g.addColorStop(1, "rgba(0,0,0,0)");
-        cx.fillStyle = g;
-        cx.fillRect(0, 0, pw, contentH);
-        cx.globalCompositeOperation = "source-over";
-        if (!cancelled) {
-          setReflectionSprite({
-            url: c.toDataURL("image/png"),
-            topFrac: bottom / ph, // where the base sits inside the box (0..1)
-            heightFrac: contentH / ph, // sprite height as a fraction of the box
-          });
-        }
+        if (!cancelled)
+          setReflectionSprite(makeReflectionSprite(img, imgW, imgH));
       } catch {
         if (!cancelled) setReflectionSprite(null);
       }
@@ -2884,11 +2983,368 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) || null;
 
+  // ── "Active image" adapter ────────────────────────────────────────────
+  // The Image panel + floating toolbar operate on whichever image is selected:
+  // the base image (flat state) or a selected image layer (layer.img). This
+  // adapter lets the SAME panel JSX read/write either one.
+  const activeImageKind =
+    selectedLayer?.type === "image"
+      ? "layer"
+      : selected && displayImage
+        ? "base"
+        : null;
+
+  // All base effect props gathered into one object (mirrors IMG_DEFAULTS keys).
+  const flatImgProps = {
+    removeBg,
+    brightness,
+    contrast,
+    saturation,
+    highlights,
+    shadowsAdj,
+    sharpen,
+    hue,
+    warmth,
+    adjOpacity,
+    rotation,
+    flipH,
+    flipV,
+    scale,
+    tile,
+    hPersp,
+    vPersp,
+    blurAmount,
+    blurType,
+    selectedFilter,
+    textureType,
+    textureAmount,
+    shadowBlur,
+    shadowOpacity,
+    shadowColor,
+    shadowX,
+    shadowY,
+    shadowMode,
+    shadowShortness,
+    outlineColor,
+    outlineWidth,
+    outlineBlur,
+    reflectionOpacity,
+    reflectionGap,
+    reflectionX,
+    reflectionAngle,
+    blendMode,
+    toggles,
+  };
+
+  // Props of the currently-active image. For a layer, `rotation` lives on the
+  // layer itself (it drives the selection box + handles), the rest on layer.img.
+  const activeImg =
+    activeImageKind === "layer"
+      ? {
+          ...IMG_DEFAULTS,
+          ...(selectedLayer.img || {}),
+          rotation: selectedLayer.rotation || 0,
+        }
+      : flatImgProps;
+
+  // key → flat setter (base path). `scale` resizes the box via setBaseScale.
+  const IMG_SETTERS = {
+    removeBg: setRemoveBg,
+    brightness: setBrightness,
+    contrast: setContrast,
+    saturation: setSaturation,
+    highlights: setHighlights,
+    shadowsAdj: setShadowsAdj,
+    sharpen: setSharpen,
+    hue: setHue,
+    warmth: setWarmth,
+    adjOpacity: setAdjOpacity,
+    rotation: setRotation,
+    flipH: setFlipH,
+    flipV: setFlipV,
+    // Wrapper (not a direct ref): setBaseScale is declared later in the
+    // component, so referencing it directly here would hit the temporal dead
+    // zone. The arrow defers the lookup to call time.
+    scale: (v) => setBaseScale(v),
+    tile: setTile,
+    hPersp: setHPersp,
+    vPersp: setVPersp,
+    blurAmount: setBlurAmount,
+    blurType: setBlurType,
+    selectedFilter: setSelectedFilter,
+    textureType: setTextureType,
+    textureAmount: setTextureAmount,
+    shadowBlur: setShadowBlur,
+    shadowOpacity: setShadowOpacity,
+    shadowColor: setShadowColor,
+    shadowX: setShadowX,
+    shadowY: setShadowY,
+    shadowMode: setShadowMode,
+    shadowShortness: setShadowShortness,
+    outlineColor: setOutlineColor,
+    outlineWidth: setOutlineWidth,
+    outlineBlur: setOutlineBlur,
+    reflectionOpacity: setReflectionOpacity,
+    reflectionGap: setReflectionGap,
+    reflectionX: setReflectionX,
+    reflectionAngle: setReflectionAngle,
+    blendMode: setBlendMode,
+    toggles: setToggles,
+  };
+
+  // Write a patch to the active image (base flat setters, or layer.img / layer).
+  // The layer branch merges functionally off the latest layer state so several
+  // updateActiveImg() calls in one handler (e.g. "Reset adjustments") compose
+  // instead of clobbering each other from a stale render snapshot.
+  const updateActiveImg = (patch) => {
+    if (activeImageKind === "layer") {
+      const { rotation: rot, ...imgPatch } = patch;
+      const id = selectedLayer.id;
+      setLayers((prev) =>
+        prev.map((l) => {
+          if (l.id !== id) return l;
+          const next = { ...l };
+          if (rot !== undefined) next.rotation = rot;
+          next.img = { ...IMG_DEFAULTS, ...(l.img || {}), ...imgPatch };
+          return next;
+        }),
+      );
+    } else {
+      Object.entries(patch).forEach(([k, v]) => IMG_SETTERS[k]?.(v));
+    }
+  };
+
+  // ── Move Shadow: drag on the canvas to reposition the active image's
+  // shadow (Shadows → Move). 2D = flat offset (drop), 3D = perspective (floor);
+  // both nudge shadowX/shadowY, which the drop filter and floor sprite read.
+  const [moveShadow, setMoveShadow] = useState({ open: false, mode: "2d" });
+  const shadowDragRef = useRef(null);
+  const onShadowMoveDown = (e) => {
+    e.stopPropagation();
+    shadowDragRef.current = {
+      sx: e.clientX,
+      sy: e.clientY,
+      bx: activeImg?.shadowX ?? 0,
+      by: activeImg?.shadowY ?? 0,
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onShadowMoveMove = (e) => {
+    if (!shadowDragRef.current) return;
+    const d = shadowDragRef.current;
+    updateActiveImg({
+      shadowX: Math.round(d.bx + (e.clientX - d.sx)),
+      shadowY: Math.round(d.by + (e.clientY - d.sy)),
+    });
+  };
+  const onShadowMoveUp = (e) => {
+    const d = shadowDragRef.current;
+    shadowDragRef.current = null;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    // A click (no real drag) exits Move → back to the Image panel.
+    if (d && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 5)
+      setMoveShadow((s) => ({ ...s, open: false }));
+  };
+
+  // ── Move Reflection: drag on the canvas to change the reflection's aspect
+  // (Reflection → Move). Horizontal drag → reflectionX, vertical → reflectionGap.
+  const [moveReflection, setMoveReflection] = useState({ open: false });
+  const reflDragRef = useRef(null);
+  const onReflMoveDown = (e) => {
+    e.stopPropagation();
+    reflDragRef.current = {
+      sx: e.clientX,
+      sy: e.clientY,
+      bx: activeImg?.reflectionX ?? 0,
+      by: activeImg?.reflectionGap ?? 0,
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onReflMoveMove = (e) => {
+    if (!reflDragRef.current) return;
+    const d = reflDragRef.current;
+    updateActiveImg({
+      reflectionX: Math.round(d.bx + (e.clientX - d.sx)),
+      reflectionGap: Math.round(d.by + (e.clientY - d.sy)),
+    });
+  };
+  const onReflMoveUp = (e) => {
+    const d = reflDragRef.current;
+    reflDragRef.current = null;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    // A click (no real drag) exits Move → back to the Image panel.
+    if (d && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 5)
+      setMoveReflection({ open: false });
+  };
+
+  // Apply a Style preset to the currently-selected text layer (from TextPanel).
+  const applyTextStyle = async (s) => {
+    if (!selectedLayer || selectedLayer.type !== "text") return;
+    if (s.fontFamily) await loadWebFont(s.fontFamily);
+    updateLayer(selectedLayer.id, {
+      color: s.color,
+      fontWeight: s.fontWeight,
+      align: s.align || selectedLayer.align,
+      fontSize: s.fontSize,
+      fontFamily: s.fontFamily,
+      bgColor: s.bgColor,
+      radius: s.radius,
+    });
+  };
+
+  // Only Phase-1 CSS-expressible effects apply live to an image layer. The rest
+  // (blur, texture, tile, perspective, highlights, reflection, floor shadow,
+  // remove-bg, cutout) bake/composite at export — Phase 2. This flags a control
+  // that won't visibly change a layer yet, so it can show an "on export" hint.
+  const layerDeferredEffects = activeImageKind === "layer";
+
+  // Thumbnail source + presence for the panel header / enable-disable checks.
+  const activeSrc =
+    activeImageKind === "layer" ? selectedLayer.src : originalUrl;
+  const hasActiveImage =
+    activeImageKind === "layer" ? true : !!displayImage;
+
+  // "Align to canvas" — base nudges its offset to 0; a layer snaps to centre.
+  const alignActiveCenter = () => {
+    if (activeImageKind === "layer")
+      updateLayer(selectedLayer.id, { x: canvasSize.w / 2 });
+    else setPosX(0);
+  };
+  const alignActiveMiddle = () => {
+    if (activeImageKind === "layer")
+      updateLayer(selectedLayer.id, { y: canvasSize.h / 2 });
+    else setPosY(0);
+  };
+
+  // Geometry of the active image in preview px (for the floating toolbar).
+  const activeImgGeom = () => {
+    if (activeImageKind === "layer") {
+      return {
+        left: selectedLayer.x - selectedLayer.w / 2,
+        top: selectedLayer.y - selectedLayer.h / 2,
+        w: selectedLayer.w,
+        h: selectedLayer.h,
+      };
+    }
+    return {
+      left: canvasSize.w / 2 + posX - imgW / 2,
+      top: canvasSize.h / 2 + posY - imgH / 2,
+      w: imgW,
+      h: imgH,
+    };
+  };
+
+  // ── Per-layer render cache ────────────────────────────────────────────
+  // Image layers preview/export through the same pipeline as the base image:
+  // pixel-level effects (Adjust, blur, texture, tile/perspective) baked into a
+  // PNG, plus the floor-shadow and reflection SPRITES. We cache one entry per
+  // layer, keyed by everything that affects those outputs, and recompute
+  // (debounced) only when the key changes. bakedVersion bumps to re-render once
+  // a fresh result lands. Entry: { key, url, floor, reflection }.
+  const bakedCacheRef = useRef(new Map());
+  const [bakedVersion, setBakedVersion] = useState(0);
+
+  const layerNeedsFloor = (p) =>
+    !!(p.toggles?.shadows && p.shadowMode === "floor");
+  const layerNeedsRefl = (p) => !!p.toggles?.reflection;
+
+  const bakedKey = (l) => {
+    const p = { ...IMG_DEFAULTS, ...(l.img || {}) };
+    return JSON.stringify({
+      src: l.src,
+      w: Math.round(l.w),
+      h: Math.round(l.h),
+      b: p.brightness,
+      c: p.contrast,
+      s: p.saturation,
+      hl: p.highlights,
+      sa: p.shadowsAdj,
+      sh: p.sharpen,
+      hu: p.hue,
+      wa: p.warmth,
+      ti: p.tile,
+      hp: p.hPersp,
+      vp: p.vPersp,
+      bl: p.toggles?.blur ? [p.blurType, p.blurAmount] : 0,
+      tx: p.toggles?.texture ? [p.textureType, p.textureAmount] : 0,
+      fl: layerNeedsFloor(p)
+        ? [p.shadowColor, p.shadowBlur, p.shadowShortness]
+        : 0,
+      rf: layerNeedsRefl(p) ? 1 : 0,
+    });
+  };
+
+  const cacheEntryFor = (l) => {
+    const cur = bakedCacheRef.current.get(l.id);
+    return cur && cur.key === bakedKey(l) ? cur : null;
+  };
+  // Baked src for a layer's preview (falls back to the raw src until ready).
+  const bakedSrcFor = (l) => {
+    const p = { ...IMG_DEFAULTS, ...(l.img || {}) };
+    if (!layerNeedsBake(p)) return l.src;
+    return cacheEntryFor(l)?.url || l.src;
+  };
+  const layerFloorFor = (l) => cacheEntryFor(l)?.floor || null;
+  const layerReflectionFor = (l) => cacheEntryFor(l)?.reflection || null;
+
+  useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const cache = bakedCacheRef.current;
+      const liveIds = new Set();
+      let changed = false;
+      for (const l of layers) {
+        if (l.type !== "image") continue;
+        liveIds.add(l.id);
+        const p = { ...IMG_DEFAULTS, ...(l.img || {}) };
+        const cur = cache.get(l.id);
+        const needsBake = layerNeedsBake(p);
+        const needsFloor = layerNeedsFloor(p);
+        const needsRefl = layerNeedsRefl(p);
+        if (!needsBake && !needsFloor && !needsRefl) {
+          if (cur) {
+            cache.delete(l.id);
+            changed = true;
+          }
+          continue;
+        }
+        const key = bakedKey(l);
+        if (cur && cur.key === key) continue;
+        const url = needsBake ? await computeRenderSrc(l.src, p) : l.src;
+        if (cancelled) return;
+        let floor = null,
+          reflection = null;
+        if (needsFloor || needsRefl) {
+          const im = await loadImageEl(url);
+          if (cancelled) return;
+          if (needsFloor) floor = makeFloorShadowSprite(im, l.w, l.h, p);
+          if (needsRefl) reflection = makeReflectionSprite(im, l.w, l.h);
+        }
+        cache.set(l.id, { key, url: needsBake ? url : null, floor, reflection });
+        changed = true;
+      }
+      // Drop cache entries for removed layers.
+      for (const id of cache.keys())
+        if (!liveIds.has(id)) {
+          cache.delete(id);
+          changed = true;
+        }
+      if (changed && !cancelled) setBakedVersion((v) => v + 1);
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [layers]);
+
   // Drag a layer (pointer events on its box)
   const onLayerPointerDown = (e, layer) => {
     e.stopPropagation();
     setSelectedLayerId(layer.id);
     setSelected(false);
+    // Selecting an image or text layer closes any open tool panel (Insert, Add
+    // Text, etc.) so its editing panel appears right away — even on a drag.
+    if (layer.type === "image" || layer.type === "text") setActiveTool(null);
     // While a text layer is being edited, let clicks reach the editor (no drag).
     if (editingLayerId === layer.id) return;
     layerDragRef.current = {
@@ -3072,6 +3528,14 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     e.target.value = "";
   };
 
+  // Replace the currently-selected image layer's source (keeps its effects/box).
+  const handleLayerReplace = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || selectedLayer?.type !== "image") return;
+    updateLayer(selectedLayer.id, { src: URL.createObjectURL(file) });
+  };
+
   // ── Share ─────────────────────────────────────────────────────────────
   const handleShare = async () => {
     if (!displayImage) {
@@ -3113,15 +3577,22 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
   // ── Edit Cutout (brush eraser) ────────────────────────────────────────
   const openCutout = () => {
-    if (!displayImage) {
+    const isLayer = activeImageKind === "layer";
+    const src = isLayer ? selectedLayer.src : displayImage;
+    if (!src) {
       toast.error("Add an image first");
       return;
     }
+    setCutoutTarget(isLayer ? selectedLayer.id : null);
     setCutoutOpen(true);
   };
   const drawCutoutBase = async () => {
     try {
-      const img = await loadImageEl(displayImage);
+      const tLayer = cutoutTarget
+        ? layers.find((l) => l.id === cutoutTarget)
+        : null;
+      const src = tLayer ? tLayer.src : displayImage;
+      const img = await loadImageEl(src);
       const cv = cutoutCanvasRef.current;
       if (!cv) return;
       const cap = 1600;
@@ -3167,8 +3638,21 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         toast.error("Could not apply");
         return;
       }
-      setProcessedUrl(URL.createObjectURL(blob));
-      setRemoveBg(true);
+      const url = URL.createObjectURL(blob);
+      if (cutoutTarget) {
+        // Image layer: the erased PNG becomes its new src (keep the original so
+        // Remove-background can still restore it).
+        setLayers((prev) =>
+          prev.map((l) =>
+            l.id === cutoutTarget
+              ? { ...l, src: url, _origSrc: l._origSrc || l.src }
+              : l,
+          ),
+        );
+      } else {
+        setProcessedUrl(url);
+        setRemoveBg(true);
+      }
       setCutoutOpen(false);
       toast.success("Cutout updated");
     }, "image/png");
@@ -3267,7 +3751,55 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Background removal for a selected image LAYER. Removing bg replaces the
+  // layer's src with the cutout PNG and remembers the original so toggling off
+  // restores it. (Base-image bg-removal uses runBgRemoval + processedUrl.)
+  const runLayerBgRemoval = async (layer) => {
+    const orig = layer._origSrc || layer.src;
+    const tId = toast.loading("Removing background…");
+    try {
+      const { blob } = await engineRemoveBackground(orig, {});
+      const url = URL.createObjectURL(blob);
+      setLayers((prev) =>
+        prev.map((l) =>
+          l.id === layer.id
+            ? {
+                ...l,
+                src: url,
+                _origSrc: orig,
+                img: { ...IMG_DEFAULTS, ...(l.img || {}), removeBg: true },
+              }
+            : l,
+        ),
+      );
+      toast.success("Background removed!", { id: tId });
+    } catch (err) {
+      console.error("Layer background removal error:", err);
+      toast.error("Background removal failed", { id: tId });
+    }
+  };
+
   const handleRemoveBgToggle = async (val) => {
+    // Image layer: work on the layer, not the base image.
+    if (activeImageKind === "layer") {
+      const layer = selectedLayer;
+      if (val) {
+        await runLayerBgRemoval(layer);
+      } else {
+        setLayers((prev) =>
+          prev.map((l) =>
+            l.id === layer.id
+              ? {
+                  ...l,
+                  src: l._origSrc || l.src,
+                  img: { ...IMG_DEFAULTS, ...(l.img || {}), removeBg: false },
+                }
+              : l,
+          ),
+        );
+      }
+      return;
+    }
     if (val && originalUrl) {
       await runBgRemoval(originalUrl);
     } else {
@@ -3285,19 +3817,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   // Composite the image + every active edit (filters, adjust, transform, flip,
   // blur, shadow, outline) onto a canvas and return a PNG blob. Keeps the
   // cut-out transparency when "Remove background" is on.
-  // A solid-colour silhouette of an image's opaque pixels — used to paint the
-  // outline halo on export (the canvas equivalent of the preview's drop-shadow outline).
-  const makeSilhouetteCanvas = (img, w, h, color) => {
-    const c = document.createElement("canvas");
-    c.width = Math.max(1, Math.ceil(w));
-    c.height = Math.max(1, Math.ceil(h));
-    const cx = c.getContext("2d");
-    cx.drawImage(img, 0, 0, c.width, c.height);
-    cx.globalCompositeOperation = "source-in";
-    cx.fillStyle = color;
-    cx.fillRect(0, 0, c.width, c.height);
-    return c;
-  };
+  // makeSilhouetteCanvas / makeFloorShadowSprite / makeReflectionSprite now live
+  // at module scope (shared with the per-layer sprite pipeline).
 
   const renderToCanvas = async (format = "png") => {
     const img = await new Promise((resolve, reject) => {
@@ -3375,6 +3896,50 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     return await new Promise((resolve) => canvas.toBlob(resolve, mime, 0.92));
   };
 
+  // Draw an image layer's floor-shadow + reflection sprites (export), mirroring
+  // the base image's sprite draw. Positioned in canvas (preview-px × sc) space.
+  const drawLayerSprites = async (ctx, layer, sc) => {
+    const p = { ...IMG_DEFAULTS, ...(layer.img || {}) };
+    const needsFloor = layerNeedsFloor(p);
+    const needsRefl = layerNeedsRefl(p);
+    if (!needsFloor && !needsRefl) return;
+    const rSrc = layerNeedsBake(p)
+      ? await computeRenderSrc(layer.src, p)
+      : layer.src;
+    const im = await loadImageEl(rSrc);
+    const left0 = layer.x - layer.w / 2;
+    const top0 = layer.y - layer.h / 2;
+    if (needsFloor) {
+      const sprite = makeFloorShadowSprite(im, layer.w, layer.h, p);
+      const sh = await loadImageEl(sprite.url);
+      ctx.save();
+      ctx.globalAlpha = p.shadowOpacity / 100;
+      ctx.drawImage(
+        sh,
+        (left0 - sprite.pad + p.shadowX) * sc,
+        (top0 + layer.h - sprite.pad + p.shadowY) * sc,
+        sprite.spriteW * sc,
+        sprite.spriteH * sc,
+      );
+      ctx.restore();
+    }
+    if (needsRefl) {
+      const sprite = makeReflectionSprite(im, layer.w, layer.h);
+      const rf = await loadImageEl(sprite.url);
+      const left = (left0 + p.reflectionX) * sc;
+      const top = (top0 + sprite.topFrac * layer.h + p.reflectionGap) * sc;
+      const rw = layer.w * sc,
+        rh = sprite.heightFrac * layer.h * sc;
+      ctx.save();
+      ctx.globalAlpha = p.reflectionOpacity / 100;
+      ctx.translate(left + rw / 2, top);
+      ctx.scale(p.flipH ? -1 : 1, 1);
+      ctx.rotate(((-(layer.rotation || 0) + p.reflectionAngle) * Math.PI) / 180);
+      ctx.drawImage(rf, -rw / 2, 0, rw, rh);
+      ctx.restore();
+    }
+  };
+
   // Draw a single overlay layer onto a canvas context (export). `sc` = export scale.
   const drawLayer = async (ctx, layer, sc) => {
     ctx.save();
@@ -3383,8 +3948,46 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     const w = layer.w * sc,
       h = layer.h * sc;
     if (layer.type === "image") {
-      const im = await loadImageEl(layer.src);
-      ctx.drawImage(im, -w / 2, -h / 2, w, h);
+      // Match the base image's export path: bake pixel effects, then apply the
+      // CSS-equivalent effects on the canvas (flip, scale, drop shadow, outline,
+      // filter preset, opacity, blend). Rotation is already applied on ctx above.
+      const li = { ...IMG_DEFAULTS, ...(layer.img || {}) };
+      const rSrc = layerNeedsBake(li)
+        ? await computeRenderSrc(layer.src, li)
+        : layer.src;
+      const im = await loadImageEl(rSrc);
+      const s = (li.scale ?? 100) / 100;
+      ctx.scale(li.flipH ? -1 : 1, li.flipV ? -1 : 1);
+      const dw = w * s,
+        dh = h * s;
+      // Soft drop shadow (silhouette-following), like the base image.
+      if (li.toggles?.shadows && li.shadowMode === "drop") {
+        ctx.save();
+        ctx.shadowColor = hexToRgba(li.shadowColor, li.shadowOpacity / 100);
+        ctx.shadowBlur = li.shadowBlur * 2 * sc;
+        ctx.shadowOffsetX = li.shadowX * sc;
+        ctx.shadowOffsetY = li.shadowY * sc;
+        ctx.drawImage(im, -dw / 2, -dh / 2, dw, dh);
+        ctx.restore();
+      }
+      // Outline halo hugging the cut-out.
+      if (li.toggles?.outline) {
+        const sil = makeSilhouetteCanvas(im, dw, dh, li.outlineColor);
+        const r = li.outlineWidth * sc;
+        ctx.save();
+        if (li.outlineBlur > 0) ctx.filter = `blur(${li.outlineBlur * sc}px)`;
+        for (const [dx, dy] of OUTLINE_DIRS)
+          ctx.drawImage(sil, -dw / 2 + dx * r, -dh / 2 + dy * r, dw, dh);
+        ctx.restore();
+      }
+      ctx.filter =
+        (li.toggles?.filter ? filterCss(li.selectedFilter) : "") || "none";
+      ctx.globalAlpha = (li.adjOpacity ?? 100) / 100;
+      ctx.globalCompositeOperation =
+        li.blendMode === "normal" ? "source-over" : li.blendMode;
+      ctx.drawImage(im, -dw / 2, -dh / 2, dw, dh);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
     } else if (layer.type === "emoji") {
       ctx.font = `${h * 0.78}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
       ctx.textAlign = "center";
@@ -3683,7 +4286,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
     for (const layer of layers) {
       if (layer.hidden) continue;
-      // eslint-disable-next-line no-await-in-loop
+      // Floor/reflection sprites sit behind their image layer (canvas space).
+      if (layer.type === "image") await drawLayerSprites(ctx, layer, sc);
       await drawLayer(ctx, layer, sc);
     }
     if (canvasRound) ctx.restore();
@@ -3906,6 +4510,26 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                 </div>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
+                  {/* Move Shadow / Move Reflection: drag layer over the canvas
+                      that nudges the active image's shadow offset or reflection
+                      aspect (Shadows → Move / Reflection → Move). */}
+                  {(moveShadow.open || moveReflection.open) &&
+                    displayImage &&
+                    !imgHidden && (
+                      <div
+                        onPointerDown={
+                          moveReflection.open ? onReflMoveDown : onShadowMoveDown
+                        }
+                        onPointerMove={
+                          moveReflection.open ? onReflMoveMove : onShadowMoveMove
+                        }
+                        onPointerUp={
+                          moveReflection.open ? onReflMoveUp : onShadowMoveUp
+                        }
+                        className="absolute inset-0 z-[30]"
+                        style={{ cursor: "move", touchAction: "none" }}
+                      />
+                    )}
                   {/* Floor / cast shadow (sits behind the product) */}
                   {!processing &&
                     displayImage &&
@@ -4102,12 +4726,32 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                 if (layer.hidden) return null;
                 const isSel = layer.id === selectedLayerId;
                 const isText = layer.type === "text";
+                const isImage = layer.type === "image";
                 const isEditing = layer.id === editingLayerId;
+                // Per-image-layer sprites (floor shadow / reflection), the same
+                // way the base image renders them — positioned in canvas space.
+                const li = isImage
+                  ? { ...IMG_DEFAULTS, ...(layer.img || {}) }
+                  : null;
+                const floorSprite = isImage ? layerFloorFor(layer) : null;
+                const reflSprite = isImage ? layerReflectionFor(layer) : null;
                 const textStyle = {
                   color: layer.color,
                   fontWeight: layer.fontWeight,
                   fontSize: layer.fontSize,
-                  lineHeight: 1.15,
+                  lineHeight: layer.lineHeight ?? 1.15,
+                  letterSpacing:
+                    layer.letterSpacing != null
+                      ? `${layer.letterSpacing}px`
+                      : undefined,
+                  whiteSpace:
+                    layer.autoWidth || layer.wrap === false
+                      ? "nowrap"
+                      : "pre-wrap",
+                  transform:
+                    layer.flipH || layer.flipV
+                      ? `scaleX(${layer.flipH ? -1 : 1}) scaleY(${layer.flipV ? -1 : 1})`
+                      : undefined,
                   textAlign: layer.align,
                   fontFamily: layer.fontFamily
                     ? `'${layer.fontFamily}', 'DM Sans', sans-serif`
@@ -4130,14 +4774,59 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                     : {}),
                 };
                 return (
+                  <Fragment key={layer.id}>
+                  {floorSprite && (
+                    <img
+                      src={floorSprite.url}
+                      alt=""
+                      draggable={false}
+                      style={{
+                        position: "absolute",
+                        left:
+                          layer.x - layer.w / 2 - floorSprite.pad + li.shadowX,
+                        top:
+                          layer.y + layer.h / 2 - floorSprite.pad + li.shadowY,
+                        width: floorSprite.spriteW,
+                        height: floorSprite.spriteH,
+                        opacity: li.shadowOpacity / 100,
+                        pointerEvents: "none",
+                        zIndex: 4,
+                      }}
+                    />
+                  )}
+                  {reflSprite && (
+                    <img
+                      src={reflSprite.url}
+                      alt=""
+                      draggable={false}
+                      style={{
+                        position: "absolute",
+                        left: layer.x - layer.w / 2 + li.reflectionX,
+                        top:
+                          layer.y -
+                          layer.h / 2 +
+                          reflSprite.topFrac * layer.h +
+                          li.reflectionGap,
+                        width: layer.w,
+                        height: reflSprite.heightFrac * layer.h,
+                        opacity: li.reflectionOpacity / 100,
+                        transform: `scaleX(${li.flipH ? -1 : 1}) rotate(${-(layer.rotation || 0) + li.reflectionAngle}deg)`,
+                        transformOrigin: "top center",
+                        pointerEvents: "none",
+                        zIndex: 4,
+                      }}
+                    />
+                  )}
                   <div
-                    key={layer.id}
                     onPointerDown={(e) => onLayerPointerDown(e, layer)}
                     onPointerMove={onLayerPointerMove}
                     onPointerUp={onLayerPointerUp}
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedLayerId(layer.id);
+                      // Clicking an image layer closes whatever tool panel is
+                      // open (e.g. Insert) so its Image panel shows immediately.
+                      if (isImage) setActiveTool(null);
                     }}
                     onDoubleClick={
                       isText
@@ -4189,6 +4878,50 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                           className="w-full h-full outline-none whitespace-pre-wrap -break-words overflow-hidden cursor-text"
                           style={textStyle}
                         />
+                      ) : layer.curve ? (
+                        (() => {
+                          // Curved text: lay the string along a quadratic arc.
+                          const w = layer.w;
+                          const h = layer.h;
+                          const bend = (layer.curve / 100) * (h * 0.9);
+                          const baseY = layer.curve >= 0 ? h * 0.72 : h * 0.28;
+                          const pid = `curve-${layer.id}`;
+                          return (
+                            <svg
+                              width={w}
+                              height={h}
+                              viewBox={`0 0 ${w} ${h}`}
+                              className="w-full h-full overflow-visible pointer-events-none"
+                            >
+                              <defs>
+                                <path
+                                  id={pid}
+                                  d={`M 0 ${baseY} Q ${w / 2} ${baseY - bend} ${w} ${baseY}`}
+                                  fill="none"
+                                />
+                              </defs>
+                              <text
+                                fill={layer.color}
+                                fontWeight={layer.fontWeight}
+                                fontSize={layer.fontSize}
+                                letterSpacing={layer.letterSpacing ?? 0}
+                                style={{
+                                  fontFamily: layer.fontFamily
+                                    ? `'${layer.fontFamily}', 'DM Sans', sans-serif`
+                                    : undefined,
+                                }}
+                              >
+                                <textPath
+                                  href={`#${pid}`}
+                                  startOffset="50%"
+                                  textAnchor="middle"
+                                >
+                                  {layer.text}
+                                </textPath>
+                              </text>
+                            </svg>
+                          );
+                        })()
                       ) : (
                         <div
                           className="w-full h-full whitespace-pre-wrap wrap-break-word overflow-hidden pointer-events-none"
@@ -4197,15 +4930,49 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                           {layer.text}
                         </div>
                       )
+                    ) : layer.type === "image" ? (
+                      // Image layers render through the same pipeline as the base
+                      // image: pixel-level effects (full Adjust, blur, texture,
+                      // tile/perspective) are baked into the src, and the CSS
+                      // ones (filter preset, outline, drop shadow, blend, opacity,
+                      // flip, scale) are applied on top. Rotation stays on the
+                      // container above (with the selection handles).
+                      (() => {
+                        const li = { ...IMG_DEFAULTS, ...(layer.img || {}) };
+                        return (
+                          <img
+                            src={proxiedSrc(bakedSrcFor(layer))}
+                            draggable={false}
+                            alt=""
+                            className="w-full h-full object-contain pointer-events-none"
+                            style={{
+                              filter: buildImageFilter(li, { bakeAdjust: true }),
+                              transform: buildImageTransform(li, {
+                                includeRotate: false,
+                                includeScale: true,
+                              }),
+                              opacity: (li.adjOpacity ?? 100) / 100,
+                              mixBlendMode:
+                                li.blendMode === "normal"
+                                  ? undefined
+                                  : li.blendMode,
+                            }}
+                          />
+                        );
+                      })()
                     ) : (
                       <VisualSVG spec={layer} />
                     )}
                     {isSel && (
                       <>
-                        <div
-                          className="absolute -top-10 left-0 flex items-center gap-1 bg-surface rounded-lg shadow px-1.5 py-1 whitespace-nowrap"
-                          onPointerDown={(e) => e.stopPropagation()}
-                        >
+                        {/* Image AND text layers use the shared floating
+                            ImageToolbar (edit/delete/⋯); hide this inline strip
+                            for them — keep it for emoji/shape. */}
+                        {!isImage && !isText && (
+                          <div
+                            className="absolute -top-10 left-0 flex items-center gap-1 bg-surface rounded-lg shadow px-1.5 py-1 whitespace-nowrap"
+                            onPointerDown={(e) => e.stopPropagation()}
+                          >
                           {isText && (
                             <>
                               <button
@@ -4317,7 +5084,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        </div>
+                          </div>
+                        )}
                         {!isEditing &&
                           HANDLES.map((k) => (
                             <div
@@ -4348,25 +5116,63 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                       </>
                     )}
                   </div>
+                  </Fragment>
                 );
               })}
             </div>
               {/* Selection toolbar — rendered OUTSIDE the clipped canvas box so it
-                  stays visible even when the image fills/overflows the corners. */}
-              {selected && displayImage && imgW != null && imgH != null && (
-                <ImageToolbar
-                  style={{
-                    left: canvasSize.w / 2 + posX - imgW / 2,
-                    top: canvasSize.h / 2 + posY - imgH / 2 - 48,
-                  }}
-                  onDelete={handleDeleteImage}
-                  onDuplicate={() => toast("Duplicate — coming soon")}
-                  onLayersOrder={() => setActiveTool("layers")}
-                  onReplace={() => fileInputRef.current?.click()}
-                  onEditCutout={openCutout}
-                  onRetouch={() => toast("Retouch — coming soon")}
-                />
-              )}
+                  stays visible even when the image fills/overflows the corners.
+                  Shown for the base image AND any selected image layer, wired to
+                  whichever is active. */}
+              {activeImageKind &&
+                (() => {
+                  const g = activeImgGeom();
+                  if (g.w == null || g.h == null) return null;
+                  const isLayer = activeImageKind === "layer";
+                  return (
+                    <ImageToolbar
+                      style={{ left: g.left, top: g.top - 48 }}
+                      onDelete={
+                        isLayer
+                          ? () => deleteLayer(selectedLayer.id)
+                          : handleDeleteImage
+                      }
+                      onDuplicate={
+                        isLayer
+                          ? () => duplicateLayer(selectedLayer.id)
+                          : () => toast("Duplicate — coming soon")
+                      }
+                      onLayersOrder={() => setActiveTool("layers")}
+                      onReplace={
+                        isLayer
+                          ? () => {
+                              layerReplaceRef.current?.click();
+                            }
+                          : () => fileInputRef.current?.click()
+                      }
+                      onEditCutout={openCutout}
+                      onRetouch={() => toast("Retouch — coming soon")}
+                      hiddenItems={isLayer ? ["retouch"] : []}
+                    />
+                  );
+                })()}
+              {/* Text layers get the same floating toolbar (Edit / Delete / ⋯),
+                  hidden while the text is being edited inline. */}
+              {selectedLayer?.type === "text" &&
+                editingLayerId !== selectedLayer.id &&
+                (() => {
+                  const l = selectedLayer;
+                  return (
+                    <ImageToolbar
+                      style={{ left: l.x - l.w / 2, top: l.y - l.h / 2 - 48 }}
+                      onEdit={() => setEditingLayerId(l.id)}
+                      onDelete={() => deleteLayer(l.id)}
+                      onDuplicate={() => duplicateLayer(l.id)}
+                      onLayersOrder={() => setActiveTool("layers")}
+                      hiddenItems={["replace", "cutout", "retouch"]}
+                    />
+                  );
+                })()}
             </div>
 
             <input
@@ -4382,6 +5188,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
               accept="image/*"
               className="hidden"
               onChange={handleInsertFile}
+            />
+            <input
+              ref={layerReplaceRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleLayerReplace}
             />
 
             {/* AI prompt */}
@@ -4852,9 +5665,14 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   </div>
                 )}
               </div>
-            ) : !activeTool && !selected ? (
+            ) : !activeTool &&
+              !selected &&
+              activeImageKind !== "layer" &&
+              selectedLayer?.type !== "text" ? (
               // Background context (clicked the background / no image selected):
               // offer the three ways to fill it (matches Photoroom's panel).
+              // A selected image LAYER or text layer skips this and falls through
+              // to its own panel below.
               <div className="flex flex-col max-h-full">
                 <div className="flex items-center gap-3 px-4 py-4">
                   <span
@@ -5593,847 +6411,73 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   })}
                 </div>
               </div>
+            ) : selectedLayer?.type === "text" ? (
+              // The Text panel — shown whenever a text layer is selected.
+              <TextPanel
+                selectedLayer={selectedLayer}
+                selectedLayerId={selectedLayerId}
+                updateLayer={updateLayer}
+                handleSave={handleSave}
+                saving={saving}
+                fonts={BRAND_FONTS}
+                loadWebFont={loadWebFont}
+                textStyles={TEXT_STYLES}
+                applyTextStyle={applyTextStyle}
+                canvasSize={canvasSize}
+                reorderLayer={reorderLayer}
+                duplicateLayer={duplicateLayer}
+                deleteLayer={deleteLayer}
+              />
             ) : (
-              <>
-                <div className="p-4 border-b border-gray-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      {originalUrl && (
-                        <img
-                          src={originalUrl}
-                          alt=""
-                          className="w-8 h-8 rounded object-cover"
-                        />
-                      )}
-                      <span className="font-semibold text-sm text-gray-900">
-                        {originalUrl ? "Image" : "No image"}
-                      </span>
-                    </div>
-                    <button
-                      onClick={handleSave}
-                      disabled={!displayImage || saving}
-                      className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-40 cursor-pointer"
-                    >
-                      {saving && (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      )}
-                      {saving ? "Saving…" : "Save"}
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-1 mb-3">
-                    <button
-                      className="flex flex-col items-center gap-1 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-500 transition-colors"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Undo className="w-4 h-4" /> Replace
-                    </button>
-                    <button
-                      className="flex flex-col items-center gap-1 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-500 transition-colors disabled:opacity-40"
-                      disabled={!displayImage || applyingAi}
-                      onClick={() => handleRetouchRelight("retouch")}
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      {applyingAi ? "..." : "Retouch"}
-                    </button>
-                    <button
-                      className="flex flex-col items-center gap-1 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-500 transition-colors disabled:opacity-40"
-                      disabled={!displayImage || applyingAi}
-                      onClick={() => handleRetouchRelight("light")}
-                    >
-                      <Sun className="w-4 h-4" /> Light On
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-gray-500 mb-2">Align to canvas</p>
-                  <div className="grid grid-cols-2 gap-1 mb-4">
-                    <button
-                      onClick={() => setPosX(0)}
-                      disabled={!displayImage}
-                      className="flex items-center justify-center gap-1.5 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-500 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <AlignCenter className="w-3.5 h-3.5" /> Center
-                    </button>
-                    <button
-                      onClick={() => setPosY(0)}
-                      disabled={!displayImage}
-                      className="flex items-center justify-center gap-1.5 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-500 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <AlignVerticalJustifyCenter className="w-3.5 h-3.5" />{" "}
-                      Middle
-                    </button>
-                  </div>
-
-                  {/* Remove background */}
-                  <div className="flex items-center justify-between py-2.5 border-t border-gray-200">
-                    <div className="flex items-center gap-2 text-sm text-gray-900">
-                      <Scissors className="w-4 h-4 text-gray-500" />
-                      Remove background
-                    </div>
-                    <div
-                      className="flex items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Toggle
-                        enabled={removeBg}
-                        onChange={handleRemoveBgToggle}
-                      />
-                      <ChevronRight className="w-4 h-4 text-gray-500" />
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={openCutout}
-                    disabled={!displayImage}
-                    className="w-full flex items-center justify-center gap-2 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:border-blue-400 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Pencil className="w-3.5 h-3.5" /> Edit Cutout
-                  </button>
-                </div>
-
-                {/* Expandable panels */}
-                <div className="flex-1 px-2 py-2">
-                  {/* Shadows */}
-                  <div className="rounded-lg overflow-hidden mb-0.5">
-                    <div
-                      onClick={() => togglePanel("shadows")}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      <span className="text-sm text-gray-900">Shadows</span>
-                      <div className="flex items-center gap-1.5">
-                        <Toggle
-                          enabled={toggles.shadows}
-                          onChange={(val) =>
-                            setToggles((p) => ({ ...p, shadows: val }))
-                          }
-                        />
-                        <ChevronRight
-                          className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === "shadows" ? "rotate-90" : ""}`}
-                        />
-                      </div>
-                    </div>
-                    {expandedPanel === "shadows" && toggles.shadows && (
-                      <div className="px-3 pb-3 bg-gray-100 space-y-1">
-                        {/* Mode: drop vs. floor/cast */}
-                        <div className="flex gap-2 pt-1 pb-1">
-                          {[
-                            { id: "drop", label: "Drop" },
-                            { id: "floor", label: "Floor" },
-                          ].map((m) => (
-                            <button
-                              key={m.id}
-                              onClick={() => setShadowMode(m.id)}
-                              className={`flex-1 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
-                                shadowMode === m.id
-                                  ? "border-blue-500 text-blue-600 bg-blue-50"
-                                  : "border-gray-200 text-gray-600 hover:border-blue-400"
-                              }`}
-                            >
-                              {m.label} shadow
-                            </button>
-                          ))}
-                        </div>
-
-                        <Slider
-                          label="Blur"
-                          value={shadowBlur}
-                          min={0}
-                          max={50}
-                          onChange={setShadowBlur}
-                          unit="px"
-                        />
-                        <Slider
-                          label="Intensity"
-                          value={shadowOpacity}
-                          min={0}
-                          max={100}
-                          onChange={setShadowOpacity}
-                          unit="%"
-                        />
-
-                        {shadowMode === "drop" ? (
-                          <>
-                            <Slider
-                              label="Offset X"
-                              value={shadowX}
-                              min={-60}
-                              max={60}
-                              onChange={setShadowX}
-                              unit="px"
-                            />
-                            <Slider
-                              label="Offset Y"
-                              value={shadowY}
-                              min={-60}
-                              max={60}
-                              onChange={setShadowY}
-                              unit="px"
-                            />
-                          </>
-                        ) : (
-                          <>
-                            <Slider
-                              label="Horizontal"
-                              value={shadowX}
-                              min={-60}
-                              max={60}
-                              onChange={setShadowX}
-                              unit="px"
-                            />
-                            <Slider
-                              label="Shortness"
-                              value={shadowShortness}
-                              min={0}
-                              max={100}
-                              onChange={setShadowShortness}
-                              unit="%"
-                            />
-                          </>
-                        )}
-
-                        {/* Colour */}
-                        <div className="pt-1">
-                          <p className="text-xs text-gray-500 mb-1.5">Color</p>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {SHADOW_SWATCHES.map((c) => (
-                              <button
-                                key={c}
-                                onClick={() => setShadowColor(c)}
-                                title={c}
-                                className="w-6 h-6 rounded-full border border-gray-300 cursor-pointer"
-                                style={{
-                                  background: c,
-                                  outline:
-                                    shadowColor.toLowerCase() === c
-                                      ? "2px solid #3b82f6"
-                                      : "none",
-                                  outlineOffset: 1,
-                                }}
-                              />
-                            ))}
-                            <label
-                              className="w-6 h-6 rounded-full border border-gray-300 cursor-pointer relative overflow-hidden"
-                              title="Custom color"
-                              style={{
-                                background:
-                                  "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)",
-                              }}
-                            >
-                              <input
-                                type="color"
-                                value={shadowColor}
-                                onChange={(e) => setShadowColor(e.target.value)}
-                                className="absolute inset-0 opacity-0 cursor-pointer"
-                              />
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Outline */}
-                  <div className="rounded-lg overflow-hidden mb-0.5">
-                    <div
-                      onClick={() => togglePanel("outline")}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      <span className="text-sm text-gray-900">Outline</span>
-                      <div className="flex items-center gap-1.5">
-                        <Toggle
-                          enabled={toggles.outline}
-                          onChange={(val) =>
-                            setToggles((p) => ({ ...p, outline: val }))
-                          }
-                        />
-                        <ChevronRight
-                          className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === "outline" ? "rotate-90" : ""}`}
-                        />
-                      </div>
-                    </div>
-                    {expandedPanel === "outline" && toggles.outline && (
-                      <div className="px-3 pb-3 bg-gray-100 space-y-1">
-                        <Slider
-                          label="Width"
-                          value={outlineWidth}
-                          min={1}
-                          max={30}
-                          onChange={setOutlineWidth}
-                          unit="px"
-                        />
-                        <Slider
-                          label="Blur"
-                          value={outlineBlur}
-                          min={0}
-                          max={30}
-                          onChange={setOutlineBlur}
-                          unit="px"
-                        />
-                        {/* Colour */}
-                        <div className="pt-1">
-                          <p className="text-xs text-gray-500 mb-1.5">Color</p>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {[
-                              "#7c3aed",
-                              "#ffffff",
-                              "#000000",
-                              "#ef4444",
-                              "#3b82f6",
-                              "#22c55e",
-                            ].map((c) => (
-                              <button
-                                key={c}
-                                onClick={() => setOutlineColor(c)}
-                                title={c}
-                                className="w-6 h-6 rounded-full border border-gray-300 cursor-pointer"
-                                style={{
-                                  background: c,
-                                  outline:
-                                    outlineColor.toLowerCase() === c
-                                      ? "2px solid #3b82f6"
-                                      : "none",
-                                  outlineOffset: 1,
-                                }}
-                              />
-                            ))}
-                            <label
-                              className="w-6 h-6 rounded-full border border-gray-300 cursor-pointer relative overflow-hidden"
-                              title="Custom color"
-                              style={{
-                                background:
-                                  "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)",
-                              }}
-                            >
-                              <input
-                                type="color"
-                                value={outlineColor}
-                                onChange={(e) =>
-                                  setOutlineColor(e.target.value)
-                                }
-                                className="absolute inset-0 opacity-0 cursor-pointer"
-                              />
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Reflection */}
-                  <div className="rounded-lg overflow-hidden mb-0.5">
-                    <div
-                      onClick={() => togglePanel("reflection")}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      <span className="text-sm text-gray-900">Reflection</span>
-                      <div className="flex items-center gap-1.5">
-                        <Toggle
-                          enabled={toggles.reflection}
-                          onChange={(val) =>
-                            setToggles((p) => ({ ...p, reflection: val }))
-                          }
-                        />
-                        <ChevronRight
-                          className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === "reflection" ? "rotate-90" : ""}`}
-                        />
-                      </div>
-                    </div>
-                    {expandedPanel === "reflection" && toggles.reflection && (
-                      <div className="px-3 pb-3 bg-gray-100 space-y-1">
-                        <Slider
-                          label="Opacity"
-                          value={reflectionOpacity}
-                          min={0}
-                          max={100}
-                          onChange={setReflectionOpacity}
-                          unit="%"
-                        />
-                        <Slider
-                          label="Gap"
-                          value={reflectionGap}
-                          min={-40}
-                          max={60}
-                          onChange={setReflectionGap}
-                          unit="px"
-                        />
-                        <Slider
-                          label="Offset X"
-                          value={reflectionX}
-                          min={-60}
-                          max={60}
-                          onChange={setReflectionX}
-                          unit="px"
-                        />
-                        <Slider
-                          label="Angle"
-                          value={reflectionAngle}
-                          min={-45}
-                          max={45}
-                          onChange={setReflectionAngle}
-                          unit="°"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Adjust */}
-                  <div className="rounded-lg overflow-hidden mb-0.5">
-                    <button
-                      onClick={() => togglePanel("adjust")}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors"
-                    >
-                      <span className="text-sm text-gray-900">Adjust</span>
-                      <ChevronRight
-                        className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === "adjust" ? "rotate-90" : ""}`}
-                      />
-                    </button>
-                    {expandedPanel === "adjust" && (
-                      <div className="px-3 pb-3 bg-gray-100">
-                        <Slider
-                          label="Brightness"
-                          value={brightness}
-                          min={-100}
-                          max={100}
-                          onChange={setBrightness}
-                        />
-                        <Slider
-                          label="Contrast"
-                          value={contrast}
-                          min={-100}
-                          max={100}
-                          onChange={setContrast}
-                        />
-                        <Slider
-                          label="Saturation"
-                          value={saturation}
-                          min={-100}
-                          max={100}
-                          onChange={setSaturation}
-                        />
-                        <Slider
-                          label="Highlights"
-                          value={highlights}
-                          min={-100}
-                          max={100}
-                          onChange={setHighlights}
-                        />
-                        <Slider
-                          label="Shadows"
-                          value={shadowsAdj}
-                          min={-100}
-                          max={100}
-                          onChange={setShadowsAdj}
-                        />
-                        <Slider
-                          label="Sharpen"
-                          value={sharpen}
-                          min={0}
-                          max={100}
-                          onChange={setSharpen}
-                        />
-                        <Slider
-                          label="Hue"
-                          value={hue}
-                          min={-180}
-                          max={180}
-                          onChange={setHue}
-                          unit="°"
-                        />
-                        <Slider
-                          label="Warmth"
-                          value={warmth}
-                          min={-100}
-                          max={100}
-                          onChange={setWarmth}
-                        />
-                        <Slider
-                          label="Opacity"
-                          value={adjOpacity}
-                          min={0}
-                          max={100}
-                          onChange={setAdjOpacity}
-                          unit="%"
-                        />
-                        <button
-                          onClick={() => {
-                            setBrightness(0);
-                            setContrast(0);
-                            setSaturation(0);
-                            setHighlights(0);
-                            setShadowsAdj(0);
-                            setSharpen(0);
-                            setHue(0);
-                            setWarmth(0);
-                            setAdjOpacity(100);
-                          }}
-                          className="mt-2 text-xs text-blue-600 hover:text-blue-700"
-                        >
-                          Reset adjustments
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Blend */}
-                  <div className="rounded-lg overflow-hidden mb-0.5">
-                    <button
-                      onClick={() => togglePanel("blend")}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors"
-                    >
-                      <span className="text-sm text-gray-900">Blend</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-gray-500 capitalize">
-                          {blendMode.replace("-", " ")}
-                        </span>
-                        <ChevronRight
-                          className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === "blend" ? "rotate-90" : ""}`}
-                        />
-                      </div>
-                    </button>
-                    {expandedPanel === "blend" && (
-                      <div className="px-2 pb-2 bg-gray-100">
-                        {BLEND_MODES.map((m) => (
-                          <button
-                            key={m}
-                            onClick={() => setBlendMode(m)}
-                            className={`w-full text-left px-3 py-1.5 rounded-md text-sm capitalize cursor-pointer transition-colors ${blendMode === m ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-700 hover:bg-gray-200"}`}
-                          >
-                            {m.replace("-", " ")}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Transform */}
-                  <div className="rounded-lg overflow-hidden mb-0.5">
-                    <button
-                      onClick={() => togglePanel("transform")}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors"
-                    >
-                      <span className="text-sm text-gray-900">Transform</span>
-                      <ChevronRight
-                        className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === "transform" ? "rotate-90" : ""}`}
-                      />
-                    </button>
-                    {expandedPanel === "transform" && (
-                      <div className="px-3 pb-3 bg-gray-100">
-                        <Slider
-                          label="Rotation"
-                          value={rotation}
-                          min={-180}
-                          max={180}
-                          onChange={setRotation}
-                          unit="°"
-                        />
-                        <Slider
-                          label="Scale"
-                          value={scale}
-                          min={20}
-                          max={200}
-                          onChange={setBaseScale}
-                          unit="%"
-                        />
-                        <Slider
-                          label="Tile"
-                          value={tile}
-                          min={1}
-                          max={8}
-                          onChange={setTile}
-                          unit="×"
-                        />
-                        <Slider
-                          label="Horizontal Perspective"
-                          value={hPersp}
-                          min={-100}
-                          max={100}
-                          onChange={setHPersp}
-                        />
-                        <Slider
-                          label="Vertical Perspective"
-                          value={vPersp}
-                          min={-100}
-                          max={100}
-                          onChange={setVPersp}
-                        />
-                        <button
-                          onClick={() => setFlipH((f) => !f)}
-                          className="mt-2 flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700"
-                        >
-                          <FlipHorizontal className="w-3.5 h-3.5" /> Flip
-                          horizontal
-                        </button>
-                        <button
-                          onClick={() => {
-                            setRotation(0);
-                            setBaseScale(100);
-                            setFlipH(false);
-                            setFlipV(false);
-                            setTile(1);
-                            setHPersp(0);
-                            setVPersp(0);
-                          }}
-                          className="mt-1 text-xs text-gray-500 hover:text-gray-500"
-                        >
-                          Reset transform
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Position */}
-                  <div className="rounded-lg overflow-hidden mb-0.5">
-                    <button
-                      onClick={() => togglePanel("position")}
-                      disabled={!displayImage}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors disabled:opacity-40"
-                    >
-                      <span className="text-sm text-gray-900">Position</span>
-                      <ChevronRight
-                        className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === "position" ? "rotate-90" : ""}`}
-                      />
-                    </button>
-                    {expandedPanel === "position" &&
-                      displayImage &&
-                      imgW != null &&
-                      imgH != null && (
-                        <div className="px-3 pb-3 bg-gray-100 space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <PosField
-                              label="X"
-                              value={Math.round(posX)}
-                              onChange={(v) => setPosX(v)}
-                            />
-                            <PosField
-                              label="Y"
-                              value={Math.round(posY)}
-                              onChange={(v) => setPosY(v)}
-                            />
-                            <PosField
-                              label="Width"
-                              value={Math.round(imgW)}
-                              min={10}
-                              onChange={(v) => setImgW(Math.max(10, v))}
-                            />
-                            <PosField
-                              label="Height"
-                              value={Math.round(imgH)}
-                              min={10}
-                              onChange={(v) => setImgH(Math.max(10, v))}
-                            />
-                            <PosField
-                              label="Angle"
-                              value={Math.round(rotation)}
-                              onChange={(v) => setRotation(v)}
-                              unit="°"
-                            />
-                          </div>
-                          <div className="grid grid-cols-3 gap-2 pt-1">
-                            <button
-                              onClick={() => {
-                                setPosX(0);
-                                setPosY(0);
-                              }}
-                              title="Center"
-                              className="flex items-center justify-center gap-1.5 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-600 cursor-pointer"
-                            >
-                              <AlignCenter className="w-3.5 h-3.5" /> Center
-                            </button>
-                            <button
-                              onClick={() => setFlipH((f) => !f)}
-                              title="Flip horizontal"
-                              className={`flex items-center justify-center gap-1.5 py-2 border rounded-lg text-xs cursor-pointer ${flipH ? "border-blue-500 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-600 hover:border-blue-400"}`}
-                            >
-                              <FlipHorizontal className="w-3.5 h-3.5" /> Flip H
-                            </button>
-                            <button
-                              onClick={() => setFlipV((f) => !f)}
-                              title="Flip vertical"
-                              className={`flex items-center justify-center gap-1.5 py-2 border rounded-lg text-xs cursor-pointer ${flipV ? "border-blue-500 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-600 hover:border-blue-400"}`}
-                            >
-                              <FlipVertical className="w-3.5 h-3.5" /> Flip V
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                  </div>
-
-                  {/* Blur */}
-                  <div className="rounded-lg overflow-hidden mb-0.5">
-                    <div
-                      onClick={() => togglePanel("blur")}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      <span className="text-sm text-gray-900">Blur</span>
-                      <div className="flex items-center gap-1.5">
-                        <Toggle
-                          enabled={toggles.blur}
-                          onChange={(val) =>
-                            setToggles((p) => ({ ...p, blur: val }))
-                          }
-                        />
-                        <ChevronRight
-                          className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === "blur" ? "rotate-90" : ""}`}
-                        />
-                      </div>
-                    </div>
-                    {expandedPanel === "blur" && toggles.blur && (
-                      <div className="px-3 pb-3 bg-gray-100 space-y-2">
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {[
-                            { id: "bokeh", label: "Bokeh" },
-                            { id: "gaussian", label: "Gaussian" },
-                            { id: "motion", label: "Motion" },
-                            { id: "pixelate", label: "Pixelate" },
-                            { id: "square", label: "Square px" },
-                            { id: "box", label: "Box" },
-                            { id: "disc", label: "Disc" },
-                          ].map((b) => (
-                            <button
-                              key={b.id}
-                              onClick={() => setBlurType(b.id)}
-                              className={`py-2 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${blurType === b.id ? "border-blue-500 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-600 hover:border-blue-400"}`}
-                            >
-                              {b.label}
-                            </button>
-                          ))}
-                        </div>
-                        <Slider
-                          label="Amount"
-                          value={blurAmount}
-                          min={0}
-                          max={40}
-                          onChange={setBlurAmount}
-                          unit="px"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Filter */}
-                  <div className="rounded-lg overflow-hidden mb-0.5">
-                    <div
-                      onClick={() => togglePanel("filter")}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      <span className="text-sm text-gray-900">Filter</span>
-                      <div className="flex items-center gap-1.5">
-                        <Toggle
-                          enabled={toggles.filter}
-                          onChange={(val) => {
-                            setToggles((p) => ({ ...p, filter: val }));
-                            if (!val) setSelectedFilter("none");
-                            else if (selectedFilter === "none")
-                              setSelectedFilter("noir");
-                          }}
-                        />
-                        <ChevronRight
-                          className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === "filter" ? "rotate-90" : ""}`}
-                        />
-                      </div>
-                    </div>
-                    {expandedPanel === "filter" && toggles.filter && (
-                      <div className="px-3 pb-3 bg-gray-100">
-                        <div className="grid grid-cols-3 gap-1.5 mt-1">
-                          {FILTERS.map((f) => (
-                            <button
-                              key={f.id}
-                              onClick={() => setSelectedFilter(f.id)}
-                              className={`py-2 rounded-lg text-xs font-medium border transition-all cursor-pointer ${selectedFilter === f.id ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}
-                            >
-                              {f.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Texture */}
-                  <div className="rounded-lg overflow-hidden mb-0.5">
-                    <div
-                      onClick={() => togglePanel("texture")}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      <span className="text-sm text-gray-900">Texture</span>
-                      <div className="flex items-center gap-1.5">
-                        <Toggle
-                          enabled={toggles.texture}
-                          onChange={(val) =>
-                            setToggles((p) => ({ ...p, texture: val }))
-                          }
-                        />
-                        <ChevronRight
-                          className={`w-4 h-4 text-gray-500 transition-transform ${expandedPanel === "texture" ? "rotate-90" : ""}`}
-                        />
-                      </div>
-                    </div>
-                    {expandedPanel === "texture" && toggles.texture && (
-                      <div className="px-3 pb-3 bg-gray-100 space-y-2">
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {[
-                            { id: "posterize", label: "Posterize" },
-                            { id: "line", label: "Line" },
-                            { id: "color", label: "Color" },
-                          ].map((tx) => (
-                            <button
-                              key={tx.id}
-                              onClick={() => {
-                                setTextureType(tx.id);
-                                setTextureAmount(TEXTURE_DEFAULTS[tx.id]);
-                              }}
-                              className={`py-2 rounded-lg text-xs font-medium border cursor-pointer transition-colors ${textureType === tx.id ? "border-blue-500 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-600 hover:border-blue-400"}`}
-                            >
-                              {tx.label}
-                            </button>
-                          ))}
-                        </div>
-                        <Slider
-                          label={
-                            textureType === "posterize"
-                              ? "Posterize"
-                              : textureType === "line"
-                                ? "Line"
-                                : "Color"
-                          }
-                          value={textureAmount}
-                          min={textureType === "posterize" ? 2 : 1}
-                          max={textureType === "posterize" ? 24 : 100}
-                          onChange={setTextureAmount}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Bottom tools — act on the selected overlay layer */}
-                <div className="border-t border-gray-200 grid grid-cols-3 divide-x divide-gray-100">
-                  {[
-                    { id: "front", label: "Front", icon: "⬆" },
-                    { id: "back", label: "Back", icon: "⬇" },
-                    { id: "dup", label: "Duplicate", icon: "❐" },
-                  ].map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        if (!selectedLayerId) {
-                          toast.info("Select an inserted element first.");
-                          return;
-                        }
-                        if (t.id === "front")
-                          reorderLayer(selectedLayerId, "front");
-                        else if (t.id === "back")
-                          reorderLayer(selectedLayerId, "back");
-                        else duplicateLayer(selectedLayerId);
-                      }}
-                      className="flex flex-col items-center gap-1 py-3 hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      <span className="text-sm">{t.icon}</span>
-                      <span className="text-xs text-gray-500">{t.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
+              // The Image panel — one component shared by the base image and
+              // every inserted image layer (see ImagePanel + the activeImg adapter).
+              <ImagePanel
+                activeImg={activeImg}
+                updateActiveImg={updateActiveImg}
+                activeImageKind={activeImageKind}
+                selectedLayer={selectedLayer}
+                selectedLayerId={selectedLayerId}
+                canvasSize={canvasSize}
+                updateLayer={updateLayer}
+                reorderLayer={reorderLayer}
+                duplicateLayer={duplicateLayer}
+                base={{
+                  posX,
+                  posY,
+                  imgW,
+                  imgH,
+                  displayImage,
+                  setPosX,
+                  setPosY,
+                  setImgW,
+                  setImgH,
+                }}
+                activeSrc={activeSrc}
+                hasActiveImage={hasActiveImage}
+                alignActiveCenter={alignActiveCenter}
+                alignActiveMiddle={alignActiveMiddle}
+                handleSave={handleSave}
+                saving={saving}
+                applyingAi={applyingAi}
+                handleRetouchRelight={handleRetouchRelight}
+                removeBg={removeBg}
+                handleRemoveBgToggle={handleRemoveBgToggle}
+                openCutout={openCutout}
+                fileInputRef={fileInputRef}
+                layerReplaceRef={layerReplaceRef}
+                expandedPanel={expandedPanel}
+                togglePanel={togglePanel}
+                setExpandedPanel={setExpandedPanel}
+                moveShadow={moveShadow}
+                setMoveShadow={setMoveShadow}
+                moveReflection={moveReflection}
+                setMoveReflection={setMoveReflection}
+                onDeleteActive={() =>
+                  activeImageKind === "layer"
+                    ? deleteLayer(selectedLayer.id)
+                    : handleDeleteImage()
+                }
+              />
             )}
           </div>
         </div>

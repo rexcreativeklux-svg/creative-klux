@@ -19,6 +19,12 @@ import {
   Check,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+// Shared, read-only renderer — same one the editor (/design/[id]) uses to paint
+// and export, so previews and the exported PNG match what opens in the editor.
+import {
+  renderDesignToCanvas,
+  renderDesignToBlob,
+} from "@/(lib)/design/renderDesign";
 
 /* ─── constants ───────────────────────────────────────────────── */
 const MODES = [
@@ -214,61 +220,29 @@ function MiniDesignCanvas({ canvasData, elements, maxW = 120, maxH = 80 }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvasData) return;
-    const ctx = canvas.getContext("2d");
-    const { width, height, background } = canvasData;
-    canvas.width = width;
-    canvas.height = height;
-    ctx.fillStyle = background || "#fff";
-    ctx.fillRect(0, 0, width, height);
-    (elements || []).forEach((el) => {
-      ctx.save();
-      ctx.globalAlpha = el.opacity ?? 1;
-      if (el.rotation) {
-        const cx = el.x + (el.width || 0) / 2;
-        const cy = el.y + (el.height || 0) / 2;
-        ctx.translate(cx, cy);
-        ctx.rotate((el.rotation * Math.PI) / 180);
-        ctx.translate(-cx, -cy);
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const off = await renderDesignToCanvas({
+          canvas: canvasData,
+          elements: elements || [],
+        });
+        if (cancelled || !canvasRef.current) return;
+        const target = canvasRef.current;
+        target.width = off.width;
+        target.height = off.height;
+        const ctx = target.getContext("2d");
+        ctx.clearRect(0, 0, off.width, off.height);
+        ctx.drawImage(off, 0, 0);
+      } catch {
+        /* leave blank if rendering fails */
       }
-      if (el.type === "shape") {
-        ctx.fillStyle = el.fill || "transparent";
-        if (el.shape === "circle") {
-          const r = (el.width || 0) / 2;
-          ctx.beginPath();
-          ctx.arc(el.x + r, el.y + r, r, 0, Math.PI * 2);
-          ctx.fill();
-        } else {
-          const r = el.borderRadius || 0;
-          if (r) {
-            ctx.beginPath();
-            ctx.roundRect(el.x, el.y, el.width, el.height, r);
-            ctx.fill();
-          } else ctx.fillRect(el.x, el.y, el.width, el.height);
-        }
-      }
-      if (el.type === "text") {
-        ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 14}px sans-serif`;
-        ctx.fillStyle = el.fill || "#000";
-        ctx.textAlign = el.textAlign || "left";
-        const x = el.textAlign === "center" ? el.x + (el.width || 0) / 2 : el.x;
-        const text = el.content || el.text || "";
-        ctx.fillText(
-          text.split(" ").slice(0, 4).join(" "),
-          x,
-          el.y + (el.fontSize || 14),
-        );
-      }
-      if (el.type === "image" && el.src) {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () =>
-          canvas
-            .getContext("2d")
-            .drawImage(img, el.x, el.y, el.width, el.height);
-        img.src = el.src;
-      }
-      ctx.restore();
-    });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [canvasData, elements]);
 
   if (!canvasData) return null;
@@ -383,109 +357,43 @@ function CreativeUpload({ label, value, onChange }) {
   const handleSelectDesign = async (design) => {
     setSelectedDesignId(design.id);
 
-    // Render the design to an offscreen canvas and export as a File
-    const offscreen = document.createElement("canvas");
-    offscreen.width = design.canvas?.width || 800;
-    offscreen.height = design.canvas?.height || 450;
-    const ctx = offscreen.getContext("2d");
-
-    // Fill background
-    ctx.fillStyle = design.canvas?.background || "#ffffff";
-    ctx.fillRect(0, 0, offscreen.width, offscreen.height);
-
-    // Draw elements (same logic as MiniDesignCanvas but full size)
-    const drawElements = (elements) => {
-      (elements || []).forEach((el) => {
-        ctx.save();
-        ctx.globalAlpha = el.opacity ?? 1;
-        if (el.rotation) {
-          const cx = el.x + (el.width || 0) / 2;
-          const cy = el.y + (el.height || 0) / 2;
-          ctx.translate(cx, cy);
-          ctx.rotate((el.rotation * Math.PI) / 180);
-          ctx.translate(-cx, -cy);
-        }
-        if (el.type === "shape") {
-          ctx.fillStyle = el.fill || "transparent";
-          if (el.shape === "circle") {
-            const r = (el.width || 0) / 2;
-            ctx.beginPath();
-            ctx.arc(el.x + r, el.y + r, r, 0, Math.PI * 2);
-            ctx.fill();
-          } else {
-            const r = el.borderRadius || 0;
-            if (r) {
-              ctx.beginPath();
-              ctx.roundRect(el.x, el.y, el.width, el.height, r);
-              ctx.fill();
-            } else {
-              ctx.fillRect(el.x, el.y, el.width, el.height);
-            }
-          }
-        }
-        if (el.type === "text") {
-          ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 14}px sans-serif`;
-          ctx.fillStyle = el.fill || "#000";
-          ctx.textAlign = el.textAlign || "left";
-          const x =
-            el.textAlign === "center" ? el.x + (el.width || 0) / 2 : el.x;
-          ctx.fillText(
-            el.content || el.text || "",
-            x,
-            el.y + (el.fontSize || 14),
-          );
-        }
-        ctx.restore();
+    // Render the design to a PNG via the shared renderer so the exported/compared
+    // image matches exactly what the editor shows.
+    let blob = null;
+    try {
+      blob = await renderDesignToBlob({
+        canvas: design.canvas,
+        elements: design.elements || [],
       });
-    };
+    } catch {
+      blob = null;
+    }
 
-    // Images need to be loaded async — collect promises
-    const imagePromises = (design.elements || [])
-      .filter((el) => el.type === "image" && el.src)
-      .map(
-        (el) =>
-          new Promise((resolve) => {
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.onload = () => {
-              ctx.drawImage(img, el.x, el.y, el.width, el.height);
-              resolve();
-            };
-            img.onerror = resolve; // skip failed images
-            img.src = el.src;
-          }),
-      );
-
-    drawElements(design.elements);
-    await Promise.all(imagePromises);
-
-    // Export canvas to a File
-    offscreen.toBlob((blob) => {
-      if (!blob) {
-        // Fallback: just pass label without a file (will show error on compare)
-        onChange({
-          ...value,
-          label: design.name,
-          designId: design.id,
-          url: "",
-          file: null,
-          design,
-        });
-        return;
-      }
-      const file = new File([blob], `${design.name || "design"}.png`, {
-        type: "image/png",
-      });
-      const previewUrl = URL.createObjectURL(blob);
+    if (!blob) {
+      // Fallback: just pass label without a file (will show error on compare)
       onChange({
         ...value,
         label: design.name,
         designId: design.id,
-        url: previewUrl, // local blob URL for preview
-        file, // actual File for FormData upload
+        url: "",
+        file: null,
         design,
       });
-    }, "image/png");
+      return;
+    }
+
+    const file = new File([blob], `${design.name || "design"}.png`, {
+      type: "image/png",
+    });
+    const previewUrl = URL.createObjectURL(blob);
+    onChange({
+      ...value,
+      label: design.name,
+      designId: design.id,
+      url: previewUrl, // local blob URL for preview
+      file, // actual File for FormData upload
+      design,
+    });
   };
 
   return (

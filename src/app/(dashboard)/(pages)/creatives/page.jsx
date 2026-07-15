@@ -90,7 +90,6 @@ function DesignCanvas({ variation }) {
       style={{
         width: "100%",
         height: "auto",
-        borderRadius: 8,
         display: "block",
       }}
     />
@@ -1211,16 +1210,16 @@ const Sidebar = ({
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        {/* Canvas Preview with hovering Edit button */}
+        {/* Canvas Preview with hovering Edit button.
+            Renders the whole design at full width with no height restriction —
+            nothing is clipped; the panel grows to fit the design. */}
         <div
-          className="relative bg-gray-50 border-b border-gray-100 flex items-center justify-center p-4 group/preview"
+          className="relative bg-gray-50 border-b border-gray-100 flex items-center justify-center group/preview"
           style={{ minHeight: 200 }}
         >
           {hasCanvas ? (
             <DesignCanvas
               variation={{ canvas: c.canvas, elements: c.elements }}
-              maxW={360}
-              maxH={240}
             />
           ) : c.image ? (
             <img

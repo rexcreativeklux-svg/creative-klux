@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { SHAPES, lineShaftPath } from "./shapes";
+import { SHAPES, lineShaftPath } from "@/(lib)/design/shapes";
 
 /**
  * ShapeSVG — renders a library shape into a stretch-to-fill SVG.

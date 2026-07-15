@@ -7,7 +7,7 @@ import {
   EDITOR_FONTS,
   FONT_COMBINATIONS,
   ensureEditorFontsLoaded,
-} from "../fonts";
+} from "@/(lib)/design/fonts";
 
 /** Heading / subheading / body ladder. */
 const DEFAULT_STYLES = [

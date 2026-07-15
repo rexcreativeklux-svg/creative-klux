@@ -1798,6 +1798,62 @@ function buildImageFilter(p, { bakeAdjust = true } = {}) {
   return parts.join(" ");
 }
 
+// CSS filter for a text layer's Adjust panel. Only the CSS-expressible subset
+// previews live (brightness/contrast/saturation/hue + a warmth approximation);
+// highlights/shadows/sharpen/blend are stored on the layer but need a bake pass.
+function textAdjustFilter(l) {
+  const parts = [];
+  if (l.brightness) parts.push(`brightness(${1 + l.brightness / 100})`);
+  if (l.contrast) parts.push(`contrast(${1 + l.contrast / 100})`);
+  if (l.saturation) parts.push(`saturate(${1 + l.saturation / 100})`);
+  if (l.hue) parts.push(`hue-rotate(${l.hue}deg)`);
+  if (l.warmth > 0) parts.push(`sepia(${(l.warmth / 100) * 0.6})`);
+  else if (l.warmth < 0) parts.push(`hue-rotate(${(l.warmth / 100) * 40}deg)`);
+  return parts.join(" ");
+}
+
+// Full CSS filter for a text layer: Adjust subset + the Outline panel's Blur,
+// rendered as a soft glow of the outline colour around the glyphs.
+function textFilter(l) {
+  const parts = [];
+  const adj = textAdjustFilter(l);
+  if (adj) parts.push(adj);
+  if (l.outlineOn && (l.outlineBlur ?? 0) > 0)
+    parts.push(
+      `drop-shadow(0 0 ${l.outlineBlur}px ${l.outlineColor || "#000000"})`,
+    );
+  return parts.join(" ");
+}
+
+// CSS text-shadow for a text layer's Shadows panel. Shortness shrinks the drop
+// distance (higher = shorter/closer), Move nudges it via shadowX/shadowY.
+function buildTextShadow(l) {
+  if (!l.shadowOn) return undefined;
+  const drop = ((100 - (l.shadowShortness ?? 45)) / 100) * 36;
+  const x = l.shadowX ?? 0;
+  const y = (l.shadowY ?? 0) + drop;
+  const blur = l.shadowBlur ?? 6;
+  const color = hexToRgba(
+    l.shadowColor || "#000000",
+    (l.shadowOpacity ?? 70) / 100,
+  );
+  // Two stacked casts read more prominently than a single soft one.
+  return `${x}px ${y}px ${blur}px ${color}, ${x}px ${y}px ${blur * 2 + 2}px ${color}`;
+}
+
+// CSS transform for a text layer's inner content: the Transform panel's H/V
+// perspective (previewed live via CSS perspective/rotate). Flip lives on the
+// outer positioned box (alongside rotation) so it mirrors the whole box; Tile is
+// stored on the layer but needs a bake pass, like the image panel defers it.
+function textTransform(l) {
+  const parts = [];
+  if (l.hPersp || l.vPersp)
+    parts.push(
+      `perspective(800px) rotateY(${((l.hPersp || 0) / 100) * 40}deg) rotateX(${(-(l.vPersp || 0) / 100) * 40}deg)`,
+    );
+  return parts.join(" ");
+}
+
 // CSS transform for an image. The base bakes uniform scale into its box, so it
 // passes includeScale=false and keeps rotate on the <img>; an image layer keeps
 // rotate on its container (with the resize handles) and previews scale via CSS.
@@ -3177,6 +3233,72 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       setMoveReflection({ open: false });
   };
 
+  // ── Move Text Shadow: drag on the canvas to reposition the selected text
+  // layer's shadow (text Shadows → Move). Nudges shadowX/shadowY, which
+  // buildTextShadow reads. A click (no drag) exits Move → back to the panel.
+  const [moveTextShadow, setMoveTextShadow] = useState({
+    open: false,
+    mode: "2d",
+  });
+  const textShadowDragRef = useRef(null);
+  const onTextShadowMoveDown = (e) => {
+    e.stopPropagation();
+    textShadowDragRef.current = {
+      sx: e.clientX,
+      sy: e.clientY,
+      bx: selectedLayer?.shadowX ?? 0,
+      by: selectedLayer?.shadowY ?? 0,
+      id: selectedLayerId,
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onTextShadowMoveMove = (e) => {
+    const d = textShadowDragRef.current;
+    if (!d) return;
+    updateLayer(d.id, {
+      shadowX: Math.round(d.bx + (e.clientX - d.sx)),
+      shadowY: Math.round(d.by + (e.clientY - d.sy)),
+    });
+  };
+  const onTextShadowMoveUp = (e) => {
+    const d = textShadowDragRef.current;
+    textShadowDragRef.current = null;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    if (d && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 5)
+      setMoveTextShadow((s) => ({ ...s, open: false }));
+  };
+
+  // ── Move Text Reflection: drag on the canvas to change the reflection's
+  // aspect (text Reflection → Move). Horizontal → reflectionX, vertical → gap.
+  const [moveTextReflection, setMoveTextReflection] = useState({ open: false });
+  const textReflDragRef = useRef(null);
+  const onTextReflMoveDown = (e) => {
+    e.stopPropagation();
+    textReflDragRef.current = {
+      sx: e.clientX,
+      sy: e.clientY,
+      bx: selectedLayer?.reflectionX ?? 0,
+      by: selectedLayer?.reflectionGap ?? 0,
+      id: selectedLayerId,
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onTextReflMoveMove = (e) => {
+    const d = textReflDragRef.current;
+    if (!d) return;
+    updateLayer(d.id, {
+      reflectionX: Math.round(d.bx + (e.clientX - d.sx)),
+      reflectionGap: Math.round(d.by + (e.clientY - d.sy)),
+    });
+  };
+  const onTextReflMoveUp = (e) => {
+    const d = textReflDragRef.current;
+    textReflDragRef.current = null;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    if (d && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 5)
+      setMoveTextReflection({ open: false });
+  };
+
   // Apply a Style preset to the currently-selected text layer (from TextPanel).
   const applyTextStyle = async (s) => {
     if (!selectedLayer || selectedLayer.type !== "text") return;
@@ -4530,6 +4652,27 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                         style={{ cursor: "move", touchAction: "none" }}
                       />
                     )}
+                  {/* Move Text Shadow: drag anywhere on the canvas to nudge the
+                      selected text layer's shadow offset. */}
+                  {moveTextShadow.open && (
+                    <div
+                      onPointerDown={onTextShadowMoveDown}
+                      onPointerMove={onTextShadowMoveMove}
+                      onPointerUp={onTextShadowMoveUp}
+                      className="absolute inset-0 z-[30]"
+                      style={{ cursor: "move", touchAction: "none" }}
+                    />
+                  )}
+                  {/* Move Text Reflection: drag to change the reflection aspect. */}
+                  {moveTextReflection.open && (
+                    <div
+                      onPointerDown={onTextReflMoveDown}
+                      onPointerMove={onTextReflMoveMove}
+                      onPointerUp={onTextReflMoveUp}
+                      className="absolute inset-0 z-[30]"
+                      style={{ cursor: "move", touchAction: "none" }}
+                    />
+                  )}
                   {/* Floor / cast shadow (sits behind the product) */}
                   {!processing &&
                     displayImage &&
@@ -4748,10 +4891,17 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                     layer.autoWidth || layer.wrap === false
                       ? "nowrap"
                       : "pre-wrap",
-                  transform:
-                    layer.flipH || layer.flipV
-                      ? `scaleX(${layer.flipH ? -1 : 1}) scaleY(${layer.flipV ? -1 : 1})`
+                  transform: textTransform(layer) || undefined,
+                  // Adjust panel + Outline blur — the CSS-expressible subset.
+                  filter: textFilter(layer) || undefined,
+                  textShadow: buildTextShadow(layer),
+                  // Outline panel — crisp stroke hugging the glyphs.
+                  WebkitTextStroke:
+                    layer.outlineOn && (layer.outlineWidth ?? 0) > 0
+                      ? `${(layer.outlineWidth ?? 0) * 0.3}px ${layer.outlineColor || "#000000"}`
                       : undefined,
+                  opacity:
+                    layer.opacity != null ? layer.opacity / 100 : undefined,
                   textAlign: layer.align,
                   fontFamily: layer.fontFamily
                     ? `'${layer.fontFamily}', 'DM Sans', sans-serif`
@@ -4773,8 +4923,52 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                       }
                     : {}),
                 };
+                // Text Reflection — a faded, vertically-mirrored copy rendered
+                // below the text (Reflection panel). Move nudges reflectionX/gap,
+                // Angle skews it. The mask fades it out away from the text.
+                const showTextRefl =
+                  isText && layer.reflectionOn && !isEditing;
+                const reflMask =
+                  "linear-gradient(to top, rgba(0,0,0,0.95), transparent 78%)";
                 return (
                   <Fragment key={layer.id}>
+                  {showTextRefl && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: layer.x - layer.w / 2 + (layer.reflectionX || 0),
+                        top: layer.y + layer.h / 2 + (layer.reflectionGap || 0),
+                        width: layer.w,
+                        height: layer.h,
+                        transform: `rotate(${layer.rotation || 0}deg) scaleY(-1) rotate(${layer.reflectionAngle || 0}deg)`,
+                        transformOrigin: "top center",
+                        opacity: (layer.reflectionOpacity ?? 80) / 100,
+                        WebkitMaskImage: reflMask,
+                        maskImage: reflMask,
+                        color: layer.color,
+                        fontWeight: layer.fontWeight,
+                        fontSize: layer.fontSize,
+                        lineHeight: layer.lineHeight ?? 1.15,
+                        letterSpacing:
+                          layer.letterSpacing != null
+                            ? `${layer.letterSpacing}px`
+                            : undefined,
+                        textAlign: layer.align,
+                        fontFamily: layer.fontFamily
+                          ? `'${layer.fontFamily}', 'DM Sans', sans-serif`
+                          : undefined,
+                        whiteSpace:
+                          layer.autoWidth || layer.wrap === false
+                            ? "nowrap"
+                            : "pre-wrap",
+                        pointerEvents: "none",
+                        overflow: "hidden",
+                        zIndex: 4,
+                      }}
+                    >
+                      {layer.text}
+                    </div>
+                  )}
                   {floorSprite && (
                     <img
                       src={floorSprite.url}
@@ -4843,7 +5037,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                       top: layer.y - layer.h / 2,
                       width: layer.w,
                       height: layer.h,
-                      transform: `rotate(${layer.rotation || 0}deg)`,
+                      // Text flip mirrors the whole box here (image layers flip
+                      // their inner <img> instead, so gate on isText).
+                      transform: `rotate(${layer.rotation || 0}deg)${
+                        isText && (layer.flipH || layer.flipV)
+                          ? ` scaleX(${layer.flipH ? -1 : 1}) scaleY(${layer.flipV ? -1 : 1})`
+                          : ""
+                      }`,
                       cursor: isEditing ? "text" : "move",
                       touchAction: "none",
                       zIndex: 5,
@@ -5143,6 +5343,16 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                           : () => toast("Duplicate — coming soon")
                       }
                       onLayersOrder={() => setActiveTool("layers")}
+                      onBringFront={
+                        isLayer
+                          ? () => reorderLayer(selectedLayer.id, "front")
+                          : () => toast("The base image stays at the back")
+                      }
+                      onSendBack={
+                        isLayer
+                          ? () => reorderLayer(selectedLayer.id, "back")
+                          : () => toast("The base image stays at the back")
+                      }
                       onReplace={
                         isLayer
                           ? () => {
@@ -5169,6 +5379,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                       onDelete={() => deleteLayer(l.id)}
                       onDuplicate={() => duplicateLayer(l.id)}
                       onLayersOrder={() => setActiveTool("layers")}
+                      onBringFront={() => reorderLayer(l.id, "front")}
+                      onSendBack={() => reorderLayer(l.id, "back")}
                       hiddenItems={["replace", "cutout", "retouch"]}
                     />
                   );
@@ -6427,6 +6639,10 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                 reorderLayer={reorderLayer}
                 duplicateLayer={duplicateLayer}
                 deleteLayer={deleteLayer}
+                moveTextShadow={moveTextShadow}
+                setMoveTextShadow={setMoveTextShadow}
+                moveTextReflection={moveTextReflection}
+                setMoveTextReflection={setMoveTextReflection}
               />
             ) : (
               // The Image panel — one component shared by the base image and

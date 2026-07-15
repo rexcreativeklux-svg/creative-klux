@@ -8,11 +8,16 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignVerticalJustifyCenter,
   MoveHorizontal,
   WrapText,
   AlignVerticalSpaceAround,
   Spline,
+  RotateCw,
+  Move,
+  Trash2,
 } from "lucide-react";
+import { Toggle, PosField } from "./editorShared";
 
 // Text colour swatches (Color section). `transparent` clears the fill.
 const TEXT_COLORS = [
@@ -48,12 +53,17 @@ export default function TextPanel({
   loadWebFont,
   textStyles,
   applyTextStyle,
+  canvasSize,
+  reorderLayer,
+  duplicateLayer,
+  deleteLayer,
 }) {
   const [fontOpen, setFontOpen] = useState(false);
   const [fontQuery, setFontQuery] = useState("");
   const [seeAllStyles, setSeeAllStyles] = useState(false);
   const [spacingOpen, setSpacingOpen] = useState(false);
   const [curveOpen, setCurveOpen] = useState(false);
+  const [openSection, setOpenSection] = useState(null);
 
   if (!selectedLayer) return null;
   const t = selectedLayer;
@@ -219,7 +229,7 @@ export default function TextPanel({
         </div>
 
         {/* Alignment · width/wrap · spacing · curvature */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           {/* Alignment */}
           <div className="flex items-center gap-0.5 border border-gray-200 rounded-xl p-1">
             {[
@@ -267,8 +277,10 @@ export default function TextPanel({
             </button>
           </div>
 
+          <span className="w-px h-6 bg-gray-200 shrink-0" />
+
           {/* Line/letter spacing */}
-          <div className="relative">
+          <div className="relative ml-auto">
             <button
               onClick={() => {
                 setSpacingOpen((o) => !o);
@@ -397,6 +409,193 @@ export default function TextPanel({
             </label>
           </div>
         </div>
+
+        {/* Text background — same swatches as Color, applied to the box */}
+        <div className="rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2.5">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-8 h-8 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center shrink-0 font-bold text-sm">
+                A
+              </span>
+              <span className="text-sm text-gray-900 truncate">
+                Text background
+              </span>
+            </div>
+            <Toggle
+              enabled={!!t.bgColor}
+              onChange={(v) =>
+                set({ bgColor: v ? t.bgColor || "#000000" : null })
+              }
+            />
+          </div>
+          {t.bgColor && (
+            <div className="px-3 pb-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                {TEXT_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() =>
+                      set({ bgColor: c === "transparent" ? null : c })
+                    }
+                    title={c}
+                    className="w-8 h-8 rounded-full border border-gray-300 cursor-pointer"
+                    style={
+                      c === "transparent"
+                        ? {
+                            backgroundImage:
+                              "linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%)",
+                            backgroundSize: "10px 10px",
+                            backgroundPosition: "0 0,5px 5px",
+                          }
+                        : {
+                            background: c,
+                            outline:
+                              (t.bgColor || "").toLowerCase() === c
+                                ? "2px solid #3b82f6"
+                                : "none",
+                            outlineOffset: 1,
+                          }
+                    }
+                  />
+                ))}
+                <label
+                  className="w-8 h-8 rounded-full border border-gray-300 cursor-pointer relative overflow-hidden"
+                  title="Custom color"
+                  style={{
+                    background:
+                      "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)",
+                  }}
+                >
+                  <input
+                    type="color"
+                    value={t.bgColor || "#000000"}
+                    onChange={(e) => set({ bgColor: e.target.value })}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Position */}
+        <div className="rounded-2xl border border-gray-200 overflow-hidden">
+          <button
+            onClick={() =>
+              setOpenSection((s) => (s === "position" ? null : "position"))
+            }
+            className="w-full flex items-center justify-between px-3 py-2.5 cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center">
+                <Move className="w-4 h-4" />
+              </span>
+              <span className="text-sm text-gray-900">Position</span>
+            </div>
+            <ChevronDown
+              className={`w-4 h-4 text-gray-400 transition-transform ${openSection === "position" ? "rotate-180" : ""}`}
+            />
+          </button>
+          {openSection === "position" && (
+            <div className="px-3 pb-3 bg-gray-50 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <PosField
+                  label="X"
+                  value={Math.round(t.x - canvasSize.w / 2)}
+                  onChange={(v) => set({ x: canvasSize.w / 2 + v })}
+                />
+                <PosField
+                  label="Y"
+                  value={Math.round(t.y - canvasSize.h / 2)}
+                  onChange={(v) => set({ y: canvasSize.h / 2 + v })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <PosField
+                  label="Width"
+                  value={Math.round(t.w)}
+                  min={10}
+                  onChange={(v) => set({ w: Math.max(10, v) })}
+                />
+                <PosField
+                  label="Height"
+                  value={Math.round(t.h)}
+                  min={10}
+                  onChange={(v) => set({ h: Math.max(10, v) })}
+                />
+              </div>
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <PosField
+                    label="Angle"
+                    value={Math.round(t.rotation || 0)}
+                    onChange={(v) => set({ rotation: v })}
+                    unit="°"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const n = Math.round(t.rotation || 0) + 90;
+                    set({ rotation: n > 180 ? n - 360 : n });
+                  }}
+                  title="Rotate 90°"
+                  className="w-10 h-10 flex items-center justify-center border border-gray-200 rounded-lg text-gray-600 hover:border-blue-400 cursor-pointer"
+                >
+                  <RotateCw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Align to canvas */}
+        <div>
+          <p className="text-xs text-gray-500 mb-2">Align to canvas</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => set({ x: canvasSize.w / 2 })}
+              className="flex items-center justify-center gap-1.5 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-600 cursor-pointer"
+            >
+              <AlignCenter className="w-3.5 h-3.5" /> Center
+            </button>
+            <button
+              onClick={() => set({ y: canvasSize.h / 2 })}
+              className="flex items-center justify-center gap-1.5 py-2 border border-gray-200 rounded-lg hover:border-blue-400 text-xs text-gray-600 cursor-pointer"
+            >
+              <AlignVerticalJustifyCenter className="w-3.5 h-3.5" /> Middle
+            </button>
+          </div>
+        </div>
+
+        {/* Arrange */}
+        <div className="rounded-2xl border border-gray-200 overflow-hidden grid grid-cols-3 divide-x divide-gray-100">
+          {[
+            { id: "front", label: "Front", icon: "⬆" },
+            { id: "back", label: "Back", icon: "⬇" },
+            { id: "dup", label: "Duplicate", icon: "❑" },
+          ].map((a) => (
+            <button
+              key={a.id}
+              onClick={() => {
+                if (a.id === "front") reorderLayer(selectedLayerId, "front");
+                else if (a.id === "back") reorderLayer(selectedLayerId, "back");
+                else duplicateLayer(selectedLayerId);
+              }}
+              className="flex flex-col items-center gap-1 py-3 hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <span className="text-sm">{a.icon}</span>
+              <span className="text-xs text-gray-500">{a.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Delete */}
+        <button
+          onClick={() => deleteLayer(selectedLayerId)}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-red-200 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+        >
+          <Trash2 className="w-4 h-4" /> Delete
+        </button>
       </div>
     </div>
   );

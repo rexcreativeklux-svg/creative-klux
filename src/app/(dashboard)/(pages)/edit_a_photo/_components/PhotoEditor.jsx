@@ -6419,6 +6419,10 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                 loadWebFont={loadWebFont}
                 textStyles={TEXT_STYLES}
                 applyTextStyle={applyTextStyle}
+                canvasSize={canvasSize}
+                reorderLayer={reorderLayer}
+                duplicateLayer={duplicateLayer}
+                deleteLayer={deleteLayer}
               />
             ) : (
               // The Image panel — one component shared by the base image and

@@ -64,6 +64,8 @@ import {
   normalizeVideoResult,
 } from "./magicStudioConfigs";
 import { checkVideoGenerationStatus } from "@/(lib)/magic-studio-api";
+import useMagicHistory from "./useMagicHistory";
+import MagicHistoryGrid from "./MagicHistoryGrid";
 
 const CREATIVE_ID = "magic_studio";
 
@@ -682,7 +684,7 @@ function useMicRecorder(onComplete) {
  * @param {() => void} props.onClose
  */
 export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
-  const { activeBrand, uploadMedia } = useAuth();
+  const { activeBrand, uploadMedia, token } = useAuth();
   const router = useRouter();
   const creative = getCreativeById(CREATIVE_ID);
   const config = getMagicConfig(categoryId);
@@ -705,6 +707,18 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   // bar + stage checklist, chosen by the config's `engine` tag ("tts" | "stt").
   const onDeviceEngine =
     config?.engine === "stt" ? stt : config?.engine === "tts" ? tts : null;
+
+  // Backend tools show server-side generation history in the right canvas — the
+  // way Product Studio does — replacing a session-only results list: after a
+  // successful generate we refresh history and the new item appears (newest
+  // first). On-device tools (audio_to_text, text_to_audio) persist nothing, so
+  // they keep the session-result canvas and this stays disabled. History also
+  // requires auth, so it's gated on being logged in.
+  const isLoggedIn = !!token;
+  const usesHistory = isLoggedIn && !config?.onDevice;
+  const history = useMagicHistory(usesHistory ? config?.historyTool : null, {
+    enabled: usesHistory,
+  });
 
   const headerRef = useRef(null);
   const optionRefs = useRef({});
@@ -924,14 +938,26 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
         }
         toast("Your video is generating — this can take a minute…");
         const finalData = await pollVideoJob(res.jobId);
-        const finalResult = normalizeVideoResult(finalData);
-        releaseResultUrls(result);
-        setResult(finalResult);
-        if (finalResult.assets?.length) {
+        if (usesHistory) {
+          // Backend persisted it — refresh history so it shows up (newest first)
+          // instead of tracking a separate session list.
+          await history.refresh();
           toast.success("Your video is ready!");
         } else {
-          toast("Video finished but no file came back.");
+          const finalResult = normalizeVideoResult(finalData);
+          releaseResultUrls(result);
+          setResult(finalResult);
+          if (finalResult.assets?.length) {
+            toast.success("Your video is ready!");
+          } else {
+            toast("Video finished but no file came back.");
+          }
         }
+      } else if (usesHistory) {
+        // Backend tools persist the result — refresh history rather than keeping
+        // a session-only list (mirrors Product Studio).
+        await history.refresh();
+        toast.success("Generated successfully!");
       } else {
         releaseResultUrls(result); // free the previous on-device audio, if any
         setResult(res);
@@ -1090,10 +1116,10 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     }
   };
 
-  // Hand an image result to the Product Studio Video Generator, preselected —
-  // Magic Studio has no image-to-video category of its own.
-  const generateVideoFromAsset = (asset) => {
-    const url = asset.src;
+  // Hand an image URL to the Product Studio Video Generator, preselected —
+  // Magic Studio has no image-to-video category of its own. Shared by the
+  // session-result menu and the history grid.
+  const generateVideoFromUrl = (url) => {
     if (!url) {
       toast.error("This result can't be turned into a video.");
       return;
@@ -1101,6 +1127,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     onClose?.();
     router.push(`/product-studio?tool=video&image=${encodeURIComponent(url)}`);
   };
+  const generateVideoFromAsset = (asset) => generateVideoFromUrl(asset.src);
 
   // Remove one asset from the current result (frees its on-device blob URL).
   const deleteAsset = (asset) => {
@@ -1293,13 +1320,48 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
             <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar p-6 sm:p-8">
               <AnimatePresence mode="wait">
                 {generating ? (
+                  // While generating (incl. the whole ~5-min async video poll)
+                  // we keep the processing state up and the Generate button
+                  // disabled. On-device tools drive a real progress bar; backend
+                  // tools show the indeterminate shimmer.
                   <ProcessingState
                     key="processing"
                     config={config}
                     engineType={config.engine}
                     engine={config.onDevice ? onDeviceEngine : null}
                   />
+                ) : usesHistory ? (
+                  // ── Backend tools (logged in): server-side history canvas ──
+                  // A finished generation is refreshed into history and shown
+                  // here; an empty + idle history falls back to the sample state.
+                  !history.loading && history.items.length === 0 ? (
+                    <EmptyState key="empty" config={config} />
+                  ) : (
+                    <motion.div
+                      key="history"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <MagicHistoryGrid
+                        items={history.items}
+                        loading={history.loading}
+                        resultType={resultType}
+                        onDelete={history.remove}
+                        removingId={history.removingId}
+                        uploadMedia={uploadMedia}
+                        filePrefix={`magic-${categoryId}`}
+                        onGenerateVideo={
+                          resultType === "image"
+                            ? generateVideoFromUrl
+                            : undefined
+                        }
+                      />
+                    </motion.div>
+                  )
                 ) : hasResult ? (
+                  // ── On-device tools (and logged-out): session-result canvas ──
                   <ResultCanvas
                     key="result"
                     resultType={resultType}

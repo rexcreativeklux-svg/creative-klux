@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import {
   generateProductPhoto,
   TOOL_ENUM,
@@ -6,105 +6,19 @@ import {
 } from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
-import {
-  X,
-  Upload,
-  Loader2,
-  MoreHorizontal,
-  Video,
-  ChevronDown,
-  User,
-  Package,
-  Image as ImageIcon,
-  Scissors,
-  Layers,
-  Shirt,
-  Sparkles,
-  LayoutGrid,
-} from "lucide-react";
+import { X, Upload, Loader2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import ResultActionsMenu, { buildResultActions } from "./ResultActionsMenu";
-import { saveUrlToGallery, downloadImageUrl } from "./saveToGallery";
+import { px, pxbg, QUALITY_RES } from "./constants";
+import { FloatingPanel } from "./FloatingPanels";
+import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
+import QualityDropdown from "./QualityDropdown";
+import SizeDropdown from "./SizeDropdown";
+import ProductHistoryGrid from "./ProductHistoryGrid";
+import useProductHistory from "./useProductHistory";
 
 // Appended to the prompt when the user picks "Other angles" on a result.
 const ANGLE_INSTRUCTION =
   "Show the product from a different camera angle and perspective, keeping the same product, scene, lighting and styling.";
-
-// Pexels CDN helpers (free license, stable URLs) — mirrors VirtualModelModal.
-const px = (id) =>
-  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=600`;
-const pxbg = (id) =>
-  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=320&h=240&fit=crop`;
-
-// Tool list for the header switcher (mirrors the product-studio page tools).
-// `img` is a real thumbnail; if it fails to load the card falls back to the colored icon tile.
-const TOOL_LIST = [
-  {
-    id: "virtual",
-    name: "Virtual Model",
-    Icon: User,
-    color: "bg-pink-100 text-pink-600",
-    img: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=240&q=80",
-  },
-  {
-    id: "staging",
-    name: "Product Staging",
-    Icon: Package,
-    color: "bg-amber-100 text-amber-600",
-    img: "https://images.unsplash.com/photo-1607082349566-187342175e2f?w=240&q=80",
-  },
-  {
-    id: "bgremove",
-    name: "Background Remover",
-    Icon: Scissors,
-    color: "bg-red-100 text-red-600",
-    img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=240&q=80",
-  },
-  {
-    id: "beautifier",
-    name: "Product Beautifier",
-    Icon: Sparkles,
-    color: "bg-yellow-100 text-yellow-600",
-    img: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=240&q=80",
-  },
-  {
-    id: "start",
-    name: "Edit with AI",
-    Icon: ImageIcon,
-    color: "bg-blue-100 text-blue-600",
-    img: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=240&q=80",
-  },
-  {
-    id: "flatlay",
-    name: "Flat Lay",
-    Icon: LayoutGrid,
-    color: "bg-cyan-100 text-cyan-600",
-    img: "https://images.unsplash.com/photo-1445205170230-053b83016050?w=240&q=80",
-  },
-  {
-    id: "mannequin",
-    name: "Ghost Mannequin",
-    Icon: Shirt,
-    color: "bg-emerald-100 text-emerald-600",
-    img: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=240&q=80",
-  },
-  {
-    id: "batch",
-    name: "Batch",
-    Icon: Layers,
-    color: "bg-purple-100 text-purple-600",
-    img: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=240&q=80",
-  },
-  {
-    id: "video",
-    name: "Video Generator",
-    Icon: Video,
-    color: "bg-indigo-100 text-indigo-600",
-    img: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=240&q=80",
-  },
-];
-
-const RECENT_TOOL_IDS = ["virtual", "staging"];
 
 const STAGING_BEFORE = px(2479095);
 const STAGING_AFTER = px(13412090);
@@ -151,159 +65,9 @@ const SCENES = [
   },
 ];
 
-// Resolution badge shown next to the selected quality (matches Photoroom's 1K/2K/4K chip).
-const QUALITY_RES = { Standard: "1K", High: "2K", Ultra: "4K" };
-
-// Quality tiers shown as rich cards in the Quality dropdown (id matches the `quality` state).
-const QUALITY_TIERS = [
-  {
-    id: "Ultra",
-    name: "Premium",
-    tag: "Ultra",
-    tagColor: "bg-blue-100 text-blue-700",
-    img: px(6780091),
-    features: [
-      "4k+ resolution",
-      "Best product accuracy",
-      "Most realistic scenes",
-      "Highest quality",
-      "Consumes most credits",
-    ],
-  },
-  {
-    id: "High",
-    name: "Advanced",
-    tag: "Max",
-    tagColor: "bg-indigo-100 text-indigo-700",
-    img: px(6780038),
-    features: [
-      "2k resolution",
-      "Better product accuracy",
-      "Realistic scenes",
-      "High quality",
-      "Consumes more credits",
-    ],
-  },
-  {
-    id: "Standard",
-    name: "Standard",
-    tag: "Pro",
-    tagColor: "bg-emerald-100 text-emerald-700",
-    img: px(6780036),
-    features: [
-      "1k resolution",
-      "Good product accuracy",
-      "Fast generations",
-      "Consumes less credits",
-    ],
-  },
-];
-
-const SIZES = [
-  { id: "original", name: "Original", w: 1, h: 1 },
-  { id: "portrait_9_16", name: "Portrait (9:16)", w: 9, h: 16 },
-  { id: "portrait_3_4", name: "Portrait (3:4)", w: 3, h: 4 },
-  { id: "portrait_2_3", name: "Portrait (2:3)", w: 2, h: 3 },
-  { id: "square", name: "Square", w: 1, h: 1 },
-  { id: "landscape_3_2", name: "Landscape (3:2)", w: 3, h: 2 },
-  { id: "landscape_4_3", name: "Landscape (4:3)", w: 4, h: 3 },
-  { id: "landscape_16_9", name: "Landscape (16:9)", w: 16, h: 9 },
-];
-
-// A single tool card — name on the left, real thumbnail on the right (falls back to icon tile).
-function ToolCard({ tool, active, onClick }) {
-  const [imgOk, setImgOk] = useState(true);
-  const { Icon } = tool;
-  return (
-    <button
-      onClick={() => onClick(tool.id)}
-      className={`flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? "ring-2 ring-blue-500 bg-blue-50" : "bg-gray-100 hover:bg-gray-100"}`}
-    >
-      <span className="text-sm font-semibold text-gray-900 leading-tight self-center pl-3.5 flex-1">
-        {tool.name}
-      </span>
-      <div
-        className={`w-20 shrink-0 flex items-center justify-center ${tool.color}`}
-      >
-        {imgOk ? (
-          <img
-            src={tool.img}
-            alt={tool.name}
-            className="w-full h-full object-cover"
-            onError={() => setImgOk(false)}
-          />
-        ) : (
-          <Icon className="w-6 h-6" />
-        )}
-      </div>
-    </button>
-  );
-}
-
-// Floating panel anchored BELOW its anchor (header dropdown).
-function DropdownBelow({ anchorRef, children, width = 460 }) {
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  useEffect(() => {
-    if (anchorRef?.current) {
-      const r = anchorRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 6, left: r.left });
-    }
-  }, [anchorRef]);
-  return (
-    <div
-      className="fixed z-210 bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto"
-      style={{ top: pos.top, left: pos.left, width }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {children}
-    </div>
-  );
-}
-
-// Floating panel rendered at fixed position to escape sidebar overflow clipping.
-// Anchors to the right of the trigger, then clamps into the viewport so it never
-// runs off the bottom/right edge (flips to the left side if there's no room).
-function FloatingPanel({ anchorRef, children, width = 320 }) {
-  const panelRef = useRef(null);
-  const [pos, setPos] = useState({ top: -9999, left: -9999 });
-
-  useEffect(() => {
-    const a = anchorRef?.current;
-    const p = panelRef.current;
-    if (!a || !p) return;
-    const r = a.getBoundingClientRect();
-    const pw = p.offsetWidth || width;
-    const ph = p.offsetHeight;
-    const margin = 12;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    let left = r.right + 4;
-    if (left + pw > vw - margin) left = r.left - pw - 4; // flip to the left of the trigger
-    if (left < margin) left = vw - pw - margin; // last resort: pin to right edge
-    left = Math.max(margin, left);
-
-    let top = r.top;
-    if (top + ph > vh - margin) top = vh - ph - margin; // lift up so the bottom stays visible
-    top = Math.max(margin, top);
-
-    setPos({ top, left });
-  }, [anchorRef, width]);
-
-  return (
-    <div
-      ref={panelRef}
-      className="fixed z-200 bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
-      style={{ top: pos.top, left: pos.left, width }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {children}
-    </div>
-  );
-}
-
 export default function ProductStagingModal({ onClose, onSwitchTool }) {
-  const { activeBrand, uploadMedia } = useAuth();
+  const { activeBrand, uploadMedia, token } = useAuth();
+  const isLoggedIn = !!token;
   const qualityRef = useRef(null);
   const sizeRef = useRef(null);
   const sceneRef = useRef(null);
@@ -318,11 +82,16 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
   const [applyBrandStyle, setApplyBrandStyle] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [generatedImages, setGeneratedImages] = useState([]);
   const [openDropdown, setOpenDropdown] = useState(null);
-  const [imageMenu, setImageMenu] = useState(null); // { idx, x, y }
   const [toolMenuOpen, setToolMenuOpen] = useState(false); // header tool switcher
   const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
+
+  // Past generations for this tool. History REPLACES a session-only results list:
+  // after each successful generate we refresh it and the new item shows up
+  // (newest first). Empty history → the modal shows its sample/empty state.
+  const history = useProductHistory(TOOL_ENUM.staging, {
+    enabled: isLoggedIn,
+  });
 
   // Header tool switcher: clicking the current tool just closes; any other tool
   // tells the parent to swap modals (parent opens the right one + closes this).
@@ -354,21 +123,24 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
     setPickerOpen(false);
   };
 
-  // `promptOverride` lets result-menu actions (e.g. "Other angles") regenerate
-  // with a tweaked prompt without mutating the sidebar's prompt state.
-  const handleGenerate = async ({ promptOverride } = {}) => {
-    if (!uploadedFile && !uploadedImage) {
+  // Options let result-menu actions regenerate off a specific result instead of
+  // the sidebar's uploaded image:
+  //   • promptOverride   — send this prompt instead of the sidebar's.
+  //   • imageUrlOverride — use this hosted image as the input (e.g. "Other
+  //     angles" regenerates from the result's OWN output image).
+  const handleGenerate = async ({ promptOverride, imageUrlOverride } = {}) => {
+    if (!imageUrlOverride && !uploadedFile && !uploadedImage) {
       toast.error("Please select a product image first");
       return;
     }
     const promptToSend = promptOverride != null ? promptOverride : prompt;
     setGenerating(true);
     setOpenDropdown(null);
-    setImageMenu(null);
     try {
-      // Resolve the ONE image URL to send. Picks from the gallery already have
-      // a hosted URL; a fresh local upload gets uploaded here to obtain one.
-      let imageUrl = uploadedFileUrl;
+      // Resolve the ONE image URL to send. An override (a past result) is used
+      // as-is; otherwise gallery picks already have a hosted URL, and a fresh
+      // local upload gets uploaded here to obtain one.
+      let imageUrl = imageUrlOverride || uploadedFileUrl;
       if (!imageUrl && uploadedFile) {
         const uploaded = await uploadMedia(uploadedFile);
         console.log("🖼️ [staging] upload response ←", uploaded);
@@ -409,7 +181,9 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
 
       const resultUrl = result?.url || result?.image_url || result?.data?.url;
       if (resultUrl) {
-        setGeneratedImages((prev) => [resultUrl, ...prev]);
+        // The backend persisted it — refresh history so it shows up (newest
+        // first) instead of tracking a separate session list.
+        await history.refresh();
         toast.success("Image generated!");
       } else {
         toast("Generated — check the console for the response shape.");
@@ -429,50 +203,30 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
 
   const closeAll = () => {
     setOpenDropdown(null);
-    setImageMenu(null);
     setToolMenuOpen(false);
   };
 
-  const handleDownload = async (url) => {
-    const t = toast.loading("Downloading…");
-    try {
-      await downloadImageUrl(url, { filePrefix: "product-staged" });
-      toast.success("Downloaded", { id: t });
-    } catch (err) {
-      console.error("❌ [staging] download failed:", err);
-      toast.error(err?.message || "Couldn't download the image", { id: t });
-    }
-  };
-
-  // ── Result menu actions ──
+  // ── Result menu actions (passed to the shared history grid) ──
+  // Download / Copy link / Save to gallery live inside ProductHistoryGrid; these
+  // are the modal-specific ones it can't own.
   // "Change something": focus the prompt so the user can describe the edit.
-  // Focus by id (not a ref) so the callback never reads a ref during render.
   const handleChangeSomething = () =>
     document.getElementById("product-staging-prompt")?.focus();
-  // "Other angles": regenerate with an appended angle instruction.
-  const handleOtherAngles = () =>
+  // "Other angles": regenerate a NEW angle of THIS result — send the result's
+  // own output image back in, with its original prompt plus the angle
+  // instruction so the rest of the scene is preserved.
+  const handleOtherAngles = (item) => {
+    if (!item?.url) return;
     handleGenerate({
-      promptOverride: [prompt.trim(), ANGLE_INSTRUCTION]
+      promptOverride: [(item.prompt || "").trim(), ANGLE_INSTRUCTION]
         .filter(Boolean)
         .join(" "),
+      imageUrlOverride: item.url,
     });
+  };
   // "Generate video": hand this image to the Video Generator, preselected.
   const handleGenerateVideo = (url) =>
     onSwitchTool?.("video", { initialImageUrl: url });
-  // "Save to gallery": fetch the hosted result and upload it into the gallery.
-  // A loading toast gives immediate feedback, then resolves to success/error.
-  const handleSaveToGallery = async (url) => {
-    const t = toast.loading("Saving to gallery…");
-    try {
-      await saveUrlToGallery(url, uploadMedia, {
-        filePrefix: "product-staged",
-      });
-      toast.success("Saved to gallery", { id: t });
-    } catch (err) {
-      console.error("❌ [staging] save to gallery failed:", err);
-      toast.error(err?.message || "Couldn't save to gallery", { id: t });
-    }
-  };
 
   return (
     <div
@@ -642,7 +396,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
             <X className="w-4 h-4 text-gray-500" />
           </button>
 
-          {generatedImages.length === 0 && !generating ? (
+          {!generating && !history.loading && history.items.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center px-6">
               <div className="flex items-center gap-3 mb-9">
                 <div className="w-44 h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
@@ -690,48 +444,20 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
               </p>
             </div>
           ) : (
-            <div className="flex-1 overflow-auto p-6">
-              {generating && (
-                <div className="flex items-center justify-center py-12">
-                  <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-                    <p className="text-gray-500 text-sm">
-                      Staging your product…
-                    </p>
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-4 gap-3">
-                {generatedImages.map((url, idx) => (
-                  <div
-                    key={idx}
-                    className="relative rounded-xl overflow-hidden group aspect-square bg-gray-100"
-                  >
-                    <img
-                      src={url}
-                      alt={`result ${idx + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setImageMenu((p) =>
-                          p?.idx === idx
-                            ? null
-                            : { idx, x: e.clientX, y: e.clientY },
-                        );
-                      }}
-                      className="absolute top-2 right-2 w-8 h-8 bg-surface/90 rounded-full flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <MoreHorizontal className="w-4 h-4 text-gray-500" />
-                    </button>
-                    <button className="absolute bottom-2 right-2 w-7 h-7 bg-surface/80 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="text-xs text-gray-500">⊞</span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ProductHistoryGrid
+              items={history.items}
+              loading={history.loading}
+              generating={generating}
+              generatingLabel="Staging your product…"
+              onDelete={history.remove}
+              removingId={history.removingId}
+              uploadMedia={uploadMedia}
+              filePrefix="product-staged"
+              aspectClass="aspect-square"
+              onChangeSomething={handleChangeSomething}
+              onOtherAngles={handleOtherAngles}
+              onGenerateVideo={handleGenerateVideo}
+            />
           )}
         </div>
       </div>
@@ -744,38 +470,11 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
             className="fixed inset-0 z-205"
             onClick={() => setToolMenuOpen(false)}
           />
-          <DropdownBelow anchorRef={headerRef} width={460}>
-            <p className="text-xs font-semibold text-gray-500 px-1 mb-2">
-              Recently used
-            </p>
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              {RECENT_TOOL_IDS.map((id) => {
-                const tool = TOOL_LIST.find((t) => t.id === id);
-                if (!tool) return null;
-                return (
-                  <ToolCard
-                    key={`recent-${tool.id}`}
-                    tool={tool}
-                    active={tool.id === "staging"}
-                    onClick={handleToolClick}
-                  />
-                );
-              })}
-            </div>
-            <p className="text-xs font-semibold text-gray-500 px-1 mb-2">
-              All tools
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {TOOL_LIST.map((tool) => (
-                <ToolCard
-                  key={tool.id}
-                  tool={tool}
-                  active={tool.id === "staging"}
-                  onClick={handleToolClick}
-                />
-              ))}
-            </div>
-          </DropdownBelow>
+          <ToolSwitcherDropdown
+            anchorRef={headerRef}
+            activeToolId="staging"
+            onSelect={handleToolClick}
+          />
         </>
       )}
 
@@ -828,125 +527,24 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
       )}
 
       {openDropdown === "quality" && (
-        <FloatingPanel anchorRef={qualityRef} width={380}>
-          <div className="p-2 space-y-2">
-            {QUALITY_TIERS.map((t) => {
-              const active = quality === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => {
-                    setQuality(t.id);
-                    setOpenDropdown(null);
-                  }}
-                  className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-gray-200 bg-surface"}`}
-                >
-                  <div className="w-20 h-28 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                    <img
-                      src={t.img}
-                      alt={t.name}
-                      className="w-full h-full object-cover object-top"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-gray-900">
-                          {t.name}
-                        </span>
-                        <span
-                          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${t.tagColor}`}
-                        >
-                          {t.tag}
-                        </span>
-                      </div>
-                      <span
-                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? "bg-blue-600" : "border-2 border-gray-200"}`}
-                      >
-                        {active && (
-                          <span className="text-white text-[10px]">✓</span>
-                        )}
-                      </span>
-                    </div>
-                    <ul className="mt-1.5 space-y-0.5">
-                      {t.features.map((f) => (
-                        <li
-                          key={f}
-                          className="text-[11px] text-gray-500 leading-snug"
-                        >
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </FloatingPanel>
+        <QualityDropdown
+          anchorRef={qualityRef}
+          value={quality}
+          onSelect={(id) => {
+            setQuality(id);
+            setOpenDropdown(null);
+          }}
+        />
       )}
 
       {openDropdown === "size" && (
-        <FloatingPanel anchorRef={sizeRef} width={380}>
-          <div className="grid grid-cols-3 gap-2.5 p-3">
-            {SIZES.map((s) => {
-              const active = size === s.id;
-              const maxDim = 64;
-              const bw = s.w >= s.h ? maxDim : Math.round((maxDim * s.w) / s.h);
-              const bh = s.h >= s.w ? maxDim : Math.round((maxDim * s.h) / s.w);
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => {
-                    setSize(s.id);
-                    setOpenDropdown(null);
-                  }}
-                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-gray-200"}`}
-                >
-                  <div className="flex items-center justify-center h-20 relative w-full">
-                    <div
-                      className={`rounded-md ${active ? "bg-blue-300" : "bg-gray-100"}`}
-                      style={{ width: bw, height: bh }}
-                    />
-                    {active && (
-                      <div className="absolute top-0 right-0 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
-                        <span className="text-white text-[8px]">✓</span>
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-gray-500 text-center leading-tight">
-                    {s.name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </FloatingPanel>
-      )}
-
-      {/* Result actions menu (shared across the AI product-studio modals) */}
-      {imageMenu && (
-        <ResultActionsMenu
-          x={imageMenu.x}
-          y={imageMenu.y}
-          onClose={() => setImageMenu(null)}
-          actions={buildResultActions({
-            onChangeSomething: handleChangeSomething,
-            onOtherAngles: handleOtherAngles,
-            onGenerateVideo: () =>
-              handleGenerateVideo(generatedImages[imageMenu.idx]),
-            onDownload: () => handleDownload(generatedImages[imageMenu.idx]),
-            onCopyLink: () => {
-              navigator.clipboard.writeText(generatedImages[imageMenu.idx]);
-              toast.success("Link copied!");
-            },
-            onSaveToGallery: () =>
-              handleSaveToGallery(generatedImages[imageMenu.idx]),
-            onDelete: () =>
-              setGeneratedImages((p) =>
-                p.filter((_, i) => i !== imageMenu.idx),
-              ),
-          })}
+        <SizeDropdown
+          anchorRef={sizeRef}
+          value={size}
+          onSelect={(id) => {
+            setSize(id);
+            setOpenDropdown(null);
+          }}
         />
       )}
 

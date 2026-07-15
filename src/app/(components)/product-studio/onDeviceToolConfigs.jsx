@@ -9,9 +9,7 @@
  */
 
 import useProductBeautifier from "@/(lib)/ai-engine/hooks/useProductBeautifier";
-import useGhostMannequin from "@/(lib)/ai-engine/hooks/useGhostMannequin";
 import useFlatLay from "@/(lib)/ai-engine/hooks/useFlatLay";
-import Mannequin3DView from "./Mannequin3DView";
 import FlatLayArrange from "./FlatLayArrange";
 import BackgroundSwatchRow from "./BackgroundSwatchRow";
 
@@ -38,39 +36,9 @@ export const ON_DEVICE_TOOLS = {
     // it). Background swapping lives in the Background Remover tool instead.
   },
 
-  mannequin: {
-    title: "Ghost Mannequin",
-    toolId: "mannequin",
-    filePrefix: "klux-mannequin",
-    useTool: useGhostMannequin,
-    defaultSize: "portrait_3_4",
-    defaultQuality: "High",
-    hasGenerate: true, // refine the 3D preview to a photoreal worn render
-    // API-only for now: the on-device 3D pipeline is disabled — the user picks
-    // an image (nothing runs) then hits "Generate photorealistic" to render via
-    // the backend. Flip this off to bring back the on-device 3D preview below.
-    apiOnly: true,
-    sample: {
-      before: px(4109759),
-      after: px(37595197),
-      headline: "See your garment in an interactive 3D view",
-      subtext: "We build a real depth mesh you can drag-rotate — then refine it to a photoreal render.",
-    },
-    // Zoom is live in the 2D view; the 3D canvas ("mannequin-3d") is excluded
-    // from pan AND wheel — there the pointer rotates the garment instead.
-    zoomExcluded: ["mannequin-3d"],
-    wheelExcluded: ["mannequin-3d"],
-    // Mount the interactive WebGL 3D view (drag-rotate mesh, 2D/3D toggle);
-    // falls back to the flat framed image.
-    renderResult: ({ tool, resultImage }) => (
-      <Mannequin3DView
-        setAngleExporter={tool.setAngleExporter}
-        cutoutUrl={tool.cutoutUrl}
-        depthUrl={tool.depthUrl}
-        fallbackSrc={resultImage}
-      />
-    ),
-  },
+  // Ghost Mannequin is now an API-only tool with its own modal
+  // (GhostMannequinModal) + generation history — it no longer runs on-device, so
+  // it lives outside this on-device config.
 
   flatlay: {
     title: "Flat Lay",

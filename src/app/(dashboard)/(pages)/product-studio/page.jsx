@@ -24,6 +24,7 @@ import VirtualModelModal from "@/app/(components)/product-studio/VirtualModelMod
 import ProductStagingModal from "@/app/(components)/product-studio/ProductStagingModal";
 import VideoGeneratorModal from "@/app/(components)/product-studio/VideoGeneratorModal";
 import BackgroundRemoverModal from "@/app/(components)/product-studio/BackgroundRemoverModal";
+import GhostMannequinModal from "@/app/(components)/product-studio/GhostMannequinModal";
 import OnDeviceToolModal from "@/app/(components)/product-studio/OnDeviceToolModal";
 import {
   ON_DEVICE_TOOLS,
@@ -184,7 +185,8 @@ export default function ProductPhotos() {
   const [videoOpen, setVideoOpen] = useState(false);
   const [videoInitialImage, setVideoInitialImage] = useState(null); // preselect (from a result's "Generate video")
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
-  const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/mannequin/flatlay)
+  const [mannequinOpen, setMannequinOpen] = useState(false); // API-only Ghost Mannequin modal
+  const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/flatlay)
 
   const openEditor = (mode = "start") => {
     setEditorMode(mode);
@@ -210,6 +212,10 @@ export default function ProductPhotos() {
     }
     if (id === "bgremove") {
       setBgRemoverOpen(true);
+      return;
+    }
+    if (id === "mannequin") {
+      setMannequinOpen(true);
       return;
     }
     if (id === "batch") {
@@ -327,6 +333,15 @@ export default function ProductPhotos() {
       )}
       {bgRemoverOpen && (
         <BackgroundRemoverModal onClose={() => setBgRemoverOpen(false)} />
+      )}
+      {mannequinOpen && (
+        <GhostMannequinModal
+          onClose={() => setMannequinOpen(false)}
+          onSwitchTool={(id, opts) => {
+            setMannequinOpen(false);
+            openTool(id, opts);
+          }}
+        />
       )}
       {editorOpen && (
         <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />

@@ -341,6 +341,20 @@ export default function ProductPhotos() {
           }}
         />
       )}
+      {addImagesOpen && (
+        <AddImagesModal
+          onClose={() => setAddImagesOpen(false)}
+          onAdd={(items) => {
+            setAddImagesOpen(false);
+            const url = items?.[0]?.url;
+            if (!url) return;
+            router.push(
+              `/edit_a_photo?mode=start&image=${encodeURIComponent(url)}`,
+            );
+          }}
+        />
+      )}
+
       {/* {editorOpen && (
         <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />
       )} */}

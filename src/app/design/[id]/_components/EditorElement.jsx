@@ -3,9 +3,9 @@
 import React, { useEffect, useRef } from "react";
 import { Rnd } from "react-rnd";
 import ShapeSVG from "./ShapeSVG";
-import { SHAPES, PRIMITIVE_SHAPES, isStraightLine } from "./shapes";
-import { pointsToPath } from "./drawUtils";
-import { curvePath } from "./curveUtils";
+import { SHAPES, PRIMITIVE_SHAPES, isStraightLine } from "@/(lib)/design/shapes";
+import { pointsToPath } from "@/(lib)/design/drawUtils";
+import { curvePath } from "@/(lib)/design/curveUtils";
 import { fitFontSize } from "./textFit";
 
 /**

@@ -14,15 +14,15 @@ import EditorTopBar from "./EditorTopBar";
 import EditorSidebar from "./EditorSidebar";
 import EditorContextBar from "./EditorContextBar";
 import EditorElement from "./EditorElement";
-import { renderDesignToBlob } from "./renderDesign";
-import { SHAPES, aspectOf, isStraightLine, isBendableLine } from "./shapes";
-import { ensureEditorFontsLoaded } from "./fonts";
-import { strokeToElement, pointsToPath } from "./drawUtils";
+import { renderDesignToBlob } from "@/(lib)/design/renderDesign";
+import { SHAPES, aspectOf, isStraightLine, isBendableLine } from "@/(lib)/design/shapes";
+import { ensureEditorFontsLoaded } from "@/(lib)/design/fonts";
+import { strokeToElement, pointsToPath } from "@/(lib)/design/drawUtils";
 import {
   defaultCurvePoints,
   elbowPoints,
   insertCurvePoint,
-} from "./curveUtils";
+} from "@/(lib)/design/curveUtils";
 import { measureText } from "./textFit";
 
 const DRAW_TOOLS = ["pen", "marker", "highlighter", "eraser"];

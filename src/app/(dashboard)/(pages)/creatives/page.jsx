@@ -1211,11 +1211,11 @@ const Sidebar = ({
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {/* Canvas Preview with hovering Edit button.
-            Fixed-height crop window: the design fills the full width and any
-            part below the fixed height is clipped (overflow-hidden), top-aligned. */}
+            Renders the whole design at full width with no height restriction —
+            nothing is clipped; the panel grows to fit the design. */}
         <div
-          className="relative bg-gray-50 border-b border-gray-100 overflow-hidden flex items-start justify-center group/preview"
-          style={{ height: 280 }}
+          className="relative bg-gray-50 border-b border-gray-100 flex items-center justify-center group/preview"
+          style={{ minHeight: 200 }}
         >
           {hasCanvas ? (
             <DesignCanvas

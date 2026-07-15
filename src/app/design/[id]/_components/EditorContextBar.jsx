@@ -13,7 +13,7 @@ import {
   Minus,
   CirclePlus,
 } from "lucide-react";
-import { isLineShape } from "./shapes";
+import { isLineShape } from "@/(lib)/design/shapes";
 
 const FONT_SIZES = [12, 14, 16, 18, 24, 32, 40, 48, 64, 80, 96, 120];
 

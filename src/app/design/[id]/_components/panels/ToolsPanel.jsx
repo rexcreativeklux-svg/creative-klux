@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { SHAPE_CATEGORIES } from "../shapes";
+import { SHAPE_CATEGORIES } from "@/(lib)/design/shapes";
 import ShapeGrid from "../ShapeGrid";
 
 const DRAW = ["pen", "marker", "highlighter", "eraser"];

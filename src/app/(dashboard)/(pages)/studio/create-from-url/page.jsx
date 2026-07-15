@@ -763,7 +763,34 @@ export default function CreateFromUrl() {
       // ADAPTER: involk_llm → { design: {canvas, elements}, copy } (single) OR
       // { variations: [...] }. Wrap a single design as one variation.
       const data = createRes.raw || createRes.data || {};
-      let variations = Array.isArray(data.variations) ? data.variations : [];
+
+      // involk_llm returns each variation with `canvas` and `copy` as JSON STRINGS.
+      // `canvas` decodes to { canvas: {width,height,background}, elements: [...] }.
+      // DesignCanvas, the preview cards, and saveDesign all expect parsed objects
+      // with a top-level `elements` array (the single-design branch below already
+      // emits that shape) — so normalize each streamed variation the same way.
+      const parseMaybe = (val) => {
+        if (typeof val !== "string") return val;
+        try {
+          return JSON.parse(val);
+        } catch {
+          return null;
+        }
+      };
+      const normalizeVariation = (v) => {
+        const design = parseMaybe(v?.canvas) || {};
+        return {
+          ...v,
+          canvas: design.canvas || design || null,
+          elements: Array.isArray(design.elements) ? design.elements : [],
+          copy: parseMaybe(v?.copy) || {},
+          category: v?.category || v?.sub_type || (isAds ? adSubType : "posts"),
+        };
+      };
+
+      let variations = Array.isArray(data.variations)
+        ? data.variations.map(normalizeVariation)
+        : [];
       const assets = Array.isArray(data.assets) ? data.assets : [];
       if (!variations.length && data.design) {
         variations = [

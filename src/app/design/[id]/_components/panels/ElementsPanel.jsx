@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
-import { SHAPES, SHAPE_CATEGORIES } from "../shapes";
+import { SHAPES, SHAPE_CATEGORIES } from "@/(lib)/design/shapes";
 import ShapeGrid from "../ShapeGrid";
 
 const COLLAPSED_COUNT = 5; // shapes shown per row before "See all"

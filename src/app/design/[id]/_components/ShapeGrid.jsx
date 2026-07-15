@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { SHAPES } from "./shapes";
+import { SHAPES } from "@/(lib)/design/shapes";
 import ShapeSVG from "./ShapeSVG";
 
 // currentColor so previews follow the surrounding text color (readable in light

@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, LayoutTemplate, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
-import { renderDesignToCanvas } from "../renderDesign";
+import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
 import ConfirmDialog from "../ConfirmDialog";
 
 // Scraive's canvas-templates/public-fetch currently 500s. Keep it OFF so we

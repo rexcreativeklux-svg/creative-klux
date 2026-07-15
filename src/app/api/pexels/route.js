@@ -50,14 +50,14 @@ export async function GET(request) {
     const data = await response.json();
     
     // Log what we received
-    console.log('Pexels API response:', {
-      type,
-      query,
-      hasVideos: !!data.videos,
-      hasPhotos: !!data.photos,
-      videosCount: data.videos?.length,
-      photosCount: data.photos?.length
-    });
+    // console.log('Pexels API response:', {
+    //   type,
+    //   query,
+    //   hasVideos: !!data.videos,
+    //   hasPhotos: !!data.photos,
+    //   videosCount: data.videos?.length,
+    //   photosCount: data.photos?.length
+    // });
 
     return NextResponse.json(data);
   } catch (error) {

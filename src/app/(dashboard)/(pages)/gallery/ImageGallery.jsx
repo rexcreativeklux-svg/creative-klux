@@ -119,6 +119,7 @@ export default function ImageGallery() {
 
       for (const file of valid) {
         try {
+          // console.log(file)
           await uploadMedia(file);
           uploadedCategories.add(getFileCategory(file));
           ok++;
@@ -353,6 +354,7 @@ export default function ImageGallery() {
                 <button
                   onClick={() => setSearchMode(true)}
                   className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
+                  disabled={isUploading}
                 >
                   <Search size={18} /> Search stock
                 </button>

@@ -94,7 +94,7 @@ export default function MediaPickerModal({
   showToast: externalToast,
   initialTab = "search",
   maxSelectable = MAX_SELECT,
-  allowedTypes = ["image", "audio"],
+  allowedTypes = ["image",],
 }) {
   // Effective cap — never exceed the modal's own hard ceiling, and never go below 0.
   const effectiveCap = Math.max(0, Math.min(maxSelectable, MAX_SELECT));

@@ -50,10 +50,10 @@ const CATEGORY_META = {
     blurb: "Turn a prompt into on-brand images.",
     samples: [
       {
-        img: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=600&q=80",
+        img: "/magic-studio/text_to_image_1.gif",
       },
       {
-        img: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&q=80",
+        img: "/magic-studio/text_to_image_2.gif",
       },
       {
         img: "https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=600&q=80",
@@ -67,16 +67,13 @@ const CATEGORY_META = {
     blurb: "Generate short-form video from text.",
     samples: [
       {
-        img: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=600&q=80",
-        kind: "video",
+        img: "/magic-studio/text_to_video_1.gif",
       },
       {
-        img: "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&q=80",
-        kind: "video",
+        img: "/magic-studio/text_to_video_2.gif",
       },
       {
-        img: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=600&q=80",
-        kind: "video",
+        img: "/magic-studio/text_to_video_3.gif",
       },
     ],
   },
@@ -105,15 +102,12 @@ const CATEGORY_META = {
     samples: [
       {
         img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=600&q=80",
-        kind: "video",
       },
       {
         img: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=600&q=80",
-        kind: "video",
       },
       {
         img: "https://images.unsplash.com/photo-1590650153855-d9e808231d41?w=600&q=80",
-        kind: "video",
       },
     ],
   },
@@ -198,13 +192,6 @@ function SampleCard({ sample, category, onOpen }) {
         className="w-full h-full object-cover"
       />
       <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/10 to-transparent" />
-
-      {/* Video play badge */}
-      {sample.kind === "video" && (
-        <span className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/85 backdrop-blur flex items-center justify-center shadow">
-          <Play className="w-3.5 h-3.5 text-gray-900 fill-gray-900 ml-0.5" />
-        </span>
-      )}
 
       {/* Category tag */}
       <span className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur px-2.5 py-1 shadow-sm">

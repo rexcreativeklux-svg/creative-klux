@@ -892,6 +892,9 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
             );
           }
           if (attempts >= VIDEO_POLL_MAX_ATTEMPTS) {
+            toast.error(
+              "Your video is taking longer than expected. Check your history shortly for the video.",
+            );
             return reject(
               new Error(
                 "Your video is taking longer than expected. Check your gallery shortly.",
@@ -1319,22 +1322,15 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
 
             <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar p-6 sm:p-8">
               <AnimatePresence mode="wait">
-                {generating ? (
-                  // While generating (incl. the whole ~5-min async video poll)
-                  // we keep the processing state up and the Generate button
-                  // disabled. On-device tools drive a real progress bar; backend
-                  // tools show the indeterminate shimmer.
-                  <ProcessingState
-                    key="processing"
-                    config={config}
-                    engineType={config.engine}
-                    engine={config.onDevice ? onDeviceEngine : null}
-                  />
-                ) : usesHistory ? (
+                {usesHistory ? (
                   // ── Backend tools (logged in): server-side history canvas ──
-                  // A finished generation is refreshed into history and shown
-                  // here; an empty + idle history falls back to the sample state.
-                  !history.loading && history.items.length === 0 ? (
+                  // A generation in flight (incl. the whole ~5-min async video
+                  // poll) shows as a leading CARD in the grid while prior history
+                  // stays visible and Generate stays disabled; an empty + idle
+                  // history falls back to the sample state.
+                  !generating &&
+                  !history.loading &&
+                  history.items.length === 0 ? (
                     <EmptyState key="empty" config={config} />
                   ) : (
                     <motion.div
@@ -1347,6 +1343,8 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
                       <MagicHistoryGrid
                         items={history.items}
                         loading={history.loading}
+                        generating={generating}
+                        generatingLabel={`Generating your ${config.title.toLowerCase()}…`}
                         resultType={resultType}
                         onDelete={history.remove}
                         removingId={history.removingId}
@@ -1360,8 +1358,17 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
                       />
                     </motion.div>
                   )
+                ) : generating ? (
+                  // ── On-device tools (and logged-out): the processing state
+                  // takes over the whole canvas (on-device drives a real
+                  // progress bar; logged-out backend shows the shimmer). ──
+                  <ProcessingState
+                    key="processing"
+                    config={config}
+                    engineType={config.engine}
+                    engine={config.onDevice ? onDeviceEngine : null}
+                  />
                 ) : hasResult ? (
-                  // ── On-device tools (and logged-out): session-result canvas ──
                   <ResultCanvas
                     key="result"
                     resultType={resultType}

@@ -574,9 +574,12 @@ export const MAGIC_STUDIO_CONFIGS = {
         label: "Duration",
         panel: "list",
         width: 320,
-        default: "15",
+        default: "3",
         items: [
-          { value: "5", label: "5 seconds", desc: "Quick clip", icon: Clock },
+          { value: "1", label: "1 seconds", desc: "Quickest clip", icon: Clock },
+          { value: "2", label: "2 seconds", desc: "Quicker clip", icon: Clock },
+          { value: "3", label: "3 seconds", desc: "Quick clip", icon: Clock },
+          { value: "5", label: "5 seconds", desc: "Short clip", icon: Clock },
           { value: "10", label: "10 seconds", desc: "Short form", icon: Clock },
           { value: "15", label: "15 seconds", desc: "Story / ad", icon: Clock },
           { value: "30", label: "30 seconds", desc: "Full spot", icon: Clock },
@@ -715,7 +718,7 @@ export const MAGIC_STUDIO_CONFIGS = {
       input ? null : "Please pick a source image first.",
     generate: async ({ input, values }) => {
       const payload = {
-        tool: "image_to_variation",
+        tool: "image_to_variations",
         visual_style: values.style,
         source_image: input,
       };

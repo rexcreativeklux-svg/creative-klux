@@ -186,7 +186,58 @@ const BACKGROUNDS = [
   { id: "desert", name: "Desert", color: "#d0a860", img: pxbg(8869381) },
 ];
 
-const RANDOM_MODEL_NAMES = ["Emake", "Nelson", "Victor", "Joy", ""]
+const RANDOM_MODEL_NAMES = [
+  "Aiden",
+  "Alex",
+  "Alicia",
+  "Amara",
+  "Andrea",
+  "Ava",
+  "Benjamin",
+  "Bella",
+  "Caleb",
+  "Charlotte",
+  "Chloe",
+  "Daniel",
+  "David",
+  "Ella",
+  "Emily",
+  "Emma",
+  "Ethan",
+  "Faith",
+  "Grace",
+  "Hannah",
+  "Harper",
+  "Hazel",
+  "Isabella",
+  "Jack",
+  "Jacob",
+  "James",
+  "Jasmine",
+  "Jayden",
+  "Jessica",
+  "Jordan",
+  "Joshua",
+  "Joy",
+  "Liam",
+  "Logan",
+  "Lucas",
+  "Madison",
+  "Maya",
+  "Mia",
+  "Michael",
+  "Nathan",
+  "Nelson",
+  "Noah",
+  "Olivia",
+  "Rachel",
+  "Ryan",
+  "Samuel",
+  "Sarah",
+  "Sophia",
+  "Victor",
+  "Zoe",
+];
 
 export default function VirtualModelModal({ onClose, onSwitchTool }) {
   const { activeBrand, uploadMedia, token } = useAuth();
@@ -212,6 +263,9 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
   const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // gallery/cloud URL of the picked image
   const [toolMenuOpen, setToolMenuOpen] = useState(false); // header tool switcher
   const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
+  const [pickerMode, setPickerMode] = useState("product");
+  // values: "product" | "model"
+  const [customModels, setCustomModels] = useState([]);
 
   // Past generations for this tool. History REPLACES a session-only results list:
   // after each successful generate we refresh it and the new item shows up
@@ -233,21 +287,82 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
   // (not sendable to the backend), so we keep the File and leave the hosted URL
   // null — it's uploaded on generate to get a real URL. A library/search pick
   // already has a hosted URL we can send straight through.
+  // const handleApplyFromPicker = (images = []) => {
+  //   const item = images[0];
+  //   if (!item) return;
+  //   if (item.file instanceof File) {
+  //     setUploadedFile(item.file);
+  //     setUploadedImage(item.src || URL.createObjectURL(item.file));
+  //     setUploadedFileUrl(null); // resolve a hosted URL on generate
+  //   } else {
+  //     const url = item.large || item.src || null;
+  //     if (!url) return;
+  //     setUploadedFile(null);
+  //     setUploadedImage(url);
+  //     setUploadedFileUrl(url); // already hosted
+  //   }
+  //   setPickerOpen(false);
+  // };
+
   const handleApplyFromPicker = (images = []) => {
     const item = images[0];
     if (!item) return;
+
+    const isAddingModel = pickerMode === "model";
+
+    let imageUrl = null;
+    let previewUrl = null;
+
+    if (item.file instanceof File) {
+      previewUrl = item.src || URL.createObjectURL(item.file);
+      imageUrl = previewUrl;
+    } else {
+      imageUrl = item.large || item.src || null;
+      previewUrl = imageUrl;
+    }
+
+    if (!imageUrl) return;
+
+    // ----------------------------
+    // ADDING A CUSTOM MODEL
+    // ----------------------------
+    if (isAddingModel) {
+      const randomName =
+        RANDOM_MODEL_NAMES[
+          Math.floor(Math.random() * RANDOM_MODEL_NAMES.length)
+        ];
+
+      const customModel = {
+        id: `custom_${Date.now()}`,
+        name: randomName,
+        img: imageUrl,
+        desc: "Custom model",
+        emoji: "👤",
+      };
+
+      setCustomModels((prev) => [...prev, customModel]);
+      setSelectedModel(customModel.id);
+
+      setPickerOpen(false);
+      return;
+    }
+
+    // ----------------------------
+    // PRODUCT IMAGE (existing behaviour)
+    // ----------------------------
+
     if (item.file instanceof File) {
       setUploadedFile(item.file);
-      setUploadedImage(item.src || URL.createObjectURL(item.file));
-      setUploadedFileUrl(null); // resolve a hosted URL on generate
+      setUploadedImage(previewUrl);
+      setUploadedFileUrl(null);
     } else {
-      const url = item.large || item.src || null;
-      if (!url) return;
       setUploadedFile(null);
-      setUploadedImage(url);
-      setUploadedFileUrl(url); // already hosted
+      setUploadedImage(imageUrl);
+      setUploadedFileUrl(imageUrl);
     }
+
     setPickerOpen(false);
+    setPickerMode("product");
   };
 
   // Options let result-menu actions regenerate off a specific result instead of
@@ -298,9 +413,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
         model_name: modelName || selectedModel, // model id, e.g. "jordan"
         model_image_url:
           modelImageUrl ||
-          MODELS.find(
-            (model) => model.id === selectedModel.toLocaleLowerCase(),
-          )?.img,
+          allModels.find((model) => model.id === selectedModel)?.img,
         //   pose: selectedPose, // pose id, e.g. "3_4_turn"
         quality: QUALITY_ENUM[quality] || "standard",
         size, // aspect-ratio id
@@ -333,7 +446,10 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
 
   const toggle = (key) => setOpenDropdown((p) => (p === key ? null : key));
 
-  const modelObj = MODELS.find((m) => m.id === selectedModel);
+  const allModels = [...MODELS, ...customModels];
+
+  const modelObj = allModels.find((m) => m.id === selectedModel);
+  // const modelObj = MODELS.find((m) => m.id === selectedModel);
   // const poseObj = POSES.find(p => p.id === selectedPose);
   const bgObj = BACKGROUNDS.find((b) => b.id === background);
   const sizeObj = SIZES.find((s) => s.id === size);
@@ -401,7 +517,10 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
             {/* Upload — opens the gallery picker (My Library / Search / Upload) */}
             <div className="px-4 pt-4">
               <button
-                onClick={() => setPickerOpen(true)}
+                onClick={() => {
+                  setPickerMode("product");
+                  setPickerOpen(true);
+                }}
                 className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
               >
                 <Upload className="w-4 h-4" />
@@ -671,14 +790,15 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
           <div className="grid grid-cols-4 gap-2 p-3">
             <button
               onClick={() => {
-                setPickerOpen(true) ;
+                setPickerMode("model");
+                setPickerOpen(true);
                 setOpenDropdown(null);
               }}
               className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-lg h-24 text-gray-500 hover:border-blue-400 transition-colors"
             >
               <Plus className="w-5 h-5" />
             </button>
-            {MODELS.map((m) => (
+            {allModels.map((m) => (
               <button
                 key={m.id}
                 onClick={() => {
@@ -791,6 +911,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
 
       {/* Gallery media picker — pick ONE image (My Library / Search / Upload) */}
       <MediaPickerModal
+        maxSelectable={10}
         isOpen={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onCancel={() => setPickerOpen(false)}

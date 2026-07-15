@@ -341,9 +341,9 @@ export default function ProductPhotos() {
           }}
         />
       )}
-      {editorOpen && (
+      {/* {editorOpen && (
         <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />
-      )}
+      )} */}
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between">

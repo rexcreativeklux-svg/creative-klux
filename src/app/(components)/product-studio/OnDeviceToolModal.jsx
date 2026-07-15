@@ -760,7 +760,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     // plain fade for users with prefers-reduced-motion.
     <MotionConfig reducedMotion="user">
       <div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-3"
+        className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-3"
         onClick={closeMenus}
       >
         <div
@@ -1348,7 +1348,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
         {/* ── Tool switcher (header dropdown) ── */}
         {toolMenuOpen && (
           <div
-            className="fixed inset-0 z-[205]"
+            className="fixed inset-0 z-205"
             onClick={() => setToolMenuOpen(false)}
           />
         )}
@@ -1367,7 +1367,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
         {/* ── Floating dropdowns ── */}
         {openDropdown && (
           <div
-            className="fixed inset-0 z-[195]"
+            className="fixed inset-0 z-195"
             onClick={() => setOpenDropdown(null)}
           />
         )}

@@ -19,7 +19,7 @@
  */
 
 import { useState } from "react";
-import { Loader2, MoreHorizontal } from "lucide-react";
+import { Loader2, MoreHorizontal, Play } from "lucide-react";
 import { toast } from "sonner";
 import ResultActionsMenu, {
   buildResultActions,
@@ -28,6 +28,7 @@ import {
   saveUrlToGallery,
   downloadImageUrl,
 } from "@/app/(components)/product-studio/saveToGallery";
+import Lightbox from "@/app/(components)/Lightbox";
 
 // Pull a file extension off a hosted URL (ignoring any query/hash), falling back
 // to a type-appropriate default when the URL has none — so a video downloads as
@@ -67,6 +68,17 @@ export default function MagicHistoryGrid({
   onGenerateVideo,
 }) {
   const [menu, setMenu] = useState(null); // { item, x, y }
+  const [lightboxIndex, setLightboxIndex] = useState(null); // index into mediaItems
+
+  // Only images/videos are viewable in the lightbox (persona text isn't). We
+  // key the lightbox off this filtered list so arrow navigation skips text.
+  const mediaItems = items.filter(
+    (it) => it.type === "image" || it.type === "video",
+  );
+  const openLightbox = (item) => {
+    const idx = mediaItems.findIndex((m) => m.id === item.id);
+    if (idx >= 0) setLightboxIndex(idx);
+  };
 
   const handleDownload = async (item) => {
     const t = toast.loading("Downloading…");
@@ -203,42 +215,52 @@ export default function MagicHistoryGrid({
             );
           }
 
-          // ── Video result ──
+          // ── Video result — a clickable poster thumbnail (plays in the
+          // lightbox), so the grid stays a clean set of tiles. ──
           if (item.type === "video") {
             return (
-              <div
+              <button
                 key={item.id ?? item.url}
-                className="relative group rounded-2xl overflow-hidden bg-black"
+                onClick={() => openLightbox(item)}
+                className="relative group rounded-2xl overflow-hidden bg-black aspect-video cursor-pointer text-left"
               >
                 <video
                   src={item.videoSrc || item.url}
                   poster={item.thumbnail || undefined}
-                  controls
+                  muted
                   playsInline
                   preload="metadata"
-                  className="w-full h-auto max-h-72 object-contain bg-black"
+                  className="w-full h-full object-cover pointer-events-none"
                 />
+                {/* Play badge */}
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <span className="w-11 h-11 rounded-full bg-black/50 backdrop-blur flex items-center justify-center">
+                    <Play className="w-5 h-5 text-white fill-white ml-0.5" />
+                  </span>
+                </span>
                 {isRemoving && (
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     <Loader2 className="w-6 h-6 text-white animate-spin" />
                   </div>
                 )}
-                <button
+                <span
                   onClick={(e) => openMenu(item, e)}
+                  role="button"
                   aria-label="Result actions"
                   className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 >
                   <MoreHorizontal className="w-4 h-4" />
-                </button>
-              </div>
+                </span>
+              </button>
             );
           }
 
-          // ── Image result (default) ──
+          // ── Image result (default) — click to open the lightbox. ──
           return (
-            <div
+            <button
               key={item.id ?? item.url}
-              className="relative group rounded-2xl overflow-hidden bg-gray-100 aspect-square"
+              onClick={() => openLightbox(item)}
+              className="relative group rounded-2xl overflow-hidden bg-gray-100 aspect-square cursor-pointer text-left"
             >
               <img
                 src={item.url}
@@ -250,14 +272,15 @@ export default function MagicHistoryGrid({
                   <Loader2 className="w-6 h-6 text-white animate-spin" />
                 </div>
               )}
-              <button
+              <span
                 onClick={(e) => openMenu(item, e)}
+                role="button"
                 aria-label="Result actions"
                 className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
               >
                 <MoreHorizontal className="w-4 h-4" />
-              </button>
-            </div>
+              </span>
+            </button>
           );
         })}
       </div>
@@ -268,6 +291,16 @@ export default function MagicHistoryGrid({
           y={menu.y}
           onClose={() => setMenu(null)}
           actions={actionsFor(menu.item)}
+        />
+      )}
+
+      {lightboxIndex != null && mediaItems[lightboxIndex] && (
+        <Lightbox
+          items={mediaItems}
+          index={lightboxIndex}
+          onIndexChange={setLightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onDownload={handleDownload}
         />
       )}
     </div>

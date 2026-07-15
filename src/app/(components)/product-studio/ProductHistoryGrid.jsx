@@ -17,6 +17,7 @@ import { Loader2, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import ResultActionsMenu, { buildResultActions } from "./ResultActionsMenu";
 import { saveUrlToGallery, downloadImageUrl } from "./saveToGallery";
+import Lightbox from "@/app/(components)/Lightbox";
 
 /**
  * @param {object} props
@@ -48,6 +49,7 @@ export default function ProductHistoryGrid({
   onGenerateVideo,
 }) {
   const [imageMenu, setImageMenu] = useState(null); // { id, url, x, y }
+  const [lightboxIndex, setLightboxIndex] = useState(null); // index into items
 
   const handleDownload = async (url) => {
     const t = toast.loading("Downloading…");
@@ -103,12 +105,13 @@ export default function ProductHistoryGrid({
           </div>
         )}
 
-        {items.map((item) => {
+        {items.map((item, i) => {
           const isRemoving = removingId != null && item.id === removingId;
           return (
-            <div
+            <button
               key={item.id ?? item.url}
-              className={`relative rounded-xl overflow-hidden group ${aspectClass} bg-gray-100`}
+              onClick={() => setLightboxIndex(i)}
+              className={`relative rounded-xl overflow-hidden group ${aspectClass} bg-gray-100 cursor-pointer text-left`}
             >
               <img
                 src={item.url}
@@ -120,7 +123,8 @@ export default function ProductHistoryGrid({
                   <Loader2 className="w-6 h-6 text-white animate-spin" />
                 </div>
               )}
-              <button
+              <span
+                role="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setImageMenu((p) =>
@@ -132,8 +136,8 @@ export default function ProductHistoryGrid({
                 className="absolute top-2 right-2 w-8 h-8 bg-surface/90 rounded-full flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
               >
                 <MoreHorizontal className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
+              </span>
+            </button>
           );
         })}
       </div>
@@ -162,6 +166,16 @@ export default function ProductHistoryGrid({
             onSaveToGallery: () => handleSaveToGallery(imageMenu.item.url),
             onDelete: () => onDelete?.(imageMenu.item.id),
           })}
+        />
+      )}
+
+      {lightboxIndex != null && items[lightboxIndex] && (
+        <Lightbox
+          items={items}
+          index={lightboxIndex}
+          onIndexChange={setLightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onDownload={(item) => handleDownload(item.url)}
         />
       )}
     </div>

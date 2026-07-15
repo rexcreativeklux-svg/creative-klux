@@ -53,14 +53,6 @@ import {
   Minus,
   Plus,
   Maximize2,
-  User,
-  Package,
-  Image as ImageIcon,
-  Scissors,
-  Layers,
-  Shirt,
-  LayoutGrid,
-  Video,
   Wand2,
 } from "lucide-react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -73,6 +65,10 @@ import {
 } from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { stashPendingSave, takePendingSave } from "./pendingSave";
+import { SIZES, QUALITY_TIERS } from "./constants";
+import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
+import QualityDropdown from "./QualityDropdown";
+import SizeDropdown from "./SizeDropdown";
 
 /**
  * Fetch a hosted image into a Blob the on-device engine can read pixels from.
@@ -127,164 +123,6 @@ function preloadImage(url) {
   });
 }
 
-// Pexels CDN helper for the quality-tier card thumbnails (matches ProductToolModal).
-const px = (id) =>
-  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=600`;
-
-// ── Header tool-switcher list (mirrors the product-studio page tools) ──
-const TOOL_LIST = [
-  {
-    id: "virtual",
-    name: "Virtual Model",
-    Icon: User,
-    color: "bg-pink-100 text-pink-600",
-    img: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=240&q=80",
-  },
-  {
-    id: "staging",
-    name: "Product Staging",
-    Icon: Package,
-    color: "bg-amber-100 text-amber-600",
-    img: "https://images.unsplash.com/photo-1607082349566-187342175e2f?w=240&q=80",
-  },
-  {
-    id: "bgremove",
-    name: "Background Remover",
-    Icon: Scissors,
-    color: "bg-red-100 text-red-600",
-    img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=240&q=80",
-  },
-  {
-    id: "beautifier",
-    name: "Product Beautifier",
-    Icon: Sparkles,
-    color: "bg-yellow-100 text-yellow-600",
-    img: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=240&q=80",
-  },
-  {
-    id: "start",
-    name: "Edit with AI",
-    Icon: ImageIcon,
-    color: "bg-blue-100 text-blue-600",
-    img: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=240&q=80",
-  },
-  {
-    id: "flatlay",
-    name: "Flat Lay",
-    Icon: LayoutGrid,
-    color: "bg-cyan-100 text-cyan-600",
-    img: "https://images.unsplash.com/photo-1445205170230-053b83016050?w=240&q=80",
-  },
-  {
-    id: "mannequin",
-    name: "Ghost Mannequin",
-    Icon: Shirt,
-    color: "bg-emerald-100 text-emerald-600",
-    img: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=240&q=80",
-  },
-  {
-    id: "batch",
-    name: "Batch",
-    Icon: Layers,
-    color: "bg-purple-100 text-purple-600",
-    img: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=240&q=80",
-  },
-  {
-    id: "video",
-    name: "Video Generator",
-    Icon: Video,
-    color: "bg-indigo-100 text-indigo-600",
-    img: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=240&q=80",
-  },
-];
-const RECENT_TOOL_IDS = ["virtual", "staging"];
-
-const SIZES = [
-  { id: "original", name: "Original", w: 1, h: 1 },
-  { id: "portrait_9_16", name: "Portrait (9:16)", w: 9, h: 16 },
-  { id: "portrait_3_4", name: "Portrait (3:4)", w: 3, h: 4 },
-  { id: "portrait_2_3", name: "Portrait (2:3)", w: 2, h: 3 },
-  { id: "square", name: "Square", w: 1, h: 1 },
-  { id: "landscape_3_2", name: "Landscape (3:2)", w: 3, h: 2 },
-  { id: "landscape_4_3", name: "Landscape (4:3)", w: 4, h: 3 },
-  { id: "landscape_16_9", name: "Landscape (16:9)", w: 16, h: 9 },
-];
-
-// Rich quality tiers shown as cards (restored from ProductToolModal).
-const QUALITY_TIERS = [
-  {
-    id: "Ultra",
-    name: "Premium",
-    tag: "Ultra",
-    tagColor: "bg-blue-100 text-blue-700",
-    img: px(6780091),
-    features: [
-      "4k+ resolution",
-      "Best product accuracy",
-      "Most realistic results",
-      "Highest quality",
-      "Consumes most credits",
-    ],
-  },
-  {
-    id: "High",
-    name: "Advanced",
-    tag: "Max",
-    tagColor: "bg-indigo-100 text-indigo-700",
-    img: px(6780038),
-    features: [
-      "2k resolution",
-      "Better product accuracy",
-      "Realistic results",
-      "High quality",
-      "Consumes more credits",
-    ],
-  },
-  {
-    id: "Standard",
-    name: "Standard",
-    tag: "Pro",
-    tagColor: "bg-emerald-100 text-emerald-700",
-    img: px(6780036),
-    features: [
-      "1k resolution",
-      "Good product accuracy",
-      "Fast generations",
-      "Consumes less credits",
-    ],
-  },
-];
-
-// ── Header tool-switcher card ──
-function ToolCard({ tool, active, onClick }) {
-  const [imgOk, setImgOk] = useState(true);
-  const { Icon } = tool;
-  return (
-    <button
-      onClick={() => onClick(tool.id)}
-      className={`w-full flex items-stretch justify-between gap-2 rounded-xl overflow-hidden h-16 text-left transition-colors ${active ? "ring-2 ring-blue-500 bg-blue-50" : "bg-gray-100 hover:bg-gray-100"}`}
-    >
-      <span className="text-sm font-semibold text-gray-900 leading-tight self-center pl-3.5 flex-1">
-        {tool.name}
-      </span>
-      <div
-        className={`w-20 shrink-0 flex items-center justify-center ${tool.color}`}
-      >
-        {imgOk ? (
-          <img
-            src={tool.img}
-            alt={tool.name}
-            className="w-full h-full object-cover"
-            onError={() => setImgOk(false)}
-          />
-        ) : (
-          <Icon className="w-6 h-6" />
-        )}
-      </div>
-    </button>
-  );
-}
-
 // ── Zoomable canvas surface (react-zoom-pan-pinch) ──
 // Wheel/pinch zoom, drag pan, double-click to reset. The parent owns the ref so
 // the bottom-toolbar controls (− / % / + / fit) drive whichever surface is
@@ -326,116 +164,6 @@ function ZoomCanvas({
         {children}
       </TransformComponent>
     </TransformWrapper>
-  );
-}
-
-// ── Popover animations (shared by the header dropdown + option panels) ──
-// The dropdown staggers its children in; items opt in via DROPDOWN_ITEM.
-const DROPDOWN_PANEL = {
-  hidden: { opacity: 0, y: -8, scale: 0.98 },
-  show: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      duration: 0.18,
-      ease: "easeOut",
-      staggerChildren: 0.015,
-      delayChildren: 0.02,
-    },
-  },
-  exit: {
-    opacity: 0,
-    y: -6,
-    scale: 0.98,
-    transition: { duration: 0.12, ease: "easeIn" },
-  },
-};
-const DROPDOWN_ITEM = {
-  hidden: { opacity: 0, y: 6 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.15, ease: "easeOut" } },
-};
-
-// Floating panel anchored BELOW its anchor (header dropdown). Animated —
-// render inside an <AnimatePresence> so the exit plays too.
-function DropdownBelow({ anchorRef, children, width = 460 }) {
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  useEffect(() => {
-    if (anchorRef?.current) {
-      const r = anchorRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 6, left: r.left });
-    }
-  }, [anchorRef]);
-  return (
-    <motion.div
-      variants={DROPDOWN_PANEL}
-      initial="hidden"
-      animate="show"
-      exit="exit"
-      className="fixed z-[210] bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto"
-      style={{
-        top: pos.top,
-        left: pos.left,
-        width,
-        transformOrigin: "top left",
-      }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-// Floating panel anchored to the RIGHT of the trigger, clamped to the viewport.
-// Animated — render inside an <AnimatePresence> so the exit plays too.
-function FloatingPanel({ anchorRef, children, width = 320 }) {
-  const panelRef = useRef(null);
-  const [pos, setPos] = useState({ top: -9999, left: -9999 });
-  useEffect(() => {
-    const a = anchorRef?.current;
-    const p = panelRef.current;
-    if (!a || !p) return;
-    const r = a.getBoundingClientRect();
-    const pw = p.offsetWidth || width;
-    const ph = p.offsetHeight;
-    const margin = 12;
-    let left = r.right + 4;
-    if (left + pw > window.innerWidth - margin) left = r.left - pw - 4;
-    if (left < margin) left = window.innerWidth - pw - margin;
-    left = Math.max(margin, left);
-    let top = r.top;
-    if (top + ph > window.innerHeight - margin)
-      top = window.innerHeight - ph - margin;
-    top = Math.max(margin, top);
-    setPos({ top, left });
-  }, [anchorRef, width]);
-  return (
-    <motion.div
-      ref={panelRef}
-      initial={{ opacity: 0, x: -6, scale: 0.98 }}
-      animate={{
-        opacity: 1,
-        x: 0,
-        scale: 1,
-        transition: { duration: 0.16, ease: "easeOut" },
-      }}
-      exit={{
-        opacity: 0,
-        x: -4,
-        scale: 0.98,
-        transition: { duration: 0.12, ease: "easeIn" },
-      }}
-      className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
-      style={{
-        top: pos.top,
-        left: pos.left,
-        width,
-        transformOrigin: "left center",
-      }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {children}
-    </motion.div>
   );
 }
 
@@ -1032,7 +760,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     // plain fade for users with prefers-reduced-motion.
     <MotionConfig reducedMotion="user">
       <div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-3"
+        className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-3"
         onClick={closeMenus}
       >
         <div
@@ -1620,153 +1348,49 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
         {/* ── Tool switcher (header dropdown) ── */}
         {toolMenuOpen && (
           <div
-            className="fixed inset-0 z-[205]"
+            className="fixed inset-0 z-205"
             onClick={() => setToolMenuOpen(false)}
           />
         )}
         <AnimatePresence>
           {toolMenuOpen && (
-            <DropdownBelow key="tool-menu" anchorRef={headerRef} width={460}>
-              <p className="text-xs font-semibold text-gray-500 px-1 mb-2">
-                Recently used
-              </p>
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                {RECENT_TOOL_IDS.map((id) => {
-                  const t = TOOL_LIST.find((x) => x.id === id);
-                  if (!t) return null;
-                  return (
-                    <motion.div key={`recent-${t.id}`} variants={DROPDOWN_ITEM}>
-                      <ToolCard
-                        tool={t}
-                        active={t.id === config.toolId}
-                        onClick={handleToolClick}
-                      />
-                    </motion.div>
-                  );
-                })}
-              </div>
-              <p className="text-xs font-semibold text-gray-500 px-1 mb-2">
-                All tools
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {TOOL_LIST.map((t) => (
-                  <motion.div key={t.id} variants={DROPDOWN_ITEM}>
-                    <ToolCard
-                      tool={t}
-                      active={t.id === config.toolId}
-                      onClick={handleToolClick}
-                    />
-                  </motion.div>
-                ))}
-              </div>
-            </DropdownBelow>
+            <ToolSwitcherDropdown
+              key="tool-menu"
+              anchorRef={headerRef}
+              activeToolId={config.toolId}
+              onSelect={handleToolClick}
+              animated
+            />
           )}
         </AnimatePresence>
 
         {/* ── Floating dropdowns ── */}
         {openDropdown && (
           <div
-            className="fixed inset-0 z-[195]"
+            className="fixed inset-0 z-195"
             onClick={() => setOpenDropdown(null)}
           />
         )}
 
         <AnimatePresence>
           {openDropdown === "quality" && (
-            <FloatingPanel
+            <QualityDropdown
               key="quality-panel"
               anchorRef={qualityRef}
-              width={380}
-            >
-              <div className="p-2 space-y-2">
-                {QUALITY_TIERS.map((t) => {
-                  const active = quality === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => changeQuality(t.id)}
-                      className={`w-full flex items-stretch gap-3 p-2.5 rounded-2xl border-2 text-left transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-gray-200 bg-surface"}`}
-                    >
-                      <div className="w-20 h-28 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                        <img
-                          src={t.img}
-                          alt={t.name}
-                          className="w-full h-full object-cover object-top"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-gray-900">
-                              {t.name}
-                            </span>
-                            <span
-                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${t.tagColor}`}
-                            >
-                              {t.tag}
-                            </span>
-                          </div>
-                          <span
-                            className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? "bg-blue-600" : "border-2 border-gray-200"}`}
-                          >
-                            {active && (
-                              <span className="text-white text-[10px]">✓</span>
-                            )}
-                          </span>
-                        </div>
-                        <ul className="mt-1.5 space-y-0.5">
-                          {t.features.map((f) => (
-                            <li
-                              key={f}
-                              className="text-[11px] text-gray-500 leading-snug"
-                            >
-                              {f}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </FloatingPanel>
+              value={quality}
+              onSelect={changeQuality}
+              animated
+            />
           )}
 
           {openDropdown === "size" && (
-            <FloatingPanel key="size-panel" anchorRef={sizeRef} width={380}>
-              <div className="grid grid-cols-3 gap-2.5 p-3">
-                {SIZES.map((s) => {
-                  const active = size === s.id;
-                  const maxDim = 64;
-                  const bw =
-                    s.w >= s.h ? maxDim : Math.round((maxDim * s.w) / s.h);
-                  const bh =
-                    s.h >= s.w ? maxDim : Math.round((maxDim * s.h) / s.w);
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => changeSize(s.id)}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-gray-200"}`}
-                    >
-                      <div className="flex items-center justify-center h-20 relative w-full">
-                        <div
-                          className={`rounded-md ${active ? "bg-blue-300" : "bg-gray-100"}`}
-                          style={{ width: bw, height: bh }}
-                        />
-                        {active && (
-                          <div className="absolute top-0 right-0 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
-                            <span className="text-white text-[8px]">✓</span>
-                          </div>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-gray-500 text-center leading-tight">
-                        {s.name}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </FloatingPanel>
+            <SizeDropdown
+              key="size-panel"
+              anchorRef={sizeRef}
+              value={size}
+              onSelect={changeSize}
+              animated
+            />
           )}
         </AnimatePresence>
 

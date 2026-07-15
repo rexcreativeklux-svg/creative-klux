@@ -8,8 +8,7 @@ import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
 import { X, Upload, Loader2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { px, pxbg, QUALITY_RES } from "./constants";
-import { FloatingPanel } from "./FloatingPanels";
+import { px, QUALITY_RES, SIZES } from "./constants";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import QualityDropdown from "./QualityDropdown";
 import SizeDropdown from "./SizeDropdown";
@@ -18,67 +17,29 @@ import useProductHistory from "./useProductHistory";
 
 // Appended to the prompt when the user picks "Other angles" on a result.
 const ANGLE_INSTRUCTION =
-  "Show the product from a different camera angle and perspective, keeping the same product, scene, lighting and styling.";
+  "Show the garment on the invisible mannequin from a different camera angle, keeping the same garment, worn shape, lighting and background.";
 
-const STAGING_BEFORE = px(2479095);
-const STAGING_AFTER = px(13412090);
+const MANNEQUIN_BEFORE = px(4109759);
+const MANNEQUIN_AFTER = px(37595197);
 
-// Scenes that shape the staged lifestyle context. The staging payload only
-// carries the shared fields (see docs/product-studio-payloads.md), so the chosen
-// scene travels inside the `prompt` as context — never as a separate field.
-const SCENES = [
-  {
-    id: "lifestyle",
-    name: "Lifestyle",
-    desc: "Person using the product in real life",
-    img: pxbg(3184465),
-  },
-  {
-    id: "studio",
-    name: "Studio",
-    desc: "Clean white / grey studio",
-    img: pxbg(1029243),
-  },
-  {
-    id: "outdoor",
-    name: "Outdoor",
-    desc: "Natural outdoor setting",
-    img: pxbg(957024),
-  },
-  {
-    id: "kitchen",
-    name: "Kitchen",
-    desc: "On a wooden kitchen counter",
-    img: pxbg(1080696),
-  },
-  {
-    id: "editorial",
-    name: "Editorial",
-    desc: "Magazine-style fashion shoot",
-    img: pxbg(291762),
-  },
-  {
-    id: "social",
-    name: "Social Media",
-    desc: "Eye-catching, social-ready",
-    img: pxbg(1092644),
-  },
-];
-
-export default function ProductStagingModal({ onClose, onSwitchTool }) {
+/**
+ * Ghost Mannequin — an API-only Product Studio modal (upload → Quality / Size /
+ * Brand / Prompt → Generate → history grid), mirroring ProductStagingModal and
+ * built on the shared product-studio components. It sends `tool: ghost_mannequin`
+ * to POST /product-studio/generate; there is no on-device processing here.
+ */
+export default function GhostMannequinModal({ onClose, onSwitchTool }) {
   const { activeBrand, uploadMedia, token } = useAuth();
   const isLoggedIn = !!token;
   const qualityRef = useRef(null);
   const sizeRef = useRef(null);
-  const sceneRef = useRef(null);
   const headerRef = useRef(null);
 
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // gallery/cloud URL of the picked image
-  const [selectedScene, setSelectedScene] = useState("lifestyle");
   const [quality, setQuality] = useState("Standard");
-  const [size, setSize] = useState("square");
+  const [size, setSize] = useState("portrait_3_4");
   const [applyBrandStyle, setApplyBrandStyle] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -89,15 +50,17 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
   // Past generations for this tool. History REPLACES a session-only results list:
   // after each successful generate we refresh it and the new item shows up
   // (newest first). Empty history → the modal shows its sample/empty state.
-  const history = useProductHistory(TOOL_ENUM.staging, {
+  const history = useProductHistory(TOOL_ENUM.mannequin, {
     enabled: isLoggedIn,
   });
+
+  const sizeObj = SIZES.find((s) => s.id === size);
 
   // Header tool switcher: clicking the current tool just closes; any other tool
   // tells the parent to swap modals (parent opens the right one + closes this).
   const handleToolClick = (id) => {
     setToolMenuOpen(false);
-    if (id === "staging") return; // already here
+    if (id === "mannequin") return; // already here
     onSwitchTool?.(id);
   };
 
@@ -143,7 +106,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
       let imageUrl = imageUrlOverride || uploadedFileUrl;
       if (!imageUrl && uploadedFile) {
         const uploaded = await uploadMedia(uploadedFile);
-        console.log("🖼️ [staging] upload response ←", uploaded);
+        console.log("🖼️ [mannequin] upload response ←", uploaded);
         imageUrl =
           uploaded?.url ||
           uploaded?.image_url ||
@@ -157,27 +120,21 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
         return;
       }
 
-      // Scene context is folded into the prompt (staging carries only the
-      // shared fields — see docs/product-studio-payloads.md).
-      // const sceneObj = SCENES.find(s => s.id === selectedScene);
-      // const sceneNote = sceneObj ? `Scene: ${sceneObj.name} — ${sceneObj.desc}.` : '';
-      // const finalPrompt = [sceneNote, prompt].filter(Boolean).join(' ').trim();
-
-      // Backend contract: POST /product-studio/generate (matches VirtualModelModal's shape).
+      // Backend contract: POST /product-studio/generate (matches the other AI modals).
       const payload = {
-        tool: TOOL_ENUM.staging, // "product_staging"
+        tool: TOOL_ENUM.mannequin, // "ghost_mannequin"
         image_url: imageUrl, // single image URL
         quality: QUALITY_ENUM[quality] || "standard",
         size, // aspect-ratio id
         apply_brand_style: applyBrandStyle,
-        prompt: promptToSend, // scene context + optional user refinement
+        prompt: promptToSend || "",
         // workspace_id omitted for now (confirm source with backend).
       };
 
       const result = await generateProductPhoto(payload);
 
       // Log the raw return so we can see its exact shape while consuming it.
-      console.log("🎨 [staging] generate result ←", result);
+      console.log("🎨 [mannequin] generate result ←", result);
 
       const resultUrl = result?.url || result?.image_url || result?.data?.url;
       if (resultUrl) {
@@ -190,16 +147,13 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
       }
     } catch (err) {
       // generateProductPhoto already toasts a friendly error; log for debugging.
-      console.error("❌ [staging] generate failed:", err);
+      console.error("❌ [mannequin] generate failed:", err);
     } finally {
       setGenerating(false);
     }
   };
 
   const toggle = (key) => setOpenDropdown((p) => (p === key ? null : key));
-
-  // const sceneObj = SCENES.find(s => s.id === selectedScene);
-  // const sizeObj = SIZES.find(s => s.id === size);
 
   const closeAll = () => {
     setOpenDropdown(null);
@@ -211,10 +165,10 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
   // are the modal-specific ones it can't own.
   // "Change something": focus the prompt so the user can describe the edit.
   const handleChangeSomething = () =>
-    document.getElementById("product-staging-prompt")?.focus();
+    document.getElementById("ghost-mannequin-prompt")?.focus();
   // "Other angles": regenerate a NEW angle of THIS result — send the result's
   // own output image back in, with its original prompt plus the angle
-  // instruction so the rest of the scene is preserved.
+  // instruction so the garment and styling are preserved.
   const handleOtherAngles = (item) => {
     if (!item?.url) return;
     handleGenerate({
@@ -250,7 +204,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                 onClick={() => setToolMenuOpen((o) => !o)}
                 className="flex items-center gap-2 font-bold text-2xl text-gray-900 hover:opacity-70 transition-opacity"
               >
-                Product Staging
+                Ghost Mannequin
                 <ChevronDown
                   className={`w-5 h-5 text-gray-500 transition-transform ${toolMenuOpen ? "rotate-180" : ""}`}
                 />
@@ -283,21 +237,6 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
               </div>
             )}
 
-            {/* Scene */}
-            {/* <div className="px-4 pt-4">
-                        <button
-                            ref={sceneRef}
-                            onClick={() => toggle('scene')}
-                            className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === 'scene' ? 'bg-blue-50 ring-2 ring-blue-500' : 'bg-gray-100/70 hover:bg-gray-100'}`}
-                        >
-                            <div className="w-full h-40 rounded-xl overflow-hidden mb-2.5 bg-surface">
-                                <img src={sceneObj?.img} alt={sceneObj?.name} className="w-full h-full object-cover" />
-                            </div>
-                            <span className="text-[11px] text-gray-500">Scene</span>
-                            <span className="text-sm font-semibold text-gray-900">{sceneObj?.name}</span>
-                        </button>
-                    </div> */}
-
             {/* Option rows — light gray cards (Photoroom style) */}
             <div className="px-4 pt-3 pb-3 space-y-2.5">
               {/* Quality */}
@@ -322,7 +261,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                 className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors"
               >
                 <span className="text-gray-900 font-medium">Size</span>
-                {/* <span className="text-gray-500">{sizeObj?.name}</span> */}
+                <span className="text-gray-500">{sizeObj?.name}</span>
               </button>
 
               {/* Brand style */}
@@ -347,7 +286,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
               {/* Prompt */}
               <div className="rounded-2xl bg-gray-100 px-4 py-3">
                 <textarea
-                  id="product-staging-prompt"
+                  id="ghost-mannequin-prompt"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the image you want (optional)"
@@ -364,16 +303,11 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
             <button
               onClick={() => handleGenerate()}
               disabled={generating}
-              className={`
-    w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white
-    transition-all flex items-center justify-center gap-2
-    disabled:opacity-60
-    ${
-      generating
-        ? "bg-gray-400"
-        : "bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
-    }
-  `}
+              className={`w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 ${
+                generating
+                  ? "bg-gray-400"
+                  : "bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+              }`}
             >
               {generating ? (
                 <>
@@ -401,7 +335,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
               <div className="flex items-center gap-3 mb-9">
                 <div className="w-44 h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
                   <img
-                    src={uploadedImage || STAGING_BEFORE}
+                    src={uploadedImage || MANNEQUIN_BEFORE}
                     alt="product"
                     className="w-full h-full object-cover"
                   />
@@ -430,17 +364,18 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                 </svg>
                 <div className="w-44 h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
                   <img
-                    src={STAGING_AFTER}
+                    src={MANNEQUIN_AFTER}
+                    alt="result"
                     className="w-full h-full object-cover"
                   />
                 </div>
               </div>
               <h3 className="text-gray-900 text-center text-lg font-semibold max-w-sm leading-snug">
-                Create stunning lifestyle images
+                Display your garment on a ghost mannequin
               </h3>
               <p className="text-gray-500 text-center text-sm mt-2 max-w-xs leading-relaxed">
-                Place your product into a realistic scene that tells a story and
-                shows it in action.
+                Show the natural worn shape on an invisible mannequin —
+                professional e-commerce styling, no model needed.
               </p>
             </div>
           ) : (
@@ -448,12 +383,12 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
               items={history.items}
               loading={history.loading}
               generating={generating}
-              generatingLabel="Staging your product…"
+              generatingLabel="Building your ghost mannequin…"
               onDelete={history.remove}
               removingId={history.removingId}
               uploadMedia={uploadMedia}
-              filePrefix="product-staged"
-              aspectClass="aspect-square"
+              filePrefix="ghost-mannequin"
+              aspectClass="aspect-[3/4]"
               onChangeSomething={handleChangeSomething}
               onOtherAngles={handleOtherAngles}
               onGenerateVideo={handleGenerateVideo}
@@ -472,7 +407,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
           />
           <ToolSwitcherDropdown
             anchorRef={headerRef}
-            activeToolId="staging"
+            activeToolId="mannequin"
             onSelect={handleToolClick}
           />
         </>
@@ -485,45 +420,6 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
           className="fixed inset-0 z-195"
           onClick={() => setOpenDropdown(null)}
         />
-      )}
-
-      {openDropdown === "scene" && (
-        <FloatingPanel anchorRef={sceneRef} width={420}>
-          <div className="grid grid-cols-3 gap-2.5 p-3">
-            {SCENES.map((s) => {
-              const active = selectedScene === s.id;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => {
-                    setSelectedScene(s.id);
-                    setOpenDropdown(null);
-                  }}
-                  className="flex flex-col items-center gap-1.5"
-                  title={s.desc}
-                >
-                  <div
-                    className={`w-full h-24 rounded-xl overflow-hidden relative border-2 transition-colors ${active ? "border-blue-500" : "border-transparent hover:border-gray-200"}`}
-                  >
-                    <img
-                      src={s.img}
-                      alt={s.name}
-                      className="w-full h-full object-cover"
-                    />
-                    {active && (
-                      <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
-                        <span className="text-white text-[8px]">✓</span>
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-gray-500 text-center leading-tight">
-                    {s.name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </FloatingPanel>
       )}
 
       {openDropdown === "quality" && (

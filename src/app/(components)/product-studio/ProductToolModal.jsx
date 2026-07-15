@@ -234,7 +234,7 @@ function DropdownBelow({ anchorRef, children, width = 460 }) {
   }, [anchorRef]);
   return (
     <div
-      className="fixed z-[210] bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto"
+      className="fixed z-210 bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto"
       style={{ top: pos.top, left: pos.left, width }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -269,7 +269,7 @@ function FloatingPanel({ anchorRef, children, width = 320 }) {
   return (
     <div
       ref={panelRef}
-      className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
+      className="fixed z-200 bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto"
       style={{ top: pos.top, left: pos.left, width }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -367,7 +367,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-black/40"
       onClick={closeAll}
     >
       <div
@@ -609,7 +609,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
       {toolMenuOpen && (
         <>
           <div
-            className="fixed inset-0 z-[205]"
+            className="fixed inset-0 z-205"
             onClick={() => setToolMenuOpen(false)}
           />
           <DropdownBelow anchorRef={headerRef} width={460}>
@@ -650,7 +650,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
       {/* ── Floating dropdowns ── */}
       {openDropdown && (
         <div
-          className="fixed inset-0 z-[195]"
+          className="fixed inset-0 z-195"
           onClick={() => setOpenDropdown(null)}
         />
       )}
@@ -755,7 +755,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
       {/* Image context menu */}
       {imageMenu && (
         <div
-          className="fixed z-[200] bg-surface rounded-xl shadow-2xl border border-gray-200 w-48 py-1"
+          className="fixed z-200 bg-surface rounded-xl shadow-2xl border border-gray-200 w-48 py-1"
           style={{ top: imageMenu.y, left: imageMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >

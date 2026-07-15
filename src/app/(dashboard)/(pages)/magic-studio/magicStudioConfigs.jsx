@@ -66,7 +66,7 @@ import {
   Venus,
 } from "lucide-react";
 
-import { generateMagicStudio } from "@/(lib)/magic-studio-api";
+import { generateMagicStudio, resolveMediaUrl } from "@/(lib)/magic-studio-api";
 import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
 
 // Pexels CDN helper (free license, stable URLs) for rich option-card thumbnails.
@@ -90,39 +90,61 @@ const RATIO_STRING = {
 };
 const ratioString = (v) => RATIO_STRING[v] || v || "";
 
+// The backend wraps a single generation record as { generation: {...} } (e.g.
+// the async video generate/status responses). Unwrap that envelope so the
+// extractors below see the record fields (id, status, s3_key, …) directly.
+function unwrapGeneration(data) {
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    if (data.generation && typeof data.generation === "object") {
+      return data.generation;
+    }
+  }
+  return data;
+}
+
 // Pull an array of raw items out of whatever the backend returned.
 function extractItems(data) {
   if (!data) return [];
-  if (Array.isArray(data)) return data;
+  const root = unwrapGeneration(data);
+  if (Array.isArray(root)) return root;
   // Common container keys, in priority order.
   const container =
-    data.assets ||
-    data.results ||
-    data.data ||
-    data.items ||
-    data.urls ||
-    data.images ||
-    data.videos;
+    root.assets ||
+    root.results ||
+    root.data ||
+    root.items ||
+    root.urls ||
+    root.images ||
+    root.videos;
   if (Array.isArray(container)) return container;
-  // Single-result shapes: { url } / { src } / { video_url } / { audio_url }.
+  // Single-result shapes: { url } / { src } / { video_url } / { s3_key } / …
   const single =
-    data.url || data.src || data.video_url || data.audio_url || data.image_url;
-  if (single) return [data];
+    root.url ||
+    root.src ||
+    root.video_url ||
+    root.audio_url ||
+    root.image_url ||
+    root.s3_key;
+  if (single) return [root];
   return [];
 }
 
 // Pull a usable media URL off one raw item (item may itself be a string URL).
+// Runs every candidate through resolveMediaUrl so a bare S3 object key
+// (e.g. "creativeklux/…​.mp4") is turned into a hosted CDN URL, and full URLs
+// pass through untouched.
 function itemUrl(item) {
   if (!item) return null;
-  if (typeof item === "string") return item;
+  if (typeof item === "string") return resolveMediaUrl(item);
   return (
-    item.src ||
-    item.url ||
-    item.video_url ||
-    item.videoSrc ||
-    item.audio_url ||
-    item.image_url ||
-    item.preview ||
+    resolveMediaUrl(item.src) ||
+    resolveMediaUrl(item.url) ||
+    resolveMediaUrl(item.video_url) ||
+    resolveMediaUrl(item.videoSrc) ||
+    resolveMediaUrl(item.audio_url) ||
+    resolveMediaUrl(item.image_url) ||
+    resolveMediaUrl(item.s3_key) ||
+    resolveMediaUrl(item.preview) ||
     null
   );
 }
@@ -136,12 +158,13 @@ function itemUrl(item) {
 function normalizeMagicResponse(data, resultType) {
   // Transcript / text tools: prefer an explicit text field.
   if (resultType === "text") {
+    const root = unwrapGeneration(data);
     const text =
-      data?.text ||
-      data?.transcript ||
-      data?.transcription ||
-      data?.result ||
-      data?.content;
+      root?.text ||
+      root?.transcript ||
+      root?.transcription ||
+      root?.result ||
+      root?.content;
     if (typeof text === "string" && text.trim())
       return { text, resultType: "text" };
     // Otherwise fall through to asset extraction (e.g. persona text blocks).
@@ -205,15 +228,20 @@ const VIDEO_FAILED_STATES = [
   "canceled",
 ];
 
-/** Tolerantly pull the job id out of the initial generate response. */
+/**
+ * Tolerantly pull the job id out of the initial generate response. The backend
+ * returns the record wrapped as { generation: { id, status, … } }, so we unwrap
+ * that first before falling back to the other common id field names.
+ */
 export function extractVideoJobId(data) {
+  const root = unwrapGeneration(data);
   return (
-    data?.id ??
-    data?.job_id ??
-    data?.jobId ??
-    data?.video_id ??
-    data?.videoId ??
-    data?.generation_id ??
+    root?.id ??
+    root?.job_id ??
+    root?.jobId ??
+    root?.video_id ??
+    root?.videoId ??
+    root?.generation_id ??
     data?.data?.id ??
     data?.data?.job_id ??
     null
@@ -231,7 +259,8 @@ export function normalizeVideoResult(data) {
  * video URL is present yet.
  */
 export function getVideoStatus(data) {
-  const s = String(data?.status ?? data?.data?.status ?? "")
+  const root = unwrapGeneration(data);
+  const s = String(root?.status ?? data?.data?.status ?? "")
     .toLowerCase()
     .trim();
   if (s) {
@@ -440,6 +469,10 @@ export const MAGIC_STUDIO_CONFIGS = {
     input: "prompt",
     resultType: "image",
     generateLabel: "Generate images",
+    // Backend `tool` enum for server-side generation history (matches the value
+    // `generate` sends). Present only on backend tools — the on-device tools
+    // (audio_to_text, text_to_audio) persist nothing and have no history.
+    historyTool: "text_to_image",
     sample: {
       before:
         "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80",
@@ -504,6 +537,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     input: "prompt",
     resultType: "video",
     generateLabel: "Generate videos",
+    historyTool: "text_to_video",
     sample: {
       before:
         "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400&q=80",
@@ -540,9 +574,12 @@ export const MAGIC_STUDIO_CONFIGS = {
         label: "Duration",
         panel: "list",
         width: 320,
-        default: "15",
+        default: "3",
         items: [
-          { value: "5", label: "5 seconds", desc: "Quick clip", icon: Clock },
+          { value: "1", label: "1 seconds", desc: "Quickest clip", icon: Clock },
+          { value: "2", label: "2 seconds", desc: "Quicker clip", icon: Clock },
+          { value: "3", label: "3 seconds", desc: "Quick clip", icon: Clock },
+          { value: "5", label: "5 seconds", desc: "Short clip", icon: Clock },
           { value: "10", label: "10 seconds", desc: "Short form", icon: Clock },
           { value: "15", label: "15 seconds", desc: "Story / ad", icon: Clock },
           { value: "30", label: "30 seconds", desc: "Full spot", icon: Clock },
@@ -582,6 +619,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     input: "image",
     resultType: "image",
     generateLabel: "Generate variations",
+    historyTool: "image_to_variation",
     sample: {
       before:
         "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80",
@@ -680,7 +718,7 @@ export const MAGIC_STUDIO_CONFIGS = {
       input ? null : "Please pick a source image first.",
     generate: async ({ input, values }) => {
       const payload = {
-        tool: "image_to_variation",
+        tool: "image_to_variations",
         visual_style: values.style,
         source_image: input,
       };
@@ -699,6 +737,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     input: "script",
     resultType: "video",
     generateLabel: "Generate video",
+    historyTool: "script_to_voiceover",
     sample: {
       before:
         "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=400&q=80",
@@ -1037,6 +1076,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     input: "persona",
     resultType: "auto", // resolved from the chosen content type at generate time
     generateLabel: "Generate content",
+    historyTool: "persona_generator",
     sample: {
       before:
         "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80",

@@ -39,19 +39,21 @@ async function fetchHostedBlob(url) {
  * @param {(file: File) => Promise<unknown>} uploadMedia The auth context uploader.
  * @param {object} [opts]
  * @param {string} [opts.filePrefix] File name prefix (e.g. "virtual-model").
+ * @param {string} [opts.ext] File extension (defaults to "png" — images).
+ * @param {string} [opts.mime] MIME type override (defaults to the blob's / image/png).
  * @returns {Promise<unknown>} The uploadMedia response.
  */
 export async function saveUrlToGallery(
   url,
   uploadMedia,
-  { filePrefix = "klux" } = {},
+  { filePrefix = "klux", ext = "png", mime } = {},
 ) {
   if (!url) throw new Error("Nothing to save.");
   if (typeof uploadMedia !== "function")
     throw new Error("Log in to save to your gallery.");
   const blob = await fetchHostedBlob(url);
-  const file = new File([blob], `${filePrefix}-${Date.now()}.png`, {
-    type: blob.type || "image/png",
+  const file = new File([blob], `${filePrefix}-${Date.now()}.${ext}`, {
+    type: mime || blob.type || "image/png",
   });
   console.log(`💾 [save-to-gallery] uploading ${filePrefix} result to gallery`);
   return uploadMedia(file);
@@ -66,14 +68,15 @@ export async function saveUrlToGallery(
  * @param {string} url The hosted result URL.
  * @param {object} [opts]
  * @param {string} [opts.filePrefix] File name prefix (e.g. "virtual-model").
+ * @param {string} [opts.ext] File extension (defaults to "png" — images).
  */
-export async function downloadImageUrl(url, { filePrefix = "klux" } = {}) {
+export async function downloadImageUrl(url, { filePrefix = "klux", ext = "png" } = {}) {
   if (!url) throw new Error("Nothing to download.");
   const blob = await fetchHostedBlob(url);
   const objectUrl = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = objectUrl;
-  a.download = `${filePrefix}-${Date.now()}.png`;
+  a.download = `${filePrefix}-${Date.now()}.${ext}`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

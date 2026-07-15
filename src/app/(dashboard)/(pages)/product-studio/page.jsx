@@ -23,6 +23,7 @@ import VirtualModelModal from "@/app/(components)/product-studio/VirtualModelMod
 import ProductStagingModal from "@/app/(components)/product-studio/ProductStagingModal";
 import VideoGeneratorModal from "@/app/(components)/product-studio/VideoGeneratorModal";
 import BackgroundRemoverModal from "@/app/(components)/product-studio/BackgroundRemoverModal";
+import GhostMannequinModal from "@/app/(components)/product-studio/GhostMannequinModal";
 import OnDeviceToolModal from "@/app/(components)/product-studio/OnDeviceToolModal";
 import AddImagesModal from "@/app/(components)/product-studio/add-images/AddImagesModal";
 import {
@@ -183,7 +184,8 @@ export default function ProductPhotos() {
   const [videoOpen, setVideoOpen] = useState(false);
   const [videoInitialImage, setVideoInitialImage] = useState(null); // preselect (from a result's "Generate video")
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
-  const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/mannequin/flatlay)
+  const [mannequinOpen, setMannequinOpen] = useState(false); // API-only Ghost Mannequin modal
+  const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/flatlay)
 
   // The "Edit a photo" flow opens the Photoroom-style Add images picker first;
   // picking an image there navigates to /edit_a_photo with it preloaded.
@@ -208,6 +210,10 @@ export default function ProductPhotos() {
     }
     if (id === "bgremove") {
       setBgRemoverOpen(true);
+      return;
+    }
+    if (id === "mannequin") {
+      setMannequinOpen(true);
       return;
     }
     if (id === "batch") {
@@ -326,17 +332,18 @@ export default function ProductPhotos() {
       {bgRemoverOpen && (
         <BackgroundRemoverModal onClose={() => setBgRemoverOpen(false)} />
       )}
-      {addImagesOpen && (
-        <AddImagesModal
-          onClose={() => setAddImagesOpen(false)}
-          onAdd={(images) => {
-            setAddImagesOpen(false);
-            const url = images?.[0]?.url;
-            if (!url) return;
-            router.push(`/edit_a_photo?image=${encodeURIComponent(url)}`);
+      {mannequinOpen && (
+        <GhostMannequinModal
+          onClose={() => setMannequinOpen(false)}
+          onSwitchTool={(id, opts) => {
+            setMannequinOpen(false);
+            openTool(id, opts);
           }}
         />
       )}
+      {/* {editorOpen && (
+        <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />
+      )} */}
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between">

@@ -103,6 +103,16 @@ const SHADOW_SWATCHES = [
   "#0f766e",
 ];
 
+// Recolor swatches for vector inserts — same palette as the Text panel colors.
+const INSERT_COLORS = [
+  "transparent",
+  "#000000",
+  "#ffffff",
+  "#ef4444",
+  "#ec4899",
+  "#7c3aed",
+];
+
 // Blend modes offered in the Blend section.
 const BLEND_MODES = [
   "normal",
@@ -137,6 +147,12 @@ export default function ImagePanel({
   duplicateLayer,
   base,
   activeSrc,
+  activeTitle = "Image",
+  // Recolor control for vector inserts (shapes/stickers/…): shown between
+  // Remove background and Shadows.
+  insertColorable = false,
+  insertColor,
+  onInsertRecolor,
   hasActiveImage,
   alignActiveCenter,
   alignActiveMiddle,
@@ -686,7 +702,7 @@ export default function ImagePanel({
                         />
                       )}
                       <span className="font-semibold text-sm text-gray-900">
-                        {activeSrc ? "Image" : "No image"}
+                        {activeSrc ? activeTitle : "No image"}
                       </span>
                     </div>
                     <button
@@ -797,6 +813,60 @@ export default function ImagePanel({
                       </button>
                     </div>
                   </div>
+
+                  {/* Color — recolor a vector insert (shape/sticker/…). Same
+                      swatches as the Text panel. */}
+                  {insertColorable && (
+                    <div className="rounded-2xl border border-gray-200 p-3">
+                      <p className="text-xs text-gray-500 mb-1.5">Color</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {INSERT_COLORS.map((c) => (
+                          <button
+                            key={c}
+                            onClick={() => onInsertRecolor?.(c)}
+                            title={c}
+                            className="w-8 h-8 rounded-full border border-gray-300 cursor-pointer relative overflow-hidden"
+                            style={
+                              c === "transparent"
+                                ? {
+                                    backgroundImage:
+                                      "linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%)",
+                                    backgroundSize: "10px 10px",
+                                    backgroundPosition: "0 0,5px 5px",
+                                  }
+                                : {
+                                    background: c,
+                                    outline:
+                                      (insertColor || "").toLowerCase() === c
+                                        ? "2px solid #3b82f6"
+                                        : "none",
+                                    outlineOffset: 1,
+                                  }
+                            }
+                          />
+                        ))}
+                        <label
+                          className="w-8 h-8 rounded-full border border-gray-300 cursor-pointer relative overflow-hidden"
+                          title="Custom color"
+                          style={{
+                            background:
+                              "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)",
+                          }}
+                        >
+                          <input
+                            type="color"
+                            value={
+                              insertColor && insertColor !== "transparent"
+                                ? insertColor
+                                : "#000000"
+                            }
+                            onChange={(e) => onInsertRecolor?.(e.target.value)}
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Shadows / Outline / Reflection */}
                   <div className="rounded-2xl border border-gray-200 overflow-hidden divide-y divide-gray-100">

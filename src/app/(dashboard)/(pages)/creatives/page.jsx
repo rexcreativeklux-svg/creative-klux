@@ -21,6 +21,7 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Send,
   CalendarClock,
   ScanSearch,
@@ -232,7 +233,108 @@ const DEFAULT_COLOR = {
   dot: "bg-gray-400",
 };
 
-const ITEMS_PER_PAGE = 9;
+// Display page size — the grid is 4 columns × 3 rows.
+const ITEMS_PER_PAGE = 12;
+// How many designs to pull from the backend at once. Default matches one full
+// page (12); larger choices fetch more and let the client pager page through
+// them 12 at a time.
+const FETCH_OPTIONS = [12, 24, 48, 96];
+// localStorage key remembering the user's "items to load" choice across visits.
+const PER_PAGE_STORAGE_KEY = "ck_creatives_per_page";
+// Bounds for the load count so a typed value can't request 0 or thousands.
+const MIN_FETCH = 1;
+const MAX_FETCH = 500;
+
+// Clamp any value to a whole number within [MIN_FETCH, MAX_FETCH]; 0/NaN → null.
+const clampFetch = (n) => {
+  const v = Math.round(Number(n) || 0);
+  if (!v || v < MIN_FETCH) return null;
+  return Math.min(MAX_FETCH, v);
+};
+
+// Read the user's saved load count (any valid number, not just a preset).
+const readSavedPerPage = () => {
+  if (typeof window === "undefined") return FETCH_OPTIONS[0];
+  return clampFetch(window.localStorage.getItem(PER_PAGE_STORAGE_KEY)) ?? FETCH_OPTIONS[0];
+};
+
+// ── Load-count control ────────────────────────────────────────────────────────
+// A "Show N" dropdown that lists preset amounts AND lets the user type a custom
+// number (native <select> can't accept typing, so this is a small popover).
+function LoadCountSelect({ value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(String(value));
+  const ref = useRef(null);
+
+  // Close on outside click; snap the field back to the applied value.
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setText(String(value));
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open, value]);
+
+  const commit = (n) => {
+    onChange(n);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative ml-auto">
+      <button
+        type="button"
+        onClick={() => {
+          setText(String(value)); // reflect the applied value when reopening
+          setOpen((o) => !o);
+        }}
+        title="How many to load"
+        className="flex items-center gap-2 bg-gray-100 text-xs font-semibold text-gray-600 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+      >
+        Show {value}
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-1 w-36 bg-surface border border-gray-200 rounded-xl shadow-lg py-1 z-50">
+          {/* Type a custom amount */}
+          <div className="px-2 pb-1.5 mb-1 border-b border-gray-100">
+            <input
+              type="number"
+              autoFocus
+              value={text}
+              min={MIN_FETCH}
+              max={MAX_FETCH}
+              placeholder="Custom…"
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commit(text);
+              }}
+              className="w-full bg-gray-100 text-xs font-semibold text-gray-600 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          {/* Preset amounts */}
+          {options.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => commit(n)}
+              className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-gray-100 cursor-pointer transition ${n === value ? "text-blue-600" : "text-gray-600"}`}
+            >
+              Show {n}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function CreativesPage() {
@@ -252,6 +354,10 @@ export default function CreativesPage() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [viewMode, setViewMode] = useState("grid");
+  // How many designs to request from the backend (user-selectable). More than
+  // one page's worth (12) turns on the pager below. Restored from the user's
+  // saved choice so it persists across visits.
+  const [fetchCount, setFetchCount] = useState(readSavedPerPage);
   const [selectedId, setSelectedId] = useState(null);
   const [copied, setCopied] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -277,7 +383,7 @@ export default function CreativesPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchDesigns(ITEMS_PER_PAGE);
+      const data = await fetchDesigns(fetchCount);
       console.log("[creatives] fetched designs:", data);
       if (data) {
         const arr = Array.isArray(data)
@@ -297,7 +403,7 @@ export default function CreativesPage() {
     } finally {
       setLoading(false);
     }
-  }, [fetchDesigns, activeBrandId]);
+  }, [fetchDesigns, activeBrandId, fetchCount]);
 
   useEffect(() => {
     if (!activeBrandId) {
@@ -314,6 +420,20 @@ export default function CreativesPage() {
     }
     loadDesigns();
   }, [loadDesigns, activeBrandId, brandsLoading]);
+
+  // Change how many designs we load, remember it, and jump back to page 1.
+  // Clamped to a sane range so a typed value can't request 0 or thousands.
+  const handleFetchCountChange = (n) => {
+    const next = clampFetch(n);
+    if (!next) return; // invalid/empty — ignore
+    setFetchCount(next);
+    setPage(1);
+    try {
+      localStorage.setItem(PER_PAGE_STORAGE_KEY, String(next));
+    } catch {
+      /* localStorage unavailable (private mode) — non-fatal */
+    }
+  };
 
   // ── CRUD wrappers using context ─────────────────────────────────────────────
   const deleteDesign = useCallback(
@@ -636,7 +756,14 @@ export default function CreativesPage() {
           })}
         </div>
 
-        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl ml-auto">
+        {/* Quantity — pick a preset or type a custom amount (persisted). */}
+        <LoadCountSelect
+          value={fetchCount}
+          options={FETCH_OPTIONS}
+          onChange={handleFetchCountChange}
+        />
+
+        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
           <button
             onClick={() => setViewMode("grid")}
             className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === "grid" ? "bg-surface shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}

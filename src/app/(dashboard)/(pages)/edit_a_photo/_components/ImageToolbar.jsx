@@ -9,6 +9,8 @@ import {
   Scissors,
   Wand2,
   Pencil,
+  BringToFront,
+  SendToBack,
 } from "lucide-react";
 
 // Floating toolbar shown above the selected image: a Delete button + a "⋯"
@@ -21,6 +23,10 @@ export default function ImageToolbar({
   onDelete,
   onDuplicate,
   onLayersOrder,
+  // Move the layer to the front / back (shown as a hover submenu under
+  // "Layers order").
+  onBringFront,
+  onSendBack,
   onReplace,
   onEditCutout,
   onRetouch,
@@ -32,6 +38,7 @@ export default function ImageToolbar({
   hiddenItems = [],
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [submenuOpen, setSubmenuOpen] = useState(false);
 
   const items = [
     { id: "duplicate", label: "Duplicate", icon: CopyPlus, onClick: onDuplicate },
@@ -94,22 +101,74 @@ export default function ImageToolbar({
             onClick={() => setMenuOpen(false)}
           />
           <div className="absolute left-0 mt-1 w-52 bg-surface border border-gray-200 rounded-xl shadow-2xl py-1.5 z-[90]">
-            {items.map(({ id, label, icon: Icon, onClick, chevron, divider }) => (
-              <button
-                key={id}
-                onClick={() => {
-                  setMenuOpen(false);
-                  onClick?.();
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer ${
-                  divider ? "border-t border-gray-100 mt-1 pt-2.5" : ""
-                }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="flex-1 text-left">{label}</span>
-                {chevron && <ChevronRight className="w-4 h-4 text-gray-400" />}
-              </button>
-            ))}
+            {items.map(({ id, label, icon: Icon, onClick, chevron, divider }) => {
+              // "Layers order" reveals a Front / Back submenu on hover, wired to
+              // move the layer to the front or back of the stack.
+              if (id === "layers") {
+                return (
+                  <div
+                    key={id}
+                    className="relative group"
+                    onMouseEnter={() => setSubmenuOpen(true)}
+                    onMouseLeave={() => setSubmenuOpen(false)}
+                  >
+                    <button
+                      className={`w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer ${
+                        divider ? "border-t border-gray-100 mt-1 pt-2.5" : ""
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span className="flex-1 text-left">{label}</span>
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </button>
+                    {submenuOpen && (
+                      <div className="absolute left-full top-0 -ml-1 pl-2 w-44">
+                        <div className="bg-surface border border-gray-200 rounded-xl shadow-2xl py-1.5">
+                          <button
+                            onClick={() => {
+                              setMenuOpen(false);
+                              setSubmenuOpen(false);
+                              onBringFront?.();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                          >
+                            <BringToFront className="w-4 h-4 shrink-0" />
+                            <span className="flex-1 text-left">Front</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setMenuOpen(false);
+                              setSubmenuOpen(false);
+                              onSendBack?.();
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                          >
+                            <SendToBack className="w-4 h-4 shrink-0" />
+                            <span className="flex-1 text-left">Back</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <button
+                  key={id}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onClick?.();
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer ${
+                    divider ? "border-t border-gray-100 mt-1 pt-2.5" : ""
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 text-left">{label}</span>
+                  {chevron && <ChevronRight className="w-4 h-4 text-gray-400" />}
+                </button>
+              );
+            })}
           </div>
         </>
       )}

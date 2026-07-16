@@ -2,13 +2,22 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Search, X, MoreVertical, Play, Copy, FolderInput } from "lucide-react";
+import {
+  Search,
+  X,
+  MoreVertical,
+  Play,
+  Copy,
+  FolderInput,
+  Plus,
+  Building2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 export default function ModalPage({ onClose }) {
   const { brands, setActiveBrand, activeBrand, brandsLoading, fetchBrands } = useAuth();
-  const [activeTab, setActiveTab] = useState("Recent");
+  // const [activeTab, setActiveTab] = useState("Recent");
   const [openMenuId, setOpenMenuId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState(null);
@@ -63,20 +72,14 @@ export default function ModalPage({ onClose }) {
   };
 
   const handleSelectBrand = (brand) => {
-    console.log("Selecting brand:", brand);
+    console.log("✅ Selecting brand:", brand?.id);
     try {
+      // Context owns persistence: local state + localStorage + backend sync.
       setActiveBrand(brand);
-      localStorage.setItem("activeBrandId", brand.id);
-      if (onClose) {
-        console.log("Closing modal");
-        onClose();
-      } else {
-        console.warn("onClose prop is undefined");
-      }
-    } catch (err) {
-      console.error("Error selecting brand:", err.message);
-      setError("Failed to select brand. Please try again.");
       if (onClose) onClose();
+    } catch (err) {
+      console.error("❌ Error selecting brand:", err.message);
+      setError("Failed to select brand. Please try again.");
     }
   };
 
@@ -212,16 +215,44 @@ export default function ModalPage({ onClose }) {
                 </p>
               </motion.div>
             ) : filteredBrands.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="flex flex-col items-center justify-center mt-6 p-20 rounded-md bg-surface"
-              >
-                <p className="text-lg font-medium text-center text-gray-600 mb-4">
-                  No brands found
-                </p>
-              </motion.div>
+              searchQuery ? (
+                // Search returned nothing — keep it simple.
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex flex-col items-center justify-center mt-6 p-20 rounded-md bg-surface"
+                >
+                  <p className="text-lg font-medium text-center text-gray-600">
+                    No brands match “{searchQuery}”
+                  </p>
+                </motion.div>
+              ) : (
+                // No brands at all — the user must create one before continuing.
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex flex-col items-center justify-center mt-6 py-16 px-6 text-center rounded-md bg-surface"
+                >
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-[#155dfc] mb-4">
+                    <Building2 className="h-7 w-7" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Create your first brand
+                  </h3>
+                  <p className="mt-1.5 max-w-sm text-sm text-gray-500">
+                    You need at least one brand to start creating. It only takes a
+                    minute — set your name, colors, and logo.
+                  </p>
+                  <button
+                    onClick={handleCreateNewBrand}
+                    className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#155dfc] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 cursor-pointer"
+                  >
+                    <Plus className="h-4 w-4" /> Create Brand
+                  </button>
+                </motion.div>
+              )
             ) : (
               <motion.div
                 className="grid grid-cols-2 gap-4 mt-6"
@@ -300,7 +331,7 @@ export default function ModalPage({ onClose }) {
                                   : `${process.env.NEXT_PUBLIC_API_URL}${brand.logo}`
                               }
                               alt={displayName}
-                              className="w-[28px] h-[28px] rounded-full object-cover"
+                              className="w-7 h-7 rounded-full object-cover"
                               onError={() => {
                                 // console.error(`Failed to load logo for modal brand ${brand.id}: ${brand.logo}`);
                                 setLogoFailed((prev) => ({ ...prev, [brand.id]: true }));
@@ -308,7 +339,7 @@ export default function ModalPage({ onClose }) {
                             />
                           ) : (
                             <div
-                              className="flex justify-center items-center rounded-full w-[28px] h-[28px] text-lg font-semibold text-white"
+                              className="flex justify-center items-center rounded-full w-7 h-7 text-lg font-semibold text-white"
                               style={{ backgroundColor: displayColor }}
                             >
                               {displayInitial}

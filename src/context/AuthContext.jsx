@@ -37,6 +37,8 @@ export function AuthProvider({ children }) {
   const activeBrandId = activeBrand?.id || null;
   const [brandsInitialized, setBrandsInitialized] = useState(false);
 
+  // console.log(user, brands)
+
   const authFetch = useCallback(
     async (url, options = {}) => {
       const res = await fetch(url, {
@@ -156,6 +158,7 @@ export function AuthProvider({ children }) {
 
       setUser(data);
       localStorage.setItem("user", JSON.stringify(data));
+      return data;
     } catch (err) {
       console.error("Profile fetch failed:", err.message);
 
@@ -163,6 +166,68 @@ export function AuthProvider({ children }) {
       // Just keep existing session
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Update the current user's profile via the shared POST /profile endpoint
+  // (there is no dedicated per-field endpoint). Accepts any subset of profile
+  // fields — e.g. { name }, { profile_pic }, { active_brand_id } — refreshes
+  // the cached user on success, and returns a normalized { ok, data?, message? }
+  // so callers can toast reliably.
+  const updateProfile = async (payload = {}) => {
+    if (!token)
+      return {
+        ok: false,
+        message: "You must be logged in to update your profile.",
+      };
+
+    try {
+      const res = await authFetch(API_PROFILE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("❌ updateProfile: non-JSON response:", text);
+        return { ok: false, message: "Unexpected server response." };
+      }
+
+      if (!res.ok) {
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        const message =
+          firstError ||
+          data?.message ||
+          `Failed to update profile (${res.status})`;
+        console.error("❌ updateProfile failed:", message);
+        return { ok: false, message };
+      }
+
+      console.log("✅ Profile updated");
+      // Refresh the cached user so the UI reflects the change everywhere.
+      const fresh = await fetchProfile(token);
+      return {
+        ok: true,
+        data: fresh || data,
+        message: data?.message || "Profile updated.",
+      };
+    } catch (err) {
+      if (err.message === "Unauthorized")
+        return {
+          ok: false,
+          message: "Your session expired. Please log in again.",
+        };
+      console.error("❌ updateProfile error:", err);
+      return { ok: false, message: err.message || "Network error" };
     }
   };
 
@@ -256,8 +321,10 @@ export function AuthProvider({ children }) {
       throw new Error("Please enter a valid 6-digit code");
     }
 
-    const userId = sessionStorage.getItem("pendingUserId");
-    const email = sessionStorage.getItem("pendingEmail");
+    // Prefer the just-registered session values; fall back to the logged-in
+    // user so an already-signed-in-but-unverified user can verify on refresh.
+    const userId = sessionStorage.getItem("pendingUserId") || user?.id;
+    // const email = sessionStorage.getItem("pendingEmail") || user?.email;
 
     if (!userId) {
       throw new Error("Session expired. Please register again.");
@@ -643,7 +710,9 @@ export function AuthProvider({ children }) {
       formData.append("description", brandData.description || "");
       formData.append("tagline", brandData.tagline || "");
       formData.append("fonts", brandData.fonts || "");
-      if (brandData.logo) {
+      // Logo is a hosted URL string (uploaded to the gallery beforehand).
+      // The backend accepts a URL only — never a raw File.
+      if (brandData.logo && typeof brandData.logo === "string") {
         formData.append("logo", brandData.logo);
       }
       formData.append("primary_color", brandData.colors?.primary || "#1e3a8a");
@@ -750,8 +819,9 @@ export function AuthProvider({ children }) {
       // Always send landing_page_flag = 0 for manual creation
       formData.append("landing_page_flag", "0");
 
-      // Logo – only if it's a real File
-      if (brandData.logo && brandData.logo instanceof File) {
+      // Logo is a hosted URL string (uploaded to the gallery beforehand),
+      // never a raw File — the backend accepts a URL only.
+      if (brandData.logo && typeof brandData.logo === "string") {
         formData.append("logo", brandData.logo);
       }
 
@@ -842,29 +912,42 @@ export function AuthProvider({ children }) {
       const brandsList = Array.isArray(data.data) ? data.data : [];
       setBrands(brandsList);
 
-      // 🔑 ACTIVE BRAND LOGIC (FIXED)
-      const storedBrandId = localStorage.getItem("activeBrandId");
+      // 🔑 ACTIVE BRAND RESOLUTION
+      // Source of truth is the user's saved `active_brand_id` (synced to the
+      // backend on selection). We read it from the freshly-stored `user` in
+      // localStorage — fetchProfile runs and persists it just before this in
+      // init() — then fall back to the local `activeBrandId` mirror. If the
+      // resolved brand no longer exists (e.g. it was deleted), we clear it.
+      let storedUser = null;
+      try {
+        storedUser = JSON.parse(localStorage.getItem("user") || "null");
+      } catch {
+        storedUser = null;
+      }
 
-      let selectedBrand = null;
+      const localBrandId = localStorage.getItem("activeBrandId");
+      const preferredId =
+        storedUser?.active_brand_id != null
+          ? Number(storedUser.active_brand_id)
+          : localBrandId != null
+            ? Number(localBrandId)
+            : null;
 
-      if (storedBrandId) {
-        const selectedBrand = brandsList.find(
-          (brand) => brand.id === Number(storedBrandId),
-        );
-        if (selectedBrand) {
-          setActiveBrandState(selectedBrand); // ✅ actually restore it
+      if (preferredId != null && !Number.isNaN(preferredId)) {
+        const match = brandsList.find((brand) => brand.id === preferredId);
+        if (match) {
+          console.log("✅ Active brand restored:", match.id);
+          setActiveBrandState(match);
+          localStorage.setItem("activeBrandId", match.id); // keep mirror in sync
         } else {
-          // Stored ID no longer exists (brand was deleted), clear it
+          console.warn(
+            "⚠️ Saved active brand no longer exists — clearing:",
+            preferredId,
+          );
           localStorage.removeItem("activeBrandId");
           setActiveBrandState(null);
         }
       } else {
-        setActiveBrandState(null);
-      }
-
-      const hasStoredBrand = !!storedBrandId;
-
-      if (!hasStoredBrand && brandsList.length > 0) {
         setActiveBrandState(null);
       }
 
@@ -907,10 +990,28 @@ export function AuthProvider({ children }) {
     init();
   }, [token]);
 
+  // Persist the chosen active brand to the user's profile so it syncs across
+  // devices. Reuses the shared POST /profile update (via updateProfile), which
+  // refreshes the user on success. Best-effort: a sync failure never blocks the
+  // local selection (the working source of truth on this device), it just warns.
+  const persistActiveBrand = async (brandId) => {
+    if (!token) return false;
+    const res = await updateProfile({ active_brand_id: brandId });
+    if (res.ok) {
+      console.log("✅ Active brand synced to profile:", brandId);
+      return true;
+    }
+    toast.error(
+      "Couldn't sync your active brand to your account — it's set on this device only.",
+    );
+    return false;
+  };
+
   const setActiveBrand = (brandOrId) => {
     if (brandOrId === null) {
       setActiveBrandState(null);
       localStorage.removeItem("activeBrandId");
+      setUser((prev) => (prev ? { ...prev, active_brand_id: null } : prev));
       return;
     }
 
@@ -923,10 +1024,20 @@ export function AuthProvider({ children }) {
       selectedBrand = brands.find((b) => b.id === id);
     }
 
-    if (!selectedBrand) return;
+    if (!selectedBrand) {
+      console.warn("setActiveBrand: no matching brand for", brandOrId);
+      return;
+    }
 
+    // Optimistic local update — instant UI, survives refresh via localStorage.
     setActiveBrandState(selectedBrand);
     localStorage.setItem("activeBrandId", selectedBrand.id);
+    setUser((prev) =>
+      prev ? { ...prev, active_brand_id: selectedBrand.id } : prev,
+    );
+
+    // Fire-and-forget backend sync (handles its own errors/toasts).
+    persistActiveBrand(selectedBrand.id);
   };
 
   const fetchBrandById = async (id) => {
@@ -967,28 +1078,24 @@ export function AuthProvider({ children }) {
         return null;
       }
 
+      // Return the raw brand so callers get every field as-is — including the
+      // hosted `logo` URL and the `primary_color` / `secondary_color` /
+      // `fonts` values the edit form needs. (Consumers use the logo URL
+      // straight; no reshaping.)
       const brand = data?.data || data;
-      return {
-        name: brand.name || "",
-        tagline: brand.tagline || "",
-        description: brand.description || "",
-        font: brand.font || "",
-        logoDataUrl: brand.logoDataUrl || null,
-        colors: [
-          brand.colors?.[0] || "#1e3a8a",
-          brand.colors?.[1] || "#10b981",
-        ],
-      };
+      return brand;
     } catch (err) {
       console.error("Fetching brand by ID failed:", err.message);
       return null;
     }
   };
 
+  // Returns a normalized { ok, data?, message? } so callers can reliably tell
+  // success from failure and surface a readable message.
   const updateBrandById = async (id, brandData) => {
     if (!token) {
       console.error("No auth token found. User may not be logged in.");
-      return null;
+      return { ok: false, message: "You must be logged in to update a brand." };
     }
 
     try {
@@ -998,19 +1105,21 @@ export function AuthProvider({ children }) {
       formData.append("tagline", brandData.tagline || "");
       formData.append("fonts", brandData.fonts || "");
 
-      // Only append logo if it's a new file (not null and is a File object)
-      if (brandData.logo && brandData.logo instanceof File) {
+      // Logo is a hosted URL string (uploaded to the gallery beforehand),
+      // never a raw File — the backend accepts a URL only. An empty/undefined
+      // logo is simply omitted so the existing one is preserved.
+      if (brandData.logo && typeof brandData.logo === "string") {
         formData.append("logo", brandData.logo);
       }
 
-      formData.append("primary_color", brandData.primary_color);
-      formData.append("secondary_color", brandData.secondary_color);
+      formData.append("primary_color", brandData.primary_color || "#1e3a8a");
+      formData.append("secondary_color", brandData.secondary_color || "#10b981");
       formData.append("_method", "PUT"); // This tells Laravel to treat it as PUT
 
       const url = `${BASE_URL}/brands/${id}`;
 
       const res = await authFetch(url, {
-        method: "POST", // ← CHANGED FROM "PUT" TO "POST"
+        method: "POST", // ← Laravel spoofed PUT (multipart can't be a real PUT)
         headers: {
           Authorization: `Bearer ${token}`,
           // DO NOT set Content-Type — browser sets it automatically with boundary for FormData
@@ -1018,26 +1127,42 @@ export function AuthProvider({ children }) {
         body: formData,
       });
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Failed to update brand: ${res.status} - ${errorText}`);
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("❌ updateBrandById: non-JSON response:", text);
+        return { ok: false, message: "Unexpected server response." };
       }
 
-      const updateResult = await res.json();
-      // Refresh the cached brand list so the edit is reflected immediately
+      if (!res.ok) {
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        const message =
+          firstError || data?.message || `Failed to update brand (${res.status})`;
+        console.error("❌ updateBrandById failed:", message);
+        return { ok: false, message };
+      }
 
+      console.log("✅ Brand updated:", id);
+      // Refresh the cached brand list so the edit is reflected immediately.
       await fetchBrands();
-      return updateResult;
+      return { ok: true, data };
     } catch (err) {
-      console.error("Error updating brand:", err);
-      return null;
+      if (err.message === "Unauthorized")
+        return { ok: false, message: "Your session expired. Please log in again." };
+      console.error("❌ Error updating brand:", err);
+      return { ok: false, message: err.message || "Network error" };
     }
   };
 
+  // Returns a normalized { ok, data?, message? }.
   const deleteBrandById = async (id) => {
     if (!token) {
       console.error("No auth token found. User may not be logged in.");
-      return null;
+      return { ok: false, message: "You must be logged in to delete a brand." };
     }
 
     const url = `${BASE_URL}/brands/${id}`;
@@ -1050,17 +1175,36 @@ export function AuthProvider({ children }) {
         },
       });
 
-      if (!res.ok) {
-        throw new Error(`Failed to delete brand: ${res.status}`);
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
       }
 
-      const data = await res.json();
-      // Refresh brands after deletion
+      if (!res.ok) {
+        const message = data?.message || `Failed to delete brand (${res.status})`;
+        console.error("❌ deleteBrandById failed:", message);
+        return { ok: false, message };
+      }
+
+      // If the deleted brand was active, clear the local selection so the UI
+      // doesn't point at a brand that no longer exists.
+      if (activeBrand?.id === id) {
+        setActiveBrandState(null);
+        localStorage.removeItem("activeBrandId");
+      }
+
+      console.log("✅ Brand deleted:", id);
+      // Refresh brands after deletion.
       await fetchBrands();
-      return data;
+      return { ok: true, data, message: data?.message || "Brand deleted." };
     } catch (err) {
-      console.error("Error deleting brand:", err);
-      return null;
+      if (err.message === "Unauthorized")
+        return { ok: false, message: "Your session expired. Please log in again." };
+      console.error("❌ Error deleting brand:", err);
+      return { ok: false, message: err.message || "Network error" };
     }
   };
 
@@ -2841,6 +2985,7 @@ export function AuthProvider({ children }) {
         fetchResells,
         login,
         register,
+        updateProfile,
         handleDeleteTeam,
         fetchTeams,
         logout,

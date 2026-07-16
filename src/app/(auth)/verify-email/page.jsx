@@ -15,9 +15,12 @@ export default function VerifyEmailPage() {
   const inputRefs = useRef([]);
 
   const searchParams = useSearchParams();
-  const email = searchParams.get("email");
   const router = useRouter();
-  const { verifyEmail, resendVerificationCode } = useAuth();
+  const { verifyEmail, resendVerificationCode, user } = useAuth();
+  // Prefer the ?email= query (register flow); fall back to the logged-in user
+  // so an already-signed-in-but-unverified user (redirected here on refresh)
+  // still sees their address and can resend/verify.
+  const email = searchParams.get("email") || user?.email || "";
 
   const [modal, setModal] = useState({
     isOpen: false,
@@ -89,8 +92,16 @@ export default function VerifyEmailPage() {
     setLoading(true);
     try {
       await verifyEmail(code);
-      showNotification("success", "Email Verified!", "Welcome! Redirecting to login...", 3000);
-      setTimeout(() => router.push("/login"), 3000);
+      // Already-logged-in users go straight to the app; fresh registrations
+      // (no session yet) go to login to sign in.
+      const destination = user ? "/" : "/login";
+      showNotification(
+        "success",
+        "Email Verified!",
+        user ? "Welcome! Redirecting…" : "Welcome! Redirecting to login...",
+        3000,
+      );
+      setTimeout(() => router.push(destination), 3000);
     } catch (err) {
       showNotification("error", "Invalid Code", err.message || "The code is incorrect or expired.", 5000);
       setDigits(["", "", "", "", "", ""]);
@@ -149,13 +160,13 @@ export default function VerifyEmailPage() {
           <div className="flex flex-col space-y-8 justify-center items-center">
             <h1 className="text-5xl font-bold text-center">Verify Your Email</h1>
 
-            <p className="w-[370px] text-gray-600 text-center leading-relaxed">
+            <p className="w-92.5 text-gray-600 text-center leading-relaxed">
               Enter the verification code we sent to <br />
               <strong className="text-blue-600 break-all">{email || "..."}</strong>
             </p>
           </div>
 
-          <div className="mt-40 lg:w-[500px] w-full px-6">
+          <div className="mt-40 lg:w-125 w-full px-6">
             <form onSubmit={handleVerify} className="space-y-10 relative w-full">
               {/* 6 Digit Inputs */}
               <div className="flex justify-center gap-3 md:gap-4" onPaste={handlePaste}>

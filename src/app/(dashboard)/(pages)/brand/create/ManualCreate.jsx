@@ -7,7 +7,6 @@ import {
   Recycle,
   Globe,
   Check,
-  CheckCircle2,
   ChevronRight,
   ArrowLeft,
   Loader2,
@@ -15,10 +14,8 @@ import {
   Upload,
 } from "lucide-react";
 import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
-import { Search, Music2 } from "lucide-react";
+import { Search } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useBrand } from "@/context/BrandContext";
-import { saveBrand, makeBrandUrl } from "@/utils/localDb";
 import { useRouter } from "next/navigation";
 import NotificationModal from "@/app/(components)/NotificationModal";
 
@@ -285,24 +282,27 @@ const generateMockCredentials = () => ({
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function ManualCreate({
-  refreshBrands,
-  setBrandView,
-  setActiveTab,
-}) {
-  const { setActiveBrand } = useBrand();
-  const { createManualBrand } = useAuth();
+// Pull a hosted URL out of the gallery upload response (field name varies).
+const pickUploadedUrl = (res) => {
+  const pick = (o) =>
+    o?.image || o?.image_url || o?.url || o?.file_url || o?.path || o?.src || null;
+  return pick(res) || pick(res?.data) || null;
+};
+
+export default function ManualCreate({ refreshBrands }) {
+  const { createManualBrand, uploadMedia } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState(1);
   const [creating, setCreating] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     tagline: "",
     fonts: "Inter",
-    logo: null,
-    logoDataUrl: null,
+    logo: null, // hosted URL string once uploaded to the gallery
+    logoDataUrl: null, // preview (same URL, or a local data URL while uploading)
     primary: "#2563eb",
     secondary: "#0ea5e9",
     socialAccounts: [],
@@ -326,24 +326,52 @@ export default function ManualCreate({
 
   const set = (key, val) => setFormData((p) => ({ ...p, [key]: val }));
 
-  // cleanup blob URLs
-  useEffect(() => {
-    return () => {
-      if (formData.logo) URL.revokeObjectURL(formData.logo);
-    };
-  }, [formData.logo]);
-
-  const handleLogoChange = (e) => {
+  // The brand logo is stored as a hosted URL, not a File. On pick we upload the
+  // file to the user's gallery, then keep the returned URL as the logo. A local
+  // data-URL is shown as an instant preview while the upload is in flight.
+  const handleLogoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 500 * 1024) {
       notify("Logo too large", "Please choose a logo under 500 KB.", "error");
       return;
     }
+
+    // Instant local preview.
     const reader = new FileReader();
     reader.onload = (ev) =>
-      setFormData((p) => ({ ...p, logo: file, logoDataUrl: ev.target.result }));
+      setFormData((p) => ({ ...p, logoDataUrl: ev.target.result }));
     reader.readAsDataURL(file);
+
+    setLogoUploading(true);
+    try {
+      console.log("🖼️ Uploading brand logo to gallery…");
+      const res = await uploadMedia(file);
+      const url = pickUploadedUrl(res);
+      if (!url) {
+        console.error("❌ Logo upload returned no URL:", res);
+        notify(
+          "Upload failed",
+          "We couldn't get a URL for your logo. Please try again.",
+          "error",
+        );
+        setFormData((p) => ({ ...p, logo: null, logoDataUrl: null }));
+        return;
+      }
+      console.log("✅ Logo uploaded:", url);
+      // Use the hosted URL for both the value we send and the preview.
+      setFormData((p) => ({ ...p, logo: url, logoDataUrl: url }));
+    } catch (err) {
+      console.error("❌ Logo upload failed:", err);
+      notify(
+        "Upload failed",
+        err?.message || "Couldn't upload your logo. Please try again.",
+        "error",
+      );
+      setFormData((p) => ({ ...p, logo: null, logoDataUrl: null }));
+    } finally {
+      setLogoUploading(false);
+    }
   };
 
   const handleCreate = async () => {
@@ -355,11 +383,17 @@ export default function ManualCreate({
       );
     if (!formData.industry)
       return notify("Industry required", "Please select an industry.", "error");
+    if (logoUploading)
+      return notify(
+        "Logo still uploading",
+        "Please wait for the logo upload to finish.",
+        "info",
+      );
 
     notify("Creating your brand…", "Please wait.", "info", 0);
     setCreating(true);
     try {
-      const brandData = await createManualBrand({
+      await createManualBrand({
         name: formData.name,
         description: formData.description,
         tagline: formData.tagline,
@@ -372,10 +406,6 @@ export default function ManualCreate({
         websiteType: formData.websiteType,
         createLandingPage: !!formData.websiteType,
       });
-      const saved = { id: brandData?.id || Date.now().toString(), ...formData };
-      saveBrand(saved);
-      setActiveBrand(saved);
-      localStorage.setItem("activeBrand", JSON.stringify(saved));
       refreshBrands?.();
       closeNotify();
       notify("Brand created!", "Redirecting…", "success", 2000);
@@ -539,10 +569,21 @@ export default function ManualCreate({
                 <Field label="Logo">
                   <div className="flex items-center gap-3">
                     <button
+                      type="button"
                       onClick={() => logoRef.current?.click()}
-                      className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-blue-500 hover:text-blue-600 transition cursor-pointer bg-gray-50"
+                      disabled={logoUploading}
+                      className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-blue-500 hover:text-blue-600 transition cursor-pointer bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      <Upload className="w-4 h-4" /> Upload Logo
+                      {logoUploading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" /> Uploading…
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />{" "}
+                          {formData.logo ? "Replace Logo" : "Upload Logo"}
+                        </>
+                      )}
                     </button>
                     <input
                       type="file"
@@ -552,12 +593,17 @@ export default function ManualCreate({
                       onChange={handleLogoChange}
                     />
                     {formData.logoDataUrl && (
-                      <div className="w-10 h-10 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                      <div className="relative w-10 h-10 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                         <img
                           src={formData.logoDataUrl}
                           alt="logo"
                           className="w-full h-full object-contain"
                         />
+                        {logoUploading && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+                            <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -768,7 +814,7 @@ export default function ManualCreate({
               ) : (
                 <button
                   onClick={handleCreate}
-                  disabled={creating}
+                  disabled={creating || logoUploading}
                   className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 cursor-pointer transition flex items-center gap-2"
                 >
                   {creating ? (

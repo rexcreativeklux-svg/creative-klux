@@ -4,12 +4,11 @@
 import { useState } from "react";
 import ManualCreate from "./ManualCreate";
 import ImportBrand from "../import/page";
-import { useBrand } from "@/context/BrandContext";
-import DashboardLayout from "@/app/(dashboard)/layout";
+import { useAuth } from "@/context/AuthContext";
 
-export default function CreateBrand({ isEditing, brandDraft }) {
-  const { setActiveBrand, brands, setShowModal, refreshBrands, setBrandDraft, navigateProjectTo, setActiveTab } =
-    useBrand();
+export default function CreateBrand({ isEditing }) {
+  // Refresh the brand list after a create so the new brand shows up immediately.
+  const { fetchBrands } = useAuth();
   const [activeCreateTab, setActiveCreateTab] = useState(isEditing ? "manual" : "import");
 
   return (
@@ -47,25 +46,9 @@ export default function CreateBrand({ isEditing, brandDraft }) {
       </div>
       <div>
         {activeCreateTab === "import" ? (
-          <ImportBrand
-            brands={brands}
-            setActiveTab={setActiveTab}
-            refreshBrands={refreshBrands}
-            setBrandDraft={setBrandDraft}
-            brandDraft={brandDraft}
-            navigateProjectTo={navigateProjectTo}
-          />
+          <ImportBrand refreshBrands={fetchBrands} />
         ) : (
-          <ManualCreate
-            refreshBrands={refreshBrands}
-            setActiveTab={setActiveTab}
-            brandDraft={isEditing ? brandDraft : null}
-            setBrandDraft={setBrandDraft}
-            setActiveBrand={setActiveBrand}
-            setShowModal={setShowModal}
-            navigateProjectTo={navigateProjectTo}
-            setActiveCreateTab={setActiveCreateTab}
-          />
+          <ManualCreate refreshBrands={fetchBrands} />
         )}
       </div>
     </div>

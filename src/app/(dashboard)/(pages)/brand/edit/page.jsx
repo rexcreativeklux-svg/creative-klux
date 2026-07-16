@@ -43,6 +43,13 @@ const getLogoSrc = (logo) => {
   return cleanBase + cleanPath;
 };
 
+// Pull a hosted URL out of the gallery upload response (field name varies).
+const pickUploadedUrl = (res) => {
+  const pick = (o) =>
+    o?.image || o?.image_url || o?.url || o?.file_url || o?.path || o?.src || null;
+  return pick(res) || pick(res?.data) || null;
+};
+
 const inputCls =
   "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 " +
   "placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 " +
@@ -219,12 +226,13 @@ const BrandPreview = ({ data }) => {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function EditBrand({ setActiveTab, brandId }) {
-  const { fetchBrandById, updateBrandById, token } = useAuth();
+  const { fetchBrandById, updateBrandById, uploadMedia, token } = useAuth();
   const router = useRouter();
   const logoRef = useRef();
 
   const [isLoading, setSsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -234,8 +242,8 @@ export default function EditBrand({ setActiveTab, brandId }) {
     industry: "",
     primary: "#1e3a8a",
     secondary: "#10b981",
-    logoFile: null,
-    logoDataUrl: null,
+    logo: null, // new hosted URL when replaced; null means "keep existing"
+    logoDataUrl: null, // preview only
   });
 
   const [notification, setNotification] = useState({
@@ -268,7 +276,7 @@ export default function EditBrand({ setActiveTab, brandId }) {
             industry: brand.industry || "",
             primary: cleanColor(brand.primary_color) || "#1e3a8a",
             secondary: cleanColor(brand.secondary_color) || "#10b981",
-            logoFile: null,
+            logo: null, // unchanged until the user replaces it
             logoDataUrl: logoUrl || null,
           });
         } else {
@@ -283,22 +291,58 @@ export default function EditBrand({ setActiveTab, brandId }) {
     load();
   }, [brandId, token]);
 
-  const handleLogoChange = (e) => {
+  // Logo is stored as a hosted URL. On pick we upload to the gallery and keep
+  // the returned URL; a local data-URL previews it while the upload runs.
+  const handleLogoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 500 * 1024) {
       notify("Logo too large", "Please choose a logo under 500 KB.", "error");
       return;
     }
+
     const reader = new FileReader();
     reader.onload = (ev) =>
-      setForm((p) => ({ ...p, logoFile: file, logoDataUrl: ev.target.result }));
+      setForm((p) => ({ ...p, logoDataUrl: ev.target.result }));
     reader.readAsDataURL(file);
+
+    setLogoUploading(true);
+    try {
+      console.log("🖼️ Uploading brand logo to gallery…");
+      const res = await uploadMedia(file);
+      const url = pickUploadedUrl(res);
+      if (!url) {
+        console.error("❌ Logo upload returned no URL:", res);
+        notify(
+          "Upload failed",
+          "We couldn't get a URL for your logo. Please try again.",
+          "error",
+        );
+        return;
+      }
+      console.log("✅ Logo uploaded:", url);
+      setForm((p) => ({ ...p, logo: url, logoDataUrl: url }));
+    } catch (err) {
+      console.error("❌ Logo upload failed:", err);
+      notify(
+        "Upload failed",
+        err?.message || "Couldn't upload your logo. Please try again.",
+        "error",
+      );
+    } finally {
+      setLogoUploading(false);
+    }
   };
 
   const handleSave = async () => {
     if (!form.name.trim())
       return notify("Missing Name", "Please enter a brand name.", "error");
+    if (logoUploading)
+      return notify(
+        "Logo still uploading",
+        "Please wait for the logo upload to finish.",
+        "info",
+      );
 
     notify("Saving…", "Updating your brand, please wait.", "info", 0);
     setSaving(true);
@@ -309,18 +353,17 @@ export default function EditBrand({ setActiveTab, brandId }) {
         tagline: form.tagline,
         fonts: form.font,
         industry: form.industry,
-        logo: form.logoFile || null,
+        logo: form.logo || null, // hosted URL, or null to keep the existing one
         primary_color: form.primary,
         secondary_color: form.secondary,
       });
 
-      if (result) {
-        closeNotify();
+      closeNotify();
+      if (result.ok) {
         notify("Saved!", "Brand updated successfully.", "success", 2500);
         setTimeout(() => router.push("/brand/reuse"), 800);
       } else {
-        closeNotify();
-        notify("Failed", "Could not update brand.", "error");
+        notify("Failed", result.message || "Could not update brand.", "error");
       }
     } catch (err) {
       closeNotify();
@@ -442,11 +485,21 @@ export default function EditBrand({ setActiveTab, brandId }) {
           <Field label="Logo">
             <div className="flex items-center gap-3">
               <button
+                type="button"
                 onClick={() => logoRef.current?.click()}
-                className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-blue-500 hover:text-blue-600 transition cursor-pointer bg-gray-50"
+                disabled={logoUploading}
+                className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-blue-500 hover:text-blue-600 transition cursor-pointer bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <Upload className="w-4 h-4" />
-                {form.logoDataUrl ? "Replace Logo" : "Upload Logo"}
+                {logoUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Uploading…
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    {form.logoDataUrl ? "Replace Logo" : "Upload Logo"}
+                  </>
+                )}
               </button>
               <input
                 type="file"
@@ -465,6 +518,11 @@ export default function EditBrand({ setActiveTab, brandId }) {
                       e.target.style.display = "none";
                     }}
                   />
+                  {logoUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -493,7 +551,7 @@ export default function EditBrand({ setActiveTab, brandId }) {
             </button>
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || logoUploading}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 cursor-pointer transition"
             >
               {saving ? (

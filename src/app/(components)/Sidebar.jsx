@@ -37,12 +37,11 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import LogoutModal from "./LogoutModal";
 import ThemeSwitcher from "./ThemeSwitcher";
-import { FaTrello } from "react-icons/fa";
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showBottomMenu, setShowBottomMenu] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -251,7 +250,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         title={!isOpen ? label : undefined}
       >
         <Icon
-          className={`w-4.5 w-4.5 shrink-0 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`}
+          className={`w-4.5 shrink-0 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`}
         />
         {isOpen && <span className="flex-1 truncate">{label}</span>}
         {isOpen && badge && (
@@ -281,7 +280,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           `}
         >
           <Icon
-            className={`w-4.5 w-4.5 shrink-0 ${dropActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`}
+            className={`w-4.5 shrink-0 ${dropActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`}
           />
           {isOpen && (
             <>
@@ -460,12 +459,12 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     `}
           >
             <div className="h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-sm">
-              CK
+              {user.username.charAt(0).toUpperCase()}
             </div>
             {isOpen && (
               <div className="flex-1 text-left overflow-hidden">
-                <p className="text-sm font-semibold text-gray-900 truncate leading-tight">
-                  Creative Klux
+                <p className="text-sm font-semibold text-gray-900 truncate leading-tight capitalize">
+                  {user.username}
                 </p>
                 <p className="text-xs text-blue-500 font-medium truncate leading-tight">
                   Pro Plan

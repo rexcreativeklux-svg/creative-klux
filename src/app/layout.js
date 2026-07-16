@@ -1,4 +1,3 @@
-import { BrandProvider } from "@/context/BrandContext";
 import "@/app/globals.css";
 import { ReusableFunctionsProvider } from "@/context/ReusableFunctions";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -35,9 +34,7 @@ export default function RootLayout({ children }) {
       <body>
         <ThemeProvider>
           <AuthProvider>
-            <BrandProvider>
-              <ReusableFunctionsProvider>{children}</ReusableFunctionsProvider>
-            </BrandProvider>
+            <ReusableFunctionsProvider>{children}</ReusableFunctionsProvider>
           </AuthProvider>
           <Toaster position="top-right" richColors closeButton />
         </ThemeProvider>

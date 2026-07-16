@@ -20,6 +20,7 @@ import {
   List,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -607,7 +608,12 @@ export default function ReusePage({ setActiveTab }) {
   const handleDeleteConfirm = async (id) => {
     if (selectedId === id) setSelectedId(null);
     setDeleteTarget(null);
-    await deleteBrandById(id);
+    const res = await deleteBrandById(id);
+    if (res?.ok) {
+      toast.success(res.message || "Brand deleted.");
+    } else {
+      toast.error(res?.message || "Couldn't delete the brand. Please try again.");
+    }
   };
 
   return (

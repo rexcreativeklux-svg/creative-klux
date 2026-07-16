@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Link,
@@ -8,7 +8,6 @@ import {
   Star,
   Share2,
   Recycle,
-  CheckCircle2,
   Loader2,
   ChevronRight,
   ArrowLeft,
@@ -20,10 +19,7 @@ import {
 } from "lucide-react";
 import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
-import { useBrand } from "@/context/BrandContext";
-import { makeBrandUrl } from "@/utils/localDb";
 import { useRouter } from "next/navigation";
-import NotificationModal from "@/app/(components)/NotificationModal";
 import Toast from "@/app/(components)/Toast";
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -282,20 +278,22 @@ const BrandPreview = ({ data }) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function ImportBrand({
-  brands = [],
-  refreshBrands,
-  setBrandView,
-  setActiveTab,
-}) {
-  const { setActiveBrand } = useBrand();
-  const { sendUrl, createBrand } = useAuth();
+// Pull a hosted URL out of the gallery upload response (field name varies).
+const pickUploadedUrl = (res) => {
+  const pick = (o) =>
+    o?.image || o?.image_url || o?.url || o?.file_url || o?.path || o?.src || null;
+  return pick(res) || pick(res?.data) || null;
+};
+
+export default function ImportBrand({ refreshBrands }) {
+  const { sendUrl, createBrand, uploadMedia } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState(0);
   const [url, setUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const [toast, setToast] = useState({ isOpen: false, message: "" });
   const showToast = (message) => setToast({ isOpen: true, message });
@@ -379,19 +377,12 @@ export default function ImportBrand({
           fonts: d.font || "Inter",
           primary: d.primary_color || "#2563eb",
           secondary: d.secondary_color || "#0ea5e9",
+          // The scraped logo is already a hosted URL — use it straight.
+          logo: d.logo || null,
           logoDataUrl: d.logo || null,
           sourceUrl: url,
           industry: d.industry || "",
         }));
-        if (d.logo) {
-          fetch(`/api/proxy-image?url=${encodeURIComponent(d.logo)}`)
-            .then((r) => r.blob())
-            .then((blob) => {
-              const file = new File([blob], "logo.png", { type: blob.type });
-              setFormData((p) => ({ ...p, logo: file }));
-            })
-            .catch(() => {});
-        }
         setStep(1);
       }
     } catch {
@@ -401,18 +392,50 @@ export default function ImportBrand({
     }
   };
 
-  const handleLogoChange = (e) => {
+  // Manual replace: upload to the gallery and keep the returned URL as the logo.
+  const handleLogoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 500 * 1024) {
+      notify("Logo too large", "Please choose a logo under 500 KB.", "error");
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (ev) =>
       setFormData((p) => ({
         ...p,
-        logo: file,
         logoDataUrl: ev.target.result,
         logoFileName: file.name,
       }));
     reader.readAsDataURL(file);
+
+    setLogoUploading(true);
+    try {
+      console.log("🖼️ Uploading brand logo to gallery…");
+      const res = await uploadMedia(file);
+      const uploadedUrl = pickUploadedUrl(res);
+      if (!uploadedUrl) {
+        console.error("❌ Logo upload returned no URL:", res);
+        notify(
+          "Upload failed",
+          "We couldn't get a URL for your logo. Please try again.",
+          "error",
+        );
+        return;
+      }
+      console.log("✅ Logo uploaded:", uploadedUrl);
+      setFormData((p) => ({ ...p, logo: uploadedUrl, logoDataUrl: uploadedUrl }));
+    } catch (err) {
+      console.error("❌ Logo upload failed:", err);
+      notify(
+        "Upload failed",
+        err?.message || "Couldn't upload your logo. Please try again.",
+        "error",
+      );
+    } finally {
+      setLogoUploading(false);
+    }
   };
 
   // ── create ──────────────────────────────────────────────────────────────────
@@ -425,6 +448,12 @@ export default function ImportBrand({
       );
     if (!formData.industry)
       return notify("Industry required", "Please select an industry.", "error");
+    if (logoUploading)
+      return notify(
+        "Logo still uploading",
+        "Please wait for the logo upload to finish.",
+        "info",
+      );
 
     notify("Creating…", "Please wait.", "info", 0);
     setCreating(true);
@@ -444,8 +473,6 @@ export default function ImportBrand({
         createLandingPage: false,
       });
       if (!brandData) throw new Error("No response");
-      setActiveBrand(brandData);
-      localStorage.setItem("activeBrand", JSON.stringify(brandData));
       refreshBrands?.();
       closeNotify();
       notify("Brand created!", "Redirecting…", "success", 2000);
@@ -694,10 +721,21 @@ export default function ImportBrand({
                   <Field label="Logo">
                     <div className="flex items-center gap-3">
                       <button
+                        type="button"
                         onClick={() => logoRef.current?.click()}
-                        className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-blue-500 hover:text-blue-600 transition cursor-pointer bg-gray-50"
+                        disabled={logoUploading}
+                        className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-blue-500 hover:text-blue-600 transition cursor-pointer bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        <Upload className="w-4 h-4" /> Upload Logo
+                        {logoUploading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" /> Uploading…
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4" />{" "}
+                            {formData.logo ? "Replace Logo" : "Upload Logo"}
+                          </>
+                        )}
                       </button>
                       <input
                         type="file"
@@ -707,12 +745,17 @@ export default function ImportBrand({
                         onChange={handleLogoChange}
                       />
                       {formData.logoDataUrl && (
-                        <div className="w-10 h-10 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="relative w-10 h-10 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                           <img
                             src={formData.logoDataUrl}
                             alt="logo"
                             className="w-full h-full object-contain"
                           />
+                          {logoUploading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+                              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -870,7 +913,7 @@ export default function ImportBrand({
                 ) : (
                   <button
                     onClick={handleCreate}
-                    disabled={creating}
+                    disabled={creating || logoUploading}
                     className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 cursor-pointer transition flex items-center gap-2"
                   >
                     {creating ? (

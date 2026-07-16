@@ -16,13 +16,44 @@ const NO_PADDING_ROUTES = [
     "/studio/select",
 ];
 
+// A user counts as verified if either flag says so — the backend sends
+// `is_email_verified` (1/0) and/or a truthy `email_verified_at` timestamp.
+const isUserVerified = (user) =>
+    !!user &&
+    (user.is_email_verified === 1 ||
+        user.is_email_verified === true ||
+        !!user.email_verified_at);
+
 export default function DashboardLayout({ children }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { brands, activeBrand, setActiveBrand, brandsLoading } = useAuth();
+    const { brands, activeBrand, setActiveBrand, brandsLoading, user, loading } =
+        useAuth();
+
+    const verified = isUserVerified(user);
+
+    // ── Email-verification gate ──────────────────────────────────────────────
+    // A logged-in but unverified user is bounced to the verify page on any
+    // dashboard route (including a plain refresh). `replace` avoids a back-loop.
+    useEffect(() => {
+        if (loading || !user) return;
+        if (!verified) {
+            console.log("📩 User not verified → redirecting to verify-email");
+            router.replace(
+                `/verify-email?email=${encodeURIComponent(user.email || "")}`,
+            );
+        }
+    }, [loading, user, verified, router]);
+
+    // ── Active-brand gate ────────────────────────────────────────────────────
+    // Verified users must have an active brand to use the app. When they don't
+    // (whether they have brands to pick from or none at all), the brand modal
+    // takes over and blocks everything except the create-brand route. ModalPage
+    // renders the empty state + "Create Brand" CTA when there are zero brands.
     const showModal =
         !brandsLoading &&
-        brands.length > 0 &&
+        !!user &&
+        verified &&
         !activeBrand &&
         !pathname.startsWith("/brand/create");
 

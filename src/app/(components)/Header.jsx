@@ -1,21 +1,36 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   AlignLeft,
   ChevronDown,
   ChevronLeft,
   PanelLeft,
   PanelLeftClose,
+  Plus,
+  Settings,
   X,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import Link from "next/link";
 
-const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
+const Header = ({ sidebarOpen, toggleSidebar }) => {
   const { brands, setActiveBrand, brandsLoading, activeBrand } = useAuth();
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [logoFailed, setLogoFailed] = useState({});
+  const switcherRef = useRef(null);
+
+  // Close the brand dropdown when clicking anywhere outside it.
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    const onClick = (e) => {
+      if (switcherRef.current && !switcherRef.current.contains(e.target))
+        setDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [isDropdownOpen]);
 
   const filteredBrands = useMemo(
     () =>
@@ -27,11 +42,11 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
     [brands, searchQuery],
   );
 
-  const handleRemoveActiveBrand = () => {
-    setActiveBrand(null);
-    setDropdownOpen(false);
-    localStorage.removeItem("activeBrandId");
-  };
+  // const handleRemoveActiveBrand = () => {
+  //   setActiveBrand(null);
+  //   setDropdownOpen(false);
+  //   localStorage.removeItem("activeBrandId");
+  // };
 
   const getDisplayValues = (brand) => {
     const displayName =
@@ -67,10 +82,10 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
       </div>
 
       {/* Right — brand switcher */}
-      <div className="relative">
+      <div className="relative" ref={switcherRef}>
         <button
           onClick={() => setDropdownOpen((prev) => !prev)}
-          className="flex items-center cursor-pointer gap-2 px-3 py-2 w-[220px] border border-gray-200 rounded-lg text-sm font-medium text-gray-800 hover:border-gray-300 transition-colors bg-surface"
+          className="flex items-center cursor-pointer gap-2 px-3 py-2 w-220px border border-gray-200 rounded-lg text-sm font-medium text-gray-800 hover:border-gray-300 transition-colors bg-surface"
         >
           {brandsLoading ? (
             <span className="flex-1 text-left text-gray-400">Loading...</span>
@@ -123,7 +138,7 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
 
         {/* Dropdown */}
         {!brandsLoading && isDropdownOpen && (
-          <div className="absolute right-0 top-full mt-2 z-[9999] w-[220px] bg-surface border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="absolute right-0 top-full mt-2 z-9999 w-220px bg-surface border border-gray-200 rounded-xl shadow-lg overflow-hidden">
             {/* Search */}
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50">
               <input
@@ -141,17 +156,15 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
               </button>
             </div>
 
-            <div className="py-1 max-h-72 overflow-y-auto">
-              {/* Remove active brand */}
-              {activeBrand && (
-                <button
-                  onClick={handleRemoveActiveBrand}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
-                >
-                  <X className="w-3.5 h-3.5 shrink-0" />
-                  <span className="font-medium">Remove active brand</span>
-                </button>
-              )}
+            <div className="py-1 max-h-72 overflow-y-auto hide-scrollbar">
+              <Link
+                href="/brand/create"
+                onClick={() =>  setDropdownOpen(false)}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-100 transition-colors mb-2 font-bold"
+              >
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <span className="font-medium">Create Brand</span>
+              </Link>
 
               {/* Brand list */}
               {filteredBrands.length > 0 ? (
@@ -160,50 +173,70 @@ const Header = ({ sidebarOpen, toggleSidebar, setShowModal }) => {
                     getDisplayValues(b);
                   const isSelected = activeBrand?.id === b.id;
                   return (
-                    <button
+                    <div
                       key={b.id}
-                      onClick={() => {
-                        setActiveBrand(b);
-                        localStorage.setItem("activeBrandId", b.id);
-                        setDropdownOpen(false);
-                      }}
-                      className={`flex items-center gap-2.5 w-full px-3 py-2.5 text-sm transition-colors hover:bg-gray-50 ${
-                        isSelected ? "bg-[#e7eeffe9]" : ""
+                      className={`group flex items-center gap-1 w-full px-1.5 py-1 rounded-lg transition-colors ${
+                        isSelected ? "bg-[#e7eeffe9]" : "hover:bg-gray-50"
                       }`}
                     >
-                      {b.logo &&
-                      typeof b.logo === "string" &&
-                      b.logo.trim() &&
-                      !logoFailed[b.id] ? (
-                        <img
-                          src={
-                            b.logo.startsWith("http")
-                              ? b.logo
-                              : `${process.env.NEXT_PUBLIC_API_URL}${b.logo}`
-                          }
-                          alt={displayName}
-                          className="w-6 h-6 rounded-full object-cover shrink-0"
-                          onError={() =>
-                            setLogoFailed((prev) => ({ ...prev, [b.id]: true }))
-                          }
-                        />
-                      ) : (
-                        <div
-                          className="w-6 h-6 flex items-center justify-center rounded-full text-white text-xs font-semibold shrink-0"
-                          style={{ backgroundColor: displayColor }}
-                        >
-                          {displayInitial}
-                        </div>
-                      )}
-                      <span
-                        className={`truncate ${isSelected ? "text-[#155dfc] font-semibold" : "text-gray-700 font-medium"}`}
+                      {/* Select brand — switches the active brand immediately */}
+                      <button
+                        onClick={() => {
+                          setActiveBrand(b);
+                          setDropdownOpen(false);
+                        }}
+                        className="flex items-center gap-2.5 flex-1 min-w-0 px-1.5 py-1.5 text-sm cursor-pointer"
                       >
-                        {displayName}
-                      </span>
-                      {isSelected && (
-                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#155dfc] shrink-0" />
-                      )}
-                    </button>
+                        {b.logo &&
+                        typeof b.logo === "string" &&
+                        b.logo.trim() &&
+                        !logoFailed[b.id] ? (
+                          <img
+                            src={
+                              b.logo.startsWith("http")
+                                ? b.logo
+                                : `${process.env.NEXT_PUBLIC_API_URL}${b.logo}`
+                            }
+                            alt={displayName}
+                            className="w-6 h-6 rounded-full object-cover shrink-0"
+                            onError={() =>
+                              setLogoFailed((prev) => ({
+                                ...prev,
+                                [b.id]: true,
+                              }))
+                            }
+                          />
+                        ) : (
+                          <div
+                            className="w-6 h-6 flex items-center justify-center rounded-full text-white text-xs font-semibold shrink-0"
+                            style={{ backgroundColor: displayColor }}
+                          >
+                            {displayInitial}
+                          </div>
+                        )}
+                        <span
+                          className={`truncate flex-1 text-left ${isSelected ? "text-[#155dfc] font-semibold" : "text-gray-700 font-medium"}`}
+                        >
+                          {displayName}
+                        </span>
+                        {isSelected && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#155dfc] shrink-0" />
+                        )}
+                      </button>
+
+                      {/* Manage — switches to this brand, then opens its settings */}
+                      <Link
+                        href="/brand/manage"
+                        onClick={() => {
+                          setActiveBrand(b);
+                          setDropdownOpen(false);
+                        }}
+                        title="Manage brand"
+                        className="shrink-0 p-1.5 rounded-md text-gray-400 hover:bg-gray-200/70 hover:text-gray-700 transition-colors"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Link>
+                    </div>
                   );
                 })
               ) : (

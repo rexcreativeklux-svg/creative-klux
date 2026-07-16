@@ -1,154 +1,231 @@
 "use client";
 
+/**
+ * Account settings (/profile)
+ * ──────────────────────────────────────────────────────────────────────────────
+ * Profile info + avatar are wired to AuthContext:
+ *   • display data comes from `user`
+ *   • saving name/avatar goes through `updateProfile` → POST /profile
+ *   • the avatar file is uploaded to the gallery first, then its URL is saved
+ *     as `profile_pic` (same URL-only pattern the brand logo uses)
+ * All feedback uses sonner toasts.
+ *
+ * ⚠️ Password change, active sessions, and delete-account are still pointed at
+ * the OLD backend and need the real `…/creativeklux-userend` endpoints. They are
+ * marked TODO(endpoint) below — swap the fetch calls once the specs are known.
+ */
+
 import { useState, useEffect } from "react";
-import { Monitor, Smartphone, Trash, LogOutIcon } from "lucide-react";
+import { Monitor, Smartphone, Trash, LogOutIcon, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 
+// Pull a hosted URL out of the gallery upload response (field name varies).
+const pickUploadedUrl = (res) => {
+  const pick = (o) =>
+    o?.image || o?.image_url || o?.url || o?.file_url || o?.path || o?.src || null;
+  return pick(res) || pick(res?.data) || null;
+};
+
 export default function AccountSettings() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile, uploadMedia, token } = useAuth();
 
   // ── PROFILE STATE ─────────────────────────────────────
   const [name, setName] = useState(user?.name || "");
-  const [email] = useState(user?.email || "");
-  const [profilePic, setProfilePic] = useState(null);
-  const [preview, setPreview] = useState(user?.profilePic || null);
+  const email = user?.email || "";
+  // The hosted profile-pic URL we'll save (null = unchanged).
+  const [profilePicUrl, setProfilePicUrl] = useState(null);
+  // What's shown in the avatar (existing pic, or a fresh preview/upload).
+  const [preview, setPreview] = useState(user?.profile_pic || null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   // ── PASSWORD STATE ────────────────────────────────────
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
 
   // ── SESSIONS STATE ────────────────────────────────────
   const [sessions, setSessions] = useState([]);
 
   // ── UI STATE ──────────────────────────────────────────
-  const [toast, setToast] = useState("");
-  const [showToast, setShowToast] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Seed the editable fields when a (different) user loads — e.g. on a hard
+  // refresh where `user` arrives after mount. Done during render (React's
+  // recommended pattern) rather than in an effect so we don't trigger a
+  // cascading re-render, and keyed on the user id so it won't clobber edits
+  // when the user object merely refreshes (e.g. right after a save).
+  const [syncedUserId, setSyncedUserId] = useState(user?.id);
+  if (user?.id !== syncedUserId) {
+    setSyncedUserId(user?.id);
+    setName(user?.name || "");
+    setPreview(user?.profile_pic || null);
+  }
 
   // ── FETCH SESSIONS ────────────────────────────────────
+  // TODO(endpoint): replace with the real userend sessions endpoint.
   useEffect(() => {
     const fetchSessions = async () => {
       try {
         const res = await fetch(
-          "https://backend.creativeklux.com/creativeklux-frontend/user/sessions",
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          },
+          "https://api.creativeklux.com/api/creativeklux-userend/profile/sessions",
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         const data = await res.json();
         setSessions(data.sessions || []);
       } catch (err) {
-        console.error(err);
+        console.error("❌ Failed to load sessions:", err);
       }
     };
-    fetchSessions();
-  }, []);
+    if (token) fetchSessions();
+  }, [token]);
 
-  // ── TOAST HELPER ──────────────────────────────────────
-  const triggerToast = (msg) => {
-    setToast(msg);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 2200);
+  // ── AVATAR: upload to gallery → keep URL ──────────────
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Please choose an image under 2 MB.");
+      return;
+    }
+
+    // Instant local preview while the upload runs.
+    const reader = new FileReader();
+    reader.onloadend = () => setPreview(reader.result);
+    reader.readAsDataURL(file);
+
+    setAvatarUploading(true);
+    try {
+      console.log("🖼️ Uploading profile picture to gallery…");
+      const res = await uploadMedia(file);
+      const url = pickUploadedUrl(res);
+      if (!url) {
+        console.error("❌ Avatar upload returned no URL:", res);
+        toast.error("We couldn't get a URL for your photo. Please try again.");
+        setPreview(user?.profile_pic || null);
+        return;
+      }
+      console.log("✅ Profile picture uploaded:", url);
+      setProfilePicUrl(url);
+      setPreview(url);
+      toast.success("Photo uploaded — remember to save.");
+    } catch (err) {
+      console.error("❌ Avatar upload failed:", err);
+      toast.error(err?.message || "Couldn't upload your photo. Please try again.");
+      setPreview(user?.profile_pic || null);
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   // ── PROFILE UPDATE ────────────────────────────────────
   const handleProfileSave = async (e) => {
     e.preventDefault();
-    const formData = new FormData();
-    formData.append("name", name);
-    if (profilePic) formData.append("profile_picture", profilePic);
+    if (!name.trim()) {
+      toast.error("Please enter a display name.");
+      return;
+    }
+    if (avatarUploading) {
+      toast.info("Please wait for the photo upload to finish.");
+      return;
+    }
 
-    try {
-      const res = await fetch(
-        `https://backend.creativeklux.com/creativeklux-frontend/${user.id}`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-          body: formData,
-        },
-      );
-      if (!res.ok) throw new Error();
-      triggerToast("Profile saved");
-    } catch {
-      triggerToast("Failed to update profile.");
+    setSavingProfile(true);
+    console.log("💾 Saving profile…");
+    const payload = { name: name.trim() };
+    // Only send the picture if it changed (a fresh gallery URL).
+    if (profilePicUrl) payload.profile_pic = profilePicUrl;
+
+    const res = await updateProfile(payload);
+    setSavingProfile(false);
+
+    if (res.ok) {
+      setProfilePicUrl(null); // consumed
+      toast.success("Profile saved.");
+    } else {
+      toast.error(res.message || "Couldn't update your profile.");
     }
   };
 
   // ── PASSWORD UPDATE ───────────────────────────────────
+  // TODO(endpoint): wire to the real userend change-password endpoint.
   const handlePasswordUpdate = async () => {
-    if (newPassword !== confirmPassword) {
-      triggerToast("Passwords do not match.");
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error("Please fill in all password fields.");
       return;
     }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+
+    setUpdatingPassword(true);
     try {
       const res = await fetch(
-        `https://backend.creativeklux.com/creativeklux-frontend/user/${user.id}`,
+        `https://api.creativeklux.com/api/creativeklux-userend/profile/${user?.id}`,
         {
           method: "PUT",
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({
             current_password: currentPassword,
             new_password: newPassword,
           }),
         },
       );
-      if (!res.ok) throw new Error();
-      triggerToast("Password updated.");
+      if (!res.ok) throw new Error("Failed to update password");
+      toast.success("Password updated.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch {
-      triggerToast("Error updating password.");
+    } catch (err) {
+      console.error("❌ Password update failed:", err);
+      toast.error("Couldn't update your password. Please try again.");
+    } finally {
+      setUpdatingPassword(false);
     }
   };
 
   // ── DELETE ACCOUNT ────────────────────────────────────
+  // TODO(endpoint): wire to the real userend delete-account endpoint.
   const handleDeleteAccount = async () => {
+    setDeleting(true);
     try {
-      await fetch(
-        `https://backend.creativeklux.com/creativeklux-frontend/user/delete/${user.id}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        },
+      const res = await fetch(
+        `https://api.creativeklux.com/api/creativeklux-userend/profile/delete/${user?.id}`,
+        { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
       );
-      triggerToast("Account deleted.");
-      setTimeout(() => logout(), 2200);
-    } catch {
-      triggerToast("Error deleting account.");
+      if (!res.ok) throw new Error("Failed to delete account");
+      toast.success("Account deleted.");
+      setTimeout(() => logout(), 1500);
+    } catch (err) {
+      console.error("❌ Delete account failed:", err);
+      toast.error("Couldn't delete your account. Please try again.");
     } finally {
+      setDeleting(false);
       setShowConfirmModal(false);
     }
   };
 
   // ── TERMINATE SESSION ─────────────────────────────────
+  // TODO(endpoint): wire to the real userend terminate-session endpoint.
   const handleTerminate = async (id) => {
     try {
-      await fetch(
-        `https://backend.creativeklux.com/creativeklux-frontend/user/sessions/${id}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        },
+      const res = await fetch(
+        `https://api.creativeklux.com/api/creativeklux-userend/profile/sessions/${id}`,
+        { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
       );
+      if (!res.ok) throw new Error("Failed to terminate session");
       setSessions((prev) => prev.filter((s) => s.id !== id));
-      triggerToast("Session ended.");
-    } catch {
-      triggerToast("Failed to terminate session.");
-    }
-  };
-
-  // ── IMAGE PREVIEW ─────────────────────────────────────
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    setProfilePic(file);
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setPreview(reader.result);
-      reader.readAsDataURL(file);
+      toast.success("Session ended.");
+    } catch (err) {
+      console.error("❌ Terminate session failed:", err);
+      toast.error("Failed to terminate session.");
     }
   };
 
@@ -162,8 +239,11 @@ export default function AccountSettings() {
     .join("")
     .toUpperCase();
 
+  const profileDirty =
+    name.trim() !== (user?.name || "") || !!profilePicUrl;
+
   return (
-    <div className=" py-3 space-y-4">
+    <div className="py-3 space-y-4">
       {/* ── HEADER ───────────────────────────────────── */}
       <div className="mb-6">
         <h1 className="text-xl font-medium text-gray-900">Account settings</h1>
@@ -183,7 +263,7 @@ export default function AccountSettings() {
 
         {/* Avatar row */}
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0 text-gray-500 font-medium text-lg">
+          <div className="relative w-14 h-14 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0 text-gray-500 font-medium text-lg">
             {preview ? (
               <img
                 src={preview}
@@ -192,6 +272,11 @@ export default function AccountSettings() {
               />
             ) : (
               <span>{initials || "?"}</span>
+            )}
+            {avatarUploading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+              </div>
             )}
           </div>
 
@@ -202,19 +287,26 @@ export default function AccountSettings() {
             <p className="text-xs text-gray-500 truncate">{email}</p>
           </div>
 
-          <label className="cursor-pointer text-xs text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors shrink-0">
-            Change photo
+          <label
+            className={`text-xs text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 transition-colors shrink-0 ${
+              avatarUploading
+                ? "opacity-60 cursor-not-allowed"
+                : "cursor-pointer hover:bg-gray-50"
+            }`}
+          >
+            {avatarUploading ? "Uploading…" : "Change photo"}
             <input
               type="file"
               hidden
               accept="image/*"
+              disabled={avatarUploading}
               onChange={handleFileChange}
             />
           </label>
         </div>
 
         {/* Fields */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs text-gray-500">Display name</label>
             <input
@@ -236,8 +328,10 @@ export default function AccountSettings() {
         <div>
           <button
             type="submit"
-            className="text-sm bg-gray-800 cursor-pointer text-white px-4 py-2 rounded-lg hover:bg-black transition-colors"
+            disabled={savingProfile || avatarUploading || !profileDirty}
+            className="inline-flex items-center gap-2 text-sm bg-gray-800 cursor-pointer text-white px-4 py-2 rounded-lg hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
+            {savingProfile && <Loader2 className="w-4 h-4 animate-spin" />}
             Save changes
           </button>
         </div>
@@ -260,7 +354,7 @@ export default function AccountSettings() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs text-gray-500">New password</label>
             <input
@@ -286,8 +380,10 @@ export default function AccountSettings() {
         <div>
           <button
             onClick={handlePasswordUpdate}
-            className="text-sm bg-gray-900 cursor-pointer text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+            disabled={updatingPassword}
+            className="inline-flex items-center gap-2 text-sm bg-gray-900 cursor-pointer text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
+            {updatingPassword && <Loader2 className="w-4 h-4 animate-spin" />}
             Update password
           </button>
         </div>
@@ -345,7 +441,7 @@ export default function AccountSettings() {
       </div>
 
       {/* ── ACTIONS ─────────────────────────────────── */}
-      <div className="flex gap-2 pt-1">
+      <div className="flex flex-wrap gap-2 pt-1">
         <button
           onClick={logout}
           className="flex items-center gap-1.5 text-sm text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
@@ -363,19 +459,10 @@ export default function AccountSettings() {
         </button>
       </div>
 
-      {/* ── TOAST ────────────────────────────────────── */}
-      <div
-        className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg transition-all duration-300 pointer-events-none whitespace-nowrap z-50 ${
-          showToast ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
-        }`}
-      >
-        {toast}
-      </div>
-
       {/* ── CONFIRM DELETE MODAL ──────────────────────── */}
       {showConfirmModal && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-surface rounded-xl border border-gray-200 p-6 w-80 shadow-xl space-y-3">
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-xl border border-gray-200 p-6 w-full max-w-sm shadow-xl space-y-3">
             <h3 className="text-base font-medium text-gray-900">
               Delete your account?
             </h3>
@@ -386,14 +473,17 @@ export default function AccountSettings() {
             <div className="flex gap-2 justify-end pt-1">
               <button
                 onClick={() => setShowConfirmModal(false)}
-                className="text-sm text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={deleting}
+                className="text-sm text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteAccount}
-                className="text-sm text-white bg-red-500 px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
+                disabled={deleting}
+                className="inline-flex items-center gap-2 text-sm text-white bg-red-500 px-4 py-2 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
               >
+                {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
                 Delete account
               </button>
             </div>

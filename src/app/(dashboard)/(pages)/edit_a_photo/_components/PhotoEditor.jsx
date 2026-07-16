@@ -9,6 +9,7 @@ import AiBackgroundsPanel from "./AiBackgroundsPanel";
 import CustomBackgroundPanel from "./CustomBackgroundPanel";
 import RecentUploadsCarousel from "./RecentUploadsCarousel";
 import RecentUploadsPanel from "./RecentUploadsPanel";
+import HScrollRow from "./HScrollRow";
 import BackgroundLibrary from "./BackgroundLibrary";
 import BackgroundCategoryPanel from "./BackgroundCategoryPanel";
 import InfinitePexelsGrid from "./InfinitePexelsGrid";
@@ -44,10 +45,12 @@ import {
   EyeOff,
   ChevronUp,
   ChevronDown,
+  RotateCw,
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { brandedFileName } from "@/utils/downloadName";
 
 const topTools = [
   { id: "insert", label: "Insert", icon: Plus },
@@ -339,16 +342,9 @@ const TEXT_STYLES = [
   },
 ];
 
-const SHAPE_COLORS = [
-  "#7c3aed",
-  "#2563eb",
-  "#f97316",
-  "#ef4444",
-  "#22c55e",
-  "#eab308",
-  "#111827",
-  "#ffffff",
-];
+// Default fill for a freshly-inserted vector (shape / sticker / etc.). Colour is
+// no longer chosen before insert — it's recolored afterwards in the Image panel.
+const DEFAULT_INSERT_COLOR = "#7c3aed";
 // 5-point star in a 0..100 viewbox (used for preview + export).
 const STAR_POINTS = [
   [50, 2],
@@ -389,6 +385,49 @@ const BUBBLES = [
   "M12 12 H88 V64 H44 L26 86 L32 64 H12 Z",
   "M50 12 C76 12 92 26 92 44 C92 60 76 74 50 74 C44 74 39 73 34 72 L18 86 L25 68 C14 61 8 53 8 44 C8 26 24 12 50 12 Z",
   "M14 14 H86 A8 8 0 0 1 94 22 V58 A8 8 0 0 1 86 66 H40 L24 84 L30 66 H14 A8 8 0 0 1 6 58 V22 A8 8 0 0 1 14 14 Z",
+];
+// Extra filled geometric shapes for Classics (0..100 viewBox).
+const GEO_SHAPES = [
+  "M50 6 L88 28 L88 72 L50 94 L12 72 L12 28 Z", // hexagon
+  "M50 6 L92 38 L76 90 L24 90 L8 38 Z", // pentagon
+  "M50 6 L90 50 L50 94 L10 50 Z", // diamond
+  "M50 86 C20 64 10 44 22 30 C32 18 46 22 50 34 C54 22 68 18 78 30 C90 44 80 64 50 86 Z", // heart
+  "M40 10 H60 V40 H90 V60 H60 V90 H40 V60 H10 V40 H40 Z", // plus
+  "M32 8 H68 L92 32 V68 L68 92 H32 L8 68 V32 Z", // octagon
+];
+// Starburst / seal stickers (filled).
+const STICKERS = [
+  "M50 5 L58 30 L84 22 L70 45 L95 50 L70 55 L84 78 L58 70 L50 95 L42 70 L16 78 L30 55 L5 50 L30 45 L16 22 L42 30 Z",
+  "M50 4 L57 26 L80 20 L69 41 L92 50 L69 59 L80 80 L57 74 L50 96 L43 74 L20 80 L31 59 L8 50 L31 41 L20 20 L43 26 Z",
+  "M50 8 C60 8 64 2 72 10 C80 2 84 8 84 18 C94 18 92 26 88 32 C96 40 88 46 84 50 C92 58 84 64 82 70 C90 78 80 82 74 82 C74 92 66 90 60 86 C54 96 46 90 42 84 C34 92 28 84 26 78 C16 78 18 68 22 62 C12 56 18 48 24 44 C16 34 26 30 32 30 C30 20 40 20 46 24 C46 14 46 8 50 8 Z",
+];
+// Sparkles / rings for Wired (filled, decorative).
+const WIRED = [
+  "M50 8 C54 40 60 46 92 50 C60 54 54 60 50 92 C46 60 40 54 8 50 C40 46 46 40 50 8 Z", // 4-point sparkle
+  "M50 12 A38 38 0 1 0 50.1 12 Z M50 32 A18 18 0 1 1 49.9 32 Z", // ring (even-odd)
+  "M50 20 L56 44 L80 50 L56 56 L50 80 L44 56 L20 50 L44 44 Z", // small sparkle
+];
+// Outlined frames (stroke, no fill).
+const FRAMES = [
+  { d: "M12 12 H88 V88 H12 Z", sw: 6 },
+  {
+    d: "M24 12 H76 A12 12 0 0 1 88 24 V76 A12 12 0 0 1 76 88 H24 A12 12 0 0 1 12 76 V24 A12 12 0 0 1 24 12 Z",
+    sw: 6,
+  },
+  { d: "M8 50 A42 42 0 1 0 92 50 A42 42 0 1 0 8 50 Z", sw: 6 },
+];
+// Outlined device silhouettes (stroke, no fill).
+const DEVICES = [
+  {
+    d: "M36 8 H64 A6 6 0 0 1 70 14 V86 A6 6 0 0 1 64 92 H36 A6 6 0 0 1 30 86 V14 A6 6 0 0 1 36 8 Z M44 82 H56",
+    sw: 5,
+  },
+  { d: "M22 22 H78 V62 H22 Z M12 72 H88 L84 80 H16 Z", sw: 5 }, // laptop
+  { d: "M14 18 H86 V62 H14 Z M46 62 H54 V78 H46 Z M34 82 H66", sw: 5 }, // monitor
+  {
+    d: "M28 10 H72 A5 5 0 0 1 77 15 V85 A5 5 0 0 1 72 90 H28 A5 5 0 0 1 23 85 V15 A5 5 0 0 1 28 10 Z",
+    sw: 5,
+  }, // tablet
 ];
 const INSERT_EMOJIS = [
   "😀",
@@ -441,33 +480,80 @@ const PROMO = [
 ];
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL"];
 
+// Insert groups shown as section headings in the Insert panel (Photoroom
+// parity). Each category below tags the group it belongs to.
+const INSERT_GROUPS = ["Shapes", "Graphics"];
+
 const INSERT_LIBRARY = [
   {
     id: "classics",
     label: "Classics",
+    group: "Shapes",
     colorable: true,
     items: [
       { type: "shape", shape: "circle" },
       { type: "shape", shape: "triangle" },
       { type: "shape", shape: "rect" },
       { type: "shape", shape: "star" },
+      ...GEO_SHAPES.map((d) => ({ type: "path", d })),
     ],
   },
   {
     id: "blobs",
     label: "Blobs",
+    group: "Shapes",
     colorable: true,
     items: BLOBS.map((d) => ({ type: "path", d })),
   },
   {
+    id: "stickers",
+    label: "Stickers",
+    group: "Shapes",
+    colorable: true,
+    items: STICKERS.map((d) => ({ type: "path", d })),
+  },
+  {
+    id: "wired",
+    label: "Wired",
+    group: "Shapes",
+    colorable: true,
+    items: WIRED.map((d) => ({ type: "path", d })),
+  },
+  {
     id: "arrows",
     label: "Arrows",
+    group: "Graphics",
     colorable: true,
     items: ARROWS.map((d) => ({ type: "path", d })),
   },
   {
+    id: "frames",
+    label: "Frames",
+    group: "Graphics",
+    colorable: true,
+    items: FRAMES.map((f) => ({
+      type: "path",
+      d: f.d,
+      stroke: true,
+      strokeWidth: f.sw,
+    })),
+  },
+  {
+    id: "devices",
+    label: "Devices",
+    group: "Graphics",
+    colorable: true,
+    items: DEVICES.map((f) => ({
+      type: "path",
+      d: f.d,
+      stroke: true,
+      strokeWidth: f.sw,
+    })),
+  },
+  {
     id: "lines",
-    label: "Lines",
+    label: "Measurements",
+    group: "Graphics",
     colorable: true,
     items: LINES.map((l) => ({
       type: "path",
@@ -481,22 +567,26 @@ const INSERT_LIBRARY = [
   {
     id: "bubbles",
     label: "Speech Bubbles",
+    group: "Graphics",
     colorable: true,
     items: BUBBLES.map((d) => ({ type: "path", d, w: 150, h: 130 })),
   },
   {
     id: "emojis",
     label: "Emojis",
+    group: "Graphics",
     items: INSERT_EMOJIS.map((e) => ({ type: "emoji", emoji: e })),
   },
   {
     id: "reactions",
     label: "Reactions",
+    group: "Graphics",
     items: REACTIONS.map((e) => ({ type: "emoji", emoji: e })),
   },
   {
     id: "indexes",
     label: "Indexes",
+    group: "Graphics",
     items: INDEXES.map((t) => ({
       type: "badge",
       fill: "#111827",
@@ -507,6 +597,7 @@ const INSERT_LIBRARY = [
   {
     id: "promo",
     label: "Promotions",
+    group: "Graphics",
     items: PROMO.map((p) => ({
       type: "badge",
       fill: p.fill,
@@ -517,6 +608,7 @@ const INSERT_LIBRARY = [
   {
     id: "sizes",
     label: "Sizes",
+    group: "Graphics",
     items: SIZES.map((t) => ({
       type: "badge",
       fill: "#111827",
@@ -643,6 +735,41 @@ function VisualSVG({ spec }) {
       </svg>
     );
   return null;
+}
+
+// Serialize an insert spec (shape / sticker / blob / emoji / badge / path) into
+// a standalone SVG data-URL, so it can be added as an *image* layer and get the
+// same treatment as any image (floating toolbar + Image panel + effects). The
+// markup mirrors VisualSVG exactly. `image` specs are already images and skip
+// this entirely.
+const escapeXml = (s = "") =>
+  String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+function specToSvgDataUrl(spec) {
+  let inner = "";
+  if (spec.type === "emoji") {
+    inner = `<text x="50" y="54" font-size="78" text-anchor="middle" dominant-baseline="central">${escapeXml(spec.emoji)}</text>`;
+  } else if (spec.type === "badge") {
+    const fs = (spec.text || "").length > 3 ? 22 : 30;
+    inner = `<circle cx="50" cy="50" r="48" fill="${spec.fill}"/><text x="50" y="53" font-size="${fs}" font-weight="700" fill="${spec.textColor}" text-anchor="middle" dominant-baseline="central" font-family="system-ui, sans-serif">${escapeXml(spec.text)}</text>`;
+  } else if (spec.type === "shape") {
+    if (spec.shape === "rect")
+      inner = `<rect x="0" y="0" width="100" height="100" fill="${spec.fill}"/>`;
+    else if (spec.shape === "circle")
+      inner = `<ellipse cx="50" cy="50" rx="50" ry="50" fill="${spec.fill}"/>`;
+    else if (spec.shape === "triangle")
+      inner = `<polygon points="50,0 100,100 0,100" fill="${spec.fill}"/>`;
+    else if (spec.shape === "star")
+      inner = `<polygon points="${STAR_PTS_STR}" fill="${spec.fill}"/>`;
+  } else if (spec.type === "path") {
+    inner = `<path d="${spec.d}" fill="${spec.fill || "none"}" stroke="${spec.stroke || "none"}" stroke-width="${spec.strokeWidth || 0}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" preserveAspectRatio="none">${inner}</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
 const loadImageEl = (src) =>
@@ -1566,13 +1693,39 @@ const STUDIO_BG = [
     label: "Slate",
     bg: { type: "gradient", from: "#1e293b", to: "#0f172a" },
   },
+  {
+    id: "st-peach",
+    label: "Peach",
+    bg: { type: "gradient", from: "#ffe3d0", to: "#ffc7a8" },
+  },
+  {
+    id: "st-mint",
+    label: "Mint",
+    bg: { type: "gradient", from: "#d7f5ec", to: "#b6ead9" },
+  },
+  {
+    id: "st-graphite",
+    label: "Graphite",
+    bg: { type: "gradient", from: "#3a3f47", to: "#22262c" },
+  },
+  {
+    id: "st-cream",
+    label: "Cream",
+    bg: { type: "gradient", from: "#faf5ea", to: "#efe6d0" },
+  },
 ];
 const FILTER_TEMPLATES = [
   { id: "f-gray", label: "Grayscale", filter: "grayscale" },
-  { id: "f-sepia", label: "Sepia", filter: "sepia" },
+  { id: "sepia", label: "Sepia", filter: "sepia" },
   { id: "f-warm", label: "Warm", filter: "warm" },
   { id: "f-cool", label: "Cool", filter: "cool" },
   { id: "f-invert", label: "Invert", filter: "invert" },
+  { id: "noir", label: "Noir", filter: "noir" },
+  { id: "fade", label: "Fade", filter: "fade" },
+  { id: "mono", label: "Mono", filter: "mono" },
+  { id: "process", label: "Process", filter: "process" },
+  { id: "chrome", label: "Chrome", filter: "chrome" },
+  { id: "tonal", label: "Tonal", filter: "tonal" },
   { id: "f-blur", label: "Blur", blur: 6 },
 ];
 const SIZE_TEMPLATES = [
@@ -1580,11 +1733,18 @@ const SIZE_TEMPLATES = [
   { id: "sz-4-5", label: "Portrait 4:5", w: 416, h: 520 },
   { id: "sz-9-16", label: "Story 9:16", w: 300, h: 533 },
   { id: "sz-16-9", label: "Wide 16:9", w: 540, h: 304 },
+  { id: "sz-3-2", label: "Landscape 3:2", w: 540, h: 360 },
+  { id: "sz-2-3", label: "Poster 2:3", w: 360, h: 540 },
+  { id: "sz-fb-cover", label: "FB Cover", w: 540, h: 205 },
+  { id: "sz-yt-thumb", label: "YouTube 16:9", w: 540, h: 304 },
 ];
 const PROFILE_TEMPLATES = [
   { id: "pf-sunset", label: "Sunset", from: "#f857a6", to: "#ff5858" },
   { id: "pf-ocean", label: "Ocean", from: "#2193b0", to: "#6dd5ed" },
   { id: "pf-grape", label: "Grape", from: "#7f00ff", to: "#e100ff" },
+  { id: "pf-lime", label: "Lime", from: "#a8e063", to: "#56ab2f" },
+  { id: "pf-gold", label: "Gold", from: "#f7971e", to: "#ffd200" },
+  { id: "pf-berry", label: "Berry", from: "#c31432", to: "#240b36" },
 ];
 // Photoroom-style filter presets — each is a CSS filter string that works in the
 // preview AND the canvas export (ctx.filter). Applied on top of the baked pixels.
@@ -1649,6 +1809,17 @@ const TEMPLATE_GROUPS = [
     })),
   },
   {
+    title: "Surfaces",
+    items: [
+      ...(BG_LIBRARY.find((c) => c.category === "Surface")?.ids || []),
+      ...(BG_LIBRARY.find((c) => c.category === "Fabric")?.ids || []),
+    ].map((id, i) => ({
+      id: `surf-${id}`,
+      label: `Surface ${i + 1}`,
+      apply: { bg: { type: "image", src: ckpx(id) }, round: false },
+    })),
+  },
+  {
     title: "Photo Filters",
     items: FILTER_TEMPLATES.map((f) => ({
       id: f.id,
@@ -1678,6 +1849,32 @@ const TEMPLATE_GROUPS = [
         round: true,
         bg: { type: "gradient", from: p.from, to: p.to },
       },
+    })),
+  },
+  {
+    title: "Rounded",
+    items: [
+      { id: "rd-white", label: "White", bg: { type: "color", value: "#ffffff" } },
+      { id: "rd-black", label: "Black", bg: { type: "color", value: "#111827" } },
+      {
+        id: "rd-sky",
+        label: "Sky",
+        bg: { type: "gradient", from: "#d6e4f0", to: "#bcd4ea" },
+      },
+      {
+        id: "rd-blush",
+        label: "Blush",
+        bg: { type: "gradient", from: "#f6dcd2", to: "#f0c9bd" },
+      },
+      {
+        id: "rd-mint",
+        label: "Mint",
+        bg: { type: "gradient", from: "#d7f5ec", to: "#b6ead9" },
+      },
+    ].map((r) => ({
+      id: r.id,
+      label: r.label,
+      apply: { size: { w: 460, h: 460 }, round: true, bg: r.bg },
     })),
   },
   {
@@ -1964,7 +2161,6 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   const [editingLayerId, setEditingLayerId] = useState(null); // text layer being edited inline
   const [activeTool, setActiveTool] = useState(null); // null = image-edit panel; 'insert' = Insert panel
   const [insertCat, setInsertCat] = useState(null); // open category id within the Insert panel
-  const [shapeColor, setShapeColor] = useState(SHAPE_COLORS[0]);
   const layerDragRef = useRef(null);
 
   // ── Brand Kit (logos / colour palettes / fonts) ───────────────────────
@@ -2058,10 +2254,15 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   const [exportSize, setExportSize] = useState(null); // real output dims {w,h} (Resize); null = 2× preview
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false); // Download format dropdown (PNG/JPEG)
   const [templateQuery, setTemplateQuery] = useState("");
+  const [templateCat, setTemplateCat] = useState(null); // open group title (See all)
 
   // Base image box model (preview px) — drives 8-handle resize + export.
   const [imgW, setImgW] = useState(null);
   const [imgH, setImgH] = useState(null);
+  // Base-image crop window: {cw,ch,cx,cy} content size + offset inside the box,
+  // or null for "content fills the box" (no crop). Side handles crop, corners
+  // scale — same model as image layers.
+  const [imgCrop, setImgCrop] = useState(null);
   const [imgHidden, setImgHidden] = useState(false);
   const imgFitRef = useRef({ w: 0, h: 0 }); // fitted size at load (for the Scale slider)
   const imgResizeRef = useRef(null);
@@ -2490,6 +2691,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     exportSize,
     imgW,
     imgH,
+    imgCrop,
     imgHidden,
   });
 
@@ -2565,6 +2767,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     setExportSize(s.exportSize || null);
     if (s.imgW !== undefined) setImgW(s.imgW);
     if (s.imgH !== undefined) setImgH(s.imgH);
+    setImgCrop(s.imgCrop || null);
     setImgHidden(!!s.imgHidden);
   };
 
@@ -2863,6 +3066,47 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     }
     return parts.join(" ") || "none";
   };
+  // A single template thumbnail. `fixed` sizes it for the horizontal carousel;
+  // otherwise it fills a grid cell (the See-all / search grid).
+  const templateCard = (item, fixed) => (
+    <button
+      key={item.id}
+      onClick={() => applyTemplateItem(item)}
+      title={item.label}
+      className={`group cursor-pointer ${fixed ? "shrink-0 w-[92px]" : ""}`}
+    >
+      <div
+        className={`relative rounded-xl overflow-hidden border border-gray-200 group-hover:border-blue-400 flex items-center justify-center ${
+          fixed ? "w-[92px] h-[92px]" : "aspect-square"
+        }`}
+        style={{
+          ...thumbBgStyle(item),
+          ...(item.apply?.round ? { borderRadius: "9999px" } : {}),
+        }}
+      >
+        {item.apply?.bg?.type === "image" && (
+          <img
+            src={item.apply.bg.src}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+        {displayImage ? (
+          <img
+            src={displayImage}
+            alt=""
+            className="relative max-w-[78%] max-h-[78%] object-contain"
+            style={{ filter: thumbFilter(item) }}
+          />
+        ) : (
+          <ImageIcon className="relative w-5 h-5 text-gray-300" />
+        )}
+      </div>
+      <span className="block text-[10px] text-gray-500 text-center mt-1 truncate">
+        {item.label}
+      </span>
+    </button>
+  );
 
   // ── Resize helpers ────────────────────────────────────────────────────
   // Fit real target dims into the preview box (cap ≈ CANVAS_W) keeping ratio.
@@ -2930,7 +3174,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     setSelectedLayerId(id);
     setSelected(false); // deselect base image
   };
-  const addItem = (spec) => {
+  const addItem = (item, { label, colorable } = {}) => {
     const defaults = {
       image: 200,
       emoji: 90,
@@ -2938,13 +3182,31 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       path: 120,
       badge: 90,
     };
-    const d = defaults[spec.type] || 120;
-    addLayer({
-      ...spec,
+    const d = defaults[item.type] || 120;
+    const base = {
+      type: "image",
+      insertLabel: label,
       x: canvasSize.w / 2,
       y: canvasSize.h / 2,
-      w: spec.w || d,
-      h: spec.h || d,
+      w: item.w || d,
+      h: item.h || d,
+    };
+    // Real images keep their src. Vector specs are serialized to an SVG data-URL;
+    // the raw spec + colorable flag ride along so the Image panel can recolor it
+    // (see recolorActiveInsert). Every insert is an image layer, so any selected
+    // insert gets the image toolbar + Image panel titled by its sub-group.
+    if (item.type === "image") {
+      addLayer({ ...base, src: item.src });
+      return;
+    }
+    const color = colorable ? DEFAULT_INSERT_COLOR : undefined;
+    const resolved = colorable ? resolveItem(item, color) : item;
+    addLayer({
+      ...base,
+      src: specToSvgDataUrl(resolved),
+      insertSpec: item,
+      insertColorable: !!colorable,
+      insertColor: color,
     });
   };
   const insertTextLayer = (fields = {}, { edit = false } = {}) => {
@@ -3038,6 +3300,17 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   };
 
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) || null;
+
+  // Recolor the selected vector insert: re-resolve its stored spec with the new
+  // colour and re-serialize the SVG src. Only affects colourable inserts.
+  const recolorActiveInsert = (color) => {
+    const l = selectedLayer;
+    if (!l || l.type !== "image" || !l.insertColorable || !l.insertSpec) return;
+    updateLayer(l.id, {
+      src: specToSvgDataUrl(resolveItem(l.insertSpec, color)),
+      insertColor: color,
+    });
+  };
 
   // ── "Active image" adapter ────────────────────────────────────────────
   // The Image panel + floating toolbar operate on whichever image is selected:
@@ -3491,6 +3764,39 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     layerDragRef.current = null;
     e.currentTarget.releasePointerCapture?.(e.pointerId);
   };
+
+  // ── Rotate handle (base image + every layer) ──────────────────────────
+  // Drag the ⟳ handle around the object's centre to rotate it. The centre is
+  // captured from the selection box's bounding rect at pointer-down (rotation is
+  // about centre, so it stays put). Writes rotation state → the Position angle
+  // stays in sync automatically.
+  const rotateRef = useRef(null);
+  const onRotateDown = (e, kind, id) => {
+    e.stopPropagation();
+    const box = e.currentTarget.parentElement;
+    const r = box.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const startAngle =
+      (Math.atan2(e.clientY - cy, e.clientX - cx) * 180) / Math.PI;
+    const startRot =
+      kind === "base" ? rotation : layers.find((l) => l.id === id)?.rotation || 0;
+    rotateRef.current = { kind, id, cx, cy, startAngle, startRot };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onRotateMove = (e) => {
+    const d = rotateRef.current;
+    if (!d) return;
+    const a = (Math.atan2(e.clientY - d.cy, e.clientX - d.cx) * 180) / Math.PI;
+    let rot = Math.round(d.startRot + (a - d.startAngle));
+    rot = (((rot + 180) % 360) + 360) % 360 - 180; // normalize to -180..180
+    if (d.kind === "base") setRotation(rot);
+    else updateLayer(d.id, { rotation: rot });
+  };
+  const onRotateUp = (e) => {
+    rotateRef.current = null;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+  };
   // ── Shared 8-direction resize geometry ────────────────────────────────
   // k ∈ tl,tc,tr,ml,mr,bl,bc,br. start={w,h,cx,cy}. Corners keep aspect when
   // lockAspect; edges stretch a single axis. Opposite edge/corner stays put.
@@ -3541,6 +3847,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     imgFitRef.current = { w: box.w, h: box.h };
     setImgW(box.w);
     setImgH(box.h);
+    setImgCrop(null);
     setPosX(0);
     setPosY(0);
     setScale(100);
@@ -3548,6 +3855,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   const onImgResizeDown = (e, k) => {
     e.stopPropagation();
     setSelected(true);
+    const c0 = imgCrop || { cw: imgW, ch: imgH, cx: 0, cy: 0 };
     imgResizeRef.current = {
       k,
       sx: e.clientX,
@@ -3556,37 +3864,85 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       h0: imgH,
       cx0: canvasSize.w / 2 + posX,
       cy0: canvasSize.h / 2 + posY,
+      cw0: c0.cw,
+      ch0: c0.ch,
+      crx0: c0.cx,
+      cry0: c0.cy,
     };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const onImgResizeMove = (e) => {
     const d = imgResizeRef.current;
     if (!d) return;
-    const r = geomResize(
-      d.k,
-      e.clientX - d.sx,
-      e.clientY - d.sy,
-      { w: d.w0, h: d.h0, cx: d.cx0, cy: d.cy0 },
-      true,
-    );
-    setImgW(r.w);
-    setImgH(r.h);
-    setPosX(r.cx - canvasSize.w / 2);
-    setPosY(r.cy - canvasSize.h / 2);
-    if (imgFitRef.current.w)
-      setScale(Math.round((r.w / imgFitRef.current.w) * 100));
+    const dx = e.clientX - d.sx;
+    const dy = e.clientY - d.sy;
+    const hasH = d.k.includes("l") || d.k.includes("r");
+    const hasV = d.k.includes("t") || d.k.includes("b");
+    // Corner → proportional scale of box + content.
+    if (hasH && hasV) {
+      const r = geomResize(
+        d.k,
+        dx,
+        dy,
+        { w: d.w0, h: d.h0, cx: d.cx0, cy: d.cy0 },
+        true,
+      );
+      const f = d.w0 ? r.w / d.w0 : 1;
+      setImgW(r.w);
+      setImgH(r.h);
+      setPosX(r.cx - canvasSize.w / 2);
+      setPosY(r.cy - canvasSize.h / 2);
+      setImgCrop({
+        cw: d.cw0 * f,
+        ch: d.ch0 * f,
+        cx: d.crx0 * f,
+        cy: d.cry0 * f,
+      });
+      if (imgFitRef.current.w)
+        setScale(Math.round((r.w / imgFitRef.current.w) * 100));
+      return;
+    }
+    // Side → crop: move the box edge, shift content so it stays put; clamp so the
+    // box can't reveal past the image.
+    let w = d.w0;
+    let h = d.h0;
+    let cx = d.cx0;
+    let cy = d.cy0;
+    let cropX = d.crx0;
+    let cropY = d.cry0;
+    const hr = d.k.includes("l") ? -1 : d.k.includes("r") ? 1 : 0;
+    const vr = d.k.includes("t") ? -1 : d.k.includes("b") ? 1 : 0;
+    if (hr) {
+      w = Math.min(d.cw0, Math.max(20, d.w0 + hr * dx));
+      cx = d.cx0 + (hr * (w - d.w0)) / 2;
+      cropX = d.crx0 + (d.cx0 - d.w0 / 2 - (cx - w / 2));
+      cropX = Math.min(0, Math.max(w - d.cw0, cropX));
+    }
+    if (vr) {
+      h = Math.min(d.ch0, Math.max(20, d.h0 + vr * dy));
+      cy = d.cy0 + (vr * (h - d.h0)) / 2;
+      cropY = d.cry0 + (d.cy0 - d.h0 / 2 - (cy - h / 2));
+      cropY = Math.min(0, Math.max(h - d.ch0, cropY));
+    }
+    setImgW(w);
+    setImgH(h);
+    setPosX(cx - canvasSize.w / 2);
+    setPosY(cy - canvasSize.h / 2);
+    setImgCrop({ cw: d.cw0, ch: d.ch0, cx: cropX, cy: cropY });
   };
   const onImgResizeUp = (e) => {
     imgResizeRef.current = null;
     e.currentTarget.releasePointerCapture?.(e.pointerId);
   };
 
-  // Scale slider → uniform-scale the base box from its fitted size.
+  // Scale slider → uniform-scale the base box from its fitted size. Clears any
+  // crop (the slider re-fits the whole image).
   const setBaseScale = (v) => {
     setScale(v);
     if (imgFitRef.current.w) {
       setImgW((imgFitRef.current.w * v) / 100);
       setImgH((imgFitRef.current.h * v) / 100);
+      setImgCrop(null);
     }
   };
 
@@ -3604,6 +3960,11 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       cx0: layer.x,
       cy0: layer.y,
       fs0: layer.fontSize,
+      // Crop window start (image layers): content size + its offset in the box.
+      cw0: layer.cropW ?? layer.w,
+      ch0: layer.cropH ?? layer.h,
+      crx0: layer.cropX ?? 0,
+      cry0: layer.cropY ?? 0,
     };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
@@ -3611,17 +3972,83 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     const d = layerDragRef.current;
     if (!d || d.mode !== "resize") return;
     const layer = layers.find((l) => l.id === d.id);
-    const lock = layer && layer.type !== "text" && layer.type !== "shape";
+    if (!layer) return;
+    const dx = e.clientX - d.sx;
+    const dy = e.clientY - d.sy;
+
+    // Image layers: corner handles SCALE (box + content together, aspect-locked);
+    // side handles CROP (box edge moves, content stays put — a window onto the
+    // image). Content always keeps the image's aspect, so it never distorts.
+    if (layer.type === "image") {
+      const hasH = d.k.includes("l") || d.k.includes("r");
+      const hasV = d.k.includes("t") || d.k.includes("b");
+      if (hasH && hasV) {
+        const r = geomResize(
+          d.k,
+          dx,
+          dy,
+          { w: d.w0, h: d.h0, cx: d.cx0, cy: d.cy0 },
+          true,
+        );
+        const f = d.w0 ? r.w / d.w0 : 1;
+        updateLayer(d.id, {
+          w: r.w,
+          h: r.h,
+          x: r.cx,
+          y: r.cy,
+          cropW: d.cw0 * f,
+          cropH: d.ch0 * f,
+          cropX: d.crx0 * f,
+          cropY: d.cry0 * f,
+        });
+        return;
+      }
+      // Side crop.
+      let w = d.w0;
+      let h = d.h0;
+      let cx = d.cx0;
+      let cy = d.cy0;
+      let cropX = d.crx0;
+      let cropY = d.cry0;
+      const hr = d.k.includes("l") ? -1 : d.k.includes("r") ? 1 : 0;
+      const vr = d.k.includes("t") ? -1 : d.k.includes("b") ? 1 : 0;
+      if (hr) {
+        // Box can't exceed the content width (no empty reveal past the image).
+        w = Math.min(d.cw0, Math.max(20, d.w0 + hr * dx));
+        cx = d.cx0 + (hr * (w - d.w0)) / 2;
+        cropX = d.crx0 + (d.cx0 - d.w0 / 2 - (cx - w / 2));
+        cropX = Math.min(0, Math.max(w - d.cw0, cropX));
+      }
+      if (vr) {
+        h = Math.min(d.ch0, Math.max(20, d.h0 + vr * dy));
+        cy = d.cy0 + (vr * (h - d.h0)) / 2;
+        cropY = d.cry0 + (d.cy0 - d.h0 / 2 - (cy - h / 2));
+        cropY = Math.min(0, Math.max(h - d.ch0, cropY));
+      }
+      updateLayer(d.id, {
+        w,
+        h,
+        x: cx,
+        y: cy,
+        cropX,
+        cropY,
+        cropW: d.cw0,
+        cropH: d.ch0,
+      });
+      return;
+    }
+
+    // Text / other layers: plain resize (corner scales the font).
+    const lock = layer.type !== "text" && layer.type !== "shape";
     const r = geomResize(
       d.k,
-      e.clientX - d.sx,
-      e.clientY - d.sy,
+      dx,
+      dy,
       { w: d.w0, h: d.h0, cx: d.cx0, cy: d.cy0 },
       lock,
     );
     const patch = { w: r.w, h: r.h, x: r.cx, y: r.cy };
-    // Scale text size with the box on a corner drag.
-    if (layer?.type === "text" && d.fs0 && d.k.length === 2)
+    if (layer.type === "text" && d.fs0 && d.k.length === 2)
       patch.fontSize = Math.max(8, Math.round(d.fs0 * (r.w / d.w0)));
     updateLayer(d.id, patch);
   };
@@ -4080,26 +4507,35 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       const im = await loadImageEl(rSrc);
       const s = (li.scale ?? 100) / 100;
       ctx.scale(li.flipH ? -1 : 1, li.flipV ? -1 : 1);
-      const dw = w * s,
-        dh = h * s;
-      // Soft drop shadow (silhouette-following), like the base image.
+      // Crop window: the visible box (w×h) clips the content, drawn at
+      // cropW×cropH offset by cropX/cropY (defaults to filling the box).
+      const cropW = (layer.cropW ?? layer.w) * sc;
+      const cropH = (layer.cropH ?? layer.h) * sc;
+      const cropX = (layer.cropX ?? 0) * sc;
+      const cropY = (layer.cropY ?? 0) * sc;
+      const cLeft = (-w / 2 + cropX) * s;
+      const cTop = (-h / 2 + cropY) * s;
+      const cWd = cropW * s;
+      const cHd = cropH * s;
+      // Soft drop shadow (silhouette-following), like the base image. Drawn
+      // unclipped so the shadow can extend past the crop box.
       if (li.toggles?.shadows && li.shadowMode === "drop") {
         ctx.save();
         ctx.shadowColor = hexToRgba(li.shadowColor, li.shadowOpacity / 100);
         ctx.shadowBlur = li.shadowBlur * 2 * sc;
         ctx.shadowOffsetX = li.shadowX * sc;
         ctx.shadowOffsetY = li.shadowY * sc;
-        ctx.drawImage(im, -dw / 2, -dh / 2, dw, dh);
+        ctx.drawImage(im, cLeft, cTop, cWd, cHd);
         ctx.restore();
       }
       // Outline halo hugging the cut-out.
       if (li.toggles?.outline) {
-        const sil = makeSilhouetteCanvas(im, dw, dh, li.outlineColor);
+        const sil = makeSilhouetteCanvas(im, cWd, cHd, li.outlineColor);
         const r = li.outlineWidth * sc;
         ctx.save();
         if (li.outlineBlur > 0) ctx.filter = `blur(${li.outlineBlur * sc}px)`;
         for (const [dx, dy] of OUTLINE_DIRS)
-          ctx.drawImage(sil, -dw / 2 + dx * r, -dh / 2 + dy * r, dw, dh);
+          ctx.drawImage(sil, cLeft + dx * r, cTop + dy * r, cWd, cHd);
         ctx.restore();
       }
       ctx.filter =
@@ -4107,7 +4543,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       ctx.globalAlpha = (li.adjOpacity ?? 100) / 100;
       ctx.globalCompositeOperation =
         li.blendMode === "normal" ? "source-over" : li.blendMode;
-      ctx.drawImage(im, -dw / 2, -dh / 2, dw, dh);
+      // Clip to the visible box, then draw the (possibly larger) content.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(-w / 2, -h / 2, w, h);
+      ctx.clip();
+      ctx.drawImage(im, cLeft, cTop, cWd, cHd);
+      ctx.restore();
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
     } else if (layer.type === "emoji") {
@@ -4368,6 +4810,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       const im = await loadImageEl(renderSrc);
       const dw = imgW * sc,
         dh = imgH * sc;
+      // Crop window: the box (dw×dh) clips the content, drawn at cw×ch offset by
+      // cx/cy (defaults to filling the box).
+      const c = imgCrop || { cw: imgW, ch: imgH, cx: 0, cy: 0 };
+      const cropW = c.cw * sc,
+        cropH = c.ch * sc;
+      const cLeft = -dw / 2 + c.cx * sc,
+        cTop = -dh / 2 + c.cy * sc;
       ctx.save();
       ctx.translate(
         (canvasSize.w / 2 + posX) * sc,
@@ -4375,24 +4824,25 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       );
       ctx.rotate((rotation * Math.PI) / 180);
       ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-      // Soft DROP shadow (follows the silhouette). Floor mode handled above.
+      // Soft DROP shadow (follows the silhouette). Drawn unclipped so it can
+      // extend past the crop box. Floor mode handled above.
       if (toggles.shadows && shadowMode === "drop") {
         ctx.save();
         ctx.shadowColor = hexToRgba(shadowColor, shadowOpacity / 100);
         ctx.shadowBlur = shadowBlur * 2 * sc;
         ctx.shadowOffsetX = shadowX * sc;
         ctx.shadowOffsetY = shadowY * sc;
-        ctx.drawImage(im, -dw / 2, -dh / 2, dw, dh);
+        ctx.drawImage(im, cLeft, cTop, cropW, cropH);
         ctx.restore();
       }
       // Outline — silhouette halo hugging the cut-out (matches the preview).
       if (toggles.outline) {
-        const sil = makeSilhouetteCanvas(im, dw, dh, outlineColor);
+        const sil = makeSilhouetteCanvas(im, cropW, cropH, outlineColor);
         const r = outlineWidth * sc;
         ctx.save();
         if (outlineBlur > 0) ctx.filter = `blur(${outlineBlur * sc}px)`;
         for (const [dx, dy] of OUTLINE_DIRS) {
-          ctx.drawImage(sil, -dw / 2 + dx * r, -dh / 2 + dy * r, dw, dh);
+          ctx.drawImage(sil, cLeft + dx * r, cTop + dy * r, cropW, cropH);
         }
         ctx.restore();
       }
@@ -4400,7 +4850,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       ctx.globalAlpha = adjOpacity / 100;
       ctx.globalCompositeOperation =
         blendMode === "normal" ? "source-over" : blendMode;
-      ctx.drawImage(im, -dw / 2, -dh / 2, dw, dh);
+      // Clip to the visible box, then draw the (possibly larger) content.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(-dw / 2, -dh / 2, dw, dh);
+      ctx.clip();
+      ctx.drawImage(im, cLeft, cTop, cropW, cropH);
+      ctx.restore();
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
       ctx.restore();
@@ -4451,7 +4907,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `product-studio.${ext}`;
+      a.download = brandedFileName(ext);
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
@@ -4467,7 +4923,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     try {
       const blob = await exportBlob();
       if (!blob) throw new Error("Export failed");
-      const file = new File([blob], `edited-${Date.now()}.png`, {
+      const file = new File([blob], brandedFileName("png"), {
         type: "image/png",
       });
       await uploadMedia(file);
@@ -4480,15 +4936,27 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     }
   };
 
-  const handleRetouchRelight = async (type) => {
+  const handleRetouchRelight = (type) => {
     if (!displayImage) {
       toast.error("Upload an image first");
       return;
     }
-    // Retouch / Light On need an AI generation backend that isn't wired up yet.
-    toast.info(
-      `${type === "retouch" ? "Retouch" : "Light On"} is coming soon — not available yet.`,
-    );
+    // Both just brighten the image in steps (each click adds more — "varying
+    // degrees"). Light On brightens harder; Retouch is a gentler lift plus a
+    // little contrast for a cleaner look. Capped so it can't blow out.
+    const atMax = brightness >= 100;
+    if (atMax) {
+      toast.info(type === "light" ? "Maximum light on" : "Maximum retouch");
+      return;
+    }
+    if (type === "light") {
+      setBrightness((b) => Math.min(100, (b || 0) + 15));
+      toast.success("Light On");
+    } else {
+      setBrightness((b) => Math.min(100, (b || 0) + 8));
+      setContrast((c) => Math.min(100, (c || 0) + 5));
+      toast.success("Retouched");
+    }
   };
 
   const togglePanel = (id) => setExpandedPanel((p) => (p === id ? null : id));
@@ -4831,32 +5299,88 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                                   }}
                                 />
                               ))}
+                              <button
+                                onPointerDown={(e) =>
+                                  onRotateDown(e, "base", null)
+                                }
+                                onPointerMove={onRotateMove}
+                                onPointerUp={onRotateUp}
+                                title="Rotate"
+                                className="absolute -right-9 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface border border-gray-200 shadow flex items-center justify-center text-blue-600 cursor-grab active:cursor-grabbing z-10"
+                                style={{ touchAction: "none" }}
+                              >
+                                <RotateCw className="w-3.5 h-3.5" />
+                              </button>
                               {/* Selection toolbar is rendered outside the clipped
                                   canvas box (see ImageToolbar below). */}
                             </>
                           )}
-                          <img
-                            ref={imgRef}
-                            src={renderSrc}
-                            alt="product"
-                            draggable={false}
-                            onLoad={onImageLoad}
-                            className="block w-full h-full"
-                            style={{
-                              objectFit: baseReady ? "fill" : "contain",
-                              maxWidth: baseReady ? undefined : "100%",
-                              maxHeight: baseReady ? undefined : 340,
-                              // Shadow + outline live in this filter so they hug the cut-out shape.
-                              filter: imageFilterWithEffects,
-                              opacity: adjOpacity / 100,
-                              mixBlendMode:
-                                blendMode === "normal" ? undefined : blendMode,
-                              transform: `rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1})`,
-                              transformOrigin: "center",
-                              // Reflection is now a separate sprite (see reflectionSprite) so it has
-                              // controls + exports — no longer a preview-only WebkitBoxReflect.
-                            }}
-                          />
+                          {baseReady ? (
+                            // Crop window: the box (imgW×imgH) clips the content
+                            // (drawn at cw×ch offset by cx/cy). The filter/opacity/
+                            // blend/transform live on the WRAPPER so shadow + outline
+                            // hug the cropped shape and extend past the box.
+                            (() => {
+                              const c = imgCrop || {
+                                cw: imgW,
+                                ch: imgH,
+                                cx: 0,
+                                cy: 0,
+                              };
+                              return (
+                                <div
+                                  className="absolute inset-0 overflow-hidden"
+                                  style={{
+                                    filter: imageFilterWithEffects,
+                                    opacity: adjOpacity / 100,
+                                    mixBlendMode:
+                                      blendMode === "normal"
+                                        ? undefined
+                                        : blendMode,
+                                    transform: `rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1})`,
+                                    transformOrigin: "center",
+                                  }}
+                                >
+                                  <img
+                                    ref={imgRef}
+                                    src={renderSrc}
+                                    alt="product"
+                                    draggable={false}
+                                    onLoad={onImageLoad}
+                                    // Default object-fit (fill) matches the old
+                                    // base render; content box keeps the aspect.
+                                    className="absolute block max-w-none"
+                                    style={{
+                                      left: c.cx,
+                                      top: c.cy,
+                                      width: c.cw,
+                                      height: c.ch,
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            <img
+                              ref={imgRef}
+                              src={renderSrc}
+                              alt="product"
+                              draggable={false}
+                              onLoad={onImageLoad}
+                              className="block w-full h-full"
+                              style={{
+                                objectFit: "contain",
+                                maxWidth: "100%",
+                                maxHeight: 340,
+                                filter: imageFilterWithEffects,
+                                opacity: adjOpacity / 100,
+                                mixBlendMode:
+                                  blendMode === "normal" ? undefined : blendMode,
+                                transform: `rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1})`,
+                                transformOrigin: "center",
+                              }}
+                            />
+                          )}
                         </div>
                       );
                     })()
@@ -5139,25 +5663,45 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                       // container above (with the selection handles).
                       (() => {
                         const li = { ...IMG_DEFAULTS, ...(layer.img || {}) };
+                        // Crop window: the box (w×h) clips the content, which is
+                        // the image drawn at cropW×cropH offset by cropX/cropY.
+                        // Defaults (content = box) render exactly like before.
+                        const cw = layer.cropW ?? layer.w;
+                        const ch = layer.cropH ?? layer.h;
+                        const cox = layer.cropX ?? 0;
+                        const coy = layer.cropY ?? 0;
                         return (
-                          <img
-                            src={proxiedSrc(bakedSrcFor(layer))}
-                            draggable={false}
-                            alt=""
-                            className="w-full h-full object-contain pointer-events-none"
+                          // Filter/opacity/blend live on the WRAPPER so shadow +
+                          // outline hug the cropped shape and extend past the box;
+                          // the img just crops (flip/scale stay on the img).
+                          <div
+                            className="absolute inset-0 overflow-hidden pointer-events-none"
                             style={{
                               filter: buildImageFilter(li, { bakeAdjust: true }),
-                              transform: buildImageTransform(li, {
-                                includeRotate: false,
-                                includeScale: true,
-                              }),
                               opacity: (li.adjOpacity ?? 100) / 100,
                               mixBlendMode:
                                 li.blendMode === "normal"
                                   ? undefined
                                   : li.blendMode,
                             }}
-                          />
+                          >
+                            <img
+                              src={proxiedSrc(bakedSrcFor(layer))}
+                              draggable={false}
+                              alt=""
+                              className="absolute object-cover max-w-none"
+                              style={{
+                                left: cox,
+                                top: coy,
+                                width: cw,
+                                height: ch,
+                                transform: buildImageTransform(li, {
+                                  includeRotate: false,
+                                  includeScale: true,
+                                }),
+                              }}
+                            />
+                          </div>
                         );
                       })()
                     ) : (
@@ -5313,6 +5857,20 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                               }}
                             />
                           ))}
+                        {!isEditing && (
+                          <button
+                            onPointerDown={(e) =>
+                              onRotateDown(e, "layer", layer.id)
+                            }
+                            onPointerMove={onRotateMove}
+                            onPointerUp={onRotateUp}
+                            title="Rotate"
+                            className="absolute -right-9 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface border border-gray-200 shadow flex items-center justify-center text-blue-600 cursor-grab active:cursor-grabbing z-10"
+                            style={{ touchAction: "none" }}
+                          >
+                            <RotateCw className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
@@ -5764,31 +6322,25 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                           <ChevronRight className="w-4 h-4 rotate-180" />{" "}
                           {cat.label}
                         </button>
-                        {cat.colorable && (
-                          <div className="flex items-center gap-1.5 mb-3">
-                            {SHAPE_COLORS.map((c) => (
-                              <button
-                                key={c}
-                                onClick={() => setShapeColor(c)}
-                                title={c}
-                                className={`w-5 h-5 rounded-full cursor-pointer ${shapeColor === c ? "ring-2 ring-offset-1 ring-blue-500" : "border border-gray-200"}`}
-                                style={{ background: c }}
-                              />
-                            ))}
-                          </div>
-                        )}
                         <div className="grid grid-cols-4 gap-2">
                           {cat.items.map((it, i) => {
-                            const resolved = cat.colorable
-                              ? resolveItem(it, shapeColor)
+                            // Preview in the default colour; the real colour is
+                            // chosen after insert in the Image panel.
+                            const preview = cat.colorable
+                              ? resolveItem(it, DEFAULT_INSERT_COLOR)
                               : it;
                             return (
                               <button
                                 key={i}
-                                onClick={() => addItem(resolved)}
+                                onClick={() =>
+                                  addItem(it, {
+                                    label: cat.label,
+                                    colorable: cat.colorable,
+                                  })
+                                }
                                 className="aspect-square flex items-center justify-center p-1.5 border border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 cursor-pointer"
                               >
-                                <VisualSVG spec={resolved} />
+                                <VisualSVG spec={preview} />
                               </button>
                             );
                           })}
@@ -5817,74 +6369,72 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                       <Upload className="w-4 h-4" /> Drop a file or select an
                       image
                     </button>
-                    {myImages.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-500 mb-2">
-                          Recent uploads
-                        </p>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {myImages.slice(0, 6).map((img) => (
-                            <button
-                              key={img.id}
-                              onClick={() => addImageLayer(img.src)}
-                              className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 cursor-pointer bg-gray-100"
-                            >
-                              <img
-                                src={img.src}
-                                alt={img.alt || ""}
-                                className="w-full h-full object-cover"
-                              />
-                            </button>
-                          ))}
+                    {/* Recent uploads from the gallery — chevron carousel that
+                        fades in on hover; "See all" opens the full gallery. */}
+                    <RecentUploadsCarousel
+                      images={myImages}
+                      onSelect={(src) => addImageLayer(src)}
+                      onSeeAll={() => setActiveTool("insertuploads")}
+                    />
+                    {/* Grouped sub-groups: a heading (Shapes / Graphics) with a
+                        2-column grid of category cards under it. */}
+                    {INSERT_GROUPS.map((groupName) => {
+                      const cats = INSERT_LIBRARY.filter(
+                        (c) => c.group === groupName,
+                      );
+                      if (!cats.length) return null;
+                      return (
+                        <div key={groupName}>
+                          <p className="text-sm font-bold text-gray-900 mb-2">
+                            {groupName}
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {cats.map((cat) => (
+                              <button
+                                key={cat.id}
+                                onClick={() => setInsertCat(cat.id)}
+                                className="text-left border border-gray-200 rounded-xl p-2.5 hover:border-blue-400 hover:bg-blue-50/40 transition-colors cursor-pointer"
+                              >
+                                <span className="block text-xs font-semibold text-gray-900 mb-2 truncate">
+                                  {cat.label}
+                                </span>
+                                <div className="grid grid-cols-4 gap-1">
+                                  {cat.items.slice(0, 4).map((it, i) => (
+                                    <div
+                                      key={i}
+                                      className="aspect-square flex items-center justify-center p-1 bg-gray-100 rounded-md"
+                                    >
+                                      <VisualSVG
+                                        spec={
+                                          cat.colorable
+                                            ? resolveItem(
+                                                it,
+                                                DEFAULT_INSERT_COLOR,
+                                              )
+                                            : it
+                                        }
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {INSERT_LIBRARY.map((cat) => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setInsertCat(cat.id)}
-                        className="w-full text-left border border-gray-200 rounded-xl p-2.5 hover:border-blue-400 hover:bg-blue-50/40 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-gray-900">
-                            {cat.label}
-                          </span>
-                          <ChevronRight className="w-4 h-4 text-gray-500" />
-                        </div>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {cat.items.slice(0, 4).map((it, i) => (
-                            <div
-                              key={i}
-                              className="aspect-square flex items-center justify-center p-1 bg-gray-100 rounded-md"
-                            >
-                              <VisualSVG
-                                spec={
-                                  cat.colorable
-                                    ? resolveItem(
-                                        it,
-                                        cat.id === "classics"
-                                          ? "#2563eb"
-                                          : shapeColor,
-                                      )
-                                    : it
-                                }
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
-            ) : !activeTool &&
-              !selected &&
-              activeImageKind !== "layer" &&
-              selectedLayer?.type !== "text" ? (
-              // Background context (clicked the background / no image selected):
-              // offer the three ways to fill it (matches Photoroom's panel).
-              // A selected image LAYER or text layer skips this and falls through
-              // to its own panel below.
+            ) : activeTool === "backgrounds" ||
+              (!activeTool &&
+                !selected &&
+                activeImageKind !== "layer" &&
+                selectedLayer?.type !== "text") ? (
+              // Background root: shown when the Backgrounds tool is opened from the
+              // top bar OR as the background context (nothing selected). Offers the
+              // three ways to fill the canvas (matches Photoroom's panel). A
+              // selected image LAYER / text layer skips this to its own panel.
               <div className="flex flex-col max-h-full">
                 <div className="flex items-center gap-3 px-4 py-4">
                   <span
@@ -5906,7 +6456,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   </button>
                   <button
                     onClick={() => {
-                      setActiveTool("backgrounds");
+                      setActiveTool("bgimages");
                       setBgCategory(null);
                     }}
                     className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-medium hover:border-blue-400 transition-colors cursor-pointer"
@@ -5963,7 +6513,15 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                 images={myImages}
                 selectedSrc={canvasBg.type === "image" ? canvasBg.src : null}
                 onSelect={(src) => setCanvasBg({ type: "image", src })}
-                onBack={() => setActiveTool("backgrounds")}
+                onBack={() => setActiveTool("bgimages")}
+              />
+            ) : activeTool === "insertuploads" ? (
+              // Insert flow: "See all" opens the gallery; picking inserts an
+              // image layer (rather than setting the canvas background).
+              <RecentUploadsPanel
+                images={myImages}
+                onSelect={(src) => addImageLayer(src)}
+                onBack={() => setActiveTool("insert")}
               />
             ) : activeTool === "colorbg" ? (
               <ColorBackgroundPanel
@@ -5975,13 +6533,13 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                 onRemoveBg={() => handleRemoveBgToggle(!removeBg)}
                 onAiBg={() => setActiveTool("aibg")}
                 onImageBg={() => {
-                  setActiveTool("backgrounds");
+                  setActiveTool("bgimages");
                   setBgCategory(null);
                 }}
                 onInspiration={() => setActiveTool("custombg")}
                 onSave={() => toast("Saved to your backgrounds — coming soon")}
               />
-            ) : activeTool === "backgrounds" ? (
+            ) : activeTool === "bgimages" ? (
               bgCategory ? (
                 <BackgroundCategoryPanel
                   category={bgCategory}
@@ -6548,80 +7106,89 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                     Templates
                   </span>
                   <button
-                    onClick={() => setActiveTool(null)}
+                    onClick={() => {
+                      setActiveTool(null);
+                      setTemplateCat(null);
+                    }}
                     className="p-1 rounded hover:bg-gray-100 cursor-pointer"
                   >
                     <X className="w-4 h-4 text-gray-400" />
                   </button>
                 </div>
-                <div className="px-4 pt-3">
-                  <input
-                    value={templateQuery}
-                    onChange={(e) => setTemplateQuery(e.target.value)}
-                    placeholder="Search templates"
-                    className="w-full px-3 py-2.5 rounded-xl bg-gray-100 text-sm outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
-                  />
-                </div>
-                <div className="p-4 space-y-5 overflow-y-auto">
-                  {TEMPLATE_GROUPS.map((group) => {
-                    const q = templateQuery.trim().toLowerCase();
-                    const items = group.items.filter(
-                      (i) =>
-                        !q ||
-                        i.label.toLowerCase().includes(q) ||
-                        group.title.toLowerCase().includes(q),
+                {templateCat ? (
+                  (() => {
+                    /* ── See all: full grid for one group ── */
+                    const group = TEMPLATE_GROUPS.find(
+                      (g) => g.title === templateCat,
                     );
-                    if (!items.length) return null;
+                    if (!group) return null;
                     return (
-                      <div key={group.title}>
-                        <p className="text-xs font-semibold text-gray-600 mb-2">
+                      <div className="p-4 overflow-y-auto">
+                        <button
+                          onClick={() => setTemplateCat(null)}
+                          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-3 cursor-pointer"
+                        >
+                          <ChevronRight className="w-4 h-4 rotate-180" />{" "}
                           {group.title}
-                        </p>
+                        </button>
                         <div className="grid grid-cols-3 gap-2">
-                          {items.map((item) => (
-                            <button
-                              key={item.id}
-                              onClick={() => applyTemplateItem(item)}
-                              title={item.label}
-                              className="group cursor-pointer"
-                            >
-                              <div
-                                className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 group-hover:border-blue-400 flex items-center justify-center"
-                                style={{
-                                  ...thumbBgStyle(item),
-                                  ...(item.apply?.round
-                                    ? { borderRadius: "9999px" }
-                                    : {}),
-                                }}
-                              >
-                                {item.apply?.bg?.type === "image" && (
-                                  <img
-                                    src={item.apply.bg.src}
-                                    alt=""
-                                    className="absolute inset-0 w-full h-full object-cover"
-                                  />
-                                )}
-                                {displayImage ? (
-                                  <img
-                                    src={displayImage}
-                                    alt=""
-                                    className="relative max-w-[78%] max-h-[78%] object-contain"
-                                    style={{ filter: thumbFilter(item) }}
-                                  />
-                                ) : (
-                                  <ImageIcon className="relative w-5 h-5 text-gray-300" />
-                                )}
-                              </div>
-                              <span className="block text-[10px] text-gray-500 text-center mt-1 truncate">
-                                {item.label}
-                              </span>
-                            </button>
-                          ))}
+                          {group.items.map((item) => templateCard(item, false))}
                         </div>
                       </div>
                     );
-                  })}
-                </div>
+                  })()
+                ) : (
+                  <>
+                    <div className="px-4 pt-3">
+                      <input
+                        value={templateQuery}
+                        onChange={(e) => setTemplateQuery(e.target.value)}
+                        placeholder="Search templates"
+                        className="w-full px-3 py-2.5 rounded-xl bg-gray-100 text-sm outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
+                      />
+                    </div>
+                    <div className="p-4 space-y-5 overflow-y-auto">
+                      {TEMPLATE_GROUPS.map((group) => {
+                        const q = templateQuery.trim().toLowerCase();
+                        const items = group.items.filter(
+                          (i) =>
+                            !q ||
+                            i.label.toLowerCase().includes(q) ||
+                            group.title.toLowerCase().includes(q),
+                        );
+                        if (!items.length) return null;
+                        // Searching → show all matches in a grid; otherwise a
+                        // horizontal carousel with scroll arrows + See all.
+                        if (q) {
+                          return (
+                            <div key={group.title}>
+                              <p className="text-xs font-semibold text-gray-600 mb-2">
+                                {group.title}
+                              </p>
+                              <div className="grid grid-cols-3 gap-2">
+                                {items.map((item) => templateCard(item, false))}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <HScrollRow
+                            key={group.title}
+                            title={group.title}
+                            itemsKey={group.items.length}
+                            onSeeAll={
+                              group.items.length > 3
+                                ? () => setTemplateCat(group.title)
+                                : undefined
+                            }
+                          >
+                            {group.items.map((item) => templateCard(item, true))}
+                          </HScrollRow>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             ) : selectedLayer?.type === "text" ? (
               // The Text panel — shown whenever a text layer is selected.
@@ -6669,6 +7236,16 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   setImgH,
                 }}
                 activeSrc={activeSrc}
+                activeTitle={
+                  activeImageKind === "layer"
+                    ? selectedLayer?.insertLabel || "Image"
+                    : "Image"
+                }
+                insertColorable={
+                  activeImageKind === "layer" && !!selectedLayer?.insertColorable
+                }
+                insertColor={selectedLayer?.insertColor}
+                onInsertRecolor={recolorActiveInsert}
                 hasActiveImage={hasActiveImage}
                 alignActiveCenter={alignActiveCenter}
                 alignActiveMiddle={alignActiveMiddle}

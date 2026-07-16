@@ -1835,7 +1835,7 @@ export function AuthProvider({ children }) {
   );
 
   const fetchDesigns = useCallback(
-    async (perPage = 9) => {
+    async (perPage = 12) => {
       if (!token) {
         console.error("fetchDesigns: no auth token.");
         return null;
@@ -1862,6 +1862,7 @@ export function AuthProvider({ children }) {
         let data;
         try {
           data = JSON.parse(text);
+          console.log("main creative data:", data);
         } catch {
           console.error("fetchDesigns: invalid JSON response", text);
           return null;

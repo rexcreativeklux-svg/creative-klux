@@ -6,6 +6,7 @@ import ShapeSVG from "./ShapeSVG";
 import { SHAPES, PRIMITIVE_SHAPES, isStraightLine } from "@/(lib)/design/shapes";
 import { pointsToPath } from "@/(lib)/design/drawUtils";
 import { curvePath } from "@/(lib)/design/curveUtils";
+import { proxiedSrc } from "@/(lib)/design/renderDesign";
 import { fitFontSize } from "./textFit";
 
 /**
@@ -325,7 +326,7 @@ function renderInner(el, { editing, textRef, commitText }) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={el.src}
+        src={proxiedSrc(el.src)}
         alt=""
         draggable={false}
         crossOrigin="anonymous"

@@ -13,7 +13,10 @@ import { curvePath } from "./curveUtils";
  * canvas stays untainted (a tainted canvas can't be exported).
  */
 
-function proxiedSrc(src) {
+// Route remote (http/https) image sources through the same-origin proxy so they
+// load with CORS headers. Exported so the on-screen editor loads images the same
+// way the export renderer does (a raw crossOrigin <img> to a no-CORS CDN fails).
+export function proxiedSrc(src) {
   if (typeof src !== "string") return src;
   if (/^(data:|blob:)/.test(src)) return src;
   if (/^https?:/.test(src)) {

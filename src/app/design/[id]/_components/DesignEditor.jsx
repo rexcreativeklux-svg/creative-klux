@@ -14,7 +14,7 @@ import EditorTopBar from "./EditorTopBar";
 import EditorSidebar from "./EditorSidebar";
 import EditorContextBar from "./EditorContextBar";
 import EditorElement from "./EditorElement";
-import { renderDesignToBlob } from "@/(lib)/design/renderDesign";
+import { renderDesignToBlob, proxiedSrc } from "@/(lib)/design/renderDesign";
 import { SHAPES, aspectOf, isStraightLine, isBendableLine } from "@/(lib)/design/shapes";
 import { ensureEditorFontsLoaded } from "@/(lib)/design/fonts";
 import { strokeToElement, pointsToPath } from "@/(lib)/design/drawUtils";
@@ -759,7 +759,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
                 transform: `scale(${zoom})`,
                 transformOrigin: "top left",
                 backgroundColor: isImageBg ? "#ffffff" : bg,
-                backgroundImage: isImageBg ? `url(${bg})` : undefined,
+                backgroundImage: isImageBg ? `url(${proxiedSrc(bg)})` : undefined,
                 backgroundSize: "cover",
                 backgroundPosition: "center",
               }}

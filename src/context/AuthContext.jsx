@@ -2006,7 +2006,6 @@ export function AuthProvider({ children }) {
         let data;
         try {
           data = JSON.parse(text);
-          console.log("main creative data:", data);
         } catch {
           console.error("fetchDesigns: invalid JSON response", text);
           return null;

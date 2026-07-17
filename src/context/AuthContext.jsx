@@ -427,9 +427,49 @@ export function AuthProvider({ children }) {
     };
   };
 
-  // Complete a password reset using the token + email from the emailed link.
-  // (`resetToken` avoids shadowing the auth `token` state in this scope.)
-  const resetPassword = async ({ email, token: resetToken, password }) => {
+  // ── Password reset · step 2 of 3 ─────────────────────────────────────────
+  // Verify the 6-digit code the user received by email (sent in step 1 via
+  // POST /password/forgot-password → sendVerificationCode). The backend
+  // validates { email, code } and, on success, remembers that this email's
+  // reset request is verified — so the final reset call (step 3) needs only the
+  // new password, no code. Throws a user-safe, classified error on failure.
+  const verifyResetCode = async ({ email, code }) => {
+    console.log("📡 verifyResetCode → email:", email);
+
+    let result;
+    try {
+      const res = await fetch(`${BASE_URL}/password/verify-reset-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
+    }
+
+    if (!result.ok) {
+      throwClassifiedAuthError(
+        "verifyResetCode",
+        result,
+        "The code is incorrect or has expired.",
+      );
+    }
+
+    const data = result.raw ?? result.data ?? {};
+    console.log("✅ verifyResetCode success");
+    return {
+      success: true,
+      message: data.message || "Code verified.",
+    };
+  };
+
+  // ── Password reset · step 3 of 3 ─────────────────────────────────────────
+  // Set the new password after the code was verified (see verifyResetCode). The
+  // migrated backend keys the reset off the just-verified email, so it requires
+  // only { email, password, password_confirmation } — no token/code is sent
+  // here. `passwordConfirmation` maps to Laravel's `password_confirmation`.
+  const resetPassword = async ({ email, password, passwordConfirmation }) => {
     console.log("📡 resetPassword → email:", email);
 
     let result;
@@ -437,7 +477,11 @@ export function AuthProvider({ children }) {
       const res = await fetch(`${BASE_URL}/password/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, token: resetToken, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          password_confirmation: passwordConfirmation,
+        }),
       });
       result = await classifyResult({ response: res });
     } catch (error) {
@@ -2985,6 +3029,7 @@ export function AuthProvider({ children }) {
         deleteImage,
         verifyEmail,
         sendVerificationCode,
+        verifyResetCode,
         resetPassword,
         tutorialVideos,
         tutorialVideosLoading,

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -13,6 +14,7 @@ export default function ForgotPasswordPage() {
   const { sendVerificationCode } = useAuth();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const handleForgotPassword = async (e) => {
     e.preventDefault();
@@ -20,14 +22,18 @@ export default function ForgotPasswordPage() {
 
     try {
       const result = await sendVerificationCode(email);
-      toast.success(result.message || "Check your email for the reset link.");
-      setEmail(""); // clear input
+      toast.success(result.message || "Check your email for the reset code.");
+
+      // Hand off to the change-password screen to enter the code + new password.
+      // The email rides in the query so that page can prefill it and call the
+      // verify/reset endpoints (which key off the email, not a link token).
+      router.push(`/change-password?email=${encodeURIComponent(email)}`);
     } catch (err) {
       console.error("❌ sendVerificationCode failed:", err);
       toast.error(
-        toUserMessage(err, "Couldn’t send the reset link. Please try again."),
+        toUserMessage(err, "Couldn’t send the reset code. Please try again."),
       );
-    } finally {
+      // Keep the user here so they can retry; only stop the spinner on failure.
       setLoading(false);
     }
   };
@@ -35,7 +41,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell
       title="Forgot password?"
-      subtitle="Enter your email and we’ll send you a link to reset your password."
+      subtitle="Enter your email and we’ll send you a 6-digit code to reset your password."
     >
       <form onSubmit={handleForgotPassword} className="space-y-3.5">
         <Input
@@ -66,7 +72,7 @@ export default function ForgotPasswordPage() {
             </>
           ) : (
             <>
-              Send reset link <ArrowRight size={14} />
+              Send reset code <ArrowRight size={14} />
             </>
           )}
         </button>

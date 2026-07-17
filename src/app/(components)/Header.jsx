@@ -90,7 +90,7 @@ const Header = ({ sidebarOpen, toggleSidebar }) => {
       <div className="relative" ref={switcherRef}>
         <button
           onClick={() => setDropdownOpen((prev) => !prev)}
-          className="flex items-center cursor-pointer gap-2 px-3 py-2 w-220px border border-gray-200 rounded-lg text-sm font-medium text-gray-800 hover:border-gray-300 transition-colors bg-surface"
+          className="flex items-center cursor-pointer gap-2 px-3 py-2 w-220px border border-gray-200 rounded-lg text-sm font-medium text-gray-800 hover:border-gray-300 transition-colors bg-surface truncate max-w-50"
         >
           {brandsLoading ? (
             <span className="flex-1 text-left text-gray-400">Loading...</span>

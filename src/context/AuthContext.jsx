@@ -9,6 +9,8 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { classifyResult } from "@/utils/errorHelper";
+import { throwClassifiedAuthError } from "@/utils/authErrors";
+import api from "@/app/api/axios";
 
 const AuthContext = createContext();
 
@@ -21,6 +23,9 @@ export function AuthProvider({ children }) {
   const [brands, setBrands] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
   const [activeBrand, setActiveBrandState] = useState(null);
+  // Id of the brand whose switch request is currently in flight — drives the
+  // loading state in the brand switcher while POST /brands/{id}/switch resolves.
+  const [switchingBrandId, setSwitchingBrandId] = useState(null);
 
   // Gallery
   const [myGallery, setMyGallery] = useState([]);
@@ -56,7 +61,6 @@ export function AuthProvider({ children }) {
         setToken(null);
         localStorage.removeItem("user");
         localStorage.removeItem("token");
-        localStorage.removeItem("activeBrandId");
 
         throw new Error("Unauthorized");
       }
@@ -232,26 +236,41 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (email, password) => {
-    const res = await fetch(API_LOGIN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+    console.log("📡 login → requesting session");
 
-    const text = await res.text();
-    console.log("Login Raw Response:", text);
-
-    let data;
+    // Route every outcome through classifyResult so a CORS/network failure is
+    // categorized as a transport error (no HTTP status) rather than being
+    // mistaken for wrong credentials. A thrown fetch is caught and classified
+    // the same way.
+    let result;
     try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error("Invalid Details");
+      const res = await fetch(API_LOGIN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
     }
 
-    if (!res.ok || !data.token) {
-      throw new Error(data.message || "Login failed");
+    if (!result.ok) {
+      // Logs the real cause + throws a user-safe, correctly-categorized Error.
+      throwClassifiedAuthError("login", result, "Invalid email or password.");
     }
 
+    const data = result.raw ?? result.data ?? {};
+    if (!data.token) {
+      console.error("❌ login — 2xx response but no session token:", data);
+      const err = new Error(
+        "Signed in, but no session token was returned. Please try again.",
+      );
+      err.source = "backend";
+      err.status = result.status;
+      throw err;
+    }
+
+    console.log("✅ login success");
     saveAuth(data.token);
     return data.message || "Login successful";
   };
@@ -264,32 +283,31 @@ export function AuthProvider({ children }) {
       license_code: licenseCode || null, // Send null if empty, or the actual code
     };
 
-    console.log("Sending to backend:", payload);
+    console.log("📡 register → sending:", { ...payload, password: "•••" });
 
-    const res = await fetch(API_REGISTER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const text = await res.text();
-    console.log("Register Raw Response:", text);
-
-    let data;
+    let result;
     try {
-      data = JSON.parse(text);
-    } catch (err) {
-      throw new Error("Invalid response from server");
+      const res = await fetch(API_REGISTER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
     }
 
-    if (!res.ok) {
-      // Handle validation errors from backend
-      if (data.errors) {
-        const errorMessages = Object.values(data.errors).flat().join(", ");
-        throw new Error(errorMessages || data.message || "Registration failed");
-      }
-      throw new Error(data.message || "Registration failed");
+    if (!result.ok) {
+      // Validation errors (e.g. "The email has already been taken.") are joined
+      // and surfaced by the shared helper; transport/server faults are masked.
+      throwClassifiedAuthError(
+        "register",
+        result,
+        "Registration failed. Please try again.",
+      );
     }
+
+    const data = result.raw ?? result.data ?? {};
 
     // FIXED: Correctly extract user ID from nested response
     const userId = data.user?.id || data.user?.user_id || data.id;
@@ -330,95 +348,197 @@ export function AuthProvider({ children }) {
       throw new Error("Session expired. Please register again.");
     }
 
+    const payload = {
+      user_id: userId, // This is what the backend requires
+      code: code,
+    };
+
+    console.log("📡 verifyEmail → sending:", payload);
+
+    let result;
     try {
-      const payload = {
-        user_id: userId, // This is what the backend requires
-        code: code,
-      };
-
-      console.log("Verifying with payload:", payload);
-
-      const res = await fetch(`${BASE_URL}/update-verification-code`, {
+      const res = await fetch(`${BASE_URL}/password/verify-reset-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
-      const data = await res.json();
-      console.log("Verify response:", data);
-
-      if (!res.ok) {
-        throw new Error(data.message || "Invalid or expired code");
-      }
-
-      // Success → clear everything
-      sessionStorage.clear();
-
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-        setToken(data.token);
-      }
-      if (data.user) {
-        localStorage.setItem("user", JSON.stringify(data.user));
-        setUser(data.user);
-      }
-
-      return {
-        success: true,
-        message: data.message || "Email verified successfully!",
-      };
-    } catch (err) {
-      throw new Error(err.message || "Verification failed");
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
     }
+
+    if (!result.ok) {
+      throwClassifiedAuthError(
+        "verifyEmail",
+        result,
+        "The code is incorrect or has expired.",
+      );
+    }
+
+    const data = result.raw ?? result.data ?? {};
+
+    // Success → clear everything
+    sessionStorage.clear();
+
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+      setToken(data.token);
+    }
+    if (data.user) {
+      localStorage.setItem("user", JSON.stringify(data.user));
+      setUser(data.user);
+    }
+
+    console.log("✅ verifyEmail success");
+    return {
+      success: true,
+      message: data.message || "Email verified successfully!",
+    };
   };
 
-  const resendVerificationCode = async (email) => {
+  const sendVerificationCode = async (email) => {
+    console.log("📡 sendVerificationCode → email:", email);
+
+    let result;
     try {
-      const res = await fetch(`${BASE_URL}/resend-verification-email`, {
+      const res = await fetch(`${BASE_URL}/password/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }), // Just send email to resend code
+        body: JSON.stringify({ email: email }),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to resend code");
-      }
-
-      return {
-        success: true,
-        message: data.message || "Code resent to your email",
-      };
-    } catch (err) {
-      throw new Error(err.message || "Resend failed");
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
     }
+
+    if (!result.ok) {
+      throwClassifiedAuthError(
+        "sendVerificationCode",
+        result,
+        "Couldn't resend the code. Please try again.",
+      );
+    }
+
+    const data = result.raw ?? result.data ?? {};
+    console.log("✅ sendVerificationCode success");
+    return {
+      success: true,
+      message: data.message || "Code resent to your email",
+    };
+  };
+
+  // ── Password reset · step 2 of 3 ─────────────────────────────────────────
+  // Verify the 6-digit code the user received by email (sent in step 1 via
+  // POST /password/forgot-password → sendVerificationCode). The backend
+  // validates { email, code } and, on success, remembers that this email's
+  // reset request is verified — so the final reset call (step 3) needs only the
+  // new password, no code. Throws a user-safe, classified error on failure.
+  const verifyResetCode = async ({ email, code }) => {
+    console.log("📡 verifyResetCode → email:", email);
+
+    let result;
+    try {
+      const res = await fetch(`${BASE_URL}/password/verify-reset-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
+    }
+
+    if (!result.ok) {
+      throwClassifiedAuthError(
+        "verifyResetCode",
+        result,
+        "The code is incorrect or has expired.",
+      );
+    }
+
+    const data = result.raw ?? result.data ?? {};
+    console.log("✅ verifyResetCode success");
+    return {
+      success: true,
+      message: data.message || "Code verified.",
+    };
+  };
+
+  // ── Password reset · step 3 of 3 ─────────────────────────────────────────
+  // Set the new password after the code was verified (see verifyResetCode). The
+  // migrated backend keys the reset off the just-verified email, so it requires
+  // only { email, password, password_confirmation } — no token/code is sent
+  // here. `passwordConfirmation` maps to Laravel's `password_confirmation`.
+  const resetPassword = async ({ email, password, passwordConfirmation }) => {
+    console.log("📡 resetPassword → email:", email);
+
+    let result;
+    try {
+      const res = await fetch(`${BASE_URL}/password/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          password_confirmation: passwordConfirmation,
+        }),
+      });
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
+    }
+
+    if (!result.ok) {
+      throwClassifiedAuthError(
+        "resetPassword",
+        result,
+        "Couldn't reset your password. Please try again.",
+      );
+    }
+
+    const data = result.raw ?? result.data ?? {};
+    console.log("✅ resetPassword success");
+    return {
+      success: true,
+      message: data.message || "Your password has been changed successfully.",
+    };
   };
 
   const logout = async () => {
     try {
       if (token) {
-        const res = await authFetch(API_LOGOUT_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        // Best-effort: we always clear the local session in `finally`, so a
+        // failed server call is logged (with its real cause) but never blocks
+        // sign-out.
+        let result;
+        try {
+          const res = await authFetch(API_LOGOUT_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          result = await classifyResult({ response: res });
+        } catch (error) {
+          result = await classifyResult({ error });
+        }
 
-        const text = await res.text();
-        console.log("Logout Raw Response:", text);
-
-        if (!res.ok) {
-          throw new Error("Logout API call failed");
+        if (result.ok) {
+          console.log("✅ logout — server session ended");
+        } else {
+          console.warn(
+            `⚠️ logout — server call failed [${result.source}]` +
+              `${result.status ? ` (HTTP ${result.status})` : ""}: ` +
+              `${result.messageForDevs}`,
+          );
         }
       }
     } catch (err) {
-      console.error("Logout failed:", err.message);
+      console.warn("⚠️ logout — unexpected error:", err?.message || err);
     } finally {
       localStorage.removeItem("user");
       localStorage.removeItem("token");
-      localStorage.removeItem("activeBrandId");
       setUser(null);
       setToken(null);
       setBrands([]);
@@ -698,170 +818,34 @@ export function AuthProvider({ children }) {
     return result;
   };
 
-  const createBrand = async (brandData) => {
-    if (!token) {
-      console.error("No auth token found. User may not be logged in.");
-      return null;
-    }
-
+  // Create a brand from an already backend-shaped payload. The caller builds the
+  // request body (snake_case fields, `logo` as a hosted URL string,
+  // `social_accounts` / `ad_accounts` as JSON strings); this just POSTs it via
+  // the shared axios instance — the interceptor attaches the Bearer token and
+  // JSON headers — then refreshes the brand list on success.
+  const createBrand = async (payload) => {
+    console.log("📡 [brands/create] request →", payload);
     try {
-      const formData = new FormData();
-      formData.append("name", brandData.name || "");
-      formData.append("description", brandData.description || "");
-      formData.append("tagline", brandData.tagline || "");
-      formData.append("fonts", brandData.fonts || "");
-      // Logo is a hosted URL string (uploaded to the gallery beforehand).
-      // The backend accepts a URL only — never a raw File.
-      if (brandData.logo && typeof brandData.logo === "string") {
-        formData.append("logo", brandData.logo);
-      }
-      formData.append("primary_color", brandData.colors?.primary || "#1e3a8a");
-      formData.append(
-        "secondary_color",
-        brandData.colors?.secondary || "#10b981",
-      );
-      formData.append(
-        "social_accounts",
-        JSON.stringify(brandData.socialAccounts || []),
-      );
-      formData.append(
-        "ad_accounts",
-        JSON.stringify(brandData.adAccounts || []),
-      );
-      formData.append("url", brandData.url || "");
-      formData.append("source_url", brandData.sourceUrl || "");
-      formData.append("industry", brandData.industry || "");
-      formData.append(
-        "landing_page_flag",
-        brandData.createLandingPage ? "1" : "0",
-      );
-
-      if (brandData.landingPage) {
-        formData.append("landing_page_id", brandData.landingPage.id || "");
-        formData.append(
-          "landing_page_token",
-          brandData.landingPage.token || "",
-        );
-        formData.append("landing_page_name", brandData.landingPage.name || "");
-        formData.append("landing_page_url", brandData.landingPage.url || "");
-      }
-
-      console.log("brandData:", brandData);
-      const res = await authFetch(API_CREATE_BRAND_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      const text = await res.text();
-      console.log("Response:", text);
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.error("Invalid JSON from create brand endpoint");
-        throw new Error("Unexpected server response");
-      }
-      console.log("Response :", data);
-
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to create brand");
-      }
-
-      // Refresh brands after creation
+      const { data } = await api.post(API_CREATE_BRAND_URL, payload);
+      console.log("✅ [brands/create] response ←", data);
+      // Refresh brands so the new one shows up immediately.
       await fetchBrands();
       return data;
     } catch (err) {
-      // console.error("Error message:", err.message);
-      throw err;
-    }
-  };
-
-  const createManualBrand = async (brandData) => {
-    if (!token) {
-      console.error("No auth token found.");
-      throw new Error("You must be logged in to create a brand");
-    }
-
-    try {
-      const formData = new FormData();
-
-      // Required fields
-      formData.append("name", (brandData.name || "").trim());
-      formData.append("description", brandData.description || "");
-      formData.append("tagline", brandData.tagline || "");
-      formData.append("fonts", brandData.fonts || "");
-      formData.append("industry", brandData.industry || "Other");
-
-      // Colors – always sent as separate fields
-      formData.append("primary_color", brandData.colors?.primary || "#1e3a8a");
-      formData.append(
-        "secondary_color",
-        brandData.colors?.secondary || "#10b981",
-      );
-
-      // Arrays as JSON strings
-      formData.append(
-        "social_accounts",
-        JSON.stringify(brandData.socialAccounts || []),
-      );
-      formData.append(
-        "ad_accounts",
-        JSON.stringify(brandData.adAccounts || []),
-      );
-
-      // Source URL
-      formData.append("source_url", brandData.sourceUrl || "");
-
-      // Always send landing_page_flag = 0 for manual creation
-      formData.append("landing_page_flag", "0");
-
-      // Logo is a hosted URL string (uploaded to the gallery beforehand),
-      // never a raw File — the backend accepts a URL only.
-      if (brandData.logo && typeof brandData.logo === "string") {
-        formData.append("logo", brandData.logo);
-      }
-
-      // Debug log (remove later if you want)
-      console.log("Manual Brand Payload:", {
-        name: brandData.name,
-        industry: brandData.industry,
-        hasLogo: !!brandData.logo,
-        landing_page_flag: "0",
+      const status = err?.response?.status;
+      const resData = err?.response?.data;
+      // Surface Laravel-style validation messages first, then generic errors.
+      const firstError = resData?.errors
+        ? Object.values(resData.errors)[0]?.[0]
+        : null;
+      const serverMsg =
+        firstError || resData?.message || resData?.error || err?.message;
+      console.error("❌ [brands/create] failed:", {
+        status,
+        data: resData,
+        message: err?.message,
       });
-
-      const res = await authFetch(API_CREATE_BRAND_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          // Do NOT set Content-Type – let browser set multipart boundary
-        },
-        body: formData,
-      });
-
-      const text = await res.text();
-      console.log("Manual Create Raw Response:", text);
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        throw new Error("Server returned invalid response");
-      }
-
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to create brand");
-      }
-
-      // Success – refresh brands
-      await fetchBrands();
-      return data; // usually { data: { id, ... }, message, success }
-    } catch (err) {
-      console.error("Manual brand creation failed:", err);
-      throw err;
+      throw new Error(serverMsg || "Failed to create brand");
     }
   };
 
@@ -913,10 +897,10 @@ export function AuthProvider({ children }) {
       setBrands(brandsList);
 
       // 🔑 ACTIVE BRAND RESOLUTION
-      // Source of truth is the user's saved `active_brand_id` (synced to the
-      // backend on selection). We read it from the freshly-stored `user` in
-      // localStorage — fetchProfile runs and persists it just before this in
-      // init() — then fall back to the local `activeBrandId` mirror. If the
+      // Single source of truth is the user's saved `active_brand_id`, persisted
+      // to the backend via POST /brands/{id}/switch on selection. We read it
+      // from the freshly-stored `user` (fetchProfile runs and caches it just
+      // before this in init(), so the value reflects the database). If the
       // resolved brand no longer exists (e.g. it was deleted), we clear it.
       let storedUser = null;
       try {
@@ -925,26 +909,21 @@ export function AuthProvider({ children }) {
         storedUser = null;
       }
 
-      const localBrandId = localStorage.getItem("activeBrandId");
       const preferredId =
         storedUser?.active_brand_id != null
           ? Number(storedUser.active_brand_id)
-          : localBrandId != null
-            ? Number(localBrandId)
-            : null;
+          : null;
 
       if (preferredId != null && !Number.isNaN(preferredId)) {
         const match = brandsList.find((brand) => brand.id === preferredId);
         if (match) {
           console.log("✅ Active brand restored:", match.id);
           setActiveBrandState(match);
-          localStorage.setItem("activeBrandId", match.id); // keep mirror in sync
         } else {
           console.warn(
             "⚠️ Saved active brand no longer exists — clearing:",
             preferredId,
           );
-          localStorage.removeItem("activeBrandId");
           setActiveBrandState(null);
         }
       } else {
@@ -972,51 +951,79 @@ export function AuthProvider({ children }) {
       await fetchProfile(token);
       const brands = await fetchBrands(token);
       setBrandsInitialized(true);
-
-      // if (brands?.length > 0) {
-      //   const storedBrandId = localStorage.getItem("activeBrandId");
-
-      //   if (storedBrandId) {
-      //     const selected = brands.find(b => b.id === Number(storedBrandId));
-      //     if (selected) {
-      //       setActiveBrandState(selected);
-      //     }
-      //   }
-      // }
-
+      
       await Promise.all([fetchTeams(), fetchMyImages(), fetchTutorialVideos()]);
     };
 
     init();
   }, [token]);
 
-  // Persist the chosen active brand to the user's profile so it syncs across
-  // devices. Reuses the shared POST /profile update (via updateProfile), which
-  // refreshes the user on success. Best-effort: a sync failure never blocks the
-  // local selection (the working source of truth on this device), it just warns.
-  const persistActiveBrand = async (brandId) => {
-    if (!token) return false;
-    const res = await updateProfile({ active_brand_id: brandId });
-    if (res.ok) {
-      console.log("✅ Active brand synced to profile:", brandId);
-      return true;
+  // Persist the chosen active brand to the backend via POST /brands/{id}/switch.
+  // The brand id lives in the URL — no request body. Returns a normalized
+  // { ok, data?, message? } so setActiveBrand can confirm success before it
+  // flips the UI. The database is the single source of truth; on reload the
+  // active brand is restored from the user's `active_brand_id` (see fetchBrands).
+  const switchActiveBrand = async (brandId) => {
+    if (!token)
+      return { ok: false, message: "You must be logged in to switch brands." };
+
+    try {
+      const res = await authFetch(`${BASE_URL}/brands/${brandId}/switch`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("❌ switchActiveBrand: non-JSON response:", text);
+        return { ok: false, message: "Unexpected server response." };
+      }
+
+      if (!res.ok) {
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        const message =
+          firstError ||
+          data?.message ||
+          `Failed to switch brand (${res.status})`;
+        console.error("❌ switchActiveBrand failed:", message);
+        return { ok: false, message };
+      }
+
+      console.log("✅ Active brand switched:", brandId);
+      return { ok: true, data };
+    } catch (err) {
+      if (err.message === "Unauthorized")
+        return {
+          ok: false,
+          message: "Your session expired. Please log in again.",
+        };
+      console.error("❌ switchActiveBrand error:", err);
+      return { ok: false, message: err.message || "Network error" };
     }
-    toast.error(
-      "Couldn't sync your active brand to your account — it's set on this device only.",
-    );
-    return false;
   };
 
-  const setActiveBrand = (brandOrId) => {
+  // Switch the active brand. Awaits the backend confirmation before flipping the
+  // UI: while the request is in flight `switchingBrandId` is set (drives the
+  // loading state in the brand switcher). On success the UI switches; on failure
+  // we stay on the current brand and surface the error. Passing `null` clears
+  // the local selection (e.g. after leaving a brand) without a network call.
+  // Returns the normalized { ok, message? } so callers can react (e.g. navigate
+  // only after a confirmed switch).
+  const setActiveBrand = async (brandOrId) => {
     if (brandOrId === null) {
       setActiveBrandState(null);
-      localStorage.removeItem("activeBrandId");
-      setUser((prev) => (prev ? { ...prev, active_brand_id: null } : prev));
-      return;
+      return { ok: true };
     }
 
     let selectedBrand;
-
     if (typeof brandOrId === "object") {
       selectedBrand = brandOrId;
     } else {
@@ -1026,18 +1033,26 @@ export function AuthProvider({ children }) {
 
     if (!selectedBrand) {
       console.warn("setActiveBrand: no matching brand for", brandOrId);
-      return;
+      return { ok: false, message: "Brand not found." };
     }
 
-    // Optimistic local update — instant UI, survives refresh via localStorage.
-    setActiveBrandState(selectedBrand);
-    localStorage.setItem("activeBrandId", selectedBrand.id);
-    setUser((prev) =>
-      prev ? { ...prev, active_brand_id: selectedBrand.id } : prev,
-    );
+    // Already active — nothing to do (avoids a redundant switch request).
+    if (activeBrand?.id === selectedBrand.id) return { ok: true };
 
-    // Fire-and-forget backend sync (handles its own errors/toasts).
-    persistActiveBrand(selectedBrand.id);
+    setSwitchingBrandId(selectedBrand.id);
+    try {
+      const res = await switchActiveBrand(selectedBrand.id);
+      if (!res.ok) {
+        toast.error(res.message || "Couldn't switch brand. Please try again.");
+        return res;
+      }
+      // Confirmed by the backend — now flip the UI.
+      setActiveBrandState(selectedBrand);
+      toast.success(`Switched to ${selectedBrand.name || "your brand"}.`);
+      return res;
+    } finally {
+      setSwitchingBrandId(null);
+    }
   };
 
   const fetchBrandById = async (id) => {
@@ -1113,7 +1128,10 @@ export function AuthProvider({ children }) {
       }
 
       formData.append("primary_color", brandData.primary_color || "#1e3a8a");
-      formData.append("secondary_color", brandData.secondary_color || "#10b981");
+      formData.append(
+        "secondary_color",
+        brandData.secondary_color || "#10b981",
+      );
       formData.append("_method", "PUT"); // This tells Laravel to treat it as PUT
 
       const url = `${BASE_URL}/brands/${id}`;
@@ -1141,7 +1159,9 @@ export function AuthProvider({ children }) {
           ? Object.values(data.errors)[0]?.[0]
           : null;
         const message =
-          firstError || data?.message || `Failed to update brand (${res.status})`;
+          firstError ||
+          data?.message ||
+          `Failed to update brand (${res.status})`;
         console.error("❌ updateBrandById failed:", message);
         return { ok: false, message };
       }
@@ -1152,7 +1172,10 @@ export function AuthProvider({ children }) {
       return { ok: true, data };
     } catch (err) {
       if (err.message === "Unauthorized")
-        return { ok: false, message: "Your session expired. Please log in again." };
+        return {
+          ok: false,
+          message: "Your session expired. Please log in again.",
+        };
       console.error("❌ Error updating brand:", err);
       return { ok: false, message: err.message || "Network error" };
     }
@@ -1184,7 +1207,8 @@ export function AuthProvider({ children }) {
       }
 
       if (!res.ok) {
-        const message = data?.message || `Failed to delete brand (${res.status})`;
+        const message =
+          data?.message || `Failed to delete brand (${res.status})`;
         console.error("❌ deleteBrandById failed:", message);
         return { ok: false, message };
       }
@@ -1193,7 +1217,6 @@ export function AuthProvider({ children }) {
       // doesn't point at a brand that no longer exists.
       if (activeBrand?.id === id) {
         setActiveBrandState(null);
-        localStorage.removeItem("activeBrandId");
       }
 
       console.log("✅ Brand deleted:", id);
@@ -1202,7 +1225,10 @@ export function AuthProvider({ children }) {
       return { ok: true, data, message: data?.message || "Brand deleted." };
     } catch (err) {
       if (err.message === "Unauthorized")
-        return { ok: false, message: "Your session expired. Please log in again." };
+        return {
+          ok: false,
+          message: "Your session expired. Please log in again.",
+        };
       console.error("❌ Error deleting brand:", err);
       return { ok: false, message: err.message || "Network error" };
     }
@@ -2944,6 +2970,7 @@ export function AuthProvider({ children }) {
         teamsLoading,
         // brandId,
         setActiveBrand,
+        switchingBrandId,
         fetchDesignTemplates,
         runComparison,
         checkCompliance,
@@ -3001,8 +3028,9 @@ export function AuthProvider({ children }) {
         uploadMedia,
         deleteImage,
         verifyEmail,
-        resendVerificationCode,
-        createManualBrand,
+        sendVerificationCode,
+        verifyResetCode,
+        resetPassword,
         tutorialVideos,
         tutorialVideosLoading,
         tutorialVideosError,

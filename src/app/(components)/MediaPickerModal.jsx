@@ -81,6 +81,10 @@ const MAX_SELECT = 5;
  *   ["image"] so existing callers behave exactly as before (image-only, single
  *   list, no type tabs). Pass more to let a form pick other media types too — the
  *   consuming form should still validate what it receives.
+ * tabs            string[]  — which MAIN tabs to show: subset of
+ *   ["search","library","magic"]. null/absent → all three (unchanged callers).
+ *   Non-image pickers pass ["library"] — Search is Pexels images and Magic is
+ *   the legacy generator, neither makes sense for audio/video/docs.
  */
 export default function MediaPickerModal({
   isOpen,
@@ -95,12 +99,23 @@ export default function MediaPickerModal({
   initialTab = "search",
   maxSelectable = MAX_SELECT,
   allowedTypes = ["image",],
+  tabs = null,
 }) {
   // Effective cap — never exceed the modal's own hard ceiling, and never go below 0.
   const effectiveCap = Math.max(0, Math.min(maxSelectable, MAX_SELECT));
   // ── tab state ──────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState(initialTab);
   const [activeMagicTab, setActiveMagicTab] = useState(MAGIC_SUBTABS[0]);
+
+  // Main tabs this caller shows; the active tab is clamped into the visible set
+  // during render (same pattern as useGalleryMedia's type clamp) so a stale or
+  // hidden tab can never render.
+  const visibleTabs = tabs?.length
+    ? MAIN_TABS.filter((t) => tabs.includes(t.id))
+    : MAIN_TABS;
+  const activeTabSafe = visibleTabs.some((t) => t.id === activeTab)
+    ? activeTab
+    : visibleTabs[0]?.id || "search";
 
   // ── selection ──────────────────────────────────────────────────────────────
   const [selectedImages, setSelectedImages] = useState([]); // search / library
@@ -142,12 +157,13 @@ export default function MediaPickerModal({
     activeType: galleryType,
     setActiveType: setGalleryType,
     items: galleryItems,
+    allItems: allGalleryItems,
     counts: galleryCounts,
     loading: galleryLoading,
     refresh: refreshGallery,
   } = useGalleryMedia({
     allowedTypes,
-    enabled: isOpen && activeTab === "library",
+    enabled: isOpen && activeTabSafe === "library",
   });
 
   // ── reset on open ──────────────────────────────────────────────────────────
@@ -197,13 +213,13 @@ export default function MediaPickerModal({
   );
 
   useEffect(() => {
-    if (!isOpen || activeTab !== "search") return;
+    if (!isOpen || activeTabSafe !== "search") return;
     const t = setTimeout(
       () => doSearch(searchQuery.trim() || `${brandFallback} marketing ad`),
       600,
     );
     return () => clearTimeout(t);
-  }, [isOpen, activeTab, searchQuery, brandFallback, doSearch]);
+  }, [isOpen, activeTabSafe, searchQuery, brandFallback, doSearch]);
 
   if (!isOpen) return null;
 
@@ -250,10 +266,14 @@ export default function MediaPickerModal({
 
   // ── apply ─────────────────────────────────────────────────────────────────
   const handleApply = () => {
-    // merge everything the parent needs
+    // Merge everything the parent needs. Library selections resolve back to the
+    // FULL gallery item (id, type, filename, …) — not just the bare src — so
+    // callers keep the file's identity (e.g. "movie.mp3" naming a "movie.srt").
     const combined = [
       ...selectedImages.map((src) => {
-        const found = searchResults.find((r) => r.src === src);
+        const found =
+          searchResults.find((r) => r.src === src) ||
+          allGalleryItems.find((g) => g.src === src);
         return found || { src };
       }),
       ...uploadedFiles,
@@ -424,12 +444,12 @@ export default function MediaPickerModal({
 
           {/* ── Main Tab Bar ─────────────────────────────────────────────── */}
           <div className="flex gap-1 px-6 pt-4 border-b border-gray-100 shrink-0">
-            {MAIN_TABS.map(({ id, label, icon: Icon }) => (
+            {visibleTabs.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
                 className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-all cursor-pointer ${
-                  activeTab === id
+                  activeTabSafe === id
                     ? "border-blue-600 text-blue-600 bg-blue-50/60"
                     : "border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50"
                 }`}
@@ -443,7 +463,7 @@ export default function MediaPickerModal({
           {/* ── Tab Content ──────────────────────────────────────────────── */}
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             {/* ══ SEARCH TAB ════════════════════════════════════════════════ */}
-            {activeTab === "search" && (
+            {activeTabSafe === "search" && (
               <div className="flex flex-col flex-1 min-h-0 px-6 pt-4 gap-4">
                 {/* Search bar */}
                 <div className="flex gap-2 shrink-0">
@@ -557,7 +577,7 @@ export default function MediaPickerModal({
             )}
 
             {/* ══ LIBRARY TAB ═══════════════════════════════════════════════ */}
-            {activeTab === "library" && (
+            {activeTabSafe === "library" && (
               <div className="flex flex-col flex-1 min-h-0 px-6 pt-4 gap-4">
                 {/* Upload + media-type tabs */}
                 <div className="shrink-0 flex flex-wrap items-center gap-3 pb-3 border-b border-gray-100">
@@ -653,7 +673,7 @@ export default function MediaPickerModal({
             )}
 
             {/* ══ MAGIC TAB ═════════════════════════════════════════════════ */}
-            {activeTab === "magic" && (
+            {activeTabSafe === "magic" && (
               <div className="flex flex-col flex-1 min-h-0">
                 {/* Magic sub-tabs */}
                 <div className="flex px-6 overflow-x-auto border-b border-gray-100 shrink-0 gap-0.5">

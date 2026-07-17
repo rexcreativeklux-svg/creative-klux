@@ -5,16 +5,17 @@
 // git-ignored (models are big binaries), so every dev — and every deploy —
 // runs this once after `npm install`. No dependencies, Node 18+ only.
 //
-// This is the trimmed registry for the Product Studio on-device tools
-// (Beautifier, Ghost Mannequin, Flat Lay). Only commercially-safe licenses:
+// Registry for the on-device tools: Product Studio image tools (Beautifier,
+// Flat Lay) and Magic Studio audio tools (Text to Speech, Audio to Text).
+// Only commercially-safe licenses:
 //   u2netp               4.6 MB  Apache-2.0   — bg cutout, fast tier (low-RAM devices)
 //   silueta              43 MB   MIT          — bg cutout, default tier (better edges)
 //   isnet-general-use    179 MB  Apache-2.0   — bg cutout, Premium tier (best edges;
 //                                               browser-gated to WebGPU + >4 GB RAM)
 //   realesr-general-x4v3 4.9 MB  BSD-3-Clause — 4x upscale/enhance (standard)
 //   realesrgan-x4plus    67 MB   BSD-3-Clause — 4x upscale HD tier (WebGPU only)
-// The Ghost Mannequin depth model (Depth Anything V2 Small, Apache-2.0) runs
-// through transformers.js and is added in that tool's phase — not here.
+//   kokoro (+28 voices)  93 MB   Apache-2.0   — text-to-speech (transformers.js, q8)
+//   whisper-base         77 MB   MIT          — speech-to-text (transformers.js, q8)
 
 import {
   createWriteStream,
@@ -32,7 +33,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MODELS_DIR = path.join(root, "public", "models");
 const ORT_DIR = path.join(root, "public", "ort");
-// transformers.js (Ghost Mannequin depth model) bundles its OWN onnxruntime-web,
+// transformers.js (Whisper STT + Kokoro TTS) bundles its OWN onnxruntime-web,
 // whose .wasm files must match ITS version — copied to a separate /ort-hf/ folder.
 const ORT_HF_DIR = path.join(root, "public", "ort-hf");
 
@@ -71,33 +72,6 @@ const MODELS = [
     bytes: 67132609,
     url: "https://huggingface.co/fernandotonon/QtMeshEditor-models/resolve/main/RealESRGAN_x4plus.onnx",
   },
-  // Depth Anything V2 Small (Apache-2.0) for the Ghost Mannequin 3D preview,
-  // run through transformers.js. Laid out how transformers.js resolves a local
-  // model id ("depth-anything-v2-small" + localModelPath = /models): config +
-  // preprocessor_config at the root, q8 weights under onnx/ (the tiny .onnx
-  // graph + its companion .onnx_data holding the ~38 MB of weights). `bytes:
-  // null` = tiny JSON whose size may drift upstream; presence is enough.
-  {
-    file: "depth-anything-v2-small/config.json",
-    bytes: null,
-    url: "https://huggingface.co/onnx-community/depth-anything-v2-small-ONNX/resolve/main/config.json",
-  },
-  {
-    file: "depth-anything-v2-small/preprocessor_config.json",
-    bytes: null,
-    url: "https://huggingface.co/onnx-community/depth-anything-v2-small-ONNX/resolve/main/preprocessor_config.json",
-  },
-  {
-    file: "depth-anything-v2-small/onnx/model_quantized.onnx",
-    bytes: null, // ~162 KB graph; exact size drifts, presence is enough
-    url: "https://huggingface.co/onnx-community/depth-anything-v2-small-ONNX/resolve/main/onnx/model_quantized.onnx",
-  },
-  {
-    file: "depth-anything-v2-small/onnx/model_quantized.onnx_data",
-    bytes: null, // ~38 MB weights; presence is enough
-    url: "https://huggingface.co/onnx-community/depth-anything-v2-small-ONNX/resolve/main/onnx/model_quantized.onnx_data",
-  },
-
   // Kokoro-82M text-to-speech (Apache-2.0, onnx-community's official ONNX
   // export). Laid out exactly how transformers.js resolves a local model id
   // ("kokoro" + env.localModelPath = /models): config + tokenizer + the q8

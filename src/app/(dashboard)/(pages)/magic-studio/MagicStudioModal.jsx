@@ -45,6 +45,10 @@ import {
   Clock,
   Type,
   Languages,
+  Download,
+  FileText,
+  Captions,
+  FolderOpen,
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
@@ -54,6 +58,7 @@ import ResultActionsMenu, {
   buildResultActions,
 } from "@/app/(components)/product-studio/ResultActionsMenu";
 import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGallery";
+import { fetchMediaBlob } from "@/app/(components)/gallery/downloadMedia";
 import useTextToSpeech from "@/(lib)/ai-engine/hooks/useTextToSpeech";
 import useSpeechToText from "@/(lib)/ai-engine/hooks/useSpeechToText";
 import { getCreativeById } from "../studio/creatives";
@@ -62,7 +67,13 @@ import {
   getMagicConfig,
   getVideoStatus,
   normalizeVideoResult,
+  languageDisplayLabel,
 } from "./magicStudioConfigs";
+import {
+  buildSrt,
+  buildVtt,
+  transcriptFileName,
+} from "@/(lib)/ai-engine/tasks/transcriptExports";
 import { checkVideoGenerationStatus } from "@/(lib)/magic-studio-api";
 import useMagicHistory from "./useMagicHistory";
 import MagicHistoryGrid from "./MagicHistoryGrid";
@@ -700,7 +711,9 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
 
   // On-device speech-to-text engine (Whisper Base in a Web Worker) — only the
   // audio_to_text category calls it; it stays idle otherwise (the worker spawns
-  // on first transcribe) and disposes its worker on unmount.
+  // on first transcribe) and disposes its worker on unmount. While a run is in
+  // flight it also streams the detected language + a live transcript preview
+  // into the processing state (see ProcessingState).
   const stt = useSpeechToText();
 
   // The active on-device engine that drives the processing state's REAL progress
@@ -754,7 +767,6 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   const [copied, setCopied] = useState(false);
   const [assetMenu, setAssetMenu] = useState(null); // { asset, x, y } — result ⋯ menu
 
-  const fileInputRef = useRef(null);
   // Holds the in-flight video status poll so it can be cancelled on unmount.
   const pollRef = useRef({ cancelled: false, timer: null });
 
@@ -835,7 +847,9 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     }
   };
 
-  // ── Audio upload ───────────────────────────────────────────────────────────
+  // ── Audio input ────────────────────────────────────────────────────────────
+  // Single funnel for every audio source (gallery pick, mic recording): size
+  // check, preview URL, and a duration probe.
   const handleAudioFile = (file) => {
     if (!file) return;
     if (file.size > 100 * 1024 * 1024) {
@@ -851,9 +865,43 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
       setAudioMeta((m) => ({ ...m, duration: probe.duration }));
   };
 
+  // ── Audio picker (gallery is the source of truth) ──────────────────────────
+  // There is NO direct device upload for audio — the picker's Library tab is
+  // where uploads happen, so everything lands in the gallery first. The picked
+  // item is fetched into a real File (direct → /api/proxy-image fallback) and
+  // keeps its gallery filename, so exports stay named after it
+  // ("movie.mp3" → "movie.srt").
+  const handlePickAudio = async (items = []) => {
+    setPickerOpen(false);
+    const item = items[0];
+    if (!item) return;
+    const url = item.downloadUrl || item.src || item.large;
+    if (!url) {
+      toast.error("That gallery item has no playable source.");
+      return;
+    }
+    const t = toast.loading("Loading audio from your gallery…");
+    try {
+      const blob = await fetchMediaBlob(url);
+      const rawName = String(
+        item.filename || item.alt || `gallery-audio-${item.id || Date.now()}`,
+      );
+      // Keep the gallery name; add an extension only when it has none.
+      const name = /\.[a-z0-9]{1,5}$/i.test(rawName)
+        ? rawName
+        : `${rawName}.${(blob.type.split("/")[1] || "mp3").split(";")[0]}`;
+      handleAudioFile(new File([blob], name, { type: blob.type || "audio/mpeg" }));
+      toast.dismiss(t);
+      console.log(`🎧 [magic-studio] gallery audio ready: ${name}`);
+    } catch (err) {
+      console.error("❌ [magic-studio] couldn't load gallery audio:", err);
+      toast.error("Couldn't load that audio from your gallery.", { id: t });
+    }
+  };
+
   // Mic capture for Audio-to-Text — a finished recording flows through the same
-  // handler as an uploaded file, so preview, duration probe and transcription
-  // are all identical to the upload path.
+  // handler as a picked gallery file, so preview, duration probe and
+  // transcription are all identical to the gallery path.
   const recorder = useMicRecorder(handleAudioFile);
 
   // ── Inspire (fills the text input, or persona fields) ──────────────────────
@@ -1018,6 +1066,45 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
       setTimeout(() => setCopied(false), 1500);
     } catch {
       toast.error("Couldn't copy to clipboard.");
+    }
+  };
+
+  // Save the transcript locally — TXT is the text exactly as displayed; SRT/VTT
+  // are subtitle files rebuilt from the timed Whisper segments regardless of
+  // the chosen display format. Filenames follow the uploaded audio's name
+  // ("movie.mp3" → "movie.srt").
+  const downloadTranscript = (kind) => {
+    if (!result?.text) return;
+    try {
+      let content = result.text;
+      let mime = "text/plain";
+      if (kind === "srt") {
+        content = buildSrt(result.meta?.segments || [], {
+          durationSec: result.meta?.durationSec,
+        });
+        mime = "application/x-subrip";
+      } else if (kind === "vtt") {
+        content = buildVtt(result.meta?.segments || [], {
+          durationSec: result.meta?.durationSec,
+        });
+        mime = "text/vtt";
+      }
+      if (!content) {
+        toast.error("No timed segments came back for this clip — download the TXT instead.");
+        return;
+      }
+      const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = transcriptFileName(result.meta?.sourceName, kind);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+      console.log(`💾 [magic-studio] transcript downloaded as .${kind}`);
+    } catch (e) {
+      console.error("❌ transcript download failed:", e);
+      toast.error("Couldn't download the transcript.");
     }
   };
 
@@ -1247,7 +1334,6 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
                   openPicker={() => setPickerOpen(true)}
                   audioInput={audioInput}
                   audioMeta={audioMeta}
-                  onAudioFile={handleAudioFile}
                   clearAudio={() => {
                     recorder.stop();
                     setAudioInput(null);
@@ -1256,7 +1342,6 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
                   audioMode={audioMode}
                   setAudioMode={setAudioMode}
                   recorder={recorder}
-                  fileInputRef={fileInputRef}
                   onInspire={handleInspire}
                   wordCount={wordCount}
                   readTime={readTime}
@@ -1375,6 +1460,7 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
                     result={result}
                     onReset={resetResult}
                     onDownload={downloadAsset}
+                    onDownloadTranscript={downloadTranscript}
                     onCopy={copyTranscript}
                     copied={copied}
                     onOpenMenu={openAssetMenu}
@@ -1458,14 +1544,20 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
             })()}
         </AnimatePresence>
 
-        {/* ── Image media picker (Image to Variations / Persona) ── */}
+        {/* ── Media picker — images (Image to Variations / Persona) or audio
+            (Audio to Text). The gallery is the source of truth for audio: the
+            picker is locked to the Library tab, where users pick from — or
+            upload into — their gallery. No direct device-to-tool uploads. ── */}
         <MediaPickerModal
           isOpen={pickerOpen}
           onClose={() => setPickerOpen(false)}
           onCancel={() => setPickerOpen(false)}
-          onApply={handlePickImages}
+          onApply={config?.input === "audio" ? handlePickAudio : handlePickImages}
           activeBrand={activeBrand}
           maxSelectable={1}
+          allowedTypes={config?.input === "audio" ? ["audio"] : undefined}
+          tabs={config?.input === "audio" ? ["library"] : undefined}
+          initialTab={config?.input === "audio" ? "library" : "search"}
         />
 
         {/* ── Result actions menu (shared with the Product Studio modals) ── */}
@@ -1496,12 +1588,10 @@ function PrimaryInput({
   openPicker,
   audioInput,
   audioMeta,
-  onAudioFile,
   clearAudio,
   audioMode,
   setAudioMode,
   recorder,
-  fileInputRef,
   onInspire,
   wordCount,
   readTime,
@@ -1695,13 +1785,17 @@ function PrimaryInput({
                 )}
               </div>
             ) : (
-              // ── Upload a file ──
+              // ── Choose from the gallery ──
+              // No direct device upload here: the picker's Library tab is where
+              // uploads happen, so the gallery stays the source of truth.
               <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 flex flex-col items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:bg-blue-50/40 transition-colors"
+                onClick={openPicker}
+                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 flex flex-col items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:bg-blue-50/40 transition-colors cursor-pointer"
               >
-                <Upload className="w-5 h-5" />
-                <span className="text-blue-600 font-semibold">Upload audio</span>
+                <FolderOpen className="w-5 h-5" />
+                <span className="text-blue-600 font-semibold">
+                  Choose from gallery
+                </span>
                 {ic.helper && (
                   <span className="text-[11px] text-gray-400 text-center px-4">
                     {ic.helper}
@@ -1711,13 +1805,6 @@ function PrimaryInput({
             )}
           </>
         )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={ic.accept}
-          className="hidden"
-          onChange={(e) => onAudioFile(e.target.files?.[0])}
-        />
       </div>
     );
   }
@@ -1899,12 +1986,17 @@ const ENGINE_FLOWS = {
     title: "Generating your audio…",
   },
   stt: {
-    ids: ["prepare", "model", "transcribe", "format"],
-    labels: (downloading) => [
+    ids: ["prepare", "model", "detect", "transcribe", "format"],
+    // The detect row upgrades from "Detecting…" to the REAL language the moment
+    // the worker's detection pass lands (e.g. "Detected: French").
+    labels: (downloading, engine) => [
       "Reading the audio…",
       downloading
         ? "Downloading the transcription engine (one-time)…"
         : "Loading the transcription engine…",
+      engine?.detectedLanguage
+        ? `Detected: ${languageDisplayLabel(engine.detectedLanguage)}`
+        : "Detecting the language…",
       "Transcribing speech…",
       "Formatting the transcript…",
     ],
@@ -1912,20 +2004,42 @@ const ENGINE_FLOWS = {
   },
 };
 
+// Transcript download formats — TXT mirrors the displayed text; SRT/VTT are
+// subtitle files built from Whisper's timed segments (transcriptExports).
+const TRANSCRIPT_DOWNLOADS = [
+  { kind: "txt", label: "Text (.txt)", desc: "The transcript as shown", Icon: FileText, needsSegments: false },
+  { kind: "srt", label: "Subtitles (.srt)", desc: "For video editors & players", Icon: Captions, needsSegments: true },
+  { kind: "vtt", label: "Web subtitles (.vtt)", desc: "For web video players", Icon: Captions, needsSegments: true },
+];
+
 /**
  * @param {object} props
  * @param {object} props.config Active category config (title for the copy).
  * @param {string} [props.engineType] Which on-device flow to show ("tts" | "stt").
  * @param {object|null} [props.engine] On-device engine state (progress, stage,
- *   downloading) — when present, renders a REAL progress bar + stage checklist
- *   instead of the indeterminate shimmer.
+ *   downloading — STT also streams detectedLanguage/partialText/autoDetecting) —
+ *   when present, renders a REAL progress bar + stage checklist instead of the
+ *   indeterminate shimmer.
  */
 function ProcessingState({ config, engine, engineType }) {
+  // Pin the live transcript preview to its newest line as pieces stream in.
+  // (Hooks stay unconditional — the ref simply goes unused on the shimmer path.)
+  const liveRef = useRef(null);
+  useEffect(() => {
+    const el = liveRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [engine?.partialText]);
+
   // ── On-device: real progress + stage checklist ──
   if (engine) {
     const flow = ENGINE_FLOWS[engineType] || ENGINE_FLOWS.tts;
-    const stageIndex = Math.max(0, flow.ids.indexOf(engine.stage));
-    const labels = flow.labels(engine.downloading);
+    const labels = flow.labels(engine.downloading, engine);
+    // Zip ids+labels, then drop the detect row when the user forced a language —
+    // that step never runs, so the checklist shouldn't show it.
+    const rows = flow.ids
+      .map((id, i) => ({ id, label: labels[i] }))
+      .filter((row) => row.id !== "detect" || engine.autoDetecting);
+    const stageIndex = Math.max(0, rows.findIndex((row) => row.id === engine.stage));
     const pct = Math.max(0, Math.min(100, Math.round(engine.progress)));
     return (
       <motion.div
@@ -1972,8 +2086,10 @@ function ProcessingState({ config, engine, engineType }) {
           </div>
 
           <div className="mt-5 space-y-2">
-            {labels.slice(0, stageIndex + 1).map((label, i) => (
-              <div key={label} className="flex items-center gap-2 text-xs">
+            {rows.slice(0, stageIndex + 1).map((row, i) => (
+              // Keyed by stage id — the detect label MUTATES in place
+              // ("Detecting…" → "Detected: French") and shouldn't remount.
+              <div key={row.id} className="flex items-center gap-2 text-xs">
                 {i < stageIndex ? (
                   <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                 ) : (
@@ -1986,11 +2102,32 @@ function ProcessingState({ config, engine, engineType }) {
                       : "text-gray-700 font-medium"
                   }
                 >
-                  {label}
+                  {row.label}
                 </span>
               </div>
             ))}
           </div>
+
+          {/* Live transcript preview — streamed by the STT worker while Whisper
+              decodes (greedy tiers only). The final transcript replaces it. */}
+          {engine.partialText ? (
+            <div className="mt-5">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-gray-500">
+                  Live transcript
+                </span>
+                <span className="text-[10px] text-gray-400">
+                  preview — refines when finished
+                </span>
+              </div>
+              <div
+                ref={liveRef}
+                className="max-h-28 overflow-y-auto rounded-xl border border-gray-100 bg-white/70 p-3 text-xs leading-relaxed text-gray-600 whitespace-pre-wrap"
+              >
+                {engine.partialText}
+              </div>
+            </div>
+          ) : null}
 
           <p className="mt-5 text-center text-[11px] text-gray-400">
             Runs on your device — private, free, and unlimited.
@@ -2044,11 +2181,16 @@ function ResultCanvas({
   result,
   onReset,
   onDownload,
+  onDownloadTranscript,
   onCopy,
   copied,
   onOpenMenu,
 }) {
   const assets = result?.assets || [];
+  // Transcript download popover (TXT / SRT / VTT). SRT/VTT need the timed
+  // segments the STT engine returns; TXT always works.
+  const [downloadOpen, setDownloadOpen] = useState(false);
+  const hasSegments = (result?.meta?.segments?.length || 0) > 0;
 
   return (
     <motion.div
@@ -2074,17 +2216,68 @@ function ResultCanvas({
             <span className="text-xs font-semibold text-gray-500">
               Transcript
             </span>
-            <button
-              onClick={onCopy}
-              className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
-            >
-              {copied ? (
-                <Check className="w-3.5 h-3.5" />
-              ) : (
-                <Copy className="w-3.5 h-3.5" />
-              )}
-              {copied ? "Copied" : "Copy"}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Download popover — TXT always; SRT/VTT from the timed segments */}
+              <div className="relative">
+                <button
+                  onClick={() => setDownloadOpen((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {downloadOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setDownloadOpen(false)}
+                    />
+                    <div className="absolute right-0 top-full z-20 mt-1 w-60 rounded-xl border border-gray-200 bg-surface p-1 shadow-2xl">
+                      {TRANSCRIPT_DOWNLOADS.map(({ kind, label, desc, Icon, needsSegments }) => {
+                        const disabled = needsSegments && !hasSegments;
+                        return (
+                          <button
+                            key={kind}
+                            disabled={disabled}
+                            onClick={() => {
+                              setDownloadOpen(false);
+                              onDownloadTranscript?.(kind);
+                            }}
+                            className={`flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                              disabled
+                                ? "opacity-40 cursor-not-allowed"
+                                : "hover:bg-blue-50/60 cursor-pointer"
+                            }`}
+                          >
+                            <Icon className="mt-0.5 w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span>
+                              <span className="block text-xs font-medium text-gray-700">
+                                {label}
+                              </span>
+                              <span className="block text-[11px] text-gray-400">
+                                {disabled ? "No timed segments for this clip" : desc}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+              <button
+                onClick={onCopy}
+                className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                {copied ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
           </div>
           <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
             {result.text}

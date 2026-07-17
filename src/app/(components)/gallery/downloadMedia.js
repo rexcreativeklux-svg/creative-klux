@@ -41,7 +41,15 @@ function fileNameFor(item, type, blob) {
   return `${base}.${ext}`;
 }
 
-async function fetchMediaBlob(url) {
+/**
+ * Fetch a media URL into a Blob: direct first (same-origin / CORS-enabled
+ * hosts), then the same-origin /api/proxy-image proxy for CDN hosts without
+ * CORS headers. Exported — also used to turn a picked gallery item into a
+ * real File (e.g. Magic Studio's Audio to Text input).
+ * @param {string} url
+ * @returns {Promise<Blob>}
+ */
+export async function fetchMediaBlob(url) {
   // Direct first (works for same-origin / CORS-enabled hosts)…
   try {
     const res = await fetch(url);

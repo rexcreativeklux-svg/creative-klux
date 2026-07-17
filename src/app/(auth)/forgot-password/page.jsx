@@ -1,96 +1,93 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import AuthCarousel from "../../(components)/AuthCarousel";
+import { ArrowRight } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { toUserMessage } from "@/utils/authErrors";
+import AuthShell from "@/app/(components)/auth/AuthShell";
+import Input from "@/app/(components)/ui/Input";
 
 export default function ForgotPasswordPage() {
+  const { sendVerificationCode } = useAuth();
   const [email, setEmail] = useState("");
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
-    setSuccess("");
 
     try {
-      const res = await fetch("https://backend.creativeklux.com/api/creativeklux-userend/password/forgot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+      const result = await sendVerificationCode(email);
+      toast.success(result.message || "Check your email for the reset code.");
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Something went wrong");
-
-      setSuccess("We’ve sent a password reset link to your email.");
-      setEmail(""); // clear input
+      // Hand off to the change-password screen to enter the code + new password.
+      // The email rides in the query so that page can prefill it and call the
+      // verify/reset endpoints (which key off the email, not a link token).
+      router.push(`/change-password?email=${encodeURIComponent(email)}`);
     } catch (err) {
-      setError(err.message);
-    } finally {
+      console.error("❌ sendVerificationCode failed:", err);
+      toast.error(
+        toUserMessage(err, "Couldn’t send the reset code. Please try again."),
+      );
+      // Keep the user here so they can retry; only stop the spinner on failure.
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen justify-center">
-      {/* Left content (form card) */}
-      <div className="flex-1 flex flex-col pt-30 items-center">
-        <div className="flex flex-col space-y-8 justify-center items-center">
-          <h1 className="text-5xl flex justify-center font-bold">Forgot Password?</h1>
+    <AuthShell
+      title="Forgot password?"
+      subtitle="Enter your email and we’ll send you a 6-digit code to reset your password."
+    >
+      <form onSubmit={handleForgotPassword} className="space-y-3.5">
+        <Input
+          id="email"
+          label="Email address"
+          type="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
 
-          <p className="w-[370px] text-gray-600 flex justify-center items-center text-center">
-            Enter your email and we’ll send you a link to reset your password.
-          </p>
-        </div>
+        {/* Submit */}
+        <button
+          type="submit"
+          disabled={loading}
+          className={`w-full h-11 rounded-xl text-[13.5px] font-semibold flex items-center justify-center gap-2 border-none transition-all duration-200 mt-1
+            ${
+              loading
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-[#1447e6] text-white cursor-pointer hover:bg-[#0f3bbf] active:scale-[0.98] shadow-[0_4px_14px_rgba(20,71,230,0.28)]"
+            }`}
+        >
+          {loading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-400 rounded-full animate-spin" />
+              Sending…
+            </>
+          ) : (
+            <>
+              Send reset code <ArrowRight size={14} />
+            </>
+          )}
+        </button>
+      </form>
 
-        <div className="mt-35 lg:w-[500px]">
-          <form onSubmit={handleForgotPassword} className="space-y-10 relative w-full">
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email Address"
-              className="w-full py-3 px-5 rounded-4xl outline-0 border border-gray-400 text-gray-900"
-              required
-            />
-
-            {error && <p className="text-red-500 text-center">{error}</p>}
-            {success && <p className="text-green-600 text-center">{success}</p>}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full hover:cursor-pointer hover:bg-gray-200 hover:border hover:text-gray-900 py-3 bg-black rounded-4xl transition-all duration-300 text-white font-semibold"
-            >
-              {loading ? (
-                <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto" />
-              ) : (
-                "Send Reset Link"
-              )}
-            </button>
-          </form>
-
-          {/* Back to login link */}
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => router.push("/login")}
-              className="text-[#748b6f] font-semibold hover:underline"
-            >
-              Back to Login
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Right content (carousel) */}
-      <div className="flex-1 flex p-10 h-full">
-        <AuthCarousel />
-      </div>
-    </div>
+      {/* Back to login */}
+      <p className="mt-5 text-center text-[13px] text-gray-400">
+        Remembered your password?{" "}
+        <Link
+          href="/login"
+          className="text-[#1447e6] font-semibold hover:underline"
+        >
+          Back to sign in
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

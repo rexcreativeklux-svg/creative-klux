@@ -380,7 +380,7 @@ const PostNowPage = ({ prefilledData = null }) => {
   };
 
   const PreviewPost = () => (
-    <div className="bg-surface w-[450px] rounded-lg border border-gray-200">
+    <div className="bg-surface w-112.5 rounded-lg border border-gray-200">
       <div className="py-4">
         <div className="flex px-3 items-center space-x-3 mb-3">
           <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center">
@@ -410,7 +410,7 @@ const PostNowPage = ({ prefilledData = null }) => {
               <img
                 src="/placeholderimg.png"
                 alt="Placeholder"
-                className="w-full h-[400px] object-cover"
+                className="w-full h-100 object-cover"
               />
             </div>
           ) : previewData.media.length === 1 ? (
@@ -419,12 +419,12 @@ const PostNowPage = ({ prefilledData = null }) => {
                 <img
                   src={previewData.media[0].url}
                   alt="Post media"
-                  className="w-full h-[400px] object-cover"
+                  className="w-full h-100 object-cover"
                 />
               ) : (
                 <video
                   src={previewData.media[0].url}
-                  className="w-full h-[400px] object-cover"
+                  className="w-full h-100 object-cover"
                   controls
                 />
               )}

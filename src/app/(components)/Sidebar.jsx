@@ -48,16 +48,16 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const bottomMenuRef = useRef(null);
   const mobileBottomMenuRef = useRef(null);
 
+  // Actual sign-out. Kept lean so LogoutModal owns the loading/close/toast UX:
+  // the modal stays open (showing its "Logging out…" state) until this
+  // resolves, then toasts success — or catches a thrown error and toasts the
+  // failure. We intentionally do NOT close the modal here and let errors
+  // propagate so the modal can surface them. `logout()` is best-effort and
+  // always clears the local session, so resolving is the normal path.
   const handleLogout = async () => {
-    try {
-      setShowLogoutModal(false); // close UI first
-      setShowBottomMenu(false);
-
-      await logout(); // auth action
-      router.push("/login");
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
+    setShowBottomMenu(false);
+    await logout(); // auth action (best-effort server call + always-local clear)
+    router.push("/login");
   };
 
   //   const handleLogout = async () => {

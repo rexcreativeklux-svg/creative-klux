@@ -20,7 +20,7 @@ import {
 import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import Toast from "@/app/(components)/Toast";
+import { toast } from "sonner";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const INDUSTRIES = [
@@ -295,10 +295,6 @@ export default function ImportBrand({ refreshBrands }) {
   const [creating, setCreating] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
 
-  const [toast, setToast] = useState({ isOpen: false, message: "" });
-  const showToast = (message) => setToast({ isOpen: true, message });
-  const closeToast = () => setToast((p) => ({ ...p, isOpen: false }));
-
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -326,18 +322,7 @@ export default function ImportBrand({ refreshBrands }) {
     }
   };
 
-  const [notification, setNotification] = useState({
-    isOpen: false,
-    title: "",
-    message: "",
-    type: "info",
-    duration: 3000,
-  });
   const logoRef = useRef();
-
-  const notify = (title, message, type = "info", duration = 3000) =>
-    setNotification({ isOpen: true, title, message, type, duration });
-  const closeNotify = () => setNotification((p) => ({ ...p, isOpen: false }));
 
   const set = (key, val) => setFormData((p) => ({ ...p, [key]: val }));
 
@@ -361,9 +346,7 @@ export default function ImportBrand({ refreshBrands }) {
     try {
       const res = await sendUrl(url);
       if (!res?.ok) {
-        showToast(
-          res?.message || "Import failed. Check the URL and try again.",
-        );
+        toast.error(res?.message || "Import failed. Check the URL and try again.");
         return;
       }
       // Tolerate both shapes: double-wrapped ({ data: {...} }) or already-unwrapped brand object.
@@ -386,7 +369,7 @@ export default function ImportBrand({ refreshBrands }) {
         setStep(1);
       }
     } catch {
-      showToast("Something went wrong. Please try again.");
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setImporting(false);
     }
@@ -397,7 +380,7 @@ export default function ImportBrand({ refreshBrands }) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 500 * 1024) {
-      notify("Logo too large", "Please choose a logo under 500 KB.", "error");
+      toast.error("Logo too large. Please choose a logo under 500 KB.");
       return;
     }
 
@@ -417,22 +400,14 @@ export default function ImportBrand({ refreshBrands }) {
       const uploadedUrl = pickUploadedUrl(res);
       if (!uploadedUrl) {
         console.error("❌ Logo upload returned no URL:", res);
-        notify(
-          "Upload failed",
-          "We couldn't get a URL for your logo. Please try again.",
-          "error",
-        );
+        toast.error("Couldn't get a URL for your logo. Please try again.");
         return;
       }
       console.log("✅ Logo uploaded:", uploadedUrl);
       setFormData((p) => ({ ...p, logo: uploadedUrl, logoDataUrl: uploadedUrl }));
     } catch (err) {
       console.error("❌ Logo upload failed:", err);
-      notify(
-        "Upload failed",
-        err?.message || "Couldn't upload your logo. Please try again.",
-        "error",
-      );
+      toast.error(err?.message || "Couldn't upload your logo. Please try again.");
     } finally {
       setLogoUploading(false);
     }
@@ -440,22 +415,11 @@ export default function ImportBrand({ refreshBrands }) {
 
   // ── create ──────────────────────────────────────────────────────────────────
   const handleCreate = async () => {
-    if (!formData.name.trim())
-      return notify(
-        "Brand name required",
-        "Please enter a brand name.",
-        "error",
-      );
-    if (!formData.industry)
-      return notify("Industry required", "Please select an industry.", "error");
+    if (!formData.name.trim()) return toast.error("Please enter a brand name.");
+    if (!formData.industry) return toast.error("Please select an industry.");
     if (logoUploading)
-      return notify(
-        "Logo still uploading",
-        "Please wait for the logo upload to finish.",
-        "info",
-      );
+      return toast.info("Please wait for the logo upload to finish.");
 
-    notify("Creating…", "Please wait.", "info", 0);
     setCreating(true);
     try {
       const brandData = await createBrand({
@@ -474,16 +438,10 @@ export default function ImportBrand({ refreshBrands }) {
       });
       if (!brandData) throw new Error("No response");
       refreshBrands?.();
-      closeNotify();
-      notify("Brand created!", "Redirecting…", "success", 2000);
+      toast.success("Brand created! Redirecting…");
       setTimeout(() => router.push("/brand/reuse"), 1500);
     } catch (err) {
-      closeNotify();
-      notify(
-        "Creation failed",
-        err.message || "Something went wrong.",
-        "error",
-      );
+      toast.error(err.message || "Something went wrong.");
     } finally {
       setCreating(false);
     }
@@ -495,13 +453,6 @@ export default function ImportBrand({ refreshBrands }) {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="py-4">
-      <Toast
-        isOpen={toast.isOpen}
-        message={toast.message}
-        onClose={closeToast}
-        duration={3000}
-      />
-
       {/* Page title */}
       <div className="mb-4">
         {/* <h1 className="text-2xl font-bold text-gray-900">Import Brand</h1> */}

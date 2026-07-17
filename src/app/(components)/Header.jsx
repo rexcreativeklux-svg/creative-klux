@@ -5,15 +5,22 @@ import {
   AlignLeft,
   ChevronDown,
   ChevronLeft,
+  Loader2,
   Plus,
   Settings,
   X,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const Header = ({ sidebarOpen, toggleSidebar }) => {
-  const { brands, setActiveBrand, brandsLoading, activeBrand } = useAuth();
+  const { brands, setActiveBrand, brandsLoading, activeBrand, switchingBrandId } =
+    useAuth();
+  const router = useRouter();
+  // True while any brand switch request is in flight — locks the switcher so the
+  // user can't fire a second switch until the first resolves.
+  const switching = switchingBrandId != null;
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [logoFailed, setLogoFailed] = useState({});
@@ -177,13 +184,15 @@ const Header = ({ sidebarOpen, toggleSidebar }) => {
                         isSelected ? "bg-[#e7eeffe9]" : "hover:bg-gray-50"
                       }`}
                     >
-                      {/* Select brand — switches the active brand immediately */}
+                      {/* Select brand — awaits the backend switch, then closes.
+                          Stays open and toasts (via context) if the switch fails. */}
                       <button
-                        onClick={() => {
-                          setActiveBrand(b);
-                          setDropdownOpen(false);
+                        onClick={async () => {
+                          const res = await setActiveBrand(b);
+                          if (res?.ok) setDropdownOpen(false);
                         }}
-                        className="flex items-center gap-2.5 flex-1 min-w-0 px-1.5 py-1.5 text-sm cursor-pointer"
+                        disabled={switching}
+                        className="flex items-center gap-2.5 flex-1 min-w-0 px-1.5 py-1.5 text-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {b.logo &&
                         typeof b.logo === "string" &&
@@ -217,23 +226,29 @@ const Header = ({ sidebarOpen, toggleSidebar }) => {
                         >
                           {displayName}
                         </span>
-                        {isSelected && (
+                        {switchingBrandId === b.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#155dfc] shrink-0" />
+                        ) : isSelected ? (
                           <span className="w-1.5 h-1.5 rounded-full bg-[#155dfc] shrink-0" />
-                        )}
+                        ) : null}
                       </button>
 
-                      {/* Manage — switches to this brand, then opens its settings */}
-                      <Link
-                        href="/brand/manage"
-                        onClick={() => {
-                          setActiveBrand(b);
-                          setDropdownOpen(false);
+                      {/* Manage — switches to this brand, then opens its settings
+                          only once the switch is confirmed by the backend. */}
+                      <button
+                        onClick={async () => {
+                          const res = await setActiveBrand(b);
+                          if (res?.ok) {
+                            setDropdownOpen(false);
+                            router.push("/brand/manage");
+                          }
                         }}
+                        disabled={switching}
                         title="Manage brand"
-                        className="shrink-0 p-1.5 rounded-md text-gray-400 hover:bg-gray-200/70 hover:text-gray-700 transition-colors"
+                        className="shrink-0 p-1.5 rounded-md text-gray-400 hover:bg-gray-200/70 hover:text-gray-700 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Settings className="h-4 w-4" />
-                      </Link>
+                      </button>
                     </div>
                   );
                 })

@@ -17,7 +17,7 @@ import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
 import { Search } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import NotificationModal from "@/app/(components)/NotificationModal";
+import { toast } from "sonner";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const INDUSTRIES = [
@@ -311,18 +311,7 @@ export default function ManualCreate({ refreshBrands }) {
     websiteType: "",
   });
 
-  const [notification, setNotification] = useState({
-    isOpen: false,
-    title: "",
-    message: "",
-    type: "info",
-    duration: 3000,
-  });
   const logoRef = useRef();
-
-  const notify = (title, message, type = "info", duration = 3000) =>
-    setNotification({ isOpen: true, title, message, type, duration });
-  const closeNotify = () => setNotification((p) => ({ ...p, isOpen: false }));
 
   const set = (key, val) => setFormData((p) => ({ ...p, [key]: val }));
 
@@ -333,7 +322,7 @@ export default function ManualCreate({ refreshBrands }) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 500 * 1024) {
-      notify("Logo too large", "Please choose a logo under 500 KB.", "error");
+      toast.error("Logo too large. Please choose a logo under 500 KB.");
       return;
     }
 
@@ -350,11 +339,7 @@ export default function ManualCreate({ refreshBrands }) {
       const url = pickUploadedUrl(res);
       if (!url) {
         console.error("❌ Logo upload returned no URL:", res);
-        notify(
-          "Upload failed",
-          "We couldn't get a URL for your logo. Please try again.",
-          "error",
-        );
+        toast.error("Couldn't get a URL for your logo. Please try again.");
         setFormData((p) => ({ ...p, logo: null, logoDataUrl: null }));
         return;
       }
@@ -363,11 +348,7 @@ export default function ManualCreate({ refreshBrands }) {
       setFormData((p) => ({ ...p, logo: url, logoDataUrl: url }));
     } catch (err) {
       console.error("❌ Logo upload failed:", err);
-      notify(
-        "Upload failed",
-        err?.message || "Couldn't upload your logo. Please try again.",
-        "error",
-      );
+      toast.error(err?.message || "Couldn't upload your logo. Please try again.");
       setFormData((p) => ({ ...p, logo: null, logoDataUrl: null }));
     } finally {
       setLogoUploading(false);
@@ -375,22 +356,11 @@ export default function ManualCreate({ refreshBrands }) {
   };
 
   const handleCreate = async () => {
-    if (!formData.name.trim())
-      return notify(
-        "Brand name required",
-        "Please enter a brand name.",
-        "error",
-      );
-    if (!formData.industry)
-      return notify("Industry required", "Please select an industry.", "error");
+    if (!formData.name.trim()) return toast.error("Please enter a brand name.");
+    if (!formData.industry) return toast.error("Please select an industry.");
     if (logoUploading)
-      return notify(
-        "Logo still uploading",
-        "Please wait for the logo upload to finish.",
-        "info",
-      );
+      return toast.info("Please wait for the logo upload to finish.");
 
-    notify("Creating your brand…", "Please wait.", "info", 0);
     setCreating(true);
     try {
       await createManualBrand({
@@ -407,16 +377,10 @@ export default function ManualCreate({ refreshBrands }) {
         createLandingPage: !!formData.websiteType,
       });
       refreshBrands?.();
-      closeNotify();
-      notify("Brand created!", "Redirecting…", "success", 2000);
+      toast.success("Brand created! Redirecting…");
       setTimeout(() => router.push("/brand/reuse"), 1500);
     } catch (err) {
-      closeNotify();
-      notify(
-        "Creation failed",
-        err.message || "Something went wrong.",
-        "error",
-      );
+      toast.error(err.message || "Something went wrong.");
     } finally {
       setCreating(false);
     }
@@ -442,15 +406,6 @@ export default function ManualCreate({ refreshBrands }) {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className=" py-4">
-      <NotificationModal
-        isOpen={notification.isOpen}
-        onClose={closeNotify}
-        title={notification.title}
-        message={notification.message}
-        type={notification.type}
-        duration={notification.duration}
-      />
-
       {/* Page title */}
       <div className="mb-4">
         <p className="text-sm text-gray-500 mt-1">

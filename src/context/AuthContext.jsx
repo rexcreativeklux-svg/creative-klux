@@ -9,6 +9,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { classifyResult } from "@/utils/errorHelper";
+import { throwClassifiedAuthError } from "@/utils/authErrors";
 
 const AuthContext = createContext();
 
@@ -21,6 +22,9 @@ export function AuthProvider({ children }) {
   const [brands, setBrands] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
   const [activeBrand, setActiveBrandState] = useState(null);
+  // Id of the brand whose switch request is currently in flight — drives the
+  // loading state in the brand switcher while POST /brands/{id}/switch resolves.
+  const [switchingBrandId, setSwitchingBrandId] = useState(null);
 
   // Gallery
   const [myGallery, setMyGallery] = useState([]);
@@ -56,7 +60,6 @@ export function AuthProvider({ children }) {
         setToken(null);
         localStorage.removeItem("user");
         localStorage.removeItem("token");
-        localStorage.removeItem("activeBrandId");
 
         throw new Error("Unauthorized");
       }
@@ -232,26 +235,41 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (email, password) => {
-    const res = await fetch(API_LOGIN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+    console.log("📡 login → requesting session");
 
-    const text = await res.text();
-    console.log("Login Raw Response:", text);
-
-    let data;
+    // Route every outcome through classifyResult so a CORS/network failure is
+    // categorized as a transport error (no HTTP status) rather than being
+    // mistaken for wrong credentials. A thrown fetch is caught and classified
+    // the same way.
+    let result;
     try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error("Invalid Details");
+      const res = await fetch(API_LOGIN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
     }
 
-    if (!res.ok || !data.token) {
-      throw new Error(data.message || "Login failed");
+    if (!result.ok) {
+      // Logs the real cause + throws a user-safe, correctly-categorized Error.
+      throwClassifiedAuthError("login", result, "Invalid email or password.");
     }
 
+    const data = result.raw ?? result.data ?? {};
+    if (!data.token) {
+      console.error("❌ login — 2xx response but no session token:", data);
+      const err = new Error(
+        "Signed in, but no session token was returned. Please try again.",
+      );
+      err.source = "backend";
+      err.status = result.status;
+      throw err;
+    }
+
+    console.log("✅ login success");
     saveAuth(data.token);
     return data.message || "Login successful";
   };
@@ -264,32 +282,31 @@ export function AuthProvider({ children }) {
       license_code: licenseCode || null, // Send null if empty, or the actual code
     };
 
-    console.log("Sending to backend:", payload);
+    console.log("📡 register → sending:", { ...payload, password: "•••" });
 
-    const res = await fetch(API_REGISTER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const text = await res.text();
-    console.log("Register Raw Response:", text);
-
-    let data;
+    let result;
     try {
-      data = JSON.parse(text);
-    } catch (err) {
-      throw new Error("Invalid response from server");
+      const res = await fetch(API_REGISTER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
     }
 
-    if (!res.ok) {
-      // Handle validation errors from backend
-      if (data.errors) {
-        const errorMessages = Object.values(data.errors).flat().join(", ");
-        throw new Error(errorMessages || data.message || "Registration failed");
-      }
-      throw new Error(data.message || "Registration failed");
+    if (!result.ok) {
+      // Validation errors (e.g. "The email has already been taken.") are joined
+      // and surfaced by the shared helper; transport/server faults are masked.
+      throwClassifiedAuthError(
+        "register",
+        result,
+        "Registration failed. Please try again.",
+      );
     }
+
+    const data = result.raw ?? result.data ?? {};
 
     // FIXED: Correctly extract user ID from nested response
     const userId = data.user?.id || data.user?.user_id || data.id;
@@ -330,151 +347,187 @@ export function AuthProvider({ children }) {
       throw new Error("Session expired. Please register again.");
     }
 
+    const payload = {
+      user_id: userId, // This is what the backend requires
+      code: code,
+    };
+
+    console.log("📡 verifyEmail → sending:", payload);
+
+    let result;
     try {
-      const payload = {
-        user_id: userId, // This is what the backend requires
-        code: code,
-      };
-
-      console.log("Verifying with payload:", payload);
-
       const res = await fetch(`${BASE_URL}/update-verification-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
-      const data = await res.json();
-      console.log("Verify response:", data);
-
-      if (!res.ok) {
-        throw new Error(data.message || "Invalid or expired code");
-      }
-
-      // Success → clear everything
-      sessionStorage.clear();
-
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-        setToken(data.token);
-      }
-      if (data.user) {
-        localStorage.setItem("user", JSON.stringify(data.user));
-        setUser(data.user);
-      }
-
-      return {
-        success: true,
-        message: data.message || "Email verified successfully!",
-      };
-    } catch (err) {
-      throw new Error(err.message || "Verification failed");
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
     }
+
+    if (!result.ok) {
+      throwClassifiedAuthError(
+        "verifyEmail",
+        result,
+        "The code is incorrect or has expired.",
+      );
+    }
+
+    const data = result.raw ?? result.data ?? {};
+
+    // Success → clear everything
+    sessionStorage.clear();
+
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+      setToken(data.token);
+    }
+    if (data.user) {
+      localStorage.setItem("user", JSON.stringify(data.user));
+      setUser(data.user);
+    }
+
+    console.log("✅ verifyEmail success");
+    return {
+      success: true,
+      message: data.message || "Email verified successfully!",
+    };
   };
 
   const resendVerificationCode = async (email) => {
+    console.log("📡 resendVerificationCode → email:", email);
+
+    let result;
     try {
       const res = await fetch(`${BASE_URL}/resend-verification-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }), // Just send email to resend code
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to resend code");
-      }
-
-      return {
-        success: true,
-        message: data.message || "Code resent to your email",
-      };
-    } catch (err) {
-      throw new Error(err.message || "Resend failed");
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
     }
+
+    if (!result.ok) {
+      throwClassifiedAuthError(
+        "resendVerificationCode",
+        result,
+        "Couldn't resend the code. Please try again.",
+      );
+    }
+
+    const data = result.raw ?? result.data ?? {};
+    console.log("✅ resendVerificationCode success");
+    return {
+      success: true,
+      message: data.message || "Code resent to your email",
+    };
   };
 
   // Request a password-reset email. Consolidated onto the shared API (BASE_URL)
   // so it matches login/register/verify instead of hitting a one-off host.
   const forgotPassword = async (email) => {
+    console.log("📡 forgotPassword → email:", email);
+
+    let result;
     try {
       const res = await fetch(`${BASE_URL}/password/forgot`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to send reset link");
-      }
-
-      console.log("✅ Password reset link requested");
-      return {
-        success: true,
-        message:
-          data.message || "We’ve sent a password reset link to your email.",
-      };
-    } catch (err) {
-      console.error("❌ forgotPassword failed:", err.message);
-      throw new Error(err.message || "Failed to send reset link");
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
     }
+
+    if (!result.ok) {
+      throwClassifiedAuthError(
+        "forgotPassword",
+        result,
+        "Couldn't send the reset link. Please try again.",
+      );
+    }
+
+    const data = result.raw ?? result.data ?? {};
+    console.log("✅ forgotPassword — reset link requested");
+    return {
+      success: true,
+      message:
+        data.message || "We’ve sent a password reset link to your email.",
+    };
   };
 
   // Complete a password reset using the token + email from the emailed link.
   // (`resetToken` avoids shadowing the auth `token` state in this scope.)
   const resetPassword = async ({ email, token: resetToken, password }) => {
+    console.log("📡 resetPassword → email:", email);
+
+    let result;
     try {
       const res = await fetch(`${BASE_URL}/password/reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, token: resetToken, password }),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to reset password");
-      }
-
-      console.log("✅ Password reset successful");
-      return {
-        success: true,
-        message:
-          data.message || "Your password has been changed successfully.",
-      };
-    } catch (err) {
-      console.error("❌ resetPassword failed:", err.message);
-      throw new Error(err.message || "Failed to reset password");
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
     }
+
+    if (!result.ok) {
+      throwClassifiedAuthError(
+        "resetPassword",
+        result,
+        "Couldn't reset your password. Please try again.",
+      );
+    }
+
+    const data = result.raw ?? result.data ?? {};
+    console.log("✅ resetPassword success");
+    return {
+      success: true,
+      message: data.message || "Your password has been changed successfully.",
+    };
   };
 
   const logout = async () => {
     try {
       if (token) {
-        const res = await authFetch(API_LOGOUT_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        // Best-effort: we always clear the local session in `finally`, so a
+        // failed server call is logged (with its real cause) but never blocks
+        // sign-out.
+        let result;
+        try {
+          const res = await authFetch(API_LOGOUT_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          result = await classifyResult({ response: res });
+        } catch (error) {
+          result = await classifyResult({ error });
+        }
 
-        const text = await res.text();
-        console.log("Logout Raw Response:", text);
-
-        if (!res.ok) {
-          throw new Error("Logout API call failed");
+        if (result.ok) {
+          console.log("✅ logout — server session ended");
+        } else {
+          console.warn(
+            `⚠️ logout — server call failed [${result.source}]` +
+              `${result.status ? ` (HTTP ${result.status})` : ""}: ` +
+              `${result.messageForDevs}`,
+          );
         }
       }
     } catch (err) {
-      console.error("Logout failed:", err.message);
+      console.warn("⚠️ logout — unexpected error:", err?.message || err);
     } finally {
       localStorage.removeItem("user");
       localStorage.removeItem("token");
-      localStorage.removeItem("activeBrandId");
       setUser(null);
       setToken(null);
       setBrands([]);
@@ -969,10 +1022,10 @@ export function AuthProvider({ children }) {
       setBrands(brandsList);
 
       // 🔑 ACTIVE BRAND RESOLUTION
-      // Source of truth is the user's saved `active_brand_id` (synced to the
-      // backend on selection). We read it from the freshly-stored `user` in
-      // localStorage — fetchProfile runs and persists it just before this in
-      // init() — then fall back to the local `activeBrandId` mirror. If the
+      // Single source of truth is the user's saved `active_brand_id`, persisted
+      // to the backend via POST /brands/{id}/switch on selection. We read it
+      // from the freshly-stored `user` (fetchProfile runs and caches it just
+      // before this in init(), so the value reflects the database). If the
       // resolved brand no longer exists (e.g. it was deleted), we clear it.
       let storedUser = null;
       try {
@@ -981,26 +1034,21 @@ export function AuthProvider({ children }) {
         storedUser = null;
       }
 
-      const localBrandId = localStorage.getItem("activeBrandId");
       const preferredId =
         storedUser?.active_brand_id != null
           ? Number(storedUser.active_brand_id)
-          : localBrandId != null
-            ? Number(localBrandId)
-            : null;
+          : null;
 
       if (preferredId != null && !Number.isNaN(preferredId)) {
         const match = brandsList.find((brand) => brand.id === preferredId);
         if (match) {
           console.log("✅ Active brand restored:", match.id);
           setActiveBrandState(match);
-          localStorage.setItem("activeBrandId", match.id); // keep mirror in sync
         } else {
           console.warn(
             "⚠️ Saved active brand no longer exists — clearing:",
             preferredId,
           );
-          localStorage.removeItem("activeBrandId");
           setActiveBrandState(null);
         }
       } else {
@@ -1046,33 +1094,72 @@ export function AuthProvider({ children }) {
     init();
   }, [token]);
 
-  // Persist the chosen active brand to the user's profile so it syncs across
-  // devices. Reuses the shared POST /profile update (via updateProfile), which
-  // refreshes the user on success. Best-effort: a sync failure never blocks the
-  // local selection (the working source of truth on this device), it just warns.
-  const persistActiveBrand = async (brandId) => {
-    if (!token) return false;
-    const res = await updateProfile({ active_brand_id: brandId });
-    if (res.ok) {
-      console.log("✅ Active brand synced to profile:", brandId);
-      return true;
+  // Persist the chosen active brand to the backend via POST /brands/{id}/switch.
+  // The brand id lives in the URL — no request body. Returns a normalized
+  // { ok, data?, message? } so setActiveBrand can confirm success before it
+  // flips the UI. The database is the single source of truth; on reload the
+  // active brand is restored from the user's `active_brand_id` (see fetchBrands).
+  const switchActiveBrand = async (brandId) => {
+    if (!token)
+      return { ok: false, message: "You must be logged in to switch brands." };
+
+    try {
+      const res = await authFetch(`${BASE_URL}/brands/${brandId}/switch`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("❌ switchActiveBrand: non-JSON response:", text);
+        return { ok: false, message: "Unexpected server response." };
+      }
+
+      if (!res.ok) {
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        const message =
+          firstError ||
+          data?.message ||
+          `Failed to switch brand (${res.status})`;
+        console.error("❌ switchActiveBrand failed:", message);
+        return { ok: false, message };
+      }
+
+      console.log("✅ Active brand switched:", brandId);
+      return { ok: true, data };
+    } catch (err) {
+      if (err.message === "Unauthorized")
+        return {
+          ok: false,
+          message: "Your session expired. Please log in again.",
+        };
+      console.error("❌ switchActiveBrand error:", err);
+      return { ok: false, message: err.message || "Network error" };
     }
-    toast.error(
-      "Couldn't sync your active brand to your account — it's set on this device only.",
-    );
-    return false;
   };
 
-  const setActiveBrand = (brandOrId) => {
+  // Switch the active brand. Awaits the backend confirmation before flipping the
+  // UI: while the request is in flight `switchingBrandId` is set (drives the
+  // loading state in the brand switcher). On success the UI switches; on failure
+  // we stay on the current brand and surface the error. Passing `null` clears
+  // the local selection (e.g. after leaving a brand) without a network call.
+  // Returns the normalized { ok, message? } so callers can react (e.g. navigate
+  // only after a confirmed switch).
+  const setActiveBrand = async (brandOrId) => {
     if (brandOrId === null) {
       setActiveBrandState(null);
-      localStorage.removeItem("activeBrandId");
-      setUser((prev) => (prev ? { ...prev, active_brand_id: null } : prev));
-      return;
+      return { ok: true };
     }
 
     let selectedBrand;
-
     if (typeof brandOrId === "object") {
       selectedBrand = brandOrId;
     } else {
@@ -1082,18 +1169,26 @@ export function AuthProvider({ children }) {
 
     if (!selectedBrand) {
       console.warn("setActiveBrand: no matching brand for", brandOrId);
-      return;
+      return { ok: false, message: "Brand not found." };
     }
 
-    // Optimistic local update — instant UI, survives refresh via localStorage.
-    setActiveBrandState(selectedBrand);
-    localStorage.setItem("activeBrandId", selectedBrand.id);
-    setUser((prev) =>
-      prev ? { ...prev, active_brand_id: selectedBrand.id } : prev,
-    );
+    // Already active — nothing to do (avoids a redundant switch request).
+    if (activeBrand?.id === selectedBrand.id) return { ok: true };
 
-    // Fire-and-forget backend sync (handles its own errors/toasts).
-    persistActiveBrand(selectedBrand.id);
+    setSwitchingBrandId(selectedBrand.id);
+    try {
+      const res = await switchActiveBrand(selectedBrand.id);
+      if (!res.ok) {
+        toast.error(res.message || "Couldn't switch brand. Please try again.");
+        return res;
+      }
+      // Confirmed by the backend — now flip the UI.
+      setActiveBrandState(selectedBrand);
+      toast.success(`Switched to ${selectedBrand.name || "your brand"}.`);
+      return res;
+    } finally {
+      setSwitchingBrandId(null);
+    }
   };
 
   const fetchBrandById = async (id) => {
@@ -1249,7 +1344,6 @@ export function AuthProvider({ children }) {
       // doesn't point at a brand that no longer exists.
       if (activeBrand?.id === id) {
         setActiveBrandState(null);
-        localStorage.removeItem("activeBrandId");
       }
 
       console.log("✅ Brand deleted:", id);
@@ -3000,6 +3094,7 @@ export function AuthProvider({ children }) {
         teamsLoading,
         // brandId,
         setActiveBrand,
+        switchingBrandId,
         fetchDesignTemplates,
         runComparison,
         checkCompliance,

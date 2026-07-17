@@ -434,6 +434,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
       textAlign: preset.textAlign ?? "center",
       fontFamily: preset.fontFamily,
       fontStyle: preset.fontStyle,
+      letterSpacing: preset.letterSpacing,
     });
   };
 
@@ -752,7 +753,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
           >
             <div
               ref={stageInnerRef}
-              className="relative shadow-xl"
+              className="relative shadow-xl overflow-hidden"
               style={{
                 width: canvas.width,
                 height: canvas.height,

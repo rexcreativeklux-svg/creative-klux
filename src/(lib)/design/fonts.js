@@ -69,16 +69,52 @@ export const EDITOR_FONTS = [
   display("Bungee"),
 ];
 
-/** Pre-styled text presets (Canva's "Font combinations"). */
+/**
+ * Pre-styled text presets (Canva's "Font combinations").
+ *
+ * Each preset is ONE text element, so it carries one font — a text element has a
+ * single fontFamily and the editor has no element grouping, so Canva's two-font
+ * pairings ("COMING SOON" over a script "Stay Tuned") can't be one preset. These
+ * are single-font looks; pairing means dropping two and styling the second.
+ *
+ * Every fontFamily here must exist in EDITOR_FONTS above, or the preset silently
+ * renders in the browser's fallback font.
+ */
 export const FONT_COMBINATIONS = [
+  // Editorial & elegant
   { name: "Golden Hour", content: "GOLDEN HOUR", fontFamily: "'Playfair Display', serif", fontSize: 60, fontWeight: 700, fill: "#b45309", textAlign: "center", letterSpacing: 3 },
-  { name: "Order Now", content: "Order Now!", fontFamily: "'Bebas Neue', sans-serif", fontSize: 72, fontWeight: 400, fill: "#0ea5e9", textAlign: "center" },
-  { name: "Coming Soon", content: "COMING SOON", fontFamily: "'Merriweather', serif", fontSize: 48, fontWeight: 700, fill: "#7f1d1d", textAlign: "center" },
   { name: "Elegant Title", content: "Title", fontFamily: "'DM Serif Display', serif", fontSize: 72, fontWeight: 400, fill: "#111111", textAlign: "center" },
-  { name: "Sweet", content: "Sweet", fontFamily: "'Dancing Script', cursive", fontSize: 72, fontWeight: 700, fill: "#ec4899", textAlign: "center" },
+  { name: "Business Model", content: "BUSINESS MODEL", fontFamily: "'Cormorant Garamond', serif", fontSize: 52, fontWeight: 700, fill: "#111111", textAlign: "center", letterSpacing: 4 },
+  { name: "Behind Our Brand", content: "behind our BRAND", fontFamily: "'Libre Baskerville', serif", fontSize: 44, fontWeight: 400, fill: "#1f2937", textAlign: "center" },
+  { name: "Coming Soon", content: "COMING SOON", fontFamily: "'Merriweather', serif", fontSize: 48, fontWeight: 700, fill: "#7f1d1d", textAlign: "center" },
+  { name: "Spring Collection", content: "Spring Collection", fontFamily: "'Lora', serif", fontSize: 52, fontWeight: 700, fill: "#15803d", textAlign: "center" },
+  { name: "Pixel", content: "Pixel", fontFamily: "'Playfair Display', serif", fontSize: 68, fontWeight: 700, fill: "#1e3a8a", textAlign: "center" },
+
+  // Bold & loud
+  { name: "Order Now", content: "Order Now!", fontFamily: "'Bebas Neue', sans-serif", fontSize: 72, fontWeight: 400, fill: "#0ea5e9", textAlign: "center" },
   { name: "Bold Moves", content: "BOLD moves", fontFamily: "'Anton', sans-serif", fontSize: 60, fontWeight: 400, fill: "#f97316", textAlign: "center" },
-  { name: "Groovy", content: "Groovy", fontFamily: "'Pacifico', cursive", fontSize: 64, fontWeight: 400, fill: "#ef4444", textAlign: "center" },
   { name: "Vintage", content: "VINTAGE", fontFamily: "'Oswald', sans-serif", fontSize: 56, fontWeight: 700, fill: "#1e3a8a", textAlign: "center", letterSpacing: 2 },
+  { name: "Tattoo Studio", content: "TATTOO", fontFamily: "'Abril Fatface', serif", fontSize: 64, fontWeight: 400, fill: "#111111", textAlign: "center", letterSpacing: 4 },
+  { name: "Happy Birthday", content: "HAPPY BIRTHDAY", fontFamily: "'Anton', sans-serif", fontSize: 48, fontWeight: 400, fill: "#111111", textAlign: "center", letterSpacing: 1 },
+  { name: "Big Sale", content: "SALE!", fontFamily: "'Permanent Marker', cursive", fontSize: 72, fontWeight: 400, fill: "#dc2626", textAlign: "center" },
+
+  // Retro & playful
+  { name: "Retro", content: "RETRO", fontFamily: "'Bungee', cursive", fontSize: 64, fontWeight: 400, fill: "#ef4444", textAlign: "center", letterSpacing: 3 },
+  { name: "Glow", content: "GLOW", fontFamily: "'Bungee', cursive", fontSize: 64, fontWeight: 400, fill: "#d946ef", textAlign: "center", letterSpacing: 2 },
+  { name: "Now Open", content: "NOW OPEN", fontFamily: "'Righteous', sans-serif", fontSize: 56, fontWeight: 400, fill: "#7c3aed", textAlign: "center" },
+  { name: "Like & Subscribe", content: "LIKE & SUBSCRIBE", fontFamily: "'Fredoka', sans-serif", fontSize: 44, fontWeight: 700, fill: "#f59e0b", textAlign: "center" },
+  { name: "Comic Cartoon", content: "COMIC CARTOON", fontFamily: "'Fredoka', sans-serif", fontSize: 44, fontWeight: 700, fill: "#06b6d4", textAlign: "center" },
+  { name: "Nice To Meet You", content: "nice to meet you!", fontFamily: "'Fredoka', sans-serif", fontSize: 48, fontWeight: 600, fill: "#fb923c", textAlign: "center" },
+
+  // Script & handwritten
+  { name: "Sweet", content: "Sweet", fontFamily: "'Dancing Script', cursive", fontSize: 72, fontWeight: 700, fill: "#ec4899", textAlign: "center" },
+  { name: "Groovy", content: "Groovy", fontFamily: "'Pacifico', cursive", fontSize: 64, fontWeight: 400, fill: "#ef4444", textAlign: "center" },
+  { name: "Shine & Sparkle", content: "Shine & Sparkle!", fontFamily: "'Lobster', cursive", fontSize: 56, fontWeight: 400, fill: "#ec4899", textAlign: "center" },
+  { name: "Sparkle", content: "Sparkle", fontFamily: "'Great Vibes', cursive", fontSize: 72, fontWeight: 400, fill: "#f59e0b", textAlign: "center" },
+  { name: "Thank You", content: "Thank you!", fontFamily: "'Satisfy', cursive", fontSize: 64, fontWeight: 400, fill: "#fb7185", textAlign: "center" },
+  { name: "Engaged", content: "engaged!", fontFamily: "'Dancing Script', cursive", fontSize: 72, fontWeight: 700, fill: "#111111", textAlign: "center" },
+  { name: "Bride & Groom", content: "Bride & Groom", fontFamily: "'Cormorant Garamond', serif", fontSize: 56, fontWeight: 600, fill: "#14532d", textAlign: "center" },
+  { name: "Handwritten Note", content: "shares are appreciated!", fontFamily: "'Caveat', cursive", fontSize: 48, fontWeight: 700, fill: "#16a34a", textAlign: "center" },
 ];
 
 /**

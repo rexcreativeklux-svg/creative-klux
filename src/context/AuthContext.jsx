@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import { classifyResult } from "@/utils/errorHelper";
 import { throwClassifiedAuthError } from "@/utils/authErrors";
+import api from "@/app/api/axios";
 
 const AuthContext = createContext();
 
@@ -773,170 +774,34 @@ export function AuthProvider({ children }) {
     return result;
   };
 
-  const createBrand = async (brandData) => {
-    if (!token) {
-      console.error("No auth token found. User may not be logged in.");
-      return null;
-    }
-
+  // Create a brand from an already backend-shaped payload. The caller builds the
+  // request body (snake_case fields, `logo` as a hosted URL string,
+  // `social_accounts` / `ad_accounts` as JSON strings); this just POSTs it via
+  // the shared axios instance — the interceptor attaches the Bearer token and
+  // JSON headers — then refreshes the brand list on success.
+  const createBrand = async (payload) => {
+    console.log("📡 [brands/create] request →", payload);
     try {
-      const formData = new FormData();
-      formData.append("name", brandData.name || "");
-      formData.append("description", brandData.description || "");
-      formData.append("tagline", brandData.tagline || "");
-      formData.append("fonts", brandData.fonts || "");
-      // Logo is a hosted URL string (uploaded to the gallery beforehand).
-      // The backend accepts a URL only — never a raw File.
-      if (brandData.logo && typeof brandData.logo === "string") {
-        formData.append("logo", brandData.logo);
-      }
-      formData.append("primary_color", brandData.colors?.primary || "#1e3a8a");
-      formData.append(
-        "secondary_color",
-        brandData.colors?.secondary || "#10b981",
-      );
-      formData.append(
-        "social_accounts",
-        JSON.stringify(brandData.socialAccounts || []),
-      );
-      formData.append(
-        "ad_accounts",
-        JSON.stringify(brandData.adAccounts || []),
-      );
-      formData.append("url", brandData.url || "");
-      formData.append("source_url", brandData.sourceUrl || "");
-      formData.append("industry", brandData.industry || "");
-      formData.append(
-        "landing_page_flag",
-        brandData.createLandingPage ? "1" : "0",
-      );
-
-      if (brandData.landingPage) {
-        formData.append("landing_page_id", brandData.landingPage.id || "");
-        formData.append(
-          "landing_page_token",
-          brandData.landingPage.token || "",
-        );
-        formData.append("landing_page_name", brandData.landingPage.name || "");
-        formData.append("landing_page_url", brandData.landingPage.url || "");
-      }
-
-      console.log("brandData:", brandData);
-      const res = await authFetch(API_CREATE_BRAND_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      const text = await res.text();
-      console.log("Response:", text);
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.error("Invalid JSON from create brand endpoint");
-        throw new Error("Unexpected server response");
-      }
-      console.log("Response :", data);
-
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to create brand");
-      }
-
-      // Refresh brands after creation
+      const { data } = await api.post(API_CREATE_BRAND_URL, payload);
+      console.log("✅ [brands/create] response ←", data);
+      // Refresh brands so the new one shows up immediately.
       await fetchBrands();
       return data;
     } catch (err) {
-      // console.error("Error message:", err.message);
-      throw err;
-    }
-  };
-
-  const createManualBrand = async (brandData) => {
-    if (!token) {
-      console.error("No auth token found.");
-      throw new Error("You must be logged in to create a brand");
-    }
-
-    try {
-      const formData = new FormData();
-
-      // Required fields
-      formData.append("name", (brandData.name || "").trim());
-      formData.append("description", brandData.description || "");
-      formData.append("tagline", brandData.tagline || "");
-      formData.append("fonts", brandData.fonts || "");
-      formData.append("industry", brandData.industry || "Other");
-
-      // Colors – always sent as separate fields
-      formData.append("primary_color", brandData.colors?.primary || "#1e3a8a");
-      formData.append(
-        "secondary_color",
-        brandData.colors?.secondary || "#10b981",
-      );
-
-      // Arrays as JSON strings
-      formData.append(
-        "social_accounts",
-        JSON.stringify(brandData.socialAccounts || []),
-      );
-      formData.append(
-        "ad_accounts",
-        JSON.stringify(brandData.adAccounts || []),
-      );
-
-      // Source URL
-      formData.append("source_url", brandData.sourceUrl || "");
-
-      // Always send landing_page_flag = 0 for manual creation
-      formData.append("landing_page_flag", "0");
-
-      // Logo is a hosted URL string (uploaded to the gallery beforehand),
-      // never a raw File — the backend accepts a URL only.
-      if (brandData.logo && typeof brandData.logo === "string") {
-        formData.append("logo", brandData.logo);
-      }
-
-      // Debug log (remove later if you want)
-      console.log("Manual Brand Payload:", {
-        name: brandData.name,
-        industry: brandData.industry,
-        hasLogo: !!brandData.logo,
-        landing_page_flag: "0",
+      const status = err?.response?.status;
+      const resData = err?.response?.data;
+      // Surface Laravel-style validation messages first, then generic errors.
+      const firstError = resData?.errors
+        ? Object.values(resData.errors)[0]?.[0]
+        : null;
+      const serverMsg =
+        firstError || resData?.message || resData?.error || err?.message;
+      console.error("❌ [brands/create] failed:", {
+        status,
+        data: resData,
+        message: err?.message,
       });
-
-      const res = await authFetch(API_CREATE_BRAND_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          // Do NOT set Content-Type – let browser set multipart boundary
-        },
-        body: formData,
-      });
-
-      const text = await res.text();
-      console.log("Manual Create Raw Response:", text);
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        throw new Error("Server returned invalid response");
-      }
-
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to create brand");
-      }
-
-      // Success – refresh brands
-      await fetchBrands();
-      return data; // usually { data: { id, ... }, message, success }
-    } catch (err) {
-      console.error("Manual brand creation failed:", err);
-      throw err;
+      throw new Error(serverMsg || "Failed to create brand");
     }
   };
 
@@ -1042,18 +907,7 @@ export function AuthProvider({ children }) {
       await fetchProfile(token);
       const brands = await fetchBrands(token);
       setBrandsInitialized(true);
-
-      // if (brands?.length > 0) {
-      //   const storedBrandId = localStorage.getItem("activeBrandId");
-
-      //   if (storedBrandId) {
-      //     const selected = brands.find(b => b.id === Number(storedBrandId));
-      //     if (selected) {
-      //       setActiveBrandState(selected);
-      //     }
-      //   }
-      // }
-
+      
       await Promise.all([fetchTeams(), fetchMyImages(), fetchTutorialVideos()]);
     };
 
@@ -3132,7 +2986,6 @@ export function AuthProvider({ children }) {
         verifyEmail,
         sendVerificationCode,
         resetPassword,
-        createManualBrand,
         tutorialVideos,
         tutorialVideosLoading,
         tutorialVideosError,

@@ -23,7 +23,7 @@ import NotificationModal from "@/app/(components)/NotificationModal";
 import useGalleryMedia from "@/app/(components)/gallery/useGalleryMedia";
 import MediaTypeTabs from "@/app/(components)/gallery/MediaTypeTabs";
 import MediaCard from "@/app/(components)/gallery/MediaCard";
-import { galleryGridClass } from "@/app/(components)/gallery/mediaTypes";
+import { galleryGridClass, MEDIA_ACCEPT } from "@/app/(components)/gallery/mediaTypes";
 import { downloadGalleryItem } from "@/app/(components)/gallery/downloadMedia";
 import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGallery";
 import { FILE_LIMITS, getFileCategory } from "@/utils/helpers";
@@ -368,7 +368,7 @@ export default function ImageGallery() {
                   <input
                     type="file"
                     multiple
-                    accept="image/*, audio/*, video/*, .pdf, .doc, .docx, .xls, .xlsx, .txt"
+                    accept={MEDIA_ACCEPT}
                     onChange={(e) => handleFileUpload(e.target.files)}
                     className="hidden"
                   />

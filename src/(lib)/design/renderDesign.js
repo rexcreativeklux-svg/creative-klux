@@ -220,6 +220,10 @@ export async function renderDesignToCanvas({ canvas, elements }) {
       const family = el.fontFamily || "'DM Sans', sans-serif";
       const pad = el.padding ?? 2;
       ctx.font = `${el.fontStyle || "normal"} ${weight} ${size}px ${family}`;
+      // Always assign (0px when unset) so a spaced element can't leak its
+      // tracking into the next one. Set before measureText so wrapping accounts
+      // for it. No-ops on browsers without ctx.letterSpacing.
+      ctx.letterSpacing = el.letterSpacing ? `${el.letterSpacing}px` : "0px";
       ctx.fillStyle = el.fill || el.color || "#111111";
       ctx.textAlign = align;
       ctx.textBaseline = "alphabetic";

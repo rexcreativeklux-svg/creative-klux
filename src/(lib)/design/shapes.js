@@ -2,7 +2,7 @@
  * Shared shape library for the editor.
  *
  * ONE source of truth used by three places so they can't drift:
- *   - ElementsPanel  (category rows + previews)
+ *   - ShapesBrowser  (category rows + previews)
  *   - EditorElement  (on-canvas rendering, via ShapeSVG)
  *   - renderDesign   (PNG export, via Path2D)
  *

@@ -395,6 +395,62 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Request a password-reset email. Consolidated onto the shared API (BASE_URL)
+  // so it matches login/register/verify instead of hitting a one-off host.
+  const forgotPassword = async (email) => {
+    try {
+      const res = await fetch(`${BASE_URL}/password/forgot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to send reset link");
+      }
+
+      console.log("✅ Password reset link requested");
+      return {
+        success: true,
+        message:
+          data.message || "We’ve sent a password reset link to your email.",
+      };
+    } catch (err) {
+      console.error("❌ forgotPassword failed:", err.message);
+      throw new Error(err.message || "Failed to send reset link");
+    }
+  };
+
+  // Complete a password reset using the token + email from the emailed link.
+  // (`resetToken` avoids shadowing the auth `token` state in this scope.)
+  const resetPassword = async ({ email, token: resetToken, password }) => {
+    try {
+      const res = await fetch(`${BASE_URL}/password/reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, token: resetToken, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to reset password");
+      }
+
+      console.log("✅ Password reset successful");
+      return {
+        success: true,
+        message:
+          data.message || "Your password has been changed successfully.",
+      };
+    } catch (err) {
+      console.error("❌ resetPassword failed:", err.message);
+      throw new Error(err.message || "Failed to reset password");
+    }
+  };
+
   const logout = async () => {
     try {
       if (token) {
@@ -3002,6 +3058,8 @@ export function AuthProvider({ children }) {
         deleteImage,
         verifyEmail,
         resendVerificationCode,
+        forgotPassword,
+        resetPassword,
         createManualBrand,
         tutorialVideos,
         tutorialVideosLoading,

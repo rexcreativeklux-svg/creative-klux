@@ -420,9 +420,10 @@ const KOKORO_VOICE_ITEMS = KOKORO_TTS.voices.map((v) => ({
 const SPEAKING_SPEED = { slow: 0.75, normal: 1, fast: 1.25 };
 
 // ── Audio-to-Text languages (real Whisper-base codes, from the AI engine) ────
-// `auto` lets Whisper detect the spoken language; every other value is a
-// 2-letter code the multilingual model accepts. Shared by the language option
-// and the result's meta line so labels stay in sync.
+// `auto` triggers a REAL detection pass in the STT worker (one decoder step on
+// the first 30 s — the detected language is then shown in the UI and forced for
+// the whole run); every other value is a 2-letter code the multilingual model
+// accepts. Shared by the language option and the result's meta line.
 const TRANSCRIBE_LANGUAGES = [
   { value: "auto", label: "Auto Detect", flag: "🌐" },
   { value: "en", label: "English", flag: "🇺🇸" },
@@ -440,9 +441,19 @@ const TRANSCRIBE_LANGUAGES = [
   { value: "nl", label: "Dutch", flag: "🇳🇱" },
 ];
 
-// Friendly language line for the transcript's meta row.
-const transcriptLanguageLabel = (code) => {
-  if (!code || code === "auto") return "Auto-detected";
+// Friendly display name for a Whisper language code. Whisper can DETECT ~100
+// languages — far more than the picker offers — so resolve names through
+// Intl.DisplayNames first (built-in, covers them all), then the picker labels,
+// then the bare code. Exported: the modal's processing checklist also shows
+// "Detected: French" from this.
+export const languageDisplayLabel = (code) => {
+  if (!code || code === "auto") return "Auto-detected"; // safety net — the engine returns a real code
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "language" }).of(code);
+    if (name && name !== code) return name;
+  } catch {
+    /* unknown/invalid tag — fall through to the picker labels */
+  }
   return TRANSCRIBE_LANGUAGES.find((l) => l.value === code)?.label || code.toUpperCase();
 };
 
@@ -966,12 +977,14 @@ export const MAGIC_STUDIO_CONFIGS = {
         "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&q=80",
       headline: "Accurate transcripts in a click",
       subtext:
-        "Upload or record audio, pick a language and format — get clean, ready-to-use text, transcribed on your device.",
+        "Pick audio from your gallery or record it, choose a language and format — get clean, ready-to-use text, transcribed on your device.",
     },
     inputConfig: {
       label: "Audio",
-      accept: ".mp3,.wav,.ogg,.m4a,.webm",
-      helper: "MP3 · WAV · OGG · M4A · WEBM · up to 100 MB",
+      // The gallery is the source of truth: audio is picked from (or uploaded
+      // into) the user's gallery via the media picker — no direct device upload.
+      helper:
+        "Pick from your gallery — or upload to it right there · MP3 · WAV · OGG · M4A · WEBM · up to 100 MB",
     },
     options: [
       {
@@ -1041,8 +1054,9 @@ export const MAGIC_STUDIO_CONFIGS = {
     validate: ({ input }) => (input ? null : "Please upload or record some audio."),
     generate: async ({ input, values, stt }) => {
       // Fully on-device — the modal passes its Whisper engine (useSpeechToText),
-      // which reports real progress (decode → engine download → transcribe →
-      // format). Nothing is uploaded.
+      // which reports real progress (decode → engine download → language detect
+      // → transcribe → format) plus a live transcript preview while decoding.
+      // Nothing is uploaded.
       const result = await stt.transcribe(input, {
         language: values.language,
         format: values.format,
@@ -1059,8 +1073,13 @@ export const MAGIC_STUDIO_CONFIGS = {
         meta: {
           words: result.words,
           durationSec: result.durationSec,
-          languageLabel: transcriptLanguageLabel(result.language),
+          // Real language now — "French · auto-detected" vs "French" (user-picked).
+          languageLabel: result.detected
+            ? `${languageDisplayLabel(result.language)} · auto-detected`
+            : languageDisplayLabel(result.language),
           formatLabel: FORMAT_LABELS[values.format] || FORMAT_LABELS.punctuated,
+          segments: result.segments || [], // timed segments → SRT/VTT downloads
+          sourceName: input?.name || "", // "movie.mp3" → "movie.srt" filenames
         },
       };
     },

@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import AuthCarousel from "../../(components)/AuthCarousel";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
-import NotificationModal from "@/app/(components)/NotificationModal";
+import { toUserMessage } from "@/utils/authErrors";
+import AuthShell from "@/app/(components)/auth/AuthShell";
 
 export default function VerifyEmailPage() {
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
@@ -21,19 +22,6 @@ export default function VerifyEmailPage() {
   // so an already-signed-in-but-unverified user (redirected here on refresh)
   // still sees their address and can resend/verify.
   const email = searchParams.get("email") || user?.email || "";
-
-  const [modal, setModal] = useState({
-    isOpen: false,
-    title: "",
-    message: "",
-    type: "info",
-    duration: 4000,
-  });
-
-  const closeModal = () => setModal((prev) => ({ ...prev, isOpen: false }));
-  const showNotification = (type, title, message, duration = 4000) => {
-    setModal({ isOpen: true, type, title, message, duration });
-  };
 
   const code = digits.join("");
 
@@ -85,7 +73,7 @@ export default function VerifyEmailPage() {
   const handleVerify = async (e) => {
     e.preventDefault();
     if (code.length !== 6 || !/^\d{6}$/.test(code)) {
-      showNotification("error", "Invalid Code", "Please enter all 6 digits.");
+      toast.error("Please enter all 6 digits.");
       return;
     }
 
@@ -95,15 +83,15 @@ export default function VerifyEmailPage() {
       // Already-logged-in users go straight to the app; fresh registrations
       // (no session yet) go to login to sign in.
       const destination = user ? "/" : "/login";
-      showNotification(
-        "success",
-        "Email Verified!",
-        user ? "Welcome! Redirecting…" : "Welcome! Redirecting to login...",
-        3000,
-      );
-      setTimeout(() => router.push(destination), 3000);
+      toast.success("Email verified!", {
+        description: user
+          ? "Welcome! Redirecting…"
+          : "Welcome! Redirecting to sign in…",
+      });
+      setTimeout(() => router.push(destination), 2000);
     } catch (err) {
-      showNotification("error", "Invalid Code", err.message || "The code is incorrect or expired.", 5000);
+      console.error("❌ verifyEmail failed:", err);
+      toast.error(toUserMessage(err, "The code is incorrect or expired."));
       setDigits(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } finally {
@@ -119,12 +107,10 @@ export default function VerifyEmailPage() {
     try {
       await resendVerificationCode(email); // This calls /verify-email with { email }
 
-      showNotification(
-        "success",
-        "Code Sent!",
-        "A new code has been sent to your email. Check spam/promotions if not in inbox.",
-        1000
-      );
+      toast.success("Code sent!", {
+        description:
+          "A new code has been sent to your email. Check spam/promotions if it’s not in your inbox.",
+      });
 
       // Start 60-second cooldown
       setCountdown(60);
@@ -138,7 +124,10 @@ export default function VerifyEmailPage() {
         });
       }, 1000);
     } catch (err) {
-      showNotification("error", "Resend Failed", err.message || "Could not send new code. Try again later.");
+      console.error("❌ resendVerificationCode failed:", err);
+      toast.error(
+        toUserMessage(err, "Couldn’t send a new code. Please try again later."),
+      );
     } finally {
       setResendLoading(false);
     }
@@ -148,108 +137,95 @@ export default function VerifyEmailPage() {
   useEffect(() => {
     inputRefs.current[0]?.focus();
     if (!email) {
-      showNotification("warning", "Missing Email", "No email address found. Please register again.");
+      toast.warning("No email address found. Please register again.");
     }
   }, [email]);
 
   return (
-    <>
-      <div className="flex flex-col lg:flex-row h-screen justify-center">
-        {/* Left: Form */}
-        <div className="flex-1 flex flex-col pt-35 items-center">
-          <div className="flex flex-col space-y-8 justify-center items-center">
-            <h1 className="text-5xl font-bold text-center">Verify Your Email</h1>
-
-            <p className="w-92.5 text-gray-600 text-center leading-relaxed">
-              Enter the verification code we sent to <br />
-              <strong className="text-blue-600 break-all">{email || "..."}</strong>
-            </p>
-          </div>
-
-          <div className="mt-40 lg:w-125 w-full px-6">
-            <form onSubmit={handleVerify} className="space-y-10 relative w-full">
-              {/* 6 Digit Inputs */}
-              <div className="flex justify-center gap-3 md:gap-4" onPaste={handlePaste}>
-                {digits.map((digit, index) => (
-                  <input
-                    key={index}
-                    type="text"
-                    inputMode="text"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    ref={(el) => (inputRefs.current[index] = el)}
-                    className="w-12 uppercase h-14 md:w-14 md:h-16 text-center text-3xl font-bold tracking-widest rounded-2xl border-2 border-gray-400 focus:border-black outline-none transition-all duration-200 bg-gray-50 text-gray-900"
-                    disabled={loading || resendLoading}
-                  />
-                ))}
-              </div>
-
-              {/* Verify Button */}
-              <button
-                type="submit"
-                disabled={loading || code.length !== 6}
-                className="w-full cursor-pointer py-4 bg-black rounded-3xl text-white font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed hover:scale-95"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                    Verifying...
-                  </>
-                ) : (
-                  "Verify Email"
-                )}
-              </button>
-            </form>
-
-            {/* Resend Section */}
-            <div className="text-center flex flex-row mt-4 justify-center items-center gap-2 pt-8">
-              <p className="text-sm text-gray-600">
-                Didn’t receive the code?
-              </p>
-
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={resendLoading || countdown > 0 || !email}
-                className={`font-semibold cursor-pointer text-sm transition-all ${resendLoading || countdown > 0 || !email
-                  ? "text-gray-400 cursor-not-allowed"
-                  : "text-blue-600 hover:text-blue-800 underline"
-                  }`}
-              >
-                {resendLoading
-                  ? "Sending..."
-                  : countdown > 0
-                    ? `Resend in ${countdown}s`
-                    : "Resend Code"}
-              </button>
-            </div>
-
-            <div className="text-center">
-              <p className="text-xs text-gray-500 mt-6 max-w-xs mx-auto leading-relaxed">
-                Check your <strong>Spam</strong>, <strong>Promotions</strong>, or <strong>Junk</strong> folder.<br />
-                Emails may take up to 2 minutes.
-              </p>
-            </div>
-          </div>
+    <AuthShell
+      title="Verify your email"
+      subtitle={
+        <>
+          Enter the 6-digit code we sent to{" "}
+          <span className="text-gray-600 font-medium break-all">
+            {email || "your email"}
+          </span>
+          .
+        </>
+      }
+    >
+      <form onSubmit={handleVerify} className="space-y-5">
+        {/* 6 digit inputs */}
+        <div
+          className="flex justify-between gap-2 sm:gap-2.5"
+          onPaste={handlePaste}
+        >
+          {digits.map((digit, index) => (
+            <input
+              key={index}
+              type="text"
+              inputMode="text"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleChange(index, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(index, e)}
+              ref={(el) => (inputRefs.current[index] = el)}
+              disabled={loading || resendLoading}
+              className="w-full aspect-square min-w-0 text-center text-2xl font-bold uppercase rounded-xl border border-gray-200 bg-gray-50 text-gray-900 outline-none transition-all duration-150 focus:bg-surface focus:border-[#1447e6] focus:ring-3 focus:ring-[#1447e6]/10 disabled:opacity-60"
+            />
+          ))}
         </div>
 
-        {/* Right: Carousel */}
-        <div className="hidden lg:flex flex-1 p-10 h-full">
-          <AuthCarousel />
-        </div>
+        {/* Verify button */}
+        <button
+          type="submit"
+          disabled={loading || code.length !== 6}
+          className={`w-full h-11 rounded-xl text-[13.5px] font-semibold flex items-center justify-center gap-2 border-none transition-all duration-200
+            ${
+              loading || code.length !== 6
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-[#1447e6] text-white cursor-pointer hover:bg-[#0f3bbf] active:scale-[0.98] shadow-[0_4px_14px_rgba(20,71,230,0.28)]"
+            }`}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Verifying…
+            </>
+          ) : (
+            "Verify email"
+          )}
+        </button>
+      </form>
+
+      {/* Resend */}
+      <div className="mt-5 flex items-center justify-center gap-1.5 text-[13px]">
+        <span className="text-gray-400">Didn’t receive the code?</span>
+        <button
+          type="button"
+          onClick={handleResend}
+          disabled={resendLoading || countdown > 0 || !email}
+          className={`font-semibold transition-colors bg-transparent border-none p-0 ${
+            resendLoading || countdown > 0 || !email
+              ? "text-gray-300 cursor-not-allowed"
+              : "text-[#1447e6] hover:underline cursor-pointer"
+          }`}
+        >
+          {resendLoading
+            ? "Sending…"
+            : countdown > 0
+              ? `Resend in ${countdown}s`
+              : "Resend code"}
+        </button>
       </div>
 
-      {/* Notification Modal */}
-      <NotificationModal
-        isOpen={modal.isOpen}
-        onClose={closeModal}
-        title={modal.title}
-        message={modal.message}
-        type={modal.type}
-        duration={modal.duration}
-      />
-    </>
+      {/* Spam hint */}
+      <p className="mt-6 text-center text-[11px] text-gray-300 leading-relaxed">
+        Check your <strong className="font-semibold">Spam</strong>,{" "}
+        <strong className="font-semibold">Promotions</strong>, or{" "}
+        <strong className="font-semibold">Junk</strong> folder — emails may take
+        up to 2 minutes.
+      </p>
+    </AuthShell>
   );
 }

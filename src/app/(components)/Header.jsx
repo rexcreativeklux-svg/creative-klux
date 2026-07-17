@@ -5,8 +5,6 @@ import {
   AlignLeft,
   ChevronDown,
   ChevronLeft,
-  PanelLeft,
-  PanelLeftClose,
   Plus,
   Settings,
   X,

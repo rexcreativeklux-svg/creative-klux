@@ -2,7 +2,7 @@ node_modules
 .next/
 node_modules/
 .env
-note.txt
+notes.txt
 
 # AI engine assets — big binaries, fetched by `npm run models` (see
 # src/(lib)/ai-engine/README.md). Git-ignored; every dev/deploy runs the script.

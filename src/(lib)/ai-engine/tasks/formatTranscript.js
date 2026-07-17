@@ -34,8 +34,9 @@ function clock(sec) {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** Split a block into sentences, keeping the terminating punctuation. */
-function splitIntoSentences(text) {
+/** Split a block into sentences, keeping the terminating punctuation.
+ *  (Also reused by transcriptExports to break long segments into subtitle cues.) */
+export function splitIntoSentences(text) {
   const matches = text.match(/[^.!?…]+[.!?…]+["')\]]*\s*|[^.!?…]+$/g);
   return (matches || [text]).map((s) => s.trim()).filter(Boolean);
 }

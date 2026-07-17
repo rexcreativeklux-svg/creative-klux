@@ -12,10 +12,9 @@ discriminator — backend's choice; see "Endpoint shape" at the bottom).
   background, brand style) are **either embedded in prose or dropped entirely**.
 - The spec below replaces that with **structured fields** so the backend controls the actual
   model params (resolution, aspect ratio, etc.) instead of guessing from prose.
-- The intended flow per the product brief: user first gets a preview/3D view handled on the
-  front-end (e.g. Ghost Mannequin 3D view, quality/size selection). If not satisfied, they type a
-  refinement `prompt` and we call the endpoint to generate. So `prompt` is **optional/refinement**,
-  never the only source of truth.
+- The intended flow per the product brief: the user configures the tool (quality/size selection)
+  on the front-end, then calls the endpoint to generate — optionally typing a refinement `prompt`.
+  So `prompt` is **optional/refinement**, never the only source of truth.
 
 ## Common conventions
 
@@ -121,9 +120,9 @@ Places the product into a realistic lifestyle scene. Only the shared fields.
 
 ## 3. Ghost Mannequin — `tool: "mannequin"`
 
-Displays a garment on an invisible 3D mannequin. Per the brief, the **3D preview/quality/size is
-handled on the front-end first**; this endpoint is called only when the user wants an AI-generated
-result (optionally with a refinement `prompt`). Only the shared fields.
+Displays a garment on an invisible 3D mannequin. Quality/size selection happens on the front-end;
+this endpoint is called when the user wants an AI-generated result (optionally with a refinement
+`prompt`). Only the shared fields.
 
 **Example payload**
 

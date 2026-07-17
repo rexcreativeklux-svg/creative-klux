@@ -2,8 +2,9 @@
 //
 // Whisper wants 16 kHz mono audio, and the Web Audio API used to decode/resample
 // it (AudioContext / OfflineAudioContext) exists ONLY on the main thread — so we
-// do that here and hand the worker a ready Float32Array (transferred, zero-copy),
-// exactly like the depth client decodes an image to a bitmap before inference.
+// do that here and hand the worker a ready Float32Array (transferred, zero-copy):
+// the same split the image tasks use — prepare on the main thread, infer in the
+// worker.
 
 import { createWorkerClient } from "../core/workerRpc";
 import { WHISPER_STT } from "../models";
@@ -126,8 +127,16 @@ function summarizeSamples(samples) {
  * @param {{
  *   language?: string, format?: "plain"|"punctuated"|"paragraphs"|"timestamped",
  *   quality?: "fast"|"balanced"|"accurate", onProgress?: Function,
- * }} [opts] `language` is a 2-letter code or "auto" (detect).
- * @returns {Promise<{text: string, words: number, durationSec: number, language: string}>}
+ * }} [opts] `language` is a 2-letter code or "auto" (real detection in the
+ *   worker). `onProgress` payloads may also carry `detectedLanguage` (once the
+ *   detection pass lands) and `partialText` (the live transcript preview on
+ *   greedy quality tiers).
+ * @returns {Promise<{
+ *   text: string, words: number, durationSec: number, language: string,
+ *   detected: boolean, segments: {text: string, start: number|null, end: number|null}[],
+ * }>} `language` is always a real code (never "auto"); `detected` says whether
+ *   it came from the detection pass; `segments` are the timed Whisper chunks
+ *   used for SRT/VTT export (final `end` can be null — exports resolve it).
  */
 export async function transcribeAudio(
   fileOrBlob,

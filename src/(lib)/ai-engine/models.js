@@ -89,23 +89,6 @@ export const UPSCALE_HD_MODEL = {
 };
 
 /**
- * Depth Anything V2 Small (Apache-2.0) for the Ghost Mannequin 3D preview,
- * run through transformers.js. Fully self-hosted like the other models:
- * transformers.js resolves the model id against `localModelPath` (→ /models/…),
- * and its OWN onnxruntime-web build loads from /ort-hf/ (that runtime must match
- * transformers.js's bundled version, NOT our top-level onnxruntime-web in /ort/).
- * We use the q8 (`quantized`) variant — smallest that keeps quality (~25 MB).
- */
-export const DEPTH_MODEL = {
-  modelId: "depth-anything-v2-small", // folder name under localModelPath
-  localModelPath: MODEL_BASE_PATH,
-  dtype: "q8", // → onnx/model_quantized.onnx
-  sizeMB: 25,
-  license: "Apache-2.0",
-  wasmPaths: "/ort-hf/",
-};
-
-/**
  * Kokoro-82M text-to-speech (Apache-2.0), run through kokoro-js on
  * transformers.js. Fully self-hosted: the model id resolves against
  * `localModelPath` (→ /models/kokoro/…), transformers.js's own ONNX runtime
@@ -170,7 +153,7 @@ export const KOKORO_TTS = {
 /**
  * Whisper Base (multilingual) speech-to-text, run through transformers.js — the
  * on-device engine behind Magic Studio's "Audio to Text". Self-hosted exactly
- * like the depth + Kokoro models: the model id resolves against `localModelPath`
+ * like the Kokoro model: the model id resolves against `localModelPath`
  * (→ /models/whisper-base/…), transformers.js's OWN onnxruntime-web wasm comes
  * from /ort-hf/ (version-matched to its bundle, NOT our top-level /ort/), and
  * nothing is ever fetched from huggingface.co at runtime.
@@ -180,7 +163,10 @@ export const KOKORO_TTS = {
  * quantized.onnx (~54 MB) ≈ 77 MB, downloaded ONCE then cached offline. Whisper
  * emits punctuation + casing natively; the worker post-processes it into the
  * chosen transcript format (see tasks/formatTranscript). Multilingual: `auto`
- * lets Whisper detect the spoken language; otherwise a 2-letter code is passed.
+ * runs a REAL one-token detection pass in the worker (transformers.js has no
+ * built-in detection — it silently forces English), then the detected language
+ * is forced for the whole transcription; otherwise the user's 2-letter code is
+ * forced directly.
  */
 export const WHISPER_STT = {
   modelId: "whisper-base", // folder name under localModelPath

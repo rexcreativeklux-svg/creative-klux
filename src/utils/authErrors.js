@@ -10,7 +10,7 @@
 // fallback so users never see internal plumbing.
 //
 // Usage (in a catch block):
-//   console.error("❌ forgotPassword:", err);            // real error for devs
+//   console.error("❌ sendVerificationCode:", err);            // real error for devs
 //   toast.error(toUserMessage(err, "Couldn't send the reset link."));
 
 const TECHNICAL_ERROR_PATTERNS = [

@@ -17,7 +17,7 @@ export default function VerifyEmailPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { verifyEmail, resendVerificationCode, user } = useAuth();
+  const { verifyEmail, sendVerificationCode, user } = useAuth();
   // Prefer the ?email= query (register flow); fall back to the logged-in user
   // so an already-signed-in-but-unverified user (redirected here on refresh)
   // still sees their address and can resend/verify.
@@ -105,7 +105,7 @@ export default function VerifyEmailPage() {
 
     setResendLoading(true);
     try {
-      await resendVerificationCode(email); // This calls /verify-email with { email }
+      await sendVerificationCode(email); // This calls /verify-email with { email }
 
       toast.success("Code sent!", {
         description:
@@ -124,7 +124,7 @@ export default function VerifyEmailPage() {
         });
       }, 1000);
     } catch (err) {
-      console.error("❌ resendVerificationCode failed:", err);
+      console.error("❌ sendVerificationCode failed:", err);
       toast.error(
         toUserMessage(err, "Couldn’t send a new code. Please try again later."),
       );

@@ -356,7 +356,7 @@ export function AuthProvider({ children }) {
 
     let result;
     try {
-      const res = await fetch(`${BASE_URL}/update-verification-code`, {
+      const res = await fetch(`${BASE_URL}/password/verify-reset-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -395,15 +395,15 @@ export function AuthProvider({ children }) {
     };
   };
 
-  const resendVerificationCode = async (email) => {
-    console.log("📡 resendVerificationCode → email:", email);
+  const sendVerificationCode = async (email) => {
+    console.log("📡 sendVerificationCode → email:", email);
 
     let result;
     try {
-      const res = await fetch(`${BASE_URL}/resend-verification-email`, {
+      const res = await fetch(`${BASE_URL}/password/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }), // Just send email to resend code
+        body: JSON.stringify({ email: email }),
       });
       result = await classifyResult({ response: res });
     } catch (error) {
@@ -412,51 +412,17 @@ export function AuthProvider({ children }) {
 
     if (!result.ok) {
       throwClassifiedAuthError(
-        "resendVerificationCode",
+        "sendVerificationCode",
         result,
         "Couldn't resend the code. Please try again.",
       );
     }
 
     const data = result.raw ?? result.data ?? {};
-    console.log("✅ resendVerificationCode success");
+    console.log("✅ sendVerificationCode success");
     return {
       success: true,
       message: data.message || "Code resent to your email",
-    };
-  };
-
-  // Request a password-reset email. Consolidated onto the shared API (BASE_URL)
-  // so it matches login/register/verify instead of hitting a one-off host.
-  const forgotPassword = async (email) => {
-    console.log("📡 forgotPassword → email:", email);
-
-    let result;
-    try {
-      const res = await fetch(`${BASE_URL}/password/forgot`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      result = await classifyResult({ response: res });
-    } catch (error) {
-      result = await classifyResult({ error });
-    }
-
-    if (!result.ok) {
-      throwClassifiedAuthError(
-        "forgotPassword",
-        result,
-        "Couldn't send the reset link. Please try again.",
-      );
-    }
-
-    const data = result.raw ?? result.data ?? {};
-    console.log("✅ forgotPassword — reset link requested");
-    return {
-      success: true,
-      message:
-        data.message || "We’ve sent a password reset link to your email.",
     };
   };
 
@@ -467,7 +433,7 @@ export function AuthProvider({ children }) {
 
     let result;
     try {
-      const res = await fetch(`${BASE_URL}/password/reset`, {
+      const res = await fetch(`${BASE_URL}/password/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, token: resetToken, password }),
@@ -1264,7 +1230,10 @@ export function AuthProvider({ children }) {
       }
 
       formData.append("primary_color", brandData.primary_color || "#1e3a8a");
-      formData.append("secondary_color", brandData.secondary_color || "#10b981");
+      formData.append(
+        "secondary_color",
+        brandData.secondary_color || "#10b981",
+      );
       formData.append("_method", "PUT"); // This tells Laravel to treat it as PUT
 
       const url = `${BASE_URL}/brands/${id}`;
@@ -1292,7 +1261,9 @@ export function AuthProvider({ children }) {
           ? Object.values(data.errors)[0]?.[0]
           : null;
         const message =
-          firstError || data?.message || `Failed to update brand (${res.status})`;
+          firstError ||
+          data?.message ||
+          `Failed to update brand (${res.status})`;
         console.error("❌ updateBrandById failed:", message);
         return { ok: false, message };
       }
@@ -1303,7 +1274,10 @@ export function AuthProvider({ children }) {
       return { ok: true, data };
     } catch (err) {
       if (err.message === "Unauthorized")
-        return { ok: false, message: "Your session expired. Please log in again." };
+        return {
+          ok: false,
+          message: "Your session expired. Please log in again.",
+        };
       console.error("❌ Error updating brand:", err);
       return { ok: false, message: err.message || "Network error" };
     }
@@ -1335,7 +1309,8 @@ export function AuthProvider({ children }) {
       }
 
       if (!res.ok) {
-        const message = data?.message || `Failed to delete brand (${res.status})`;
+        const message =
+          data?.message || `Failed to delete brand (${res.status})`;
         console.error("❌ deleteBrandById failed:", message);
         return { ok: false, message };
       }
@@ -1352,7 +1327,10 @@ export function AuthProvider({ children }) {
       return { ok: true, data, message: data?.message || "Brand deleted." };
     } catch (err) {
       if (err.message === "Unauthorized")
-        return { ok: false, message: "Your session expired. Please log in again." };
+        return {
+          ok: false,
+          message: "Your session expired. Please log in again.",
+        };
       console.error("❌ Error deleting brand:", err);
       return { ok: false, message: err.message || "Network error" };
     }
@@ -3152,8 +3130,7 @@ export function AuthProvider({ children }) {
         uploadMedia,
         deleteImage,
         verifyEmail,
-        resendVerificationCode,
-        forgotPassword,
+        sendVerificationCode,
         resetPassword,
         createManualBrand,
         tutorialVideos,

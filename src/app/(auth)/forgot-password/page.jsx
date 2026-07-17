@@ -10,7 +10,7 @@ import AuthShell from "@/app/(components)/auth/AuthShell";
 import Input from "@/app/(components)/ui/Input";
 
 export default function ForgotPasswordPage() {
-  const { forgotPassword } = useAuth();
+  const { sendVerificationCode } = useAuth();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -19,11 +19,11 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      const result = await forgotPassword(email);
+      const result = await sendVerificationCode(email);
       toast.success(result.message || "Check your email for the reset link.");
       setEmail(""); // clear input
     } catch (err) {
-      console.error("❌ forgotPassword failed:", err);
+      console.error("❌ sendVerificationCode failed:", err);
       toast.error(
         toUserMessage(err, "Couldn’t send the reset link. Please try again."),
       );

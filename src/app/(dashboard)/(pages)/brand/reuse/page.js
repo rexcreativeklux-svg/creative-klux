@@ -18,6 +18,7 @@ import {
   X,
   LayoutGrid,
   List,
+  Settings,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -57,7 +58,7 @@ const isColorLight = (hex) => {
 };
 
 // ── 3-dot dropdown ────────────────────────────────────────────────────────────
-const BrandMenu = ({ brand, onEdit, onDelete, light }) => {
+const BrandMenu = ({ brand, onEdit, onManage, onDelete, light }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef();
 
@@ -83,6 +84,15 @@ const BrandMenu = ({ brand, onEdit, onDelete, light }) => {
 
       {open && (
         <div className="absolute right-0 top-9 z-50 w-44 bg-surface border border-gray-100 rounded-2xl shadow-2xl overflow-hidden py-1">
+          <button
+            onClick={() => {
+              setOpen(false);
+              onManage(brand);
+            }}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition"
+          >
+            <Settings className="w-3.5 h-3.5" /> Manage
+          </button>
           <button
             onClick={() => {
               setOpen(false);
@@ -123,6 +133,7 @@ const BrandMenu = ({ brand, onEdit, onDelete, light }) => {
 const BrandCard = ({
   brand,
   onEdit,
+  onManage,
   onDelete,
   isSelected,
   onSelect,
@@ -170,6 +181,7 @@ const BrandCard = ({
           <BrandMenu
             brand={brand}
             onEdit={onEdit}
+            onManage={onManage}
             onDelete={onDelete}
             light={light}
           />
@@ -240,6 +252,7 @@ const BrandCard = ({
 const BrandRow = ({
   brand,
   onEdit,
+  onManage,
   onDelete,
   isSelected,
   onSelect,
@@ -342,6 +355,7 @@ const BrandRow = ({
         <BrandMenu
           brand={brand}
           onEdit={onEdit}
+          onManage={onManage}
           onDelete={onDelete}
           light={false}
         />
@@ -576,7 +590,8 @@ const DeleteModal = ({ brand, onConfirm, onCancel }) => (
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function ReusePage({ setActiveTab }) {
   const router = useRouter();
-  const { brands, brandsLoading, deleteBrandById, activeBrandId } = useAuth();
+  const { brands, brandsLoading, deleteBrandById, activeBrandId, setActiveBrand } =
+    useAuth();
 
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
@@ -604,6 +619,19 @@ export default function ReusePage({ setActiveTab }) {
   };
 
   const handleEdit = (brand) => router.push(`/brand/edit/${brand.id}`);
+
+  // The Manage page is scoped to the active brand, so make the chosen brand
+  // active first (setActiveBrand no-ops if it already is), then open it.
+  const handleManage = async (brand) => {
+    const res = await setActiveBrand(brand);
+    if (res?.ok) {
+      router.push("/brand/manage");
+    } else {
+      toast.error(
+        res?.message || "Couldn't open brand management. Please try again.",
+      );
+    }
+  };
 
   const handleDeleteConfirm = async (id) => {
     if (selectedId === id) setSelectedId(null);
@@ -737,6 +765,7 @@ export default function ReusePage({ setActiveTab }) {
                   isActive={brand.id === activeBrandId}
                   onSelect={() => handleSelect(brand)}
                   onEdit={handleEdit}
+                  onManage={handleManage}
                   onDelete={(b) => setDeleteTarget(b)}
                 />
               ))}
@@ -789,6 +818,7 @@ export default function ReusePage({ setActiveTab }) {
                   isActive={brand.id === activeBrandId}
                   onSelect={() => handleSelect(brand)}
                   onEdit={handleEdit}
+                  onManage={handleManage}
                   onDelete={(b) => setDeleteTarget(b)}
                 />
               ))}

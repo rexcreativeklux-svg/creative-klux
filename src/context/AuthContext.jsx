@@ -465,11 +465,17 @@ export function AuthProvider({ children }) {
   };
 
   // ── Password reset · step 3 of 3 ─────────────────────────────────────────
-  // Set the new password after the code was verified (see verifyResetCode). The
-  // migrated backend keys the reset off the just-verified email, so it requires
-  // only { email, password, password_confirmation } — no token/code is sent
-  // here. `passwordConfirmation` maps to Laravel's `password_confirmation`.
-  const resetPassword = async ({ email, password, passwordConfirmation }) => {
+  // Set the new password after the code was verified (see verifyResetCode). We
+  // forward the same 6-digit `code` alongside the new password so the backend
+  // can re-tie this reset to the verified request. The user never re-types it —
+  // the change-password page carries it over from the verify step. `email` is
+  // required; `passwordConfirmation` maps to Laravel's `password_confirmation`.
+  const resetPassword = async ({
+    email,
+    code,
+    password,
+    passwordConfirmation,
+  }) => {
     console.log("📡 resetPassword → email:", email);
 
     let result;
@@ -479,6 +485,7 @@ export function AuthProvider({ children }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
+          code,
           password,
           password_confirmation: passwordConfirmation,
         }),
@@ -1230,6 +1237,138 @@ export function AuthProvider({ children }) {
           message: "Your session expired. Please log in again.",
         };
       console.error("❌ Error deleting brand:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  };
+
+  // ── Brand invites ───────────────────────────────────────────────────────────
+  // PUBLIC: fetch the details of a brand invite by its token so the dedicated
+  // invite page (/invites/{token}) can show who invited them, to which brand,
+  // and in what role — works whether or not the visitor is signed in. We attach
+  // the Bearer token when present (harmless on a public route) so the backend
+  // can tailor the response to a logged-in user if it chooses. Returns a
+  // normalized { ok, data?, status?, message? }.
+  const getBrandInvite = async (inviteToken) => {
+    if (!inviteToken) return { ok: false, message: "Missing invite token." };
+
+    const url = `${BASE_URL}/brand-invite/${inviteToken}`;
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("❌ getBrandInvite: non-JSON response:", text);
+        return { ok: false, message: "Unexpected server response." };
+      }
+
+      if (!res.ok) {
+        const message =
+          data?.message || `This invite couldn't be loaded (${res.status}).`;
+        console.warn("⚠️ getBrandInvite failed:", message);
+        return { ok: false, status: res.status, data, message };
+      }
+
+      console.log("✅ Brand invite loaded:", inviteToken);
+      return { ok: true, data: data?.data || data };
+    } catch (err) {
+      console.error("❌ getBrandInvite error:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  };
+
+  // Accept a brand invite (requires a signed-in user). On success we refresh the
+  // brand list and switch the user into the freshly-joined brand so they land
+  // ready to work (see the "auto-switch to joined brand" product decision).
+  // Returns a normalized { ok, data?, status?, message? }.
+  const acceptBrandInvite = async (inviteToken) => {
+    if (!inviteToken) return { ok: false, message: "Missing invite token." };
+    if (!token)
+      return {
+        ok: false,
+        status: 401,
+        message: "You must be logged in to accept an invite.",
+      };
+
+    const url = `${BASE_URL}/brand-invite/${inviteToken}/accept`;
+    try {
+      const res = await authFetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("❌ acceptBrandInvite: non-JSON response:", text);
+        return { ok: false, message: "Unexpected server response." };
+      }
+
+      if (!res.ok) {
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        const message =
+          firstError ||
+          data?.message ||
+          `Couldn't accept the invite (${res.status}).`;
+        console.warn("⚠️ acceptBrandInvite failed:", message);
+        return { ok: false, status: res.status, data, message };
+      }
+
+      console.log("✅ Brand invite accepted:", inviteToken);
+
+      // Refresh brands, then switch into the joined brand if we can identify it.
+      const joinedId =
+        data?.brand?.id ??
+        data?.brand_id ??
+        data?.data?.brand?.id ??
+        data?.data?.brand_id ??
+        null;
+
+      const list = await fetchBrands();
+      if (joinedId != null) {
+        const joined = Array.isArray(list)
+          ? list.find((b) => b.id === Number(joinedId))
+          : null;
+        if (joined) {
+          await setActiveBrand(joined);
+        } else {
+          console.warn(
+            "⚠️ acceptBrandInvite: joined brand not found in refreshed list:",
+            joinedId,
+          );
+        }
+      }
+
+      return {
+        ok: true,
+        data,
+        joinedId,
+        message: data?.message || "Invite accepted.",
+      };
+    } catch (err) {
+      if (err.message === "Unauthorized")
+        return {
+          ok: false,
+          status: 401,
+          message: "Your session expired. Please log in again.",
+        };
+      console.error("❌ acceptBrandInvite error:", err);
       return { ok: false, message: err.message || "Network error" };
     }
   };
@@ -3000,6 +3139,8 @@ export function AuthProvider({ children }) {
         connectAdsAccount,
         disconnectAdsAccount,
         deleteBrandById,
+        getBrandInvite,
+        acceptBrandInvite,
         sendUrl,
         fetchBrandById,
         createBrand,

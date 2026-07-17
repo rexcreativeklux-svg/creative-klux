@@ -33,6 +33,8 @@ import {
   CreateInviteLinkModal,
   InviteLinksModal,
 } from "./InviteModals";
+import RemoveMemberModal from "./RemoveMemberModal";
+import { normalizeInviteUrl } from "@/utils/inviteUrl";
 
 // ── Normalizers (tolerate several backend field names) ───────────────────────
 const normalizeMember = (m = {}) => ({
@@ -52,9 +54,11 @@ const normalizeLink = (l = {}) => {
   const roleLabel = MEMBER_ROLES.find((r) => r.value === role)?.label || "Member";
   const used = l.uses_count ?? l.used ?? 0;
   const max = l.max_uses ?? l.maxUses ?? "∞";
+  // Always present a full, shareable invite link — build it from the token when
+  // the backend only returns the raw token (see @/utils/inviteUrl).
   return {
     id: l.id ?? l.token,
-    url: l.url || l.invite_url || (l.token ? `${l.token}` : ""),
+    url: normalizeInviteUrl(l.url || l.invite_url || l.link || l.token),
     roleLabel,
     usesLabel: `${used}/${max} ${max === 1 ? "Use" : "Uses"}`,
   };
@@ -93,6 +97,8 @@ export default function MembersTab({ brandId }) {
   const [query, setQuery] = useState("");
   const [updatingId, setUpdatingId] = useState(null);
   const [removingId, setRemovingId] = useState(null);
+  // Member queued for removal — drives the confirmation modal.
+  const [removeTarget, setRemoveTarget] = useState(null);
 
   // Invite surfaces
   const [menuOpen, setMenuOpen] = useState(false);
@@ -176,12 +182,16 @@ export default function MembersTab({ brandId }) {
     }
   };
 
-  const handleRemove = async (member) => {
+  // Confirmed from the modal — perform the actual removal.
+  const handleRemoveConfirmed = async () => {
+    const member = removeTarget;
+    if (!member) return;
     setRemovingId(member.id);
     const res = await removeMember(brandId, member.id);
     setRemovingId(null);
     if (res.ok) {
       setMembers((ms) => ms.filter((m) => m.id !== member.id));
+      setRemoveTarget(null);
       toast.success(`${member.name} removed from the brand.`);
     } else {
       toast.error(res.message || "Couldn't remove the member.");
@@ -431,7 +441,7 @@ export default function MembersTab({ brandId }) {
                   </td>
                   <td className="px-3 py-3 text-right">
                     <button
-                      onClick={() => handleRemove(m)}
+                      onClick={() => setRemoveTarget(m)}
                       disabled={removingId === m.id}
                       className="inline-flex items-center justify-center rounded-lg p-1.5 text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50 cursor-pointer"
                       title="Remove member"
@@ -451,6 +461,12 @@ export default function MembersTab({ brandId }) {
       </div>
 
       {/* Modals */}
+      <RemoveMemberModal
+        member={removeTarget}
+        removing={removingId === removeTarget?.id}
+        onConfirm={handleRemoveConfirmed}
+        onCancel={() => setRemoveTarget(null)}
+      />
       {showEmailModal && (
         <InviteByEmailModal
           onClose={() => setShowEmailModal(false)}

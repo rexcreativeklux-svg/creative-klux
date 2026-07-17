@@ -38,7 +38,7 @@ export default function EditorContextBar({
   const isCurve = element.type === "curve";
 
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 bg-surface border border-gray-200 shadow-lg rounded-xl px-2 py-1.5 max-w-[calc(100%-24px)] overflow-x-auto">
+    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 bg-surface border border-gray-200 shadow-lg rounded-xl px-2 py-1.5 max-w-[calc(100%-24px)] overflow-x-auto">
       {element.type === "text" && (
         <>
           <ColorInput

@@ -14,11 +14,13 @@ import {
   Signature,
   Table,
   AlignJustify,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SHAPE_CATEGORIES } from "@/(lib)/design/shapes";
 import ShapeGrid from "../ShapeGrid";
+import { makeShapePicker } from "../shapePicker";
+import ToolFlyout from "./tools/ToolFlyout";
+import SignatureFlyout from "./tools/signature/SignatureFlyout";
 
 const DRAW = ["pen", "marker", "highlighter", "eraser"];
 
@@ -81,9 +83,9 @@ const LABEL = {
  */
 export default function ToolsPanel({ tool, setTool, insert }) {
   const [popup, setPopup] = useState(null); // 'color' | 'weight' | null
-  const [shapesOpen, setShapesOpen] = useState(false);
-  const [linesOpen, setLinesOpen] = useState(false);
-  const [stickyOpen, setStickyOpen] = useState(false);
+  // One flyout at a time — they all open into the same space, so this is one
+  // name rather than a boolean per flyout that could contradict each other.
+  const [flyout, setFlyout] = useState(null); // 'shapes'|'lines'|'sticky'|'signature'|null
 
   // Leaving the panel stops drawing so the overlay doesn't block the canvas.
   useEffect(() => {
@@ -92,11 +94,7 @@ export default function ToolsPanel({ tool, setTool, insert }) {
 
   const isDraw = DRAW.includes(tool.type);
 
-  const closeFlyouts = () => {
-    setShapesOpen(false);
-    setLinesOpen(false);
-    setStickyOpen(false);
-  };
+  const closeFlyouts = () => setFlyout(null);
 
   const pickDraw = (type) => {
     setTool((t) => ({ ...t, type, ...(TOOL_PRESETS[type] || {}) }));
@@ -107,6 +105,12 @@ export default function ToolsPanel({ tool, setTool, insert }) {
   const toSelect = () => {
     setTool((t) => ({ ...t, type: "select" }));
     setPopup(null);
+  };
+
+  /** Open a flyout, or close it if it's already the open one. */
+  const toggleFlyout = (name) => {
+    toSelect();
+    setFlyout((f) => (f === name ? null : name));
   };
 
   return (
@@ -131,33 +135,20 @@ export default function ToolsPanel({ tool, setTool, insert }) {
         <ToolBtn
           icon={Blend}
           label="Shapes"
-          active={shapesOpen}
-          onClick={() => {
-            toSelect();
-            setLinesOpen(false);
-            setShapesOpen((v) => !v);
-          }}
+          active={flyout === "shapes"}
+          onClick={() => toggleFlyout("shapes")}
         />
         <ToolBtn
           icon={Slash}
           label="Lines"
-          active={linesOpen}
-          onClick={() => {
-            toSelect();
-            setShapesOpen(false);
-            setLinesOpen((v) => !v);
-          }}
+          active={flyout === "lines"}
+          onClick={() => toggleFlyout("lines")}
         />
         <ToolBtn
           icon={StickyNote}
           label="Sticky note"
-          active={stickyOpen}
-          onClick={() => {
-            toSelect();
-            setShapesOpen(false);
-            setLinesOpen(false);
-            setStickyOpen((v) => !v);
-          }}
+          active={flyout === "sticky"}
+          onClick={() => toggleFlyout("sticky")}
         />
         <ToolBtn
           icon={Type}
@@ -174,7 +165,8 @@ export default function ToolsPanel({ tool, setTool, insert }) {
         <ToolBtn
           icon={Signature}
           label="Signature"
-          onClick={() => pickDraw("pen")}
+          active={flyout === "signature"}
+          onClick={() => toggleFlyout("signature")}
         />
         <ToolBtn
           icon={Table}
@@ -269,36 +261,30 @@ export default function ToolsPanel({ tool, setTool, insert }) {
       )}
 
       {/* Lines flyout — the full line library, Canva-style vertical strip */}
-      {linesOpen && (
-        <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-28 max-h-[74vh] rounded-2xl bg-surface shadow-2xl border border-gray-100 z-50 flex flex-col">
-          <header className="h-11 shrink-0 flex items-center justify-between px-3 border-b border-gray-100">
-            <p className="text-sm font-bold text-gray-800">Lines</p>
-            <button
-              onClick={() => setLinesOpen(false)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 cursor-pointer transition"
-              title="Close"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </header>
-          <div className="flex-1 overflow-y-auto p-2">
+      {flyout === "lines" && (
+        <ToolFlyout title="Lines" width="w-28" onClose={closeFlyouts}>
+          <div className="p-2">
             <ShapeGrid
               keys={LINE_TYPES}
-              onPick={(key) =>
-                key === "line-curved"
-                  ? insert.curve()
-                  : key === "line-elbow"
-                    ? insert.elbow()
-                    : insert.shape(key)
-              }
+              onPick={makeShapePicker(insert)}
               cols={2}
             />
           </div>
-        </div>
+        </ToolFlyout>
+      )}
+
+      {/* Signature flyout — saved signatures + create. No endpoint yet, so this
+          renders its empty state; see tools/signature/useSignatures.js. */}
+      {flyout === "signature" && (
+        <SignatureFlyout
+          insert={insert}
+          onClose={closeFlyouts}
+          onCreate={() => toast.message("Signature creation is coming next")}
+        />
       )}
 
       {/* Sticky note flyout — pick a color, drops a typeable note */}
-      {stickyOpen && (
+      {flyout === "sticky" && (
         <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2">
           <div className="flex flex-col items-center gap-2 p-2 rounded-2xl bg-surface shadow-xl border border-gray-100">
             {STICKY_COLORS.map((c) => (
@@ -309,19 +295,9 @@ export default function ToolsPanel({ tool, setTool, insert }) {
       )}
 
       {/* Shapes flyout — the full shape library, grouped like the Elements panel */}
-      {shapesOpen && (
-        <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 max-h-[74vh] rounded-2xl bg-surface shadow-2xl border border-gray-100 z-50 flex flex-col">
-          <header className="h-11 shrink-0 flex items-center justify-between px-4 border-b border-gray-100">
-            <p className="text-sm font-bold text-gray-800">Shapes</p>
-            <button
-              onClick={() => setShapesOpen(false)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 cursor-pointer transition"
-              title="Close"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </header>
-          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-4">
+      {flyout === "shapes" && (
+        <ToolFlyout title="Shapes" width="w-64" onClose={closeFlyouts}>
+          <div className="p-3 flex flex-col gap-4">
             {SHAPE_CATEGORIES.map((cat) => (
               <div key={cat.id}>
                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
@@ -331,7 +307,7 @@ export default function ToolsPanel({ tool, setTool, insert }) {
               </div>
             ))}
           </div>
-        </div>
+        </ToolFlyout>
       )}
     </div>
   );

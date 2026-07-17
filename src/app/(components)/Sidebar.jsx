@@ -375,16 +375,11 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           onClick={() => router.push("/")}
         >
           <img
-            src="/logoblue.svg"
+            src="/logos/klux-logo-dark.png"
             alt="Logo"
-            className="w-7 h-7 shrink-0"
+            className="h-7 w-auto max-w-full object-contain"
             loading="lazy"
           />
-          {isOpen && (
-            <span className="ml-3 font-semibold text-gray-900 text-sm truncate">
-              Creative Klux
-            </span>
-          )}
         </div>
 
         {/* Scrollable nav area */}

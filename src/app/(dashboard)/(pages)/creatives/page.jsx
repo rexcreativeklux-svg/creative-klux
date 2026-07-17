@@ -46,6 +46,7 @@ import {
   renderDesignToCanvas,
   renderDesignToBlob,
 } from "@/(lib)/design/renderDesign";
+import { toast } from "sonner";
 
 // ── DesignCanvas ──────────────────────────────────────────────────────────────
 // Read-only preview. Paints via the SAME renderer the editor uses
@@ -255,7 +256,10 @@ const clampFetch = (n) => {
 // Read the user's saved load count (any valid number, not just a preset).
 const readSavedPerPage = () => {
   if (typeof window === "undefined") return FETCH_OPTIONS[0];
-  return clampFetch(window.localStorage.getItem(PER_PAGE_STORAGE_KEY)) ?? FETCH_OPTIONS[0];
+  return (
+    clampFetch(window.localStorage.getItem(PER_PAGE_STORAGE_KEY)) ??
+    FETCH_OPTIONS[0]
+  );
 };
 
 // ── Load-count control ────────────────────────────────────────────────────────
@@ -1360,19 +1364,28 @@ const Sidebar = ({
               <span className="text-xs">No preview available</span>
             </div>
           )}
-
-          {/* Hovering Edit button — opens the full design editor at /design/[id] */}
-          <Link
-            href={`/design/${c.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/preview:opacity-100 transition-opacity duration-200 cursor-pointer"
-          >
-            <div className="flex items-center gap-2 bg-surface/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 hover:scale-105 rounded-lg text-sm font-semibold text-gray-700 hover:bg-surface transition">
+          {/* Hovering Edit buttons */}
+          <div className="absolute inset-0 flex items-center justify-center gap-4 opacity-0 group-hover/preview:opacity-100 transition-opacity duration-200 cursor-pointer">
+            {/* Hovering Edit button — opens the full design editor at /design/[id] */}
+            <Link
+              href={`/design/${c.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 bg-surface/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 hover:scale-105 rounded-lg text-sm font-semibold text-gray-700 hover:bg-surface transition"
+            >
               <Edit2 className="w-3.5 h-3.5" />
               Edit with editor
+            </Link>
+
+            {/* Hovering Edit button — opens the Ai editor when it is built*/}
+            <div
+              onClick={() => toast.info("Coming soon")}
+              className="flex items-center gap-2 bg-surface/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 hover:scale-105 rounded-lg text-sm font-semibold text-gray-700 hover:bg-surface transition"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              Edit with Ai
             </div>
-          </Link>
+          </div>
         </div>
 
         <div className="px-4 py-4 flex flex-col gap-4">

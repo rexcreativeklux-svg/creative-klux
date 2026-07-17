@@ -22,6 +22,13 @@ export const MEDIA_TYPES = [
 /** Just the ids, in order — handy as a default `allowedTypes`. */
 export const MEDIA_TYPE_IDS = MEDIA_TYPES.map((t) => t.id);
 
+/**
+ * The `accept` attribute for any gallery upload input. Kept here so every upload
+ * surface offers the same file types the gallery can actually classify.
+ */
+export const MEDIA_ACCEPT =
+  "image/*, audio/*, video/*, .pdf, .doc, .docx, .xls, .xlsx, .txt";
+
 /** Look up a type's presentation meta (label/icon). Falls back to Images. */
 export const getMediaTypeMeta = (id) =>
   MEDIA_TYPES.find((t) => t.id === id) || MEDIA_TYPES[0];

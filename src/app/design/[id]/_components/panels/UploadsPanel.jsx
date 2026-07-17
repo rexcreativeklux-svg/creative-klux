@@ -1,74 +1,94 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
-import { UploadCloud, Loader2, ImageIcon } from "lucide-react";
+import React, { useState } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import useGalleryMedia from "@/app/(components)/gallery/useGalleryMedia";
+import MediaTypeTabs from "@/app/(components)/gallery/MediaTypeTabs";
+import PanelSearchInput from "./shared/PanelSearchInput";
+import UploadFilesButton from "./uploads/UploadFilesButton";
+import GalleryList from "./uploads/GalleryList";
+import StockList from "./uploads/StockList";
+import usePexelsSearch from "./uploads/usePexelsSearch";
+import useMediaInsert from "./uploads/useMediaInsert";
 
 /**
- * Uploads panel — upload a new image (goes to the Image Gallery + canvas) and
- * pick from previously uploaded images. Clicking a thumbnail drops it on the
- * canvas via insert.imageUrl (durable https URL, safe to save).
+ * Uploads panel — your gallery across Images / Videos / Audio / Docs, and stock
+ * photos & videos from Pexels once you search.
+ *
+ * The tabs and the /gallery data come from the same useGalleryMedia hook the
+ * gallery page uses, so the taxonomy and classification can't drift between the
+ * two surfaces.
+ *
+ * Props: { insert }
  */
 export default function UploadsPanel({ insert }) {
-  const { myImages, myImagesLoading, fetchMyImages } = useAuth();
-  const fileRef = useRef(null);
+  const { uploadMedia } = useAuth();
+  const [query, setQuery] = useState("");
+  const [uploading, setUploading] = useState(false);
 
-  useEffect(() => {
-    if (!myImages?.length) fetchMyImages?.();
-    // one-shot on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { tabs, activeType, setActiveType, items, counts, loading, refresh } =
+    useGalleryMedia();
 
-  const onFile = (e) => {
-    const file = e.target.files?.[0];
-    if (file) insert.imageFile(file);
-    e.target.value = "";
+  const q = query.trim();
+  const stock = usePexelsSearch({ query: q, type: activeType });
+  const { pick } = useMediaInsert({ insert });
+
+  // Upload once, to the gallery, then place images from the durable URL that
+  // comes back. Going through insert.imageFile instead would upload behind our
+  // back and leave the list below showing stale contents.
+  const onFiles = async (files) => {
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const res = await uploadMedia(file);
+        const url =
+          res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
+        if (url && file.type.startsWith("image/")) insert.imageUrl(url);
+      }
+      await refresh?.();
+    } catch (err) {
+      toast.error(err?.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
     <div className="p-3 flex flex-col gap-3">
-      <button
-        onClick={() => fileRef.current?.click()}
-        className="w-full flex items-center justify-center gap-2 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold cursor-pointer transition"
-      >
-        <UploadCloud className="w-4 h-4" /> Upload an image
-      </button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        onChange={onFile}
-        className="hidden"
+      <PanelSearchInput
+        value={query}
+        onChange={setQuery}
+        placeholder="Search keyword for inspiration"
       />
 
-      {myImagesLoading ? (
-        <div className="flex items-center justify-center py-10 text-gray-400">
-          <Loader2 className="w-5 h-5 animate-spin" />
-        </div>
-      ) : myImages?.length ? (
-        <div className="grid grid-cols-2 gap-2">
-          {myImages.map((img) => (
-            <button
-              key={img.id}
-              onClick={() => insert.imageUrl(img.src)}
-              className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 cursor-pointer transition bg-gray-50"
-              title={img.filename || "Add image"}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={img.src}
-                alt={img.alt || ""}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            </button>
-          ))}
-        </div>
+      <UploadFilesButton onFiles={onFiles} uploading={uploading} />
+
+      <MediaTypeTabs
+        tabs={tabs}
+        active={activeType}
+        onChange={setActiveType}
+        counts={q ? undefined : counts}
+        variant="pill"
+      />
+
+      {q ? (
+        <StockList
+          results={stock.results}
+          loading={stock.loading}
+          error={stock.error}
+          supported={stock.supported}
+          typeId={activeType}
+          query={q}
+          onPick={pick}
+        />
       ) : (
-        <div className="flex flex-col items-center gap-2 py-10 text-gray-300">
-          <ImageIcon className="w-8 h-8" />
-          <p className="text-xs text-gray-400">No uploads yet</p>
-        </div>
+        <GalleryList
+          items={items}
+          loading={loading}
+          typeId={activeType}
+          onPick={pick}
+        />
       )}
     </div>
   );

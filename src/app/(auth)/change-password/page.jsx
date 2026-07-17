@@ -34,7 +34,7 @@ export default function ChangePasswordPage() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
 
-  const [step, setStep] = useState("password"); // "code" | "password"
+  const [step, setStep] = useState("code"); // "code" | "password"
 
   // Step 1 — code entry
   const [digits, setDigits] = useState(Array(CODE_LENGTH).fill(""));

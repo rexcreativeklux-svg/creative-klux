@@ -62,13 +62,6 @@ export default function RegisterPage() {
       title="Create your account"
       subtitle="Start creating with Creative Klux — free for 7 days."
     >
-      {/* Social sign-up */}
-      <AuthProviders
-        label="or sign up with email"
-        onGoogle={() => {}}
-        onFacebook={() => {}}
-      />
-
       {/* Form */}
       <form onSubmit={handleRegister} className="space-y-3.5">
         <Input
@@ -145,6 +138,13 @@ export default function RegisterPage() {
           )}
         </button>
       </form>
+
+      {/* Social sign-up */}
+      <AuthProviders
+        label="or sign up with"
+        onGoogle={() => {}}
+        onFacebook={() => {}}
+      />
 
       {/* Login */}
       <p className="mt-5 text-center text-[13px] text-gray-400">

@@ -11,8 +11,11 @@
  * auth navigations and isn't repeated per page. This component is what each
  * page returns into that layout's form column.
  *
- * `min-h-full` keeps short forms vertically centred while letting tall forms
- * grow and scroll from the top (the layout's column owns `overflow-y-auto`).
+ * `min-h-full` makes this block at least the column's (viewport) height so
+ * `justify-center` centres the form for every length; when a form is taller
+ * than the viewport it grows past it and scrolls from the top (the layout's
+ * block column owns `overflow-y-auto`). The column MUST be a block — not a flex
+ * container — for this percentage min-height to resolve.
  *
  * @param {string}                    [title]     Heading above the form.
  * @param {string|React.ReactNode}    [subtitle]  Muted line under the heading.

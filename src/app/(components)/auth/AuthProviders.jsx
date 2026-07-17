@@ -2,12 +2,13 @@
  * AuthProviders
  * ---------------------------------------------------------------------------
  * The social sign-in options shared by the login and register screens:
- * side-by-side Google + Facebook buttons followed by an "or …" divider.
+ * an "or …" divider followed by side-by-side Google + Facebook buttons.
+ * Designed to sit BELOW the email form, so the divider comes first.
  *
  * Only rendered on pages that support social auth (login / register). Handlers
  * are injected so each page controls what the buttons do.
  *
- * @param {string}   [label]     Divider text (e.g. "or continue with email").
+ * @param {string}   [label]     Divider text (e.g. "or continue with").
  * @param {Function} [onGoogle]  Click handler for the Google button.
  * @param {Function} [onFacebook] Click handler for the Facebook button.
  */
@@ -40,14 +41,21 @@ const FacebookIcon = () => (
 );
 
 export default function AuthProviders({
-  label = "or continue with email",
+  label = "or continue with",
   onGoogle,
   onFacebook,
 }) {
   return (
-    <>
+    <div className="mt-6">
+      {/* Divider */}
+      <div className="flex items-center gap-3 mb-5">
+        <div className="flex-1 h-px bg-gray-100" />
+        <span className="text-[11.5px] font-medium text-gray-400">{label}</span>
+        <div className="flex-1 h-px bg-gray-100" />
+      </div>
+
       {/* Social buttons */}
-      <div className="grid grid-cols-2 gap-2.5 mb-5">
+      <div className="grid grid-cols-2 gap-2.5">
         <button
           type="button"
           onClick={onGoogle}
@@ -63,13 +71,6 @@ export default function AuthProviders({
           <FacebookIcon /> Facebook
         </button>
       </div>
-
-      {/* Divider */}
-      <div className="flex items-center gap-3 mb-5">
-        <div className="flex-1 h-px bg-gray-100" />
-        <span className="text-[11.5px] font-medium text-gray-400">{label}</span>
-        <div className="flex-1 h-px bg-gray-100" />
-      </div>
-    </>
+    </div>
   );
 }

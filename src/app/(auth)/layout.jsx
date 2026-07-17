@@ -36,10 +36,9 @@ function AuthContent({ children }) {
       {/* Visual showcase (desktop only) */}
       <AuthShowcasePanel />
 
-      {/* Form column — scrolls independently */}
-      <div className="w-full lg:w-1/2 h-full flex flex-col overflow-y-auto">
-        {children}
-      </div>
+      {/* Form column — a block scroll container (definite viewport height) so
+          the page's <AuthShell min-h-full> can resolve and centre reliably. */}
+      <div className="w-full lg:w-1/2 h-full overflow-y-auto">{children}</div>
     </div>
   );
 }

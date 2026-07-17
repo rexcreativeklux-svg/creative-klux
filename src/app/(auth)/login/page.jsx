@@ -53,13 +53,6 @@ export default function LoginPage() {
       title="Welcome back"
       subtitle="Sign in to your Creative Klux account."
     >
-      {/* Social sign-in */}
-      <AuthProviders
-        label="or continue with email"
-        onGoogle={() => {}}
-        onFacebook={() => {}}
-      />
-
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-3.5">
         <Input
@@ -113,6 +106,13 @@ export default function LoginPage() {
           )}
         </button>
       </form>
+
+      {/* Social sign-in */}
+      <AuthProviders
+        label="or continue with"
+        onGoogle={() => {}}
+        onFacebook={() => {}}
+      />
 
       {/* Register */}
       <p className="mt-5 text-center text-[13px] text-gray-400">

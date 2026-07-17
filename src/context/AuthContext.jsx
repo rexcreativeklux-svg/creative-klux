@@ -2035,7 +2035,7 @@ export function AuthProvider({ children }) {
   );
 
   const fetchDesigns = useCallback(
-    async (perPage = 9) => {
+    async (perPage = 12) => {
       if (!token) {
         console.error("fetchDesigns: no auth token.");
         return null;

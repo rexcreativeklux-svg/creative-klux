@@ -18,6 +18,12 @@ import {
 import FullOverlayLoader from "@/app/(components)/loaders/full-overlay-loader";
 import { useAuth } from "@/context/AuthContext";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import {
+  MIN_IMAGES,
+  MAX_IMAGES,
+  meetsImageMinimum,
+  imageGateMessage,
+} from "@/(lib)/creative/imageGate";
 
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
@@ -213,10 +219,23 @@ const PostsForm = ({
 
   // ── Apply from MediaPickerModal ───────────────────────────────────────────
   const handleApplyFromPicker = async (images, media) => {
-    if (images.length > 0) {
+    // Enforce the combined MAX_IMAGES cap across both sources.
+    const remaining = Math.max(
+      0,
+      MAX_IMAGES - croppedImages.filter(Boolean).length,
+    );
+    const imagesToAdd = images.slice(0, remaining);
+    const mediaToAdd = media.slice(
+      0,
+      Math.max(0, remaining - imagesToAdd.length),
+    );
+    const skippedSome =
+      imagesToAdd.length < images.length || mediaToAdd.length < media.length;
+
+    if (imagesToAdd.length > 0) {
       try {
         const processedFiles = await Promise.all(
-          images.map(async (item, idx) => {
+          imagesToAdd.map(async (item, idx) => {
             if (item.file instanceof File) {
               item.file.previewUrl = item.src;
               item.file.sourceUrl = null;
@@ -256,22 +275,26 @@ const PostsForm = ({
         }
 
         setShowCropper(true);
-        showToast(`Added ${images.length} image(s) — crop them`);
+        showToast(`Added ${imagesToAdd.length} image(s) — crop them`);
       } catch (err) {
         console.error("Image loading failed:", err);
         showToast("Some images couldn't be loaded.");
       }
     }
 
-    if (media.length > 0) {
-      const videoObjects = media.map((src, i) => ({
+    if (mediaToAdd.length > 0) {
+      const videoObjects = mediaToAdd.map((src, i) => ({
         id: `video-${Date.now()}-${i}`,
         previewUrl: src,
         thumbnail: src,
         type: "video",
       }));
       setCroppedImages((prev) => [...prev, ...videoObjects]);
-      showToast(`Added ${media.length} media item(s)`);
+      showToast(`Added ${mediaToAdd.length} media item(s)`);
+    }
+
+    if (skippedSome) {
+      showToast(`Only added what fits — max ${MAX_IMAGES}.`);
     }
 
     setMediaPickerOpen(false);
@@ -279,20 +302,42 @@ const PostsForm = ({
 
   // ── Brand image strip handlers ────────────────────────────────────────────
   const handleBrandImageUse = (imageObjs) => {
-    const pseudos = imageObjs.map((imageObj) => ({
+    const remaining = Math.max(
+      0,
+      MAX_IMAGES - croppedImages.filter(Boolean).length,
+    );
+    if (remaining <= 0) {
+      showToast(`Max ${MAX_IMAGES} items reached.`);
+      return;
+    }
+    const toAdd = imageObjs.slice(0, remaining);
+    const pseudos = toAdd.map((imageObj) => ({
       previewUrl: imageObj.src,
       sourceUrl: imageObj.src,
       name: imageObj.alt || "brand-image",
       type: "image/jpeg",
     }));
     setCroppedImages((prev) => [...prev, ...pseudos]);
-    showToast(
-      `${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`,
-    );
+    if (toAdd.length < imageObjs.length) {
+      showToast(`Only ${toAdd.length} added — max ${MAX_IMAGES} reached.`);
+    } else {
+      showToast(
+        `${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`,
+      );
+    }
   };
 
   const handleBrandImageCrop = async (imageObjs) => {
-    for (const imageObj of imageObjs) {
+    const remaining = Math.max(
+      0,
+      MAX_IMAGES - croppedImages.filter(Boolean).length,
+    );
+    if (remaining <= 0) {
+      showToast(`Max ${MAX_IMAGES} items reached.`);
+      return;
+    }
+    const toAdd = imageObjs.slice(0, remaining);
+    for (const imageObj of toAdd) {
       const originalUrl = imageObj.src;
       let cropperUrl = originalUrl;
       try {
@@ -310,6 +355,9 @@ const PostsForm = ({
     }
     if (!showCropper) setCurrentCropIndex(0);
     setShowCropper(true);
+    if (toAdd.length < imageObjs.length) {
+      showToast(`Only ${toAdd.length} queued — max ${MAX_IMAGES} reached.`);
+    }
   };
 
   // ── Save crop ─────────────────────────────────────────────────────────────
@@ -432,6 +480,14 @@ const PostsForm = ({
     }
 
     const validImages = croppedImages.filter(Boolean);
+
+    // Gate: involk generation needs at least MIN_IMAGES images selected.
+    if (!meetsImageMinimum(validImages.length)) {
+      const msg = imageGateMessage(validImages.length);
+      setError(msg);
+      showToast(msg);
+      return;
+    }
 
     setGenerating(true);
     setError("");
@@ -593,6 +649,10 @@ const PostsForm = ({
     const [w, h] = formData.size.split("x").map(Number);
     return w && h ? w / h : undefined;
   })();
+
+  // Image gate — Generate stays locked until at least MIN_IMAGES are selected.
+  const selectedCount = croppedImages.filter(Boolean).length;
+  const canGenerate = meetsImageMinimum(selectedCount);
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -1052,6 +1112,13 @@ const PostsForm = ({
           </div>
         )}
 
+        {/* Image-gate hint — only on the image step while below the minimum. */}
+        {step === 3 && !canGenerate && (
+          <p className="text-xs text-amber-600 text-right -mb-2">
+            Select at least {MIN_IMAGES} images (max {MAX_IMAGES}) to generate.
+          </p>
+        )}
+
         {/* ── Navigation ── */}
         <div
           className={`flex gap-3 pt-2 ${step > 1 ? "justify-between" : "justify-end"}`}
@@ -1075,7 +1142,15 @@ const PostsForm = ({
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="px-3 py-2 bg-emerald-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 hover:scale-105 flex items-center gap-2 transition disabled:opacity-60"
+              aria-disabled={!canGenerate}
+              title={
+                !canGenerate ? imageGateMessage(selectedCount) : undefined
+              }
+              className={`px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition disabled:opacity-60 ${
+                canGenerate
+                  ? "cursor-pointer hover:bg-emerald-700 hover:scale-105"
+                  : "opacity-50 cursor-not-allowed"
+              }`}
             >
               {generating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1120,6 +1195,10 @@ const PostsForm = ({
         postData={formData}
         activeBrand={activeBrand}
         showToast={showToast}
+        maxSelectable={Math.max(
+          0,
+          MAX_IMAGES - croppedImages.filter(Boolean).length,
+        )}
       />
 
       {generating && (

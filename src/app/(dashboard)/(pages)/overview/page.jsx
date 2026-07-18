@@ -61,6 +61,11 @@ export default function Dashboard() {
   const isLoading = brandsLoading || designsLoading;
   const firstName = user?.name?.split(" ")?.[0] || "there";
 
+  /* ── latest four designs (newest first) ── */
+  const recentDesigns = [...designs]
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .slice(0, 4);
+
   return (
     <div
       className="space-y-5 bg-page"
@@ -137,7 +142,7 @@ export default function Dashboard() {
 
       {/* ── Recent designs ── */}
       <DashboardRecentProjects
-        designs={designs.slice(0, 8)}
+        designs={recentDesigns}
         isLoading={isLoading}
       />
     </div>

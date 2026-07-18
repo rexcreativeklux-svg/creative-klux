@@ -18,7 +18,6 @@ import {
   ChevronRight,
   Layers,
   ShoppingBag,
-  LayoutTemplate,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import VirtualModelModal from "@/app/(components)/product-studio/VirtualModelModal";
@@ -360,7 +359,6 @@ export default function ProductPhotos() {
         }}
         comingSoonTabs={[
           { id: "shopify", label: "Shopify products", icon: ShoppingBag },
-          { id: "designs", label: "Designs", icon: LayoutTemplate },
         ]}
       />
 

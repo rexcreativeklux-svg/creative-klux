@@ -40,6 +40,7 @@ export default function GalleryList({
       <MediaGrid
         loading={loading}
         isEmpty={!items?.length}
+        skeletonType={typeId}
         empty={
           <div className="flex flex-col items-center gap-2 py-10 text-gray-300">
             <Icon className="w-8 h-8" />

@@ -38,6 +38,7 @@ export default function StockList({
     <MediaGrid
       loading={loading}
       isEmpty={!results.length}
+      skeletonType={typeId}
       empty={<Nothing note={`No results for “${query}”.`} />}
     >
       {results.map((r) => (

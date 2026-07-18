@@ -360,7 +360,7 @@ export default function ProductPhotos() {
         }}
         comingSoonTabs={[
           { id: "shopify", label: "Shopify products", icon: ShoppingBag },
-          { id: "designs", label: "Designs", icon: LayoutTemplate },
+          // { id: "designs", label: "Designs", icon: LayoutTemplate },
         ]}
       />
 

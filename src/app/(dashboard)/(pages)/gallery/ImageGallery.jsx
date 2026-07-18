@@ -26,7 +26,8 @@ import MediaTypeTabs from "@/app/(components)/gallery/MediaTypeTabs";
 import MediaCard from "@/app/(components)/gallery/MediaCard";
 import MasonryGrid from "@/app/(components)/gallery/MasonryGrid";
 import GallerySkeleton from "@/app/(components)/gallery/GallerySkeleton";
-import { galleryGridClass, MEDIA_ACCEPT } from "@/app/(components)/gallery/mediaTypes";
+import UploadMediaModal from "@/app/(components)/gallery/UploadMediaModal";
+import { galleryGridClass } from "@/app/(components)/gallery/mediaTypes";
 import { downloadGalleryItem } from "@/app/(components)/gallery/downloadMedia";
 import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGallery";
 import { FILE_LIMITS, getFileCategory } from "@/utils/helpers";
@@ -54,6 +55,7 @@ export default function ImageGallery() {
   const [searchMode, setSearchMode] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [notification, setNotification] = useState(null);
 
   // ── Pexels search state ──────────────────────────────────────────────────
@@ -375,21 +377,18 @@ export default function ImageGallery() {
                 >
                   <Search size={18} /> Search stock
                 </button>
-                <label className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
+                <button
+                  onClick={() => setUploadOpen(true)}
+                  disabled={isUploading}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-60"
+                >
                   {isUploading ? (
                     <Loader2 size={18} className="animate-spin" />
                   ) : (
                     <Upload size={18} />
                   )}
                   Upload
-                  <input
-                    type="file"
-                    multiple
-                    accept={MEDIA_ACCEPT}
-                    onChange={(e) => handleFileUpload(e.target.files)}
-                    className="hidden"
-                  />
-                </label>
+                </button>
               </div>
             </div>
 
@@ -461,6 +460,12 @@ export default function ImageGallery() {
           </div>
         )}
       </div>
+
+      <UploadMediaModal
+        isOpen={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onUpload={handleFileUpload}
+      />
 
       <NotificationModal
         isOpen={!!notification}

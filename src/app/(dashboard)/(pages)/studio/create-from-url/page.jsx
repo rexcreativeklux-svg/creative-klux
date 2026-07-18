@@ -1642,7 +1642,7 @@ export default function CreateFromUrl() {
               <button
                 onClick={handleGenerate}
                 disabled={generating}
-                className="px-6 cursor-pointer py-2 bg-blue-700 rounded-lg hover:bg-blue-800 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center gap-2 min-w-[160px] justify-center"
+                className="px-6 cursor-pointer py-2 bg-blue-700 rounded-lg hover:bg-blue-800 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center gap-2 min-w-40 justify-center"
               >
                 {generating ? (
                   <>

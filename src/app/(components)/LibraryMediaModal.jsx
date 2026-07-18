@@ -212,7 +212,7 @@ export default function LibraryMediaModal({
                         </button>
 
                         {menuOpen === menuId && (
-                          <div className="absolute top-10 right-2 bg-surface rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
+                          <div className="absolute top-10 right-2 bg-surface rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-45">
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();

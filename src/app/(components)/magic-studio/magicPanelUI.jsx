@@ -41,7 +41,7 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
   // Image cards: thumbnail + label + description (Visual style).
   if (panel === "cards") {
     return (
-      <div className="p-2 grid grid-cols-2 gap-2">
+      <div className="p-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
         {items.map((it) => {
           const active = value === it.value;
           const Icon = it.icon;
@@ -256,9 +256,9 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
     );
   }
 
-  // Default — icon + label + desc rows (list).
+  // Default — icon + label + desc cards, three across (list: quality, duration…).
   return (
-    <div className="p-2 space-y-1.5">
+    <div className="p-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
       {items.map((it) => {
         const active = value === it.value;
         const Icon = it.icon;
@@ -266,30 +266,30 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
           <button
             key={it.value}
             onClick={() => onSelect(it.value)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 text-left transition-colors cursor-pointer ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-blue-300 bg-surface"}`}
+            className={`flex flex-col gap-1.5 px-3 py-2.5 rounded-xl border-2 text-left transition-colors cursor-pointer ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-blue-300 bg-surface"}`}
           >
-            <span
-              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${active ? "bg-blue-100" : "bg-gray-100"}`}
-            >
-              {Icon && (
-                <Icon
-                  className={`w-4 h-4 ${active ? "text-blue-600" : "text-gray-500"}`}
-                />
-              )}
-            </span>
-            <span className="flex-1 min-w-0">
+            <span className="flex items-center justify-between">
               <span
-                className={`block text-sm font-semibold ${active ? "text-blue-700" : "text-gray-900"}`}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${active ? "bg-blue-100" : "bg-gray-100"}`}
               >
-                {it.label}
+                {Icon && (
+                  <Icon
+                    className={`w-4 h-4 ${active ? "text-blue-600" : "text-gray-500"}`}
+                  />
+                )}
               </span>
-              {it.desc && (
-                <span className="block text-[11px] text-gray-500 leading-snug">
-                  {it.desc}
-                </span>
-              )}
+              {active && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
             </span>
-            {active && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+            <span
+              className={`block text-sm font-semibold ${active ? "text-blue-700" : "text-gray-900"}`}
+            >
+              {it.label}
+            </span>
+            {it.desc && (
+              <span className="block text-[11px] text-gray-500 leading-snug">
+                {it.desc}
+              </span>
+            )}
           </button>
         );
       })}

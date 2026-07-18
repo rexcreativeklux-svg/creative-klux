@@ -199,7 +199,7 @@ export default function SearchMediaModal({
 
                         {/* Dropdown Menu */}
                         {menuOpen === img.id && (
-                          <div className="absolute top-10 right-2 bg-surface rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-[180px]">
+                          <div className="absolute top-10 right-2 bg-surface rounded-lg shadow-2xl border border-gray-200 py-2 z-20 min-w-45">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -276,7 +276,7 @@ export default function SearchMediaModal({
               <button
                 onClick={onApply}
                 disabled={selectedImages.length === 0}
-                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition cursor-pointer font-medium shadow-md min-w-[120px]"
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition cursor-pointer font-medium shadow-md min-w-30"
               >
                 Apply ({selectedImages.length})
               </button>

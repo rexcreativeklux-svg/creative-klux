@@ -244,7 +244,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { label: "Profile", href: "/profile", icon: User },
     { label: "Gallery", href: "/gallery", icon: Image },
     { label: "Resell", href: "/resell", icon: ShoppingCart },
-    { label: "Billing", href: "/billing", icon: CreditCard },
+    { label: "Plans And Billing", href: "/billing", icon: CreditCard },
     { label: "Settings", href: "/settings", icon: Settings },
     { label: "Help", href: "/help", icon: HelpCircle },
   ];

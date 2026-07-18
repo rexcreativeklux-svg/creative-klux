@@ -197,9 +197,26 @@ export default function CreateBrand() {
     const bucket = AD_PLATFORM_IDS.includes(payload.platform)
       ? "adAccounts"
       : "socialAccounts";
+
+    // X (twitter) and TikTok rotate their refresh token and derive a fresh access
+    // token on every use, so — exactly like saveIntegration — the value worth
+    // persisting is the REFRESH token. Everyone else stores their access token.
+    const isRotating =
+      payload.platform === "twitter" || payload.platform === "tiktok";
+    const primaryToken = isRotating
+      ? payload.refresh_token || payload.access_token || null
+      : payload.access_token || null;
+
     const held = {
       platform: payload.platform,
       name: payload.int_name || payload.int_id || payload.platform,
+      // Legacy keys the create-brand endpoint reads off each account — it indexes
+      // `id` / `token` directly and 500s ("Undefined array key id") without them.
+      id: payload.int_id || null,
+      token: primaryToken,
+      // Real credential fields, kept so the backend can build a working integration
+      // (int_token is the single token column saveIntegration writes).
+      int_token: primaryToken,
       access_token: payload.access_token,
       refresh_token: payload.refresh_token,
       int_id: payload.int_id,

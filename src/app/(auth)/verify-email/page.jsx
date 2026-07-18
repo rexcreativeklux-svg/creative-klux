@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { toUserMessage } from "@/utils/authErrors";
+import { getPendingInvite, buildInvitePath } from "@/utils/inviteUrl";
 import AuthShell from "@/app/(components)/auth/AuthShell";
 
 export default function VerifyEmailPage() {
@@ -81,8 +82,18 @@ export default function VerifyEmailPage() {
     try {
       await verifyEmail(code);
       // Already-logged-in users go straight to the app; fresh registrations
-      // (no session yet) go to login to sign in.
-      const destination = user ? "/" : "/login";
+      // (no session yet) go to login to sign in. A saved brand invite overrides
+      // both so the invitee lands back on their invite page once verified.
+      const pendingInvite = getPendingInvite();
+      let destination;
+      if (pendingInvite) {
+        const invitePath = buildInvitePath(pendingInvite);
+        destination = user
+          ? invitePath
+          : `/login?returnTo=${encodeURIComponent(invitePath)}`;
+      } else {
+        destination = user ? "/" : "/login";
+      }
       toast.success("Email verified!", {
         description: user
           ? "Welcome! Redirecting…"

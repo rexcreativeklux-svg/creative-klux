@@ -48,6 +48,9 @@ export default function ChangePasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [resetting, setResetting] = useState(false);
+  // The code confirmed in step 1, carried over so the final reset call can send
+  // it alongside the new password (the user doesn't see or re-enter it).
+  const [verifiedCode, setVerifiedCode] = useState("");
 
   // Without an email we can't verify a code or reset — nudge the user back.
   useEffect(() => {
@@ -67,6 +70,7 @@ export default function ChangePasswordPage() {
     setVerifying(true);
     try {
       await verifyResetCode({ email, code });
+      setVerifiedCode(code); // carry it into the reset call (step 2)
       toast.success("Code verified.", {
         description: "Now choose a new password.",
       });
@@ -131,6 +135,7 @@ export default function ChangePasswordPage() {
     try {
       const result = await resetPassword({
         email,
+        code: verifiedCode,
         password,
         passwordConfirmation: confirmPassword,
       });

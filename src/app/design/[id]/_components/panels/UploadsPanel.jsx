@@ -27,8 +27,18 @@ export default function UploadsPanel({ insert }) {
   const [query, setQuery] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  const { tabs, activeType, setActiveType, items, counts, loading, refresh } =
-    useGalleryMedia();
+  const {
+    tabs,
+    activeType,
+    setActiveType,
+    items,
+    counts,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    refresh,
+  } = useGalleryMedia();
 
   const q = query.trim();
   const stock = usePexelsSearch({ query: q, type: activeType });
@@ -86,6 +96,9 @@ export default function UploadsPanel({ insert }) {
         <GalleryList
           items={items}
           loading={loading}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
           typeId={activeType}
           onPick={pick}
         />

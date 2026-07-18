@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { toUserMessage } from "@/utils/authErrors";
+import { getPendingInvite, buildInvitePath } from "@/utils/inviteUrl";
 import AuthShell from "@/app/(components)/auth/AuthShell";
 import AuthProviders from "@/app/(components)/auth/AuthProviders";
 import Input from "@/app/(components)/ui/Input";
@@ -26,14 +27,20 @@ export default function LoginPage() {
       const msg = await login(email, password);
       toast.success(msg || "Signed in successfully.");
       // Optional ?returnTo= — used by flows that send guests here and bring
-      // them back (e.g. the product-studio pending save). Relative paths only,
-      // so a crafted link can't redirect off-site.
+      // them back (e.g. the product-studio pending save, or a brand invite).
+      // Relative paths only, so a crafted link can't redirect off-site.
       const params = new URLSearchParams(window.location.search);
       const returnTo = params.get("returnTo");
-      const safeReturn =
+      const validReturn =
         returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
           ? returnTo
-          : "/";
+          : null;
+      // A saved brand invite (from an /invites/{token} detour) wins over the
+      // default home, so a guest who had to sign up first lands back on their
+      // invite — even if `returnTo` was dropped along register → verify → login.
+      const pendingInvite = getPendingInvite();
+      const safeReturn =
+        validReturn || (pendingInvite ? buildInvitePath(pendingInvite) : "/");
       setTimeout(() => router.push(safeReturn), 1500);
     } catch (err) {
       console.error("❌ login failed:", err);

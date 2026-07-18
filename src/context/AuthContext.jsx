@@ -15,6 +15,51 @@ import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
 
 const AuthContext = createContext();
 
+// Default page size for the paginated gallery. Kept here so every gallery
+// surface (page, picker, editor uploads) requests the same amount per page.
+const GALLERY_PER_PAGE = 30;
+
+// Normalize a raw `GET /gallery` file record into the shape every gallery
+// surface consumes ({ id, type, src, alt, filename }). Single source of truth
+// so the paginated fetch and the legacy full fetch can't drift apart.
+const normalizeGalleryItem = (m) => ({
+  id: m.id,
+  type: m.type,
+  src: m.image_url, // ← the hosted URL field the backend returns
+  alt: m.image_name,
+  filename: m.image_name,
+});
+
+// Pull the items array + pagination meta out of a `GET /gallery` response,
+// whatever shape it arrives in. The paginated backend nests a raw Laravel
+// paginator under `files` ({ data: [...], current_page, last_page, per_page,
+// total, next_page_url }); older/non-paginated responses put a plain array
+// under `files`. Handling both keeps every caller robust to the shape.
+const extractGalleryPayload = (data) => {
+  const payload = data?.files;
+
+  // Paginator object: items under `.data`, page info alongside.
+  if (payload && !Array.isArray(payload) && Array.isArray(payload.data)) {
+    return {
+      raw: payload.data,
+      meta: {
+        current_page: payload.current_page ?? 1,
+        last_page: payload.last_page ?? 1,
+        per_page: payload.per_page ?? null,
+        total: payload.total ?? payload.data.length,
+      },
+    };
+  }
+
+  // Legacy flat array (either under `files` or `data`).
+  const flat = Array.isArray(payload)
+    ? payload
+    : Array.isArray(data?.data)
+      ? data.data
+      : [];
+  return { raw: flat, meta: null };
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -466,11 +511,17 @@ export function AuthProvider({ children }) {
   };
 
   // ── Password reset · step 3 of 3 ─────────────────────────────────────────
-  // Set the new password after the code was verified (see verifyResetCode). The
-  // migrated backend keys the reset off the just-verified email, so it requires
-  // only { email, password, password_confirmation } — no token/code is sent
-  // here. `passwordConfirmation` maps to Laravel's `password_confirmation`.
-  const resetPassword = async ({ email, password, passwordConfirmation }) => {
+  // Set the new password after the code was verified (see verifyResetCode). We
+  // forward the same 6-digit `code` alongside the new password so the backend
+  // can re-tie this reset to the verified request. The user never re-types it —
+  // the change-password page carries it over from the verify step. `email` is
+  // required; `passwordConfirmation` maps to Laravel's `password_confirmation`.
+  const resetPassword = async ({
+    email,
+    code,
+    password,
+    passwordConfirmation,
+  }) => {
     console.log("📡 resetPassword → email:", email);
 
     let result;
@@ -480,6 +531,7 @@ export function AuthProvider({ children }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
+          code,
           password,
           password_confirmation: passwordConfirmation,
         }),
@@ -1235,6 +1287,138 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // ── Brand invites ───────────────────────────────────────────────────────────
+  // PUBLIC: fetch the details of a brand invite by its token so the dedicated
+  // invite page (/invites/{token}) can show who invited them, to which brand,
+  // and in what role — works whether or not the visitor is signed in. We attach
+  // the Bearer token when present (harmless on a public route) so the backend
+  // can tailor the response to a logged-in user if it chooses. Returns a
+  // normalized { ok, data?, status?, message? }.
+  const getBrandInvite = async (inviteToken) => {
+    if (!inviteToken) return { ok: false, message: "Missing invite token." };
+
+    const url = `${BASE_URL}/brand-invite/${inviteToken}`;
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("❌ getBrandInvite: non-JSON response:", text);
+        return { ok: false, message: "Unexpected server response." };
+      }
+
+      if (!res.ok) {
+        const message =
+          data?.message || `This invite couldn't be loaded (${res.status}).`;
+        console.warn("⚠️ getBrandInvite failed:", message);
+        return { ok: false, status: res.status, data, message };
+      }
+
+      console.log("✅ Brand invite loaded:", inviteToken);
+      return { ok: true, data: data?.data || data };
+    } catch (err) {
+      console.error("❌ getBrandInvite error:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  };
+
+  // Accept a brand invite (requires a signed-in user). On success we refresh the
+  // brand list and switch the user into the freshly-joined brand so they land
+  // ready to work (see the "auto-switch to joined brand" product decision).
+  // Returns a normalized { ok, data?, status?, message? }.
+  const acceptBrandInvite = async (inviteToken) => {
+    if (!inviteToken) return { ok: false, message: "Missing invite token." };
+    if (!token)
+      return {
+        ok: false,
+        status: 401,
+        message: "You must be logged in to accept an invite.",
+      };
+
+    const url = `${BASE_URL}/brand-invite/${inviteToken}/accept`;
+    try {
+      const res = await authFetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("❌ acceptBrandInvite: non-JSON response:", text);
+        return { ok: false, message: "Unexpected server response." };
+      }
+
+      if (!res.ok) {
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        const message =
+          firstError ||
+          data?.message ||
+          `Couldn't accept the invite (${res.status}).`;
+        console.warn("⚠️ acceptBrandInvite failed:", message);
+        return { ok: false, status: res.status, data, message };
+      }
+
+      console.log("✅ Brand invite accepted:", inviteToken);
+
+      // Refresh brands, then switch into the joined brand if we can identify it.
+      const joinedId =
+        data?.brand?.id ??
+        data?.brand_id ??
+        data?.data?.brand?.id ??
+        data?.data?.brand_id ??
+        null;
+
+      const list = await fetchBrands();
+      if (joinedId != null) {
+        const joined = Array.isArray(list)
+          ? list.find((b) => b.id === Number(joinedId))
+          : null;
+        if (joined) {
+          await setActiveBrand(joined);
+        } else {
+          console.warn(
+            "⚠️ acceptBrandInvite: joined brand not found in refreshed list:",
+            joinedId,
+          );
+        }
+      }
+
+      return {
+        ok: true,
+        data,
+        joinedId,
+        message: data?.message || "Invite accepted.",
+      };
+    } catch (err) {
+      if (err.message === "Unauthorized")
+        return {
+          ok: false,
+          status: 401,
+          message: "Your session expired. Please log in again.",
+        };
+      console.error("❌ acceptBrandInvite error:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  };
+
   const connectSocialAccount = async (socialData) => {
     if (!token) {
       console.error("No auth token found. User may not be logged in.");
@@ -1443,6 +1627,40 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Fetch ONE page of the gallery, optionally filtered to a single media type.
+  // Returns the normalized items plus pagination `meta`
+  // ({ current_page, last_page, per_page, total }) so callers can drive infinite
+  // scroll and per-tab counts. Never throws — a failure is logged and returns an
+  // empty page so the UI can degrade gracefully instead of crashing.
+  const fetchGalleryPage = useCallback(
+    async ({ type = null, page = 1, perPage = GALLERY_PER_PAGE } = {}) => {
+      if (!token) return { items: [], meta: null };
+
+      try {
+        const params = new URLSearchParams();
+        params.set("per_page", String(perPage));
+        params.set("page", String(page));
+        if (type) params.set("type", type); // backend paginates per type
+
+        // Shared axios instance — the interceptor attaches the Bearer token and
+        // axios throws on non-2xx, so no manual status/JSON handling needed.
+        const { data } = await api.get(
+          `${API_GALLERY_URL}?${params.toString()}`,
+        );
+
+        const { raw, meta } = extractGalleryPayload(data);
+        return { items: raw.map(normalizeGalleryItem), meta };
+      } catch (err) {
+        console.error(
+          "❌ [gallery] page fetch failed:",
+          err?.response?.data?.message || err.message,
+        );
+        return { items: [], meta: null };
+      }
+    },
+    [token],
+  );
+
   const fetchGallery = useCallback(async () => {
     if (!token) {
       setMyGallery([]);
@@ -1453,30 +1671,21 @@ export function AuthProvider({ children }) {
     setMyGalleryLoading(true);
 
     try {
-      const res = await authFetch(API_GALLERY_URL, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Shared axios instance — the interceptor attaches the Bearer token and
+      // axios throws on non-2xx, so no manual status/JSON handling needed.
+      const { data } = await api.get(API_GALLERY_URL);
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = await res.json(); // ← Now parsing JSON
-
-      // The API returns a Laravel paginator under `files`: the file array is at
-      // `files.data`, alongside pagination meta (current_page, total, links…).
-      const media = Array.isArray(data.files?.data) ? data.files.data : [];
+      // `files` may be a plain array (legacy) or a paginator object ({ data }) —
+      // extractGalleryPayload handles both so this never crashes on the shape.
+      const { raw } = extractGalleryPayload(data);
 
       // Transform to format gallery expects
-      setMyGallery(
-        media.map((m) => ({
-          id: m.id,
-          type: m.type,
-          src: m.image_url, // ← This is the correct URL field
-          alt: m.image_name,
-          filename: m.image_name,
-        })),
-      );
+      setMyGallery(raw.map(normalizeGalleryItem));
     } catch (err) {
-      console.error("Failed to fetch media:", err);
+      console.error(
+        "❌ Failed to fetch media:",
+        err?.response?.data?.message || err.message,
+      );
       setMyGallery([]);
     } finally {
       setMyGalleryLoading(false);
@@ -1493,35 +1702,24 @@ export function AuthProvider({ children }) {
     setMyImagesLoading(true);
 
     try {
-      const res = await authFetch(API_GALLERY_URL, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Shared axios instance — the interceptor attaches the Bearer token and
+      // axios throws on non-2xx, so no manual status/JSON handling needed.
+      const { data } = await api.get(API_GALLERY_URL);
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = await res.json(); // ← Now parsing JSON
-
-      // console.log("Fetched images:", data);
-
-      // Same paginator shape as fetchGallery — files live at `files.data`.
-      const files = Array.isArray(data.files?.data) ? data.files.data : [];
-      const images = files.filter(
+      // `files` may be a plain array (legacy) or a paginator object ({ data }) —
+      // extractGalleryPayload handles both so this never crashes on the shape.
+      const { raw } = extractGalleryPayload(data);
+      const images = raw.filter(
         (file) => file.type === "image" || file.type === "",
       );
 
-      // console.log("Images", images)
-
       // Transform to format your gallery expects
-      setMyImages(
-        images.map((img) => ({
-          id: img.id,
-          src: img.image_url, // ← This is the correct URL field
-          alt: img.image_name,
-          filename: img.image_name,
-        })),
-      );
+      setMyImages(images.map(normalizeGalleryItem));
     } catch (err) {
-      console.error("Failed to fetch images:", err);
+      console.error(
+        "❌ Failed to fetch images:",
+        err?.response?.data?.message || err.message,
+      );
       setMyImages([]);
     } finally {
       setMyImagesLoading(false);
@@ -1536,24 +1734,36 @@ export function AuthProvider({ children }) {
       const formData = new FormData();
       formData.append("file", file);
 
-      let response;
+      let data;
       try {
-        response = await authFetch(API_GALLERY_URL, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        });
+        // Shared axios instance — the interceptor attaches the Bearer token.
+        // The multipart override is REQUIRED: the instance defaults to
+        // application/json, and axios serializes a FormData body to JSON when
+        // the content type says JSON — which would destroy the file. Axios
+        // swaps in the real multipart boundary at send time.
+        ({ data } = await api.post(API_GALLERY_URL, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        }));
       } catch (error) {
-        const result = await classifyResult({ error });
-        console.warn(`[${result.source}] uploadMedia:`, result.messageForDevs);
-        const e = new Error(result.message);
-        e.source = result.source;
-        e.messageForDevs = result.messageForDevs;
-        throw e;
-      }
-
-      const result = await classifyResult({ response });
-      if (!result.ok) {
+        // Route the axios failure through classifyResult so callers keep the
+        // same classified error shape (message / source / messageForDevs).
+        // An axios HTTP error carries the already-parsed body in
+        // error.response.data; re-feed it as rawText since classifyResult
+        // expects an unread fetch Response. No response at all = network/CORS.
+        const res = error?.response;
+        const result = await classifyResult(
+          res
+            ? {
+                response: { ok: false, status: res.status },
+                rawText:
+                  typeof res.data === "string"
+                    ? res.data
+                    : res.data != null
+                      ? JSON.stringify(res.data)
+                      : "",
+              }
+            : { error },
+        );
         console.warn(
           `[${result.source}] uploadMedia:`,
           result.messageForDevs,
@@ -1568,7 +1778,7 @@ export function AuthProvider({ children }) {
 
       await fetchMyImages();
       // Caller expects the raw response shape (image_url/url/data.image_url)
-      return result.raw || result.data;
+      return data;
     },
     [token, fetchMyImages],
   );
@@ -1579,31 +1789,22 @@ export function AuthProvider({ children }) {
       if (!imageId) throw new Error("Image ID is required");
 
       try {
-        const res = await authFetch(`${BASE_URL}/gallery/${imageId}`, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        // Try to parse JSON error even if failed
-        let errorMessage = "Failed to delete image";
-        if (!res.ok) {
-          try {
-            const errData = await res.json();
-            errorMessage = errData.message || errorMessage;
-          } catch {}
-          throw new Error(errorMessage);
-        }
+        // Shared axios instance — the interceptor attaches the Bearer token.
+        await api.delete(`${BASE_URL}/gallery/${imageId}`);
 
         // Success — remove from UI immediately
         setMyImages((prev) => prev.filter((img) => img.id !== imageId));
 
         return { success: true, message: "Image deleted successfully" };
       } catch (err) {
-        console.error("Delete failed:", err);
-        throw err; // Let UI handle showing error
+        // Prefer the backend's own message; fall back to the axios error
+        // (e.g. "Network Error", "Request failed with status code 404").
+        const message =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to delete image";
+        console.error("❌ Delete failed:", message);
+        throw new Error(message); // Let UI handle showing error
       }
     },
     [token],
@@ -3076,6 +3277,8 @@ export function AuthProvider({ children }) {
         connectAdsAccount,
         disconnectAdsAccount,
         deleteBrandById,
+        getBrandInvite,
+        acceptBrandInvite,
         sendUrl,
         fetchBrandById,
         createBrand,
@@ -3101,6 +3304,7 @@ export function AuthProvider({ children }) {
         myGallery,
         myGalleryLoading,
         fetchGallery,
+        fetchGalleryPage,
         uploadMedia,
         deleteImage,
         verifyEmail,

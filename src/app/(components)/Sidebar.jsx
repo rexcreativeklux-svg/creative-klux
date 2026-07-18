@@ -9,20 +9,14 @@ import {
   Power,
   Megaphone,
   Share2,
-  TrendingUp,
   Workflow,
-  PackagePlus,
   ShoppingCart,
   CreditCard,
-  BarChart3,
   Activity,
-  Brain,
   ShieldCheck,
-  Radar,
   ChevronRight,
   ChevronDown,
   User,
-  Globe,
   Calendar,
   LayoutDashboard,
   Palette,
@@ -33,6 +27,7 @@ import {
   GitCompareArrows,
   BookImage,
   Sparkles,
+  Image,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -247,7 +242,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
   const bottomMenuLinks = [
     { label: "Profile", href: "/profile", icon: User },
-    // { label: "Custom Domain", href: "/custom-domain", icon: Globe },
+    { label: "Gallery", href: "/gallery", icon: Image },
     { label: "Resell", href: "/resell", icon: ShoppingCart },
     { label: "Billing", href: "/billing", icon: CreditCard },
     { label: "Settings", href: "/settings", icon: Settings },
@@ -397,13 +392,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           <img
             src="/logoblue.svg"
             alt="Logo"
-            className="h-7 w-auto max-w-full object-contain block dark:hidden"
-            loading="lazy"
-          />
-          <img
-            src="/logos/logo-klux.png"
-            alt="Logo"
-            className="h-7 w-auto max-w-full object-contain hidden dark:block"
+            className="h-7 w-auto max-w-full object-contain"
             loading="lazy"
           />
           {isOpen ? <strong className="ml-1"> Creative Klux</strong> : ""}

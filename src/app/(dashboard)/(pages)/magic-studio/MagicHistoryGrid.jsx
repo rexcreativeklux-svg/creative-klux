@@ -19,7 +19,7 @@
  */
 
 import { useState } from "react";
-import { Loader2, MoreHorizontal, Play } from "lucide-react";
+import { Loader2, MoreHorizontal, Play, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import ResultActionsMenu, {
   buildResultActions,
@@ -54,6 +54,13 @@ function extFromUrl(url, fallback) {
  * @param {(file: File) => Promise<unknown>} props.uploadMedia Auth uploader (Save to gallery).
  * @param {string} [props.filePrefix="magic"] File-name prefix for downloads / saves.
  * @param {(url: string) => void} [props.onGenerateVideo] Optional "Generate video" (image items).
+ * @param {string[]|null} [props.selectableTypes=null] Media types a tile may be
+ *   selected as (e.g. ["image"] or ["image","video"]) — used inside the media
+ *   picker so only results the requesting form accepts (its `allowedTypes`) can be
+ *   selected and Applied. A tile whose type isn't listed opens the lightbox as
+ *   usual. null (the standalone modal) → nothing is selectable.
+ * @param {string[]} [props.selectedUrls=[]] URLs currently selected (drives the ring).
+ * @param {(item: object) => void} [props.onToggleSelect] Toggle selection for a tile.
  */
 export default function MagicHistoryGrid({
   items,
@@ -66,7 +73,14 @@ export default function MagicHistoryGrid({
   uploadMedia,
   filePrefix = "magic",
   onGenerateVideo,
+  selectableTypes = null,
+  selectedUrls = [],
+  onToggleSelect,
 }) {
+  // Whether a given item type may be selected here (gated by the caller's
+  // allowedTypes). Text results are never selectable.
+  const canSelectType = (type) =>
+    Array.isArray(selectableTypes) && selectableTypes.includes(type);
   const [menu, setMenu] = useState(null); // { item, x, y }
   const [lightboxIndex, setLightboxIndex] = useState(null); // index into mediaItems
 
@@ -218,10 +232,14 @@ export default function MagicHistoryGrid({
           // ── Video result — a clickable poster thumbnail (plays in the
           // lightbox), so the grid stays a clean set of tiles. ──
           if (item.type === "video") {
+            const canSel = canSelectType("video");
+            const isSel = canSel && selectedUrls.includes(item.url);
             return (
               <button
                 key={item.id ?? item.url}
-                onClick={() => openLightbox(item)}
+                onClick={() =>
+                  canSel ? onToggleSelect?.(item) : openLightbox(item)
+                }
                 className="relative group rounded-2xl overflow-hidden bg-black aspect-video cursor-pointer text-left"
               >
                 <video
@@ -238,6 +256,14 @@ export default function MagicHistoryGrid({
                     <Play className="w-5 h-5 text-white fill-white ml-0.5" />
                   </span>
                 </span>
+                {isSel && (
+                  <>
+                    <span className="absolute inset-0 ring-4 ring-blue-600 ring-inset rounded-2xl pointer-events-none" />
+                    <span className="absolute top-2 left-2 bg-blue-600 text-white rounded-full p-1 shadow z-10">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </span>
+                  </>
+                )}
                 {isRemoving && (
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     <Loader2 className="w-6 h-6 text-white animate-spin" />
@@ -255,11 +281,16 @@ export default function MagicHistoryGrid({
             );
           }
 
-          // ── Image result (default) — click to open the lightbox. ──
+          // ── Image result (default) — click to select (picker) or open the
+          // lightbox (standalone). ──
+          const canSelImg = canSelectType("image");
+          const isSelImg = canSelImg && selectedUrls.includes(item.url);
           return (
             <button
               key={item.id ?? item.url}
-              onClick={() => openLightbox(item)}
+              onClick={() =>
+                canSelImg ? onToggleSelect?.(item) : openLightbox(item)
+              }
               className="relative group rounded-2xl overflow-hidden bg-gray-100 aspect-square cursor-pointer text-left"
             >
               <img
@@ -267,6 +298,14 @@ export default function MagicHistoryGrid({
                 alt="generation"
                 className="w-full h-full object-cover"
               />
+              {isSelImg && (
+                <>
+                  <span className="absolute inset-0 ring-4 ring-blue-600 ring-inset rounded-2xl pointer-events-none" />
+                  <span className="absolute top-2 left-2 bg-blue-600 text-white rounded-full p-1 shadow z-10">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </span>
+                </>
+              )}
               {isRemoving && (
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                   <Loader2 className="w-6 h-6 text-white animate-spin" />

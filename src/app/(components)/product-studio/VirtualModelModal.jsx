@@ -104,20 +104,20 @@ const MODELS = [
   },
 ];
 
-const POSES = [
-  { id: "random", name: "Random", img: px(31046827) },
-  { id: "standing", name: "Standing", img: px(27542891) },
-  { id: "3_4_turn", name: "3/4 Turn", img: px(31046829) },
-  { id: "power_stance", name: "Power Stance", img: px(32325987) },
-  { id: "walking", name: "Walking Forward", img: px(1803779) },
-  { id: "hand_pocket", name: "Hand in Pocket", img: px(36759684) },
-  { id: "crossed_arms", name: "Crossed Arms", img: px(33821631) },
-  { id: "back", name: "Back", img: px(31894858) },
-  { id: "over_shoulder", name: "Over-the-Shoulder", img: px(5413902) },
-  { id: "seated", name: "Seated Casual", img: px(5412379) },
-  { id: "adjusting", name: "Adjusting Clothing", img: px(36322478) },
-  { id: "playful", name: "Playful Spin", img: px(7209534) },
-];
+// const POSES = [
+//   { id: "random", name: "Random", img: px(31046827) },
+//   { id: "standing", name: "Standing", img: px(27542891) },
+//   { id: "3_4_turn", name: "3/4 Turn", img: px(31046829) },
+//   { id: "power_stance", name: "Power Stance", img: px(32325987) },
+//   { id: "walking", name: "Walking Forward", img: px(1803779) },
+//   { id: "hand_pocket", name: "Hand in Pocket", img: px(36759684) },
+//   { id: "crossed_arms", name: "Crossed Arms", img: px(33821631) },
+//   { id: "back", name: "Back", img: px(31894858) },
+//   { id: "over_shoulder", name: "Over-the-Shoulder", img: px(5413902) },
+//   { id: "seated", name: "Seated Casual", img: px(5412379) },
+//   { id: "adjusting", name: "Adjusting Clothing", img: px(36322478) },
+//   { id: "playful", name: "Playful Spin", img: px(7209534) },
+// ];
 
 const BACKGROUNDS = [
   { id: "custom", name: "Custom", color: "#e0e0e0" }, // no image — shows a "+" tile

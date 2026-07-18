@@ -9,7 +9,7 @@
  * All state lives in the parent page; these components are controlled via props.
  */
 
-import { Star, Loader2, Upload } from "lucide-react";
+import { Star, Loader2, Upload, CheckCircle2 } from "lucide-react";
 import { Field, ColorPicker, inputCls } from "./ui";
 import { INDUSTRIES, FONTS } from "./constants";
 
@@ -150,14 +150,19 @@ export const BrandDetailsStep = ({
 
 /**
  * Generic platform-connect list. Rendered twice — once for social platforms,
- * once for ad platforms — so the two account steps stay in sync.
+ * once for ad platforms. Uses the SHARED integrations platform config + connect
+ * engine, so a "Connect" here runs the exact same OAuth flow as the Integrations
+ * page. Resolved credentials are HELD in the wizard's form (accounts) and sent
+ * when the brand is created; nothing is persisted mid-wizard.
  *
- * @param {string}   title       heading text
- * @param {Function} Icon        heading icon component
- * @param {string}   description sub-heading copy
- * @param {Array}    platforms   platform config ({ id, name, type, Icon, color })
- * @param {Array}    accounts    already-connected accounts ({ platform, ... })
- * @param {Function} onConnect   (id, label) => void — adds a connected account
+ * @param {string}   title            heading text
+ * @param {Function} Icon             heading icon component
+ * @param {string}   description      sub-heading copy
+ * @param {Array}    platforms        shared platform config ({ id, name, description, Icon, iconBg })
+ * @param {Array}    accounts         held connections ({ platform, int_name, ... })
+ * @param {Function} onConnect        (platformId) => void — starts the OAuth flow
+ * @param {Function} onRemove         (platformId) => void — drops a held connection
+ * @param {?string}  loadingPlatformId which platform is mid-connect
  */
 export const AccountsStep = ({
   title,
@@ -166,6 +171,8 @@ export const AccountsStep = ({
   platforms,
   accounts,
   onConnect,
+  onRemove,
+  loadingPlatformId,
 }) => (
   <>
     <h3 className="font-bold text-gray-900 flex items-center gap-2">
@@ -173,42 +180,56 @@ export const AccountsStep = ({
     </h3>
     <p className="text-sm text-gray-500 -mt-2">{description}</p>
     <div className="flex flex-col gap-3">
-      {platforms.map(({ id, name, type, Icon: PlatformIcon, color }) => {
+      {platforms.map(({ id, name, description: sub, Icon: PlatformIcon, iconBg }) => {
         const connected = accounts.filter((a) => a.platform === id);
+        const isConnected = connected.length > 0;
+        const isPending = loadingPlatformId === id;
+        const label = connected[0]?.int_name || connected[0]?.int_id;
         return (
           <div
             key={id}
-            className="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50/60"
+            className={`flex items-center gap-3 p-4 border rounded-xl transition ${
+              isConnected
+                ? "border-green-200 bg-green-50/50"
+                : "border-gray-100 bg-gray-50/60"
+            }`}
           >
-            <div className="flex items-center gap-3">
-              <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: color + "18" }}
-              >
-                <PlatformIcon style={{ color, fontSize: 18 }} />
-              </div>
-              <div>
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+              style={{ background: iconBg }}
+            >
+              <PlatformIcon />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm font-semibold text-gray-800">{name}</p>
-                <p className="text-xs text-gray-400">{type}</p>
+                {isConnected && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full border border-green-200 truncate max-w-[180px]">
+                    <CheckCircle2 className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{label || "Connected"}</span>
+                  </span>
+                )}
               </div>
+              <p className="text-xs text-gray-400 truncate">
+                {isConnected ? "Connected — ready to use once the brand is created." : sub}
+              </p>
             </div>
-            <div className="flex items-center gap-3">
-              {connected.length > 0 ? (
-                <span className="text-xs text-green-600 font-medium">
-                  {connected.length} connected
-                </span>
-              ) : (
-                <span className="text-xs text-gray-400">Not connected</span>
-              )}
+            {isConnected ? (
               <button
-                onClick={() =>
-                  onConnect(id, `${name} Account ${connected.length + 1}`)
-                }
-                className="px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg bg-surface hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 cursor-pointer transition"
+                onClick={() => onRemove?.(id)}
+                className="px-3 py-1.5 text-xs font-semibold border border-red-200 text-red-600 rounded-lg bg-surface hover:bg-red-50 cursor-pointer transition shrink-0"
               >
-                Connect
+                Disconnect
               </button>
-            </div>
+            ) : (
+              <button
+                onClick={() => onConnect(id)}
+                disabled={isPending}
+                className="px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg bg-surface hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              >
+                {isPending ? "Connecting…" : "Connect"}
+              </button>
+            )}
           </div>
         );
       })}

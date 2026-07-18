@@ -25,6 +25,12 @@ import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import {
+  MIN_IMAGES,
+  MAX_IMAGES,
+  meetsImageMinimum,
+  imageGateMessage,
+} from "@/(lib)/creative/imageGate";
 
 const VISUAL_STYLES = [
   "Minimal",
@@ -105,8 +111,6 @@ const VIDEO_SIZES = [
 ];
 
 const VIDEO_FORMATS = ["MP4", "MOV"];
-
-const MAX_IMAGES = 5;
 
 const AD_SUB_TYPES = [
   { id: "image", label: "Image", enabled: true },
@@ -837,6 +841,14 @@ export default function CreateFromUrl() {
       return;
     }
 
+    // Gate: generation needs at least MIN_IMAGES selected (gallery/uploads or
+    // brand images). Max is capped at MAX_IMAGES during selection.
+    const selectedMedia = croppedImages.filter(Boolean);
+    if (!meetsImageMinimum(selectedMedia.length)) {
+      toast.error(imageGateMessage(selectedMedia.length));
+      return;
+    }
+
     if (engine === "involk")
       await generateViaLLM(); // /design/generate-design/involk_llm
     else await generateViaRedesign(); // Scraive → /creatives/redesign
@@ -868,6 +880,10 @@ export default function CreateFromUrl() {
       </div>
     );
   }
+
+  // Image gate — Generate stays locked until at least MIN_IMAGES are selected.
+  const selectedCount = croppedImages.filter(Boolean).length;
+  const canGenerate = meetsImageMinimum(selectedCount);
 
   // ── FORM VIEW ─────────────────────────────────────────────────────────────
   return (
@@ -1626,10 +1642,12 @@ export default function CreateFromUrl() {
               </button>
             </div>
 
-            <p className="text-xs text-gray-400 text-center">
+            <p
+              className={`text-xs text-center ${canGenerate ? "text-gray-400" : "text-amber-600"}`}
+            >
               {isAds && adSubType === "video"
-                ? "Background media is optional — skip to generate with brand colors only."
-                : "Images are optional — skip to generate with brand colors only."}
+                ? `Select at least ${MIN_IMAGES} media items (max ${MAX_IMAGES}) to generate.`
+                : `Select at least ${MIN_IMAGES} images (max ${MAX_IMAGES}) to generate.`}
             </p>
 
             <div className="flex items-center justify-between pt-2">
@@ -1642,7 +1660,15 @@ export default function CreateFromUrl() {
               <button
                 onClick={handleGenerate}
                 disabled={generating}
-                className="px-6 cursor-pointer py-2 bg-blue-700 rounded-lg hover:bg-blue-800 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center gap-2 min-w-[160px] justify-center"
+                aria-disabled={!canGenerate}
+                title={
+                  !canGenerate ? imageGateMessage(selectedCount) : undefined
+                }
+                className={`px-6 py-2 bg-blue-700 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center gap-2 min-w-[160px] justify-center ${
+                  canGenerate
+                    ? "cursor-pointer hover:bg-blue-800"
+                    : "opacity-50 cursor-not-allowed"
+                }`}
               >
                 {generating ? (
                   <>

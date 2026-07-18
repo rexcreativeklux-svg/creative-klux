@@ -21,6 +21,7 @@ import {
   Pencil,
   RefreshCw,
   Video,
+  Send,
   Download,
   Copy,
   Bookmark,
@@ -37,6 +38,7 @@ const MENU_WIDTH = 208; // matches w-52
  * @param {() => void} [cb.onChangeSomething] Focus the prompt to describe a change.
  * @param {() => void} [cb.onOtherAngles]     Regenerate from a different angle.
  * @param {() => void} [cb.onGenerateVideo]   Send this image to the video tool.
+ * @param {() => void} [cb.onPublish]         Publish the asset to a platform.
  * @param {() => void} [cb.onDownload]        Download the asset.
  * @param {() => void} [cb.onCopyLink]        Copy the asset's hosted URL.
  * @param {() => void} [cb.onCopy]            Copy the asset's text content.
@@ -48,6 +50,7 @@ export function buildResultActions({
   onChangeSomething,
   onOtherAngles,
   onGenerateVideo,
+  onPublish,
   onDownload,
   onCopyLink,
   onCopy,
@@ -73,6 +76,8 @@ export function buildResultActions({
       icon: Video,
       onClick: onGenerateVideo,
     });
+  if (onPublish)
+    items.push({ label: "Publish", icon: Send, onClick: onPublish });
   if (onDownload)
     items.push({ label: "Download", icon: Download, onClick: onDownload });
   if (onCopyLink)

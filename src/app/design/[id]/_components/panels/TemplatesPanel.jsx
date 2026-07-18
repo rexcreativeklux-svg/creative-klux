@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, LayoutTemplate, RefreshCw } from "lucide-react";
+import { LayoutTemplate, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
@@ -107,9 +107,7 @@ export default function TemplatesPanel({ editor, designId }) {
       </div>
 
       {loading && !mine.length ? (
-        <div className="flex items-center justify-center py-12 text-gray-400">
-          <Loader2 className="w-5 h-5 animate-spin" />
-        </div>
+        <TemplateGridSkeleton />
       ) : mine.length ? (
         <TemplateGrid items={mine} onPick={pick} />
       ) : (
@@ -139,6 +137,21 @@ export default function TemplatesPanel({ editor, designId }) {
         onConfirm={() => pending && applyTemplate(pending)}
         onCancel={() => setPending(null)}
       />
+    </div>
+  );
+}
+
+// Shimmer placeholder shown while templates are being fetched. Matches the
+// TemplateGrid's 2-up layout so tiles fill in place.
+function TemplateGridSkeleton({ count = 6 }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className="aspect-4/3 rounded-lg bg-gray-200 animate-pulse"
+        />
+      ))}
     </div>
   );
 }

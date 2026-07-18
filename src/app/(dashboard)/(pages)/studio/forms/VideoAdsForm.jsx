@@ -24,8 +24,12 @@ import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 import { useAuth } from "@/context/AuthContext";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
-
-const MAX_IMAGES = 5;
+import {
+  MIN_IMAGES,
+  MAX_IMAGES,
+  meetsImageMinimum,
+  imageGateMessage,
+} from "@/(lib)/creative/imageGate";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const SIZE_OPTIONS = [
@@ -527,11 +531,20 @@ const VideoAdsForm = ({
 
   // ── Generate — Scraive → upload images → Redesign ────────────────────────
   const handleGenerate = async () => {
+    const validMedia = croppedImages.filter(Boolean);
+
+    // Gate: involk generation needs at least MIN_IMAGES media items selected.
+    if (!meetsImageMinimum(validMedia.length)) {
+      const msg = imageGateMessage(validMedia.length);
+      setError(msg);
+      showToast(msg);
+      return;
+    }
+
     setGenerating(true);
     setError("");
 
     try {
-      const validMedia = croppedImages.filter(Boolean);
 
       // Resolve the size's label (for Scraive category + Redesign payload)
       const selectedSizeLabel =
@@ -691,6 +704,10 @@ const VideoAdsForm = ({
       setCompletedCrop(null);
     }
   };
+
+  // Image gate — Generate stays locked until at least MIN_IMAGES are selected.
+  const selectedCount = croppedImages.filter(Boolean).length;
+  const canGenerate = meetsImageMinimum(selectedCount);
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -1132,6 +1149,14 @@ const VideoAdsForm = ({
           </div>
         )}
 
+        {/* Image-gate hint — only on the media step while below the minimum. */}
+        {step === 3 && !canGenerate && (
+          <p className="text-xs text-amber-600 text-right -mb-2">
+            Select at least {MIN_IMAGES} media items (max {MAX_IMAGES}) to
+            generate.
+          </p>
+        )}
+
         {/* ── Navigation ── */}
         <div
           className={`flex gap-3 pt-2 ${step > 1 ? "justify-between" : "justify-end"}`}
@@ -1159,7 +1184,15 @@ const VideoAdsForm = ({
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="px-3 py-2 bg-blue-600 cursor-pointer text-white rounded-lg text-sm font-semibold hover:bg-blue-700 hover:scale-105 flex items-center gap-2 transition disabled:opacity-60"
+              aria-disabled={!canGenerate}
+              title={
+                !canGenerate ? imageGateMessage(selectedCount) : undefined
+              }
+              className={`px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition disabled:opacity-60 ${
+                canGenerate
+                  ? "cursor-pointer hover:bg-blue-700 hover:scale-105"
+                  : "opacity-50 cursor-not-allowed"
+              }`}
             >
               {generating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

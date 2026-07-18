@@ -32,10 +32,13 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { STEPS, SOCIAL_PLATFORMS, AD_PLATFORMS } from "./components/constants";
-import { pickUploadedUrl, generateMockCredentials } from "./components/helpers";
+import { pickUploadedUrl } from "./components/helpers";
 import { StepIndicator } from "./components/ui";
 import BrandPreview from "./components/BrandPreview";
 import { BrandDetailsStep, AccountsStep } from "./components/steps";
+import { AD_PLATFORM_IDS } from "@/(lib)/integrations/platforms";
+import PlatformPageModal from "@/app/(components)/integrations/PlatformPageModal";
+import { useIntegrationConnect } from "@/app/(components)/integrations/useIntegrationConnect";
 
 // Empty form — also used to reset state when switching modes.
 const INITIAL_FORM = {
@@ -185,23 +188,50 @@ export default function CreateBrand() {
     }
   };
 
-  // ── Connect (mock) social / ad accounts ──
-  const addSocial = (id, name) =>
+  // ── Connect social / ad accounts (REAL OAuth, same engine as Integrations) ──
+  // The brand doesn't exist yet, so instead of saving each connection to a
+  // brand_id we HOLD the resolved credentials in the form and send them with
+  // social_accounts / ad_accounts when the brand is created (see handleCreate).
+  const handleResolved = (payload) => {
+    if (!payload) return;
+    const bucket = AD_PLATFORM_IDS.includes(payload.platform)
+      ? "adAccounts"
+      : "socialAccounts";
+    const held = {
+      platform: payload.platform,
+      name: payload.int_name || payload.int_id || payload.platform,
+      access_token: payload.access_token,
+      refresh_token: payload.refresh_token,
+      int_id: payload.int_id,
+      int_name: payload.int_name,
+      ...(payload.page_id ? { page_id: payload.page_id } : {}),
+    };
     setFormData((p) => ({
       ...p,
-      socialAccounts: [
-        ...p.socialAccounts,
-        { platform: id, name, ...generateMockCredentials() },
+      // Replace any existing connection for this platform (one per platform).
+      [bucket]: [
+        ...p[bucket].filter((a) => a.platform !== payload.platform),
+        held,
       ],
     }));
-  const addAd = (id, name) =>
+    toast.success(`${held.name} connected`);
+  };
+
+  const removeAccount = (bucket) => (platformId) =>
     setFormData((p) => ({
       ...p,
-      adAccounts: [
-        ...p.adAccounts,
-        { platform: id, name, ...generateMockCredentials() },
-      ],
+      [bucket]: p[bucket].filter((a) => a.platform !== platformId),
     }));
+
+  // forcePopup keeps the wizard on-screen (no full-page redirect that would
+  // discard the in-progress form). brandId is null — we hold, we don't save.
+  const { connect, loadingPlatformId, pageModal } = useIntegrationConnect({
+    brandId: null,
+    forcePopup: true,
+    onResolved: handleResolved,
+    showToast: (msg, type) =>
+      type === "error" ? toast.error(msg) : toast.success(msg),
+  });
 
   // ── Create the brand — ONE path for both modes via the shared createBrand ──
   const handleCreate = async () => {
@@ -431,7 +461,9 @@ export default function CreateBrand() {
                     description="Connect social media accounts to manage posts for this brand."
                     platforms={SOCIAL_PLATFORMS}
                     accounts={formData.socialAccounts}
-                    onConnect={addSocial}
+                    onConnect={connect}
+                    onRemove={removeAccount("socialAccounts")}
+                    loadingPlatformId={loadingPlatformId}
                   />
                 )}
 
@@ -442,7 +474,9 @@ export default function CreateBrand() {
                     description="Connect ad platforms to run campaigns for this brand."
                     platforms={AD_PLATFORMS}
                     accounts={formData.adAccounts}
-                    onConnect={addAd}
+                    onConnect={connect}
+                    onRemove={removeAccount("adAccounts")}
+                    loadingPlatformId={loadingPlatformId}
                   />
                 )}
 
@@ -499,6 +533,17 @@ export default function CreateBrand() {
           </div>
         )}
       </div>
+
+      {/* Account / page picker (Facebook Pages, ad accounts…) from the connect flow */}
+      {pageModal.open && (
+        <PlatformPageModal
+          pages={pageModal.pages}
+          onSelect={pageModal.onSelect}
+          onClose={pageModal.onClose}
+          loading={pageModal.loadingPageId}
+          selectedPageId={null}
+        />
+      )}
     </div>
   );
 }

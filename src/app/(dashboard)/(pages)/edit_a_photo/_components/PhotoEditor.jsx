@@ -4287,18 +4287,9 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     setActiveTool(null);
   };
 
-  // Auto-remove the background of the image the editor opened with
-  // (initialImageUrl), so an opened image always lands as a clean cutout.
-  // Ref-guarded so React StrictMode's double-mount doesn't run it twice.
-  const didAutoRemoveRef = useRef(false);
-  useEffect(() => {
-    if (initialImageUrl && !didAutoRemoveRef.current) {
-      didAutoRemoveRef.current = true;
-      runBgRemoval(initialImageUrl);
-    }
-    // Mount-only: acts on the image the editor was opened with.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // The image the editor opens with (initialImageUrl) is shown as-is, with its
+  // background kept. Background removal is opt-in via the "Remove background"
+  // toggle rather than applied automatically on open.
 
   // Background removal for a selected image LAYER. Removing bg replaces the
   // layer's src with the cutout PNG and remembers the original so toggling off

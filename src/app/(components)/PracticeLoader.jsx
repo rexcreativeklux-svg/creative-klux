@@ -168,20 +168,11 @@ export default function PracticeLoader({
             opacity: 1;
           }
         }
-        @media (prefers-color-scheme: dark) {
-          .practice-loader {
-            background: radial-gradient(
-              120% 90% at 50% 100%,
-              #2a1c14 0%,
-              #1a1613 45%,
-              #121011 100%
-            );
-          }
-          .pl-label {
-            color: #8b9099;
-          }
-        }
-        :global(:root[data-theme="dark"]) .practice-loader {
+        /* App dark mode is class-based (next-themes, darkMode class): the dark
+           class on <html> is the single source of truth. Follow it so the
+           background respects the SELECTED theme, not the OS preference. The
+           light background is the base rule above; the sun keeps its colours. */
+        :global(.dark) .practice-loader {
           background: radial-gradient(
             120% 90% at 50% 100%,
             #2a1c14 0%,
@@ -189,13 +180,8 @@ export default function PracticeLoader({
             #121011 100%
           );
         }
-        :global(:root[data-theme="light"]) .practice-loader {
-          background: radial-gradient(
-            120% 90% at 50% 100%,
-            #ffe6d2 0%,
-            #fff5ee 42%,
-            #ffffff 100%
-          );
+        :global(.dark) .pl-label {
+          color: #8b9099;
         }
         @media (prefers-reduced-motion: reduce) {
           .pl-sun,

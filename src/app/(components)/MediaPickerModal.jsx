@@ -20,8 +20,10 @@ import { toast as sonnerToast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import Toast from "./Toast";
 import useGalleryMedia from "./gallery/useGalleryMedia";
+import useInfiniteScroll from "./gallery/useInfiniteScroll";
 import MediaTypeTabs from "./gallery/MediaTypeTabs";
 import MediaCard from "./gallery/MediaCard";
+import GallerySkeleton from "./gallery/GallerySkeleton";
 import { galleryGridClass } from "./gallery/mediaTypes";
 import { downloadGalleryItem } from "./gallery/downloadMedia";
 
@@ -160,10 +162,21 @@ export default function MediaPickerModal({
     allItems: allGalleryItems,
     counts: galleryCounts,
     loading: galleryLoading,
+    loadingMore: galleryLoadingMore,
+    hasMore: galleryHasMore,
+    loadMore: loadMoreGallery,
     refresh: refreshGallery,
   } = useGalleryMedia({
     allowedTypes,
     enabled: isOpen && activeTabSafe === "library",
+  });
+
+  // Infinite scroll for the Library grid — resolves to the modal's own inner
+  // scroll container automatically (see useInfiniteScroll's scroll-parent walk).
+  const librarySentinelRef = useInfiniteScroll({
+    onLoadMore: loadMoreGallery,
+    hasMore: galleryHasMore,
+    loading: galleryLoadingMore,
   });
 
   // ── reset on open ──────────────────────────────────────────────────────────
@@ -633,40 +646,56 @@ export default function MediaPickerModal({
                       </p>
                     </div>
                   ) : (
-                    <div className={galleryGridClass(galleryType)}>
-                      {galleryItems.map((item, i) => (
-                        <MediaCard
-                          key={item.id}
-                          item={item}
-                          index={i}
-                          selectable
-                          selected={selectedImages.includes(item.src)}
-                          onToggleSelect={(it) => toggleImage(it.src)}
-                          onDownload={async (it) => {
-                            try {
-                              await downloadGalleryItem(it);
-                            } catch (err) {
-                              console.error(
-                                "❌ [media-picker] download failed:",
-                                err,
-                              );
-                              sonnerToast.error("Couldn't download that file.");
-                            }
-                          }}
-                          onDelete={async (it) => {
-                            if (!confirm("Delete permanently?")) return;
-                            notify("Deleting…");
-                            try {
-                              await deleteImage(it.id);
-                              await refreshGallery?.();
-                              notify("Deleted!");
-                            } catch (err) {
-                              notify(err.message || "Delete failed");
-                            }
-                          }}
-                        />
-                      ))}
-                    </div>
+                    <>
+                      <div className={galleryGridClass(galleryType)}>
+                        {galleryItems.map((item, i) => (
+                          <MediaCard
+                            key={item.id}
+                            item={item}
+                            index={i}
+                            selectable
+                            selected={selectedImages.includes(item.src)}
+                            onToggleSelect={(it) => toggleImage(it.src)}
+                            onDownload={async (it) => {
+                              try {
+                                await downloadGalleryItem(it);
+                              } catch (err) {
+                                console.error(
+                                  "❌ [media-picker] download failed:",
+                                  err,
+                                );
+                                sonnerToast.error(
+                                  "Couldn't download that file.",
+                                );
+                              }
+                            }}
+                            onDelete={async (it) => {
+                              if (!confirm("Delete permanently?")) return;
+                              notify("Deleting…");
+                              try {
+                                await deleteImage(it.id);
+                                await refreshGallery?.();
+                                notify("Deleted!");
+                              } catch (err) {
+                                notify(err.message || "Delete failed");
+                              }
+                            }}
+                          />
+                        ))}
+                        {/* Load-more skeletons flow inside the same grid/columns. */}
+                        {galleryLoadingMore && (
+                          <GallerySkeleton
+                            type={galleryType}
+                            masonry={galleryType === "image"}
+                            count={galleryType === "image" ? 8 : 4}
+                          />
+                        )}
+                      </div>
+                      {/* Sentinel — scrolling into view fetches the next page. */}
+                      {galleryHasMore && (
+                        <div ref={librarySentinelRef} className="h-px w-full" />
+                      )}
+                    </>
                   )}
                 </div>
               </div>

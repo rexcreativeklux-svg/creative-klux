@@ -21,8 +21,10 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import NotificationModal from "@/app/(components)/NotificationModal";
 import useGalleryMedia from "@/app/(components)/gallery/useGalleryMedia";
+import useInfiniteScroll from "@/app/(components)/gallery/useInfiniteScroll";
 import MediaTypeTabs from "@/app/(components)/gallery/MediaTypeTabs";
 import MediaCard from "@/app/(components)/gallery/MediaCard";
+import GallerySkeleton from "@/app/(components)/gallery/GallerySkeleton";
 import { galleryGridClass, MEDIA_ACCEPT } from "@/app/(components)/gallery/mediaTypes";
 import { downloadGalleryItem } from "@/app/(components)/gallery/downloadMedia";
 import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGallery";
@@ -30,8 +32,22 @@ import { FILE_LIMITS, getFileCategory } from "@/utils/helpers";
 
 export default function ImageGallery() {
   const { uploadMedia, deleteImage } = useAuth();
-  const { tabs, activeType, setActiveType, items, counts, loading, refresh } =
-    useGalleryMedia();
+  const {
+    tabs,
+    activeType,
+    setActiveType,
+    items,
+    counts,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    refresh,
+  } = useGalleryMedia();
+
+  // Infinite scroll — fetch the next page as the sentinel (below the grid)
+  // scrolls into view. Runs against the window, which is the page's scroller.
+  const sentinelRef = useInfiniteScroll({ onLoadMore: loadMore, hasMore, loading });
 
   // ── Toolbar / modes ──────────────────────────────────────────────────────
   const [searchMode, setSearchMode] = useState(false);
@@ -402,18 +418,31 @@ export default function ImageGallery() {
                 </p>
               </div>
             ) : (
-              <div className={galleryGridClass(activeType)}>
-                {items.map((item, i) => (
-                  <MediaCard
-                    key={item.id}
-                    item={item}
-                    index={i}
-                    onDownload={downloadItem}
-                    onCopyLink={copyLink}
-                    onDelete={deleteItem}
-                  />
-                ))}
-              </div>
+              <>
+                <div className={galleryGridClass(activeType)}>
+                  {items.map((item, i) => (
+                    <MediaCard
+                      key={item.id}
+                      item={item}
+                      index={i}
+                      onDownload={downloadItem}
+                      onCopyLink={copyLink}
+                      onDelete={deleteItem}
+                    />
+                  ))}
+                  {/* Load-more skeletons flow inside the same grid/columns so
+                      the layout reads as more items filling in, not a new block. */}
+                  {loadingMore && (
+                    <GallerySkeleton
+                      type={activeType}
+                      masonry={activeType === "image"}
+                      count={activeType === "image" ? 8 : 4}
+                    />
+                  )}
+                </div>
+                {/* Sentinel — scrolling this into view fetches the next page. */}
+                {hasMore && <div ref={sentinelRef} className="h-px w-full" />}
+              </>
             )}
           </div>
         )}

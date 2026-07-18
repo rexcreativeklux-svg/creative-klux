@@ -14,6 +14,51 @@ import api from "@/app/api/axios";
 
 const AuthContext = createContext();
 
+// Default page size for the paginated gallery. Kept here so every gallery
+// surface (page, picker, editor uploads) requests the same amount per page.
+const GALLERY_PER_PAGE = 30;
+
+// Normalize a raw `GET /gallery` file record into the shape every gallery
+// surface consumes ({ id, type, src, alt, filename }). Single source of truth
+// so the paginated fetch and the legacy full fetch can't drift apart.
+const normalizeGalleryItem = (m) => ({
+  id: m.id,
+  type: m.type,
+  src: m.image_url, // ← the hosted URL field the backend returns
+  alt: m.image_name,
+  filename: m.image_name,
+});
+
+// Pull the items array + pagination meta out of a `GET /gallery` response,
+// whatever shape it arrives in. The paginated backend nests a raw Laravel
+// paginator under `files` ({ data: [...], current_page, last_page, per_page,
+// total, next_page_url }); older/non-paginated responses put a plain array
+// under `files`. Handling both keeps every caller robust to the shape.
+const extractGalleryPayload = (data) => {
+  const payload = data?.files;
+
+  // Paginator object: items under `.data`, page info alongside.
+  if (payload && !Array.isArray(payload) && Array.isArray(payload.data)) {
+    return {
+      raw: payload.data,
+      meta: {
+        current_page: payload.current_page ?? 1,
+        last_page: payload.last_page ?? 1,
+        per_page: payload.per_page ?? null,
+        total: payload.total ?? payload.data.length,
+      },
+    };
+  }
+
+  // Legacy flat array (either under `files` or `data`).
+  const flat = Array.isArray(payload)
+    ? payload
+    : Array.isArray(data?.data)
+      ? data.data
+      : [];
+  return { raw: flat, meta: null };
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -1581,6 +1626,40 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Fetch ONE page of the gallery, optionally filtered to a single media type.
+  // Returns the normalized items plus pagination `meta`
+  // ({ current_page, last_page, per_page, total }) so callers can drive infinite
+  // scroll and per-tab counts. Never throws — a failure is logged and returns an
+  // empty page so the UI can degrade gracefully instead of crashing.
+  const fetchGalleryPage = useCallback(
+    async ({ type = null, page = 1, perPage = GALLERY_PER_PAGE } = {}) => {
+      if (!token) return { items: [], meta: null };
+
+      try {
+        const params = new URLSearchParams();
+        params.set("per_page", String(perPage));
+        params.set("page", String(page));
+        if (type) params.set("type", type); // backend paginates per type
+
+        // Shared axios instance — the interceptor attaches the Bearer token and
+        // axios throws on non-2xx, so no manual status/JSON handling needed.
+        const { data } = await api.get(
+          `${API_GALLERY_URL}?${params.toString()}`,
+        );
+
+        const { raw, meta } = extractGalleryPayload(data);
+        return { items: raw.map(normalizeGalleryItem), meta };
+      } catch (err) {
+        console.error(
+          "❌ [gallery] page fetch failed:",
+          err?.response?.data?.message || err.message,
+        );
+        return { items: [], meta: null };
+      }
+    },
+    [token],
+  );
+
   const fetchGallery = useCallback(async () => {
     if (!token) {
       setMyGallery([]);
@@ -1595,21 +1674,12 @@ export function AuthProvider({ children }) {
       // axios throws on non-2xx, so no manual status/JSON handling needed.
       const { data } = await api.get(API_GALLERY_URL);
 
-      // Extract the array from "media" key
-      const media = data.files || [];
-
-      // console.log(media)
+      // `files` may be a plain array (legacy) or a paginator object ({ data }) —
+      // extractGalleryPayload handles both so this never crashes on the shape.
+      const { raw } = extractGalleryPayload(data);
 
       // Transform to format gallery expects
-      setMyGallery(
-        media.map((m) => ({
-          id: m.id,
-          type: m.type,
-          src: m.image_url, // ← This is the correct URL field
-          alt: m.image_name,
-          filename: m.image_name,
-        })),
-      );
+      setMyGallery(raw.map(normalizeGalleryItem));
     } catch (err) {
       console.error(
         "❌ Failed to fetch media:",
@@ -1635,24 +1705,15 @@ export function AuthProvider({ children }) {
       // axios throws on non-2xx, so no manual status/JSON handling needed.
       const { data } = await api.get(API_GALLERY_URL);
 
-      // console.log("Fetched images:", data);
-
-      // Extract the array from "files" key
-      const images = (data.files || []).filter(
+      // `files` may be a plain array (legacy) or a paginator object ({ data }) —
+      // extractGalleryPayload handles both so this never crashes on the shape.
+      const { raw } = extractGalleryPayload(data);
+      const images = raw.filter(
         (file) => file.type === "image" || file.type === "",
       );
 
-      // console.log("Images", images)
-
       // Transform to format your gallery expects
-      setMyImages(
-        images.map((img) => ({
-          id: img.id,
-          src: img.image_url, // ← This is the correct URL field
-          alt: img.image_name,
-          filename: img.image_name,
-        })),
-      );
+      setMyImages(images.map(normalizeGalleryItem));
     } catch (err) {
       console.error(
         "❌ Failed to fetch images:",
@@ -3166,6 +3227,7 @@ export function AuthProvider({ children }) {
         myGallery,
         myGalleryLoading,
         fetchGallery,
+        fetchGalleryPage,
         uploadMedia,
         deleteImage,
         verifyEmail,

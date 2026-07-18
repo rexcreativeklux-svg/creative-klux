@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
+
 import {
   Settings,
   HelpCircle,
@@ -377,7 +378,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           <img
             src="/logos/klux-logo-dark.png"
             alt="Logo"
-            className="h-7 w-auto max-w-full object-contain"
+            className="h-7 w-auto max-w-full object-contain block dark:hidden"
+            loading="lazy"
+          />
+          <img
+            src="/logos/logo-klux.png"
+            alt="Logo"
+            className="h-7 w-auto max-w-full object-contain hidden dark:block"
             loading="lazy"
           />
         </div>

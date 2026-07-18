@@ -21,6 +21,7 @@ import ShapeGrid from "../ShapeGrid";
 import { makeShapePicker } from "../shapePicker";
 import ToolFlyout from "./tools/ToolFlyout";
 import SignatureFlyout from "./tools/signature/SignatureFlyout";
+import TablePicker from "./tools/table/TablePicker";
 
 const DRAW = ["pen", "marker", "highlighter", "eraser"];
 
@@ -85,7 +86,7 @@ export default function ToolsPanel({ tool, setTool, insert }) {
   const [popup, setPopup] = useState(null); // 'color' | 'weight' | null
   // One flyout at a time — they all open into the same space, so this is one
   // name rather than a boolean per flyout that could contradict each other.
-  const [flyout, setFlyout] = useState(null); // 'shapes'|'lines'|'sticky'|'signature'|null
+  const [flyout, setFlyout] = useState(null); // 'shapes'|'lines'|'sticky'|'signature'|'table'|null
 
   // Leaving the panel stops drawing so the overlay doesn't block the canvas.
   useEffect(() => {
@@ -171,10 +172,8 @@ export default function ToolsPanel({ tool, setTool, insert }) {
         <ToolBtn
           icon={Table}
           label="Table"
-          onClick={() => {
-            closeFlyouts();
-            toast.message("Tables are coming soon");
-          }}
+          active={flyout === "table"}
+          onClick={() => toggleFlyout("table")}
         />
       </div>
 
@@ -292,6 +291,16 @@ export default function ToolsPanel({ tool, setTool, insert }) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Table flyout — Canva-style size picker: hover to preview rows × cols */}
+      {flyout === "table" && (
+        <TablePicker
+          onPick={(rows, cols) => {
+            insert.table({ rows, cols });
+            closeFlyouts();
+          }}
+        />
       )}
 
       {/* Shapes flyout — the full shape library, grouped like the Elements panel */}

@@ -17,6 +17,9 @@ import {
   Plus,
   LayoutGrid,
   Check,
+  Wand2,
+  Star,
+  Clock,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint
@@ -72,6 +75,34 @@ const marginColor = {
   Narrow: "text-blue-600 bg-blue-50",
   Clear: "text-orange-600 bg-orange-50",
   Decisive: "text-red-600 bg-red-50",
+};
+
+// Type → badge colours, mirroring the Creatives library so the picker cards read
+// identically to /creatives.
+const TYPE_COLOR = {
+  ads: { text: "text-blue-600", border: "border-blue-100", dot: "bg-blue-500" },
+  social: {
+    text: "text-indigo-600",
+    border: "border-indigo-100",
+    dot: "bg-indigo-500",
+  },
+  card: {
+    text: "text-violet-600",
+    border: "border-violet-100",
+    dot: "bg-violet-500",
+  },
+  banner: {
+    text: "text-teal-600",
+    border: "border-teal-100",
+    dot: "bg-teal-500",
+  },
+  image: { text: "text-blue-600", border: "border-blue-100", dot: "bg-blue-400" },
+  video: { text: "text-cyan-600", border: "border-cyan-100", dot: "bg-cyan-500" },
+};
+const DEFAULT_COLOR = {
+  text: "text-gray-600",
+  border: "border-gray-200",
+  dot: "bg-gray-400",
 };
 
 /* ─── ScoreBar ────────────────────────────────────────────────── */
@@ -214,18 +245,20 @@ function WebsiteMetrics({ item }) {
   );
 }
 
-// ── DesignCanvas (mini version for project grid) ──────────────────────────────
-function MiniDesignCanvas({ canvasData, elements, maxW = 120, maxH = 80 }) {
-  const canvasRef = useRef();
+// ── PreviewCanvas ─────────────────────────────────────────────────────────────
+// Full-width read-only preview painted with the SAME renderer the editor uses,
+// so a picker card's thumbnail matches /creatives and /design/[id] exactly.
+function PreviewCanvas({ canvas, elements }) {
+  const canvasRef = useRef(null);
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !canvasData) return;
+    const node = canvasRef.current;
+    if (!node || !canvas) return;
 
     let cancelled = false;
     (async () => {
       try {
         const off = await renderDesignToCanvas({
-          canvas: canvasData,
+          canvas,
           elements: elements || [],
         });
         if (cancelled || !canvasRef.current) return;
@@ -243,18 +276,13 @@ function MiniDesignCanvas({ canvasData, elements, maxW = 120, maxH = 80 }) {
     return () => {
       cancelled = true;
     };
-  }, [canvasData, elements]);
+  }, [canvas, elements]);
 
-  if (!canvasData) return null;
-  const scale = Math.min(maxW / canvasData.width, maxH / canvasData.height, 1);
+  if (!canvas) return null;
   return (
     <canvas
       ref={canvasRef}
-      style={{
-        width: canvasData.width * scale,
-        height: canvasData.height * scale,
-        display: "block",
-      }}
+      style={{ width: "100%", maxWidth: "100%", height: "auto", display: "block" }}
     />
   );
 }
@@ -288,11 +316,110 @@ function normalizeDesign(raw) {
   return {
     id: raw.id,
     name: raw.name || "Untitled Design",
+    type: raw.sub_type || raw.type || "image",
+    category: raw.type || "ads",
+    date: raw.created_at
+      ? new Date(raw.created_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })
+      : "—",
     score: raw.score || 0,
     copy,
     canvas: canvasData || { width: 800, height: 450, background: "#ffffff" },
     elements,
+    image: raw.image_url || null,
   };
+}
+
+// ── CreativePickerCard ────────────────────────────────────────────────────────
+// A selectable card that mirrors the /creatives library card style (16/9 canvas
+// preview, type badge, score, name, tagline, date). It's a picker, so it swaps
+// the favourite/delete actions for a selected-state ring + check.
+function CreativePickerCard({ design: c, selected, onSelect }) {
+  const tc = TYPE_COLOR[c.type?.toLowerCase()] || DEFAULT_COLOR;
+  const hasCanvas = c.canvas && c.elements?.length > 0;
+  const tagline = c.copy?.tagline || "";
+
+  return (
+    <button
+      onClick={() => onSelect(c)}
+      className={`group text-left bg-surface rounded-lg border-2 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 flex flex-col relative ${
+        selected
+          ? "border-indigo-500 shadow-lg shadow-indigo-100/60"
+          : "border-gray-100 hover:border-gray-200"
+      }`}
+    >
+      {/* Preview */}
+      <div
+        className="relative overflow-hidden bg-gray-100 flex items-center justify-center"
+        style={{ aspectRatio: "16/9", minHeight: 96 }}
+      >
+        {hasCanvas ? (
+          <div className="w-full flex items-center justify-center p-2 bg-gray-50">
+            <PreviewCanvas canvas={c.canvas} elements={c.elements} />
+          </div>
+        ) : c.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={c.image}
+            alt={c.name}
+            className="w-full h-auto block"
+            onError={(e) => {
+              e.target.style.display = "none";
+            }}
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-gray-300">
+            <Wand2 className="w-6 h-6" />
+            <span className="text-[10px]">No preview</span>
+          </div>
+        )}
+
+        {/* Type badge */}
+        <div className="absolute top-2 left-2">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border backdrop-blur-sm bg-surface/90 ${tc.text} ${tc.border} capitalize`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${tc.dot}`} />
+            {c.category}
+          </span>
+        </div>
+
+        {/* Selected check */}
+        {selected && (
+          <div className="absolute top-2 right-2 w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center shadow-sm">
+            <Check className="w-3.5 h-3.5 text-white" />
+          </div>
+        )}
+
+        {/* Score */}
+        {c.score > 0 && (
+          <div className="absolute bottom-2 right-2 bg-surface/90 backdrop-blur-sm rounded-full px-2 py-0.5 text-[10px] font-bold text-green-600 border border-green-100">
+            ★ {c.score}
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="flex flex-col flex-1 px-3 pt-2 pb-2.5">
+        <p className="text-xs font-semibold text-gray-900 truncate">{c.name}</p>
+        {tagline ? (
+          <p className="text-[10px] text-gray-400 mt-0.5 truncate italic">
+            {tagline}
+          </p>
+        ) : (
+          <p className="text-[10px] text-gray-300 mt-0.5 truncate capitalize">
+            {c.category}
+          </p>
+        )}
+        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-50">
+          <Clock className="w-3 h-3 text-gray-300" />
+          <span className="text-[10px] text-gray-400">{c.date}</span>
+        </div>
+      </div>
+    </button>
+  );
 }
 
 // ── CreativeUpload (updated with tabs) ────────────────────────────────────────
@@ -397,7 +524,7 @@ function CreativeUpload({ label, value, onChange }) {
   };
 
   return (
-    <div className="bg-surface border border-gray-200 rounded-2xl p-5  h-full flex flex-col">
+    <div className="bg-surface border border-gray-200 rounded-2xl p-5 h-full flex flex-col min-w-0">
       {/* Label input */}
       <div className="mb-4">
         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
@@ -424,7 +551,7 @@ function CreativeUpload({ label, value, onChange }) {
           onClick={() => handleTabSwitch("projects")}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === "projects" ? "bg-surface text-gray-800 " : "text-gray-500 hover:text-gray-700"}`}
         >
-          <LayoutGrid className="w-3 h-3" /> From projects
+          <LayoutGrid className="w-3 h-3" /> From Creatives
         </button>
       </div>
 
@@ -491,46 +618,15 @@ function CreativeUpload({ label, value, onChange }) {
               <p className="text-xs text-gray-400">No designs found</p>
             </div>
           ) : (
-            <div className="overflow-y-auto flex-1" style={{ maxHeight: 240 }}>
-              <div className="grid grid-cols-2 gap-2">
+            <div className="overflow-y-auto flex-1" style={{ maxHeight: 340 }}>
+              <div className="grid grid-cols-2 gap-3">
                 {designs.map((d) => (
-                  <button
+                  <CreativePickerCard
                     key={d.id}
-                    onClick={() => handleSelectDesign(d)}
-                    className={`text-left rounded-xl border-2 overflow-hidden transition-all cursor-pointer hover:border-indigo-300 ${selectedDesignId === d.id ? "border-indigo-500  shadow-indigo-100/60" : "border-gray-100"}`}
-                  >
-                    {/* Mini canvas preview */}
-                    <div
-                      className="h-16 flex items-center justify-center overflow-hidden"
-                      style={{ background: d.canvas?.background || "#f3f4f6" }}
-                    >
-                      {d.elements?.length > 0 ? (
-                        <MiniDesignCanvas
-                          canvasData={d.canvas}
-                          elements={d.elements}
-                          maxW={120}
-                          maxH={64}
-                        />
-                      ) : (
-                        <Wand2 className="w-5 h-5 text-gray-300" />
-                      )}
-                    </div>
-                    <div className="px-2 py-1.5 bg-surface">
-                      <p className="text-[11px] font-semibold text-gray-800 truncate">
-                        {d.name}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <p className="text-[10px] text-gray-400 truncate">
-                          {d.copy?.tagline || ""}
-                        </p>
-                        {d.score > 0 && (
-                          <span className="text-[10px] font-bold text-green-600">
-                            ★ {d.score}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
+                    design={d}
+                    selected={selectedDesignId === d.id}
+                    onSelect={handleSelectDesign}
+                  />
                 ))}
               </div>
             </div>
@@ -861,7 +957,7 @@ export default function Comparison() {
 
         {/* ── Input Grid ── */}
         {!result && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_56px_1fr] gap-4 items-stretch mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] gap-4 items-stretch mb-6">
             {mode === "creatives" ? (
               <>
                 <CreativeUpload

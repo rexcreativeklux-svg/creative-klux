@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { classifyResult } from "@/utils/errorHelper";
 import { throwClassifiedAuthError } from "@/utils/authErrors";
 import api from "@/app/api/axios";
+import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
 
 const AuthContext = createContext();
 
@@ -1460,10 +1461,9 @@ export function AuthProvider({ children }) {
 
       const data = await res.json(); // ← Now parsing JSON
 
-      // Extract the array from "media" key
-      const media = data.files || [];
-
-      // console.log(media)
+      // The API returns a Laravel paginator under `files`: the file array is at
+      // `files.data`, alongside pagination meta (current_page, total, links…).
+      const media = Array.isArray(data.files?.data) ? data.files.data : [];
 
       // Transform to format gallery expects
       setMyGallery(
@@ -1503,11 +1503,11 @@ export function AuthProvider({ children }) {
 
       // console.log("Fetched images:", data);
 
-      // Extract the array from "images" key
-      const images =
-        data.files.filter(
-          (file) => file.type === "image" || file.type === "",
-        ) || [];
+      // Same paginator shape as fetchGallery — files live at `files.data`.
+      const files = Array.isArray(data.files?.data) ? data.files.data : [];
+      const images = files.filter(
+        (file) => file.type === "image" || file.type === "",
+      );
 
       // console.log("Images", images)
 
@@ -1722,12 +1722,88 @@ export function AuthProvider({ children }) {
   const generateCustomCreative = async (
     { creativeType, categoryType, ...formPayload },
     onBatchResult,
+    opts = {},
   ) => {
     if (!token) {
       console.error("No auth token found.");
       return {
         ok: false,
         message: "Not authenticated",
+      };
+    }
+
+    // ── Engine switch ────────────────────────────────────────────────────────
+    // Route to Involk's single-shot LLM endpoint when selected, adapting its
+    // response into the same streamed-batch contract the forms already consume
+    // (one batch: { ok, variations, assets, data }). `opts.forceEngine` lets a
+    // caller pin a backend regardless of the flag — create-from-url's explicit
+    // Scraive path passes "redesign" so it never gets redirected. Flip
+    // CREATIVE_ENGINE back to "redesign" to send every form down the code below.
+    const engine = opts.forceEngine || CREATIVE_ENGINE;
+    if (engine === "involk") {
+      const result = await createDesign({
+        creativeType,
+        categoryType,
+        ...formPayload,
+      });
+
+      if (!result?.ok) {
+        onBatchResult?.({ ...result, batchIndex: 0, totalBatches: 1 });
+        return { ...result, data: { variations: [], assets: [], raw: [] } };
+      }
+
+      // involk_llm returns `canvas` and `copy` as JSON STRINGS per variation;
+      // `canvas` decodes to { canvas, elements }. Normalize to the object shape
+      // AdPreview + saveDesign expect (parsed copy, guaranteed id/name/category).
+      const parseMaybe = (val) => {
+        if (typeof val !== "string") return val;
+        try {
+          return JSON.parse(val);
+        } catch {
+          return null;
+        }
+      };
+      const data = result.raw || result.data || {};
+      const shortType = creativeType?.replace("_creative", "") || creativeType;
+      const brandName = formPayload?.brandName;
+      const normalize = (v, i) => {
+        const design = parseMaybe(v?.canvas) || {};
+        const copy = parseMaybe(v?.copy) || {};
+        return {
+          id: v?.id || `cd-${Date.now()}-${i}`,
+          name: copy?.headline || v?.name || brandName || "Generated Design",
+          category: v?.category || v?.sub_type || categoryType || shortType,
+          canvas: design.canvas || design || null,
+          elements: Array.isArray(design.elements)
+            ? design.elements
+            : Array.isArray(v?.elements)
+              ? v.elements
+              : [],
+          copy,
+        };
+      };
+
+      let variations = Array.isArray(data.variations)
+        ? data.variations.map(normalize)
+        : [];
+      if (!variations.length && data.design) {
+        variations = [normalize({ canvas: data.design, copy: data.copy }, 0)];
+      }
+      const assets = Array.isArray(data.assets) ? data.assets : [];
+
+      onBatchResult?.({
+        ok: true,
+        source: "success",
+        batchIndex: 0,
+        totalBatches: 1,
+        variations,
+        assets,
+        data,
+      });
+      return {
+        ok: true,
+        source: "success",
+        data: { variations, assets, raw: [data] },
       };
     }
 

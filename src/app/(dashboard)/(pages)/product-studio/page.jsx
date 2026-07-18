@@ -17,6 +17,8 @@ import {
   Grid2x2,
   ChevronRight,
   Layers,
+  ShoppingBag,
+  LayoutTemplate,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import VirtualModelModal from "@/app/(components)/product-studio/VirtualModelModal";
@@ -25,7 +27,7 @@ import VideoGeneratorModal from "@/app/(components)/product-studio/VideoGenerato
 import BackgroundRemoverModal from "@/app/(components)/product-studio/BackgroundRemoverModal";
 import GhostMannequinModal from "@/app/(components)/product-studio/GhostMannequinModal";
 import OnDeviceToolModal from "@/app/(components)/product-studio/OnDeviceToolModal";
-import AddImagesModal from "@/app/(components)/product-studio/add-images/AddImagesModal";
+import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import {
   ON_DEVICE_TOOLS,
   ON_DEVICE_TOOL_IDS,
@@ -341,19 +343,27 @@ export default function ProductPhotos() {
           }}
         />
       )}
-      {addImagesOpen && (
-        <AddImagesModal
-          onClose={() => setAddImagesOpen(false)}
-          onAdd={(items) => {
-            setAddImagesOpen(false);
-            const url = items?.[0]?.url;
-            if (!url) return;
-            router.push(
-              `/edit_a_photo?mode=start&image=${encodeURIComponent(url)}`,
-            );
-          }}
-        />
-      )}
+      <MediaPickerModal
+        isOpen={addImagesOpen}
+        onClose={() => setAddImagesOpen(false)}
+        onCancel={() => setAddImagesOpen(false)}
+        maxSelectable={1}
+        initialTab="library"
+        onApply={(images) => {
+          setAddImagesOpen(false);
+          const first = images?.[0];
+          const url = first?.large || first?.src;
+          if (!url) return;
+          router.push(
+            `/edit_a_photo?mode=start&image=${encodeURIComponent(url)}`,
+          );
+        }}
+        comingSoonTabs={[
+          { id: "shopify", label: "Shopify products", icon: ShoppingBag },
+          { id: "designs", label: "Designs", icon: LayoutTemplate },
+        ]}
+      />
+
 
       {/* {editorOpen && (
         <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />

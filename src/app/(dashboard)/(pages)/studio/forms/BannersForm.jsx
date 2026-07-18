@@ -666,7 +666,7 @@ const BannersForm = ({
               {Object.entries(sizeGroups).map(([group, sizes]) => (
                 <div key={group} className="mb-4">
                   {/* <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{group}</p> */}
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {sizes.map((s) => (
                       <button
                         key={s.value + s.label}
@@ -709,7 +709,7 @@ const BannersForm = ({
 
             {/* Audience */}
             <Field label="Audience">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCES.map((a) => (
                   <button
                     key={a.value}

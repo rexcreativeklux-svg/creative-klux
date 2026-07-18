@@ -100,6 +100,10 @@ export default function MediaPickerModal({
   maxSelectable = MAX_SELECT,
   allowedTypes = ["image",],
   tabs = null,
+  // Extra tabs rendered as disabled "Coming soon" placeholders. Opt-in — absent
+  // for existing callers. Shape: [{ id, label, icon }]. Clicking one shows a
+  // placeholder instead of any picker; nothing is selectable in these tabs.
+  comingSoonTabs = [],
 }) {
   // Effective cap — never exceed the modal's own hard ceiling, and never go below 0.
   const effectiveCap = Math.max(0, Math.min(maxSelectable, MAX_SELECT));
@@ -113,9 +117,16 @@ export default function MediaPickerModal({
   const visibleTabs = tabs?.length
     ? MAIN_TABS.filter((t) => tabs.includes(t.id))
     : MAIN_TABS;
-  const activeTabSafe = visibleTabs.some((t) => t.id === activeTab)
+  // Coming-soon tabs are selectable (so the placeholder shows) but hold no
+  // picker. Treat their ids as valid active tabs alongside the real ones.
+  const allTabIds = [
+    ...visibleTabs.map((t) => t.id),
+    ...comingSoonTabs.map((t) => t.id),
+  ];
+  const activeTabSafe = allTabIds.includes(activeTab)
     ? activeTab
     : visibleTabs[0]?.id || "search";
+  const isComingSoon = comingSoonTabs.some((t) => t.id === activeTabSafe);
 
   // ── selection ──────────────────────────────────────────────────────────────
   const [selectedImages, setSelectedImages] = useState([]); // search / library
@@ -458,6 +469,23 @@ export default function MediaPickerModal({
                 {label}
               </button>
             ))}
+            {comingSoonTabs.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-all cursor-pointer ${
+                  activeTabSafe === id
+                    ? "border-blue-600 text-blue-600 bg-blue-50/60"
+                    : "border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {Icon && <Icon className="w-4 h-4" />}
+                {label}
+                <span className="text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5">
+                  Soon
+                </span>
+              </button>
+            ))}
           </div>
 
           {/* ── Tab Content ──────────────────────────────────────────────── */}
@@ -695,6 +723,16 @@ export default function MediaPickerModal({
                 <div className="flex-1 overflow-y-auto p-6">
                   {renderMagicTab()}
                 </div>
+              </div>
+            )}
+
+            {/* ══ COMING SOON TAB ═══════════════════════════════════════════ */}
+            {isComingSoon && (
+              <div className="flex-1 flex flex-col items-center justify-center text-center gap-1.5 text-gray-400 px-6">
+                <p className="text-sm font-medium text-gray-500">
+                  {comingSoonTabs.find((t) => t.id === activeTabSafe)?.label}
+                </p>
+                <p className="text-xs">Coming soon.</p>
               </div>
             )}
           </div>

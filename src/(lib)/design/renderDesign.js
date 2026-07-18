@@ -4,6 +4,11 @@ import { SHAPES, PRIMITIVE_SHAPES, lineShaftPath } from "./shapes";
 import { waitForFonts } from "./fonts";
 import { pointsToPath } from "./drawUtils";
 import { curvePath } from "./curveUtils";
+import {
+  normalizeCells,
+  getColFractions,
+  getRowFractions,
+} from "./tableUtils";
 
 /**
  * renderDesignToBlob — paints a { canvas, elements } design to an offscreen
@@ -39,7 +44,7 @@ export async function renderDesignToCanvas({ canvas, elements }) {
   // Ensure any custom fonts used by text elements are loaded before painting —
   // canvas fillText silently falls back to a default if the font isn't ready.
   const families = (elements || [])
-    .filter((el) => el.type === "text" && el.fontFamily)
+    .filter((el) => (el.type === "text" || el.type === "table") && el.fontFamily)
     .map((el) => el.fontFamily);
   if (families.length) await waitForFonts(families);
 
@@ -244,7 +249,7 @@ export async function renderDesignToCanvas({ canvas, elements }) {
 
       // Word-wrap within the padded width; honor explicit newlines.
       const lineMaxW = Math.max(1, (el.width || 9999) - pad * 2);
-      const lineH = size * 1.3;
+      const lineH = size * (el.lineHeight || 1.3);
       const lines = [];
       for (const para of value.split("\n")) {
         const words = para.split(/\s+/).filter(Boolean);
@@ -267,9 +272,31 @@ export async function renderDesignToCanvas({ canvas, elements }) {
         ? el.y + pad + size * 0.85
         : el.y + Math.max(pad, ((el.height || 0) - blockH) / 2) + size * 0.85;
       for (const line of lines) {
-        if (line) ctx.fillText(line, x, lineY);
+        if (line) {
+          ctx.fillText(line, x, lineY);
+          // Underline: a rule under the line, matched to its measured width and
+          // alignment (canvas has no text-decoration).
+          if (el.underline) {
+            const lw = ctx.measureText(line).width;
+            const ux =
+              align === "center" ? x - lw / 2 : align === "right" ? x - lw : x;
+            const uy = lineY + size * 0.12;
+            ctx.save();
+            ctx.strokeStyle = ctx.fillStyle;
+            ctx.lineWidth = Math.max(1, size * 0.06);
+            ctx.beginPath();
+            ctx.moveTo(ux, uy);
+            ctx.lineTo(ux + lw, uy);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
         lineY += lineH;
       }
+    }
+
+    if (el.type === "table") {
+      drawTable(ctx, el);
     }
 
     if (el.type === "image" && el.src) {
@@ -289,6 +316,86 @@ export async function renderDesignToCanvas({ canvas, elements }) {
   }
 
   return cnv;
+}
+
+/**
+ * Draw a "table" element: equal-width columns / equal-height rows separated by
+ * a `borderWidth` gap of `borderColor` (matching the on-screen grid rendering),
+ * then each cell's text clipped to its box. Mirrors TableInner in EditorElement.
+ */
+function drawTable(ctx, el) {
+  const cells = normalizeCells(el.cells, el.rows, el.cols);
+  const bw = el.borderWidth ?? 1;
+  const border = el.borderColor || "#d1d5db";
+  const cols = el.cols;
+  const rows = el.rows;
+
+  // Border color fills the whole box; cell fills leave `bw`-wide lines showing.
+  ctx.fillStyle = border;
+  ctx.fillRect(el.x, el.y, el.width, el.height);
+
+  // Per-track sizes from relative weights, mirroring the on-screen CSS grid.
+  const colFr = getColFractions(el);
+  const rowFr = getRowFractions(el);
+  const colSum = colFr.reduce((s, f) => s + f, 0);
+  const rowSum = rowFr.reduce((s, f) => s + f, 0);
+  const contentW = el.width - bw * (cols + 1);
+  const contentH = el.height - bw * (rows + 1);
+  const colW = colFr.map((f) => (f / colSum) * contentW);
+  const rowH = rowFr.map((f) => (f / rowSum) * contentH);
+  // Cumulative top-left origin of each track (after the leading border/gap).
+  const colX = [];
+  const rowY = [];
+  let ax = el.x + bw;
+  for (let c = 0; c < cols; c++) {
+    colX.push(ax);
+    ax += colW[c] + bw;
+  }
+  let ay = el.y + bw;
+  for (let r = 0; r < rows; r++) {
+    rowY.push(ay);
+    ay += rowH[r] + bw;
+  }
+
+  const size = el.fontSize || 16;
+  const family = el.fontFamily || "'DM Sans', sans-serif";
+  const align = el.align || "left";
+  const pad = 10;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cx0 = colX[c];
+      const cy0 = rowY[r];
+      const cellW = colW[c];
+      const cellH = rowH[r];
+      const isHeader = el.headerRow && r === 0;
+
+      ctx.fillStyle = isHeader
+        ? el.headerFill || "#f3f4f6"
+        : el.cellFill || "#ffffff";
+      ctx.fillRect(cx0, cy0, cellW, cellH);
+
+      const text = cells[r]?.[c] ?? "";
+      if (!text) continue;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(cx0, cy0, cellW, cellH);
+      ctx.clip();
+      ctx.fillStyle = el.textColor || "#111827";
+      ctx.font = `${isHeader ? "600" : "normal"} ${size}px ${family}`;
+      ctx.textAlign = align;
+      ctx.textBaseline = "middle";
+      const tx =
+        align === "center"
+          ? cx0 + cellW / 2
+          : align === "right"
+            ? cx0 + cellW - pad
+            : cx0 + pad;
+      ctx.fillText(text, tx, cy0 + cellH / 2);
+      ctx.restore();
+    }
+  }
 }
 
 /** Draw an image with object-fit: cover into the target box. */

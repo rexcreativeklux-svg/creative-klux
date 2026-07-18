@@ -23,6 +23,7 @@ import useGalleryMedia from "./gallery/useGalleryMedia";
 import useInfiniteScroll from "./gallery/useInfiniteScroll";
 import MediaTypeTabs from "./gallery/MediaTypeTabs";
 import MediaCard from "./gallery/MediaCard";
+import MasonryGrid from "./gallery/MasonryGrid";
 import GallerySkeleton from "./gallery/GallerySkeleton";
 import { galleryGridClass } from "./gallery/mediaTypes";
 import { downloadGalleryItem } from "./gallery/downloadMedia";
@@ -178,6 +179,29 @@ export default function MediaPickerModal({
     hasMore: galleryHasMore,
     loading: galleryLoadingMore,
   });
+
+  // Shared library-card actions — used by both the image masonry and the
+  // grid (video/audio/doc) layouts so their behavior can't drift.
+  const handleLibraryDownload = async (it) => {
+    try {
+      await downloadGalleryItem(it);
+    } catch (err) {
+      console.error("❌ [media-picker] download failed:", err);
+      sonnerToast.error("Couldn't download that file.");
+    }
+  };
+
+  const handleLibraryDelete = async (it) => {
+    if (!confirm("Delete permanently?")) return;
+    notify("Deleting…");
+    try {
+      await deleteImage(it.id);
+      await refreshGallery?.();
+      notify("Deleted!");
+    } catch (err) {
+      notify(err.message || "Delete failed");
+    }
+  };
 
   // ── reset on open ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -645,7 +669,32 @@ export default function MediaPickerModal({
                         in your library yet.
                       </p>
                     </div>
+                  ) : galleryType === "image" ? (
+                    /* Images → JS column masonry with per-column skeletons. */
+                    <>
+                      <MasonryGrid
+                        items={galleryItems}
+                        getKey={(item) => item.id}
+                        loadingMore={galleryLoadingMore}
+                        renderItem={(item, i) => (
+                          <MediaCard
+                            item={item}
+                            index={i}
+                            selectable
+                            selected={selectedImages.includes(item.src)}
+                            onToggleSelect={(it) => toggleImage(it.src)}
+                            onDownload={handleLibraryDownload}
+                            onDelete={handleLibraryDelete}
+                          />
+                        )}
+                      />
+                      {/* Sentinel — scrolling into view fetches the next page. */}
+                      {galleryHasMore && (
+                        <div ref={librarySentinelRef} className="h-px w-full" />
+                      )}
+                    </>
                   ) : (
+                    /* Video / audio / doc → CSS grid; skeletons append at bottom. */
                     <>
                       <div className={galleryGridClass(galleryType)}>
                         {galleryItems.map((item, i) => (
@@ -656,39 +705,12 @@ export default function MediaPickerModal({
                             selectable
                             selected={selectedImages.includes(item.src)}
                             onToggleSelect={(it) => toggleImage(it.src)}
-                            onDownload={async (it) => {
-                              try {
-                                await downloadGalleryItem(it);
-                              } catch (err) {
-                                console.error(
-                                  "❌ [media-picker] download failed:",
-                                  err,
-                                );
-                                sonnerToast.error(
-                                  "Couldn't download that file.",
-                                );
-                              }
-                            }}
-                            onDelete={async (it) => {
-                              if (!confirm("Delete permanently?")) return;
-                              notify("Deleting…");
-                              try {
-                                await deleteImage(it.id);
-                                await refreshGallery?.();
-                                notify("Deleted!");
-                              } catch (err) {
-                                notify(err.message || "Delete failed");
-                              }
-                            }}
+                            onDownload={handleLibraryDownload}
+                            onDelete={handleLibraryDelete}
                           />
                         ))}
-                        {/* Load-more skeletons flow inside the same grid/columns. */}
                         {galleryLoadingMore && (
-                          <GallerySkeleton
-                            type={galleryType}
-                            masonry={galleryType === "image"}
-                            count={galleryType === "image" ? 8 : 4}
-                          />
+                          <GallerySkeleton type={galleryType} count={4} />
                         )}
                       </div>
                       {/* Sentinel — scrolling into view fetches the next page. */}

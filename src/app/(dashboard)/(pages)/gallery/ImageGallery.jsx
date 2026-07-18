@@ -24,6 +24,7 @@ import useGalleryMedia from "@/app/(components)/gallery/useGalleryMedia";
 import useInfiniteScroll from "@/app/(components)/gallery/useInfiniteScroll";
 import MediaTypeTabs from "@/app/(components)/gallery/MediaTypeTabs";
 import MediaCard from "@/app/(components)/gallery/MediaCard";
+import MasonryGrid from "@/app/(components)/gallery/MasonryGrid";
 import GallerySkeleton from "@/app/(components)/gallery/GallerySkeleton";
 import { galleryGridClass, MEDIA_ACCEPT } from "@/app/(components)/gallery/mediaTypes";
 import { downloadGalleryItem } from "@/app/(components)/gallery/downloadMedia";
@@ -419,27 +420,40 @@ export default function ImageGallery() {
               </div>
             ) : (
               <>
-                <div className={galleryGridClass(activeType)}>
-                  {items.map((item, i) => (
-                    <MediaCard
-                      key={item.id}
-                      item={item}
-                      index={i}
-                      onDownload={downloadItem}
-                      onCopyLink={copyLink}
-                      onDelete={deleteItem}
-                    />
-                  ))}
-                  {/* Load-more skeletons flow inside the same grid/columns so
-                      the layout reads as more items filling in, not a new block. */}
-                  {loadingMore && (
-                    <GallerySkeleton
-                      type={activeType}
-                      masonry={activeType === "image"}
-                      count={activeType === "image" ? 8 : 4}
-                    />
-                  )}
-                </div>
+                {activeType === "image" ? (
+                  /* Images → JS column masonry with per-column load-more skeletons. */
+                  <MasonryGrid
+                    items={items}
+                    getKey={(item) => item.id}
+                    loadingMore={loadingMore}
+                    renderItem={(item, i) => (
+                      <MediaCard
+                        item={item}
+                        index={i}
+                        onDownload={downloadItem}
+                        onCopyLink={copyLink}
+                        onDelete={deleteItem}
+                      />
+                    )}
+                  />
+                ) : (
+                  /* Video / audio / doc → CSS grid; skeletons append at the bottom. */
+                  <div className={galleryGridClass(activeType)}>
+                    {items.map((item, i) => (
+                      <MediaCard
+                        key={item.id}
+                        item={item}
+                        index={i}
+                        onDownload={downloadItem}
+                        onCopyLink={copyLink}
+                        onDelete={deleteItem}
+                      />
+                    ))}
+                    {loadingMore && (
+                      <GallerySkeleton type={activeType} count={4} />
+                    )}
+                  </div>
+                )}
                 {/* Sentinel — scrolling this into view fetches the next page. */}
                 {hasMore && <div ref={sentinelRef} className="h-px w-full" />}
               </>

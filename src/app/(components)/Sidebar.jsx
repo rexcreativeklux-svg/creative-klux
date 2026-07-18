@@ -47,6 +47,25 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const [openDropdown, setOpenDropdown] = useState(null);
   const bottomMenuRef = useRef(null);
   const mobileBottomMenuRef = useRef(null);
+  const userBtnRef = useRef(null);
+  // Position for the collapsed user menu — rendered fixed so it isn't clipped
+  // by the sidebar's overflow-hidden while collapsed.
+  const [userMenuCoords, setUserMenuCoords] = useState({ left: 0, bottom: 0 });
+
+  // Toggle the desktop user menu; when collapsed, snapshot the trigger's
+  // position so the fixed-positioned popup anchors above the avatar.
+  const toggleBottomMenu = () => {
+    if (!showBottomMenu && !isOpen) {
+      const rect = userBtnRef.current?.getBoundingClientRect();
+      if (rect) {
+        setUserMenuCoords({
+          left: rect.left,
+          bottom: window.innerHeight - rect.top + 8,
+        });
+      }
+    }
+    setShowBottomMenu((p) => !p);
+  };
 
   // Actual sign-out. Kept lean so LogoutModal owns the loading/close/toast UX:
   // the modal stays open (showing its "Logging out…" state) until this
@@ -375,16 +394,17 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           onClick={() => router.push("/")}
         >
           <img
-            src="/logos/klux-logo-dark.png"
+            src="/logoblue.svg"
             alt="Logo"
             className="h-7 w-auto max-w-full object-contain"
             loading="lazy"
           />
+          {isOpen ? <strong className="ml-1"> Creative Klux</strong> : ""}
         </div>
 
         {/* Scrollable nav area */}
         <div
-          className={`flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-3 ${isOpen ? "px-3" : "px-2"}`}
+          className={`hide-scrollbar flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-3 ${isOpen ? "px-3" : "px-2"}`}
         >
           {renderSection("Overview", overviewItems)}
           {renderSection("Create", createItems)}
@@ -413,7 +433,16 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
           {/* Bottom popup menu */}
           {showBottomMenu && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-surface border border-gray-200 rounded-2xl shadow-xl z-50">
+            <div
+              style={
+                isOpen
+                  ? undefined
+                  : { left: userMenuCoords.left, bottom: userMenuCoords.bottom }
+              }
+              className={`mb-2 bg-surface border border-gray-200 rounded-2xl shadow-xl z-50 ${
+                isOpen ? "absolute bottom-full left-3 right-3" : "fixed w-56"
+              }`}
+            >
               {/* remove overflow-hidden here ^ */}
               <div className="py-1.5">
                 {bottomMenuLinks.map(({ label, href, icon: Icon }) => (
@@ -446,7 +475,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
           {/* User button */}
           <button
-            onClick={() => setShowBottomMenu((p) => !p)}
+            ref={userBtnRef}
+            onClick={toggleBottomMenu}
             className={`
       flex items-center w-full rounded-xl transition-all duration-150 cursor-pointer
       ${showBottomMenu ? "bg-gray-100" : "hover:bg-gray-100"}

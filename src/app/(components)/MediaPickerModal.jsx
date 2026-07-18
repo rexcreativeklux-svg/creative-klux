@@ -1,6 +1,5 @@
 // components/MediaPickerModal.jsx
 // Unified media picker — Search | Library | Magic Studio | Upload
-// Drop-in replacement: replaces SearchMediaModal, LibraryMediaModal, MagicMediaModal + upload button
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
@@ -14,7 +13,6 @@ import {
   Download,
   MoreVertical,
   PlusCircleIcon,
-  Film,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -23,18 +21,16 @@ import useGalleryMedia from "./gallery/useGalleryMedia";
 import useInfiniteScroll from "./gallery/useInfiniteScroll";
 import MediaTypeTabs from "./gallery/MediaTypeTabs";
 import MediaCard from "./gallery/MediaCard";
+import MasonryGrid from "./gallery/MasonryGrid";
 import GallerySkeleton from "./gallery/GallerySkeleton";
 import { galleryGridClass } from "./gallery/mediaTypes";
 import { downloadGalleryItem } from "./gallery/downloadMedia";
 
-// ── Magic sub-tabs (same as MagicMediaModal) ─────────────────────────────────
-import TextToImageTab from "../(dashboard)/(pages)/old-studio/designer-creatives/create/tabs/text-to-image/page";
-import TextToAudioTab from "../(dashboard)/(pages)/old-studio/designer-creatives/create/tabs/text-to-audio/page";
-import TextToVideoTab from "../(dashboard)/(pages)/old-studio/designer-creatives/create/tabs/text-to-video/page";
-import ImageToVariationsTab from "../(dashboard)/(pages)/old-studio/designer-creatives/create/tabs/image-to-variations/page";
-import ScriptToVoiceoverToVideoTab from "../(dashboard)/(pages)/old-studio/designer-creatives/create/tabs/script-to-voiceover/page";
-import AudioToTextTab from "../(dashboard)/(pages)/old-studio/ai-studio/create/audio-to-text/page";
-import PersonaBasedGeneratorTab from "../(dashboard)/(pages)/old-studio/designer-creatives/create/tabs/persona-based-generator/page";
+// ── Magic Studio tab — config-driven panel that reuses the standalone Magic
+//    Studio "machine" (magicStudioConfigs + magic-studio-api + on-device engines
+//    + backend history). Replaces the old per-tool old-studio pages. ──
+import MagicTabPanel from "./magic-studio/MagicTabPanel";
+import { MAGIC_SUBTABS, configIdForLabel } from "./magic-studio/subtabs";
 import { FILE_LIMITS, getFileCategory } from "@/utils/helpers";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,16 +39,6 @@ const MAIN_TABS = [
   { id: "search", label: "Search Media", icon: FileSearch },
   { id: "library", label: "My Library", icon: FolderOpen },
   { id: "magic", label: "Magic Studio", icon: Sparkles },
-];
-
-const MAGIC_SUBTABS = [
-  "Text to Image",
-  "Text to Audio",
-  "Text to Video",
-  "Image to Variations",
-  "Script to Voiceover to Video",
-  "Audio to Text",
-  "Persona-based Generator",
 ];
 
 const MAX_SELECT = 5;
@@ -111,7 +97,7 @@ export default function MediaPickerModal({
   const effectiveCap = Math.max(0, Math.min(maxSelectable, MAX_SELECT));
   // ── tab state ──────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [activeMagicTab, setActiveMagicTab] = useState(MAGIC_SUBTABS[0]);
+  const [activeMagicTab, setActiveMagicTab] = useState(MAGIC_SUBTABS[0].label);
 
   // Main tabs this caller shows; the active tab is clamped into the visible set
   // during render (same pattern as useGalleryMedia's type clamp) so a stale or
@@ -189,6 +175,29 @@ export default function MediaPickerModal({
     hasMore: galleryHasMore,
     loading: galleryLoadingMore,
   });
+
+  // Shared library-card actions — used by both the image masonry and the
+  // grid (video/audio/doc) layouts so their behavior can't drift.
+  const handleLibraryDownload = async (it) => {
+    try {
+      await downloadGalleryItem(it);
+    } catch (err) {
+      console.error("❌ [media-picker] download failed:", err);
+      sonnerToast.error("Couldn't download that file.");
+    }
+  };
+
+  const handleLibraryDelete = async (it) => {
+    if (!confirm("Delete permanently?")) return;
+    notify("Deleting…");
+    try {
+      await deleteImage(it.id);
+      await refreshGallery?.();
+      notify("Deleted!");
+    } catch (err) {
+      notify(err.message || "Delete failed");
+    }
+  };
 
   // ── reset on open ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -405,41 +414,6 @@ export default function MediaPickerModal({
     } catch {
       notify("Download failed");
     }
-  };
-
-  // ── magic tab renderer ────────────────────────────────────────────────────
-  const renderMagicTab = () => {
-    const shared = { selectedMedia, handleSelectMedia: toggleMedia };
-    const map = {
-      "Text to Image": (
-        <TextToImageTab
-          {...shared}
-          postData={postData}
-          activeBrand={activeBrand}
-        />
-      ),
-      "Text to Audio": <TextToAudioTab {...shared} />,
-      "Text to Video": <TextToVideoTab {...shared} />,
-      "Image to Variations": (
-        <ImageToVariationsTab
-          {...shared}
-          brandName={postData?.brandName}
-          postData={postData}
-          activeBrand={activeBrand}
-          onClose={onClose}
-        />
-      ),
-      "Script to Voiceover to Video": (
-        <ScriptToVoiceoverToVideoTab {...shared} />
-      ),
-      "Audio to Text": <AudioToTextTab {...shared} />,
-      "Persona-based Generator": <PersonaBasedGeneratorTab {...shared} />,
-    };
-    return (
-      map[activeMagicTab] ?? (
-        <p className="text-sm text-gray-400 p-4">Select a tab above.</p>
-      )
-    );
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -673,7 +647,32 @@ export default function MediaPickerModal({
                         in your library yet.
                       </p>
                     </div>
+                  ) : galleryType === "image" ? (
+                    /* Images → JS column masonry with per-column skeletons. */
+                    <>
+                      <MasonryGrid
+                        items={galleryItems}
+                        getKey={(item) => item.id}
+                        loadingMore={galleryLoadingMore}
+                        renderItem={(item, i) => (
+                          <MediaCard
+                            item={item}
+                            index={i}
+                            selectable
+                            selected={selectedImages.includes(item.src)}
+                            onToggleSelect={(it) => toggleImage(it.src)}
+                            onDownload={handleLibraryDownload}
+                            onDelete={handleLibraryDelete}
+                          />
+                        )}
+                      />
+                      {/* Sentinel — scrolling into view fetches the next page. */}
+                      {galleryHasMore && (
+                        <div ref={librarySentinelRef} className="h-px w-full" />
+                      )}
+                    </>
                   ) : (
+                    /* Video / audio / doc → CSS grid; skeletons append at bottom. */
                     <>
                       <div className={galleryGridClass(galleryType)}>
                         {galleryItems.map((item, i) => (
@@ -684,39 +683,12 @@ export default function MediaPickerModal({
                             selectable
                             selected={selectedImages.includes(item.src)}
                             onToggleSelect={(it) => toggleImage(it.src)}
-                            onDownload={async (it) => {
-                              try {
-                                await downloadGalleryItem(it);
-                              } catch (err) {
-                                console.error(
-                                  "❌ [media-picker] download failed:",
-                                  err,
-                                );
-                                sonnerToast.error(
-                                  "Couldn't download that file.",
-                                );
-                              }
-                            }}
-                            onDelete={async (it) => {
-                              if (!confirm("Delete permanently?")) return;
-                              notify("Deleting…");
-                              try {
-                                await deleteImage(it.id);
-                                await refreshGallery?.();
-                                notify("Deleted!");
-                              } catch (err) {
-                                notify(err.message || "Delete failed");
-                              }
-                            }}
+                            onDownload={handleLibraryDownload}
+                            onDelete={handleLibraryDelete}
                           />
                         ))}
-                        {/* Load-more skeletons flow inside the same grid/columns. */}
                         {galleryLoadingMore && (
-                          <GallerySkeleton
-                            type={galleryType}
-                            masonry={galleryType === "image"}
-                            count={galleryType === "image" ? 8 : 4}
-                          />
+                          <GallerySkeleton type={galleryType} count={4} />
                         )}
                       </div>
                       {/* Sentinel — scrolling into view fetches the next page. */}
@@ -736,21 +708,46 @@ export default function MediaPickerModal({
                 <div className="flex px-6 overflow-x-auto border-b border-gray-100 shrink-0 gap-0.5">
                   {MAGIC_SUBTABS.map((tab) => (
                     <button
-                      key={tab}
-                      onClick={() => setActiveMagicTab(tab)}
+                      key={tab.id}
+                      onClick={() => setActiveMagicTab(tab.label)}
                       className={`px-4 py-3 text-xs font-medium whitespace-nowrap transition cursor-pointer border-b-2 ${
-                        activeMagicTab === tab
+                        activeMagicTab === tab.label
                           ? "text-blue-600 border-blue-600"
                           : "text-gray-500 border-transparent hover:text-gray-800"
                       }`}
                     >
-                      {tab}
+                      {tab.label}
                     </button>
                   ))}
                 </div>
-                {/* Magic content */}
+                {/* Magic content — the config-driven panel, remounted per sub-tab
+                    so each tool resets cleanly and releases its engines/URLs. */}
                 <div className="flex-1 overflow-y-auto p-6">
-                  {renderMagicTab()}
+                  {(() => {
+                    const magicId = configIdForLabel(activeMagicTab);
+                    return magicId ? (
+                      <MagicTabPanel
+                        key={magicId}
+                        categoryId={magicId}
+                        // Selected across BOTH buckets so the ring shows
+                        // regardless of which bucket a result was routed into.
+                        selectedMedia={[...selectedImages, ...selectedMedia]}
+                        // Route by type: image results go into the images bucket
+                        // (Applied + cropped as images); video/audio into media.
+                        onSelectMedia={(src, type) =>
+                          type === "image"
+                            ? toggleImage(src)
+                            : toggleMedia(src)
+                        }
+                        allowedTypes={allowedTypes}
+                        activeBrand={activeBrand}
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-400 p-4">
+                        Select a tab above.
+                      </p>
+                    );
+                  })()}
                 </div>
               </div>
             )}

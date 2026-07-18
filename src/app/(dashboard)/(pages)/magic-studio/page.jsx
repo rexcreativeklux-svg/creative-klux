@@ -282,8 +282,8 @@ export default function MagicStudioPage() {
                   onClick={() => setOpenCategory(cat.id)}
                   className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium border transition-all cursor-pointer hover:-translate-y-0.5 ${
                     primary
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 bg-surface hover:border-blue-300 hover:bg-blue-50/40"
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10"
+                      : "border-gray-200 bg-surface hover:border-blue-300 hover:bg-blue-50/40 dark:hover:border-blue-500/60 dark:hover:bg-blue-500/10"
                   }`}
                 >
                   <span

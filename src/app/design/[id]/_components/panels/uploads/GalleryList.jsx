@@ -61,10 +61,8 @@ export default function GalleryList({
             />
           );
         })}
-        {/* Load-more skeletons flow inside the same 2-up grid (never masonry). */}
-        {loadingMore && (
-          <GallerySkeleton type={typeId} masonry={false} count={4} />
-        )}
+        {/* Load-more skeletons flow inside the same 2-up grid. */}
+        {loadingMore && <GallerySkeleton type={typeId} count={4} />}
       </MediaGrid>
 
       {/* Sentinel — only while there are items and more pages to fetch. */}

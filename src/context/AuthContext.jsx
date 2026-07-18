@@ -17,7 +17,7 @@ const AuthContext = createContext();
 
 // Default page size for the paginated gallery. Kept here so every gallery
 // surface (page, picker, editor uploads) requests the same amount per page.
-const GALLERY_PER_PAGE = 30;
+const GALLERY_PER_PAGE = 10;
 
 // Normalize a raw `GET /gallery` file record into the shape every gallery
 // surface consumes ({ id, type, src, alt, filename }). Single source of truth

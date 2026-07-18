@@ -24,6 +24,7 @@ import FullOverlayLoader from "@/app/(components)/loaders/full-overlay-loader";
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
+import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
 
 const VISUAL_STYLES = [
   "Minimal",
@@ -184,12 +185,14 @@ export default function CreateFromUrl() {
   const [step, setStep] = useState(1);
   const [creationType, setCreationType] = useState(null);
 
-  // Which generation backend to use. Default 'redesign' (Scraive → /creatives/redesign).
-  // The "Create using Involk" entry point passes ?engine=involk to use the LLM endpoint.
-  const [engine, setEngine] = useState("redesign");
+  // Which generation backend to use. Defaults to the app-wide CREATIVE_ENGINE
+  // flag; a ?engine=involk|redesign query param overrides it for this visit
+  // (e.g. the "Create using Involk" entry point passes ?engine=involk).
+  const [engine, setEngine] = useState(CREATIVE_ENGINE);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("engine") === "involk") setEngine("involk");
+    const q = params.get("engine");
+    if (q === "involk" || q === "redesign") setEngine(q);
   }, []);
 
   // Step 1
@@ -694,7 +697,11 @@ export default function CreateFromUrl() {
       const payload = { ...base, templates };
       const expectedCount = templates.length;
       let isFirstBatch = true;
-      const res = await generateCustomCreative(payload, (batch) => {
+      // Force the real Scraive endpoint here — this path is the explicit
+      // "redesign" branch and must not be redirected by the CREATIVE_ENGINE flag.
+      const res = await generateCustomCreative(
+        payload,
+        (batch) => {
         if (!batch.ok) return;
         const variations = batch.variations || [];
         const assets = batch.assets || [];
@@ -729,7 +736,9 @@ export default function CreateFromUrl() {
             };
           });
         }
-      });
+        },
+        { forceEngine: "redesign" },
+      );
 
       if (!res.ok) {
         setResult((prev) => (prev ? { ...prev, done: true } : prev));
@@ -1339,7 +1348,7 @@ export default function CreateFromUrl() {
                     : "Ad Size"
                   : "Post Size"}
               </label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {(isAds
                   ? adSubType === "video"
                     ? VIDEO_SIZES
@@ -1409,7 +1418,7 @@ export default function CreateFromUrl() {
               <label className="text-sm font-medium text-gray-700">
                 Audience
               </label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCES.map((a) => (
                   <button
                     key={a.label}

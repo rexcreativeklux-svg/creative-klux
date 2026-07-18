@@ -8,6 +8,16 @@ import { pointsToPath } from "@/(lib)/design/drawUtils";
 import { curvePath } from "@/(lib)/design/curveUtils";
 import { proxiedSrc } from "@/(lib)/design/renderDesign";
 import { fitFontSize } from "./textFit";
+import EditorElementMenu from "./EditorElementMenu";
+import {
+  normalizeCells,
+  setCell,
+  getColFractions,
+  getRowFractions,
+  resizeTrack,
+  addRow,
+  addCol,
+} from "@/(lib)/design/tableUtils";
 
 /**
  * EditorElement — renders one design element inside the scaled stage and makes
@@ -26,7 +36,15 @@ export default function EditorElement({
   onStartEdit,
   onEndEdit,
   onCurveAddPoint,
+  activeCell,
+  onCellFocus,
+  onDuplicate,
+  onRemove,
+  onMoveLayer,
+  onToggleLock,
+  onAskKlux,
 }) {
+  const locked = !!el.locked;
   const textRef = useRef(null);
 
   // Focus the text box when entering edit mode.
@@ -102,11 +120,13 @@ export default function EditorElement({
   return (
     <Rnd
       scale={zoom}
-      bounds="parent"
+      // No `bounds` — elements can be dragged/resized past the canvas edge and
+      // the overflow is clipped by the stage (overflow:hidden), Canva-style,
+      // instead of being trapped inside the artboard.
       size={{ width: el.width, height: el.height }}
       position={{ x: el.x, y: el.y }}
-      disableDragging={editing}
-      enableResizing={selected && !editing && !noBox}
+      disableDragging={editing || locked}
+      enableResizing={selected && !editing && !noBox && !locked}
       onDragStart={() => onSelect(el.id)}
       onMouseDown={() => onSelect(el.id)}
       onDragStop={(e, d) => onChange({ x: d.x, y: d.y }, { record: true })}
@@ -140,17 +160,58 @@ export default function EditorElement({
           transform: rotation ? `rotate(${rotation}deg)` : undefined,
         }}
         onDoubleClick={(e) => {
-          if (el.type === "text") onStartEdit?.(el.id);
+          if (locked) return;
+          if (el.type === "text" || el.type === "table") onStartEdit?.(el.id);
           else if (el.type === "curve") onCurveAddPoint?.(el.id, e);
         }}
       >
-        {renderInner(el, { editing, textRef, commitText })}
+        {renderInner(el, {
+          editing,
+          textRef,
+          commitText,
+          onChange,
+          zoom,
+          selected,
+          activeCell,
+          onCellFocus,
+        })}
       </div>
+
+      {/* Floating action pill below the element (lock / duplicate / delete /
+          layer order). Kept out of the rotated content so it stays upright. */}
+      {selected && !editing && (
+        <EditorElementMenu
+          zoom={zoom}
+          locked={locked}
+          onDuplicate={() => onDuplicate?.(el.id)}
+          onRemove={() => onRemove?.(el.id)}
+          onMoveLayer={(dir) => onMoveLayer?.(el.id, dir)}
+          onToggleLock={() => onToggleLock?.(el.id)}
+          onAskKlux={onAskKlux}
+        />
+      )}
     </Rnd>
   );
 }
 
-function renderInner(el, { editing, textRef, commitText }) {
+function renderInner(
+  el,
+  { editing, textRef, commitText, onChange, zoom, selected, activeCell, onCellFocus },
+) {
+  if (el.type === "table") {
+    return (
+      <TableInner
+        el={el}
+        editing={editing}
+        selected={selected}
+        zoom={zoom}
+        onChange={onChange}
+        activeCell={activeCell}
+        onCellFocus={onCellFocus}
+      />
+    );
+  }
+
   if (el.type === "text") {
     const style = {
       width: "100%",
@@ -163,9 +224,10 @@ function renderInner(el, { editing, textRef, commitText }) {
       fontFamily: el.fontFamily || "'DM Sans', sans-serif",
       color: el.fill || el.color || "#111111",
       textAlign: el.textAlign || "left",
-      lineHeight: 1.3,
+      lineHeight: el.lineHeight || 1.3,
       letterSpacing: el.letterSpacing || "normal",
       fontStyle: el.fontStyle || "normal",
+      textDecoration: el.underline ? "underline" : "none",
       cursor: editing ? "text" : "move",
       outline: "none",
       overflow: "hidden",
@@ -342,6 +404,248 @@ function renderInner(el, { editing, textRef, commitText }) {
   }
 
   return null;
+}
+
+/**
+ * TableInner — renders the grid of a "table" element. Cell separators are the
+ * container background showing through a `borderWidth` grid `gap`, which keeps
+ * borders hairline-crisp at any zoom. Column/row sizes come from relative
+ * weights (see tableUtils) so tracks can be dragged individually.
+ *
+ * When `editing`, each cell is contentEditable and commits on blur. When merely
+ * `selected` (not editing), thin divider handles let the user drag a single
+ * row/column wider or narrower, and "+" affordances add a row (bottom) or a
+ * column (right).
+ */
+function TableInner({
+  el,
+  editing,
+  selected,
+  zoom = 1,
+  onChange,
+  activeCell,
+  onCellFocus,
+}) {
+  const cells = normalizeCells(el.cells, el.rows, el.cols);
+  const border = el.borderColor || "#d1d5db";
+  const bw = el.borderWidth ?? 1;
+  const colFr = getColFractions(el);
+  const rowFr = getRowFractions(el);
+  const showHandles = selected && !editing;
+
+  const commitCell = (r, c, node) => {
+    const value = node.innerText;
+    if (value === (cells[r]?.[c] ?? "")) return; // no-op, keep history clean
+    onChange?.(setCell(el, r, c, value), { record: true });
+  };
+
+  // Drag a divider: convert screen movement into a relative-weight delta and
+  // trade it between the two tracks it sits between. The first move of a drag
+  // records history (capturing the pre-drag size); the rest don't, so one drag
+  // is a single undo step.
+  const startTrackDrag = (axis, index) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startPos = axis === "col" ? e.clientX : e.clientY;
+    const total = axis === "col" ? el.width : el.height;
+    const sumFr = (axis === "col" ? colFr : rowFr).reduce((s, f) => s + f, 0);
+    let recorded = false;
+
+    const onMove = (ev) => {
+      const pos = axis === "col" ? ev.clientX : ev.clientY;
+      const deltaPx = (pos - startPos) / (zoom || 1); // screen → canvas units
+      const deltaFr = (deltaPx / total) * sumFr;
+      const patch = resizeTrack(el, axis, index, deltaFr);
+      if (!Object.keys(patch).length) return;
+      onChange?.(patch, { record: !recorded });
+      recorded = true;
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const addBtn = (e, patchFn) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onChange?.(patchFn(el), { record: true });
+  };
+
+  // Cumulative track offsets as percentages, for positioning divider handles.
+  const offsets = (fr) => {
+    const sum = fr.reduce((s, f) => s + f, 0);
+    const out = [];
+    let acc = 0;
+    for (let i = 0; i < fr.length - 1; i++) {
+      acc += fr[i];
+      out.push((acc / sum) * 100);
+    }
+    return out;
+  };
+
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "grid",
+          gridTemplateColumns: colFr.map((f) => `${f}fr`).join(" "),
+          gridTemplateRows: rowFr.map((f) => `${f}fr`).join(" "),
+          gap: bw,
+          background: border,
+          border: `${bw}px solid ${border}`,
+          borderRadius: el.borderRadius || 6,
+          overflow: "hidden",
+          boxSizing: "border-box",
+        }}
+      >
+        {cells.map((row, r) =>
+          row.map((value, c) => {
+            const isHeader = el.headerRow && r === 0;
+            // Highlight the whole row/column the active cell sits in, so it's
+            // clear which track the delete buttons will remove.
+            const inActive =
+              activeCell && (activeCell.r === r || activeCell.c === c);
+            return (
+              <div
+                key={`${r}-${c}`}
+                contentEditable={editing}
+                suppressContentEditableWarning
+                onMouseDown={() => onCellFocus?.(r, c)}
+                onFocus={() => onCellFocus?.(r, c)}
+                onBlur={(e) => commitCell(r, c, e.currentTarget)}
+                style={{
+                  boxShadow: inActive
+                    ? "inset 0 0 0 2px rgba(99,102,241,0.55)"
+                    : undefined,
+                  background: isHeader
+                    ? el.headerFill || "#f3f4f6"
+                    : el.cellFill || "#ffffff",
+                  color: el.textColor || "#111827",
+                  fontFamily: el.fontFamily || "'DM Sans', sans-serif",
+                  fontSize: el.fontSize || 16,
+                  fontWeight: isHeader ? 600 : "normal",
+                  textAlign: el.align || "left",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent:
+                    (el.align || "left") === "center"
+                      ? "center"
+                      : (el.align || "left") === "right"
+                        ? "flex-end"
+                        : "flex-start",
+                  padding: "6px 10px",
+                  overflow: "hidden",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  outline: "none",
+                  cursor: editing ? "text" : "move",
+                  userSelect: editing ? "text" : "none",
+                  boxSizing: "border-box",
+                }}
+              >
+                {value}
+              </div>
+            );
+          }),
+        )}
+      </div>
+
+      {/* Column dividers — drag to resize the two columns they sit between */}
+      {showHandles &&
+        offsets(colFr).map((left, i) => (
+          <div
+            key={`cd-${i}`}
+            onMouseDown={startTrackDrag("col", i)}
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: `${left}%`,
+              width: 10,
+              transform: "translateX(-50%)",
+              cursor: "col-resize",
+              zIndex: 5,
+            }}
+          />
+        ))}
+
+      {/* Row dividers */}
+      {showHandles &&
+        offsets(rowFr).map((top, i) => (
+          <div
+            key={`rd-${i}`}
+            onMouseDown={startTrackDrag("row", i)}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: `${top}%`,
+              height: 10,
+              transform: "translateY(-50%)",
+              cursor: "row-resize",
+              zIndex: 5,
+            }}
+          />
+        ))}
+
+      {/* Add-row (bottom) and add-column (right) affordances */}
+      {showHandles && (
+        <>
+          <AddTrackButton
+            orientation="row"
+            onMouseDown={(e) => addBtn(e, addRow)}
+          />
+          <AddTrackButton
+            orientation="col"
+            onMouseDown={(e) => addBtn(e, addCol)}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * AddTrackButton — the round "+" pinned just outside the table: below-center to
+ * add a row, right-center to add a column. Sized in inverse zoom so it stays a
+ * constant on-screen size regardless of how far the canvas is scaled.
+ */
+function AddTrackButton({ orientation, onMouseDown }) {
+  const isRow = orientation === "row";
+  const pos = isRow
+    ? { bottom: -34, left: "50%", transform: "translateX(-50%)" }
+    : { right: -34, top: "50%", transform: "translateY(-50%)" };
+  return (
+    <button
+      title={isRow ? "Add row" : "Add column"}
+      onMouseDown={onMouseDown}
+      style={{
+        position: "absolute",
+        ...pos,
+        width: 22,
+        height: 22,
+        borderRadius: "50%",
+        background: "#6366f1",
+        color: "#fff",
+        border: "2px solid #fff",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 16,
+        lineHeight: 1,
+        cursor: "pointer",
+        zIndex: 6,
+      }}
+    >
+      +
+    </button>
+  );
 }
 
 function handleStyles(selected) {

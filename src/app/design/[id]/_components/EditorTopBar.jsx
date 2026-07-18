@@ -5,14 +5,14 @@ import {
   ChevronLeft,
   Undo2,
   Redo2,
-  Download,
+  Eye,
   Loader2,
   Minus,
   Plus,
   Check,
 } from "lucide-react";
 
-/** Top chrome: back, editable title, undo/redo, zoom, save/download. */
+/** Top chrome: back, editable title, undo/redo, zoom, preview/save. */
 export default function EditorTopBar({
   name,
   onNameChange,
@@ -27,7 +27,7 @@ export default function EditorTopBar({
   dirty,
   saving,
   onSave,
-  onDownload,
+  onPreview,
 }) {
   return (
     <header className="h-14 shrink-0 flex items-center gap-2 px-3 bg-surface border-b border-gray-200 z-30">
@@ -70,12 +70,12 @@ export default function EditorTopBar({
       </div>
 
       <button
-        onClick={onDownload}
+        onClick={onPreview}
         className="flex items-center gap-1.5 px-3 h-9 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition cursor-pointer"
-        title="Download PNG"
+        title="Preview design"
       >
-        <Download className="w-4 h-4" />
-        <span className="hidden sm:inline">Download</span>
+        <Eye className="w-4 h-4" />
+        <span className="hidden sm:inline">Preview</span>
       </button>
 
       <button

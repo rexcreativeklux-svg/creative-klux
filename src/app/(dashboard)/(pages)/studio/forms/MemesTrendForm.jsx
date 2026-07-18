@@ -563,7 +563,7 @@ const MemesTrendForm = ({
             <SectionTitle>Size, Goals & Audience</SectionTitle>
 
             <Field label="Post Size">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {SIZE_OPTIONS.map((s) => (
                   <button
                     key={s.value}
@@ -600,7 +600,7 @@ const MemesTrendForm = ({
             </Field>
 
             <Field label="Audience">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCES.map((a) => (
                   <button
                     key={a.value}

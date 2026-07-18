@@ -24,6 +24,7 @@ import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSe
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 import { useAuth } from "@/context/AuthContext";
+import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
 
 const MAX_IMAGES = 5;
 
@@ -503,37 +504,41 @@ const ImageAdsForm = ({
 
     try {
       // ─────────────────────────────────────────────
-      // 1. FETCH DESIGN TEMPLATES FIRST
+      // 1. FETCH DESIGN TEMPLATES FIRST (redesign engine only)
       // ─────────────────────────────────────────────
-      const templateRes = await fetchDesignTemplates({
-        type: "image",
-        category: selectedSize.category, // "Meta Square"
-        type_size: selectedSize.type_size, // "1080x1080"
-      });
+      // Scraive templates are only needed by the "redesign" engine. Involk
+      // generates from scratch, so skip the fetch + gate entirely — otherwise an
+      // empty template list wrongly blocks Involk with "No templates found".
+      let selectedTemplates = [];
+      if (CREATIVE_ENGINE === "redesign") {
+        const templateRes = await fetchDesignTemplates({
+          type: "image",
+          category: selectedSize.category, // "Meta Square"
+          type_size: selectedSize.type_size, // "1080x1080"
+        });
 
-      if (!templateRes.ok) {
-        setGenerating(false);
-        const msg = templateRes.message || "Failed to fetch templates.";
-        setError(msg);
-        showToast(msg);
-        return;
+        if (!templateRes.ok) {
+          setGenerating(false);
+          const msg = templateRes.message || "Failed to fetch templates.";
+          setError(msg);
+          showToast(msg);
+          return;
+        }
+
+        // API returns: { designs: [...] }
+        const templates = templateRes.data || [];
+
+        if (!templates.length) {
+          setGenerating(false);
+          const msg = "No templates found for this size.";
+          setError(msg);
+          showToast(msg);
+          return;
+        }
+
+        // Use ALL templates — generateCustomCreative will batch them in pairs
+        selectedTemplates = templates;
       }
-
-      // API returns:
-      // { designs: [...] }
-
-      const templates = templateRes.data || [];
-
-      if (!templates.length) {
-        setGenerating(false);
-        const msg = "No templates found for this size.";
-        setError(msg);
-        showToast(msg);
-        return;
-      }
-
-      // Use ALL templates — generateCustomCreative will batch them in pairs
-      const selectedTemplates = templates;
 
       console.log("🎨 Selected Templates:", selectedTemplates);
 
@@ -628,7 +633,8 @@ const ImageAdsForm = ({
             type: "design",
             variations,
             assets,
-            expectedCount,
+            // Involk has no templates — fall back to the returned variation count.
+            expectedCount: expectedCount || variations.length,
             done: false,
             reply: batch.data?.reply || "",
             meta: batch.data?.meta || {},
@@ -1018,7 +1024,7 @@ const ImageAdsForm = ({
 
             {/* ── Size picker: shows both name and dimensions ── */}
             <Field label="Ad Size">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {SIZE_OPTIONS.map((s) => {
                   const active = selectedSize?.type_size === s.type_size;
                   return (
@@ -1074,7 +1080,7 @@ const ImageAdsForm = ({
             </Field>
 
             <Field label="Audience">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCES.map((a) => (
                   <button
                     key={a.value}

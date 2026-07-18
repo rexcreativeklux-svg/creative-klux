@@ -684,7 +684,7 @@ const ReelsForm = ({
             <SectionTitle>Format, Goals & Audience</SectionTitle>
 
             <Field label="Video Duration">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {DURATION_OPTIONS.map((d) => (
                   <button
                     key={d.value}
@@ -703,7 +703,7 @@ const ReelsForm = ({
             </Field>
 
             <Field label="Aspect Ratio / Size">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {UNIQUE_SIZES.map((s) => (
                   <button
                     key={s.value + s.label}
@@ -740,7 +740,7 @@ const ReelsForm = ({
             </Field>
 
             <Field label="Audience">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCES.map((a) => (
                   <button
                     key={a.value}

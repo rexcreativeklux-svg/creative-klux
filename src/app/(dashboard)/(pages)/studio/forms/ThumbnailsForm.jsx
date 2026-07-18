@@ -758,7 +758,7 @@ const ThumbnailsForm = ({
             <SectionTitle>Platform, Style &amp; Goals</SectionTitle>
 
             <Field label="Target Platform" required>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {THUMBNAIL_PLATFORMS.map((p) => (
                   <button
                     key={p.value}

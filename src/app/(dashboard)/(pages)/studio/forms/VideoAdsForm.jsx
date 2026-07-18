@@ -23,6 +23,7 @@ import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSe
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 import { useAuth } from "@/context/AuthContext";
+import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
 
 const MAX_IMAGES = 5;
 
@@ -539,29 +540,37 @@ const VideoAdsForm = ({
         .toLowerCase()
         .replace(/\s+/g, "_");
 
-      // 1) Scraive templates first
-      const templateRes = await fetchDesignTemplates?.({
-        type: "video",
-        category: selectedSizeLabel,
-        type_size: formData.size,
-      });
+      // 1) Scraive templates first (redesign engine only)
+      // Templates are only needed by the "redesign" engine. Involk generates
+      // from scratch, so skip the fetch + gate entirely — otherwise an empty
+      // template list wrongly blocks Involk with "No templates found".
+      let selectedTemplates = [];
+      if (CREATIVE_ENGINE === "redesign") {
+        const templateRes = await fetchDesignTemplates?.({
+          type: "video",
+          category: selectedSizeLabel,
+          type_size: formData.size,
+        });
 
-      if (!templateRes?.ok) {
-        setError(templateRes?.message || "Failed to fetch templates");
-        showToast(templateRes?.message || "Failed to fetch templates");
-        setGenerating(false);
-        return;
-      }
+        if (!templateRes?.ok) {
+          setError(templateRes?.message || "Failed to fetch templates");
+          showToast(templateRes?.message || "Failed to fetch templates");
+          setGenerating(false);
+          return;
+        }
 
-      const templates = Array.isArray(templateRes.data) ? templateRes.data : [];
-      if (!templates.length) {
-        setError("No templates found for this size");
-        showToast("No templates found for this size");
-        setGenerating(false);
-        return;
+        const templates = Array.isArray(templateRes.data)
+          ? templateRes.data
+          : [];
+        if (!templates.length) {
+          setError("No templates found for this size");
+          showToast("No templates found for this size");
+          setGenerating(false);
+          return;
+        }
+        // Use ALL templates — generateCustomCreative will batch them in pairs
+        selectedTemplates = templates;
       }
-      // Use ALL templates — generateCustomCreative will batch them in pairs
-      const selectedTemplates = templates;
 
       // 2) Resolve image URLs — upload File items to /gallery
       const resolvedUrls = await Promise.all(
@@ -638,7 +647,8 @@ const VideoAdsForm = ({
             type: "design",
             variations,
             assets,
-            expectedCount,
+            // Involk has no templates — fall back to the returned variation count.
+            expectedCount: expectedCount || variations.length,
             done: false,
             reply: batch.data?.reply || "",
             meta: batch.data?.meta || {},
@@ -931,7 +941,7 @@ const VideoAdsForm = ({
             <SectionTitle>Size, Goals & Audience</SectionTitle>
 
             <Field label="Video Size">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {SIZE_OPTIONS.map((s) => (
                   <button
                     key={s.value}
@@ -964,7 +974,7 @@ const VideoAdsForm = ({
             </Field>
 
             <Field label="Audience">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCES.map((a) => (
                   <button
                     key={a.value}

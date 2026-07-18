@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import FullOverlayLoader from "@/app/(components)/loaders/full-overlay-loader";
 import { useAuth } from "@/context/AuthContext";
+import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
 
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
@@ -440,30 +441,36 @@ const PostsForm = ({
       const sizeOpt = SIZE_OPTIONS.find((s) => s.value === formData.size);
       const sizeLabel = sizeOpt?.label || formData.size;
 
-      // 1. FETCH DESIGN TEMPLATES FIRST
-      const templateRes = await fetchDesignTemplates({
-        type: "image",
-        category: sizeLabel,
-        type_size: formData.size,
-      });
+      // 1. FETCH DESIGN TEMPLATES FIRST (redesign engine only)
+      // Scraive templates are only needed by the "redesign" engine. Involk
+      // generates from scratch, so skip the fetch + gate entirely — otherwise an
+      // empty template list wrongly blocks Involk with "No templates found".
+      let selectedTemplates = [];
+      if (CREATIVE_ENGINE === "redesign") {
+        const templateRes = await fetchDesignTemplates({
+          type: "image",
+          category: sizeLabel,
+          type_size: formData.size,
+        });
 
-      if (!templateRes.ok) {
-        setGenerating(false);
-        const msg = templateRes.message || "Failed to fetch templates.";
-        setError(msg);
-        showToast(msg);
-        return;
-      }
+        if (!templateRes.ok) {
+          setGenerating(false);
+          const msg = templateRes.message || "Failed to fetch templates.";
+          setError(msg);
+          showToast(msg);
+          return;
+        }
 
-      const templates = templateRes.data || [];
-      if (!templates.length) {
-        setGenerating(false);
-        const msg = "No templates found for this size.";
-        setError(msg);
-        showToast(msg);
-        return;
+        const templates = templateRes.data || [];
+        if (!templates.length) {
+          setGenerating(false);
+          const msg = "No templates found for this size.";
+          setError(msg);
+          showToast(msg);
+          return;
+        }
+        selectedTemplates = templates;
       }
-      const selectedTemplates = templates;
 
       // 2. RESOLVE IMAGE URLs — upload File items to /gallery
       const resolvedUrls = await Promise.all(
@@ -547,7 +554,8 @@ const PostsForm = ({
             type: "design",
             variations,
             assets,
-            expectedCount,
+            // Involk has no templates — fall back to the returned variation count.
+            expectedCount: expectedCount || variations.length,
             done: false,
             reply: batch.data?.reply || "",
             meta: batch.data?.meta || {},
@@ -857,7 +865,7 @@ const PostsForm = ({
             <SectionTitle>Size, Goals & Audience</SectionTitle>
 
             <Field label="Post Size">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {SIZE_OPTIONS.map((s) => (
                   <button
                     key={s.value}
@@ -898,7 +906,7 @@ const PostsForm = ({
             </Field>
 
             <Field label="Audience">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCES.map((a) => (
                   <button
                     key={a.value}

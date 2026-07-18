@@ -6,6 +6,7 @@ import {
   Square,
   Circle,
   Triangle,
+  Table,
   ImageIcon,
   Eye,
   EyeOff,
@@ -22,6 +23,8 @@ function meta(el) {
     return { icon: Type, label: t.slice(0, 22) || "Text" };
   }
   if (el.type === "image") return { icon: ImageIcon, label: "Image" };
+  if (el.type === "table")
+    return { icon: Table, label: `Table ${el.rows}×${el.cols}` };
   if (el.type === "shape") {
     if (el.shape === "circle") return { icon: Circle, label: "Circle" };
     if (el.shape === "triangle") return { icon: Triangle, label: "Triangle" };

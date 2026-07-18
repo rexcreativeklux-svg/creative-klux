@@ -1614,7 +1614,7 @@ export default function BackgroundRemoverModal({
             active={false}
             onClick={() => fileInputRef.current?.click()}
             icon={<Upload className="w-5 h-5" />}
-            label="Upload"
+            label="Gallery"
           />
           <SidebarIcon
             active={false}

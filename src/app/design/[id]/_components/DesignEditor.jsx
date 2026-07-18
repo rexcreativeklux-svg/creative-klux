@@ -14,6 +14,7 @@ import EditorTopBar from "./EditorTopBar";
 import EditorSidebar from "./EditorSidebar";
 import EditorContextBar from "./EditorContextBar";
 import EditorElement from "./EditorElement";
+import PreviewOverlay from "./PreviewOverlay";
 import { renderDesignToBlob, proxiedSrc } from "@/(lib)/design/renderDesign";
 import { SHAPES, aspectOf, isStraightLine, isBendableLine } from "@/(lib)/design/shapes";
 import { ensureEditorFontsLoaded } from "@/(lib)/design/fonts";
@@ -24,6 +25,7 @@ import {
   insertCurvePoint,
 } from "@/(lib)/design/curveUtils";
 import { measureText } from "./textFit";
+import { TABLE_DEFAULTS, makeCells } from "@/(lib)/design/tableUtils";
 
 const DRAW_TOOLS = ["pen", "marker", "highlighter", "eraser"];
 
@@ -68,8 +70,15 @@ export default function DesignEditor({ design, onSave, onBack }) {
   const [name, setName] = useState(design?.name || "Untitled design");
   const [zoom, setZoom] = useState(1);
   const [editingId, setEditingId] = useState(null);
+  // The cell the user last clicked inside a table: { id, r, c }. Drives which
+  // row/column the context-bar delete buttons target. Transient (not saved).
+  const [activeCell, setActiveCell] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [addNodeMode, setAddNodeMode] = useState(false);
+  // Which sidebar panel is open. Lifted here so canvas actions (e.g. "Ask Klux"
+  // on the element menu) can open a panel; the sidebar is otherwise self-driven.
+  const [activePanel, setActivePanel] = useState("templates");
   const stageWrapRef = useRef(null);
   const stageInnerRef = useRef(null);
 
@@ -535,6 +544,30 @@ export default function DesignEditor({ design, onSave, onBack }) {
     });
   };
 
+  const insertTable = ({ rows = 3, cols = 3 } = {}) => {
+    // Size the grid to a comfortable fraction of the canvas, with a sane
+    // per-cell floor so a large table never collapses to unreadable slivers.
+    const w = Math.min(
+      canvas.width * 0.7,
+      Math.max(cols * 120, Math.round(canvas.width * 0.4)),
+    );
+    const h = Math.min(
+      canvas.height * 0.7,
+      Math.max(rows * 52, Math.round(canvas.height * 0.28)),
+    );
+    return addElement({
+      type: "table",
+      rows,
+      cols,
+      cells: makeCells(rows, cols),
+      x: cx() - w / 2,
+      y: cy() - h / 2,
+      width: Math.round(w),
+      height: Math.round(h),
+      ...TABLE_DEFAULTS,
+    });
+  };
+
   const insertImageUrl = (src) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -697,7 +730,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
         dirty={dirty || name !== (design?.name || "Untitled design")}
         saving={saving}
         onSave={doSave}
-        onDownload={doDownload}
+        onPreview={() => setShowPreview(true)}
       />
 
       <div className="flex-1 flex min-h-0">
@@ -708,6 +741,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
             curve: insertCurve,
             elbow: insertElbow,
             sticky: insertStickyNote,
+            table: insertTable,
             imageUrl: insertImageUrl,
             imageFile: handleAddImage,
           }}
@@ -719,6 +753,8 @@ export default function DesignEditor({ design, onSave, onBack }) {
           designId={design?.id}
           tool={tool}
           setTool={setTool}
+          active={activePanel}
+          onActiveChange={setActivePanel}
         />
 
         {/* Stage viewport */}
@@ -730,17 +766,22 @@ export default function DesignEditor({ design, onSave, onBack }) {
             if (e.target === e.currentTarget) {
               selectElement(null);
               setEditingId(null);
+              setActiveCell(null);
             }
           }}
         >
           <EditorContextBar
             element={selectedElement}
             onChange={updateElement}
-            onDuplicate={duplicateElement}
-            onRemove={removeElement}
-            onMoveLayer={moveLayer}
             addNodeMode={addNodeMode}
             onToggleAddNode={() => setAddNodeMode((v) => !v)}
+            activeCell={
+              activeCell && activeCell.id === selectedElement?.id
+                ? activeCell
+                : null
+            }
+            onClearActiveCell={() => setActiveCell(null)}
+            onOpenFontPanel={() => setActivePanel("font")}
           />
 
           {/* Scaled stage */}
@@ -787,6 +828,19 @@ export default function DesignEditor({ design, onSave, onBack }) {
                     onStartEdit={setEditingId}
                     onEndEdit={() => setEditingId(null)}
                     onCurveAddPoint={addCurveNodeAt}
+                    activeCell={
+                      activeCell?.id === el.id ? activeCell : null
+                    }
+                    onCellFocus={(r, c) =>
+                      setActiveCell({ id: el.id, r, c })
+                    }
+                    onDuplicate={duplicateElement}
+                    onRemove={removeElement}
+                    onMoveLayer={moveLayer}
+                    onToggleLock={(id) =>
+                      updateElement(id, { locked: !el.locked })
+                    }
+                    onAskKlux={() => setActivePanel("klux")}
                   />
                 ))}
 
@@ -882,6 +936,16 @@ export default function DesignEditor({ design, onSave, onBack }) {
           </div>
         </div>
       </div>
+
+      {/* Full-screen preview — clean render of the design, Esc to exit */}
+      {showPreview && (
+        <PreviewOverlay
+          canvas={canvas}
+          elements={elements}
+          onClose={() => setShowPreview(false)}
+          onDownload={doDownload}
+        />
+      )}
     </div>
   );
 }

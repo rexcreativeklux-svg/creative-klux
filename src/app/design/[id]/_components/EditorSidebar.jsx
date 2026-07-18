@@ -20,10 +20,11 @@ import TextPanel from "./panels/TextPanel";
 import BrandPanel from "./panels/BrandPanel";
 import UploadsPanel from "./panels/UploadsPanel";
 import ToolsPanel from "./panels/ToolsPanel";
-import MagicMediaPanel from "./panels/MagicMediaPanel";
+import MagicMediaPanel from "./panels/magic/MagicMediaPanel";
 import LayersPanel from "./panels/LayersPanel";
 import KluxAiPanel from "./panels/klux/KluxAiPanel";
 import KluxLogoIcon from "./panels/klux/KluxLogoIcon";
+import FontPanel from "./panels/font/FontPanel";
 
 /**
  * EditorSidebar — Canva-style navigation: a slim icon rail on the far left and
@@ -74,8 +75,12 @@ const TABS = [
   { key: "layers", label: "Layers", icon: Layers, Panel: LayersPanel },
 ];
 
-export default function EditorSidebar(props) {
-  const [active, setActive] = useState("templates");
+export default function EditorSidebar({ active: activeProp, onActiveChange, ...props }) {
+  // Controllable: DesignEditor drives `active` so the canvas (e.g. "Ask Klux")
+  // can open a panel; falls back to internal state when used uncontrolled.
+  const [activeInternal, setActiveInternal] = useState("templates");
+  const active = activeProp !== undefined ? activeProp : activeInternal;
+  const setActive = onActiveChange || setActiveInternal;
 
   const activeTab = TABS.find((t) => t.key === active);
   const ActivePanel = activeTab?.Panel;
@@ -102,6 +107,12 @@ export default function EditorSidebar(props) {
           );
         })}
       </nav>
+
+      {/* Font browser — a contextual panel (no rail tab) opened from the text
+          toolbar's font control; renders its own header + close. */}
+      {active === "font" && (
+        <FontPanel editor={props.editor} onClose={() => setActive(null)} />
+      )}
 
       {/* Expandable panel. The 'rail' variant (Tools) is a thin, header-less,
           non-clipping strip so its per-tool option flyouts can escape rightward.

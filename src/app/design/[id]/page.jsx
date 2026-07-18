@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ProtectedRoute from "@/app/(components)/ProtectedRoutes";
 import DesignEditor from "./_components/DesignEditor";
+import PracticeLoader from "@/app/(components)/PracticeLoader";
 
 /**
  * Normalize a raw API design record into the editor's { id, name, canvas,
@@ -114,12 +115,7 @@ function DesignEditorRoute() {
   }, [id, fetchDesignById, activeBrandId]);
 
   if (status === "loading") {
-    return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 bg-gray-100 dark:bg-canvas text-gray-500">
-        <Loader2 className="w-7 h-7 animate-spin" />
-        <p className="text-sm">Loading design…</p>
-      </div>
-    );
+    return <PracticeLoader label="Loading your design" />;
   }
 
   if (status === "error" || !design) {
@@ -137,7 +133,9 @@ function DesignEditorRoute() {
     );
   }
 
-  return <DesignEditor design={design} onBack={() => router.push("/creatives")} />;
+  return (
+    <DesignEditor design={design} onBack={() => router.push("/creatives")} />
+  );
 }
 
 export default function DesignEditorPage() {

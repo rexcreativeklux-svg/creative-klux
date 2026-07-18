@@ -18,7 +18,6 @@ import {
   ChevronRight,
   Layers,
   ShoppingBag,
-  LayoutTemplate,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import VirtualModelModal from "@/app/(components)/product-studio/VirtualModelModal";

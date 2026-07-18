@@ -29,6 +29,11 @@ import {
   downloadImageUrl,
 } from "@/app/(components)/product-studio/saveToGallery";
 import Lightbox from "@/app/(components)/Lightbox";
+import PublishModal from "@/app/(components)/PublishModal";
+
+// Width of ResultActionsMenu (its w-52). Used to right-align the menu under the
+// ⋯ trigger so it opens INSIDE the tile instead of spilling past its right edge.
+const MENU_WIDTH = 208;
 
 // Pull a file extension off a hosted URL (ignoring any query/hash), falling back
 // to a type-appropriate default when the URL has none — so a video downloads as
@@ -82,6 +87,7 @@ export default function MagicHistoryGrid({
   const canSelectType = (type) =>
     Array.isArray(selectableTypes) && selectableTypes.includes(type);
   const [menu, setMenu] = useState(null); // { item, x, y }
+  const [publishItem, setPublishItem] = useState(null); // item being published
   const [lightboxIndex, setLightboxIndex] = useState(null); // index into mediaItems
 
   // Only images/videos are viewable in the lightbox (persona text isn't). We
@@ -139,6 +145,7 @@ export default function MagicHistoryGrid({
     }
     if (item.type === "video") {
       return buildResultActions({
+        onPublish: item.url ? () => setPublishItem(item) : undefined,
         onDownload: () => handleDownload(item),
         onCopyLink: item.url ? () => copyLink(item.url) : undefined,
         onDelete: () => onDelete?.(item.id),
@@ -148,6 +155,7 @@ export default function MagicHistoryGrid({
     return buildResultActions({
       onGenerateVideo:
         onGenerateVideo && item.url ? () => onGenerateVideo(item.url) : undefined,
+      onPublish: item.url ? () => setPublishItem(item) : undefined,
       onDownload: () => handleDownload(item),
       onCopyLink: item.url ? () => copyLink(item.url) : undefined,
       onSaveToGallery: () => handleSaveToGallery(item),
@@ -155,10 +163,15 @@ export default function MagicHistoryGrid({
     });
   };
 
+  // Anchor the menu to the ⋯ trigger (not the raw click point) so it opens
+  // inside the tile: right-aligned under the button and dropping downward.
   const openMenu = (item, e) => {
     e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
     setMenu((p) =>
-      p?.item?.id === item.id ? null : { item, x: e.clientX, y: e.clientY },
+      p?.item?.id === item.id
+        ? null
+        : { item, x: rect.right - MENU_WIDTH, y: rect.bottom + 6 },
     );
   };
 
@@ -202,6 +215,12 @@ export default function MagicHistoryGrid({
 
         {items.map((item) => {
           const isRemoving = removingId != null && item.id === removingId;
+          // Keep this item's ⋯ trigger visible while its menu is open, so
+          // clicking ⋯ (and moving to the menu) doesn't make the trigger vanish.
+          const menuOpen = menu?.item?.id === item.id;
+          const triggerVisibility = menuOpen
+            ? "opacity-100"
+            : "opacity-0 group-hover:opacity-100";
 
           // ── Persona text result ──
           if (item.type === "text") {
@@ -218,7 +237,7 @@ export default function MagicHistoryGrid({
                 <button
                   onClick={(e) => openMenu(item, e)}
                   aria-label="Result actions"
-                  className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  className={`absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow ${triggerVisibility} transition-opacity cursor-pointer`}
                 >
                   <MoreHorizontal className="w-4 h-4" />
                 </button>
@@ -315,7 +334,7 @@ export default function MagicHistoryGrid({
                 onClick={(e) => openMenu(item, e)}
                 role="button"
                 aria-label="Result actions"
-                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                className={`absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow ${triggerVisibility} transition-opacity cursor-pointer`}
               >
                 <MoreHorizontal className="w-4 h-4" />
               </span>
@@ -340,6 +359,26 @@ export default function MagicHistoryGrid({
           onIndexChange={setLightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onDownload={handleDownload}
+        />
+      )}
+
+      {/* Publish flow — reuses the shared PublishModal with the generated media
+          wrapped as a minimal creative (its hosted URL is the image to post). */}
+      {publishItem && (
+        <PublishModal
+          creative={{
+            id: publishItem.id,
+            name: "Magic Studio creation",
+            // "all" → the picker offers both social platforms and ad platforms,
+            // so Magic Studio media can go out as a post or an ad.
+            category: "all",
+            image: publishItem.url,
+            copy: {},
+          }}
+          onClose={() => setPublishItem(null)}
+          showToast={(msg, type) =>
+            type === "error" ? toast.error(msg) : toast.success(msg)
+          }
         />
       )}
     </div>

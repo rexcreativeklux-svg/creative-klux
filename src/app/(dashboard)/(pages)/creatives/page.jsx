@@ -621,14 +621,14 @@ export default function CreativesPage() {
   const selectAll = () => setBulkSelected(paginated.map((c) => c.id));
   const deselectAll = () => setBulkSelected([]);
 
-  // ── Loading / Error states ───────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-        <p className="text-sm text-gray-400">Loading your designs…</p>
-      </div>
-    );
+  // ── Brand still resolving → full-page shimmer ────────────────────────────────
+  // While the active brand hydrates (from localStorage / fetchBrands) we don't
+  // yet know which designs to show, so the whole page is a shimmer. Once the
+  // brand lands we drop straight into the real shell below — the static header
+  // and toolbar render immediately and only the card grid keeps a skeleton
+  // (see `loading` in the content area) until designs finish loading.
+  if (brandsLoading) {
+    return <CreativesPageSkeleton />;
   }
 
   if (error) {
@@ -798,7 +798,9 @@ export default function CreativesPage() {
           </button>
         </div>
 
-        {filtered.length === 0 ? (
+        {loading ? (
+          <GridSkeleton count={ITEMS_PER_PAGE} />
+        ) : filtered.length === 0 ? (
           <EmptyState hasCreatives={creatives.length > 0} />
         ) : viewMode === "grid" ? (
           <GridView
@@ -955,6 +957,67 @@ export default function CreativesPage() {
     </div>
   );
 }
+
+// ── Skeleton loaders ──────────────────────────────────────────────────────────
+// Shimmer placeholder for a single creative card. Mirrors CreativeCard's shape
+// (16:9 preview + name/tagline + footer meta) so the layout doesn't jump when
+// the real designs land.
+const CreativeCardSkeleton = () => (
+  <div className="bg-surface rounded-lg border-2 border-gray-100 overflow-hidden flex flex-col animate-pulse">
+    <div
+      className="bg-gray-100"
+      style={{ aspectRatio: "16/9", minHeight: 120 }}
+    />
+    <div className="flex flex-col flex-1 px-3 pt-2.5 pb-3 gap-2">
+      <div className="h-3.5 bg-gray-100 rounded w-3/4" />
+      <div className="h-2.5 bg-gray-100 rounded w-1/2" />
+      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-50">
+        <div className="h-2.5 bg-gray-100 rounded w-12" />
+        <div className="h-5 bg-gray-100 rounded w-12" />
+      </div>
+    </div>
+  </div>
+);
+
+// Grid of card skeletons — shown in the content area while designs are fetching
+// (the brand has already resolved, so the header/toolbar are already visible).
+const GridSkeleton = ({ count = ITEMS_PER_PAGE }) => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    {Array.from({ length: count }).map((_, i) => (
+      <CreativeCardSkeleton key={i} />
+    ))}
+  </div>
+);
+
+// Full-page shimmer shown while the active brand is still resolving. Mimics the
+// header, toolbar and card grid so the page fades in place once the brand lands.
+const CreativesPageSkeleton = () => (
+  <div className="flex flex-col pb-4 h-full animate-pulse">
+    {/* Header */}
+    <div className="flex items-center justify-between pb-4 shrink-0">
+      <div className="space-y-2">
+        <div className="h-2.5 w-16 bg-gray-100 rounded" />
+        <div className="h-6 w-40 bg-gray-100 rounded" />
+      </div>
+      <div className="flex gap-3">
+        <div className="h-9 w-36 bg-gray-100 rounded-lg" />
+        <div className="h-9 w-36 bg-gray-100 rounded-lg" />
+        <div className="h-9 w-36 bg-gray-100 rounded-lg" />
+      </div>
+    </div>
+    {/* Toolbar */}
+    <div className="py-3 flex flex-wrap items-center gap-3 shrink-0">
+      <div className="h-9 flex-1 min-w-[180px] max-w-xs bg-gray-100 rounded-md" />
+      <div className="h-9 w-80 bg-gray-100 rounded-xl" />
+      <div className="h-9 w-24 bg-gray-100 rounded-xl ml-auto" />
+      <div className="h-9 w-20 bg-gray-100 rounded-xl" />
+    </div>
+    {/* Grid */}
+    <div className="flex-1 pt-2">
+      <GridSkeleton count={8} />
+    </div>
+  </div>
+);
 
 // ── Grid View ─────────────────────────────────────────────────────────────────
 const GridView = ({

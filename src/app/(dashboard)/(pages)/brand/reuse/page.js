@@ -14,7 +14,6 @@ import {
   Calendar,
   Plus,
   Search,
-  Loader2,
   X,
   LayoutGrid,
   List,
@@ -368,6 +367,85 @@ const BrandRow = ({
   );
 };
 
+// ── shimmer loaders ───────────────────────────────────────────────────────────
+// Placeholder brand card — mirrors BrandCard's shape (banner + logo, name/tagline,
+// tag pills, colour row) so the grid doesn't jump when brands land.
+const BrandCardSkeleton = () => (
+  <div className="bg-surface rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col animate-pulse">
+    {/* Banner */}
+    <div className="relative px-4 pt-3 pb-9 bg-gray-100">
+      <div className="flex items-center justify-between mb-3">
+        <div className="h-5 w-16 rounded-full bg-gray-200" />
+        <div className="h-7 w-7 rounded-lg bg-gray-200" />
+      </div>
+      <div className="w-12 h-12 rounded-xl bg-gray-200" />
+    </div>
+    {/* Body */}
+    <div className="flex flex-col flex-1 px-3 pb-3">
+      <div className="py-2 mb-2.5 space-y-2">
+        <div className="h-4 w-2/3 bg-gray-200 rounded" />
+        <div className="h-3 w-1/3 bg-gray-100 rounded" />
+      </div>
+      <div className="flex gap-1 mb-2.5">
+        <div className="h-5 w-20 bg-gray-100 rounded-lg" />
+        <div className="h-5 w-14 bg-gray-100 rounded-lg" />
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex -space-x-1.5">
+          <div className="w-4 h-4 rounded-full bg-gray-200 border-2 border-white" />
+          <div className="w-4 h-4 rounded-full bg-gray-200 border-2 border-white" />
+        </div>
+        <div className="h-2.5 w-16 bg-gray-100 rounded" />
+      </div>
+    </div>
+  </div>
+);
+
+// Placeholder brand row — mirrors BrandRow's flex layout for the list view.
+const BrandRowSkeleton = () => (
+  <div className="bg-surface rounded-xl border border-gray-100 flex items-center gap-4 px-4 py-3 animate-pulse">
+    <div className="w-10 h-10 rounded-xl bg-gray-200 shrink-0" />
+    <div className="flex-1 space-y-2">
+      <div className="h-3.5 w-40 bg-gray-200 rounded" />
+      <div className="h-3 w-24 bg-gray-100 rounded" />
+    </div>
+    <div className="hidden sm:block w-28 shrink-0">
+      <div className="h-5 w-20 bg-gray-100 rounded-lg" />
+    </div>
+    <div className="hidden md:flex items-center gap-1.5 shrink-0 w-40 pr-12">
+      <div className="w-4 h-4 rounded-full bg-gray-200" />
+      <div className="w-4 h-4 rounded-full bg-gray-200" />
+      <div className="h-2.5 w-12 bg-gray-100 rounded ml-1" />
+    </div>
+    <div className="shrink-0 w-20">
+      <div className="h-5 w-16 bg-gray-100 rounded-full" />
+    </div>
+    <div className="hidden lg:block shrink-0 w-24">
+      <div className="h-3 w-16 bg-gray-100 rounded ml-auto" />
+    </div>
+    <div className="w-7 shrink-0">
+      <div className="h-5 w-5 bg-gray-100 rounded ml-auto" />
+    </div>
+  </div>
+);
+
+// Whole-content shimmer shown while brands load — matches the active view so the
+// header/search/toggle stay put and only the card/row area fills in.
+const BrandsSkeleton = ({ viewMode = "grid", count = 8 }) =>
+  viewMode === "grid" ? (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+      {Array.from({ length: count }).map((_, i) => (
+        <BrandCardSkeleton key={i} />
+      ))}
+    </div>
+  ) : (
+    <div className="flex flex-col gap-1.5 mb-6">
+      {Array.from({ length: count }).map((_, i) => (
+        <BrandRowSkeleton key={i} />
+      ))}
+    </div>
+  );
+
 // ── detail panel ──────────────────────────────────────────────────────────────
 const BrandDetailPanel = ({ brand, onEdit, onClose, isActive }) => {
   const primary = cleanColor(brand.primary_color);
@@ -719,13 +797,8 @@ export default function ReusePage({ setActiveTab }) {
         </div>
       </div>
 
-      {/* Loading */}
-      {brandsLoading && (
-        <div className="flex flex-col items-center justify-center py-24 gap-3">
-          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-          <p className="text-sm text-gray-400">Loading brands…</p>
-        </div>
-      )}
+      {/* Loading — shimmer cards/rows matching the current view */}
+      {brandsLoading && <BrandsSkeleton viewMode={viewMode} />}
 
       {/* Empty */}
       {!brandsLoading && filtered.length === 0 && (

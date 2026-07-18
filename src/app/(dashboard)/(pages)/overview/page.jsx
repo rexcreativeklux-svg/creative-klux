@@ -9,6 +9,7 @@ import DashboardStats from "@/app/(components)/DashboardStats";
 import ActivityChart from "@/app/(components)/ActivityChart";
 import QuickCreate from "@/app/(components)/QuickCreate";
 import DashboardRecentProjects from "@/app/(components)/DashboardRecentProjects";
+import { getPublishedPosts } from "@/(lib)/integration";
 
 export default function Dashboard() {
   const {
@@ -20,10 +21,17 @@ export default function Dashboard() {
     myImages,
     teams,
     fetchDesigns,
+    fetchIntegrations,
   } = useAuth();
 
   const [designs, setDesigns]         = useState([]);
   const [designsLoading, setDesignsLoading] = useState(true);
+
+  /* Connected platforms (unique) + published posts — extra stat sources that
+     don't come from `designs`. Loaded independently so the design stats aren't
+     blocked on them. */
+  const [platformCount, setPlatformCount] = useState(0);
+  const [publishedCount, setPublishedCount] = useState(0);
 
   /* ── fetch designs for active brand ── */
   const loadDesigns = useCallback(async () => {
@@ -50,6 +58,30 @@ export default function Dashboard() {
 
   useEffect(() => { loadDesigns(); }, [loadDesigns]);
 
+  /* ── connected platforms: count unique platforms from integrations ── */
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const data = await fetchIntegrations?.();
+      if (!alive) return;
+      const arr = Array.isArray(data) ? data : [];
+      const unique = new Set(arr.map((i) => i?.platform).filter(Boolean));
+      setPlatformCount(unique.size);
+    })();
+    return () => { alive = false; };
+  }, [fetchIntegrations]);
+
+  /* ── published posts: count "published" entries (localStorage-backed, same
+        source the social/ads publishing pages read) ── */
+  useEffect(() => {
+    try {
+      const posts = getPublishedPosts() || [];
+      setPublishedCount(posts.filter((p) => p?.status === "published").length);
+    } catch {
+      setPublishedCount(0);
+    }
+  }, []);
+
   /* ── stats derived from designs ── */
   const statsByCategory = {
     ads:          designs.filter((d) => (d.type || "").toLowerCase() === "ads").length,
@@ -60,6 +92,11 @@ export default function Dashboard() {
 
   const isLoading = brandsLoading || designsLoading;
   const firstName = user?.name?.split(" ")?.[0] || "there";
+
+  /* ── latest four designs (newest first) ── */
+  const recentDesigns = [...designs]
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .slice(0, 4);
 
   return (
     <div
@@ -122,6 +159,9 @@ export default function Dashboard() {
         statsByCategory={statsByCategory}
         imageCount={myImages?.length ?? 0}
         teamCount={teams?.length ?? 0}
+        magicCount={statsByCategory.magic_studio}
+        platformCount={platformCount}
+        publishedCount={publishedCount}
         isLoading={isLoading}
       />
 
@@ -137,7 +177,7 @@ export default function Dashboard() {
 
       {/* ── Recent designs ── */}
       <DashboardRecentProjects
-        designs={designs.slice(0, 8)}
+        designs={recentDesigns}
         isLoading={isLoading}
       />
     </div>

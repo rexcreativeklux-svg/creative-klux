@@ -205,9 +205,15 @@ const AD_COUNTRIES = [
   { code: "AE", name: "United Arab Emirates" },
 ];
 
-// A creative's category → which platform list to show.
-const platformsForCategory = (category) =>
-  String(category).toLowerCase() === "ads" ? ADS_ORDER : SOCIAL_ORDER;
+// A creative's category → which platform list to show. "ads" shows ad platforms,
+// "all"/"social_ads" shows BOTH (e.g. Magic Studio media can go out as a post OR
+// an ad), and anything else shows the social platforms.
+const platformsForCategory = (category) => {
+  const c = String(category).toLowerCase();
+  if (c === "ads") return ADS_ORDER;
+  if (c === "all" || c === "social_ads") return [...SOCIAL_ORDER, ...ADS_ORDER];
+  return SOCIAL_ORDER;
+};
 
 // Build a default caption from the creative's copy object.
 const captionFromCopy = (copy = {}) =>

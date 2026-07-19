@@ -17,6 +17,10 @@ import EditorElement from "./EditorElement";
 import PreviewOverlay from "./PreviewOverlay";
 import { renderDesignToBlob, proxiedSrc } from "@/(lib)/design/renderDesign";
 import { SHAPES, aspectOf, isStraightLine, isBendableLine } from "@/(lib)/design/shapes";
+import { frameGeo } from "@/(lib)/design/frames";
+import { makeGridCells } from "@/(lib)/design/grids";
+import { DEFAULT_CHART_DATA } from "@/(lib)/design/charts";
+import { graphicDef } from "@/(lib)/design/graphics";
 import { ensureEditorFontsLoaded } from "@/(lib)/design/fonts";
 import { strokeToElement, pointsToPath } from "@/(lib)/design/drawUtils";
 import {
@@ -79,6 +83,13 @@ export default function DesignEditor({ design, onSave, onBack }) {
   // Which sidebar panel is open. Lifted here so canvas actions (e.g. "Ask Klux"
   // on the element menu) can open a panel; the sidebar is otherwise self-driven.
   const [activePanel, setActivePanel] = useState("templates");
+  // Descriptor for the contextual Color panel: which element props the picked
+  // colour writes to. Set when a swatch in the context bar is clicked.
+  const [colorTarget, setColorTarget] = useState(null);
+  const openColorPanel = useCallback((target) => {
+    setColorTarget(target);
+    setActivePanel("color");
+  }, []);
   const stageWrapRef = useRef(null);
   const stageInnerRef = useRef(null);
 
@@ -98,6 +109,23 @@ export default function DesignEditor({ design, onSave, onBack }) {
   useEffect(() => {
     ensureEditorFontsLoaded();
   }, []);
+
+  // Always-fresh view of elements for async callbacks (e.g. a grid cell's
+  // durable-URL swap after upload) that must merge into a nested array without
+  // clobbering edits made while the upload was in flight.
+  const elementsRef = useRef(elements);
+  useEffect(() => {
+    elementsRef.current = elements;
+  }, [elements]);
+
+  // The Color panel is contextual to the selected element (its swatch lives in
+  // the context bar). If the selection clears, drop back out of it.
+  useEffect(() => {
+    if (activePanel === "color" && !selectedElement) {
+      setActivePanel(null);
+      setColorTarget(null);
+    }
+  }, [activePanel, selectedElement]);
 
   // ── Freehand drawing ──────────────────────────────────────────────────
   const canvasPoint = (e) => {
@@ -590,6 +618,115 @@ export default function DesignEditor({ design, onSave, onBack }) {
     img.src = src;
   };
 
+  // Insert an empty frame (an image clipped to a shape). Sized to the frame's
+  // aspect, capped to a fraction of the canvas — matching insertShape.
+  const insertFrame = (frameKey) => {
+    const { viewBox } = frameGeo(frameKey);
+    const aspect = viewBox[0] / viewBox[1] || 1;
+    const base = Math.min(canvas.width, canvas.height) * 0.42;
+    const w = aspect >= 1 ? base : base * aspect;
+    const h = aspect >= 1 ? base / aspect : base;
+    return addElement({
+      type: "frame",
+      shape: frameKey,
+      src: null,
+      x: cx() - w / 2,
+      y: cy() - h / 2,
+      width: Math.round(w),
+      height: Math.round(h),
+    });
+  };
+
+  // Fill (or replace) a frame's image. Shows the local file instantly, then
+  // swaps in the uploaded, durable URL — same two-step flow as handleAddImage.
+  const fillFrame = async (id, file) => {
+    const localUrl = URL.createObjectURL(file);
+    updateElement(id, { src: localUrl }, { record: true });
+    try {
+      const res = await uploadMedia(file);
+      const url =
+        res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
+      if (url) updateElement(id, { src: url }, { record: false });
+    } catch {
+      toast.error("Image upload failed — it won't persist after save.");
+    }
+  };
+
+  // Insert a decorative graphic, sized to its aspect (like insertShape).
+  const insertGraphic = (graphicKey) => {
+    const [vw, vh] = graphicDef(graphicKey).viewBox || [100, 100];
+    const aspect = vw / vh || 1;
+    const base = Math.min(canvas.width, canvas.height) * 0.28;
+    const w = aspect >= 1 ? base : base * aspect;
+    const h = aspect >= 1 ? base / aspect : base;
+    return addElement({
+      type: "graphic",
+      graphic: graphicKey,
+      x: cx() - w / 2,
+      y: cy() - h / 2,
+      width: Math.round(w),
+      height: Math.round(h),
+    });
+  };
+
+  // Insert a chart (bar/line/pie/donut) seeded with sample data.
+  const insertChart = (chartType = "bar") => {
+    const w = Math.round(Math.min(canvas.width, canvas.height) * 0.6);
+    const h = Math.round(w * 0.66);
+    return addElement({
+      type: "chart",
+      chart: chartType,
+      data: DEFAULT_CHART_DATA.map((d) => ({ ...d })),
+      x: cx() - w / 2,
+      y: cy() - h / 2,
+      width: w,
+      height: h,
+    });
+  };
+
+  // Insert an empty rows × cols photo grid, sized to a comfortable square.
+  const insertGrid = ({ rows = 2, cols = 2 } = {}) => {
+    const base = Math.round(Math.min(canvas.width, canvas.height) * 0.55);
+    return addElement({
+      type: "grid",
+      rows,
+      cols,
+      gap: 8,
+      cells: makeGridCells(rows, cols),
+      x: cx() - base / 2,
+      y: cy() - base / 2,
+      width: base,
+      height: base,
+    });
+  };
+
+  // Write a src into one grid cell without disturbing the others. Reads the
+  // freshest element from elementsRef so the post-upload swap can't clobber a
+  // cell filled while the upload was in flight.
+  const setGridCellSrc = (id, index, src, record) => {
+    const target = elementsRef.current.find((e) => e.id === id);
+    if (!target) return;
+    const cells = (target.cells || []).map((c, i) =>
+      i === index ? { ...c, src } : c,
+    );
+    updateElement(id, { cells }, { record });
+  };
+
+  // Fill (or replace) a single grid cell's image — local preview first, then the
+  // durable uploaded URL, matching handleAddImage / fillFrame.
+  const fillGridCell = async (id, index, file) => {
+    const localUrl = URL.createObjectURL(file);
+    setGridCellSrc(id, index, localUrl, true);
+    try {
+      const res = await uploadMedia(file);
+      const url =
+        res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
+      if (url) setGridCellSrc(id, index, url, false);
+    } catch {
+      toast.error("Image upload failed — it won't persist after save.");
+    }
+  };
+
   const handleAddImage = async (file) => {
     const localUrl = URL.createObjectURL(file);
     const img = new Image();
@@ -742,6 +879,10 @@ export default function DesignEditor({ design, onSave, onBack }) {
             elbow: insertElbow,
             sticky: insertStickyNote,
             table: insertTable,
+            frame: insertFrame,
+            grid: insertGrid,
+            chart: insertChart,
+            graphic: insertGraphic,
             imageUrl: insertImageUrl,
             imageFile: handleAddImage,
           }}
@@ -755,6 +896,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
           setTool={setTool}
           active={activePanel}
           onActiveChange={setActivePanel}
+          colorTarget={colorTarget}
         />
 
         {/* Stage viewport */}
@@ -782,6 +924,8 @@ export default function DesignEditor({ design, onSave, onBack }) {
             }
             onClearActiveCell={() => setActiveCell(null)}
             onOpenFontPanel={() => setActivePanel("font")}
+            onOpenColorPanel={openColorPanel}
+            onFrameFill={fillFrame}
           />
 
           {/* Scaled stage */}
@@ -834,6 +978,8 @@ export default function DesignEditor({ design, onSave, onBack }) {
                     onCellFocus={(r, c) =>
                       setActiveCell({ id: el.id, r, c })
                     }
+                    onFrameFill={fillFrame}
+                    onGridCellFill={fillGridCell}
                     onDuplicate={duplicateElement}
                     onRemove={removeElement}
                     onMoveLayer={moveLayer}

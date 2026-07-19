@@ -38,6 +38,7 @@ export const ELEMENT_CATEGORIES = [
     label: "Graphics",
     icon: Sparkles,
     gradient: "from-amber-400 to-orange-600",
+    content: "graphics",
   },
   {
     id: "animations",
@@ -69,6 +70,7 @@ export const ELEMENT_CATEGORIES = [
     label: "Charts",
     icon: BarChart3,
     gradient: "from-violet-400 to-purple-600",
+    content: "charts",
   },
   {
     id: "forms",
@@ -87,18 +89,21 @@ export const ELEMENT_CATEGORIES = [
     label: "Tables",
     icon: Table,
     gradient: "from-orange-400 to-amber-600",
+    content: "tables",
   },
   {
     id: "frames",
     label: "Frames",
     icon: Frame,
     gradient: "from-teal-400 to-emerald-600",
+    content: "frames",
   },
   {
     id: "grids",
     label: "Grids",
     icon: Grid3x3,
     gradient: "from-pink-400 to-fuchsia-600",
+    content: "grids",
   },
   {
     id: "mockups",

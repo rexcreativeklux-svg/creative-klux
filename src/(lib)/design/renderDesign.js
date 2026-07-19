@@ -4,6 +4,11 @@ import { SHAPES, PRIMITIVE_SHAPES, lineShaftPath } from "./shapes";
 import { waitForFonts } from "./fonts";
 import { pointsToPath } from "./drawUtils";
 import { curvePath } from "./curveUtils";
+import { radiusCorners } from "./radius";
+import { frameGeo } from "./frames";
+import { gridCellRects } from "./grids";
+import { chartSVGDataURL } from "./charts";
+import { graphicSVGDataURL } from "./graphics";
 import {
   normalizeCells,
   getColFractions,
@@ -299,14 +304,113 @@ export async function renderDesignToCanvas({ canvas, elements }) {
       drawTable(ctx, el);
     }
 
+    if (el.type === "chart") {
+      try {
+        const img = await loadImage(chartSVGDataURL(el));
+        ctx.drawImage(img, el.x, el.y, el.width, el.height);
+      } catch {
+        /* skip chart if the SVG can't rasterize */
+      }
+    }
+
+    if (el.type === "graphic") {
+      try {
+        const img = await loadImage(graphicSVGDataURL(el));
+        ctx.drawImage(img, el.x, el.y, el.width, el.height);
+      } catch {
+        /* skip graphic if the SVG can't rasterize */
+      }
+    }
+
+    if (el.type === "grid") {
+      const rects = gridCellRects(el);
+      const cr = el.cellRadius || 0;
+      for (const cell of rects) {
+        const cx0 = el.x + cell.x;
+        const cy0 = el.y + cell.y;
+        ctx.save();
+        ctx.beginPath();
+        if (cr && ctx.roundRect) {
+          ctx.roundRect(cx0, cy0, cell.w, cell.h, cr);
+        } else {
+          ctx.rect(cx0, cy0, cell.w, cell.h);
+        }
+        ctx.clip();
+        const src = el.cells?.[cell.index]?.src;
+        if (src) {
+          try {
+            const img = await loadImage(src);
+            drawCover(ctx, img, cx0, cy0, cell.w, cell.h);
+          } catch {
+            /* leave the cell empty on a broken image */
+          }
+        } else {
+          ctx.fillStyle = "#e5e7eb";
+          ctx.fillRect(cx0, cy0, cell.w, cell.h);
+        }
+        ctx.restore();
+      }
+    }
+
+    if (el.type === "frame") {
+      const { path, viewBox } = frameGeo(el.shape);
+      const [vw, vh] = viewBox;
+      ctx.save();
+      // Clip to the frame shape, scaled from its viewBox to the element box.
+      const clip = new Path2D();
+      const m = new DOMMatrix()
+        .translate(el.x, el.y)
+        .scale(el.width / vw, el.height / vh);
+      clip.addPath(new Path2D(path), m);
+      ctx.clip(clip);
+      if (el.flipH || el.flipV) {
+        const fcx = el.x + el.width / 2;
+        const fcy = el.y + el.height / 2;
+        ctx.translate(fcx, fcy);
+        ctx.scale(el.flipH ? -1 : 1, el.flipV ? -1 : 1);
+        ctx.translate(-fcx, -fcy);
+      }
+      if (el.src) {
+        try {
+          const img = await loadImage(el.src);
+          drawCover(ctx, img, el.x, el.y, el.width, el.height);
+        } catch {
+          /* leave the clipped area empty on a broken image */
+        }
+      } else {
+        // Empty frame → grey placeholder (matches the on-canvas look).
+        ctx.fillStyle = "#e5e7eb";
+        ctx.fillRect(el.x, el.y, el.width, el.height);
+      }
+      ctx.restore();
+    }
+
     if (el.type === "image" && el.src) {
       try {
         const img = await loadImage(el.src);
+        ctx.save();
+        // Corner rounding — clip to a rounded rectangle before drawing.
+        // Radius may be uniform or per-corner; roundRect takes [tl,tr,br,bl].
+        const corners = radiusCorners(el.borderRadius);
+        if (corners.some((c) => c > 0) && ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, el.width, el.height, corners);
+          ctx.clip();
+        }
+        // Flip horizontally / vertically about the element's center.
+        if (el.flipH || el.flipV) {
+          const cx = el.x + el.width / 2;
+          const cy = el.y + el.height / 2;
+          ctx.translate(cx, cy);
+          ctx.scale(el.flipH ? -1 : 1, el.flipV ? -1 : 1);
+          ctx.translate(-cx, -cy);
+        }
         if (el.objectFit === "contain") {
           ctx.drawImage(img, el.x, el.y, el.width, el.height);
         } else {
           drawCover(ctx, img, el.x, el.y, el.width, el.height);
         }
+        ctx.restore();
       } catch {
         /* skip broken image */
       }

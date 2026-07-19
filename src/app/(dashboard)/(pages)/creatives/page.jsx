@@ -673,13 +673,13 @@ export default function CreativesPage() {
           >
             <Plus className="w-4 h-4" /> Create from URL
           </Link>
-          {/* Scraive entry point — forces the Scraive templates → /creatives/redesign path */}
+          {/* Create using Scraive button — commented out.
           <Link
             href="/studio/create-from-url?engine=redesign"
             className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
           >
             <Plus className="w-4 h-4" /> Create using Scraive
-          </Link>
+          </Link> */}
           <Link
             href="/studio/ai-select"
             className="flex items-center gap-2 border border-gray-300 hover:bg-gray-200 text-gray-900 text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"

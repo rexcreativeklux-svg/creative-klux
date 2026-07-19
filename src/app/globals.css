@@ -220,3 +220,45 @@
 @keyframes ck-icon-glow  { 0%, 100% { opacity: .8; } 50% { opacity: 1; } }
 @keyframes ck-dot-bounce { 0%, 100% { transform: translateY(0); opacity: .4; } 50% { transform: translateY(-5px); opacity: 1; } }
 @keyframes ck-text-cycle { 0%, 30% { opacity: 1; } 45%, 60% { opacity: .4; } 75%, 100% { opacity: 1; } }
+
+/* FullOverlayLoader — slow drifting aurora blobs behind the ring */
+@keyframes ck-aurora {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(14px, -10px) scale(1.12); }
+  66%      { transform: translate(-12px, 8px) scale(.94); }
+}
+
+/* FullOverlayLoader — the centre logo tile breathing under its halo */
+@keyframes ck-breathe {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(124, 58, 237, .22); }
+  50%      { transform: scale(1.05); box-shadow: 0 0 0 12px rgba(124, 58, 237, 0); }
+}
+
+/* FullOverlayLoader — gradient sheen sweeping across the title */
+@keyframes ck-sheen { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* FullOverlayLoader — the heading itself: brand-gradient text with the sheen
+   sweeping through it. The ramp's two ends match the surface colour (near-black
+   on light, near-white on dark) so only the middle reads as brand-coloured. */
+.ck-loader-title {
+  background-image: linear-gradient(100deg, #111111 20%, #7c3aed 40%, #f97316 55%, #111111 75%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ck-sheen 3.2s linear infinite;
+}
+
+.dark .ck-loader-title {
+  background-image: linear-gradient(100deg, #fafafa 20%, #a855f7 40%, #f97316 55%, #fafafa 75%);
+}
+
+/* FullOverlayLoader — content entrance */
+@keyframes ck-fade-up { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
+
+/* FullOverlayLoader — respect reduced-motion: drop the decorative drift/sheen and
+   slow the ring right down, but keep it turning so "working" is still legible. */
+@media (prefers-reduced-motion: reduce) {
+  [data-ck-loader] [data-ck-decor] { animation: none !important; }
+  [data-ck-loader] [data-ck-ring]  { animation-duration: 3.6s !important; }
+}

@@ -11,4 +11,4 @@
 //
 // To send EVERYTHING back to the Scraive template pipeline, flip this one line
 // to "redesign" — no other code needs to change.
-export const CREATIVE_ENGINE = "involk";
+export const CREATIVE_ENGINE = "redesign";

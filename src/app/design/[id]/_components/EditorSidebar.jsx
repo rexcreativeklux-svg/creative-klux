@@ -25,6 +25,7 @@ import LayersPanel from "./panels/LayersPanel";
 import KluxAiPanel from "./panels/klux/KluxAiPanel";
 import KluxLogoIcon from "./panels/klux/KluxLogoIcon";
 import FontPanel from "./panels/font/FontPanel";
+import ColorPanel from "./panels/color/ColorPanel";
 
 /**
  * EditorSidebar — Canva-style navigation: a slim icon rail on the far left and
@@ -112,6 +113,16 @@ export default function EditorSidebar({ active: activeProp, onActiveChange, ...p
           toolbar's font control; renders its own header + close. */}
       {active === "font" && (
         <FontPanel editor={props.editor} onClose={() => setActive(null)} />
+      )}
+
+      {/* Color picker — a contextual panel (no rail tab) opened from the context
+          toolbar's colour swatch; renders its own header + close. */}
+      {active === "color" && (
+        <ColorPanel
+          editor={props.editor}
+          target={props.colorTarget}
+          onClose={() => setActive(null)}
+        />
       )}
 
       {/* Expandable panel. The 'rail' variant (Tools) is a thin, header-less,

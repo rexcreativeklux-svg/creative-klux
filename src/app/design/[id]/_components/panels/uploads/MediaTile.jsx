@@ -59,13 +59,29 @@ export default function MediaTile({ type, src, thumb, label, onPick }) {
     );
   }
 
+  // Images are also draggable — drop one onto a frame or grid cell to fill it.
+  const onDragStart = (e) => {
+    if (!src) return;
+    e.dataTransfer.setData("application/x-ck-image", src);
+    e.dataTransfer.setData("text/uri-list", src);
+    e.dataTransfer.setData("text/plain", src);
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
   return (
-    <button onClick={onPick} title={title} className={TILE}>
+    <button
+      onClick={onPick}
+      title={title}
+      draggable
+      onDragStart={onDragStart}
+      className={TILE}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={thumb || src}
         alt={title}
         loading="lazy"
+        draggable={false}
         className="w-full h-full object-cover"
       />
     </button>

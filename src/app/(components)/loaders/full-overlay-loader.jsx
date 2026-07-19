@@ -30,7 +30,7 @@ export default function FullOverlayLoader({
     return (
         <div className={wrapClass} style={wrapStyle}>
             {/* Mountain-shaped blurred glow at the foot */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5">
+            {/* <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5">
                 <svg
                     viewBox="0 0 400 160"
                     preserveAspectRatio="none"
@@ -49,7 +49,7 @@ export default function FullOverlayLoader({
                         fill="url(#ck-mtn)"
                     />
                 </svg>
-            </div>
+            </div> */}
 
             {/* Content (above the glow) */}
             <div className="relative z-10 flex flex-col items-center gap-4">

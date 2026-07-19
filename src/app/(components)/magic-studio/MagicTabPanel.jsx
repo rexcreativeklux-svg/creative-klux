@@ -150,7 +150,12 @@ export default function MagicTabPanel({
   const [audioMeta, setAudioMeta] = useState(null); // { previewUrl, duration }
   const [audioMode, setAudioMode] = useState("upload"); // "upload" | "record"
 
-  const [openOption, setOpenOption] = useState(null); // inline-expanded option key
+  // Which option row is expanded — a single key so opening one closes the rest
+  // (only one open at a time).
+  const [openOption, setOpenOption] = useState(null);
+  const toggleOption = (key) =>
+    setOpenOption((prev) => (prev === key ? null : key));
+  const closeOption = () => setOpenOption(null);
   const [historyOpen, setHistoryOpen] = useState(false); // collapsed by default
   const [result, setResult] = useState(null); // on-device session result
   const [copied, setCopied] = useState(false);
@@ -412,7 +417,7 @@ export default function MagicTabPanel({
     recorder.recording;
 
   return (
-    <div className="flex flex-col gap-4 max-w-3xl mx-auto">
+    <div className="flex flex-col gap-4 mx-auto">
       {/* ── 1. Collapsible History (backend tools) ── */}
       {usesHistory && (
         <div className="rounded-2xl border border-gray-200 overflow-hidden">
@@ -621,7 +626,9 @@ export default function MagicTabPanel({
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => !recorder.recording && setAudioMode(tab.id)}
+                        onClick={() =>
+                          !recorder.recording && setAudioMode(tab.id)
+                        }
                         disabled={recorder.recording}
                         className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer ${active ? "bg-surface text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
                       >
@@ -680,8 +687,8 @@ export default function MagicTabPanel({
                       Upload audio
                     </span>
                     <span className="text-[11px] text-gray-400 text-center px-4">
-                      MP3 · WAV · OGG · M4A · WEBM · up to 100 MB · transcribed on
-                      your device
+                      MP3 · WAV · OGG · M4A · WEBM · up to 100 MB · transcribed
+                      on your device
                     </span>
                   </button>
                 )}
@@ -729,7 +736,9 @@ export default function MagicTabPanel({
                   ))}
                 </div>
                 <input
-                  value={/^\d+$/.test(values.personaAge) ? values.personaAge : ""}
+                  value={
+                    /^\d+$/.test(values.personaAge) ? values.personaAge : ""
+                  }
                   onChange={(e) => setValue("personaAge", e.target.value)}
                   placeholder="Or exact age (e.g. 32)"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -786,9 +795,11 @@ export default function MagicTabPanel({
           </div>
         )}
 
-        {/* Inline option rows (expand in place — no floating panel) */}
+        {/* Inline option rows — two columns; each expands in place (no floating
+            panel) and independently of the others (items-start keeps an open
+            row from stretching its neighbour). */}
         {config.options?.length > 0 && (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
             {config.options.map((option) => {
               const open = openOption === option.key;
               return (
@@ -797,9 +808,7 @@ export default function MagicTabPanel({
                   className="rounded-2xl bg-gray-100 overflow-hidden"
                 >
                   <button
-                    onClick={() =>
-                      setOpenOption((p) => (p === option.key ? null : option.key))
-                    }
+                    onClick={() => toggleOption(option.key)}
                     className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-200/70 transition-colors cursor-pointer"
                   >
                     <span className="text-gray-900 font-medium">
@@ -820,7 +829,7 @@ export default function MagicTabPanel({
                         voicePreview={voicePreview}
                         onSelect={(val) => {
                           setValue(option.key, val);
-                          setOpenOption(null);
+                          closeOption();
                         }}
                       />
                     </div>
@@ -919,50 +928,55 @@ export default function MagicTabPanel({
       )}
 
       {/* Text-to-Audio result (session; save-to-select) */}
-      {!usesHistory && !generating && resultType === "audio" && result?.assets?.length > 0 && (
-        <div className="rounded-2xl border border-gray-200 bg-surface p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Result</span>
-            <button
-              onClick={resetResult}
-              className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> New generation
-            </button>
+      {!usesHistory &&
+        !generating &&
+        resultType === "audio" &&
+        result?.assets?.length > 0 && (
+          <div className="rounded-2xl border border-gray-200 bg-surface p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-500">
+                Result
+              </span>
+              <button
+                onClick={resetResult}
+                className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> New generation
+              </button>
+            </div>
+            {result.assets.map((a, i) => {
+              const savedUrl = savedAudioRef.current.get(a.id);
+              const selected = savedUrl && selectedMedia.includes(savedUrl);
+              return (
+                <div key={a.id} className="space-y-2">
+                  <AudioCard
+                    asset={a}
+                    index={i}
+                    onDownload={downloadAudioAsset}
+                    onOpenMenu={() => {}}
+                  />
+                  {/* Only offer selection when the requesting form accepts audio. */}
+                  {allowedTypes.includes("audio") && (
+                    <button
+                      onClick={() => handleUseAudio(a)}
+                      disabled={savingAudioId === a.id}
+                      className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60 ${selected ? "bg-blue-600 text-white" : "border border-blue-200 text-blue-600 hover:bg-blue-50"}`}
+                    >
+                      {savingAudioId === a.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : selected ? (
+                        <Check className="w-3.5 h-3.5" />
+                      ) : (
+                        <PlusCircle className="w-3.5 h-3.5" />
+                      )}
+                      {selected ? "Added to selection" : "Add to selection"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          {result.assets.map((a, i) => {
-            const savedUrl = savedAudioRef.current.get(a.id);
-            const selected = savedUrl && selectedMedia.includes(savedUrl);
-            return (
-              <div key={a.id} className="space-y-2">
-                <AudioCard
-                  asset={a}
-                  index={i}
-                  onDownload={downloadAudioAsset}
-                  onOpenMenu={() => {}}
-                />
-                {/* Only offer selection when the requesting form accepts audio. */}
-                {allowedTypes.includes("audio") && (
-                  <button
-                    onClick={() => handleUseAudio(a)}
-                    disabled={savingAudioId === a.id}
-                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60 ${selected ? "bg-blue-600 text-white" : "border border-blue-200 text-blue-600 hover:bg-blue-50"}`}
-                  >
-                    {savingAudioId === a.id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : selected ? (
-                      <Check className="w-3.5 h-3.5" />
-                    ) : (
-                      <PlusCircle className="w-3.5 h-3.5" />
-                    )}
-                    {selected ? "Added to selection" : "Add to selection"}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+        )}
 
       {/* On-device empty hint (before first run) */}
       {config.onDevice && !generating && !result && (

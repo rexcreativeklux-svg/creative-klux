@@ -30,77 +30,147 @@ const MODELS = [
     name: "Avery",
     emoji: "👩",
     desc: "Woman, straight hair, jeans",
-    img: px(6780091),
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393304-6a5bae58eeb9b.webp",
   },
   {
     id: "sam",
     name: "Sam",
     emoji: "👨",
     desc: "Man, black tee, grey pants",
-    img: px(29727777),
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393320-6a5bae6846c5e.webp",
   },
   {
     id: "taylor",
     name: "Taylor",
     emoji: "👨",
     desc: "Man, white tee, khaki",
-    img: px(37741914),
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393316-6a5bae647e40b.webp",
   },
   {
     id: "kendall",
     name: "Kendall",
     emoji: "👩",
     desc: "Woman, white tee, jeans",
-    img: px(6780038),
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393312-6a5bae60ae9e2.webp",
   },
   {
     id: "jordan",
     name: "Jordan",
     emoji: "👨",
     desc: "Man, beige outfit",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1783764125-6a52149db8770.webp",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393308-6a5bae5cc9d18.webp",
   },
   {
     id: "casey",
     name: "Casey",
     emoji: "👩",
     desc: "Woman, all white",
-    img: px(31215272),
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393301-6a5bae5522f20.webp",
   },
   {
     id: "alex",
     name: "Alex",
     emoji: "👩",
     desc: "Woman, beige set",
-    img: px(6780036),
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393297-6a5bae5159941.webp",
   },
   {
     id: "maya",
     name: "Maya",
     emoji: "👩",
     desc: "Woman, black outfit",
-    img: px(5421296),
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393293-6a5bae4d875f1.webp",
   },
   {
     id: "reece",
     name: "Reece",
     emoji: "👨",
     desc: "Man, casual jeans",
-    img: px(18516993),
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393289-6a5bae49bbbee.webp",
   },
   {
     id: "lara",
     name: "Lara",
     emoji: "👩",
     desc: "Woman, blue jeans",
-    img: px(5112737),
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393285-6a5bae45e6d62.webp",
   },
   {
     id: "julia",
     name: "Julia",
     emoji: "👩",
     desc: "Woman, light jeans",
-    img: px(31042871),
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393282-6a5bae4233fc2.webp",
+  },
+  {
+    id: "morgan",
+    name: "Morgan",
+    emoji: "👩",
+    desc: "Woman, casual wear",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382690-6a5b84e293e52.webp",
+  },
+  {
+    id: "charlie",
+    name: "Charlie",
+    emoji: "👨",
+    desc: "Man, street style",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382658-6a5b84c237702.webp",
+  },
+  {
+    id: "riley",
+    name: "Riley",
+    emoji: "👩",
+    desc: "Woman, summer dress",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382699-6a5b84ebda28b.webp",
+  },
+  {
+    id: "parker",
+    name: "Parker",
+    emoji: "👨",
+    desc: "Man, denim jacket",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382669-6a5b84cdb7e7d.webp",
+  },
+  {
+    id: "finley",
+    name: "Finley",
+    emoji: "👩",
+    desc: "Woman, activewear",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382591-6a5b847fdbd4d.webp",
+  },
+  {
+    id: "skyler",
+    name: "Skyler",
+    emoji: "👨",
+    desc: "Man, smart casual",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382678-6a5b84d635bc6.webp",
+  },
+  {
+    id: "rowan",
+    name: "Rowan",
+    emoji: "👩",
+    desc: "Woman, oversized tee",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784380610-6a5b7cc2d1bac.webp",
+  },
+  {
+    id: "kai",
+    name: "Kai",
+    emoji: "👨",
+    desc: "Man, hoodie and shorts",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382227-6a5b83133568b.webp",
+  },
+  {
+    id: "quinn",
+    name: "Quinn",
+    emoji: "👩",
+    desc: "Woman, classic blazer",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784380743-6a5b7d4777bda.webp",
+  },
+  {
+    id: "avery_two",
+    name: "Avery II",
+    emoji: "👨",
+    desc: "Man, monochrome set",
+    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784379783-6a5b7987058f2.webp",
   },
 ];
 
@@ -251,7 +321,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
 
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [selectedModel, setSelectedModel] = useState("jordan");
+  const [selectedModel, setSelectedModel] = useState("morgan");
   // const [selectedPose, setSelectedPose] = useState('3_4_turn');
   const [quality, setQuality] = useState("Standard");
   const [background, setBackground] = useState("concrete_studio");
@@ -787,7 +857,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
       )}
       {openDropdown === "model" && (
         <FloatingPanel anchorRef={modelRef} width={310}>
-          <div className="grid grid-cols-4 gap-2 p-3">
+          <div className="grid grid-cols-4 gap-2 p-3 max-h-[70vh]">
             <button
               onClick={() => {
                 setPickerMode("model");

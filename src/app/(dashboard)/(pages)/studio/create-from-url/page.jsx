@@ -1660,15 +1660,7 @@ export default function CreateFromUrl() {
               <button
                 onClick={handleGenerate}
                 disabled={generating}
-                aria-disabled={!canGenerate}
-                title={
-                  !canGenerate ? imageGateMessage(selectedCount) : undefined
-                }
-                className={`px-6 py-2 bg-blue-700 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center gap-2 min-w-[160px] justify-center ${
-                  canGenerate
-                    ? "cursor-pointer hover:bg-blue-800"
-                    : "opacity-50 cursor-not-allowed"
-                }`}
+                className="px-6 cursor-pointer py-2 bg-blue-700 rounded-lg hover:bg-blue-800 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center gap-2 min-w-40 justify-center"
               >
                 {generating ? (
                   <>

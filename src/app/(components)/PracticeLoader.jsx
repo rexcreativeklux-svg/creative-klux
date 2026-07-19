@@ -1,19 +1,14 @@
 "use client";
-
 import React from "react";
 
 /**
- * PracticeLoader — a Base44-style splash loader: an animated "sunset" mark
- * (an orange sun crossed by horizontal gaps) over a warm gradient, with a
- * "Loading your app…" label whose dots pulse.
- *
- * Fully self-contained (inline SVG + scoped keyframes), theme-aware, and
- * reusable anywhere.
+ * PracticeLoader — Creative Klux Blue Edition
+ * An animated splash loader built around a vibrant corporate electric blue gradient.
  *
  * Props:
- *   label       string   — text under the mark (default "Loading your app")
- *   fullScreen  boolean  — fixed overlay covering the viewport (default true)
- *   size        number   — sun diameter in px (default 96)
+ * label string — text under the mark (default "Loading your app")
+ * fullScreen boolean — fixed overlay covering the viewport (default true)
+ * size number — sun diameter in px (default 96)
  */
 export default function PracticeLoader({
   label = "Loading your app",
@@ -23,38 +18,45 @@ export default function PracticeLoader({
   return (
     <div className={`practice-loader ${fullScreen ? "is-fixed" : ""}`}>
       <div className="pl-stack">
-        {/* Sun mark with radiating pulse rings */}
+        {/* Blue sun mark with radiating pulse rings */}
         <div className="pl-sun-wrap" style={{ width: size, height: size }}>
           <span className="pl-ring" />
           <span className="pl-ring pl-ring-2" />
           <span className="pl-ring pl-ring-3" />
           <div className="pl-sun">
-          <svg viewBox="0 0 100 100" width="100%" height="100%" aria-hidden="true">
-            <defs>
-              <linearGradient id="pl-grad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#FF9A5A" />
-                <stop offset="55%" stopColor="#FB7A3C" />
-                <stop offset="100%" stopColor="#F1651E" />
-              </linearGradient>
-              {/* thin transparent gaps across the lower half → the "sunset" bands */}
-              <mask id="pl-mask">
-                <rect x="0" y="0" width="100" height="100" fill="white" />
-                <rect x="0" y="60" width="100" height="4.5" fill="black" />
-                <rect x="0" y="72" width="100" height="4.5" fill="black" />
-                <rect x="0" y="84" width="100" height="4.5" fill="black" />
-              </mask>
-            </defs>
-            <circle
-              cx="50"
-              cy="50"
-              r="40"
-              fill="url(#pl-grad)"
-              mask="url(#pl-mask)"
-            />
-          </svg>
+            <svg
+              viewBox="0 0 100 100"
+              width="100%"
+              height="100%"
+              aria-hidden="true"
+            >
+              <defs>
+                <linearGradient id="pl-grad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#60A5FA" />{" "}
+                  {/* Bright Sky Blue */}
+                  <stop offset="55%" stopColor="#2563EB" />{" "}
+                  {/* Electric Royal Blue */}
+                  <stop offset="100%" stopColor="#1D4ED8" />{" "}
+                  {/* Deep Command Blue */}
+                </linearGradient>
+                {/* thin transparent gaps across the lower half → the "sunset" bands */}
+                <mask id="pl-mask">
+                  <rect x="0" y="0" width="100" height="100" fill="white" />
+                  <rect x="0" y="60" width="100" height="4.5" fill="black" />
+                  <rect x="0" y="72" width="100" height="4.5" fill="black" />
+                  <rect x="0" y="84" width="100" height="4.5" fill="black" />
+                </mask>
+              </defs>
+              <circle
+                cx="50"
+                cy="50"
+                r="40"
+                fill="url(#pl-grad)"
+                mask="url(#pl-mask)"
+              />
+            </svg>
           </div>
         </div>
-
         {/* Label with pulsing dots */}
         <p className="pl-label">
           {label}
@@ -63,7 +65,6 @@ export default function PracticeLoader({
           <span className="pl-dot">.</span>
         </p>
       </div>
-
       <style jsx>{`
         .practice-loader {
           display: flex;
@@ -72,10 +73,11 @@ export default function PracticeLoader({
           width: 100%;
           height: 100%;
           min-height: 240px;
+          /* Light mode: Clean ice-blue to white background tint */
           background: radial-gradient(
             120% 90% at 50% 100%,
-            #ffe6d2 0%,
-            #fff5ee 42%,
+            #eff6ff 0%,
+            #f8fafc 42%,
             #ffffff 100%
           );
         }
@@ -102,15 +104,15 @@ export default function PracticeLoader({
           width: 100%;
           height: 100%;
           animation: pl-breathe 2.4s ease-in-out infinite;
-          filter: drop-shadow(0 8px 22px rgba(241, 101, 30, 0.28));
+          filter: drop-shadow(0 8px 22px rgba(37, 99, 235, 0.25));
           transform-origin: center;
         }
-        /* radiating pulse — filled sun-colored discs expanding from the centre */
+        /* Radiating pulse — matching corporate blue */
         .pl-ring {
           position: absolute;
           inset: 0;
           border-radius: 50%;
-          background: #fb7a3c;
+          background: #2563eb;
           transform-origin: center;
           animation: pl-ring 2.4s ease-out infinite;
         }
@@ -123,7 +125,7 @@ export default function PracticeLoader({
         @keyframes pl-ring {
           0% {
             transform: scale(1);
-            opacity: 0.45;
+            opacity: 0.35;
           }
           100% {
             transform: scale(2.1);
@@ -135,7 +137,7 @@ export default function PracticeLoader({
           font-size: 20px;
           font-weight: 500;
           letter-spacing: 0.2px;
-          color: #9aa1ab;
+          color: #334155; /* Slate gray text for readability */
         }
         .pl-dot {
           animation: pl-dots 1.4s infinite;
@@ -151,11 +153,11 @@ export default function PracticeLoader({
           0%,
           100% {
             transform: scale(1);
-            filter: drop-shadow(0 8px 22px rgba(241, 101, 30, 0.24));
+            filter: drop-shadow(0 8px 22px rgba(37, 99, 235, 0.2));
           }
           50% {
             transform: scale(1.07);
-            filter: drop-shadow(0 12px 30px rgba(241, 101, 30, 0.42));
+            filter: drop-shadow(0 12px 30px rgba(37, 99, 235, 0.45));
           }
         }
         @keyframes pl-dots {
@@ -168,20 +170,20 @@ export default function PracticeLoader({
             opacity: 1;
           }
         }
-        /* App dark mode is class-based (next-themes, darkMode class): the dark
-           class on <html> is the single source of truth. Follow it so the
-           background respects the SELECTED theme, not the OS preference. The
-           light background is the base rule above; the sun keeps its colours. */
+        /* Dark Mode: Deep slate and navy tones */
         :global(.dark) .practice-loader {
           background: radial-gradient(
             120% 90% at 50% 100%,
-            #2a1c14 0%,
-            #1a1613 45%,
-            #121011 100%
+            #0f172a 0%,
+            /* Slate 900 background core */ #0b0f19 45%,
+            #030712 100%
           );
         }
         :global(.dark) .pl-label {
-          color: #8b9099;
+          color: #94a3b8; /* Cool gray for dark text blend */
+        }
+        :global(.dark) .pl-ring {
+          background: #1d4ed8; /* Darker blue ring pulse */
         }
         @media (prefers-reduced-motion: reduce) {
           .pl-sun,

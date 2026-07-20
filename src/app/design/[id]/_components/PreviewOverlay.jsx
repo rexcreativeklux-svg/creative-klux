@@ -62,7 +62,7 @@ export default function PreviewOverlay({ canvas, elements, onClose, onDownload }
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-gray-950/95 backdrop-blur-sm">
+    <div className="fixed inset-0 z-60 flex flex-col bg-gray-950/95 backdrop-blur-sm">
       {/* Top chrome */}
       <div className="h-14 shrink-0 flex items-center justify-between px-3">
         <button

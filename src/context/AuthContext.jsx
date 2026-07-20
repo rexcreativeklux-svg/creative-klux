@@ -3176,7 +3176,7 @@ export function AuthProvider({ children }) {
   // };
 
   const fetchDesignTemplates = useCallback(
-    async ({ type, category, type_size, num_template = 3 }) => {
+    async ({ type, category, type_size, num_template = 3, design_type }) => {
       if (!token) {
         return { ok: false, message: "Not authenticated" };
       }
@@ -3190,6 +3190,9 @@ export function AuthProvider({ children }) {
         sub_category: formattedCategory,
         type_size,
         num_template,
+        // Scraive design axis: "ads" | "social" | "designer". Passed only by the
+        // scraive+redesign generation flows; omitted when the caller doesn't set it.
+        ...(design_type ? { design_type } : {}),
       };
 
       console.log("🎨 fetchDesignTemplates payload:", payload);

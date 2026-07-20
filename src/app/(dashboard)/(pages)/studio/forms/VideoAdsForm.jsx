@@ -545,7 +545,6 @@ const VideoAdsForm = ({
     setError("");
 
     try {
-
       // Resolve the size's label (for Scraive category + Redesign payload)
       const selectedSizeLabel =
         SIZE_OPTIONS.find((s) => s.value === formData.size)?.label || "";
@@ -563,6 +562,7 @@ const VideoAdsForm = ({
           type: "video",
           category: selectedSizeLabel,
           type_size: formData.size,
+          design_type: "ads",
         });
 
         if (!templateRes?.ok) {
@@ -1185,9 +1185,7 @@ const VideoAdsForm = ({
               onClick={handleGenerate}
               disabled={generating}
               aria-disabled={!canGenerate}
-              title={
-                !canGenerate ? imageGateMessage(selectedCount) : undefined
-              }
+              title={!canGenerate ? imageGateMessage(selectedCount) : undefined}
               className={`px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition disabled:opacity-60 ${
                 canGenerate
                   ? "cursor-pointer hover:bg-blue-700 hover:scale-105"

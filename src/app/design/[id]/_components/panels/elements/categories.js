@@ -1,18 +1,11 @@
 import {
   Shapes,
   Sparkles,
-  Clapperboard,
   Image,
-  Video,
-  Music,
   BarChart3,
-  ListChecks,
-  Sheet,
   Table,
   Frame,
   Grid3x3,
-  Shirt,
-  Box,
 } from "lucide-react";
 
 /**
@@ -40,12 +33,13 @@ export const ELEMENT_CATEGORIES = [
     gradient: "from-amber-400 to-orange-600",
     content: "graphics",
   },
-  {
-    id: "animations",
-    label: "Animations",
-    icon: Clapperboard,
-    gradient: "from-lime-400 to-green-600",
-  },
+  // Not built yet — hidden until their library ships.
+  // {
+  //   id: "animations",
+  //   label: "Animations",
+  //   icon: Clapperboard,
+  //   gradient: "from-lime-400 to-green-600",
+  // },
   {
     id: "photos",
     label: "Photos",
@@ -53,18 +47,18 @@ export const ELEMENT_CATEGORIES = [
     gradient: "from-blue-400 to-indigo-600",
     content: "photos",
   },
-  {
-    id: "videos",
-    label: "Videos",
-    icon: Video,
-    gradient: "from-fuchsia-400 to-purple-600",
-  },
-  {
-    id: "audio",
-    label: "Audio",
-    icon: Music,
-    gradient: "from-rose-400 to-red-600",
-  },
+  // {
+  //   id: "videos",
+  //   label: "Videos",
+  //   icon: Video,
+  //   gradient: "from-fuchsia-400 to-purple-600",
+  // },
+  // {
+  //   id: "audio",
+  //   label: "Audio",
+  //   icon: Music,
+  //   gradient: "from-rose-400 to-red-600",
+  // },
   {
     id: "charts",
     label: "Charts",
@@ -72,18 +66,18 @@ export const ELEMENT_CATEGORIES = [
     gradient: "from-violet-400 to-purple-600",
     content: "charts",
   },
-  {
-    id: "forms",
-    label: "Forms",
-    icon: ListChecks,
-    gradient: "from-emerald-400 to-green-600",
-  },
-  {
-    id: "sheets",
-    label: "Sheets",
-    icon: Sheet,
-    gradient: "from-cyan-400 to-blue-600",
-  },
+  // {
+  //   id: "forms",
+  //   label: "Forms",
+  //   icon: ListChecks,
+  //   gradient: "from-emerald-400 to-green-600",
+  // },
+  // {
+  //   id: "sheets",
+  //   label: "Sheets",
+  //   icon: Sheet,
+  //   gradient: "from-cyan-400 to-blue-600",
+  // },
   {
     id: "tables",
     label: "Tables",
@@ -105,16 +99,16 @@ export const ELEMENT_CATEGORIES = [
     gradient: "from-pink-400 to-fuchsia-600",
     content: "grids",
   },
-  {
-    id: "mockups",
-    label: "Mockups",
-    icon: Shirt,
-    gradient: "from-teal-300 to-cyan-600",
-  },
-  {
-    id: "3d",
-    label: "3D",
-    icon: Box,
-    gradient: "from-indigo-400 to-violet-600",
-  },
+  // {
+  //   id: "mockups",
+  //   label: "Mockups",
+  //   icon: Shirt,
+  //   gradient: "from-teal-300 to-cyan-600",
+  // },
+  // {
+  //   id: "3d",
+  //   label: "3D",
+  //   icon: Box,
+  //   gradient: "from-indigo-400 to-violet-600",
+  // },
 ];

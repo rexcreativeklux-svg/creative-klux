@@ -527,6 +527,7 @@ const ImageAdsForm = ({
           type: "image",
           category: selectedSize.category, // "Meta Square"
           type_size: selectedSize.type_size, // "1080x1080"
+          design_type: "ads",
         });
 
         if (!templateRes.ok) {

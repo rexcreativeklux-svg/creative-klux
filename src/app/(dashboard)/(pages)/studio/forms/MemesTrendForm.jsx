@@ -11,6 +11,13 @@ import { FloatingAnimation, FloatingElements } from "@/app/(components)/Floating
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
+import { useAuth } from "@/context/AuthContext";
+import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import {
+  MAX_IMAGES,
+  withinImageBounds,
+  imageBoundsMessage,
+} from "@/(lib)/creative/imageGate";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const SIZE_OPTIONS = [
@@ -61,8 +68,10 @@ const STEPS = [
 
 const MemesTrendForm = ({
   formData, setFormData, activeBrand, sendUrl, showToast, onResult,
-  generateCustomCreative, creative, categoryId,
+  generateCustomCreative, creative, categoryId, fetchDesignTemplates,
 }) => {
+  const { uploadMedia, activeBrandId } = useAuth();
+
   const [step, setStep]                     = useState(1);
   const [error, setError]                   = useState("");
   const [brandUrl, setBrandUrl]             = useState(activeBrand?.url || activeBrand?.source_url || "");
@@ -72,6 +81,9 @@ const MemesTrendForm = ({
   // ── image state ──────────────────────────────────────────────────────────
   const [imageSrc, setImageSrc]                     = useState([]);
   const [croppedImages, setCroppedImages]           = useState([]);
+  // index in croppedImages where the current cropping batch begins — lets fresh
+  // picker/brand selections APPEND to prior ones instead of replacing them.
+  const [cropBatchStart, setCropBatchStart] = useState(0);
   const [currentCropIndex, setCurrentCropIndex]     = useState(0);
   const [showCropper, setShowCropper]               = useState(false);
   const [crop, setCrop]                             = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
@@ -106,9 +118,14 @@ const MemesTrendForm = ({
     setError("");
   };
 
+  const fail = (msg) => {
+    setError(msg);
+    showToast(msg);
+  };
+
   // ── URL import ────────────────────────────────────────────────────────────
   const handleImportBrand = async () => {
-    if (!brandUrl.trim()) return setError("Please enter a valid brand URL.");
+    if (!brandUrl.trim()) return fail("Please enter a valid brand URL.");
     setImportingBrand(true);
     try {
       const r = await sendUrl(brandUrl);
@@ -128,7 +145,7 @@ const MemesTrendForm = ({
         importedImages: d.images?.map((i) => i.url).filter(Boolean) || [],
       }));
       showToast("Brand imported!");
-    } catch { setError("Failed to import brand. Check the URL."); }
+    } catch { fail("Failed to import brand. Check the URL."); }
     finally   { setImportingBrand(false); }
   };
 
@@ -141,7 +158,17 @@ const MemesTrendForm = ({
   };
 
   // ── Apply from MediaPickerModal ───────────────────────────────────────────
-  const handleApplyFromPicker = async (images, media) => {
+  const handleApplyFromPicker = async (rawImages, rawMedia) => {
+    // Cap combined selection at MAX_IMAGES across images + media.
+    const remaining = Math.max(
+      0,
+      MAX_IMAGES - croppedImages.filter(Boolean).length,
+    );
+    const images = rawImages.slice(0, remaining);
+    const media = rawMedia.slice(0, Math.max(0, remaining - images.length));
+    const overflow =
+      rawImages.length - images.length + (rawMedia.length - media.length);
+
     if (images.length > 0) {
       try {
         const processedFiles = await Promise.all(
@@ -167,17 +194,12 @@ const MemesTrendForm = ({
         const previewUrls = processedFiles.map((f) => f.previewUrl);
         const sourceUrls  = processedFiles.map((f) => f.sourceUrl || null);
 
-        if (!showCropper) {
-          setImageSrc(previewUrls);
-          setImageSrcMeta(sourceUrls);
-          setCroppedImages(Array(previewUrls.length).fill(null));
-          setCurrentCropIndex(0);
-        } else {
-          setImageSrc((prev)      => [...prev, ...previewUrls]);
-          setImageSrcMeta((prev)  => [...prev, ...sourceUrls]);
-          setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
-          setCurrentCropIndex(imageSrc.length);
-        }
+        // Start a new cropping batch APPENDED to any prior selections.
+        setCropBatchStart(croppedImages.length);
+        setImageSrc(previewUrls);
+        setImageSrcMeta(sourceUrls);
+        setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
+        setCurrentCropIndex(0);
 
         setShowCropper(true);
         showToast(`Added ${images.length} image(s) — crop them`);
@@ -198,23 +220,47 @@ const MemesTrendForm = ({
       showToast(`Added ${media.length} media item(s)`);
     }
 
+    if (overflow > 0) showToast(`Max ${MAX_IMAGES} items reached — some skipped.`);
     setMediaPickerOpen(false);
   };
 
   // ── Brand image strip handlers ────────────────────────────────────────────
   const handleBrandImageUse = (imageObjs) => {
-    const pseudos = imageObjs.map((imageObj) => ({
+    const remaining = Math.max(
+      0,
+      MAX_IMAGES - croppedImages.filter(Boolean).length,
+    );
+    const toAdd = imageObjs.slice(0, remaining);
+    if (toAdd.length === 0) {
+      showToast(`Max ${MAX_IMAGES} items reached.`);
+      return;
+    }
+    const pseudos = toAdd.map((imageObj) => ({
       previewUrl: imageObj.src,
       sourceUrl:  imageObj.src,
       name:       imageObj.alt || "brand-image",
       type:       "image/jpeg",
     }));
     setCroppedImages((prev) => [...prev, ...pseudos]);
-    showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+    if (toAdd.length < imageObjs.length)
+      showToast(`Only ${toAdd.length} added — max ${MAX_IMAGES} reached.`);
+    else
+      showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
   };
 
   const handleBrandImageCrop = async (imageObjs) => {
-    for (const imageObj of imageObjs) {
+    const remaining = Math.max(
+      0,
+      MAX_IMAGES - croppedImages.filter(Boolean).length,
+    );
+    const toAdd = imageObjs.slice(0, remaining);
+    if (toAdd.length === 0) {
+      showToast(`Max ${MAX_IMAGES} items reached.`);
+      return;
+    }
+    const newUrls = [];
+    const newMetas = [];
+    for (const imageObj of toAdd) {
       const originalUrl = imageObj.src;
       let cropperUrl    = originalUrl;
       try {
@@ -224,12 +270,18 @@ const MemesTrendForm = ({
       } catch (err) {
         console.warn("Proxy failed, falling back to original URL", err);
       }
-      setImageSrc((prev)      => [...prev, cropperUrl]);
-      setImageSrcMeta((prev)  => [...prev, originalUrl]);
-      setCroppedImages((prev) => [...prev, null]);
+      newUrls.push(cropperUrl);
+      newMetas.push(originalUrl);
     }
-    if (!showCropper) setCurrentCropIndex(0);
+    // Start a new cropping batch APPENDED to any prior selections.
+    setCropBatchStart(croppedImages.length);
+    setImageSrc(newUrls);
+    setImageSrcMeta(newMetas);
+    setCroppedImages((prev) => [...prev, ...Array(newUrls.length).fill(null)]);
+    setCurrentCropIndex(0);
     setShowCropper(true);
+    if (toAdd.length < imageObjs.length)
+      showToast(`Only ${toAdd.length} queued — max ${MAX_IMAGES} reached.`);
   };
 
   // ── Save crop ─────────────────────────────────────────────────────────────
@@ -258,7 +310,7 @@ const MemesTrendForm = ({
 
     setCroppedImages((prev) => {
       const updated = [...prev];
-      updated[currentCropIndex] = file;
+      updated[cropBatchStart + currentCropIndex] = file;
       return updated;
     });
 
@@ -269,7 +321,7 @@ const MemesTrendForm = ({
     } else {
       setShowCropper(false);
     }
-  }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta]);
+  }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta, cropBatchStart]);
 
   // ── Skip crop ─────────────────────────────────────────────────────────────
   const handleSkipCrop = () => {
@@ -278,7 +330,7 @@ const MemesTrendForm = ({
       const file = new File([blob], `original-${currentCropIndex}.png`, { type: blob.type });
       file.previewUrl = url;
       file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
-      setCroppedImages((prev) => { const u = [...prev]; u[currentCropIndex] = file; return u; });
+      setCroppedImages((prev) => { const u = [...prev]; u[cropBatchStart + currentCropIndex] = file; return u; });
       if (currentCropIndex < imageSrc.length - 1) {
         setCurrentCropIndex((prev) => prev + 1);
         setCrop({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
@@ -308,72 +360,175 @@ const MemesTrendForm = ({
 
   // ── Step navigation ───────────────────────────────────────────────────────
   const handleContinue = () => {
-    if (step === 1 && !formData.brandName) return setError("Brand name is required.");
+    if (step === 1 && !formData.brandName) return fail("Brand name is required.");
     if (step === 2 && (!formData.size || !formData.campaignGoal || !formData.audience || !formData.fileFormat))
-      return setError("Please complete all fields before continuing.");
+      return fail("Please complete all fields before continuing.");
     if (step === 3 && croppedImages.filter(Boolean).length === 0)
-      return setError("Select at least one background image.");
+      return fail("Select at least one background image.");
     setError("");
     setStep((p) => p + 1);
   };
 
-  // ── Generate — mirrors ImageAdsForm.handleGenerate exactly ───────────────
+  // ── Generate — mirrors PostForm.handleGenerate ────────────────────────────
+  // 1) fetch Scraive templates  2) upload File images → real URLs
+  // 3) send templates + brand_id  4) stream batches into onResult
   const handleGenerate = async () => {
+    const validImages = croppedImages.filter(Boolean);
+
+    // Gate: generation needs between MIN_IMAGES and MAX_IMAGES background images.
+    if (!withinImageBounds(validImages.length)) {
+      return fail(imageBoundsMessage(validImages.length));
+    }
+
     setGenerating(true);
     setError("");
 
-    const validImages = croppedImages.filter(Boolean);
+    try {
+      // Resolve size label → Scraive category
+      const sizeLabel =
+        formData.sizeLabel ||
+        SIZE_OPTIONS.find((s) => s.value === formData.size)?.label ||
+        formData.size ||
+        "";
+      const scraiveCategory = sizeLabel.toLowerCase().replace(/\s+/g, "_");
 
-    const payload = {
-      creativeType: creative?.id,
-      categoryType: categoryId,
-      brandName:    formData.brandName    || null,
-      description:  formData.description  || null,
-      brandColor:   formData.brandColor   ?? formData.primaryColor ?? null,
-      logo:         formData.logo         || null,
-      visualStyle:  formData.visualStyle  || null,
-      font:         formData.font         || null,
-      sourceUrl:    brandUrl              || null,
-      size:         formData.size         || null,
-      campaignGoal: formData.campaignGoal || null,
-      audience:     formData.audience     || null,
-      fileFormat:   formData.fileFormat   || null,
-      caption:      formData.caption      || null,
-      tone:         formData.tone         || null,
-      images: validImages
-        .map((f) => f?.sourceUrl || f?.previewUrl)
-        .filter(Boolean),
-      generatedAt: new Date().toISOString(),
-    };
+      // 1. FETCH DESIGN TEMPLATES FIRST (redesign engine only)
+      let selectedTemplates = [];
+      if (CREATIVE_ENGINE === "redesign") {
+        const templateRes = await fetchDesignTemplates?.({
+          type: "image",
+          category: sizeLabel,
+          type_size: formData.size,
+          design_type: "social",
+        });
 
-    const result = await generateCustomCreative(payload);
+        if (!templateRes?.ok) {
+          setGenerating(false);
+          const msg = templateRes?.message || "Failed to fetch templates.";
+          setError(msg);
+          showToast(msg);
+          return;
+        }
 
-    if (!result.ok) {
-      setError(result.message || "Generation failed. Please try again.");
+        const templates = Array.isArray(templateRes.data) ? templateRes.data : [];
+        if (!templates.length) {
+          setGenerating(false);
+          const msg = "No templates found for this size.";
+          setError(msg);
+          showToast(msg);
+          return;
+        }
+        selectedTemplates = templates;
+      }
+
+      // 2. RESOLVE IMAGE URLs — upload File items to /gallery
+      const resolvedUrls = await Promise.all(
+        validImages.map(async (item) => {
+          if (
+            typeof item?.sourceUrl === "string" &&
+            item.sourceUrl.startsWith("http")
+          ) {
+            return item.sourceUrl;
+          }
+          if (item instanceof File) {
+            try {
+              const result = await uploadMedia(item);
+              const url =
+                result?.image_url ||
+                result?.url ||
+                result?.data?.image_url ||
+                null;
+              return typeof url === "string" && url.startsWith("http")
+                ? url
+                : null;
+            } catch (err) {
+              console.error("uploadMedia failed:", err);
+              return null;
+            }
+          }
+          if (
+            typeof item?.previewUrl === "string" &&
+            item.previewUrl.startsWith("http")
+          ) {
+            return item.previewUrl;
+          }
+          return null;
+        }),
+      );
+
+      const imageUrls = resolvedUrls.filter(Boolean);
+
+      // 3. BUILD PAYLOAD
+      const payload = {
+        creativeType: creative?.id,
+        categoryType: categoryId,
+        brand_id:     activeBrandId,
+
+        brandName:    formData.brandName    || null,
+        description:  formData.description  || null,
+        brandColor:   formData.brandColor   ?? formData.primaryColor ?? null,
+        logo:         formData.logo         || null,
+        visualStyle:  formData.visualStyle  || null,
+        font:         formData.font         || null,
+        sourceUrl:    brandUrl              || null,
+        size:         formData.size         || null,
+        campaignGoal: formData.campaignGoal || null,
+        audience:     formData.audience     || null,
+        fileFormat:   formData.fileFormat   || null,
+        caption:      formData.caption      || null,
+        tone:         formData.tone         || null,
+
+        category:     scraiveCategory,
+        type_size:    formData.size || null,
+        images:       imageUrls,
+        templates:    selectedTemplates,
+        generatedAt:  new Date().toISOString(),
+      };
+
+      // 4. STREAM BATCHES
+      const expectedCount = selectedTemplates.length;
+      let isFirstBatch = true;
+      const result = await generateCustomCreative(payload, (batch) => {
+        if (!batch.ok) return;
+        const variations = batch.variations || [];
+        const assets = batch.assets || [];
+        if (isFirstBatch) {
+          isFirstBatch = false;
+          setGenerating(false); // hide overlay so first batch shows
+          onResult({
+            type: "design",
+            variations,
+            assets,
+            expectedCount: expectedCount || variations.length,
+            done: false,
+            reply: batch.data?.reply || "",
+            meta: batch.data?.meta || {},
+            payload,
+            raw: batch.data,
+          });
+        } else {
+          onResult({ type: "design", variations, assets, append: true });
+        }
+      });
+
+      if (!result.ok) {
+        setGenerating(false);
+        onResult({ append: true, done: true });
+        const msg = result.message || "Generation failed. Please try again.";
+        setError(msg);
+        showToast(msg);
+        return;
+      }
+
+      onResult({ append: true, done: true });
+    } catch (err) {
+      console.error("handleGenerate error:", err);
+      const msg = err.message || "Something went wrong.";
+      setError(msg);
+      showToast(msg);
+    } finally {
       setGenerating(false);
-      return;
     }
-
-    const data = result.data;
-
-    if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
-      onResult({
-        type:       "design",
-        variations: data.variations,
-        reply:      data.reply || "",
-        meta:       data.meta  || {},
-        payload,
-        raw: data,
-      });
-    } else {
-      onResult({
-        assets: data?.assets || [],
-        payload,
-        raw: data,
-      });
-    }
-
-    setGenerating(false);
   };
 
   // ── Aspect ratio for cropper based on selected size ───────────────────────
@@ -767,7 +922,8 @@ const MemesTrendForm = ({
           setShowCropper(false);
           setImageSrc([]);
           setImageSrcMeta([]);
-          setCroppedImages([]);
+          // Roll back only the current cropping batch — preserve prior selections
+          setCroppedImages((prev) => prev.slice(0, cropBatchStart));
         }}
         onPrevious={handlePreviousCrop}
       />
@@ -780,6 +936,10 @@ const MemesTrendForm = ({
         postData={formData}
         activeBrand={activeBrand}
         showToast={showToast}
+        maxSelectable={Math.max(
+          0,
+          MAX_IMAGES - croppedImages.filter(Boolean).length,
+        )}
       />
 
       {generating && (

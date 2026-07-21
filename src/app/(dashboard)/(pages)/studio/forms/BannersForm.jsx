@@ -13,7 +13,11 @@ import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 import { useAuth } from "@/context/AuthContext";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
-import { withinImageBounds, imageBoundsMessage } from "@/(lib)/creative/imageGate";
+import {
+  MAX_IMAGES,
+  withinImageBounds,
+  imageBoundsMessage,
+} from "@/(lib)/creative/imageGate";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -97,6 +101,9 @@ const BannersForm = ({
   // ── image state ───────────────────────────────────────────────────────────
   const [imageSrc, setImageSrc]                 = useState([]);
   const [croppedImages, setCroppedImages]       = useState([]);
+  // index in croppedImages where the current cropping batch begins — lets fresh
+  // picker/brand selections APPEND to prior ones instead of replacing them.
+  const [cropBatchStart, setCropBatchStart] = useState(0);
   const [currentCropIndex, setCurrentCropIndex] = useState(0);
   const [showCropper, setShowCropper]           = useState(false);
   const [crop, setCrop]                         = useState({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
@@ -171,7 +178,17 @@ const BannersForm = ({
   };
 
   // ── Apply from MediaPickerModal (mirrors ImageAdsForm exactly) ────────────
-  const handleApplyFromPicker = async (images, media) => {
+  const handleApplyFromPicker = async (rawImages, rawMedia) => {
+    // Cap combined selection at MAX_IMAGES across images + media.
+    const remaining = Math.max(
+      0,
+      MAX_IMAGES - croppedImages.filter(Boolean).length,
+    );
+    const images = rawImages.slice(0, remaining);
+    const media = rawMedia.slice(0, Math.max(0, remaining - images.length));
+    const overflow =
+      rawImages.length - images.length + (rawMedia.length - media.length);
+
     if (images.length > 0) {
       try {
         const processedFiles = await Promise.all(
@@ -197,17 +214,12 @@ const BannersForm = ({
         const previewUrls = processedFiles.map((f) => f.previewUrl);
         const sourceUrls  = processedFiles.map((f) => f.sourceUrl || null);
 
-        if (!showCropper) {
-          setImageSrc(previewUrls);
-          setImageSrcMeta(sourceUrls);
-          setCroppedImages(Array(previewUrls.length).fill(null));
-          setCurrentCropIndex(0);
-        } else {
-          setImageSrc((prev) => [...prev, ...previewUrls]);
-          setImageSrcMeta((prev) => [...prev, ...sourceUrls]);
-          setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
-          setCurrentCropIndex(imageSrc.length);
-        }
+        // Start a new cropping batch APPENDED to any prior selections.
+        setCropBatchStart(croppedImages.length);
+        setImageSrc(previewUrls);
+        setImageSrcMeta(sourceUrls);
+        setCroppedImages((prev) => [...prev, ...Array(previewUrls.length).fill(null)]);
+        setCurrentCropIndex(0);
 
         setShowCropper(true);
         showToast(`Added ${images.length} image(s) — crop them`);
@@ -228,23 +240,47 @@ const BannersForm = ({
       showToast(`Added ${media.length} media item(s)`);
     }
 
+    if (overflow > 0) showToast(`Max ${MAX_IMAGES} items reached — some skipped.`);
     setMediaPickerOpen(false);
   };
 
   // ── Brand image strip handlers (mirrors ImageAdsForm exactly) ─────────────
   const handleBrandImageUse = (imageObjs) => {
-    const pseudos = imageObjs.map((imageObj) => ({
+    const remaining = Math.max(
+      0,
+      MAX_IMAGES - croppedImages.filter(Boolean).length,
+    );
+    const toAdd = imageObjs.slice(0, remaining);
+    if (toAdd.length === 0) {
+      showToast(`Max ${MAX_IMAGES} items reached.`);
+      return;
+    }
+    const pseudos = toAdd.map((imageObj) => ({
       previewUrl: imageObj.src,
       sourceUrl:  imageObj.src,
       name:       imageObj.alt || "brand-image",
       type:       "image/jpeg",
     }));
     setCroppedImages((prev) => [...prev, ...pseudos]);
-    showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
+    if (toAdd.length < imageObjs.length)
+      showToast(`Only ${toAdd.length} added — max ${MAX_IMAGES} reached.`);
+    else
+      showToast(`${pseudos.length} image${pseudos.length > 1 ? "s" : ""} added ✓`);
   };
 
   const handleBrandImageCrop = async (imageObjs) => {
-    for (const imageObj of imageObjs) {
+    const remaining = Math.max(
+      0,
+      MAX_IMAGES - croppedImages.filter(Boolean).length,
+    );
+    const toAdd = imageObjs.slice(0, remaining);
+    if (toAdd.length === 0) {
+      showToast(`Max ${MAX_IMAGES} items reached.`);
+      return;
+    }
+    const newUrls = [];
+    const newMetas = [];
+    for (const imageObj of toAdd) {
       const originalUrl = imageObj.src;
       let cropperUrl    = originalUrl;
       try {
@@ -254,12 +290,18 @@ const BannersForm = ({
       } catch (err) {
         console.warn("Proxy failed, falling back to original URL", err);
       }
-      setImageSrc((prev)      => [...prev, cropperUrl]);
-      setImageSrcMeta((prev)  => [...prev, originalUrl]);
-      setCroppedImages((prev) => [...prev, null]);
+      newUrls.push(cropperUrl);
+      newMetas.push(originalUrl);
     }
-    if (!showCropper) setCurrentCropIndex(0);
+    // Start a new cropping batch APPENDED to any prior selections.
+    setCropBatchStart(croppedImages.length);
+    setImageSrc(newUrls);
+    setImageSrcMeta(newMetas);
+    setCroppedImages((prev) => [...prev, ...Array(newUrls.length).fill(null)]);
+    setCurrentCropIndex(0);
     setShowCropper(true);
+    if (toAdd.length < imageObjs.length)
+      showToast(`Only ${toAdd.length} queued — max ${MAX_IMAGES} reached.`);
   };
 
   // ── Save crop ─────────────────────────────────────────────────────────────
@@ -288,7 +330,7 @@ const BannersForm = ({
 
     setCroppedImages((prev) => {
       const updated = [...prev];
-      updated[currentCropIndex] = file;
+      updated[cropBatchStart + currentCropIndex] = file;
       return updated;
     });
 
@@ -299,7 +341,7 @@ const BannersForm = ({
     } else {
       setShowCropper(false);
     }
-  }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta]);
+  }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta, cropBatchStart]);
 
   // ── Skip crop ─────────────────────────────────────────────────────────────
   const handleSkipCrop = () => {
@@ -308,7 +350,7 @@ const BannersForm = ({
       const file = new File([blob], `original-${currentCropIndex}.png`, { type: blob.type });
       file.previewUrl = url;
       file.sourceUrl  = imageSrcMeta[currentCropIndex] || null;
-      setCroppedImages((prev) => { const u = [...prev]; u[currentCropIndex] = file; return u; });
+      setCroppedImages((prev) => { const u = [...prev]; u[cropBatchStart + currentCropIndex] = file; return u; });
       if (currentCropIndex < imageSrc.length - 1) {
         setCurrentCropIndex((prev) => prev + 1);
         setCrop({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
@@ -992,7 +1034,8 @@ const BannersForm = ({
           setShowCropper(false);
           setImageSrc([]);
           setImageSrcMeta([]);
-          setCroppedImages([]);
+          // Roll back only the current cropping batch — preserve prior selections
+          setCroppedImages((prev) => prev.slice(0, cropBatchStart));
         }}
         onPrevious={handlePreviousCrop}
       />
@@ -1005,6 +1048,10 @@ const BannersForm = ({
         postData={formData}
         activeBrand={activeBrand}
         showToast={showToast}
+        maxSelectable={Math.max(
+          0,
+          MAX_IMAGES - croppedImages.filter(Boolean).length,
+        )}
       />
 
       {generating && (

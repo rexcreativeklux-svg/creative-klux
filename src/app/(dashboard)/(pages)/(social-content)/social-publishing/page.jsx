@@ -34,10 +34,10 @@ import {
   publishToMetaAds,
   fetchLivePostsFromConnectedAccounts,
   deletePostFromPlatform,
-  updatePostCaptionOnPlatform,
 } from "../../../../../(lib)/integration";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import EditPostModal from "./_components/EditPostModal";
 
 const BRAND = "#003dda";
 const BRAND_LIGHT = "#003dda14";
@@ -245,8 +245,7 @@ export default function SocialPublishing() {
   const [allPosts, setAllPosts] = useState([]);
   const [refreshing, setRefreshing] = useState(null);
   const [fetchingLive, setFetchingLive] = useState(false);
-  const [editingCaption, setEditingCaption] = useState(null);
-  const [captionDraft, setCaptionDraft] = useState("");
+  const [editingPost, setEditingPost] = useState(null);
   const [publishingNow, setPublishingNow] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
@@ -384,21 +383,6 @@ export default function SocialPublishing() {
     await deletePostFromPlatform(post);
     reload();
     toast.success("Post removed");
-  };
-
-  const handleEditCaption = (post) => {
-    setEditingCaption(post.id);
-    setCaptionDraft(post.caption || "");
-  };
-
-  const handleSaveCaption = async (post) => {
-    try {
-      await updatePostCaptionOnPlatform(post, captionDraft);
-    } catch {}
-    savePublishedPost({ ...post, caption: captionDraft });
-    setEditingCaption(null);
-    reload();
-    toast.success("Caption updated");
   };
 
   const handlePublishNow = async (post) => {
@@ -833,18 +817,10 @@ export default function SocialPublishing() {
                           )}
                           <button
                             className="h-7 w-7 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                            onClick={() =>
-                              editingCaption === post.id
-                                ? setEditingCaption(null)
-                                : handleEditCaption(post)
-                            }
-                            title="Edit caption"
+                            onClick={() => setEditingPost(post)}
+                            title="Edit post"
                           >
-                            {editingCaption === post.id ? (
-                              <X className="w-3.5 h-3.5" />
-                            ) : (
-                              <Edit2 className="w-3.5 h-3.5" />
-                            )}
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           {post.post_id && (
                             <button
@@ -866,23 +842,6 @@ export default function SocialPublishing() {
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                        {editingCaption === post.id && (
-                          <div className="mt-2 space-y-1.5">
-                            <textarea
-                              value={captionDraft}
-                              onChange={(e) => setCaptionDraft(e.target.value)}
-                              rows={2}
-                              className="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 resize-none text-gray-800 outline-none focus:border-[#003dda] transition-colors"
-                            />
-                            <button
-                              className="h-6 px-3 rounded text-[10px] font-semibold text-white hover:opacity-90 transition-opacity"
-                              style={{ backgroundColor: BRAND }}
-                              onClick={() => handleSaveCaption(post)}
-                            >
-                              Save
-                            </button>
-                          </div>
-                        )}
                       </td>
                     </tr>
                   );
@@ -943,6 +902,16 @@ export default function SocialPublishing() {
             )}
           </div>
         </div>
+      )}
+
+      {editingPost && (
+        <EditPostModal
+          post={editingPost}
+          integrations={integrations}
+          integrationsMap={integrationsMap}
+          onClose={() => setEditingPost(null)}
+          onSaved={reload}
+        />
       )}
     </div>
   );

@@ -2471,6 +2471,45 @@ export async function updatePostCaptionOnPlatform(
         throw new Error(data.error.message);
       }
     }
+  } else if (post.platform === "youtube" && post.post_id) {
+    // post.post_id is the YouTube video id. "Caption" maps to the video description.
+    const token = accounts.youtube?.access_token;
+    if (!token) {
+      throw new Error("No access token — reconnect your YouTube account.");
+    }
+    const res = await fetch("/api/youtube/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        access_token: token,
+        video_id: post.post_id,
+        title: post.project_title,
+        description: newCaption,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "YouTube update failed.");
+    }
+  } else if (post.platform === "pinterest" && post.post_id) {
+    // post.post_id is the Pinterest pin id. "Caption" maps to the pin description.
+    const token = accounts.pinterest?.access_token;
+    if (!token) {
+      throw new Error("No access token — reconnect Pinterest.");
+    }
+    const res = await fetch("/api/pinterest/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        access_token: token,
+        pin_id: post.post_id,
+        description: newCaption,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "Pinterest update failed.");
+    }
   }
 }
 

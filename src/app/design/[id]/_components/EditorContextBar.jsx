@@ -25,6 +25,14 @@ import {
   CircleDashed,
   Table2,
   Trash2,
+  Wand2,
+  Play,
+  Move,
+  Blend,
+  SlidersHorizontal,
+  Eraser,
+  Crop,
+  Sparkles,
 } from "lucide-react";
 import { isLineShape } from "@/(lib)/design/shapes";
 import { addRow, addCol, removeRow, removeCol } from "@/(lib)/design/tableUtils";
@@ -55,6 +63,13 @@ export default function EditorContextBar({
   onClearActiveCell,
   onOpenFontPanel,
   onOpenColorPanel,
+  onOpenEffectsPanel,
+  onOpenAnimatePanel,
+  onOpenPositionPanel,
+  onOpenImageTool,
+  onRemoveBg,
+  onStartCrop,
+  onStartErase,
   onFrameFill,
 }) {
   const [menu, setMenu] = useState(null); // 'spacing' | null
@@ -84,7 +99,7 @@ export default function EditorContextBar({
     element.fontWeight === "bold" || Number(element.fontWeight) >= 600;
 
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40">
+    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[9999]">
       <div className="flex items-center gap-1.5 bg-surface border border-gray-200 shadow-lg rounded-xl px-2 py-1.5 max-w-[calc(100vw-340px)] overflow-x-auto">
         {element.type === "text" && (
         <>
@@ -158,6 +173,13 @@ export default function EditorContextBar({
           >
             <MoveVertical className="w-4 h-4" />
           </Toggle>
+          <Divider />
+          <PanelButton
+            icon={Wand2}
+            label="Effects"
+            active={!!element.textEffect && element.textEffect.type !== "none"}
+            onClick={onOpenEffectsPanel}
+          />
           <Divider />
         </>
       )}
@@ -425,20 +447,25 @@ export default function EditorContextBar({
 
       {element.type === "image" && (
         <>
-          <Toggle
-            active={!!element.flipH}
-            onClick={() => patch({ flipH: !element.flipH })}
-            title="Flip horizontal"
-          >
-            <FlipHorizontal className="w-4 h-4" />
-          </Toggle>
-          <Toggle
-            active={!!element.flipV}
-            onClick={() => patch({ flipV: !element.flipV })}
-            title="Flip vertical"
-          >
-            <FlipVertical className="w-4 h-4" />
-          </Toggle>
+          {/* Canva-style image toolbar. Edit / BG Remover / Eraser / Crop /
+              Effects open contextual panels (some are placeholders for now —
+              paste the real designs and we'll fill them in). */}
+          <PanelButton
+            icon={SlidersHorizontal}
+            label="Edit"
+            onClick={() => onOpenImageTool?.("img-edit")}
+          />
+          <PanelButton
+            icon={Sparkles}
+            label="BG Remover"
+            onClick={() => onRemoveBg?.(element.id)}
+          />
+          <PanelButton
+            icon={Eraser}
+            label="Eraser"
+            onClick={() => onStartErase?.(element.id)}
+          />
+          <Divider />
           <Toggle
             active={(element.objectFit || "cover") === "contain"}
             onClick={() =>
@@ -464,22 +491,49 @@ export default function EditorContextBar({
           >
             <Square className="w-4 h-4" />
           </Toggle>
+          <PanelButton
+            icon={Crop}
+            label="Crop"
+            onClick={() => onStartCrop?.(element.id)}
+          />
+          <Toggle
+            active={!!element.flipH}
+            onClick={() => patch({ flipH: !element.flipH })}
+            title="Flip horizontal"
+          >
+            <FlipHorizontal className="w-4 h-4" />
+          </Toggle>
+          <Toggle
+            active={!!element.flipV}
+            onClick={() => patch({ flipV: !element.flipV })}
+            title="Flip vertical"
+          >
+            <FlipVertical className="w-4 h-4" />
+          </Toggle>
           <Divider />
         </>
       )}
 
-        {/* Opacity — shared */}
-        <label className="flex items-center gap-1 text-[11px] text-gray-500 px-1">
-          Opacity
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={Math.round((element.opacity ?? 1) * 100)}
-            onChange={(e) => patch({ opacity: Number(e.target.value) / 100 })}
-            className="w-16 cursor-pointer"
-          />
-        </label>
+        {/* Animate + Position — shared across element types */}
+        <PanelButton
+          icon={Play}
+          label="Animate"
+          active={!!element.animation && element.animation.type !== "none"}
+          onClick={onOpenAnimatePanel}
+        />
+        <PanelButton icon={Move} label="Position" onClick={onOpenPositionPanel} />
+        <Divider />
+
+        {/* Transparency — shared (Canva-style popover) */}
+        <Toggle
+          active={menu === "transparency"}
+          onClick={() =>
+            setMenu((m) => (m === "transparency" ? null : "transparency"))
+          }
+          title="Transparency"
+        >
+          <Blend className="w-4 h-4" />
+        </Toggle>
       </div>
 
       {/* Spacing popover — sibling of the scroll row so it isn't clipped by
@@ -519,6 +573,37 @@ export default function EditorContextBar({
           onChange={(data) => patch({ data })}
         />
       )}
+
+      {/* Transparency — shared across element types. */}
+      {menu === "transparency" && (
+        <TransparencyPopover
+          value={Math.round((element.opacity ?? 1) * 100)}
+          onChange={(v) => patch({ opacity: v / 100 })}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Element transparency (opacity) slider, dropped below the toolbar. Canva
+ *  labels this "Transparency"; 100 = fully opaque, 0 = invisible. */
+function TransparencyPopover({ value, onChange }) {
+  return (
+    <div className="absolute top-full right-0 mt-2 w-64 rounded-2xl border border-gray-100 bg-surface p-4 shadow-2xl z-[9999]">
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-sm font-semibold text-gray-700">Transparency</p>
+        <span className="w-12 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-xs text-gray-600 tabular-nums">
+          {value}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full cursor-pointer accent-blue-600"
+      />
     </div>
   );
 }
@@ -737,6 +822,24 @@ function FontButton({ value, onClick }) {
         {match?.name || "Font"}
       </span>
       <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+    </button>
+  );
+}
+
+/** Labelled icon button opening a side panel (Effects / Animate / Position). */
+function PanelButton({ icon: Icon, label, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      className={`h-8 flex items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition cursor-pointer shrink-0 ${
+        active
+          ? "bg-blue-50 text-blue-600"
+          : "text-gray-600 hover:bg-gray-100"
+      }`}
+    >
+      <Icon className="w-4 h-4" />
+      <span className="hidden sm:inline">{label}</span>
     </button>
   );
 }

@@ -14,6 +14,10 @@ import { curvePath } from "@/(lib)/design/curveUtils";
 import { proxiedSrc } from "@/(lib)/design/renderDesign";
 import { radiusToCss } from "@/(lib)/design/radius";
 import { fitFontSize } from "./textFit";
+import { textEffectCss } from "@/(lib)/design/textEffects";
+import { animationStyle } from "@/(lib)/design/animations";
+import { buildImageFilter } from "@/(lib)/design/imageAdjust";
+import { isCropped } from "@/(lib)/design/imageCrop";
 import EditorElementMenu from "./EditorElementMenu";
 import {
   normalizeCells,
@@ -51,6 +55,8 @@ export default function EditorElement({
   onMoveLayer,
   onToggleLock,
   onAskKlux,
+  animateToken = 0,
+  suppressChrome = false,
 }) {
   const locked = !!el.locked;
   const textRef = useRef(null);
@@ -119,11 +125,21 @@ export default function EditorElement({
   const noBox = straightLine || el.type === "curve";
 
   const selectionStyle =
-    selected && !noBox
+    selected && !noBox && !suppressChrome
       ? { outline: "2px solid #6366f1", outlineOffset: 0 }
       : { outline: "1px dashed transparent" };
 
   const rotation = el.rotation || 0;
+
+  // Animation preview: when the play token is bumped, animated elements remount
+  // (via `key`) so their CSS animation restarts. Suppressed while editing text.
+  const animated =
+    animateToken > 0 &&
+    el.animation &&
+    el.animation.type &&
+    el.animation.type !== "none" &&
+    !editing;
+  const animStyle = animated ? animationStyle(el.animation) : null;
 
   return (
     <Rnd
@@ -133,8 +149,8 @@ export default function EditorElement({
       // instead of being trapped inside the artboard.
       size={{ width: el.width, height: el.height }}
       position={{ x: el.x, y: el.y }}
-      disableDragging={editing || locked}
-      enableResizing={selected && !editing && !noBox && !locked}
+      disableDragging={editing || locked || suppressChrome}
+      enableResizing={selected && !editing && !noBox && !locked && !suppressChrome}
       onDragStart={() => onSelect(el.id)}
       onMouseDown={() => onSelect(el.id)}
       onDragStop={(e, d) => onChange({ x: d.x, y: d.y }, { record: true })}
@@ -173,23 +189,31 @@ export default function EditorElement({
           else if (el.type === "curve") onCurveAddPoint?.(el.id, e);
         }}
       >
-        {renderInner(el, {
-          editing,
-          textRef,
-          commitText,
-          onChange,
-          zoom,
-          selected,
-          activeCell,
-          onCellFocus,
-          onFrameFill,
-          onGridCellFill,
-        })}
+        {/* Animation layer — remounts on each play so the CSS animation restarts.
+            Kept inside the rotation wrapper so animate transforms don't clobber
+            the element's rotation. */}
+        <div
+          key={animated ? `play-${animateToken}` : "static"}
+          style={{ width: "100%", height: "100%", ...(animStyle || {}) }}
+        >
+          {renderInner(el, {
+            editing,
+            textRef,
+            commitText,
+            onChange,
+            zoom,
+            selected,
+            activeCell,
+            onCellFocus,
+            onFrameFill,
+            onGridCellFill,
+          })}
+        </div>
       </div>
 
       {/* Floating action pill below the element (lock / duplicate / delete /
           layer order). Kept out of the rotated content so it stays upright. */}
-      {selected && !editing && (
+      {selected && !editing && !suppressChrome && (
         <EditorElementMenu
           zoom={zoom}
           locked={locked}
@@ -298,6 +322,18 @@ function renderInner(
       userSelect: editing ? "text" : "none",
       boxSizing: "border-box",
     };
+
+    // Text effects (shadow / hollow / outline / glow / background …). The
+    // "background" effect fills a rounded, padded box behind the glyphs — only
+    // applied to plain text (sticky notes carry their own paper backing).
+    const fx = textEffectCss(el);
+    if (fx?.css) Object.assign(style, fx.css);
+    if (fx?.background && !el.background) {
+      const base = el.padding ?? 2;
+      style.background = fx.background.color;
+      style.borderRadius = fx.background.radius;
+      style.padding = `${base + fx.background.padY}px ${base + fx.background.padX}px`;
+    }
     const value =
       typeof el.content === "string"
         ? el.content
@@ -446,6 +482,54 @@ function renderInner(
   }
 
   if (el.type === "image" && el.src) {
+    const flip = `scaleX(${el.flipH ? -1 : 1}) scaleY(${el.flipV ? -1 : 1})`;
+    const filter = buildImageFilter(el) || undefined;
+    // Cache the image's natural size on the element so the crop tool has it
+    // synchronously (no race with an async load → no distorted crops).
+    const onImgLoad = (e) => {
+      const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+      if (w && h && (el.natW !== w || el.natH !== h)) {
+        onChange?.({ natW: w, natH: h }, { record: false });
+      }
+    };
+
+    // Cropped: map the crop sub-rectangle onto the box (source-rect → box). Flip
+    // lives on the clipping wrapper so it mirrors the visible region in place.
+    if (isCropped(el.crop)) {
+      const c = el.crop;
+      return (
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+            overflow: "hidden",
+            borderRadius: radiusToCss(el.borderRadius),
+            transform: el.flipH || el.flipV ? flip : undefined,
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={proxiedSrc(el.src)}
+            alt=""
+            draggable={false}
+            crossOrigin="anonymous"
+            onLoad={onImgLoad}
+            style={{
+              position: "absolute",
+              width: `${100 / c.w}%`,
+              height: `${100 / c.h}%`,
+              left: `${(-c.x / c.w) * 100}%`,
+              top: `${(-c.y / c.h) * 100}%`,
+              objectFit: "fill",
+              filter,
+              pointerEvents: "none",
+            }}
+          />
+        </div>
+      );
+    }
+
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
@@ -453,12 +537,14 @@ function renderInner(
         alt=""
         draggable={false}
         crossOrigin="anonymous"
+        onLoad={onImgLoad}
         style={{
           width: "100%",
           height: "100%",
           objectFit: el.objectFit || "cover",
           borderRadius: radiusToCss(el.borderRadius),
-          transform: `scaleX(${el.flipH ? -1 : 1}) scaleY(${el.flipV ? -1 : 1})`,
+          transform: flip,
+          filter,
           pointerEvents: "none",
         }}
       />

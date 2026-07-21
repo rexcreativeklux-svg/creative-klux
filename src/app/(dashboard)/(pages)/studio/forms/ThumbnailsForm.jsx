@@ -25,6 +25,9 @@ import {
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
+import { useAuth } from "@/context/AuthContext";
+import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import { withinImageBounds, imageBoundsMessage } from "@/(lib)/creative/imageGate";
 
 // ── Social Creative theme color ───────────────────────────────────────────────
 const THEME = "#059669"; // emerald
@@ -40,12 +43,13 @@ const THUMBNAIL_PLATFORMS = [
 ];
 
 const PLATFORM_SIZES = {
-  youtube: { value: "1280x720", label: "1280 × 720 px", ratio: 16 / 9 },
-  twitch: { value: "1280x720", label: "1280 × 720 px", ratio: 16 / 9 },
-  tiktok: { value: "1080x1920", label: "1080 × 1920 px", ratio: 9 / 16 },
-  instagram: { value: "1080x1080", label: "1080 × 1080 px", ratio: 1 },
-  linkedin: { value: "1200x627", label: "1200 × 627 px", ratio: 1200 / 627 },
-  twitter: { value: "1600x900", label: "1600 × 900 px", ratio: 16 / 9 },
+  // `category` is the Scraive sub_category used to fetch design templates.
+  youtube: { value: "1280x720", label: "1280 × 720 px", ratio: 16 / 9, category: "YouTube Thumbnail" },
+  twitch: { value: "1280x720", label: "1280 × 720 px", ratio: 16 / 9, category: "Twitch Thumbnail" },
+  tiktok: { value: "1080x1920", label: "1080 × 1920 px", ratio: 9 / 16, category: "TikTok Thumbnail" },
+  instagram: { value: "1080x1080", label: "1080 × 1080 px", ratio: 1, category: "Instagram Square" },
+  linkedin: { value: "1200x627", label: "1200 × 627 px", ratio: 1200 / 627, category: "LinkedIn Horizontal" },
+  twitter: { value: "1600x900", label: "1600 × 900 px", ratio: 16 / 9, category: "Twitter / X Post" },
 };
 
 const CONTENT_CATEGORIES = [
@@ -131,7 +135,10 @@ const ThumbnailsForm = ({
   generateCustomCreative,
   creative,
   categoryId,
+  fetchDesignTemplates,
 }) => {
+  const { uploadMedia, activeBrandId } = useAuth();
+
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [brandUrl, setBrandUrl] = useState(
@@ -197,7 +204,7 @@ const ThumbnailsForm = ({
 
   // ── URL import ────────────────────────────────────────────────────────────
   const handleImportBrand = async () => {
-    if (!brandUrl.trim()) return setError("Please enter a valid brand URL.");
+    if (!brandUrl.trim()) return fail("Please enter a valid brand URL.");
     setImportingBrand(true);
     try {
       const r = await sendUrl(brandUrl);
@@ -215,7 +222,7 @@ const ThumbnailsForm = ({
       }));
       showToast("Brand imported!");
     } catch {
-      setError("Failed to import brand. Check the URL.");
+      fail("Failed to import brand. Check the URL.");
     } finally {
       setImportingBrand(false);
     }
@@ -421,88 +428,188 @@ const ThumbnailsForm = ({
   };
 
   // ── Step navigation ───────────────────────────────────────────────────────
+  const fail = (msg) => {
+    setError(msg);
+    showToast(msg);
+  };
+
   const handleContinue = () => {
     if (step === 1 && !formData.brandName)
-      return setError("Channel / brand name is required.");
-    if (step === 1 && !formData.videoTitle)
-      return setError("Video title is required.");
+      return fail("Channel / brand name is required.");
     if (step === 2 && !formData.thumbnailPlatform)
-      return setError("Please select a platform.");
-    if (step === 2 && !formData.contentCategory)
-      return setError("Please select a content category.");
+      return fail("Please select a platform.");
     if (step === 3 && croppedImages.filter(Boolean).length === 0)
-      return setError("Add at least one reference image.");
+      return fail("Add at least one reference image.");
     setError("");
     setStep((p) => p + 1);
   };
 
-  // ── Generate — mirrors ImageAdsForm.handleGenerate exactly ───────────────
+  // ── Generate — mirrors PostForm.handleGenerate ───────────────────────────
+  // 1) fetch Scraive templates  2) upload File images → real URLs
+  // 3) send templates + brand_id  4) stream batches into onResult
   const handleGenerate = async () => {
-    setGenerating(true);
-    setError("");
+    const sizeInfo = PLATFORM_SIZES[platform] || {};
 
     const validImages = croppedImages.filter(Boolean);
 
-    const payload = {
-      creativeType: creative?.id,
-      categoryType: categoryId,
-      brandName: formData.brandName || null,
-      description: formData.description || null,
-      brandColor: formData.brandColor ?? formData.primaryColor ?? null,
-      logo: formData.logo || null,
-      visualStyle: formData.visualStyle || null,
-      font: formData.font || null,
-      sourceUrl: brandUrl || null,
-      size: formData.size || PLATFORM_SIZES[platform]?.value || null,
-      campaignGoal: formData.campaignGoal || null,
-      fileFormat: formData.fileFormat || null,
-      // thumbnail-specific
-      videoTitle: formData.videoTitle || null,
-      thumbnailHeadline: formData.thumbnailHeadline || null,
-      thumbnailSubtext: formData.thumbnailSubtext || null,
-      thumbnailNotes: formData.thumbnailNotes || null,
-      thumbnailPlatform: formData.thumbnailPlatform || platform,
-      contentCategory: formData.contentCategory || null,
-      emotionHook: formData.emotionHook || null,
-      hashtags: formData.hashtags || [],
-      images: validImages
-        .map((f) => f?.sourceUrl || f?.previewUrl)
-        .filter(Boolean),
-      generatedAt: new Date().toISOString(),
-    };
+    // Gate: generation needs between MIN_IMAGES and MAX_IMAGES reference images.
+    if (!withinImageBounds(validImages.length)) {
+      return fail(imageBoundsMessage(validImages.length));
+    }
 
-    const result = await generateCustomCreative(payload);
+    setGenerating(true);
+    setError("");
 
-    if (!result.ok) {
-      setError(result.message || "Generation failed. Please try again.");
+    try {
+      // 1. FETCH DESIGN TEMPLATES FIRST (redesign engine only)
+      // Scraive templates are only needed by the "redesign" engine. Involk
+      // generates from scratch, so skip the fetch + gate entirely.
+      let selectedTemplates = [];
+      if (CREATIVE_ENGINE === "redesign") {
+        const templateRes = await fetchDesignTemplates({
+          type: "image",
+          category: sizeInfo.category || formData.thumbnailPlatform || platform,
+          type_size: formData.size || sizeInfo.value,
+          design_type: "social",
+        });
+
+        if (!templateRes.ok) {
+          setGenerating(false);
+          const msg = templateRes.message || "Failed to fetch templates.";
+          setError(msg);
+          showToast(msg);
+          return;
+        }
+
+        const templates = templateRes.data || [];
+        if (!templates.length) {
+          setGenerating(false);
+          const msg = "No templates found for this platform.";
+          setError(msg);
+          showToast(msg);
+          return;
+        }
+        selectedTemplates = templates;
+      }
+
+      // 2. RESOLVE IMAGE URLs — upload File items to /gallery
+      const resolvedUrls = await Promise.all(
+        validImages.map(async (item) => {
+          if (
+            typeof item?.sourceUrl === "string" &&
+            item.sourceUrl.startsWith("http")
+          ) {
+            return item.sourceUrl;
+          }
+          if (item instanceof File) {
+            try {
+              const result = await uploadMedia(item);
+              const url =
+                result?.image_url ||
+                result?.url ||
+                result?.data?.image_url ||
+                null;
+              return typeof url === "string" && url.startsWith("http")
+                ? url
+                : null;
+            } catch (err) {
+              console.error("uploadMedia failed:", err);
+              return null;
+            }
+          }
+          if (
+            typeof item?.previewUrl === "string" &&
+            item.previewUrl.startsWith("http")
+          ) {
+            return item.previewUrl;
+          }
+          return null;
+        }),
+      );
+
+      const imageUrls = resolvedUrls.filter(Boolean);
+
+      // 3. BUILD PAYLOAD
+      const payload = {
+        creativeType: creative?.id,
+        categoryType: categoryId,
+        brand_id: activeBrandId,
+
+        brandName: formData.brandName || null,
+        description: formData.description || null,
+        brandColor: formData.brandColor ?? formData.primaryColor ?? null,
+        logo: formData.logo || null,
+        visualStyle: formData.visualStyle || null,
+        font: formData.font || null,
+        sourceUrl: brandUrl || null,
+        size: formData.size || sizeInfo.value || null,
+        campaignGoal: formData.campaignGoal || null,
+        fileFormat: formData.fileFormat || null,
+        // thumbnail-specific
+        videoTitle: formData.videoTitle || null,
+        thumbnailHeadline: formData.thumbnailHeadline || null,
+        thumbnailSubtext: formData.thumbnailSubtext || null,
+        thumbnailNotes: formData.thumbnailNotes || null,
+        thumbnailPlatform: formData.thumbnailPlatform || platform,
+        contentCategory: formData.contentCategory || null,
+        emotionHook: formData.emotionHook || null,
+        hashtags: formData.hashtags || [],
+
+        category: (sizeInfo.category || platform)
+          ?.toLowerCase()
+          .replace(/\s+/g, "_"),
+        type_size: formData.size || sizeInfo.value,
+        images: imageUrls,
+        templates: selectedTemplates,
+        generatedAt: new Date().toISOString(),
+      };
+
+      // 4. STREAM BATCHES
+      const expectedCount = selectedTemplates.length;
+      let isFirstBatch = true;
+      const result = await generateCustomCreative(payload, (batch) => {
+        if (!batch.ok) return;
+        const variations = batch.variations || [];
+        const assets = batch.assets || [];
+        if (isFirstBatch) {
+          isFirstBatch = false;
+          setGenerating(false); // hide overlay so first batch shows
+          onResult({
+            type: "design",
+            variations,
+            assets,
+            // Involk has no templates — fall back to returned variation count.
+            expectedCount: expectedCount || variations.length,
+            done: false,
+            reply: batch.data?.reply || "",
+            meta: batch.data?.meta || {},
+            payload,
+            raw: batch.data,
+          });
+        } else {
+          onResult({ type: "design", variations, assets, append: true });
+        }
+      });
+
+      if (!result.ok) {
+        setGenerating(false);
+        onResult({ append: true, done: true });
+        const msg = result.message || "Generation failed. Please try again.";
+        setError(msg);
+        showToast(msg);
+        return;
+      }
+
+      // All batches done — clear skeletons
+      onResult({ append: true, done: true });
+    } catch (err) {
+      console.error("handleGenerate error:", err);
+      const msg = err.message || "Something went wrong.";
+      setError(msg);
+      showToast(msg);
+    } finally {
       setGenerating(false);
-      return;
     }
-
-    const data = result.data;
-
-    if (
-      data?.type === "design" &&
-      Array.isArray(data?.variations) &&
-      data.variations.length
-    ) {
-      onResult({
-        type: "design",
-        variations: data.variations,
-        reply: data.reply || "",
-        meta: data.meta || {},
-        payload,
-        raw: data,
-      });
-    } else {
-      onResult({
-        assets: data?.assets || [],
-        payload,
-        raw: data,
-      });
-    }
-
-    setGenerating(false);
   };
 
   // ─────────────────────────────────────────────────────────────────────────

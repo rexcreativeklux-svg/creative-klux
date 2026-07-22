@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import useDesignEditor from "./useDesignEditor";
 import EditorTopBar from "./EditorTopBar";
+import KluxLogoIcon from "./panels/klux/KluxLogoIcon";
 import EditorSidebar from "./EditorSidebar";
 import EditorContextBar from "./EditorContextBar";
 import EditorElement from "./EditorElement";
@@ -1097,6 +1098,8 @@ export default function DesignEditor({ design, onSave, onBack }) {
         saving={saving}
         onSave={doSave}
         onPreview={() => setShowPreview(true)}
+        canvas={canvas}
+        elements={elements}
       />
 
       <div className="flex-1 flex min-h-0">
@@ -1127,6 +1130,35 @@ export default function DesignEditor({ design, onSave, onBack }) {
           onActiveChange={setActivePanel}
           colorTarget={colorTarget}
           onPlayAnimation={playAnimations}
+          imageActions={{
+            onRemoveBg: removeImageBackground,
+            onStartErase: startErase,
+            onStartCrop: startCrop,
+            // Blur is a CSS adjust — the tile toggles a default the user can
+            // then fine-tune in Adjust.
+            onBlur: (id) => {
+              const t = elements.find((e) => e.id === id) || editor.selectedElement;
+              if (!t) return;
+              const cur = t.adjust?.blur || 0;
+              editor.updateElement(
+                id,
+                { adjust: { ...(t.adjust || {}), blur: cur > 0 ? 0 : 8 } },
+                { record: true },
+              );
+              toast(cur > 0 ? "Blur removed" : "Blur applied — fine-tune in Adjust");
+            },
+            onPerspective: (id) => {
+              const t = elements.find((e) => e.id === id) || editor.selectedElement;
+              if (!t) return;
+              const has = t.perspective && (t.perspective.h || t.perspective.v);
+              editor.updateElement(
+                id,
+                { perspective: has ? null : { h: 25, v: 0 } },
+                { record: true },
+              );
+              toast(has ? "Perspective removed" : "Perspective applied — fine-tune in Perspective");
+            },
+          }}
         />
 
         {/* Stage viewport */}
@@ -1142,6 +1174,16 @@ export default function DesignEditor({ design, onSave, onBack }) {
             }
           }}
         >
+          {/* Ask Klux — static launcher pinned to the stage's top-right. */}
+          <button
+            onClick={() => setActivePanel("klux")}
+            title="Ask Klux AI"
+            className="absolute top-3 right-3 z-[9999] flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-surface pl-2 pr-3 text-gray-700 shadow-lg transition hover:bg-blue-50 hover:text-[#155dfc] cursor-pointer"
+          >
+            <KluxLogoIcon className="h-4 w-4" />
+            <span className="text-xs font-semibold">Ask Klux</span>
+          </button>
+
           {!croppingId && !erasingId && (
             <EditorContextBar
               element={selectedElement}

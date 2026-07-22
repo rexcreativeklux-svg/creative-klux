@@ -12,7 +12,6 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
-import KluxLogoIcon from "./panels/klux/KluxLogoIcon";
 
 /**
  * EditorElementMenu — the floating action pill that sits just below a selected
@@ -30,7 +29,6 @@ export default function EditorElementMenu({
   onRemove,
   onMoveLayer,
   onToggleLock,
-  onAskKlux,
 }) {
   const [more, setMore] = useState(false);
 
@@ -57,17 +55,6 @@ export default function EditorElementMenu({
       }}
     >
       <div className="flex items-center gap-0.5 rounded-xl border border-gray-200 bg-surface px-1.5 py-1 shadow-lg">
-        {/* Ask Klux — opens the Klux AI panel for this design */}
-        <button
-          onClick={act(onAskKlux)}
-          title="Ask Klux AI"
-          className="flex h-8 items-center gap-1.5 rounded-lg pl-1.5 pr-2.5 text-gray-700 transition hover:bg-blue-50 hover:text-[#155dfc] cursor-pointer"
-        >
-          <KluxLogoIcon className="h-4 w-4" />
-          <span className="text-xs font-semibold">Ask Klux</span>
-        </button>
-        <span className="mx-0.5 h-5 w-px bg-gray-200" />
-
         <Btn title={locked ? "Unlock" : "Lock"} onClick={act(onToggleLock)}>
           {locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
         </Btn>

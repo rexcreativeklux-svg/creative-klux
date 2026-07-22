@@ -16,6 +16,7 @@ import {
 } from "./tableUtils";
 import { resolveTextEffect } from "./textEffects";
 import { buildImageFilter } from "./imageAdjust";
+import { warpPerspective, hasPerspective } from "./perspective";
 import { isCropped } from "./imageCrop";
 
 /**
@@ -444,7 +445,14 @@ export async function renderDesignToCanvas({ canvas, elements }) {
           ctx.scale(el.flipH ? -1 : 1, el.flipV ? -1 : 1);
           ctx.translate(-cx, -cy);
         }
-        if (isCropped(el.crop)) {
+        if (hasPerspective(el)) {
+          // Perspective: keystone-warp the image (box aspect) and stretch onto
+          // the box — the same warp PerspectiveImage draws on screen.
+          const W = Math.max(1, Math.round(el.width));
+          const H = Math.max(1, Math.round(el.height));
+          const warped = warpPerspective(img, W, H, el.perspective.h || 0, el.perspective.v || 0);
+          ctx.drawImage(warped, el.x, el.y, el.width, el.height);
+        } else if (isCropped(el.crop)) {
           // Crop: draw the natural sub-rectangle stretched onto the box.
           const c = el.crop;
           ctx.drawImage(

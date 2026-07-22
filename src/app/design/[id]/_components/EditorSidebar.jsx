@@ -150,7 +150,11 @@ export default function EditorSidebar({ active: activeProp, onActiveChange, ...p
 
       {/* Edit image — Adjust / Filters / Shadows panel. */}
       {active === "img-edit" && (
-        <EditImagePanel editor={props.editor} onClose={() => setActive(null)} />
+        <EditImagePanel
+          editor={props.editor}
+          imageActions={props.imageActions}
+          onClose={() => setActive(null)}
+        />
       )}
 
       {/* Expandable panel. The 'rail' variant (Tools) is a thin, header-less,

@@ -13,6 +13,8 @@ import { pointsToPath } from "@/(lib)/design/drawUtils";
 import { curvePath } from "@/(lib)/design/curveUtils";
 import { proxiedSrc } from "@/(lib)/design/renderDesign";
 import { radiusToCss } from "@/(lib)/design/radius";
+import { hasPerspective } from "@/(lib)/design/perspective";
+import PerspectiveImage from "./PerspectiveImage";
 import { fitFontSize } from "./textFit";
 import { textEffectCss } from "@/(lib)/design/textEffects";
 import { animationStyle } from "@/(lib)/design/animations";
@@ -484,6 +486,12 @@ function renderInner(
   if (el.type === "image" && el.src) {
     const flip = `scaleX(${el.flipH ? -1 : 1}) scaleY(${el.flipV ? -1 : 1})`;
     const filter = buildImageFilter(el) || undefined;
+
+    // Perspective warp — rendered through a <canvas> so the stage matches the
+    // PNG export (CSS 3D can't be reproduced in the canvas export).
+    if (hasPerspective(el)) {
+      return <PerspectiveImage el={el} filter={filter} flip={flip} />;
+    }
     // Cache the image's natural size on the element so the crop tool has it
     // synchronously (no race with an async load → no distorted crops).
     const onImgLoad = (e) => {

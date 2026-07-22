@@ -38,12 +38,92 @@ export const IMAGE_ADJUSTMENTS = [
   { key: "blur", label: "Blur", min: 0, max: 40, def: 0 },
 ];
 
-// Drop-shadow presets (Canva's image "Shadows" row).
+// Drop-shadow presets (design-editor "Shadows" strip). Each is a CSS
+// drop-shadow defined by offset (x, y), blur, and opacity (0–100, black).
+// `none` clears the shadow. `drop`/`glow` keep their original look so existing
+// designs are unchanged; the rest are ported from the design editor (its
+// `floor`-mode presets need a baked sprite and are intentionally omitted).
 export const IMAGE_SHADOWS = [
   { id: "none", label: "None" },
-  { id: "glow", label: "Glow" },
-  { id: "drop", label: "Drop" },
+  { id: "drop", label: "Drop", x: 0, y: 10, blur: 14, opacity: 40 },
+  { id: "glow", label: "Glow", x: 0, y: 0, blur: 14, opacity: 50 },
+  { id: "soft", label: "Soft", x: 0, y: 9, blur: 14, opacity: 35 },
+  { id: "hard", label: "Hard", x: 6, y: 6, blur: 4, opacity: 55 },
+  { id: "bottom", label: "Bottom", x: 0, y: 18, blur: 22, opacity: 42 },
+  { id: "angled", label: "Angled", x: 14, y: 14, blur: 16, opacity: 38 },
+  { id: "left", label: "Left", x: -14, y: 10, blur: 16, opacity: 38 },
+  { id: "right", label: "Right", x: 16, y: 10, blur: 16, opacity: 38 },
+  { id: "top", label: "Top", x: 0, y: -14, blur: 16, opacity: 34 },
+  { id: "long", label: "Long", x: 0, y: 30, blur: 30, opacity: 28 },
+  { id: "subtle", label: "Subtle", x: 0, y: 4, blur: 8, opacity: 22 },
+  { id: "contact", label: "Contact", x: 0, y: 3, blur: 3, opacity: 52 },
+  { id: "diffuse", label: "Diffuse", x: 0, y: 12, blur: 34, opacity: 30 },
+  { id: "haze", label: "Haze", x: 0, y: 0, blur: 42, opacity: 22 },
+  { id: "drama", label: "Drama", x: 10, y: 20, blur: 10, opacity: 65 },
+  { id: "bottomRight", label: "Bottom R", x: 18, y: 18, blur: 18, opacity: 40 },
+  { id: "bottomLeft", label: "Bottom L", x: -18, y: 18, blur: 18, opacity: 40 },
+  { id: "topRight", label: "Top R", x: 18, y: -16, blur: 18, opacity: 36 },
+  { id: "topLeft", label: "Top L", x: -18, y: -16, blur: 18, opacity: 36 },
+  { id: "hardBottom", label: "Hard btm", x: 0, y: 8, blur: 2, opacity: 60 },
+  { id: "hardRight", label: "Hard R", x: 10, y: 6, blur: 2, opacity: 58 },
+  { id: "hardLeft", label: "Hard L", x: -10, y: 6, blur: 2, opacity: 58 },
+  { id: "block", label: "Block", x: 8, y: 8, blur: 0, opacity: 65 },
+  { id: "deep", label: "Deep", x: 8, y: 16, blur: 6, opacity: 72 },
+  { id: "longRight", label: "Long R", x: 34, y: 12, blur: 24, opacity: 26 },
+  { id: "longLeft", label: "Long L", x: -34, y: 12, blur: 24, opacity: 26 },
+  { id: "longTop", label: "Long top", x: 0, y: -32, blur: 24, opacity: 26 },
+  { id: "tall", label: "Tall", x: 0, y: 44, blur: 16, opacity: 30 },
+  { id: "stretch", label: "Stretch", x: 40, y: 40, blur: 20, opacity: 24 },
+  { id: "feather", label: "Feather", x: 0, y: 10, blur: 38, opacity: 24 },
+  { id: "mist", label: "Mist", x: 0, y: 6, blur: 46, opacity: 18 },
+  { id: "cloud", label: "Cloud", x: 0, y: 14, blur: 50, opacity: 20 },
+  { id: "lift", label: "Lift", x: 0, y: -4, blur: 24, opacity: 32 },
+  { id: "pillow", label: "Pillow", x: 0, y: 0, blur: 30, opacity: 26 },
+  { id: "glowSoft", label: "Glow soft", x: 0, y: 0, blur: 34, opacity: 38 },
+  { id: "glowStrong", label: "Glow +", x: 0, y: 0, blur: 20, opacity: 62 },
+  { id: "halo", label: "Halo", x: 0, y: 0, blur: 44, opacity: 30 },
+  { id: "card", label: "Card", x: 0, y: 6, blur: 12, opacity: 28 },
+  { id: "cardSoft", label: "Card soft", x: 0, y: 10, blur: 20, opacity: 22 },
+  { id: "sticker", label: "Sticker", x: 3, y: 4, blur: 6, opacity: 40 },
+  { id: "spotlight", label: "Spotlight", x: 0, y: 10, blur: 14, opacity: 50 },
 ];
+
+/** Look up a shadow preset by id. */
+export function shadowById(id) {
+  return IMAGE_SHADOWS.find((s) => s.id === id) || null;
+}
+
+/** Default shadow params, used to seed the fine controls when none is set. */
+export const DEFAULT_SHADOW = { x: 0, y: 10, blur: 14, opacity: 40, color: "#000000" };
+
+/** #rgb / #rrggbb → rgba() at the given alpha (for the shadow colour). */
+export function hexToRgba(hex, alpha = 1) {
+  let h = String(hex || "#000000").replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const n = parseInt(h, 16);
+  if (Number.isNaN(n)) return `rgba(0,0,0,${r3(alpha)})`;
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${r3(alpha)})`;
+}
+
+/** CSS drop-shadow for a shadow preset/params object ({x,y,blur,opacity,color}).
+ *  `scale` shrinks it for small previews (offsets × scale, blur × 0.35 with a
+ *  floor) so a tile mirrors the live look. */
+export function shadowDropCss(sh, scale = 1) {
+  if (!sh || sh.blur === undefined) return "";
+  const x = r3(sh.x * scale);
+  const y = r3(sh.y * scale);
+  const b = scale < 1 ? Math.max(0.5, sh.blur * 0.35) : sh.blur;
+  return `drop-shadow(${x}px ${y}px ${r3(b)}px ${hexToRgba(sh.color || "#000000", sh.opacity / 100)})`;
+}
+
+/** Resolve the effective shadow params for an element: custom params win, else
+ *  the named preset's params. Returns null when there's no shadow. */
+export function resolveShadow(el) {
+  if (!el?.imgShadow || el.imgShadow === "none") return null;
+  if (el.imgShadowParams) return el.imgShadowParams;
+  const sh = shadowById(el.imgShadow);
+  return sh && sh.blur !== undefined ? sh : null;
+}
 
 export function filterCssById(id) {
   const f = IMAGE_FILTERS.find((x) => x.id === id);
@@ -81,11 +161,8 @@ export function buildImageFilter(el) {
   if (a.hue) parts.push(`hue-rotate(${a.hue}deg)`);
   if (a.blur) parts.push(`blur(${a.blur}px)`);
 
-  if (el?.imgShadow === "drop") {
-    parts.push("drop-shadow(0 10px 14px rgba(0,0,0,0.4))");
-  } else if (el?.imgShadow === "glow") {
-    parts.push("drop-shadow(0 0 14px rgba(0,0,0,0.5))");
-  }
+  const sp = resolveShadow(el);
+  if (sp) parts.push(shadowDropCss(sp));
 
   return parts.join(" ");
 }

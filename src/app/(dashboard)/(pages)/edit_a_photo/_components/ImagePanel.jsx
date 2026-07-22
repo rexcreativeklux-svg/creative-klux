@@ -29,6 +29,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Toggle, Slider, PosField, FILTERS } from "./editorShared";
+import QuickToolsSection from "./quicktools/QuickToolsSection";
 
 // Shadow sub-tools, laid out as a segmented grid (Photoroom "Shadows" panel).
 // AI Shadows / Move are placeholders for now — a dedicated panel each is coming.
@@ -136,6 +137,7 @@ const TEXTURE_DEFAULTS = { posterize: 10, line: 50, color: 50 };
 // image. Base geometry (position/size + setters) arrives via `base` and is
 // re-derived per-kind below.
 export default function ImagePanel({
+  quickTools,
   activeImg,
   updateActiveImg,
   activeImageKind,
@@ -777,42 +779,8 @@ export default function ImagePanel({
                     chevron to switch that effect on. */}
                 <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
 
-                  {/* Background */}
-                  <div className="rounded-2xl border border-gray-200 overflow-hidden">
-                    <div className="flex items-center justify-between px-3 py-2.5">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-                          <Scissors className="w-4 h-4" />
-                        </span>
-                        <span className="text-sm text-gray-900 truncate">
-                          Remove background
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Toggle
-                          enabled={activeImg.removeBg}
-                          onChange={handleRemoveBgToggle}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveBgToggle(true)}
-                          className="p-0.5 cursor-pointer"
-                          aria-label="Enable remove background"
-                        >
-                          <ChevronRight className="w-4 h-4 text-gray-400" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="px-3 pb-3">
-                      <button
-                        onClick={openCutout}
-                        disabled={!hasActiveImage}
-                        className="w-full flex items-center justify-center gap-2 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-blue-400 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <Pencil className="w-3.5 h-3.5" /> Edit Cutout
-                      </button>
-                    </div>
-                  </div>
+                  {/* Quick tools — compact one-tap tile grid (Bg Remover lives here). */}
+                  {quickTools && <QuickToolsSection {...quickTools} />}
 
                   {/* Color — recolor a vector insert (shape/sticker/…). Same
                       swatches as the Text panel. */}

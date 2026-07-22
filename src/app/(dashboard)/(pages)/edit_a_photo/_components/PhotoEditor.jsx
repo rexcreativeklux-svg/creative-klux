@@ -14,6 +14,7 @@ import BackgroundLibrary from "./BackgroundLibrary";
 import BackgroundCategoryPanel from "./BackgroundCategoryPanel";
 import InfinitePexelsGrid from "./InfinitePexelsGrid";
 import ColorBackgroundPanel from "./ColorBackgroundPanel";
+import MagicEraserOverlay from "./quicktools/MagicEraserOverlay";
 import {
   removeBackground as engineRemoveBackground,
   disposeSegmentationWorker,
@@ -2305,6 +2306,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   const [aiPrompt, setAiPrompt] = useState("");
   const [applyingAi, setApplyingAi] = useState(false);
   const [expandedPanel, setExpandedPanel] = useState(null);
+  // Magic Eraser quick tool — opens a self-contained brush-and-inpaint overlay.
+  const [magicEraserOpen, setMagicEraserOpen] = useState(false);
 
   // Adjust settings
   // Adjust — all 0-centred (Photoroom-style); 0 = no change. Baked into pixels.
@@ -4952,6 +4955,39 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
   const togglePanel = (id) => setExpandedPanel((p) => (p === id ? null : id));
 
+  // ── Quick tools (compact tile grid at the top of the Image panel) ──────────
+  // Each tile reuses an existing part of the editor pipeline; only Magic Eraser
+  // is new (a self-contained brush-and-inpaint overlay).
+  const quickBgRemover = () => {
+    if (!displayImage) { toast.error("Add an image first"); return; }
+    handleRemoveBgToggle(true);
+  };
+  const quickBlur = () => {
+    if (!displayImage) { toast.error("Add an image first"); return; }
+    setToggles((p) => ({ ...p, blur: true }));
+    setExpandedPanel("blur");
+  };
+  const quickPerspective = () => {
+    if (!displayImage) { toast.error("Add an image first"); return; }
+    setExpandedPanel("transform");
+  };
+  const quickCrop = () => {
+    if (!displayImage) { toast.error("Add an image first"); return; }
+    setSelected(true); // surface the image's resize/crop handles
+    toast("Drag the image handles to crop");
+  };
+  const openMagicEraser = () => {
+    if (!displayImage) { toast.error("Add an image first"); return; }
+    setMagicEraserOpen(true);
+  };
+  // Write the erased result back to the base photo so the effect chain
+  // re-applies on top (mirrors the cutout tool). processedUrl/originalUrl are
+  // snapshotted for undo, so this is undoable for free.
+  const applyMagicEraser = (url) => {
+    if (processedUrl) setProcessedUrl(url);
+    else setOriginalUrl(url);
+  };
+
   // Canvas box background driven by the Backgrounds tool.
   const boxBackground =
     canvasBg.type === "color"
@@ -5042,6 +5078,14 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
               canvasBg.type === "image" ? canvasBg.src : null
             }
             onClose={() => setCompareOpen(false)}
+          />
+        )}
+
+        {magicEraserOpen && (
+          <MagicEraserOverlay
+            src={displayImage}
+            onApply={applyMagicEraser}
+            onClose={() => setMagicEraserOpen(false)}
           />
         )}
 
@@ -7206,6 +7250,14 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
               // The Image panel — one component shared by the base image and
               // every inserted image layer (see ImagePanel + the activeImg adapter).
               <ImagePanel
+                quickTools={{
+                  disabled: !displayImage,
+                  onBgRemover: quickBgRemover,
+                  onMagicEraser: openMagicEraser,
+                  onBlur: quickBlur,
+                  onCrop: quickCrop,
+                  onPerspective: quickPerspective,
+                }}
                 activeImg={activeImg}
                 updateActiveImg={updateActiveImg}
                 activeImageKind={activeImageKind}

@@ -12,6 +12,7 @@ import { classifyResult } from "@/utils/errorHelper";
 import { throwClassifiedAuthError } from "@/utils/authErrors";
 import api from "@/app/api/axios";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
 
 const AuthContext = createContext();
 
@@ -2017,11 +2018,11 @@ export function AuthProvider({ children }) {
     // Pull templates + generatedAt out; everything else goes inside brand_details
     const { templates, generatedAt, ...rest } = formPayload || {};
 
-    // Chunk templates into batches of 2 (last batch may have 1)
+    // Chunk templates into batches of 9 (last batch may have fewer)
     const templateList = Array.isArray(templates) ? templates : [];
     const batches = [];
-    for (let i = 0; i < templateList.length; i += 2) {
-      batches.push(templateList.slice(i, i + 2));
+    for (let i = 0; i < templateList.length; i += 9) {
+      batches.push(templateList.slice(i, i + 9));
     }
     if (!batches.length) batches.push([]); // single empty batch fallback
 
@@ -2220,21 +2221,50 @@ export function AuthProvider({ children }) {
       // Derive a short type string — strip "_creative" suffix if present
       const typeShort = creativeType?.replace("_creative", "") || "ads";
 
-      const payload = {
-        brand_id: brandId,
-        creativedesigns: variations.map((v) => ({
-          name: v.name || "Untitled Design",
-          score:
-            parseInt(
-              String(v.copy?.performance_score ?? "").split("/")[0],
-              10,
-            ) || 0,
-          copy: JSON.stringify(v.copy || {}),
-          canvas: { canvas: v.canvas, elements: v.elements },
-          type: typeShort,
-          sub_type: v.category?.toLowerCase() || "image",
-        })),
-      };
+      // Build each design entry, rendering a base64 thumbnail so the backend can
+      // store a preview (the creatives list shows it without re-rendering the
+      // full canvas). NOTE: `thumbnail` is a base64 data URL — the backend column
+      // must be able to hold it (e.g. LONGTEXT), not a short URL field.
+      // Normalize the canvas shape (string / nested) like the on-screen
+      // DesignCanvas so involk + redesign variations both render.
+      const creativedesigns = await Promise.all(
+        variations.map(async (v) => {
+          let design = v.canvas;
+          if (typeof design === "string") {
+            try {
+              design = JSON.parse(design);
+            } catch {
+              design = null;
+            }
+          }
+          const canvasSpec = design?.canvas || design;
+          const els = Array.isArray(v.elements)
+            ? v.elements
+            : Array.isArray(design?.elements)
+              ? design.elements
+              : [];
+          const thumbnail = canvasSpec
+            ? await renderDesignToThumbnail({ canvas: canvasSpec, elements: els })
+            : null;
+
+          return {
+            name: v.name || "Untitled Design",
+            score:
+              parseInt(
+                String(v.copy?.performance_score ?? "").split("/")[0],
+                10,
+              ) || 0,
+            copy: JSON.stringify(v.copy || {}),
+            canvas: { canvas: v.canvas, elements: v.elements },
+            // base64 data URL: "data:image/jpeg;base64,…"
+            thumbnail,
+            type: typeShort,
+            sub_type: v.category?.toLowerCase() || "image",
+          };
+        }),
+      );
+
+      const payload = { brand_id: brandId, creativedesigns };
 
       console.log("saveDesign payload:", payload);
 

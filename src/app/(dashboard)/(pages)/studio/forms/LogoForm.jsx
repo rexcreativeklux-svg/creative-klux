@@ -11,6 +11,7 @@ import { FloatingAnimation, FloatingElements } from "@/app/(components)/Floating
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
+import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
 
 // ── Designer Creative theme color ─────────────────────────────────────────────
 const THEME = "#7c3aed"; // violet
@@ -71,7 +72,7 @@ const STEPS = [
 
 const LogoForm = ({
   formData, setFormData, activeBrand, sendUrl, showToast, onResult,
-  generateCustomCreative, creative, categoryId,
+  generateCustomCreative, creative, categoryId, category, fetchDesignTemplates,
 }) => {
   const [step, setStep]                     = useState(1);
   const [error, setError]                   = useState("");
@@ -326,64 +327,114 @@ const LogoForm = ({
     setStep((p) => p + 1);
   };
 
-  // ── Generate — mirrors ImageAdsForm.handleGenerate exactly ───────────────
+  // ── Generate — mirrors PostForm.handleGenerate (socials) exactly ──────────
+  // Flow: fetch Scraive templates → POST /creatives/redesign in streamed
+  // batches → preview + save. Identical contract to the working social/ads
+  // forms; the only difference is design_type "designer".
   const handleGenerate = async () => {
     setGenerating(true);
     setError("");
 
     const validImages = croppedImages.filter(Boolean);
 
-    const payload = {
-      creativeType: creative?.id,
-      categoryType: categoryId,
-      brandName:    formData.brandName    || null,
-      description:  formData.description  || null,
-      brandColor:   formData.brandColor   ?? formData.primaryColor ?? null,
-      logo:         formData.logo         || null,
-      visualStyle:  formData.visualStyle  || null,
-      font:         formData.font         || null,
-      sourceUrl:    brandUrl              || null,
-      fileFormat:   formData.fileFormat   || null,
-      // logo-specific
-      tagline:      formData.tagline      || null,
-      industry:     formData.industry     || null,
-      logoStyle:    formData.logoStyle    || null,
-      layout:       formData.layout       || null,
-      logoNotes:    formData.logoNotes    || null,
-      images: validImages
-        .map((f) => f?.sourceUrl || f?.previewUrl)
-        .filter(Boolean),
-      generatedAt: new Date().toISOString(),
-    };
+    try {
+      // 1. FETCH DESIGN TEMPLATES FIRST (redesign engine only).
+      // Scraive templates are only needed by the "redesign" engine; involk
+      // generates from scratch, so skip the fetch for that engine.
+      let selectedTemplates = [];
+      if (CREATIVE_ENGINE === "redesign") {
+        const templateRes = await fetchDesignTemplates({
+          type: "image",
+          category: "Meta Square",
+          type_size: "1080x1080",
+          design_type: "designer",
+        });
 
-    const result = await generateCustomCreative(payload);
+        if (!templateRes.ok) {
+          setGenerating(false);
+          const msg = templateRes.message || "Failed to fetch templates.";
+          setError(msg);
+          showToast?.(msg);
+          return;
+        }
 
-    if (!result.ok) {
-      setError(result.message || "Generation failed. Please try again.");
+        selectedTemplates = templateRes.data || [];
+        if (!selectedTemplates.length) {
+          setGenerating(false);
+          const msg = "No templates found for this category.";
+          setError(msg);
+          showToast?.(msg);
+          return;
+        }
+      }
+
+      // 2. BUILD PAYLOAD
+      const payload = {
+        creativeType: creative?.id,
+        categoryType: categoryId,
+        brandName:    formData.brandName    || null,
+        description:  formData.description  || null,
+        brandColor:   formData.brandColor   ?? formData.primaryColor ?? null,
+        logo:         formData.logo         || null,
+        visualStyle:  formData.visualStyle  || null,
+        font:         formData.font         || null,
+        sourceUrl:    brandUrl              || null,
+        fileFormat:   formData.fileFormat   || null,
+        // logo-specific
+        tagline:      formData.tagline      || null,
+        industry:     formData.industry     || null,
+        logoStyle:    formData.logoStyle    || null,
+        layout:       formData.layout       || null,
+        logoNotes:    formData.logoNotes    || null,
+        images: validImages
+          .map((f) => f?.sourceUrl || f?.previewUrl)
+          .filter(Boolean),
+        templates: selectedTemplates,
+        generatedAt: new Date().toISOString(),
+      };
+
+      // 3. STREAM BATCHES — same progressive contract the socials use.
+      const expectedCount = selectedTemplates.length;
+      let isFirstBatch = true;
+      const result = await generateCustomCreative(payload, (batch) => {
+        if (!batch.ok) return;
+        const variations = batch.variations || [];
+        const assets = batch.assets || [];
+        if (isFirstBatch) {
+          isFirstBatch = false;
+          setGenerating(false); // hide overlay so the first batch shows
+          onResult({
+            type: "design",
+            variations,
+            assets,
+            expectedCount: expectedCount || variations.length,
+            done: false,
+            reply: batch.data?.reply || "",
+            meta: batch.data?.meta || {},
+            payload,
+            raw: batch.data,
+          });
+        } else {
+          onResult({ type: "design", variations, assets, append: true });
+        }
+      });
+
+      if (!result.ok) {
+        setGenerating(false);
+        onResult({ append: true, done: true });
+        showToast?.(result.message || "Generation failed.");
+        setError(result.message || "Generation failed.");
+        return;
+      }
+
+      // All batches done — clear skeletons.
+      onResult({ append: true, done: true });
+    } catch (err) {
       setGenerating(false);
-      return;
+      const msg = err?.message || "Generation failed. Please try again.";
+      setError(msg);
+      showToast?.(msg);
     }
-
-    const data = result.data;
-
-    if (data?.type === "design" && Array.isArray(data?.variations) && data.variations.length) {
-      onResult({
-        type:       "design",
-        variations: data.variations,
-        reply:      data.reply || "",
-        meta:       data.meta  || {},
-        payload,
-        raw: data,
-      });
-    } else {
-      onResult({
-        assets: data?.assets || [],
-        payload,
-        raw: data,
-      });
-    }
-
-    setGenerating(false);
   };
 
   // ─────────────────────────────────────────────────────────────────────────

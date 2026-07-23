@@ -635,3 +635,29 @@ export async function renderDesignToBlob(design, type = "image/png") {
     cnv.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), type);
   });
 }
+
+/**
+ * renderDesignToThumbnail — paints a { canvas, elements } design and returns a
+ * base64 data URL (e.g. "data:image/jpeg;base64,…") scaled to fit within
+ * `maxDim` px. Handy for saving a lightweight preview alongside the design so
+ * lists can show it without re-rendering the full canvas. Returns null on failure.
+ */
+export async function renderDesignToThumbnail(
+  design,
+  { maxDim = 400, type = "image/jpeg", quality = 0.8 } = {},
+) {
+  try {
+    const off = await renderDesignToCanvas(design);
+    const scale = Math.min(1, maxDim / Math.max(off.width, off.height));
+    const w = Math.max(1, Math.round(off.width * scale));
+    const h = Math.max(1, Math.round(off.height * scale));
+    const small = document.createElement("canvas");
+    small.width = w;
+    small.height = h;
+    const ctx = small.getContext("2d");
+    ctx.drawImage(off, 0, 0, w, h);
+    return small.toDataURL(type, quality);
+  } catch {
+    return null;
+  }
+}

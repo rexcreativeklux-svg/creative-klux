@@ -210,7 +210,7 @@ const StudioInner = () => {
 
   return (
     <div
-      className="flex flex-col overflow-hidden"
+      className="flex flex-col overflow-y-auto overflow-x-hidden"
       style={{ height: "100%", fontFamily: "'DM Sans', sans-serif" }}
     >
       <Toast isOpen={toast.isOpen} message={toast.message} onClose={closeToast} duration={2000} />
@@ -304,7 +304,10 @@ const StudioInner = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 16 }}
             transition={{ duration: 0.18 }}
-            className="flex-1 overflow-hidden min-h-0 min-w-0 w-full"
+            /* Auto-height (not flex-1/bounded) so AdPreview's masonry gets an
+               unbounded parent and stacks into 3 vertical columns like the
+               create-from-url flow; the studio pane scrolls instead. */
+            className="w-full shrink-0"
           >
             <AdPreview
               creative={creative}

@@ -13,11 +13,13 @@ const nextMsgId = () => `m_${++__mid}`;
  * value, the working flag, and send/stop. The assistant call lives behind
  * runKluxAi so this hook stays about state, not transport.
  *
- * @param {{ editor?: { toDesign?: () => object } }} deps
+ * @param {{ editor?: { toDesign?: () => object }, initialInput?: string }} deps
  */
-export default function useKluxAi({ editor } = {}) {
+export default function useKluxAi({ editor, initialInput = "" } = {}) {
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
+  // Seeded from `initialInput` so an entry point (e.g. "Edit with Ai") can land
+  // the user in the composer with a starter prompt already typed.
+  const [input, setInput] = useState(initialInput);
   const [working, setWorking] = useState(false);
   const abortRef = useRef(null);
 
@@ -25,7 +27,10 @@ export default function useKluxAi({ editor } = {}) {
     setMessages((prev) => [...prev, { id: nextMsgId(), ...msg }]);
 
   const send = async (text) => {
-    const prompt = (text ?? input).trim();
+    // `text` is the seeded prompt from a suggestion chip; the composer's Send
+    // button passes a click event, and Enter passes nothing — in both cases
+    // fall back to the current input rather than calling .trim() on an event.
+    const prompt = (typeof text === "string" ? text : input).trim();
     if (!prompt || working) return;
 
     setInput("");

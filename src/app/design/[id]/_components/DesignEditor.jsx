@@ -52,7 +52,7 @@ const MAX_ZOOM = 4;
  * Because it's fully driven by props, it can be mounted on the /design/[id]
  * route or dropped into a modal / any surface.
  */
-export default function DesignEditor({ design, onSave, onBack }) {
+export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   const { updateDesignById, uploadMedia } = useAuth();
   const editor = useDesignEditor(design);
   const {
@@ -87,7 +87,9 @@ export default function DesignEditor({ design, onSave, onBack }) {
   const [addNodeMode, setAddNodeMode] = useState(false);
   // Which sidebar panel is open. Lifted here so canvas actions (e.g. "Ask Klux"
   // on the element menu) can open a panel; the sidebar is otherwise self-driven.
-  const [activePanel, setActivePanel] = useState("templates");
+  // Seeded from `initialPanel` so an entry point (e.g. "Edit with Ai") can deep-
+  // link straight into a panel like Klux AI; falls back to the templates panel.
+  const [activePanel, setActivePanel] = useState(initialPanel || "templates");
   // Descriptor for the contextual Color panel: which element props the picked
   // colour writes to. Set when a swatch in the context bar is clicked.
   const [colorTarget, setColorTarget] = useState(null);
@@ -1128,6 +1130,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
           setTool={setTool}
           active={activePanel}
           onActiveChange={setActivePanel}
+          kluxSeedRedesign={initialPanel === "klux"}
           colorTarget={colorTarget}
           onPlayAnimation={playAnimations}
           imageActions={{

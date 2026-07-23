@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { runKluxAi, KluxNotConnectedError } from "./runKluxAi";
+import { useAuth } from "@/context/AuthContext";
 
 // Local id generator for chat messages (stable across re-renders).
 let __mid = 0;
@@ -16,6 +16,7 @@ const nextMsgId = () => `m_${++__mid}`;
  * @param {{ editor?: { toDesign?: () => object }, initialInput?: string }} deps
  */
 export default function useKluxAi({ editor, initialInput = "" } = {}) {
+  const { aiRedesign } = useAuth();
   const [messages, setMessages] = useState([]);
   // Seeded from `initialInput` so an entry point (e.g. "Edit with Ai") can land
   // the user in the composer with a starter prompt already typed.
@@ -41,20 +42,38 @@ export default function useKluxAi({ editor, initialInput = "" } = {}) {
     abortRef.current = controller;
 
     try {
-      const res = await runKluxAi({
+      // Sends the live design (canvas) + prompt to POST /creatives/ai-redesign.
+      const res = await aiRedesign({
         prompt,
         design: editor?.toDesign?.(),
         signal: controller.signal,
       });
-      push({ role: "assistant", text: res?.reply || "Done." });
+
+      if (res?.aborted || controller.signal.aborted) {
+        push({ role: "assistant", text: "Stopped." });
+      } else if (!res?.ok) {
+        push({
+          role: "assistant",
+          text: res?.message || "Klux AI ran into a problem. Try again.",
+        });
+      } else {
+        // Response shape: { name, canvas: { canvas, elements } } — the inner
+        // `canvas` IS the { canvas, elements } design, so apply it to the editor
+        // (undoable + autosaves via replaceDesign).
+        const design = res.data?.canvas;
+        if (design && Array.isArray(design.elements)) {
+          editor?.replaceDesign?.(design);
+          push({
+            role: "assistant",
+            text: res.reply || "Done — I've updated your design.",
+          });
+        } else {
+          push({ role: "assistant", text: res.reply || "Done." });
+        }
+      }
     } catch (e) {
       if (e?.name === "AbortError" || controller.signal.aborted) {
         push({ role: "assistant", text: "Stopped." });
-      } else if (e instanceof KluxNotConnectedError) {
-        push({
-          role: "assistant",
-          text: "Klux AI isn't connected yet — paste the assistant API to bring this to life.",
-        });
       } else {
         toast.error(e?.message || "Klux AI ran into a problem. Try again.");
       }

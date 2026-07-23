@@ -8,7 +8,7 @@ import React from "react";
  * Props:
  * label string — text under the mark (default "Loading your app")
  * fullScreen boolean — fixed overlay covering the viewport (default true)
- * size number — sun diameter in px (default 96)
+ * size number — Klux logo mark diameter in px (default 96)
  */
 export default function PracticeLoader({
   label = "Loading your app",
@@ -24,37 +24,9 @@ export default function PracticeLoader({
           <span className="pl-ring pl-ring-2" />
           <span className="pl-ring pl-ring-3" />
           <div className="pl-sun">
-            <svg
-              viewBox="0 0 100 100"
-              width="100%"
-              height="100%"
-              aria-hidden="true"
-            >
-              <defs>
-                <linearGradient id="pl-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#60A5FA" />{" "}
-                  {/* Bright Sky Blue */}
-                  <stop offset="55%" stopColor="#2563EB" />{" "}
-                  {/* Electric Royal Blue */}
-                  <stop offset="100%" stopColor="#1D4ED8" />{" "}
-                  {/* Deep Command Blue */}
-                </linearGradient>
-                {/* thin transparent gaps across the lower half → the "sunset" bands */}
-                <mask id="pl-mask">
-                  <rect x="0" y="0" width="100" height="100" fill="white" />
-                  <rect x="0" y="60" width="100" height="4.5" fill="black" />
-                  <rect x="0" y="72" width="100" height="4.5" fill="black" />
-                  <rect x="0" y="84" width="100" height="4.5" fill="black" />
-                </mask>
-              </defs>
-              <circle
-                cx="50"
-                cy="50"
-                r="40"
-                fill="url(#pl-grad)"
-                mask="url(#pl-mask)"
-              />
-            </svg>
+            {/* Klux brand mark (replaces the old sunset "sun"). */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logoblue.svg" alt="Creative Klux" className="pl-logo" />
           </div>
         </div>
         {/* Label with pulsing dots */}
@@ -106,6 +78,12 @@ export default function PracticeLoader({
           animation: pl-breathe 2.4s ease-in-out infinite;
           filter: drop-shadow(0 8px 22px rgba(37, 99, 235, 0.25));
           transform-origin: center;
+        }
+        .pl-logo {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          display: block;
         }
         /* Radiating pulse — matching corporate blue */
         .pl-ring {

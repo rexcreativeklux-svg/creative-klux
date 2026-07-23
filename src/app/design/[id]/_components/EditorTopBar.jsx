@@ -9,6 +9,8 @@ import {
   Minus,
   Plus,
   Share2,
+  Save,
+  Loader2,
 } from "lucide-react";
 import ShareModal from "./share/ShareModal";
 
@@ -73,6 +75,22 @@ export default function EditorTopBar({
           <Plus className="w-4 h-4" />
         </IconBtn>
       </div>
+
+      {/* Save — beside the zoom. Manual click confirms with a toast; the editor
+          also autosaves every 30s in the background. */}
+      <button
+        onClick={() => onSave()}
+        disabled={saving}
+        className="flex items-center gap-1.5 px-3 h-9 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+        title="Save design"
+      >
+        {saving ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Save className="w-4 h-4" />
+        )}
+        <span className="hidden sm:inline">{saving ? "Saving…" : "Save"}</span>
+      </button>
 
       <button
         onClick={onPreview}

@@ -139,6 +139,7 @@ export function AuthProvider({ children }) {
   const API_GALLERY_URL = `${BASE_URL}/gallery`;
   const API_FETCH_TUTORIAL_VIDEOS = `${BASE_URL}/tutorial-videos`;
   const API_AI_CHAT_URL = `${BASE_URL}/creatives/ai-creative`;
+  const API_AI_REDESIGN_URL = `${BASE_URL}/creatives/ai-redesign`;
   const SAVE_DESIGN_URL = `${BASE_URL}/creative-designs`;
   const FETCH_DESIGN_URL = `${BASE_URL}/creative-designs`;
   const API_INTEGRATIONS_URL = `${BASE_URL}/integrations`;
@@ -2204,6 +2205,59 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Klux AI design assistant → POST /creatives/ai-redesign.
+  // Sends the live design (canvas the same way we save it — a JSON-stringified
+  // { canvas, elements }) plus the user's prompt. Returns the raw response so
+  // the panel can render whatever the assistant sends back.
+  const aiRedesign = async ({ prompt, design, signal } = {}) => {
+    if (!token) {
+      return { ok: false, message: "Not authenticated" };
+    }
+    try {
+      const res = await authFetch(API_AI_REDESIGN_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          prompt,
+          canvas: JSON.stringify(design || {}),
+        }),
+        signal,
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("Invalid JSON from ai-redesign:", text);
+        return { ok: false, message: "Invalid server response" };
+      }
+
+      console.log("🎨 ai-redesign response:", data);
+
+      if (!res.ok) {
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        return {
+          ok: false,
+          message: firstError || data?.message || "AI redesign failed",
+        };
+      }
+
+      return { ok: true, data, reply: data.reply || data.message || "" };
+    } catch (err) {
+      if (err?.name === "AbortError" || signal?.aborted) {
+        return { ok: false, aborted: true, message: "Aborted" };
+      }
+      console.error("aiRedesign failed:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  };
+
   const saveDesign = useCallback(
     async (brandId, variations, creativeType = "ads") => {
       if (!token) {
@@ -3304,6 +3358,7 @@ export function AuthProvider({ children }) {
         generateCustomCreative,
         createDesign,
         creativeAiChat,
+        aiRedesign,
         updateBrandById,
         handleDelete,
         fetchAdsAccounts,

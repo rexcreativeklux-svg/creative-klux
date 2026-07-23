@@ -61,6 +61,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     selectedId,
     selectedElement,
     dirty,
+    replaceToken,
     canUndo,
     canRedo,
     selectElement,
@@ -77,7 +78,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   } = editor;
 
   const [name, setName] = useState(design?.name || "Untitled design");
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(0.5); // default zoom 50%
   const [editingId, setEditingId] = useState(null);
   // The cell the user last clicked inside a table: { id, r, c }. Drives which
   // row/column the context-bar delete buttons target. Transient (not saved).
@@ -85,6 +86,15 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [addNodeMode, setAddNodeMode] = useState(false);
+  // Brief "applied" flash on the stage when a whole design is swapped in
+  // (template / Klux AI apply). Driven by the editor's replaceToken.
+  const [applyFlash, setApplyFlash] = useState(false);
+  useEffect(() => {
+    if (!replaceToken) return;
+    setApplyFlash(true);
+    const id = setTimeout(() => setApplyFlash(false), 1400);
+    return () => clearTimeout(id);
+  }, [replaceToken]);
   // Which sidebar panel is open. Lifted here so canvas actions (e.g. "Ask Klux"
   // on the element menu) can open a panel; the sidebar is otherwise self-driven.
   // Seeded from `initialPanel` so an entry point (e.g. "Edit with Ai") can deep-
@@ -574,8 +584,9 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     setZoom(Math.max(z, MIN_ZOOM));
   }, [canvas.width, canvas.height]);
 
+  // The editor opens at a fixed 50% (see the zoom useState) — we no longer
+  // fit-to-screen on mount. Resizing the window still refits.
   useLayoutEffect(() => {
-    fitZoom();
     const onResize = () => fitZoom();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -1042,7 +1053,9 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   }, []);
 
   // ── Save & download ───────────────────────────────────────────────────
-  const doSave = async () => {
+  // `silent` suppresses the success toast — used by the 30s autosave so it
+  // doesn't spam the user; manual saves still confirm with a toast.
+  const doSave = async ({ silent = false } = {}) => {
     setSaving(true);
     try {
       const payload = { name, canvas, elements };
@@ -1056,13 +1069,29 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
         if (!res?.ok) throw new Error(res?.message || "Save failed");
       }
       markSaved();
-      toast.success("Design saved");
+      if (!silent) toast.success("Design saved");
     } catch (err) {
-      toast.error(err.message || "Could not save design");
+      if (!silent) toast.error(err.message || "Could not save design");
+      else console.error("Autosave failed:", err);
     } finally {
       setSaving(false);
     }
   };
+
+  // Effective dirty state — unsaved canvas/element edits or a renamed title.
+  const isDirty = dirty || name !== (design?.name || "Untitled design");
+
+  // Autosave every 30s when there are unsaved changes. A ref keeps the interval
+  // pointed at the latest save fn / dirty flag without resetting each render.
+  const autosaveRef = useRef({});
+  autosaveRef.current = { save: doSave, dirty: isDirty, saving };
+  useEffect(() => {
+    const id = setInterval(() => {
+      const s = autosaveRef.current;
+      if (s.dirty && !s.saving) s.save({ silent: true });
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const doDownload = async () => {
     try {
@@ -1085,6 +1114,10 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     <div className="fixed inset-0 flex flex-col bg-gray-100 dark:bg-canvas">
       {/* Keyframes for element animation previews (see animations.js). */}
       <style dangerouslySetInnerHTML={{ __html: KEYFRAMES_CSS }} />
+      <style dangerouslySetInnerHTML={{
+        __html:
+          "@keyframes kluxApplyFlash{0%{opacity:0}12%{opacity:1}68%{opacity:1}100%{opacity:0}}",
+      }} />
       <EditorTopBar
         name={name}
         onNameChange={setName}
@@ -1096,7 +1129,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
         zoom={zoom}
         onZoomIn={() => setZoom((z) => Math.min(z + 0.1, MAX_ZOOM))}
         onZoomOut={() => setZoom((z) => Math.max(z - 0.1, MIN_ZOOM))}
-        dirty={dirty || name !== (design?.name || "Untitled design")}
+        dirty={isDirty}
         saving={saving}
         onSave={doSave}
         onPreview={() => setShowPreview(true)}
@@ -1317,6 +1350,20 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
                     suppressChrome={el.id === croppingId || el.id === erasingId}
                   />
                 ))}
+
+              {/* "Applied" flash — a brief blue pulse when a whole design is
+                  swapped in (Klux AI / template apply). */}
+              {applyFlash && (
+                <div
+                  className="pointer-events-none absolute inset-0 z-50"
+                  style={{
+                    animation: "kluxApplyFlash 1.4s ease-out forwards",
+                    boxShadow: "inset 0 0 0 6px rgba(37,99,235,0.85)",
+                    background:
+                      "radial-gradient(ellipse at center, rgba(37,99,235,0.32), rgba(37,99,235,0.04) 72%)",
+                  }}
+                />
+              )}
 
               {/* Line endpoint handles — reshape a selected straight line */}
               {selLine && !isDrawTool && (

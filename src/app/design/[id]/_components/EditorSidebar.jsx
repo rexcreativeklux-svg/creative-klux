@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   Sparkles,
   Layers,
+  Scaling,
   ChevronLeft,
 } from "lucide-react";
 import TemplatesPanel from "./panels/TemplatesPanel";
@@ -22,6 +23,7 @@ import UploadsPanel from "./panels/UploadsPanel";
 import ToolsPanel from "./panels/ToolsPanel";
 import MagicMediaPanel from "./panels/magic/MagicMediaPanel";
 import LayersPanel from "./panels/LayersPanel";
+import ResizePanel from "./panels/resize/ResizePanel";
 import KluxAiPanel from "./panels/klux/KluxAiPanel";
 import KluxLogoIcon from "./panels/klux/KluxLogoIcon";
 import FontPanel from "./panels/font/FontPanel";
@@ -78,6 +80,7 @@ const TABS = [
     Panel: MagicMediaPanel,
   },
   { key: "layers", label: "Layers", icon: Layers, Panel: LayersPanel },
+  { key: "resize", label: "Resize", icon: Scaling, Panel: ResizePanel },
 ];
 
 export default function EditorSidebar({ active: activeProp, onActiveChange, ...props }) {

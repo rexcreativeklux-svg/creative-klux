@@ -2,12 +2,24 @@
 
 import React, { useEffect, useRef } from "react";
 import { Rnd } from "react-rnd";
+import { ImagePlus } from "lucide-react";
 import ShapeSVG from "./ShapeSVG";
 import { SHAPES, PRIMITIVE_SHAPES, isStraightLine } from "@/(lib)/design/shapes";
+import { frameGeo } from "@/(lib)/design/frames";
+import { gridCellRects, normFractions } from "@/(lib)/design/grids";
+import { chartSVGDataURL } from "@/(lib)/design/charts";
+import { graphicSVGDataURL } from "@/(lib)/design/graphics";
 import { pointsToPath } from "@/(lib)/design/drawUtils";
 import { curvePath } from "@/(lib)/design/curveUtils";
 import { proxiedSrc } from "@/(lib)/design/renderDesign";
+import { radiusToCss } from "@/(lib)/design/radius";
+import { hasPerspective } from "@/(lib)/design/perspective";
+import PerspectiveImage from "./PerspectiveImage";
 import { fitFontSize } from "./textFit";
+import { textEffectCss } from "@/(lib)/design/textEffects";
+import { animationStyle } from "@/(lib)/design/animations";
+import { buildImageFilter } from "@/(lib)/design/imageAdjust";
+import { isCropped } from "@/(lib)/design/imageCrop";
 import EditorElementMenu from "./EditorElementMenu";
 import {
   normalizeCells,
@@ -38,11 +50,15 @@ export default function EditorElement({
   onCurveAddPoint,
   activeCell,
   onCellFocus,
+  onFrameFill,
+  onGridCellFill,
   onDuplicate,
   onRemove,
   onMoveLayer,
   onToggleLock,
   onAskKlux,
+  animateToken = 0,
+  suppressChrome = false,
 }) {
   const locked = !!el.locked;
   const textRef = useRef(null);
@@ -111,11 +127,21 @@ export default function EditorElement({
   const noBox = straightLine || el.type === "curve";
 
   const selectionStyle =
-    selected && !noBox
+    selected && !noBox && !suppressChrome
       ? { outline: "2px solid #6366f1", outlineOffset: 0 }
       : { outline: "1px dashed transparent" };
 
   const rotation = el.rotation || 0;
+
+  // Animation preview: when the play token is bumped, animated elements remount
+  // (via `key`) so their CSS animation restarts. Suppressed while editing text.
+  const animated =
+    animateToken > 0 &&
+    el.animation &&
+    el.animation.type &&
+    el.animation.type !== "none" &&
+    !editing;
+  const animStyle = animated ? animationStyle(el.animation) : null;
 
   return (
     <Rnd
@@ -125,8 +151,8 @@ export default function EditorElement({
       // instead of being trapped inside the artboard.
       size={{ width: el.width, height: el.height }}
       position={{ x: el.x, y: el.y }}
-      disableDragging={editing || locked}
-      enableResizing={selected && !editing && !noBox && !locked}
+      disableDragging={editing || locked || suppressChrome}
+      enableResizing={selected && !editing && !noBox && !locked && !suppressChrome}
       onDragStart={() => onSelect(el.id)}
       onMouseDown={() => onSelect(el.id)}
       onDragStop={(e, d) => onChange({ x: d.x, y: d.y }, { record: true })}
@@ -165,21 +191,31 @@ export default function EditorElement({
           else if (el.type === "curve") onCurveAddPoint?.(el.id, e);
         }}
       >
-        {renderInner(el, {
-          editing,
-          textRef,
-          commitText,
-          onChange,
-          zoom,
-          selected,
-          activeCell,
-          onCellFocus,
-        })}
+        {/* Animation layer — remounts on each play so the CSS animation restarts.
+            Kept inside the rotation wrapper so animate transforms don't clobber
+            the element's rotation. */}
+        <div
+          key={animated ? `play-${animateToken}` : "static"}
+          style={{ width: "100%", height: "100%", ...(animStyle || {}) }}
+        >
+          {renderInner(el, {
+            editing,
+            textRef,
+            commitText,
+            onChange,
+            zoom,
+            selected,
+            activeCell,
+            onCellFocus,
+            onFrameFill,
+            onGridCellFill,
+          })}
+        </div>
       </div>
 
       {/* Floating action pill below the element (lock / duplicate / delete /
           layer order). Kept out of the rotated content so it stays upright. */}
-      {selected && !editing && (
+      {selected && !editing && !suppressChrome && (
         <EditorElementMenu
           zoom={zoom}
           locked={locked}
@@ -196,8 +232,59 @@ export default function EditorElement({
 
 function renderInner(
   el,
-  { editing, textRef, commitText, onChange, zoom, selected, activeCell, onCellFocus },
+  {
+    editing,
+    textRef,
+    commitText,
+    onChange,
+    zoom,
+    selected,
+    activeCell,
+    onCellFocus,
+    onFrameFill,
+    onGridCellFill,
+  },
 ) {
+  if (el.type === "frame") {
+    return <FrameInner el={el} onFrameFill={onFrameFill} onChange={onChange} />;
+  }
+
+  if (el.type === "grid") {
+    return (
+      <GridInner
+        el={el}
+        zoom={zoom}
+        selected={selected}
+        onGridCellFill={onGridCellFill}
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (el.type === "chart") {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={chartSVGDataURL(el)}
+        alt=""
+        draggable={false}
+        style={{ width: "100%", height: "100%", objectFit: "fill", pointerEvents: "none" }}
+      />
+    );
+  }
+
+  if (el.type === "graphic") {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={graphicSVGDataURL(el)}
+        alt=""
+        draggable={false}
+        style={{ width: "100%", height: "100%", objectFit: "fill", pointerEvents: "none" }}
+      />
+    );
+  }
+
   if (el.type === "table") {
     return (
       <TableInner
@@ -237,6 +324,18 @@ function renderInner(
       userSelect: editing ? "text" : "none",
       boxSizing: "border-box",
     };
+
+    // Text effects (shadow / hollow / outline / glow / background …). The
+    // "background" effect fills a rounded, padded box behind the glyphs — only
+    // applied to plain text (sticky notes carry their own paper backing).
+    const fx = textEffectCss(el);
+    if (fx?.css) Object.assign(style, fx.css);
+    if (fx?.background && !el.background) {
+      const base = el.padding ?? 2;
+      style.background = fx.background.color;
+      style.borderRadius = fx.background.radius;
+      style.padding = `${base + fx.background.padY}px ${base + fx.background.padX}px`;
+    }
     const value =
       typeof el.content === "string"
         ? el.content
@@ -385,6 +484,60 @@ function renderInner(
   }
 
   if (el.type === "image" && el.src) {
+    const flip = `scaleX(${el.flipH ? -1 : 1}) scaleY(${el.flipV ? -1 : 1})`;
+    const filter = buildImageFilter(el) || undefined;
+
+    // Perspective warp — rendered through a <canvas> so the stage matches the
+    // PNG export (CSS 3D can't be reproduced in the canvas export).
+    if (hasPerspective(el)) {
+      return <PerspectiveImage el={el} filter={filter} flip={flip} />;
+    }
+    // Cache the image's natural size on the element so the crop tool has it
+    // synchronously (no race with an async load → no distorted crops).
+    const onImgLoad = (e) => {
+      const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+      if (w && h && (el.natW !== w || el.natH !== h)) {
+        onChange?.({ natW: w, natH: h }, { record: false });
+      }
+    };
+
+    // Cropped: map the crop sub-rectangle onto the box (source-rect → box). Flip
+    // lives on the clipping wrapper so it mirrors the visible region in place.
+    if (isCropped(el.crop)) {
+      const c = el.crop;
+      return (
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+            overflow: "hidden",
+            borderRadius: radiusToCss(el.borderRadius),
+            transform: el.flipH || el.flipV ? flip : undefined,
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={proxiedSrc(el.src)}
+            alt=""
+            draggable={false}
+            crossOrigin="anonymous"
+            onLoad={onImgLoad}
+            style={{
+              position: "absolute",
+              width: `${100 / c.w}%`,
+              height: `${100 / c.h}%`,
+              left: `${(-c.x / c.w) * 100}%`,
+              top: `${(-c.y / c.h) * 100}%`,
+              objectFit: "fill",
+              filter,
+              pointerEvents: "none",
+            }}
+          />
+        </div>
+      );
+    }
+
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
@@ -392,11 +545,14 @@ function renderInner(
         alt=""
         draggable={false}
         crossOrigin="anonymous"
+        onLoad={onImgLoad}
         style={{
           width: "100%",
           height: "100%",
           objectFit: el.objectFit || "cover",
-          borderRadius: el.borderRadius || 0,
+          borderRadius: radiusToCss(el.borderRadius),
+          transform: flip,
+          filter,
           pointerEvents: "none",
         }}
       />
@@ -404,6 +560,373 @@ function renderInner(
   }
 
   return null;
+}
+
+/**
+ * FrameInner — a "frame" element: an image clipped to a shape mask (Canva-style).
+ *
+ * The clip is an inline SVG <clipPath> built from the shared frame geometry
+ * (frameGeo), scaled from its viewBox to the element box via an SVG transform —
+ * so arcs/curves scale correctly (unlike rewriting path coordinates). The image
+ * cover-fits the box and is clipped to that path; an empty frame shows the shape
+ * as a grey placeholder with an "Add image" prompt.
+ *
+ * Fill / replace the image by double-clicking the frame (opens a file picker) or
+ * dropping an image file onto it; both route through onFrameFill(id, file).
+ */
+function FrameInner({ el, onFrameFill, onChange }) {
+  const fileRef = useRef(null);
+  const { path, viewBox } = frameGeo(el.shape);
+  const [vw, vh] = viewBox;
+  const sx = (el.width || 1) / vw;
+  const sy = (el.height || 1) / vh;
+  const clipId = `frame-clip-${el.id}`;
+
+  const openPicker = () => fileRef.current?.click();
+  const onFile = (e) => {
+    const f = e.target.files?.[0];
+    if (f) onFrameFill?.(el.id, f);
+    e.target.value = ""; // allow re-picking the same file
+  };
+  const onDrop = (e) => {
+    e.preventDefault();
+    // A file dropped from the OS uploads; a URL dragged from the Uploads panel
+    // (a durable gallery image) can be used directly, no upload needed.
+    const f = Array.from(e.dataTransfer?.files || []).find((x) =>
+      x.type?.startsWith("image/"),
+    );
+    if (f) {
+      onFrameFill?.(el.id, f);
+      return;
+    }
+    const url = draggedImageUrl(e);
+    if (url) onChange?.({ src: url }, { record: true });
+  };
+
+  return (
+    <div
+      style={{ position: "relative", width: "100%", height: "100%" }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        openPicker();
+      }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={onDrop}
+    >
+      {/* Clip definition — scaled from the frame's viewBox to the element box. */}
+      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
+        <defs>
+          <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
+            <path d={path} transform={`scale(${sx} ${sy})`} />
+          </clipPath>
+        </defs>
+      </svg>
+
+      {el.src ? (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            clipPath: `url(#${clipId})`,
+            WebkitClipPath: `url(#${clipId})`,
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={proxiedSrc(el.src)}
+            alt=""
+            draggable={false}
+            crossOrigin="anonymous"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              transform: `scaleX(${el.flipH ? -1 : 1}) scaleY(${el.flipV ? -1 : 1})`,
+              pointerEvents: "none",
+            }}
+          />
+        </div>
+      ) : (
+        <>
+          {/* Grey placeholder in the shape of the frame (stretched to the box). */}
+          <svg
+            width="100%"
+            height="100%"
+            viewBox={`0 0 ${vw} ${vh}`}
+            preserveAspectRatio="none"
+            style={{ position: "absolute", inset: 0, display: "block" }}
+          >
+            <path d={path} fill="#e5e7eb" />
+          </svg>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              color: "#9ca3af",
+              pointerEvents: "none",
+            }}
+          >
+            <ImagePlus className="w-6 h-6" />
+            <span style={{ fontSize: 12, fontWeight: 500 }}>Add image</span>
+          </div>
+        </>
+      )}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        onChange={onFile}
+        style={{ display: "none" }}
+      />
+    </div>
+  );
+}
+
+// Extract a usable image URL from a drag (Uploads-panel tile sets these).
+function draggedImageUrl(e) {
+  const dt = e.dataTransfer;
+  if (!dt) return null;
+  const raw =
+    dt.getData("application/x-ck-image") ||
+    dt.getData("text/uri-list") ||
+    dt.getData("text/plain") ||
+    "";
+  const url = raw.split("\n")[0].trim();
+  return /^(https?:|data:|blob:)/.test(url) ? url : null;
+}
+
+/**
+ * GridInner — a "grid" element: a rows × cols layout of independent image cells
+ * (Canva-style photo grid). Each cell cover-fits its image (clipped by the cell's
+ * overflow:hidden) or shows an "add" glyph when empty. Fill/replace a cell by
+ * double-clicking it, dropping an OS image file, or dragging an image from the
+ * Uploads panel onto it. When selected, thin dividers between tracks drag to
+ * resize columns/rows (stored as colFr/rowFr weights).
+ */
+function GridInner({ el, zoom = 1, selected, onGridCellFill, onChange }) {
+  const fileRef = useRef(null);
+  const pendingCell = useRef(null);
+  const dragRef = useRef(null);
+  const rows = Math.max(1, el.rows || 1);
+  const cols = Math.max(1, el.cols || 1);
+  const gap = el.gap ?? 8;
+  const cells = el.cells || [];
+
+  const colFr = normFractions(el.colFr, cols);
+  const rowFr = normFractions(el.rowFr, rows);
+
+  const openPicker = (i) => {
+    pendingCell.current = i;
+    fileRef.current?.click();
+  };
+  const onFile = (e) => {
+    const f = e.target.files?.[0];
+    if (f && pendingCell.current != null) {
+      onGridCellFill?.(el.id, pendingCell.current, f);
+    }
+    e.target.value = "";
+    pendingCell.current = null;
+  };
+  const setCellSrc = (i, src) => {
+    const next = Array.from({ length: rows * cols }, (_, k) =>
+      k === i ? { ...(cells[k] || {}), src } : cells[k] || { src: null },
+    );
+    onChange?.({ cells: next }, { record: true });
+  };
+  const onDropCell = (i, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const f = Array.from(e.dataTransfer?.files || []).find((x) =>
+      x.type?.startsWith("image/"),
+    );
+    if (f) {
+      onGridCellFill?.(el.id, i, f);
+      return;
+    }
+    const url = draggedImageUrl(e);
+    if (url) setCellSrc(i, url);
+  };
+
+  // ── Divider drag: transfer weight between two adjacent tracks ──────────────
+  const onDividerDown = (axis, i, e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    dragRef.current = {
+      axis,
+      i,
+      start: axis === "col" ? e.clientX : e.clientY,
+      fr: axis === "col" ? [...colFr] : [...rowFr],
+      committed: false,
+    };
+  };
+  const onDividerMove = (e) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const n = d.axis === "col" ? cols : rows;
+    const content =
+      d.axis === "col" ? el.width - gap * (n - 1) : el.height - gap * (n - 1);
+    if (content <= 0) return;
+    const moved = d.axis === "col" ? e.clientX - d.start : e.clientY - d.start;
+    const df = moved / zoom / content; // delta as a fraction of content size
+    const fr = [...d.fr];
+    const min = 0.06;
+    const a = fr[d.i] + df;
+    const b = fr[d.i + 1] - df;
+    if (a < min || b < min) return;
+    fr[d.i] = a;
+    fr[d.i + 1] = b;
+    const key = d.axis === "col" ? "colFr" : "rowFr";
+    onChange?.({ [key]: fr }, { record: !d.committed });
+    d.committed = true;
+  };
+  const onDividerUp = (e) => {
+    if (!dragRef.current) return;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    dragRef.current = null;
+  };
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        display: "grid",
+        gap,
+        gridTemplateColumns: colFr.map((f) => `${f}fr`).join(" "),
+        gridTemplateRows: rowFr.map((f) => `${f}fr`).join(" "),
+        background: "#ffffff",
+      }}
+    >
+      {Array.from({ length: rows * cols }).map((_, i) => {
+        const src = cells[i]?.src;
+        return (
+          <div
+            key={i}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              openPicker(i);
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => onDropCell(i, e)}
+            style={{
+              position: "relative",
+              overflow: "hidden",
+              background: "#e5e7eb",
+              borderRadius: el.cellRadius || 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {src ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={proxiedSrc(src)}
+                alt=""
+                draggable={false}
+                crossOrigin="anonymous"
+                style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
+              />
+            ) : (
+              <ImagePlus className="w-5 h-5 text-gray-400" />
+            )}
+          </div>
+        );
+      })}
+
+      {/* Divider handles (only while selected) — reshape columns/rows. */}
+      {selected && (
+        <GridDividers
+          rects={gridCellRects(el)}
+          width={el.width}
+          height={el.height}
+          gap={gap}
+          rows={rows}
+          cols={cols}
+          zoom={zoom}
+          onDown={onDividerDown}
+          onMove={onDividerMove}
+          onUp={onDividerUp}
+        />
+      )}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        onChange={onFile}
+        style={{ display: "none" }}
+      />
+    </div>
+  );
+}
+
+/**
+ * GridDividers — thin draggable strips centered on each internal column/row gap.
+ * A column divider `i` sits between columns i and i+1; dragging it transfers
+ * width between them. Sizes are divided by `zoom` to stay a constant hit-area.
+ */
+function GridDividers({ rects, width, height, gap, rows, cols, zoom, onDown, onMove, onUp }) {
+  const hit = 10 / zoom;
+  const handles = [];
+
+  // Column dividers — one per internal boundary, taken from the top row's cells.
+  for (let c = 0; c < cols - 1; c++) {
+    const cell = rects.find((r) => r.col === c && r.row === 0);
+    if (!cell) continue;
+    const cx = cell.x + cell.w + gap / 2;
+    handles.push(
+      <div
+        key={`c${c}`}
+        onPointerDown={(e) => onDown("col", c, e)}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: cx - hit / 2,
+          width: hit,
+          height,
+          cursor: "col-resize",
+          touchAction: "none",
+          zIndex: 6,
+        }}
+      />,
+    );
+  }
+  // Row dividers.
+  for (let r = 0; r < rows - 1; r++) {
+    const cell = rects.find((x) => x.row === r && x.col === 0);
+    if (!cell) continue;
+    const cy = cell.y + cell.h + gap / 2;
+    handles.push(
+      <div
+        key={`r${r}`}
+        onPointerDown={(e) => onDown("row", r, e)}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        style={{
+          position: "absolute",
+          left: 0,
+          top: cy - hit / 2,
+          width,
+          height: hit,
+          cursor: "row-resize",
+          touchAction: "none",
+          zIndex: 6,
+        }}
+      />,
+    );
+  }
+  return <>{handles}</>;
 }
 
 /**

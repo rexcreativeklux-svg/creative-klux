@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { Suspense, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ProtectedRoute from "@/app/(components)/ProtectedRoutes";
@@ -88,6 +88,10 @@ function imageSize(src) {
 function DesignEditorRoute() {
   const { id } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Deep-link support: `?panel=klux` opens the editor with the Klux AI panel
+  // already open (used by the "Edit with Ai" entry point on My Creations).
+  const initialPanel = searchParams.get("panel");
   const { fetchDesignById, activeBrandId } = useAuth();
 
   const [design, setDesign] = useState(null);
@@ -134,14 +138,20 @@ function DesignEditorRoute() {
   }
 
   return (
-    <DesignEditor design={design} onBack={() => router.push("/creatives")} />
+    <DesignEditor
+      design={design}
+      initialPanel={initialPanel}
+      onBack={() => router.push("/creatives")}
+    />
   );
 }
 
 export default function DesignEditorPage() {
   return (
     <ProtectedRoute>
-      <DesignEditorRoute />
+      <Suspense fallback={<PracticeLoader label="Loading your design" />}>
+        <DesignEditorRoute />
+      </Suspense>
     </ProtectedRoute>
   );
 }

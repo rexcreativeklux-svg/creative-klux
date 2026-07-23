@@ -2,6 +2,11 @@
 
 import React from "react";
 import ShapesBrowser from "./ShapesBrowser";
+import TablesLibrary from "./TablesLibrary";
+import FramesLibrary from "./frames/FramesLibrary";
+import GridsLibrary from "./grids/GridsLibrary";
+import ChartsLibrary from "./charts/ChartsLibrary";
+import GraphicsLibrary from "./graphics/GraphicsLibrary";
 import UploadsPanel from "../UploadsPanel";
 import PanelPlaceholder from "../PanelPlaceholder";
 
@@ -14,6 +19,11 @@ import PanelPlaceholder from "../PanelPlaceholder";
 const CONTENT = {
   shapes: ShapesBrowser,
   photos: UploadsPanel,
+  tables: TablesLibrary,
+  frames: FramesLibrary,
+  grids: GridsLibrary,
+  charts: ChartsLibrary,
+  graphics: GraphicsLibrary,
 };
 
 /**
@@ -30,7 +40,7 @@ export default function CategoryContent({ category, onOpenGroup, ...panelProps }
       <PanelPlaceholder
         icon={category.icon}
         title={`${category.label} coming soon`}
-        note={`The ${category.label.toLowerCase()} library isn’t wired up yet. Shapes and Photos are available today.`}
+        note={`The ${category.label.toLowerCase()} library isn’t wired up yet. Graphics, Shapes, Photos, Tables, Frames, Grids and Charts are available today.`}
       />
     );
   }

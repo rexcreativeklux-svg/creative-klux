@@ -4,11 +4,20 @@ import { SHAPES, PRIMITIVE_SHAPES, lineShaftPath } from "./shapes";
 import { waitForFonts } from "./fonts";
 import { pointsToPath } from "./drawUtils";
 import { curvePath } from "./curveUtils";
+import { radiusCorners } from "./radius";
+import { frameGeo } from "./frames";
+import { gridCellRects } from "./grids";
+import { chartSVGDataURL } from "./charts";
+import { graphicSVGDataURL } from "./graphics";
 import {
   normalizeCells,
   getColFractions,
   getRowFractions,
 } from "./tableUtils";
+import { resolveTextEffect } from "./textEffects";
+import { buildImageFilter } from "./imageAdjust";
+import { warpPerspective, hasPerspective } from "./perspective";
+import { isCropped } from "./imageCrop";
 
 /**
  * renderDesignToBlob — paints a { canvas, elements } design to an offscreen
@@ -229,7 +238,9 @@ export async function renderDesignToCanvas({ canvas, elements }) {
       // tracking into the next one. Set before measureText so wrapping accounts
       // for it. No-ops on browsers without ctx.letterSpacing.
       ctx.letterSpacing = el.letterSpacing ? `${el.letterSpacing}px` : "0px";
-      ctx.fillStyle = el.fill || el.color || "#111111";
+      const fillColor = el.fill || el.color || "#111111";
+      const effect = resolveTextEffect(el);
+      ctx.fillStyle = fillColor;
       ctx.textAlign = align;
       ctx.textBaseline = "alphabetic";
 
@@ -268,12 +279,42 @@ export async function renderDesignToCanvas({ canvas, elements }) {
 
       // Sticky notes are top-aligned; other text is vertically centered.
       const blockH = lines.length * lineH;
-      let lineY = el.sticky
+      const firstY = el.sticky
         ? el.y + pad + size * 0.85
         : el.y + Math.max(pad, ((el.height || 0) - blockH) / 2) + size * 0.85;
+
+      // "Background" effect — a rounded, padded box behind the text block. The
+      // box hugs the union of the (measured) line widths, matching the editor.
+      if (effect?.background && !el.background) {
+        const b = effect.background;
+        let minL = Infinity;
+        let maxR = -Infinity;
+        for (const line of lines) {
+          const lw = ctx.measureText(line).width;
+          const left =
+            align === "center" ? x - lw / 2 : align === "right" ? x - lw : x;
+          minL = Math.min(minL, left);
+          maxR = Math.max(maxR, left + lw);
+        }
+        if (Number.isFinite(minL)) {
+          const bx = minL - b.padX;
+          const by = firstY - size * 0.8 - b.padY;
+          const bw = maxR - minL + b.padX * 2;
+          const bh = blockH + size * 0.2 + b.padY * 2;
+          ctx.save();
+          ctx.fillStyle = b.color;
+          ctx.beginPath();
+          if (b.radius && ctx.roundRect) ctx.roundRect(bx, by, bw, bh, b.radius);
+          else ctx.rect(bx, by, bw, bh);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      let lineY = firstY;
       for (const line of lines) {
         if (line) {
-          ctx.fillText(line, x, lineY);
+          drawEffectLine(ctx, line, x, lineY, effect, fillColor);
           // Underline: a rule under the line, matched to its measured width and
           // alignment (canvas has no text-decoration).
           if (el.underline) {
@@ -282,7 +323,7 @@ export async function renderDesignToCanvas({ canvas, elements }) {
               align === "center" ? x - lw / 2 : align === "right" ? x - lw : x;
             const uy = lineY + size * 0.12;
             ctx.save();
-            ctx.strokeStyle = ctx.fillStyle;
+            ctx.strokeStyle = fillColor;
             ctx.lineWidth = Math.max(1, size * 0.06);
             ctx.beginPath();
             ctx.moveTo(ux, uy);
@@ -293,20 +334,144 @@ export async function renderDesignToCanvas({ canvas, elements }) {
         }
         lineY += lineH;
       }
+      ctx.fillStyle = fillColor;
     }
 
     if (el.type === "table") {
       drawTable(ctx, el);
     }
 
+    if (el.type === "chart") {
+      try {
+        const img = await loadImage(chartSVGDataURL(el));
+        ctx.drawImage(img, el.x, el.y, el.width, el.height);
+      } catch {
+        /* skip chart if the SVG can't rasterize */
+      }
+    }
+
+    if (el.type === "graphic") {
+      try {
+        const img = await loadImage(graphicSVGDataURL(el));
+        ctx.drawImage(img, el.x, el.y, el.width, el.height);
+      } catch {
+        /* skip graphic if the SVG can't rasterize */
+      }
+    }
+
+    if (el.type === "grid") {
+      const rects = gridCellRects(el);
+      const cr = el.cellRadius || 0;
+      for (const cell of rects) {
+        const cx0 = el.x + cell.x;
+        const cy0 = el.y + cell.y;
+        ctx.save();
+        ctx.beginPath();
+        if (cr && ctx.roundRect) {
+          ctx.roundRect(cx0, cy0, cell.w, cell.h, cr);
+        } else {
+          ctx.rect(cx0, cy0, cell.w, cell.h);
+        }
+        ctx.clip();
+        const src = el.cells?.[cell.index]?.src;
+        if (src) {
+          try {
+            const img = await loadImage(src);
+            drawCover(ctx, img, cx0, cy0, cell.w, cell.h);
+          } catch {
+            /* leave the cell empty on a broken image */
+          }
+        } else {
+          ctx.fillStyle = "#e5e7eb";
+          ctx.fillRect(cx0, cy0, cell.w, cell.h);
+        }
+        ctx.restore();
+      }
+    }
+
+    if (el.type === "frame") {
+      const { path, viewBox } = frameGeo(el.shape);
+      const [vw, vh] = viewBox;
+      ctx.save();
+      // Clip to the frame shape, scaled from its viewBox to the element box.
+      const clip = new Path2D();
+      const m = new DOMMatrix()
+        .translate(el.x, el.y)
+        .scale(el.width / vw, el.height / vh);
+      clip.addPath(new Path2D(path), m);
+      ctx.clip(clip);
+      if (el.flipH || el.flipV) {
+        const fcx = el.x + el.width / 2;
+        const fcy = el.y + el.height / 2;
+        ctx.translate(fcx, fcy);
+        ctx.scale(el.flipH ? -1 : 1, el.flipV ? -1 : 1);
+        ctx.translate(-fcx, -fcy);
+      }
+      if (el.src) {
+        try {
+          const img = await loadImage(el.src);
+          drawCover(ctx, img, el.x, el.y, el.width, el.height);
+        } catch {
+          /* leave the clipped area empty on a broken image */
+        }
+      } else {
+        // Empty frame → grey placeholder (matches the on-canvas look).
+        ctx.fillStyle = "#e5e7eb";
+        ctx.fillRect(el.x, el.y, el.width, el.height);
+      }
+      ctx.restore();
+    }
+
     if (el.type === "image" && el.src) {
       try {
         const img = await loadImage(el.src);
-        if (el.objectFit === "contain") {
+        ctx.save();
+        // Adjust / filter / shadow — the same CSS filter string the editor
+        // applies to the <img>, so the export matches the stage.
+        ctx.filter = buildImageFilter(el) || "none";
+        // Corner rounding — clip to a rounded rectangle before drawing.
+        // Radius may be uniform or per-corner; roundRect takes [tl,tr,br,bl].
+        const corners = radiusCorners(el.borderRadius);
+        if (corners.some((c) => c > 0) && ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, el.width, el.height, corners);
+          ctx.clip();
+        }
+        // Flip horizontally / vertically about the element's center.
+        if (el.flipH || el.flipV) {
+          const cx = el.x + el.width / 2;
+          const cy = el.y + el.height / 2;
+          ctx.translate(cx, cy);
+          ctx.scale(el.flipH ? -1 : 1, el.flipV ? -1 : 1);
+          ctx.translate(-cx, -cy);
+        }
+        if (hasPerspective(el)) {
+          // Perspective: keystone-warp the image (box aspect) and stretch onto
+          // the box — the same warp PerspectiveImage draws on screen.
+          const W = Math.max(1, Math.round(el.width));
+          const H = Math.max(1, Math.round(el.height));
+          const warped = warpPerspective(img, W, H, el.perspective.h || 0, el.perspective.v || 0);
+          ctx.drawImage(warped, el.x, el.y, el.width, el.height);
+        } else if (isCropped(el.crop)) {
+          // Crop: draw the natural sub-rectangle stretched onto the box.
+          const c = el.crop;
+          ctx.drawImage(
+            img,
+            c.x * img.width,
+            c.y * img.height,
+            c.w * img.width,
+            c.h * img.height,
+            el.x,
+            el.y,
+            el.width,
+            el.height,
+          );
+        } else if (el.objectFit === "contain") {
           ctx.drawImage(img, el.x, el.y, el.width, el.height);
         } else {
           drawCover(ctx, img, el.x, el.y, el.width, el.height);
         }
+        ctx.restore();
       } catch {
         /* skip broken image */
       }
@@ -398,8 +563,56 @@ function drawTable(ctx, el) {
   }
 }
 
+/**
+ * Draw one text line at (x, y) with a resolved text effect applied — mirrors
+ * the CSS `text-shadow` / `-webkit-text-stroke` the editor paints. `effect` is
+ * from resolveTextEffect (or null for plain fill). Shadow layers are painted
+ * back-to-front behind the glyphs; a stroke is drawn under the fill; hollow text
+ * (fillOverride: "transparent") is stroke-only.
+ */
+function drawEffectLine(ctx, line, x, y, effect, fillColor) {
+  if (!effect) {
+    ctx.fillStyle = fillColor;
+    ctx.fillText(line, x, y);
+    return;
+  }
+  // Splice "back" — a solid, offset copy behind the glyphs.
+  if (effect.back) {
+    ctx.save();
+    ctx.fillStyle = effect.back.color;
+    ctx.fillText(line, x + effect.back.dx, y + effect.back.dy);
+    ctx.restore();
+  }
+  // Shadow / glow / echo layers.
+  for (const s of [...(effect.shadows || [])].reverse()) {
+    ctx.save();
+    ctx.shadowColor = s.color;
+    ctx.shadowBlur = s.blur;
+    ctx.shadowOffsetX = s.dx;
+    ctx.shadowOffsetY = s.dy;
+    ctx.fillStyle = fillColor;
+    ctx.fillText(line, x, y);
+    ctx.restore();
+  }
+  // Outline / hollow stroke. CSS text-stroke is centred (half inside), so use
+  // double the width to keep a comparable outside weight.
+  if (effect.stroke) {
+    ctx.save();
+    ctx.lineWidth = effect.stroke.width * 2;
+    ctx.strokeStyle = effect.stroke.color;
+    ctx.lineJoin = "round";
+    ctx.strokeText(line, x, y);
+    ctx.restore();
+  }
+  // Fill on top (skipped for hollow text).
+  if (effect.fillOverride !== "transparent") {
+    ctx.fillStyle = fillColor;
+    ctx.fillText(line, x, y);
+  }
+}
+
 /** Draw an image with object-fit: cover into the target box. */
-function drawCover(ctx, img, dx, dy, dw, dh) {
+export function drawCover(ctx, img, dx, dy, dw, dh) {
   const ir = img.width / img.height;
   const tr = dw / dh;
   let sx = 0;
@@ -421,4 +634,30 @@ export async function renderDesignToBlob(design, type = "image/png") {
   return new Promise((resolve, reject) => {
     cnv.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), type);
   });
+}
+
+/**
+ * renderDesignToThumbnail — paints a { canvas, elements } design and returns a
+ * base64 data URL (e.g. "data:image/jpeg;base64,…") scaled to fit within
+ * `maxDim` px. Handy for saving a lightweight preview alongside the design so
+ * lists can show it without re-rendering the full canvas. Returns null on failure.
+ */
+export async function renderDesignToThumbnail(
+  design,
+  { maxDim = 400, type = "image/jpeg", quality = 0.8 } = {},
+) {
+  try {
+    const off = await renderDesignToCanvas(design);
+    const scale = Math.min(1, maxDim / Math.max(off.width, off.height));
+    const w = Math.max(1, Math.round(off.width * scale));
+    const h = Math.max(1, Math.round(off.height * scale));
+    const small = document.createElement("canvas");
+    small.width = w;
+    small.height = h;
+    const ctx = small.getContext("2d");
+    ctx.drawImage(off, 0, 0, w, h);
+    return small.toDataURL(type, quality);
+  } catch {
+    return null;
+  }
 }

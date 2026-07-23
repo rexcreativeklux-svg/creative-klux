@@ -11,12 +11,20 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import useDesignEditor from "./useDesignEditor";
 import EditorTopBar from "./EditorTopBar";
+import KluxLogoIcon from "./panels/klux/KluxLogoIcon";
 import EditorSidebar from "./EditorSidebar";
 import EditorContextBar from "./EditorContextBar";
 import EditorElement from "./EditorElement";
+import ImageCropOverlay from "./ImageCropOverlay";
+import ImageEraserOverlay from "./ImageEraserOverlay";
 import PreviewOverlay from "./PreviewOverlay";
-import { renderDesignToBlob, proxiedSrc } from "@/(lib)/design/renderDesign";
+import { renderDesignToBlob, proxiedSrc, drawCover } from "@/(lib)/design/renderDesign";
+import { isCropped } from "@/(lib)/design/imageCrop";
 import { SHAPES, aspectOf, isStraightLine, isBendableLine } from "@/(lib)/design/shapes";
+import { frameGeo } from "@/(lib)/design/frames";
+import { makeGridCells } from "@/(lib)/design/grids";
+import { DEFAULT_CHART_DATA } from "@/(lib)/design/charts";
+import { graphicDef } from "@/(lib)/design/graphics";
 import { ensureEditorFontsLoaded } from "@/(lib)/design/fonts";
 import { strokeToElement, pointsToPath } from "@/(lib)/design/drawUtils";
 import {
@@ -26,6 +34,7 @@ import {
 } from "@/(lib)/design/curveUtils";
 import { measureText } from "./textFit";
 import { TABLE_DEFAULTS, makeCells } from "@/(lib)/design/tableUtils";
+import { KEYFRAMES_CSS } from "@/(lib)/design/animations";
 
 const DRAW_TOOLS = ["pen", "marker", "highlighter", "eraser"];
 
@@ -43,7 +52,7 @@ const MAX_ZOOM = 4;
  * Because it's fully driven by props, it can be mounted on the /design/[id]
  * route or dropped into a modal / any surface.
  */
-export default function DesignEditor({ design, onSave, onBack }) {
+export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   const { updateDesignById, uploadMedia } = useAuth();
   const editor = useDesignEditor(design);
   const {
@@ -52,6 +61,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
     selectedId,
     selectedElement,
     dirty,
+    replaceToken,
     canUndo,
     canRedo,
     selectElement,
@@ -68,7 +78,7 @@ export default function DesignEditor({ design, onSave, onBack }) {
   } = editor;
 
   const [name, setName] = useState(design?.name || "Untitled design");
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(0.5); // default zoom 50%
   const [editingId, setEditingId] = useState(null);
   // The cell the user last clicked inside a table: { id, r, c }. Drives which
   // row/column the context-bar delete buttons target. Transient (not saved).
@@ -76,9 +86,175 @@ export default function DesignEditor({ design, onSave, onBack }) {
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [addNodeMode, setAddNodeMode] = useState(false);
+  // Brief "applied" flash on the stage when a whole design is swapped in
+  // (template / Klux AI apply). Driven by the editor's replaceToken.
+  const [applyFlash, setApplyFlash] = useState(false);
+  useEffect(() => {
+    if (!replaceToken) return;
+    setApplyFlash(true);
+    const id = setTimeout(() => setApplyFlash(false), 1400);
+    return () => clearTimeout(id);
+  }, [replaceToken]);
   // Which sidebar panel is open. Lifted here so canvas actions (e.g. "Ask Klux"
   // on the element menu) can open a panel; the sidebar is otherwise self-driven.
-  const [activePanel, setActivePanel] = useState("templates");
+  // Seeded from `initialPanel` so an entry point (e.g. "Edit with Ai") can deep-
+  // link straight into a panel like Klux AI; falls back to the templates panel.
+  const [activePanel, setActivePanel] = useState(initialPanel || "templates");
+  // Descriptor for the contextual Color panel: which element props the picked
+  // colour writes to. Set when a swatch in the context bar is clicked.
+  const [colorTarget, setColorTarget] = useState(null);
+  const openColorPanel = useCallback((target) => {
+    setColorTarget(target);
+    setActivePanel("color");
+  }, []);
+  // Bumped to (re)play element animations as an in-editor preview. Each bump
+  // remounts animated elements so their CSS animation restarts (see EditorElement).
+  const [animateToken, setAnimateToken] = useState(0);
+  const playAnimations = useCallback(() => setAnimateToken((t) => t + 1), []);
+  // Image crop / erase modes: the id of the image being cropped/erased (only one
+  // at a time). The overlays register their Done/Reset handlers on these refs so
+  // the shared top control bar can drive them.
+  const [croppingId, setCroppingId] = useState(null);
+  const [erasingId, setErasingId] = useState(null);
+  const [brushSize, setBrushSize] = useState(40);
+  const cropCommitRef = useRef(null);
+  const cropResetRef = useRef(null);
+  const eraseCommitRef = useRef(null);
+
+  // ── Image crop / erase handlers ───────────────────────────────────────
+  // Declared up here (above the keyboard effect that depends on them).
+  const startCrop = useCallback(
+    (id) => {
+      selectElement(id);
+      setEditingId(null);
+      setErasingId(null);
+      setCroppingId(id);
+    },
+    [selectElement],
+  );
+
+  const startErase = useCallback(
+    (id) => {
+      selectElement(id);
+      setEditingId(null);
+      setCroppingId(null);
+      setErasingId(id);
+    },
+    [selectElement],
+  );
+
+  const cancelImageTool = useCallback(() => {
+    setCroppingId(null);
+    setErasingId(null);
+  }, []);
+
+  // Crop overlay → box-normalized selection. Bake exactly the retained pixels
+  // (reproducing the current on-screen view, then slicing the selection) into a
+  // new image and shrink the frame to it — no scaling/stretch. Undoable; then
+  // uploaded for a durable URL, like erase/BG-removal.
+  const applyCrop = useCallback(
+    async (sel) => {
+      const id = croppingId;
+      const el = elementsRef.current.find((e) => e.id === id);
+      setCroppingId(null);
+      if (!id || !el || !el.src || !sel) return;
+      // Full selection → nothing to crop.
+      if (sel.x <= 0.001 && sel.y <= 0.001 && sel.w >= 0.999 && sel.h >= 0.999) {
+        return;
+      }
+      try {
+        const img = await new Promise((res, rej) => {
+          const im = new Image();
+          im.crossOrigin = "anonymous";
+          im.onload = () => res(im);
+          im.onerror = rej;
+          im.src = proxiedSrc(el.src);
+        });
+        const nw = img.naturalWidth;
+        const nh = img.naturalHeight;
+        // Bake the current view (cover, or an existing crop rect) at a resolution
+        // that preserves detail, capped so the canvas can't balloon.
+        const q = Math.min(2, Math.max(1, Math.max(nw / el.width, nh / el.height)));
+        const cw = Math.max(1, Math.round(el.width * q));
+        const ch = Math.max(1, Math.round(el.height * q));
+        const base = document.createElement("canvas");
+        base.width = cw;
+        base.height = ch;
+        const bctx = base.getContext("2d");
+        if (isCropped(el.crop)) {
+          const c = el.crop;
+          bctx.drawImage(img, c.x * nw, c.y * nh, c.w * nw, c.h * nh, 0, 0, cw, ch);
+        } else {
+          drawCover(bctx, img, 0, 0, cw, ch);
+        }
+        // Slice the selection — these are the pixels the user chose to keep.
+        const outW = Math.max(1, Math.round(sel.w * cw));
+        const outH = Math.max(1, Math.round(sel.h * ch));
+        const out = document.createElement("canvas");
+        out.width = outW;
+        out.height = outH;
+        out
+          .getContext("2d")
+          .drawImage(base, sel.x * cw, sel.y * ch, sel.w * cw, sel.h * ch, 0, 0, outW, outH);
+        const blob = await new Promise((res) => out.toBlob(res, "image/png"));
+        if (!blob) return;
+        const localUrl = URL.createObjectURL(blob);
+        updateElement(
+          id,
+          {
+            src: localUrl,
+            crop: null,
+            natW: outW,
+            natH: outH,
+            x: el.x + sel.x * el.width,
+            y: el.y + sel.y * el.height,
+            width: el.width * sel.w,
+            height: el.height * sel.h,
+          },
+          { record: true },
+        );
+        try {
+          const file = new File([blob], "cropped.png", { type: "image/png" });
+          const res = await uploadMedia(file);
+          const url =
+            res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
+          if (url) updateElement(id, { src: url }, { record: false });
+        } catch {
+          toast.error("Cropped image upload failed — it won't persist after save.");
+        }
+      } catch {
+        toast.error("Couldn't crop the image");
+      }
+    },
+    [croppingId, updateElement, uploadMedia],
+  );
+
+  // Eraser overlay → transparent PNG blob. Swap src (undoable), then upload for
+  // a durable URL — same flow as background removal.
+  const applyErase = useCallback(
+    async (blob) => {
+      const id = erasingId;
+      setErasingId(null);
+      if (!id || !blob) return;
+      const localUrl = URL.createObjectURL(blob);
+      updateElement(id, { src: localUrl, crop: null }, { record: true });
+      try {
+        const file = new File([blob], "erased.png", { type: "image/png" });
+        const res = await uploadMedia(file);
+        const url =
+          res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
+        if (url) updateElement(id, { src: url }, { record: false });
+      } catch {
+        toast.error("Erased image upload failed — it won't persist after save.");
+      }
+    },
+    [erasingId, updateElement, uploadMedia],
+  );
+
+  const commitImageTool = useCallback(async () => {
+    if (croppingId) cropCommitRef.current?.();
+    else if (erasingId) await eraseCommitRef.current?.();
+  }, [croppingId, erasingId]);
   const stageWrapRef = useRef(null);
   const stageInnerRef = useRef(null);
 
@@ -98,6 +274,31 @@ export default function DesignEditor({ design, onSave, onBack }) {
   useEffect(() => {
     ensureEditorFontsLoaded();
   }, []);
+
+  // Always-fresh view of elements for async callbacks (e.g. a grid cell's
+  // durable-URL swap after upload) that must merge into a nested array without
+  // clobbering edits made while the upload was in flight.
+  const elementsRef = useRef(elements);
+  useEffect(() => {
+    elementsRef.current = elements;
+  }, [elements]);
+
+  // The Color/Effects/Animate/Position panels are contextual to the selected
+  // element (their triggers live in the context bar). If the selection clears,
+  // drop back out of them.
+  useEffect(() => {
+    const contextual = [
+      "color",
+      "effects",
+      "animate",
+      "position",
+      "img-edit",
+    ];
+    if (contextual.includes(activePanel) && !selectedElement) {
+      setActivePanel(null);
+      setColorTarget(null);
+    }
+  }, [activePanel, selectedElement]);
 
   // ── Freehand drawing ──────────────────────────────────────────────────
   const canvasPoint = (e) => {
@@ -383,8 +584,9 @@ export default function DesignEditor({ design, onSave, onBack }) {
     setZoom(Math.max(z, MIN_ZOOM));
   }, [canvas.width, canvas.height]);
 
+  // The editor opens at a fixed 50% (see the zoom useState) — we no longer
+  // fit-to-screen on mount. Resizing the window still refits.
   useLayoutEffect(() => {
-    fitZoom();
     const onResize = () => fitZoom();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -393,6 +595,18 @@ export default function DesignEditor({ design, onSave, onBack }) {
   // ── Keyboard shortcuts ────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e) => {
+      // Image crop / erase mode captures keys: Enter commits, Esc cancels.
+      if (croppingId || erasingId) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commitImageTool();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          cancelImageTool();
+        }
+        return;
+      }
+
       const typing =
         editingId ||
         /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) ||
@@ -417,7 +631,18 @@ export default function DesignEditor({ design, onSave, onBack }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editingId, selectedId, undo, redo, removeElement, selectElement]);
+  }, [
+    editingId,
+    selectedId,
+    undo,
+    redo,
+    removeElement,
+    selectElement,
+    croppingId,
+    erasingId,
+    commitImageTool,
+    cancelImageTool,
+  ]);
 
   // ── Insert actions ────────────────────────────────────────────────────
   // These are exposed to the sidebar panels as a small `insert` API so any
@@ -590,6 +815,115 @@ export default function DesignEditor({ design, onSave, onBack }) {
     img.src = src;
   };
 
+  // Insert an empty frame (an image clipped to a shape). Sized to the frame's
+  // aspect, capped to a fraction of the canvas — matching insertShape.
+  const insertFrame = (frameKey) => {
+    const { viewBox } = frameGeo(frameKey);
+    const aspect = viewBox[0] / viewBox[1] || 1;
+    const base = Math.min(canvas.width, canvas.height) * 0.42;
+    const w = aspect >= 1 ? base : base * aspect;
+    const h = aspect >= 1 ? base / aspect : base;
+    return addElement({
+      type: "frame",
+      shape: frameKey,
+      src: null,
+      x: cx() - w / 2,
+      y: cy() - h / 2,
+      width: Math.round(w),
+      height: Math.round(h),
+    });
+  };
+
+  // Fill (or replace) a frame's image. Shows the local file instantly, then
+  // swaps in the uploaded, durable URL — same two-step flow as handleAddImage.
+  const fillFrame = async (id, file) => {
+    const localUrl = URL.createObjectURL(file);
+    updateElement(id, { src: localUrl }, { record: true });
+    try {
+      const res = await uploadMedia(file);
+      const url =
+        res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
+      if (url) updateElement(id, { src: url }, { record: false });
+    } catch {
+      toast.error("Image upload failed — it won't persist after save.");
+    }
+  };
+
+  // Insert a decorative graphic, sized to its aspect (like insertShape).
+  const insertGraphic = (graphicKey) => {
+    const [vw, vh] = graphicDef(graphicKey).viewBox || [100, 100];
+    const aspect = vw / vh || 1;
+    const base = Math.min(canvas.width, canvas.height) * 0.28;
+    const w = aspect >= 1 ? base : base * aspect;
+    const h = aspect >= 1 ? base / aspect : base;
+    return addElement({
+      type: "graphic",
+      graphic: graphicKey,
+      x: cx() - w / 2,
+      y: cy() - h / 2,
+      width: Math.round(w),
+      height: Math.round(h),
+    });
+  };
+
+  // Insert a chart (bar/line/pie/donut) seeded with sample data.
+  const insertChart = (chartType = "bar") => {
+    const w = Math.round(Math.min(canvas.width, canvas.height) * 0.6);
+    const h = Math.round(w * 0.66);
+    return addElement({
+      type: "chart",
+      chart: chartType,
+      data: DEFAULT_CHART_DATA.map((d) => ({ ...d })),
+      x: cx() - w / 2,
+      y: cy() - h / 2,
+      width: w,
+      height: h,
+    });
+  };
+
+  // Insert an empty rows × cols photo grid, sized to a comfortable square.
+  const insertGrid = ({ rows = 2, cols = 2 } = {}) => {
+    const base = Math.round(Math.min(canvas.width, canvas.height) * 0.55);
+    return addElement({
+      type: "grid",
+      rows,
+      cols,
+      gap: 8,
+      cells: makeGridCells(rows, cols),
+      x: cx() - base / 2,
+      y: cy() - base / 2,
+      width: base,
+      height: base,
+    });
+  };
+
+  // Write a src into one grid cell without disturbing the others. Reads the
+  // freshest element from elementsRef so the post-upload swap can't clobber a
+  // cell filled while the upload was in flight.
+  const setGridCellSrc = (id, index, src, record) => {
+    const target = elementsRef.current.find((e) => e.id === id);
+    if (!target) return;
+    const cells = (target.cells || []).map((c, i) =>
+      i === index ? { ...c, src } : c,
+    );
+    updateElement(id, { cells }, { record });
+  };
+
+  // Fill (or replace) a single grid cell's image — local preview first, then the
+  // durable uploaded URL, matching handleAddImage / fillFrame.
+  const fillGridCell = async (id, index, file) => {
+    const localUrl = URL.createObjectURL(file);
+    setGridCellSrc(id, index, localUrl, true);
+    try {
+      const res = await uploadMedia(file);
+      const url =
+        res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
+      if (url) setGridCellSrc(id, index, url, false);
+    } catch {
+      toast.error("Image upload failed — it won't persist after save.");
+    }
+  };
+
   const handleAddImage = async (file) => {
     const localUrl = URL.createObjectURL(file);
     const img = new Image();
@@ -618,6 +952,50 @@ export default function DesignEditor({ design, onSave, onBack }) {
     };
     img.src = localUrl;
   };
+
+  // ── Background removal ────────────────────────────────────────────────
+  // One-click, on-device (ONNX U²-Net) cutout — no side panel. Swaps the image
+  // src for a transparent PNG (undoable), then uploads it for a durable URL.
+  // The engine is heavy, so it's imported lazily on first use.
+  const bgBusyRef = useRef(new Set());
+  const removeImageBackground = useCallback(
+    async (id) => {
+      const target = elementsRef.current.find((e) => e.id === id);
+      if (!target || target.type !== "image" || !target.src) return;
+      if (bgBusyRef.current.has(id)) return; // already processing this image
+      bgBusyRef.current.add(id);
+      const toastId = toast.loading("Removing background…");
+      try {
+        const { removeBackground } = await import(
+          "@/(lib)/ai-engine/tasks/removeBackground"
+        );
+        const { blob } = await removeBackground(proxiedSrc(target.src), {
+          onProgress: ({ pct }) =>
+            toast.loading(`Removing background… ${Math.round(pct || 0)}%`, {
+              id: toastId,
+            }),
+        });
+        // Show the cutout instantly (undoable), then swap in the durable URL.
+        const localUrl = URL.createObjectURL(blob);
+        updateElement(id, { src: localUrl }, { record: true });
+        toast.success("Background removed", { id: toastId });
+        try {
+          const file = new File([blob], "cutout.png", { type: "image/png" });
+          const res = await uploadMedia(file);
+          const url =
+            res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
+          if (url) updateElement(id, { src: url }, { record: false });
+        } catch {
+          toast.error("Cutout upload failed — it won't persist after save.");
+        }
+      } catch (err) {
+        toast.error(err?.message || "Couldn't remove the background");
+      } finally {
+        bgBusyRef.current.delete(id);
+      }
+    },
+    [updateElement, uploadMedia],
+  );
 
   // ── Clipboard paste (Ctrl/⌘+V) ────────────────────────────────────────
   // Paste an image or text straight onto the canvas. When editing a text box we
@@ -675,7 +1053,9 @@ export default function DesignEditor({ design, onSave, onBack }) {
   }, []);
 
   // ── Save & download ───────────────────────────────────────────────────
-  const doSave = async () => {
+  // `silent` suppresses the success toast — used by the 30s autosave so it
+  // doesn't spam the user; manual saves still confirm with a toast.
+  const doSave = async ({ silent = false } = {}) => {
     setSaving(true);
     try {
       const payload = { name, canvas, elements };
@@ -689,13 +1069,29 @@ export default function DesignEditor({ design, onSave, onBack }) {
         if (!res?.ok) throw new Error(res?.message || "Save failed");
       }
       markSaved();
-      toast.success("Design saved");
+      if (!silent) toast.success("Design saved");
     } catch (err) {
-      toast.error(err.message || "Could not save design");
+      if (!silent) toast.error(err.message || "Could not save design");
+      else console.error("Autosave failed:", err);
     } finally {
       setSaving(false);
     }
   };
+
+  // Effective dirty state — unsaved canvas/element edits or a renamed title.
+  const isDirty = dirty || name !== (design?.name || "Untitled design");
+
+  // Autosave every 30s when there are unsaved changes. A ref keeps the interval
+  // pointed at the latest save fn / dirty flag without resetting each render.
+  const autosaveRef = useRef({});
+  autosaveRef.current = { save: doSave, dirty: isDirty, saving };
+  useEffect(() => {
+    const id = setInterval(() => {
+      const s = autosaveRef.current;
+      if (s.dirty && !s.saving) s.save({ silent: true });
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const doDownload = async () => {
     try {
@@ -716,6 +1112,12 @@ export default function DesignEditor({ design, onSave, onBack }) {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-100 dark:bg-canvas">
+      {/* Keyframes for element animation previews (see animations.js). */}
+      <style dangerouslySetInnerHTML={{ __html: KEYFRAMES_CSS }} />
+      <style dangerouslySetInnerHTML={{
+        __html:
+          "@keyframes kluxApplyFlash{0%{opacity:0}12%{opacity:1}68%{opacity:1}100%{opacity:0}}",
+      }} />
       <EditorTopBar
         name={name}
         onNameChange={setName}
@@ -727,10 +1129,12 @@ export default function DesignEditor({ design, onSave, onBack }) {
         zoom={zoom}
         onZoomIn={() => setZoom((z) => Math.min(z + 0.1, MAX_ZOOM))}
         onZoomOut={() => setZoom((z) => Math.max(z - 0.1, MIN_ZOOM))}
-        dirty={dirty || name !== (design?.name || "Untitled design")}
+        dirty={isDirty}
         saving={saving}
         onSave={doSave}
         onPreview={() => setShowPreview(true)}
+        canvas={canvas}
+        elements={elements}
       />
 
       <div className="flex-1 flex min-h-0">
@@ -742,6 +1146,10 @@ export default function DesignEditor({ design, onSave, onBack }) {
             elbow: insertElbow,
             sticky: insertStickyNote,
             table: insertTable,
+            frame: insertFrame,
+            grid: insertGrid,
+            chart: insertChart,
+            graphic: insertGraphic,
             imageUrl: insertImageUrl,
             imageFile: handleAddImage,
           }}
@@ -755,6 +1163,38 @@ export default function DesignEditor({ design, onSave, onBack }) {
           setTool={setTool}
           active={activePanel}
           onActiveChange={setActivePanel}
+          kluxSeedRedesign={initialPanel === "klux"}
+          colorTarget={colorTarget}
+          onPlayAnimation={playAnimations}
+          imageActions={{
+            onRemoveBg: removeImageBackground,
+            onStartErase: startErase,
+            onStartCrop: startCrop,
+            // Blur is a CSS adjust — the tile toggles a default the user can
+            // then fine-tune in Adjust.
+            onBlur: (id) => {
+              const t = elements.find((e) => e.id === id) || editor.selectedElement;
+              if (!t) return;
+              const cur = t.adjust?.blur || 0;
+              editor.updateElement(
+                id,
+                { adjust: { ...(t.adjust || {}), blur: cur > 0 ? 0 : 8 } },
+                { record: true },
+              );
+              toast(cur > 0 ? "Blur removed" : "Blur applied — fine-tune in Adjust");
+            },
+            onPerspective: (id) => {
+              const t = elements.find((e) => e.id === id) || editor.selectedElement;
+              if (!t) return;
+              const has = t.perspective && (t.perspective.h || t.perspective.v);
+              editor.updateElement(
+                id,
+                { perspective: has ? null : { h: 25, v: 0 } },
+                { record: true },
+              );
+              toast(has ? "Perspective removed" : "Perspective applied — fine-tune in Perspective");
+            },
+          }}
         />
 
         {/* Stage viewport */}
@@ -770,19 +1210,82 @@ export default function DesignEditor({ design, onSave, onBack }) {
             }
           }}
         >
-          <EditorContextBar
-            element={selectedElement}
-            onChange={updateElement}
-            addNodeMode={addNodeMode}
-            onToggleAddNode={() => setAddNodeMode((v) => !v)}
-            activeCell={
-              activeCell && activeCell.id === selectedElement?.id
-                ? activeCell
-                : null
-            }
-            onClearActiveCell={() => setActiveCell(null)}
-            onOpenFontPanel={() => setActivePanel("font")}
-          />
+          {/* Ask Klux — static launcher pinned to the stage's top-right. */}
+          <button
+            onClick={() => setActivePanel("klux")}
+            title="Ask Klux AI"
+            className="absolute top-3 right-3 z-[9999] flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-surface pl-2 pr-3 text-gray-700 shadow-lg transition hover:bg-blue-50 hover:text-[#155dfc] cursor-pointer"
+          >
+            <KluxLogoIcon className="h-4 w-4" />
+            <span className="text-xs font-semibold">Ask Klux</span>
+          </button>
+
+          {!croppingId && !erasingId && (
+            <EditorContextBar
+              element={selectedElement}
+              onChange={updateElement}
+              addNodeMode={addNodeMode}
+              onToggleAddNode={() => setAddNodeMode((v) => !v)}
+              activeCell={
+                activeCell && activeCell.id === selectedElement?.id
+                  ? activeCell
+                  : null
+              }
+              onClearActiveCell={() => setActiveCell(null)}
+              onOpenFontPanel={() => setActivePanel("font")}
+              onOpenColorPanel={openColorPanel}
+              onOpenEffectsPanel={() => setActivePanel("effects")}
+              onOpenAnimatePanel={() => setActivePanel("animate")}
+              onOpenPositionPanel={() => setActivePanel("position")}
+              onOpenImageTool={(key) => setActivePanel(key)}
+              onRemoveBg={removeImageBackground}
+              onStartCrop={startCrop}
+              onStartErase={startErase}
+              onFrameFill={fillFrame}
+            />
+          )}
+
+          {/* Crop / Erase control bar — replaces the context bar while active. */}
+          {(croppingId || erasingId) && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 bg-surface border border-gray-200 shadow-lg rounded-xl px-3 py-2">
+              <span className="text-xs font-semibold text-gray-700">
+                {croppingId ? "Crop image" : "Erase"}
+              </span>
+              {erasingId && (
+                <label className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                  Brush
+                  <input
+                    type="range"
+                    min={5}
+                    max={150}
+                    value={brushSize}
+                    onChange={(e) => setBrushSize(Number(e.target.value))}
+                    className="w-24 cursor-pointer accent-blue-600"
+                  />
+                </label>
+              )}
+              {croppingId && (
+                <button
+                  onClick={() => cropResetRef.current?.()}
+                  className="h-8 px-3 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 cursor-pointer transition"
+                >
+                  Reset
+                </button>
+              )}
+              <button
+                onClick={cancelImageTool}
+                className="h-8 px-3 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 cursor-pointer transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={commitImageTool}
+                className="h-8 px-4 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer transition"
+              >
+                Done
+              </button>
+            </div>
+          )}
 
           {/* Scaled stage */}
           <div
@@ -834,6 +1337,8 @@ export default function DesignEditor({ design, onSave, onBack }) {
                     onCellFocus={(r, c) =>
                       setActiveCell({ id: el.id, r, c })
                     }
+                    onFrameFill={fillFrame}
+                    onGridCellFill={fillGridCell}
                     onDuplicate={duplicateElement}
                     onRemove={removeElement}
                     onMoveLayer={moveLayer}
@@ -841,8 +1346,24 @@ export default function DesignEditor({ design, onSave, onBack }) {
                       updateElement(id, { locked: !el.locked })
                     }
                     onAskKlux={() => setActivePanel("klux")}
+                    animateToken={animateToken}
+                    suppressChrome={el.id === croppingId || el.id === erasingId}
                   />
                 ))}
+
+              {/* "Applied" flash — a brief blue pulse when a whole design is
+                  swapped in (Klux AI / template apply). */}
+              {applyFlash && (
+                <div
+                  className="pointer-events-none absolute inset-0 z-50"
+                  style={{
+                    animation: "kluxApplyFlash 1.4s ease-out forwards",
+                    boxShadow: "inset 0 0 0 6px rgba(37,99,235,0.85)",
+                    background:
+                      "radial-gradient(ellipse at center, rgba(37,99,235,0.32), rgba(37,99,235,0.04) 72%)",
+                  }}
+                />
+              )}
 
               {/* Line endpoint handles — reshape a selected straight line */}
               {selLine && !isDrawTool && (
@@ -878,6 +1399,33 @@ export default function DesignEditor({ design, onSave, onBack }) {
                   onNodeDoubleClick={removeCurveNode}
                 />
               )}
+
+              {/* Image crop / erase overlays */}
+              {croppingId &&
+                (() => {
+                  const ce = elements.find((e) => e.id === croppingId);
+                  return ce ? (
+                    <ImageCropOverlay
+                      el={ce}
+                      zoom={zoom}
+                      commitRef={cropCommitRef}
+                      resetRef={cropResetRef}
+                      onApply={applyCrop}
+                    />
+                  ) : null;
+                })()}
+              {erasingId &&
+                (() => {
+                  const ee = elements.find((e) => e.id === erasingId);
+                  return ee ? (
+                    <ImageEraserOverlay
+                      el={ee}
+                      brushSize={brushSize}
+                      commitRef={eraseCommitRef}
+                      onApply={applyErase}
+                    />
+                  ) : null;
+                })()}
 
               {/* Add-node overlay — click on the selected line/curve to drop a node */}
               {addNodeMode && (selCurve || selLine) && !isDrawTool && (

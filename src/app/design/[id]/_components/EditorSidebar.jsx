@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   Sparkles,
   Layers,
+  Scaling,
   ChevronLeft,
 } from "lucide-react";
 import TemplatesPanel from "./panels/TemplatesPanel";
@@ -22,9 +23,15 @@ import UploadsPanel from "./panels/UploadsPanel";
 import ToolsPanel from "./panels/ToolsPanel";
 import MagicMediaPanel from "./panels/magic/MagicMediaPanel";
 import LayersPanel from "./panels/LayersPanel";
+import ResizePanel from "./panels/resize/ResizePanel";
 import KluxAiPanel from "./panels/klux/KluxAiPanel";
 import KluxLogoIcon from "./panels/klux/KluxLogoIcon";
 import FontPanel from "./panels/font/FontPanel";
+import ColorPanel from "./panels/color/ColorPanel";
+import EffectsPanel from "./panels/effects/EffectsPanel";
+import AnimatePanel from "./panels/animate/AnimatePanel";
+import PositionPanel from "./panels/position/PositionPanel";
+import EditImagePanel from "./panels/image/EditImagePanel";
 
 /**
  * EditorSidebar — Canva-style navigation: a slim icon rail on the far left and
@@ -73,6 +80,7 @@ const TABS = [
     Panel: MagicMediaPanel,
   },
   { key: "layers", label: "Layers", icon: Layers, Panel: LayersPanel },
+  { key: "resize", label: "Resize", icon: Scaling, Panel: ResizePanel },
 ];
 
 export default function EditorSidebar({ active: activeProp, onActiveChange, ...props }) {
@@ -112,6 +120,44 @@ export default function EditorSidebar({ active: activeProp, onActiveChange, ...p
           toolbar's font control; renders its own header + close. */}
       {active === "font" && (
         <FontPanel editor={props.editor} onClose={() => setActive(null)} />
+      )}
+
+      {/* Color picker — a contextual panel (no rail tab) opened from the context
+          toolbar's colour swatch; renders its own header + close. */}
+      {active === "color" && (
+        <ColorPanel
+          editor={props.editor}
+          target={props.colorTarget}
+          onClose={() => setActive(null)}
+        />
+      )}
+
+      {/* Text effects — contextual panel opened from the toolbar's Effects button. */}
+      {active === "effects" && (
+        <EffectsPanel editor={props.editor} onClose={() => setActive(null)} />
+      )}
+
+      {/* Animate — contextual panel; `onPlay` triggers an in-editor preview. */}
+      {active === "animate" && (
+        <AnimatePanel
+          editor={props.editor}
+          onPlay={props.onPlayAnimation}
+          onClose={() => setActive(null)}
+        />
+      )}
+
+      {/* Position — layer order, align-to-page, exact geometry. */}
+      {active === "position" && (
+        <PositionPanel editor={props.editor} onClose={() => setActive(null)} />
+      )}
+
+      {/* Edit image — Adjust / Filters / Shadows panel. */}
+      {active === "img-edit" && (
+        <EditImagePanel
+          editor={props.editor}
+          imageActions={props.imageActions}
+          onClose={() => setActive(null)}
+        />
       )}
 
       {/* Expandable panel. The 'rail' variant (Tools) is a thin, header-less,

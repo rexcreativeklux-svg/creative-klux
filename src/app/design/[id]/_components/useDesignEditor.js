@@ -24,6 +24,44 @@ export function nextElementId() {
 
 const DEFAULT_CANVAS = { width: 1080, height: 1080, background: "#ffffff" };
 
+/**
+ * Scale one element to a canvas resize. Most elements scale per-axis (sx, sy)
+ * so the layout stays proportional; scalar typographic props (font size,
+ * tracking, stroke, radius) scale by a single uniform factor so text and shapes
+ * don't distort. Images are special-cased: they scale UNIFORMLY (preserving
+ * their own aspect ratio) and stay centred on their proportionally-moved
+ * centre, so pictures never stretch.
+ */
+function refitElement(el, sx, sy, uni) {
+  const next = { ...el };
+
+  if (
+    el.type === "image" &&
+    typeof el.width === "number" &&
+    typeof el.height === "number"
+  ) {
+    // Preserve aspect: keep the image's centre in the same relative spot and
+    // scale both dimensions by the uniform factor.
+    const cx = (Number(el.x) || 0) + el.width / 2;
+    const cy = (Number(el.y) || 0) + el.height / 2;
+    next.width = el.width * uni;
+    next.height = el.height * uni;
+    next.x = cx * sx - next.width / 2;
+    next.y = cy * sy - next.height / 2;
+  } else {
+    if (typeof el.x === "number") next.x = el.x * sx;
+    if (typeof el.y === "number") next.y = el.y * sy;
+    if (typeof el.width === "number") next.width = el.width * sx;
+    if (typeof el.height === "number") next.height = el.height * sy;
+  }
+
+  if (typeof el.fontSize === "number") next.fontSize = el.fontSize * uni;
+  if (typeof el.letterSpacing === "number") next.letterSpacing = el.letterSpacing * uni;
+  if (typeof el.strokeWidth === "number") next.strokeWidth = el.strokeWidth * uni;
+  if (typeof el.borderRadius === "number") next.borderRadius = el.borderRadius * uni;
+  return next;
+}
+
 /** Normalize an incoming design into editor shape (assign ids, defaults). */
 export function normalizeForEditor(design) {
   const canvas = {
@@ -54,6 +92,9 @@ export default function useDesignEditor(initialDesign) {
   const [elements, setElementsState] = useState(seed.elements);
   const [selectedId, setSelectedId] = useState(null);
   const [dirty, setDirty] = useState(false);
+  // Bumped on every whole-design replace (template / Klux AI apply) so the
+  // stage can flash a brief "applied" confirmation.
+  const [replaceToken, setReplaceToken] = useState(0);
 
   // History as snapshots. `past`/`future` hold {canvas, elements} clones.
   const past = useRef([]);
@@ -169,6 +210,7 @@ export default function useDesignEditor(initialDesign) {
       setElementsState(next.elements);
       setSelectedId(null);
       setDirty(true);
+      setReplaceToken((t) => t + 1);
     },
     [commit],
   );
@@ -178,6 +220,32 @@ export default function useDesignEditor(initialDesign) {
     setCanvasState((prev) => ({ ...prev, width, height }));
     setDirty(true);
   }, [commit]);
+
+  /**
+   * Resize the canvas AND re-fit every element proportionally, as one undoable
+   * step. Pass { refit: false } to only change the canvas dimensions.
+   */
+  const resizeCanvas = useCallback(
+    (width, height, { refit = true } = {}) => {
+      if (!width || !height) return;
+      commit();
+      const ow = canvas.width || width;
+      const oh = canvas.height || height;
+      const sx = width / ow;
+      const sy = height / oh;
+      if (refit && (sx !== 1 || sy !== 1)) {
+        const uni = Math.sqrt(sx * sy) || 1;
+        setElementsState((prev) =>
+          prev.map((el) => refitElement(el, sx, sy, uni)),
+        );
+      }
+      // Force a white background so any margin left when aspect-preserved images
+      // no longer cover the new canvas shows white (not the old background).
+      setCanvasState((prev) => ({ ...prev, width, height, background: "#ffffff" }));
+      setDirty(true);
+    },
+    [commit, canvas.width, canvas.height],
+  );
 
   const markSaved = useCallback(() => setDirty(false), []);
 
@@ -193,6 +261,7 @@ export default function useDesignEditor(initialDesign) {
     selectedId,
     selectedElement,
     dirty,
+    replaceToken,
     canUndo: past.current.length > 0,
     canRedo: future.current.length > 0,
     // selection
@@ -205,6 +274,7 @@ export default function useDesignEditor(initialDesign) {
     moveLayer,
     setBackground,
     setCanvasSize,
+    resizeCanvas,
     replaceDesign,
     // history
     undo,

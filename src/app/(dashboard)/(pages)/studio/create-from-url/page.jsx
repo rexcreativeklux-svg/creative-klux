@@ -685,6 +685,7 @@ export default function CreateFromUrl() {
         type: isVideo ? "video" : "image",
         category: selectedSizeLabel,
         type_size: selectedSize,
+        design_type: isAds ? "ads" : "social",
       });
       if (!templateRes?.ok) {
         toast.error(templateRes?.message || "Failed to fetch templates");

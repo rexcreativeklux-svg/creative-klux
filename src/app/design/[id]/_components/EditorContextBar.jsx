@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Bold,
   Italic,
@@ -13,10 +13,40 @@ import {
   CirclePlus,
   MoveVertical,
   ChevronDown,
+  FlipHorizontal,
+  FlipVertical,
+  Maximize2,
+  Square,
+  ImageUp,
+  ImageOff,
+  BarChart3,
+  LineChart,
+  PieChart,
+  CircleDashed,
+  Table2,
+  Trash2,
+  Wand2,
+  Play,
+  Move,
+  Blend,
+  SlidersHorizontal,
+  Eraser,
+  Crop,
+  Sparkles,
 } from "lucide-react";
 import { isLineShape } from "@/(lib)/design/shapes";
 import { addRow, addCol, removeRow, removeCol } from "@/(lib)/design/tableUtils";
+import { gridCellRects, resizeGridCells } from "@/(lib)/design/grids";
+import { CHART_TYPES } from "@/(lib)/design/charts";
 import { EDITOR_FONTS } from "@/(lib)/design/fonts";
+import { radiusToNumber } from "@/(lib)/design/radius";
+
+const CHART_ICONS = {
+  bar: BarChart3,
+  line: LineChart,
+  pie: PieChart,
+  donut: CircleDashed,
+};
 
 /**
  * Floating formatting toolbar for the selected element (top of the stage).
@@ -32,6 +62,15 @@ export default function EditorContextBar({
   activeCell,
   onClearActiveCell,
   onOpenFontPanel,
+  onOpenColorPanel,
+  onOpenEffectsPanel,
+  onOpenAnimatePanel,
+  onOpenPositionPanel,
+  onOpenImageTool,
+  onRemoveBg,
+  onStartCrop,
+  onStartErase,
+  onFrameFill,
 }) {
   const [menu, setMenu] = useState(null); // 'spacing' | null
 
@@ -60,7 +99,7 @@ export default function EditorContextBar({
     element.fontWeight === "bold" || Number(element.fontWeight) >= 600;
 
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40">
+    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[9999]">
       <div className="flex items-center gap-1.5 bg-surface border border-gray-200 shadow-lg rounded-xl px-2 py-1.5 max-w-[calc(100vw-340px)] overflow-x-auto">
         {element.type === "text" && (
         <>
@@ -74,14 +113,16 @@ export default function EditorContextBar({
           )}
           <ColorInput
             value={element.fill || element.color || "#111111"}
-            onChange={(v) => patch({ fill: v, color: v })}
+            keys={["fill", "color"]}
             title="Text color"
+            onOpen={onOpenColorPanel}
           />
           {element.sticky && (
             <ColorInput
               value={element.background || "#FEF08A"}
-              onChange={(v) => patch({ background: v })}
+              keys={["background"]}
               title="Note color"
+              onOpen={onOpenColorPanel}
             />
           )}
           <Toggle
@@ -133,6 +174,13 @@ export default function EditorContextBar({
             <MoveVertical className="w-4 h-4" />
           </Toggle>
           <Divider />
+          <PanelButton
+            icon={Wand2}
+            label="Effects"
+            active={!!element.textEffect && element.textEffect.type !== "none"}
+            onClick={onOpenEffectsPanel}
+          />
+          <Divider />
         </>
       )}
 
@@ -140,8 +188,9 @@ export default function EditorContextBar({
         <>
           <ColorInput
             value={element.fill || "#111111"}
-            onChange={(v) => patch({ fill: v })}
+            keys={["fill"]}
             title="Line color"
+            onOpen={onOpenColorPanel}
           />
           <DirectionControl
             rotation={element.rotation || 0}
@@ -156,8 +205,9 @@ export default function EditorContextBar({
         <>
           <ColorInput
             value={element.stroke || "#111111"}
-            onChange={(v) => patch({ stroke: v })}
+            keys={["stroke"]}
             title="Line color"
+            onOpen={onOpenColorPanel}
           />
           <label className="flex items-center gap-1 text-[11px] text-gray-500 px-1">
             Weight
@@ -179,23 +229,27 @@ export default function EditorContextBar({
         <>
           <ColorInput
             value={element.headerFill || "#f3f4f6"}
-            onChange={(v) => patch({ headerFill: v })}
+            keys={["headerFill"]}
             title="Header color"
+            onOpen={onOpenColorPanel}
           />
           <ColorInput
             value={element.cellFill || "#ffffff"}
-            onChange={(v) => patch({ cellFill: v })}
+            keys={["cellFill"]}
             title="Cell color"
+            onOpen={onOpenColorPanel}
           />
           <ColorInput
             value={element.textColor || "#111827"}
-            onChange={(v) => patch({ textColor: v })}
+            keys={["textColor"]}
             title="Text color"
+            onOpen={onOpenColorPanel}
           />
           <ColorInput
             value={element.borderColor || "#d1d5db"}
-            onChange={(v) => patch({ borderColor: v })}
+            keys={["borderColor"]}
             title="Border color"
+            onOpen={onOpenColorPanel}
           />
           <Toggle
             active={element.headerRow !== false}
@@ -259,8 +313,9 @@ export default function EditorContextBar({
         <>
           <ColorInput
             value={element.fill || "#6366f1"}
-            onChange={(v) => patch({ fill: v })}
+            keys={["fill"]}
             title="Fill"
+            onOpen={onOpenColorPanel}
           />
           {element.shape !== "circle" && element.shape !== "triangle" && (
             <label className="flex items-center gap-1 text-[11px] text-gray-500 px-1">
@@ -279,18 +334,206 @@ export default function EditorContextBar({
         </>
       )}
 
-        {/* Opacity — shared */}
-        <label className="flex items-center gap-1 text-[11px] text-gray-500 px-1">
-          Opacity
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={Math.round((element.opacity ?? 1) * 100)}
-            onChange={(e) => patch({ opacity: Number(e.target.value) / 100 })}
-            className="w-16 cursor-pointer"
+      {element.type === "frame" && (
+        <>
+          <ReplaceImageButton
+            onFile={(file) => onFrameFill?.(element.id, file)}
           />
-        </label>
+          {element.src && (
+            <Toggle
+              active={false}
+              onClick={() => patch({ src: null })}
+              title="Detach image"
+            >
+              <ImageOff className="w-4 h-4" />
+            </Toggle>
+          )}
+          <Toggle
+            active={!!element.flipH}
+            onClick={() => patch({ flipH: !element.flipH })}
+            title="Flip horizontal"
+          >
+            <FlipHorizontal className="w-4 h-4" />
+          </Toggle>
+          <Toggle
+            active={!!element.flipV}
+            onClick={() => patch({ flipV: !element.flipV })}
+            title="Flip vertical"
+          >
+            <FlipVertical className="w-4 h-4" />
+          </Toggle>
+          <Divider />
+        </>
+      )}
+
+      {element.type === "grid" && (
+        <>
+          <Stepper
+            label="Rows"
+            value={element.rows || 1}
+            onChange={(v) =>
+              patch({
+                rows: v,
+                cells: resizeGridCells(element.cells, v, element.cols || 1),
+                rowFr: undefined, // reset to equal tracks on count change
+              })
+            }
+          />
+          <Stepper
+            label="Cols"
+            value={element.cols || 1}
+            onChange={(v) =>
+              patch({
+                cols: v,
+                cells: resizeGridCells(element.cells, element.rows || 1, v),
+                colFr: undefined,
+              })
+            }
+          />
+          <label className="flex items-center gap-1 text-[11px] text-gray-500 px-1">
+            Gap
+            <input
+              type="range"
+              min={0}
+              max={40}
+              value={element.gap ?? 8}
+              onChange={(e) => patch({ gap: Number(e.target.value) })}
+              className="w-16 cursor-pointer"
+            />
+          </label>
+          <Toggle
+            active={menu === "gridRounding"}
+            onClick={() =>
+              setMenu((m) => (m === "gridRounding" ? null : "gridRounding"))
+            }
+            title="Corner rounding"
+          >
+            <Square className="w-4 h-4" />
+          </Toggle>
+          <Divider />
+        </>
+      )}
+
+      {element.type === "chart" && (
+        <>
+          <div className="flex items-center">
+            {CHART_TYPES.map((t) => {
+              const Icon = CHART_ICONS[t.id] || BarChart3;
+              return (
+                <Toggle
+                  key={t.id}
+                  active={(element.chart || "bar") === t.id}
+                  onClick={() => patch({ chart: t.id })}
+                  title={`${t.label} chart`}
+                >
+                  <Icon className="w-4 h-4" />
+                </Toggle>
+              );
+            })}
+          </div>
+          <Divider />
+          <Toggle
+            active={menu === "chartData"}
+            onClick={() =>
+              setMenu((m) => (m === "chartData" ? null : "chartData"))
+            }
+            title="Edit data"
+          >
+            <Table2 className="w-4 h-4" />
+          </Toggle>
+          <Divider />
+        </>
+      )}
+
+      {element.type === "image" && (
+        <>
+          {/* Canva-style image toolbar. Edit / BG Remover / Eraser / Crop /
+              Effects open contextual panels (some are placeholders for now —
+              paste the real designs and we'll fill them in). */}
+          <PanelButton
+            icon={SlidersHorizontal}
+            label="Edit"
+            onClick={() => onOpenImageTool?.("img-edit")}
+          />
+          <PanelButton
+            icon={Sparkles}
+            label="BG Remover"
+            onClick={() => onRemoveBg?.(element.id)}
+          />
+          <PanelButton
+            icon={Eraser}
+            label="Eraser"
+            onClick={() => onStartErase?.(element.id)}
+          />
+          <Divider />
+          <Toggle
+            active={(element.objectFit || "cover") === "contain"}
+            onClick={() =>
+              patch({
+                objectFit:
+                  element.objectFit === "contain" ? "cover" : "contain",
+              })
+            }
+            title={
+              element.objectFit === "contain"
+                ? "Fit — whole image shown"
+                : "Fill — crop to box"
+            }
+          >
+            <Maximize2 className="w-4 h-4" />
+          </Toggle>
+          <Toggle
+            active={menu === "rounding"}
+            onClick={() =>
+              setMenu((m) => (m === "rounding" ? null : "rounding"))
+            }
+            title="Corner rounding"
+          >
+            <Square className="w-4 h-4" />
+          </Toggle>
+          <PanelButton
+            icon={Crop}
+            label="Crop"
+            onClick={() => onStartCrop?.(element.id)}
+          />
+          <Toggle
+            active={!!element.flipH}
+            onClick={() => patch({ flipH: !element.flipH })}
+            title="Flip horizontal"
+          >
+            <FlipHorizontal className="w-4 h-4" />
+          </Toggle>
+          <Toggle
+            active={!!element.flipV}
+            onClick={() => patch({ flipV: !element.flipV })}
+            title="Flip vertical"
+          >
+            <FlipVertical className="w-4 h-4" />
+          </Toggle>
+          <Divider />
+        </>
+      )}
+
+        {/* Animate + Position — shared across element types */}
+        <PanelButton
+          icon={Play}
+          label="Animate"
+          active={!!element.animation && element.animation.type !== "none"}
+          onClick={onOpenAnimatePanel}
+        />
+        <PanelButton icon={Move} label="Position" onClick={onOpenPositionPanel} />
+        <Divider />
+
+        {/* Transparency — shared (Canva-style popover) */}
+        <Toggle
+          active={menu === "transparency"}
+          onClick={() =>
+            setMenu((m) => (m === "transparency" ? null : "transparency"))
+          }
+          title="Transparency"
+        >
+          <Blend className="w-4 h-4" />
+        </Toggle>
       </div>
 
       {/* Spacing popover — sibling of the scroll row so it isn't clipped by
@@ -303,6 +546,197 @@ export default function EditorContextBar({
           onLine={(v) => patch({ lineHeight: v })}
         />
       )}
+
+      {/* Corner-rounding popover — sibling of the scroll row (not clipped by
+          overflow-x-auto). Image only. */}
+      {menu === "rounding" && element.type === "image" && (
+        <RoundingPopover
+          value={radiusToNumber(element.borderRadius)}
+          max={Math.round(Math.min(element.width, element.height) / 2)}
+          onChange={(v) => patch({ borderRadius: v })}
+        />
+      )}
+
+      {/* Grid cell-rounding popover. Max = half the smallest cell edge. */}
+      {menu === "gridRounding" && element.type === "grid" && (
+        <RoundingPopover
+          value={element.cellRadius || 0}
+          max={gridCellMaxRadius(element)}
+          onChange={(v) => patch({ cellRadius: v })}
+        />
+      )}
+
+      {/* Chart data editor. */}
+      {menu === "chartData" && element.type === "chart" && (
+        <ChartDataPopover
+          data={element.data || []}
+          onChange={(data) => patch({ data })}
+        />
+      )}
+
+      {/* Transparency — shared across element types. */}
+      {menu === "transparency" && (
+        <TransparencyPopover
+          value={Math.round((element.opacity ?? 1) * 100)}
+          onChange={(v) => patch({ opacity: v / 100 })}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Element transparency (opacity) slider, dropped below the toolbar. Canva
+ *  labels this "Transparency"; 100 = fully opaque, 0 = invisible. */
+function TransparencyPopover({ value, onChange }) {
+  return (
+    <div className="absolute top-full right-0 mt-2 w-64 rounded-2xl border border-gray-100 bg-surface p-4 shadow-2xl z-[9999]">
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-sm font-semibold text-gray-700">Transparency</p>
+        <span className="w-12 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-xs text-gray-600 tabular-nums">
+          {value}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full cursor-pointer accent-blue-600"
+      />
+    </div>
+  );
+}
+
+/** Editable label/value rows for a chart, dropped below the toolbar. */
+function ChartDataPopover({ data, onChange }) {
+  const rows = data.length ? data : [{ label: "", value: 0 }];
+  const setRow = (i, key, val) =>
+    onChange(rows.map((r, k) => (k === i ? { ...r, [key]: val } : r)));
+  const addRowItem = () => onChange([...rows, { label: "New", value: 0 }]);
+  const removeRowItem = (i) =>
+    onChange(rows.filter((_, k) => k !== i).length ? rows.filter((_, k) => k !== i) : rows);
+
+  return (
+    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-72 rounded-2xl border border-gray-100 bg-surface p-3 shadow-2xl">
+      <p className="text-sm font-semibold text-gray-700 mb-2">Chart data</p>
+      <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto pr-1">
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <input
+              value={r.label ?? ""}
+              onChange={(e) => setRow(i, "label", e.target.value)}
+              placeholder="Label"
+              className="flex-1 min-w-0 h-8 px-2 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-blue-400"
+            />
+            <input
+              type="number"
+              value={r.value ?? 0}
+              onChange={(e) => setRow(i, "value", Number(e.target.value))}
+              placeholder="0"
+              className="w-16 h-8 px-2 rounded-lg border border-gray-200 text-xs text-gray-700 text-center tabular-nums focus:outline-none focus:border-blue-400"
+            />
+            <button
+              onClick={() => removeRowItem(i)}
+              title="Remove row"
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 cursor-pointer transition shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={addRowItem}
+        className="mt-2 w-full h-8 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition"
+      >
+        + Add row
+      </button>
+    </div>
+  );
+}
+
+// Half the shortest cell edge — the largest sensible corner radius for a grid.
+function gridCellMaxRadius(el) {
+  const rects = gridCellRects(el);
+  const cell = rects[0] || { w: el.width, h: el.height };
+  return Math.round(Math.min(cell.w, cell.h) / 2);
+}
+
+/** Image swatch that opens a file picker and hands the chosen file back — used
+ *  by the frame toolbar to fill/replace the frame's image. */
+function ReplaceImageButton({ onFile }) {
+  const ref = useRef(null);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        title="Replace image"
+        className="h-8 flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 text-xs text-gray-700 hover:bg-gray-50 transition cursor-pointer shrink-0"
+      >
+        <ImageUp className="w-4 h-4" />
+        Replace
+      </button>
+      <input
+        ref={ref}
+        type="file"
+        accept="image/*"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFile(f);
+          e.target.value = "";
+        }}
+        className="hidden"
+      />
+    </>
+  );
+}
+
+/** Compact − label + labelled numeric stepper (grid rows/cols), clamped 1–12. */
+function Stepper({ label, value, onChange, min = 1, max = 12 }) {
+  const set = (v) => onChange(Math.max(min, Math.min(max, Math.round(v))));
+  return (
+    <div className="flex items-center rounded-lg border border-gray-200 h-8">
+      <button
+        onClick={() => set(value - 1)}
+        title={`Fewer ${label.toLowerCase()}`}
+        className="w-7 h-full flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-l-lg cursor-pointer"
+      >
+        <Minus className="w-3.5 h-3.5" />
+      </button>
+      <span className="px-1 text-[11px] text-gray-600 tabular-nums select-none">
+        {label} {value}
+      </span>
+      <button
+        onClick={() => set(value + 1)}
+        title={`More ${label.toLowerCase()}`}
+        className="w-7 h-full flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-r-lg cursor-pointer"
+      >
+        <Plus className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
+/** Single "Corner rounding" slider dropped below the toolbar (image only). */
+function RoundingPopover({ value, max, onChange }) {
+  return (
+    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 rounded-2xl border border-gray-100 bg-surface p-4 shadow-2xl">
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-sm font-semibold text-gray-700">Corner rounding</p>
+        <span className="w-12 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-xs text-gray-600 tabular-nums">
+          {value}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={Math.max(1, max)}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full cursor-pointer accent-blue-600"
+      />
     </div>
   );
 }
@@ -344,20 +778,19 @@ function DirectionControl({ rotation, onSet }) {
   );
 }
 
-function ColorInput({ value, onChange, title }) {
+/** Colour swatch. Clicking it opens the Color side panel (Canva-style) rather
+ *  than the native OS colour picker. `keys` names the element properties the
+ *  picked colour is written to; `fallback` is the colour to seed the panel with
+ *  when the element has none of those keys set. */
+function ColorInput({ value, title, keys, fallback, onOpen }) {
   return (
-    <label
+    <button
+      type="button"
+      onClick={() => onOpen?.({ title, keys, fallback: fallback ?? value })}
       className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer overflow-hidden relative shrink-0"
       title={title}
       style={{ background: value }}
-    >
-      <input
-        type="color"
-        value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
-        onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 opacity-0 cursor-pointer"
-      />
-    </label>
+    />
   );
 }
 
@@ -389,6 +822,24 @@ function FontButton({ value, onClick }) {
         {match?.name || "Font"}
       </span>
       <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+    </button>
+  );
+}
+
+/** Labelled icon button opening a side panel (Effects / Animate / Position). */
+function PanelButton({ icon: Icon, label, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      className={`h-8 flex items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition cursor-pointer shrink-0 ${
+        active
+          ? "bg-blue-50 text-blue-600"
+          : "text-gray-600 hover:bg-gray-100"
+      }`}
+    >
+      <Icon className="w-4 h-4" />
+      <span className="hidden sm:inline">{label}</span>
     </button>
   );
 }

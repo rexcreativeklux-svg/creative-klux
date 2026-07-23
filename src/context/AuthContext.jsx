@@ -12,6 +12,7 @@ import { classifyResult } from "@/utils/errorHelper";
 import { throwClassifiedAuthError } from "@/utils/authErrors";
 import api from "@/app/api/axios";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
 
 const AuthContext = createContext();
 
@@ -138,6 +139,7 @@ export function AuthProvider({ children }) {
   const API_GALLERY_URL = `${BASE_URL}/gallery`;
   const API_FETCH_TUTORIAL_VIDEOS = `${BASE_URL}/tutorial-videos`;
   const API_AI_CHAT_URL = `${BASE_URL}/creatives/ai-creative`;
+  const API_AI_REDESIGN_URL = `${BASE_URL}/creatives/ai-redesign`;
   const SAVE_DESIGN_URL = `${BASE_URL}/creative-designs`;
   const FETCH_DESIGN_URL = `${BASE_URL}/creative-designs`;
   const API_INTEGRATIONS_URL = `${BASE_URL}/integrations`;
@@ -2017,11 +2019,11 @@ export function AuthProvider({ children }) {
     // Pull templates + generatedAt out; everything else goes inside brand_details
     const { templates, generatedAt, ...rest } = formPayload || {};
 
-    // Chunk templates into batches of 2 (last batch may have 1)
+    // Chunk templates into batches of 9 (last batch may have fewer)
     const templateList = Array.isArray(templates) ? templates : [];
     const batches = [];
-    for (let i = 0; i < templateList.length; i += 2) {
-      batches.push(templateList.slice(i, i + 2));
+    for (let i = 0; i < templateList.length; i += 9) {
+      batches.push(templateList.slice(i, i + 9));
     }
     if (!batches.length) batches.push([]); // single empty batch fallback
 
@@ -2203,6 +2205,59 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Klux AI design assistant → POST /creatives/ai-redesign.
+  // Sends the live design (canvas the same way we save it — a JSON-stringified
+  // { canvas, elements }) plus the user's prompt. Returns the raw response so
+  // the panel can render whatever the assistant sends back.
+  const aiRedesign = async ({ prompt, design, signal } = {}) => {
+    if (!token) {
+      return { ok: false, message: "Not authenticated" };
+    }
+    try {
+      const res = await authFetch(API_AI_REDESIGN_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          prompt,
+          canvas: JSON.stringify(design || {}),
+        }),
+        signal,
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("Invalid JSON from ai-redesign:", text);
+        return { ok: false, message: "Invalid server response" };
+      }
+
+      console.log("🎨 ai-redesign response:", data);
+
+      if (!res.ok) {
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        return {
+          ok: false,
+          message: firstError || data?.message || "AI redesign failed",
+        };
+      }
+
+      return { ok: true, data, reply: data.reply || data.message || "" };
+    } catch (err) {
+      if (err?.name === "AbortError" || signal?.aborted) {
+        return { ok: false, aborted: true, message: "Aborted" };
+      }
+      console.error("aiRedesign failed:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  };
+
   const saveDesign = useCallback(
     async (brandId, variations, creativeType = "ads") => {
       if (!token) {
@@ -2220,21 +2275,50 @@ export function AuthProvider({ children }) {
       // Derive a short type string — strip "_creative" suffix if present
       const typeShort = creativeType?.replace("_creative", "") || "ads";
 
-      const payload = {
-        brand_id: brandId,
-        creativedesigns: variations.map((v) => ({
-          name: v.name || "Untitled Design",
-          score:
-            parseInt(
-              String(v.copy?.performance_score ?? "").split("/")[0],
-              10,
-            ) || 0,
-          copy: JSON.stringify(v.copy || {}),
-          canvas: { canvas: v.canvas, elements: v.elements },
-          type: typeShort,
-          sub_type: v.category?.toLowerCase() || "image",
-        })),
-      };
+      // Build each design entry, rendering a base64 thumbnail so the backend can
+      // store a preview (the creatives list shows it without re-rendering the
+      // full canvas). NOTE: `thumbnail` is a base64 data URL — the backend column
+      // must be able to hold it (e.g. LONGTEXT), not a short URL field.
+      // Normalize the canvas shape (string / nested) like the on-screen
+      // DesignCanvas so involk + redesign variations both render.
+      const creativedesigns = await Promise.all(
+        variations.map(async (v) => {
+          let design = v.canvas;
+          if (typeof design === "string") {
+            try {
+              design = JSON.parse(design);
+            } catch {
+              design = null;
+            }
+          }
+          const canvasSpec = design?.canvas || design;
+          const els = Array.isArray(v.elements)
+            ? v.elements
+            : Array.isArray(design?.elements)
+              ? design.elements
+              : [];
+          const thumbnail = canvasSpec
+            ? await renderDesignToThumbnail({ canvas: canvasSpec, elements: els })
+            : null;
+
+          return {
+            name: v.name || "Untitled Design",
+            score:
+              parseInt(
+                String(v.copy?.performance_score ?? "").split("/")[0],
+                10,
+              ) || 0,
+            copy: JSON.stringify(v.copy || {}),
+            canvas: { canvas: v.canvas, elements: v.elements },
+            // base64 data URL: "data:image/jpeg;base64,…"
+            thumbnail,
+            type: typeShort,
+            sub_type: v.category?.toLowerCase() || "image",
+          };
+        }),
+      );
+
+      const payload = { brand_id: brandId, creativedesigns };
 
       console.log("saveDesign payload:", payload);
 
@@ -3176,7 +3260,7 @@ export function AuthProvider({ children }) {
   // };
 
   const fetchDesignTemplates = useCallback(
-    async ({ type, category, type_size, num_template = 3 }) => {
+    async ({ type, category, type_size, num_template = 3, design_type }) => {
       if (!token) {
         return { ok: false, message: "Not authenticated" };
       }
@@ -3190,6 +3274,9 @@ export function AuthProvider({ children }) {
         sub_category: formattedCategory,
         type_size,
         num_template,
+        // Scraive design axis: "ads" | "social" | "designer". Passed only by the
+        // scraive+redesign generation flows; omitted when the caller doesn't set it.
+        ...(design_type ? { design_type } : {}),
       };
 
       console.log("🎨 fetchDesignTemplates payload:", payload);
@@ -3271,6 +3358,7 @@ export function AuthProvider({ children }) {
         generateCustomCreative,
         createDesign,
         creativeAiChat,
+        aiRedesign,
         updateBrandById,
         handleDelete,
         fetchAdsAccounts,

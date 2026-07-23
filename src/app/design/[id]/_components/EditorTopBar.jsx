@@ -1,18 +1,20 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef } from "react";
 import {
   ChevronLeft,
   Undo2,
   Redo2,
   Eye,
-  Loader2,
   Minus,
   Plus,
-  Check,
+  Share2,
+  Save,
+  Loader2,
 } from "lucide-react";
+import ShareModal from "./share/ShareModal";
 
-/** Top chrome: back, editable title, undo/redo, zoom, preview/save. */
+/** Top chrome: back, editable title, undo/redo, zoom, preview/share. */
 export default function EditorTopBar({
   name,
   onNameChange,
@@ -28,7 +30,12 @@ export default function EditorTopBar({
   saving,
   onSave,
   onPreview,
+  canvas,
+  elements,
 }) {
+  const [showShare, setShowShare] = useState(false);
+  const shareBtnRef = useRef(null);
+
   return (
     <header className="h-14 shrink-0 flex items-center gap-2 px-3 bg-surface border-b border-gray-200 z-30">
       <button
@@ -69,6 +76,22 @@ export default function EditorTopBar({
         </IconBtn>
       </div>
 
+      {/* Save — beside the zoom. Manual click confirms with a toast; the editor
+          also autosaves every 30s in the background. */}
+      <button
+        onClick={() => onSave()}
+        disabled={saving}
+        className="flex items-center gap-1.5 px-3 h-9 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+        title="Save design"
+      >
+        {saving ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Save className="w-4 h-4" />
+        )}
+        <span className="hidden sm:inline">{saving ? "Saving…" : "Save"}</span>
+      </button>
+
       <button
         onClick={onPreview}
         className="flex items-center gap-1.5 px-3 h-9 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition cursor-pointer"
@@ -79,17 +102,34 @@ export default function EditorTopBar({
       </button>
 
       <button
-        onClick={onSave}
-        disabled={saving || !dirty}
-        className="flex items-center gap-1.5 px-4 h-9 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition cursor-pointer"
+        ref={shareBtnRef}
+        onClick={() => setShowShare((v) => !v)}
+        className="flex items-center gap-1.5 px-4 h-9 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition cursor-pointer"
+        title="Share design"
       >
-        {saving ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : dirty ? null : (
-          <Check className="w-4 h-4" />
-        )}
-        {saving ? "Saving…" : dirty ? "Save" : "Saved"}
+        <Share2 className="w-4 h-4" />
+        Share
       </button>
+
+      {showShare && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowShare(false)} />
+          <div className="relative z-50">
+            <ShareModal
+              isOpen={showShare}
+              onClose={() => setShowShare(false)}
+              buttonRef={shareBtnRef}
+              canvas={canvas}
+              elements={elements}
+              name={name}
+              onSave={onSave}
+              saving={saving}
+              dirty={dirty}
+              onPresent={onPreview}
+            />
+          </div>
+        </>
+      )}
     </header>
   );
 }

@@ -32,7 +32,7 @@ import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 // ── constants ─────────────────────────────────────────────────────────────────
 const SIZE_OPTIONS = [
   { value: "1200x627", label: "LinkedIn Horizontal" },
-  { value: "627x627", label: "LinkedIn Square" },
+  { value: "1080x1080", label: "LinkedIn Square" },
   { value: "1080x1080", label: "Instagram Square" },
   { value: "1080x1350", label: "Instagram Portrait" },
   { value: "1080x1920", label: "Stories / Reels" },
@@ -168,6 +168,21 @@ const PostsForm = ({
 
     setError("");
   };
+
+  // Select a size preset by its unique label. Values can repeat (LinkedIn Square
+  // and Instagram Square are both 1080x1080), so tracking only the value would
+  // highlight both and resolve the wrong Scraive category — we store the label.
+  const selectSize = (s) => {
+    setFormData((prev) => ({ ...prev, size: s.value, sizeLabel: s.label }));
+    setError("");
+  };
+
+  // The label of the currently selected size. Falls back to the first option
+  // matching the stored value (so exactly one is active before any click).
+  const activeSizeLabel =
+    formData.sizeLabel ||
+    SIZE_OPTIONS.find((s) => s.value === formData.size)?.label ||
+    "";
 
   const togglePlatform = (val) => {
     const current = formData.platforms || [];
@@ -493,9 +508,12 @@ const PostsForm = ({
     setError("");
 
     try {
-      // Resolve the selected size's label (Scraive category) from its value.
-      const sizeOpt = SIZE_OPTIONS.find((s) => s.value === formData.size);
-      const sizeLabel = sizeOpt?.label || formData.size;
+      // Resolve the selected size's label (Scraive category). Prefer the stored
+      // label — value alone is ambiguous when two presets share dimensions.
+      const sizeLabel =
+        formData.sizeLabel ||
+        SIZE_OPTIONS.find((s) => s.value === formData.size)?.label ||
+        formData.size;
 
       // 1. FETCH DESIGN TEMPLATES FIRST (redesign engine only)
       // Scraive templates are only needed by the "redesign" engine. Involk
@@ -507,6 +525,7 @@ const PostsForm = ({
           type: "image",
           category: sizeLabel,
           type_size: formData.size,
+          design_type: "social",
         });
 
         if (!templateRes.ok) {
@@ -926,24 +945,27 @@ const PostsForm = ({
 
             <Field label="Post Size">
               <div className="flex flex-wrap gap-2">
-                {SIZE_OPTIONS.map((s) => (
-                  <button
-                    key={s.value}
-                    onClick={() => field("size", s.value)}
-                    className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
-                      formData.size === s.value
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                        : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className="text-xs font-semibold">{s.label}</p>
-                    <p
-                      className={`text-[10px] mt-0.5 ${formData.size === s.value ? "text-emerald-500" : "text-gray-400"}`}
+                {SIZE_OPTIONS.map((s) => {
+                  const active = activeSizeLabel === s.label;
+                  return (
+                    <button
+                      key={s.label}
+                      onClick={() => selectSize(s)}
+                      className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
+                        active
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                          : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
+                      }`}
                     >
-                      {s.value}
-                    </p>
-                  </button>
-                ))}
+                      <p className="text-xs font-semibold">{s.label}</p>
+                      <p
+                        className={`text-[10px] mt-0.5 ${active ? "text-emerald-500" : "text-gray-400"}`}
+                      >
+                        {s.value}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             </Field>
 

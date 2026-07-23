@@ -134,6 +134,10 @@ function normalizeDesign(raw) {
   }
 
   return {
+    // Preserve every field the endpoint returned (s3_key, status, thumbnail,
+    // sub_type, created_at, updated_at, user_id, fav, …) so nothing is dropped;
+    // the transformed fields below override the raw ones where shapes differ.
+    ...raw,
     id: raw.id,
     name: raw.name || "Untitled Design",
     type: raw.sub_type || raw.type || "image",
@@ -151,7 +155,8 @@ function normalizeDesign(raw) {
     canvas: canvasData || { width: 800, height: 450, background: "#ffffff" },
     elements,
     brand_id: raw.brand_id,
-    image: raw.image_url || null,
+    // Endpoint returns `thumbnail`, not `image_url` — fall back so previews work.
+    image: raw.image_url || raw.thumbnail || null,
   };
 }
 
@@ -673,13 +678,13 @@ export default function CreativesPage() {
           >
             <Plus className="w-4 h-4" /> Create from URL
           </Link>
-          {/* Scraive entry point — forces the Scraive templates → /creatives/redesign path */}
+          {/* Create using Scraive button — commented out.
           <Link
             href="/studio/create-from-url?engine=redesign"
             className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
           >
             <Plus className="w-4 h-4" /> Create using Scraive
-          </Link>
+          </Link> */}
           <Link
             href="/studio/ai-select"
             className="flex items-center gap-2 border border-gray-300 hover:bg-gray-200 text-gray-900 text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
@@ -1077,7 +1082,18 @@ const CreativeCard = ({
         className="relative overflow-hidden bg-gray-100 flex items-center justify-center"
         style={{ aspectRatio: "16/9", minHeight: 120 }}
       >
-        {hasCanvas ? (
+        {/* Prefer the backend thumbnail when present; only render the canvas
+            for designs that don't have one. */}
+        {c.thumbnail ? (
+          <img
+            src={c.thumbnail}
+            alt={c.name}
+            className="w-full h-auto block transition-transform duration-500 group-hover:scale-[1.04]"
+            onError={(e) => {
+              e.target.style.display = "none";
+            }}
+          />
+        ) : hasCanvas ? (
           <div className="w-full flex items-center justify-center p-2 bg-gray-50">
             <DesignCanvas
               variation={{ canvas: c.canvas, elements: c.elements }}
@@ -1240,7 +1256,16 @@ const TableView = ({
               <td className="px-5 py-3">
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-10 rounded-lg overflow-hidden bg-gray-100 shrink-0 border border-gray-100 flex items-center justify-center">
-                    {c.canvas && c.elements?.length > 0 ? (
+                    {c.thumbnail ? (
+                      <img
+                        src={c.thumbnail}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                        }}
+                      />
+                    ) : c.canvas && c.elements?.length > 0 ? (
                       <DesignCanvas
                         variation={{ canvas: c.canvas, elements: c.elements }}
                         maxW={56}
@@ -1407,7 +1432,15 @@ const Sidebar = ({
           className="relative bg-gray-50 border-b border-gray-100 flex items-center justify-center group/preview"
           style={{ minHeight: 200 }}
         >
-          {hasCanvas ? (
+          {/* Prefer the backend thumbnail for the preview; fall back to
+              rendering the canvas only when there isn't one. */}
+          {c.thumbnail ? (
+            <img
+              src={c.thumbnail}
+              alt={c.name}
+              className="w-full h-auto block"
+            />
+          ) : hasCanvas ? (
             <DesignCanvas
               variation={{ canvas: c.canvas, elements: c.elements }}
             />
@@ -1436,14 +1469,17 @@ const Sidebar = ({
               Edit with editor
             </Link>
 
-            {/* Hovering Edit button — opens the Ai editor when it is built*/}
-            <div
-              onClick={() => toast.info("Coming soon")}
+            {/* Hovering Edit button — opens the editor with the Klux AI panel
+                already open via the `?panel=klux` deep link. */}
+            <Link
+              href={`/design/${c.id}?panel=klux`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center gap-2 bg-surface/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 hover:scale-105 rounded-lg text-sm font-semibold text-gray-700 hover:bg-surface transition"
             >
               <Edit2 className="w-3.5 h-3.5" />
               Edit with Ai
-            </div>
+            </Link>
           </div>
         </div>
 

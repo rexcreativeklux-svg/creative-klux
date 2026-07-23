@@ -5,6 +5,13 @@ import KluxSuggestions from "./KluxSuggestions";
 import KluxComposer from "./KluxComposer";
 import KluxMessageList from "./KluxMessageList";
 import useKluxAi from "./useKluxAi";
+import { KLUX_ACTIONS } from "./kluxActions";
+
+// The "Edit with Ai" entry point drops the user straight into a redesign, so we
+// pre-fill the composer with the "Redesign this page" action's full prompt.
+// Sourced from KLUX_ACTIONS so the text stays single-defined.
+const REDESIGN_SEED =
+  KLUX_ACTIONS.find((a) => a.id === "redesign")?.prompt ?? "";
 
 /**
  * Klux AI panel — our take on Canva AI. Empty state shows the big prompt and the
@@ -13,10 +20,13 @@ import useKluxAi from "./useKluxAi";
  * bottom. The actual assistant call lives behind runKluxAi() — this panel is the
  * chat surface around it.
  *
- * Props: { insert, setBackground, background, editor }
+ * Props: { insert, setBackground, background, editor, kluxSeedRedesign }
  */
-export default function KluxAiPanel({ editor }) {
-  const klux = useKluxAi({ editor });
+export default function KluxAiPanel({ editor, kluxSeedRedesign }) {
+  const klux = useKluxAi({
+    editor,
+    initialInput: kluxSeedRedesign ? REDESIGN_SEED : "",
+  });
   const started = klux.messages.length > 0 || klux.working;
 
   return (
@@ -25,11 +35,14 @@ export default function KluxAiPanel({ editor }) {
         {started ? (
           <KluxMessageList messages={klux.messages} working={klux.working} />
         ) : (
-          <div className="flex flex-col gap-6 pt-2">
+          <div className="flex flex-col pt-2">
             <h2 className="text-3xl font-extrabold leading-tight text-[#155dfc]">
               What shall we do with this design?
             </h2>
-            <KluxSuggestions onPick={klux.send} />
+            {/* Suggestions sit lower, giving the heading room to breathe. */}
+            <div className="mt-16">
+              <KluxSuggestions onPick={klux.send} />
+            </div>
           </div>
         )}
       </div>

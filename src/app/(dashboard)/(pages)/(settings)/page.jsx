@@ -8,7 +8,7 @@ export default function ProfilePanel({ setActivePanel }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [billingOpen, setBillingOpen] = useState(false);
+  // const [billingOpen, setBillingOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
 
   const navigateTo = (view) => {
@@ -17,14 +17,14 @@ export default function ProfilePanel({ setActivePanel }) {
   };
 
   const isActive = (view) => pathname === `/settings/${view}`;
-  const isBillingActive = () => pathname.startsWith("/settings/billing");
+  // const isBillingActive = () => pathname.startsWith("/settings/billing");
   const isIntegrationsActive = () => 
     pathname.startsWith("/settings/socials") || 
     pathname.startsWith("/settings/ads");
 
   // Auto-open dropdowns when inside their section
   useEffect(() => {
-    if (isBillingActive()) setBillingOpen(true);
+    // if (isBillingActive()) setBillingOpen(true);
     if (isIntegrationsActive()) setIntegrationsOpen(true);
   }, [pathname]);
 
@@ -59,7 +59,7 @@ export default function ProfilePanel({ setActivePanel }) {
           </li>
 
           {/* Billing Dropdown */}
-          <li>
+          {/* <li>
             <div
               onClick={() => setBillingOpen(!billingOpen)}
               className={`flex justify-between items-center cursor-pointer ${
@@ -104,7 +104,7 @@ export default function ProfilePanel({ setActivePanel }) {
                 </li>
               </ul>
             )}
-          </li>
+          </li> */}
 
           {/* Integrations Dropdown */}
           <li>

@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Sparkles, User, Copy, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import MessageAttachments from "./MessageAttachments";
+import { splitMessageAttachments } from "./attachmentUrls";
 
 // Long messages collapse to this height with a "See more" toggle.
 const COLLAPSED_MAX_HEIGHT = 220;
@@ -122,6 +124,13 @@ export default function AiChatMessage({ message, config }) {
   const color = config?.color || "#7c3aed";
   const colorRgb = config?.colorRgb || "124,58,237";
 
+  // Attachments live inside the message string — lift them out so the files
+  // render as tiles above and only the prose goes through the text renderer.
+  const { text, urls } = useMemo(
+    () => splitMessageAttachments(message.content),
+    [message.content],
+  );
+
   const [copied, setCopied] = useState(false);
 
   const [expanded, setExpanded] = useState(false);
@@ -132,12 +141,13 @@ export default function AiChatMessage({ message, config }) {
     const el = contentRef.current;
     if (!el) return;
     setIsOverflowing(el.scrollHeight > COLLAPSED_MAX_HEIGHT + 8);
-  }, [message.content]);
+  }, [text]);
 
   const handleCopy = async () => {
-    if (!message.content) return;
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(message.content);
+      // Copy what's on screen — the prose, not the appended URL block.
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -208,6 +218,10 @@ export default function AiChatMessage({ message, config }) {
             : "1px solid #e9ecef",
         }}
       >
+        {/* Files ride ABOVE the text — you see what was sent before reading it,
+            and they sit outside the collapse so "See more" never hides them. */}
+        <MessageAttachments urls={urls} isUser={isUser} />
+
         {/* Collapsible message body */}
         <div
           ref={contentRef}
@@ -218,9 +232,9 @@ export default function AiChatMessage({ message, config }) {
           }}
         >
           {isUser ? (
-            <UserMessageContent content={message.content} />
+            <UserMessageContent content={text} />
           ) : (
-            <MessageContent content={message.content} color={color} />
+            <MessageContent content={text} color={color} />
           )}
 
           {/* fade-out hint while collapsed */}
@@ -284,7 +298,7 @@ export default function AiChatMessage({ message, config }) {
             flexDirection: isUser ? "row-reverse" : "row",
           }}
         >
-          {message.content && (
+          {text && (
             <button
               type="button"
               onClick={handleCopy}

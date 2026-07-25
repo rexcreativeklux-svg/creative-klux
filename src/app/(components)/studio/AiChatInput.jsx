@@ -15,9 +15,15 @@
 // palette), which is why the send button and focus ring stay inline styles.
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, SendHorizontal } from "lucide-react";
+import { FileText, Film, Loader2, Music, Paperclip, Plus, SendHorizontal, X } from "lucide-react";
+import { MEDIA_ACCEPT } from "@/app/(components)/gallery/mediaTypes";
 import VoiceMicButton from "./VoiceMicButton";
+import useGalleryUpload from "./useGalleryUpload";
 import useVoiceInput, { describeVoiceState } from "./useVoiceInput";
+import { buildMessageWithAttachments } from "./attachmentUrls";
+
+/** Icon per non-image attachment category (images render their own thumbnail). */
+const CATEGORY_ICON = { video: Film, audio: Music, document: FileText };
 
 export default function AiChatInput({
   onSend,
@@ -28,12 +34,15 @@ export default function AiChatInput({
   const [value, setValue] = useState("");
   const [focused, setFocused] = useState(false);
   const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const color = config?.color || "#7c3aed";
   const colorRgb = config?.colorRgb || "124,58,237";
 
   const voice = useVoiceInput({ onText: setValue });
   const voiceStatus = describeVoiceState(voice);
+  const { attachments, uploading, addFiles, removeAttachment, clearAttachments } =
+    useGalleryUpload();
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -44,9 +53,13 @@ export default function AiChatInput({
 
   const handleSubmit = () => {
     const trimmed = value.trim();
-    if (!trimmed || isLoading) return;
-    onSend(trimmed);
+    // A message may be files only — but never empty, and never mid-upload.
+    if ((!trimmed && attachments.length === 0) || isLoading || uploading) return;
+    // Attachment URLs are folded into the message string itself; there is no
+    // separate attachments field anywhere downstream.
+    onSend(buildMessageWithAttachments(trimmed, attachments));
     setValue("");
+    clearAttachments();
   };
 
   const handleKeyDown = (e) => {
@@ -56,24 +69,84 @@ export default function AiChatInput({
     }
   };
 
-  const canSend = value.trim().length > 0 && !isLoading;
+  const canSend = (value.trim().length > 0 || attachments.length > 0) && !isLoading && !uploading;
 
   return (
     <div>
       <div
         style={{
-          display: "flex",
-          alignItems: "flex-end",
-          gap: 8,
           borderRadius: 14,
           border: `1.5px solid ${focused ? `rgba(${colorRgb}, 0.6)` : "#e5e7eb"}`,
-          padding: "9px 10px",
           background: "#fff",
           transition: "border-color 0.2s, box-shadow 0.2s",
           boxShadow: focused ? `0 0 0 3px rgba(${colorRgb}, 0.1)` : "none",
         }}
       >
-        <textarea
+        {/* Staged files — one row that scrolls sideways, never wraps, so the
+            input keeps its height however many are attached. */}
+        {attachments.length > 0 && (
+          <div className="hide-scrollbar flex gap-1.5 overflow-x-auto border-b border-gray-100 px-2.5 pb-2 pt-2.5">
+            {attachments.map((item) => {
+              const Icon = CATEGORY_ICON[item.category] || Paperclip;
+              return (
+                <div
+                  key={item.id}
+                  className="relative flex w-36 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 py-1 pl-1 pr-6"
+                >
+                  {item.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.previewUrl}
+                      alt={item.name}
+                      className="h-6 w-6 shrink-0 rounded object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-gray-200">
+                      <Icon className="h-3 w-3 text-gray-500" />
+                    </span>
+                  )}
+                  <span className="truncate text-[10px] font-medium text-gray-700">
+                    {item.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(item.id)}
+                    aria-label={`Remove ${item.name}`}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-gray-400 transition-colors hover:text-red-600 cursor-pointer"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            gap: 8,
+            padding: "9px 10px",
+          }}
+        >
+          {/* Attach — uploads to the gallery, same pipeline as AI Select. */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || isLoading}
+            aria-label="Attach files from your device"
+            title="Attach files from your device"
+            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+          >
+            {uploading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+          </button>
+
+          <textarea
           ref={textareaRef}
           rows={1}
           value={value}
@@ -137,7 +210,21 @@ export default function AiChatInput({
           ) : (
             <SendHorizontal style={{ width: 14, height: 14 }} />
           )}
-        </button>
+          </button>
+        </div>
+
+        {/* Hidden picker — same accept list as every other gallery upload. */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={MEDIA_ACCEPT}
+          className="hidden"
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.target.value = ""; // let the same file be picked again
+          }}
+        />
       </div>
 
       {/* Status line — swaps to the live take, otherwise the keyboard hint. */}

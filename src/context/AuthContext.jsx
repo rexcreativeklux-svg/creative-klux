@@ -2181,7 +2181,7 @@ export function AuthProvider({ children }) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          message,
+          message, // a plain string; any attachment URLs are appended inside it
           creative_type: creativeType,
           mode, // "build" | "plan"
           history, // array of { role: "user"|"assistant", content: string }

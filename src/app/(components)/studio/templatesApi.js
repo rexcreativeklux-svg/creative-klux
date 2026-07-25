@@ -107,6 +107,13 @@ export function normalizeTemplate(raw, index = 0) {
     author: pick(row, ["author", "creator", "owner", "user_name", "brand_name"]),
     meta: pick(row, ["updated_at", "created_at", "modified_at", "date"]),
     href: pick(row, ["href", "url", "link", "permalink"]),
+    // Drives the small globe badge beside the title. Defaults to false so a
+    // backend that doesn't model visibility simply never shows the badge.
+    isPublic:
+      row.is_public === true ||
+      row.public === true ||
+      row.visibility === "public" ||
+      row.status === "published",
     canvas: row.canvas ?? null,
   };
 }

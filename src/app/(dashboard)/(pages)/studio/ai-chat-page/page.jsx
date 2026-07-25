@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Sparkles, ArrowLeft, Tv2, Share2, Palette, Wand2,
@@ -468,6 +468,7 @@ export default function AiCreativeChatPage() {
 
     setPreviewResult(null);
 
+    // `initialMessage` already carries any attachment URLs appended inside it.
     if (initialMessage.trim()) {
       const userMsg = {
         role: "user",
@@ -496,7 +497,11 @@ export default function AiCreativeChatPage() {
 
   const handleSend = useCallback(
     async (content) => {
-      const userMsg = { role: "user", content, timestamp: new Date().toISOString() };
+      const userMsg = {
+        role: "user",
+        content,
+        timestamp: new Date().toISOString(),
+      };
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
 

@@ -731,7 +731,7 @@ export default function CreativesPage() {
 
       {/* ── Toolbar ── */}
       <div className="py-3 flex flex-wrap items-center gap-3 shrink-0">
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
+        <div className="relative flex-1 min-w-45 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
           <input
             type="text"

@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import PromptComposer from "@/app/(components)/studio/PromptComposer";
 import TemplatesSection from "@/app/(components)/studio/TemplatesSection";
+import { buildMessageWithAttachments } from "@/app/(components)/studio/attachmentUrls";
 
 /** The chat page's own pipeline key — see CREATIVE_CONFIG in ai-chat-page. */
 const DEFAULT_CREATIVE = "general";
@@ -45,12 +46,16 @@ export default function StudioSelectPage() {
    * @param {{prompt: string, model: string, mode: string, attachments: string[]}} payload
    */
   const handleSubmit = ({ prompt, model, mode, attachments }) => {
+    // Attachment URLs are folded into the message string itself, so the chat
+    // page receives one `initialMessage` and the API payload stays
+    // { message, creative_type, mode, history } with message a plain string.
+    const message = buildMessageWithAttachments(prompt, attachments);
+
     const params = new URLSearchParams({ creative: DEFAULT_CREATIVE, model, mode });
-    if (prompt) params.set("initialMessage", prompt);
-    attachments.forEach((url) => params.append("attachment", url));
+    if (message) params.set("initialMessage", message);
 
     console.log(
-      `🚀 [ai-select] launching chat — model="${model}", mode="${mode}", ${attachments.length} attachment(s)`,
+      `🚀 [ai-select] launching chat — model="${model}", mode="${mode}", ${attachments.length} attachment(s) inlined`,
     );
     router.push(`/studio/ai-chat-page?${params.toString()}`);
   };
@@ -79,34 +84,35 @@ export default function StudioSelectPage() {
         className="pointer-events-none absolute inset-x-0 top-0 h-[70vh] bg-[radial-gradient(55%_70%_at_50%_35%,rgba(0,61,218,0.07),transparent_70%)]"
       />
 
-      <div className="relative mx-auto w-full max-w-5xl px-5 pb-16 sm:px-8">
-        {/* Hero — sized to the visible area minus a deliberate 7rem sliver, so
-            the composer lands near the optical centre of the screen and the
-            template rail below peeks just enough to invite a scroll without
-            ever showing a whole card. */}
-        <section className="flex min-h-[calc(100vh-4rem-7rem)] flex-col justify-center pb-10">
-          {/* Greeting */}
-          <header className="mb-8 text-center">
-            {firstName && (
-              <h1 className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900">
-                Hi {firstName}
-                <span className="text-blue-600">.</span>
-              </h1>
-            )}
-            <h2 className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900">
-              What will you create next?
-            </h2>
-          </header>
+      {/* Hero — capped and centred. Sized to the visible area minus a deliberate
+          7rem sliver, so the composer lands near the optical centre of the
+          screen and the template rail below peeks just enough to invite a
+          scroll without ever showing a whole card. */}
+      <section className="relative mx-auto flex min-h-[calc(100vh-4rem-7rem)] w-full max-w-5xl flex-col justify-center px-5 pb-10 sm:px-8">
+        {/* Greeting */}
+        <header className="mb-8 text-center">
+          {firstName && (
+            <h1 className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900">
+              Hi {firstName}
+              <span className="text-blue-600">.</span>
+            </h1>
+          )}
+          <h2 className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900">
+            What will you create next?
+          </h2>
+        </header>
 
-          {/* Composer */}
-          <div className="mx-auto w-full max-w-3xl">
-            <PromptComposer onSubmit={handleSubmit} />
-          </div>
-        </section>
+        {/* Composer */}
+        <div className="mx-auto w-full max-w-3xl">
+          <PromptComposer onSubmit={handleSubmit} />
+        </div>
+      </section>
 
-        {/* Template rails */}
-        <TemplatesSection onSelect={handleTemplateSelect} />
-      </div>
+      {/* Template rails — full-bleed, deliberately outside the wrapper above */}
+      <TemplatesSection
+        onSelect={handleTemplateSelect}
+        onBrowseAll={() => router.push("/designs")}
+      />
     </div>
   );
 }

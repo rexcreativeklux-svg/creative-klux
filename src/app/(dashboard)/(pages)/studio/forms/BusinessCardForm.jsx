@@ -12,6 +12,7 @@ import { FloatingAnimation, FloatingElements } from "@/app/(components)/Floating
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
+import OptionChip from "./OptionChip";
 
 // ── Designer Creative theme color ─────────────────────────────────────────────
 const THEME = "#7c3aed"; // violet
@@ -688,46 +689,32 @@ const BusinessCardForm = ({
           <div className="flex flex-col gap-6">
             <SectionTitle>Style &amp; Layout</SectionTitle>
 
-            {/* Card Size */}
+            {/* Card Size — compact chips, each only as wide as its own text */}
             <Field label="Card Size" required>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {CARD_SIZES.map((s) => (
-                  <button
+                  <OptionChip
                     key={s.value}
+                    label={s.label}
+                    desc={s.desc}
+                    active={formData.cardSize === s.value}
                     onClick={() => field("cardSize", s.value)}
-                    className={`text-left px-3 py-2.5 cursor-pointer rounded-xl border-2 transition-all
-                      ${formData.cardSize === s.value
-                        ? "border-violet-600 bg-violet-50"
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                      }`}
-                  >
-                    <p className={`text-xs font-semibold ${formData.cardSize === s.value ? "text-violet-700" : "text-gray-700"}`}>
-                      {s.label}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{s.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
 
             {/* Card Layout */}
             <Field label="Card Orientation" required>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {CARD_LAYOUTS.map((l) => (
-                  <button
+                  <OptionChip
                     key={l.value}
+                    label={l.label}
+                    desc={l.desc}
+                    active={formData.cardLayout === l.value}
                     onClick={() => field("cardLayout", l.value)}
-                    className={`text-left px-3 py-2.5 cursor-pointer rounded-xl border-2 transition-all
-                      ${formData.cardLayout === l.value
-                        ? "border-violet-600 bg-violet-50"
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                      }`}
-                  >
-                    <p className={`text-xs font-semibold ${formData.cardLayout === l.value ? "text-violet-700" : "text-gray-700"}`}>
-                      {l.label}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{l.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
@@ -753,22 +740,15 @@ const BusinessCardForm = ({
 
             {/* Finish */}
             <Field label="Print Finish">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {FINISHES.map((f) => (
-                  <button
+                  <OptionChip
                     key={f.value}
+                    label={f.label}
+                    desc={f.desc}
+                    active={formData.finish === f.value}
                     onClick={() => field("finish", f.value)}
-                    className={`text-left px-3 py-2.5 cursor-pointer rounded-xl border-2 transition-all
-                      ${formData.finish === f.value
-                        ? "border-violet-600 bg-violet-50"
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                      }`}
-                  >
-                    <p className={`text-xs font-semibold ${formData.finish === f.value ? "text-violet-700" : "text-gray-700"}`}>
-                      {f.label}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{f.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>

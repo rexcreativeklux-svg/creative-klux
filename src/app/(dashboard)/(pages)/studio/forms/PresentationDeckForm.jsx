@@ -6,6 +6,7 @@ import {
   Globe, Loader2, X, ChevronRight, FileUp, Wand2, Target, LayoutTemplate, MonitorPlay, CheckCircle2,
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
+import OptionChip from "./OptionChip";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -358,7 +359,7 @@ const PresentationDeckForm = ({
                       type="text"
                       value={brandColor}
                       onChange={(e) => /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) && setBrandColor(e.target.value)}
-                      className={`${inputCls} w-[5.5rem]! flex-none px-2 text-sm font-mono`}
+                      className={`${inputCls} w-22! flex-none px-2 text-sm font-mono`}
                       maxLength={7}
                     />
                   </div>
@@ -396,38 +397,34 @@ const PresentationDeckForm = ({
           <div className="flex flex-col gap-5">
             <SectionTitle>Style &amp; Format</SectionTitle>
 
-            {/* Visual Style */}
+            {/* Visual Style — compact chips, each sized to its own content */}
             <Field label="Visual Style">
               <div className="flex flex-wrap gap-2">
                 {SLIDE_STYLE_OPTIONS.map((s) => (
-                  <button
+                  <OptionChip
                     key={s.value}
+                    label={s.label}
+                    desc={s.desc}
+                    theme={T}
+                    active={slideStyle === s.value}
                     onClick={() => setSlideStyle(s.value)}
-                    className={`text-left px-3 py-2.5 rounded-lg border-2 cursor-pointer transition-all ${
-                      slideStyle === s.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-bold ${slideStyle === s.value ? T.textDark : "text-gray-700"}`}>{s.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{s.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
 
             {/* Number of Slides */}
             <Field label="Number of Slides">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {SLIDE_COUNT_OPTIONS.map((s) => (
-                  <button
+                  <OptionChip
                     key={s.value}
+                    label={s.label}
+                    desc={s.desc}
+                    theme={T}
+                    active={slideCount === s.value}
                     onClick={() => setSlideCount(s.value)}
-                    className={`text-left px-3 py-2.5 rounded-lg border-2 cursor-pointer transition-all ${
-                      slideCount === s.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-bold ${slideCount === s.value ? T.textDark : "text-gray-700"}`}>{s.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{s.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
@@ -459,35 +456,31 @@ const PresentationDeckForm = ({
             <Field label="Target Audience">
               <div className="flex flex-wrap gap-2">
                 {AUDIENCE_OPTIONS.map((a) => (
-                  <button
+                  <OptionChip
                     key={a.value}
+                    label={a.label}
+                    desc={a.desc}
+                    theme={T}
+                    active={audience === a.value}
                     onClick={() => setAudience(a.value)}
-                    className={`text-left px-3 py-2.5 rounded-lg border-2 cursor-pointer transition-all ${
-                      audience === a.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-bold ${audience === a.value ? T.textDark : "text-gray-700"}`}>{a.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{a.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
 
             {/* Slide Size + Export Format side by side */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Slide Size">
                 <div className="flex flex-wrap gap-2">
                   {SIZE_OPTIONS.map((s) => (
-                    <button
+                    <OptionChip
                       key={s.value}
+                      label={s.label}
+                      desc={s.desc}
+                      theme={T}
+                      active={size === s.value}
                       onClick={() => setSize(s.value)}
-                      className={`text-left px-3 py-2.5 rounded-lg border-2 cursor-pointer transition-all ${
-                        size === s.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                      }`}
-                    >
-                      <p className={`text-xs font-bold ${size === s.value ? T.textDark : "text-gray-700"}`}>{s.label}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">{s.desc}</p>
-                    </button>
+                    />
                   ))}
                 </div>
               </Field>
@@ -495,16 +488,14 @@ const PresentationDeckForm = ({
               <Field label="Export Format">
                 <div className="flex flex-wrap gap-2">
                   {FILE_FORMAT_OPTIONS.map((f) => (
-                    <button
+                    <OptionChip
                       key={f.value}
+                      label={f.label}
+                      desc={f.desc}
+                      theme={T}
+                      active={fileFormat === f.value}
                       onClick={() => setFileFormat(f.value)}
-                      className={`text-left px-3 py-2.5 rounded-lg border-2 cursor-pointer transition-all ${
-                        fileFormat === f.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                      }`}
-                    >
-                      <p className={`text-xs font-bold ${fileFormat === f.value ? T.textDark : "text-gray-700"}`}>{f.label}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">{f.desc}</p>
-                    </button>
+                    />
                   ))}
                 </div>
               </Field>

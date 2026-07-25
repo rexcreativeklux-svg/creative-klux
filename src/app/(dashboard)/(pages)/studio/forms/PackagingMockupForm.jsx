@@ -645,28 +645,24 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
               Format & Goals
             </SectionTitle>
 
-            {/* Resolution — groups sit side by side so the block stays short */}
+            {/* Resolution — grouped chips; the glyph shows the aspect ratio */}
             <Field label="Resolution" required hint="Digital for social, Print for 300 DPI output">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-3">
                 {Object.entries(resolutionGroups).map(([group, options]) => (
                   <div key={group}>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{group}</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {options.map((r) => {
-                        const active = formData.resolution === r.value;
-                        return (
-                          <button key={r.value} onClick={() => field("resolution", r.value)}
-                            className={`flex items-center gap-2.5 text-left px-3 py-2.5 cursor-pointer rounded-xl border-2 transition-all ${
-                              active ? `${T.border} ${T.bgLight} ${T.textDark}` : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
-                            }`}>
-                            <AspectGlyph value={r.value} active={active} />
-                            <span className="min-w-0">
-                              <span className="block text-xs font-semibold truncate">{r.label}</span>
-                              <span className={`block text-[10px] mt-0.5 ${active ? "text-violet-500" : "text-gray-400"}`}>{r.desc}</span>
-                            </span>
-                          </button>
-                        );
-                      })}
+                    <div className="flex flex-wrap gap-2">
+                      {options.map((r) => (
+                        <OptionChip
+                          key={r.value}
+                          glyph={<AspectGlyph value={r.value} />}
+                          label={r.label}
+                          desc={r.desc}
+                          theme={T}
+                          active={formData.resolution === r.value}
+                          onClick={() => field("resolution", r.value)}
+                        />
+                      ))}
                     </div>
                   </div>
                 ))}
@@ -677,13 +673,14 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
             <Field label="File Format">
               <div className="flex flex-wrap gap-2">
                 {FILE_FORMATS.map((f) => (
-                  <button key={f.value} onClick={() => field("fileFormat", f.value)}
-                    className={`flex items-baseline gap-2 px-4 py-2 rounded-xl border-2 cursor-pointer text-xs transition-all ${
-                      formData.fileFormat === f.value ? T.pill : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
-                    }`}>
-                    <span className="font-bold">{f.label}</span>
-                    <span className={`text-[10px] ${formData.fileFormat === f.value ? "text-violet-500" : "text-gray-400"}`}>{f.desc}</span>
-                  </button>
+                  <OptionChip
+                    key={f.value}
+                    label={f.label}
+                    desc={f.desc}
+                    theme={T}
+                    active={formData.fileFormat === f.value}
+                    onClick={() => field("fileFormat", f.value)}
+                  />
                 ))}
               </div>
             </Field>
@@ -702,17 +699,18 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
               </div>
             </Field>
 
-            {/* Audience — 5 across on wide screens so the row fills evenly */}
+            {/* Audience */}
             <Field label="Audience">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCES.map((a) => (
-                  <button key={a.value} onClick={() => field("audience", a.value)}
-                    className={`text-left px-3 py-2.5 cursor-pointer rounded-xl border-2 transition-all ${
-                      formData.audience === a.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}>
-                    <p className={`text-xs font-semibold ${formData.audience === a.value ? T.textDark : "text-gray-700"}`}>{a.label}</p>
-                    <p className={`text-[10px] mt-0.5 ${formData.audience === a.value ? "text-violet-500" : "text-gray-400"}`}>{a.desc}</p>
-                  </button>
+                  <OptionChip
+                    key={a.value}
+                    label={a.label}
+                    desc={a.desc}
+                    theme={T}
+                    active={formData.audience === a.value}
+                    onClick={() => field("audience", a.value)}
+                  />
                 ))}
               </div>
             </Field>
@@ -918,21 +916,20 @@ const Field = ({ label, required, hint, children }) => (
 
 /**
  * Tiny outlined rectangle drawn to a resolution's aspect ratio (e.g. 1200x800),
- * so square vs. rectangular output is readable at a glance.
+ * so square vs. rectangular output is readable at a glance. Uses border-current
+ * so it inherits the colour of whatever badge it sits in.
  */
-const AspectGlyph = ({ value, active }) => {
+const AspectGlyph = ({ value }) => {
   const [w, h] = String(value).split("x").map(Number);
   const ratio  = w && h ? w / h : 1;
-  const MAX    = 18;
+  const MAX    = 14;
   const width  = ratio >= 1 ? MAX : Math.round(MAX * ratio);
   const height = ratio >= 1 ? Math.round(MAX / ratio) : MAX;
   return (
-    <span className="w-5 h-5 shrink-0 flex items-center justify-center">
-      <span
-        className={`block rounded-[3px] border-2 transition-colors ${active ? "border-violet-500" : "border-gray-300"}`}
-        style={{ width, height }}
-      />
-    </span>
+    <span
+      className="block rounded-xs border-[1.5px] border-current"
+      style={{ width, height }}
+    />
   );
 };
 const MediaBtn = ({ icon: Icon, label, onClick }) => (

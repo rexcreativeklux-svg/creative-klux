@@ -5,12 +5,14 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Globe, Image, Loader2, X, CheckCircle2, ChevronRight,
   FileUp, Wand2, LayoutTemplate, Target, Images,
+  RectangleVertical, RectangleHorizontal,
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
+import OptionChip from "./OptionChip";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -45,8 +47,8 @@ const SIZE_OPTIONS = [
 ];
 
 const ORIENTATION_OPTIONS = [
-  { value: "Portrait",  label: "Portrait",  w: 30, h: 44 },
-  { value: "Landscape", label: "Landscape", w: 44, h: 30 },
+  { value: "Portrait",  label: "Portrait",  icon: RectangleVertical },
+  { value: "Landscape", label: "Landscape", icon: RectangleHorizontal },
 ];
 
 const FONT_OPTIONS = [
@@ -649,83 +651,66 @@ const FlyerForm = ({
               </div>
             </Field>
 
-            {/* Audience */}
+            {/* Audience — compact chips, each sized to its own content */}
             <Field label="Target Audience" required>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCE_OPTIONS.map((a) => (
-                  <button
+                  <OptionChip
                     key={a.value}
+                    label={a.label}
+                    desc={a.desc}
+                    theme={T}
+                    active={audience === a.value}
                     onClick={() => { setAudience(a.value); setError(""); }}
-                    className={`text-left px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
-                      audience === a.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-bold ${audience === a.value ? T.textDark : "text-gray-700"}`}>{a.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{a.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
 
             {/* Flyer Size */}
             <Field label="Flyer Size">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {SIZE_OPTIONS.map((s) => (
-                  <button
+                  <OptionChip
                     key={s.value}
+                    label={s.label}
+                    desc={s.desc}
+                    theme={T}
+                    active={size === s.value}
                     onClick={() => setSize(s.value)}
-                    className={`text-left px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
-                      size === s.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-bold ${size === s.value ? T.textDark : "text-gray-700"}`}>{s.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{s.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
 
             {/* Orientation */}
             <Field label="Orientation">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {ORIENTATION_OPTIONS.map((o) => (
-                  <button
+                  <OptionChip
                     key={o.value}
+                    icon={o.icon}
+                    label={o.label}
+                    theme={T}
+                    active={orientation === o.value}
                     onClick={() => setOrientation(o.value)}
-                    className={`flex flex-col items-center gap-2 px-3 py-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] ${
-                      orientation === o.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-center h-10">
-                      <div
-                        className={`rounded border-2 transition-all ${orientation === o.value ? T.border : "border-gray-400"}`}
-                        style={{
-                          width:  `${o.w * 0.9}px`,
-                          height: `${o.h * 0.9}px`,
-                          background: orientation === o.value ? "#ecfdf5" : "#f9fafb",
-                        }}
-                      />
-                    </div>
-                    <p className={`text-xs font-semibold ${orientation === o.value ? T.textDark : "text-gray-700"}`}>{o.label}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
 
             {/* File Format */}
             <Field label="Export Format">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {FILE_FORMAT_OPTIONS.map((f) => (
-                  <button
+                  <OptionChip
                     key={f.value}
+                    label={f.label}
+                    desc={f.desc}
+                    theme={T}
+                    active={fileFormat === f.value}
                     onClick={() => setFileFormat(f.value)}
-                    className={`text-left px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
-                      fileFormat === f.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-bold ${fileFormat === f.value ? T.textDark : "text-gray-700"}`}>{f.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{f.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>

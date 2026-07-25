@@ -12,6 +12,7 @@ import { FloatingAnimation, FloatingElements } from "@/app/(components)/Floating
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
+import OptionChip from "./OptionChip";
 
 // ── Designer Creative theme color ─────────────────────────────────────────────
 const THEME = "#7c3aed";
@@ -677,52 +678,33 @@ const BannersPrintDigitalForm = ({
           <div className="flex flex-col gap-6">
             <SectionTitle>Size, Medium &amp; Purpose</SectionTitle>
 
-            {/* Medium toggle */}
+            {/* Medium toggle — compact chips, sized to their own content */}
             <Field label="Banner Medium" required>
-              <div className="grid grid-cols-3 gap-2">
-                {BANNER_MEDIUM.map((m) => {
-                  const Icon = m.icon;
-                  return (
-                    <button
-                      key={m.value}
-                      onClick={() => field("bannerMedium", m.value)}
-                      className={`flex items-center gap-2 px-3 py-3 cursor-pointer rounded-xl border-2 transition-all
-                        ${formData.bannerMedium === m.value
-                          ? "border-violet-600 bg-violet-50"
-                          : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                        }`}
-                    >
-                      <Icon className={`w-4 h-4 shrink-0 ${formData.bannerMedium === m.value ? "text-violet-600" : "text-gray-400"}`} />
-                      <div className="text-left">
-                        <p className={`text-xs font-semibold ${formData.bannerMedium === m.value ? "text-violet-700" : "text-gray-700"}`}>
-                          {m.label}
-                        </p>
-                        <p className="text-[10px] text-gray-400">{m.desc}</p>
-                      </div>
-                    </button>
-                  );
-                })}
+              <div className="flex flex-wrap gap-2">
+                {BANNER_MEDIUM.map((m) => (
+                  <OptionChip
+                    key={m.value}
+                    icon={m.icon}
+                    label={m.label}
+                    desc={m.desc}
+                    active={formData.bannerMedium === m.value}
+                    onClick={() => field("bannerMedium", m.value)}
+                  />
+                ))}
               </div>
             </Field>
 
             {/* Size — list changes based on medium */}
             <Field label={medium === "print" ? "Print Size" : "Digital Size"} required>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {sizeList.map((s) => (
-                  <button
+                  <OptionChip
                     key={s.value}
+                    label={s.label}
+                    desc={s.desc}
+                    active={formData.bannerSize === s.value}
                     onClick={() => field("bannerSize", s.value)}
-                    className={`text-left px-3 py-2.5 cursor-pointer rounded-xl border-2 transition-all
-                      ${formData.bannerSize === s.value
-                        ? "border-violet-600 bg-violet-50"
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                      }`}
-                  >
-                    <p className={`text-xs font-semibold leading-tight ${formData.bannerSize === s.value ? "text-violet-700" : "text-gray-700"}`}>
-                      {s.label}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{s.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
 
@@ -788,22 +770,15 @@ const BannersPrintDigitalForm = ({
 
             {/* Audience */}
             <Field label="Target Audience">
-              <div className="grid grid-cols-5 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCES.map((a) => (
-                  <button
+                  <OptionChip
                     key={a.value}
+                    label={a.label}
+                    desc={a.desc}
+                    active={formData.audience === a.value}
                     onClick={() => field("audience", a.value)}
-                    className={`text-left px-3 py-2.5 cursor-pointer rounded-xl border-2 transition-all
-                      ${formData.audience === a.value
-                        ? "border-violet-600 bg-violet-50"
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                      }`}
-                  >
-                    <p className={`text-xs font-semibold ${formData.audience === a.value ? "text-violet-700" : "text-gray-700"}`}>
-                      {a.label}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{a.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>

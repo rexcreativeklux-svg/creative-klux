@@ -5,6 +5,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Globe, Loader2, FileUp, X, CheckCircle2, ChevronRight,
   Sparkles, Images, Scan, BookOpen,
+  RectangleVertical, RectangleHorizontal,
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
@@ -46,14 +47,8 @@ const SIZE_OPTIONS = [
 ];
 
 const ORIENTATION_OPTIONS = [
-  {
-    value: "portrait", label: "Portrait",
-    svg: <svg width="24" height="38" viewBox="0 0 24 38" fill="none"><rect x="1" y="1" width="22" height="36" rx="2" stroke="currentColor" strokeWidth="1.5"/></svg>,
-  },
-  {
-    value: "landscape", label: "Landscape",
-    svg: <svg width="38" height="24" viewBox="0 0 38 24" fill="none"><rect x="1" y="1" width="36" height="22" rx="2" stroke="currentColor" strokeWidth="1.5"/></svg>,
-  },
+  { value: "portrait",  label: "Portrait",  icon: RectangleVertical },
+  { value: "landscape", label: "Landscape", icon: RectangleHorizontal },
 ];
 
 const CAMPAIGN_GOALS = [
@@ -653,42 +648,33 @@ const BrochuresForm = ({
               {Object.entries(sizeGroups).map(([type, sizes]) => (
                 <div key={type} className="mb-4">
                   <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{type}</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {sizes.map((s) => {
-                      const active = formData.size === s.value;
-                      return (
-                        <button
-                          key={s.value}
-                          onClick={() => field("size", s.value)}
-                          className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
-                            active ? `${T.border} ${T.bgLight} ${T.textDark}` : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
-                          }`}
-                        >
-                          <p className="text-xs font-semibold">{s.label}</p>
-                          <p className={`text-[10px] mt-0.5 ${active ? "text-violet-500" : "text-gray-400"}`}>{s.desc}</p>
-                        </button>
-                      );
-                    })}
+                  <div className="flex flex-wrap gap-2">
+                    {sizes.map((s) => (
+                      <OptionChip
+                        key={s.value}
+                        label={s.label}
+                        desc={s.desc}
+                        theme={T}
+                        active={formData.size === s.value}
+                        onClick={() => field("size", s.value)}
+                      />
+                    ))}
                   </div>
                 </div>
               ))}
             </Field>
 
             <Field label="Orientation">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-wrap gap-2">
                 {ORIENTATION_OPTIONS.map((o) => (
-                  <button
+                  <OptionChip
                     key={o.value}
+                    icon={o.icon}
+                    label={o.label}
+                    theme={T}
+                    active={formData.orientation === o.value}
                     onClick={() => field("orientation", o.value)}
-                    className={`flex flex-col items-center gap-2 py-4 cursor-pointer rounded-xl border-2 transition-all hover:scale-[1.02] ${
-                      formData.orientation === o.value
-                        ? `${T.border} ${T.bgLight}`
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <span className={formData.orientation === o.value ? T.textDark : "text-gray-400"}>{o.svg}</span>
-                    <p className={`text-xs font-semibold ${formData.orientation === o.value ? T.textDark : "text-gray-700"}`}>{o.label}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
@@ -710,20 +696,16 @@ const BrochuresForm = ({
             </Field>
 
             <Field label="Audience">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {AUDIENCES.map((a) => (
-                  <button
+                  <OptionChip
                     key={a.value}
+                    label={a.label}
+                    desc={a.desc}
+                    theme={T}
+                    active={formData.audience === a.value}
                     onClick={() => field("audience", a.value)}
-                    className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
-                      formData.audience === a.value
-                        ? `${T.border} ${T.bgLight}`
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-semibold ${formData.audience === a.value ? T.textDark : "text-gray-700"}`}>{a.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{a.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>

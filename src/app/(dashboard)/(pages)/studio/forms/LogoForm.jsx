@@ -12,6 +12,7 @@ import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import OptionChip from "./OptionChip";
 
 // ── Designer Creative theme color ─────────────────────────────────────────────
 const THEME = "#7c3aed"; // violet
@@ -633,23 +634,17 @@ const LogoForm = ({
           <div className="flex flex-col gap-6">
             <SectionTitle>Style &amp; Layout</SectionTitle>
 
+            {/* Compact chips — each option is only as wide as its own text */}
             <Field label="Logo Type" required>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {LOGO_STYLES.map((s) => (
-                  <button
+                  <OptionChip
                     key={s.value}
+                    label={s.label}
+                    desc={s.desc}
+                    active={formData.logoStyle === s.value}
                     onClick={() => field("logoStyle", s.value)}
-                    className={`text-left px-3 py-2.5 cursor-pointer rounded-xl border-2 transition-all
-                      ${formData.logoStyle === s.value
-                        ? "border-violet-600 bg-violet-50"
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                      }`}
-                  >
-                    <p className={`text-xs font-semibold ${formData.logoStyle === s.value ? "text-violet-700" : "text-gray-700"}`}>
-                      {s.label}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{s.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
@@ -673,22 +668,15 @@ const LogoForm = ({
             </Field>
 
             <Field label="Layout Orientation" required>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {LAYOUT_OPTIONS.map((l) => (
-                  <button
+                  <OptionChip
                     key={l.value}
+                    label={l.label}
+                    desc={l.desc}
+                    active={formData.layout === l.value}
                     onClick={() => field("layout", l.value)}
-                    className={`text-left px-3 py-2.5 cursor-pointer rounded-xl border-2 transition-all
-                      ${formData.layout === l.value
-                        ? "border-violet-600 bg-violet-50"
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                      }`}
-                  >
-                    <p className={`text-xs font-semibold ${formData.layout === l.value ? "text-violet-700" : "text-gray-700"}`}>
-                      {l.label}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{l.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>

@@ -4,8 +4,10 @@
 import React, { useState, useRef, useCallback } from "react";
 import {
   CreditCard, Loader2, X, ChevronRight, FileUp, Wand2, Settings2, User,
+  RectangleVertical, RectangleHorizontal,
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
+import OptionChip from "./OptionChip";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -23,8 +25,8 @@ const SIZE_OPTIONS = [
 ];
 
 const ORIENTATION_OPTIONS = [
-  { value: "Horizontal", label: "Horizontal", w: 44, h: 28 },
-  { value: "Vertical",   label: "Vertical",   w: 28, h: 44 },
+  { value: "Horizontal", label: "Horizontal", icon: RectangleHorizontal },
+  { value: "Vertical",   label: "Vertical",   icon: RectangleVertical },
 ];
 
 const FONT_OPTIONS = [
@@ -388,65 +390,50 @@ const DigitalBusinessCardForm = ({ formData, setFormData, activeBrand, showToast
           <div className="flex flex-col gap-5">
             <SectionTitle>Card Format</SectionTitle>
 
-            {/* File Format */}
+            {/* File Format — compact chips, each sized to its own content */}
             <Field label="Export Format">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {FILE_FORMAT_OPTIONS.map((f) => (
-                  <button
+                  <OptionChip
                     key={f.value}
+                    label={f.label}
+                    desc={f.desc}
+                    theme={T}
+                    active={fileFormat === f.value}
                     onClick={() => setFileFormat(f.value)}
-                    className={`text-left px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
-                      fileFormat === f.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-bold ${fileFormat === f.value ? T.textDark : "text-gray-700"}`}>{f.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{f.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
 
             {/* Size */}
             <Field label="Card Size">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {SIZE_OPTIONS.map((s) => (
-                  <button
+                  <OptionChip
                     key={s.value}
+                    label={s.label}
+                    desc={s.desc}
+                    theme={T}
+                    active={size === s.value}
                     onClick={() => setSize(s.value)}
-                    className={`text-left px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
-                      size === s.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-bold ${size === s.value ? T.textDark : "text-gray-700"}`}>{s.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{s.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
 
             {/* Orientation */}
             <Field label="Orientation">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {ORIENTATION_OPTIONS.map((o) => (
-                  <button
+                  <OptionChip
                     key={o.value}
+                    icon={o.icon}
+                    label={o.label}
+                    theme={T}
+                    active={orientation === o.value}
                     onClick={() => setOrientation(o.value)}
-                    className={`flex flex-col items-center gap-2 px-3 py-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] ${
-                      orientation === o.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-center h-10">
-                      <div
-                        className={`rounded border-2 transition-all ${orientation === o.value ? T.border : "border-gray-400"}`}
-                        style={{
-                          width:  `${o.w * 0.9}px`,
-                          height: `${o.h * 0.9}px`,
-                          background: orientation === o.value ? "#fff1f2" : "#f9fafb",
-                        }}
-                      />
-                    </div>
-                    <p className={`text-xs font-semibold ${orientation === o.value ? T.textDark : "text-gray-700"}`}>{o.label}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
@@ -473,18 +460,16 @@ const DigitalBusinessCardForm = ({ formData, setFormData, activeBrand, showToast
 
             {/* Card Style */}
             <Field label="Card Style">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {CARD_STYLE_OPTIONS.map((s) => (
-                  <button
+                  <OptionChip
                     key={s.value}
+                    label={s.label}
+                    desc={s.desc}
+                    theme={T}
+                    active={cardStyle === s.value}
                     onClick={() => setCardStyle(s.value)}
-                    className={`text-left px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
-                      cardStyle === s.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-bold ${cardStyle === s.value ? T.textDark : "text-gray-700"}`}>{s.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{s.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>

@@ -11,6 +11,7 @@ import AiChatMessage from "@/app/(components)/studio/AiChatMessage";
 import AiChatInput from "@/app/(components)/studio/AiChatInput";
 import AiChatTypingIndicator from "@/app/(components)/studio/AiChatTypingIndicator";
 import AiPreviewIdle from "@/app/(components)/studio/AiPreviewIdle";
+import PaneResizer, { useResizablePane } from "@/app/(components)/studio/PaneResizer";
 import {
   buildTemplateQuery,
   normalizeDesignTemplate,
@@ -21,6 +22,9 @@ import Toast from "@/app/(components)/Toast";
 import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
 
 /* ─── config ───────────────────────────────────────────────── */
+
+/** localStorage key for the chat pane's dragged width — see PaneResizer.jsx. */
+const CHAT_PANE_WIDTH_KEY = "ck.studio.chatPaneWidth";
 
 const CREATIVE_CONFIG = {
   ads_creative: {
@@ -631,6 +635,25 @@ export default function AiCreativeChatPage() {
   const hasInitialized = useRef(false);
   const [selectedDesigns, setSelectedDesigns] = useState([]);
 
+  // Chat | preview split. The width the user drags to is kept in localStorage,
+  // so the layout they set up is still there after a refresh.
+  //
+  // The two minimums are deliberately modest: together they are the narrowest
+  // window the split still works in (≈600px of content area), and anything
+  // larger keeps them apart is drag range. Setting them generously — say 320 +
+  // 420 — would pin the handle solid on a laptop-sized window, because the
+  // floor and the ceiling would meet.
+  const {
+    containerRef: splitRef,
+    paneProps: chatPaneProps,
+    resizerProps,
+  } = useResizablePane({
+    storageKey: CHAT_PANE_WIDTH_KEY,
+    defaultWidth: 480,
+    minWidth: 300,
+    minSiblingWidth: 300,
+  });
+
   const initialMessage = searchParams.get("initialMessage") || "";
   // Build/Plan, chosen in the Studio composer and carried here on the URL.
   // Anything unrecognised (or absent) falls back to "build".
@@ -885,17 +908,19 @@ export default function AiCreativeChatPage() {
 
 
       {/* ── Body ── */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      {/* splitRef measures the space the two panes share, so the drag can't push
+          the chat panel past what the preview needs. */}
+      <div ref={splitRef} style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
         {/* ── Chat panel ── */}
+        {/* chatPaneProps.style carries the dragged width (plus the min-width and
+            the flex rules that stop the flexbox resizing it on its own). Drag it
+            with the <PaneResizer /> further down. */}
         <div
           style={{
-            width: "42%",
-            minWidth: 300,
-            maxWidth: 480,
+            ...chatPaneProps.style,
             display: "flex",
             flexDirection: "column",
-            borderRight: "0.5px solid rgba(0,0,0,0.08)",
             background: "#fff",
           }}
         >
@@ -1037,10 +1062,18 @@ export default function AiCreativeChatPage() {
           </div>
         </div>
 
+        {/* ── Drag handle ── (also the divider between the two panes) */}
+        <PaneResizer
+          {...resizerProps}
+          label="Resize the chat panel"
+          accentRgb={colorRgb}
+        />
+
         {/* ── Preview panel ── */}
         <div
           style={{
             flex: 1,
+            minWidth: 0,
             display: "flex",
             flexDirection: "column",
             background: "#f5f5f5",
@@ -1049,7 +1082,7 @@ export default function AiCreativeChatPage() {
           }}
         >
           {/* preview header */}
-          <div
+          {/* <div
             style={{
               height: 38,
               display: "flex",
@@ -1094,7 +1127,7 @@ export default function AiCreativeChatPage() {
                     ? "Generated"
                     : "Waiting for input"}
             </span>
-          </div>
+          </div> */}
 
           {/* preview body */}
           <div

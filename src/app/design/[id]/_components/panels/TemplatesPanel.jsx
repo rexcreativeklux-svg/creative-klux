@@ -113,7 +113,7 @@ export default function TemplatesPanel({ editor, designId }) {
       ) : (
         <div className="flex flex-col items-center gap-2 py-10 text-center text-gray-400">
           <LayoutTemplate className="w-8 h-8 text-gray-300" />
-          <p className="text-xs max-w-[220px]">
+          <p className="text-xs max-w-55">
             No saved designs yet. Anything you create shows up here as a reusable template.
           </p>
         </div>

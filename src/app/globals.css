@@ -108,6 +108,15 @@
   box-shadow: 0px 5px 14px -6px rgba(0, 0, 0, 0.2);
 }
 
+/* Resizable split pane (see (components)/studio/PaneResizer.jsx): the pane's
+   width is an inline pixel value at every screen size, so the only rule needed
+   here is a focus ring — keyboard focus has to be visible on a handle that is
+   otherwise a hairline. */
+.ck-pane-resizer:focus-visible {
+  background: rgba(0, 61, 218, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(0, 61, 218, 0.45);
+}
+
 @keyframes orbit {
   0% {
     transform: translateX(-50%) rotate(0deg);

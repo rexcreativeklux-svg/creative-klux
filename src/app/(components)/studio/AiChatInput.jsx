@@ -25,6 +25,15 @@ import { buildMessageWithAttachments } from "./attachmentUrls";
 /** Icon per non-image attachment category (images render their own thumbnail). */
 const CATEGORY_ICON = { video: Film, audio: Music, document: FileText };
 
+/* The box opens at three rows so there's visible room to write, and grows from
+   there to MAX_INPUT_HEIGHT before it starts scrolling. MIN_INPUT_HEIGHT is
+   those three rows measured in the textarea's own type (12.5px × 1.6 line-height
+   ≈ 20px a row) plus its 2px top/bottom padding — keep the three in step if the
+   type ever changes. */
+const INPUT_ROWS = 3;
+const MIN_INPUT_HEIGHT = INPUT_ROWS * 20 + 4;
+const MAX_INPUT_HEIGHT = 160;
+
 export default function AiChatInput({
   onSend,
   isLoading,
@@ -44,11 +53,14 @@ export default function AiChatInput({
   const { attachments, uploading, addFiles, removeAttachment, clearAttachments } =
     useGalleryUpload();
 
+  // Auto-grow with the content, but never below the three-row resting height and
+  // never past the ceiling (after which the textarea scrolls internally).
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
     ta.style.height = "auto";
-    ta.style.height = Math.min(ta.scrollHeight, 140) + "px";
+    const fitted = Math.min(Math.max(ta.scrollHeight, MIN_INPUT_HEIGHT), MAX_INPUT_HEIGHT);
+    ta.style.height = `${fitted}px`;
   }, [value]);
 
   const handleSubmit = () => {
@@ -137,7 +149,7 @@ export default function AiChatInput({
             disabled={uploading}
             aria-label="Attach files from your device"
             title="Attach files from your device"
-            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+            className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
           >
             {uploading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -151,7 +163,7 @@ export default function AiChatInput({
               waits for the assistant. handleSubmit is the single gate. */}
           <textarea
             ref={textareaRef}
-            rows={1}
+            rows={INPUT_ROWS}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -168,7 +180,8 @@ export default function AiChatInput({
               lineHeight: 1.6,
               color: "#111827",
               padding: "2px 0",
-              maxHeight: 140,
+              minHeight: MIN_INPUT_HEIGHT,
+              maxHeight: MAX_INPUT_HEIGHT,
               fontFamily: "inherit",
             }}
           />

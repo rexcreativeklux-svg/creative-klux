@@ -2,7 +2,7 @@
 
 // app/(components)/studio/TemplatesSection.jsx
 // ─────────────────────────────────────────────────────────────────────────────
-// The template rails below the Studio composer.
+// The template rail below the Studio composer.
 //
 // Deliberately FULL-BLEED: the page's hero is capped and centred, but this
 // section runs edge to edge, so it renders outside the page's max-width wrapper
@@ -16,31 +16,40 @@
 //   ── full-width rule ─────────────────────────────────────────────
 //   │  card  │  card  │  card  │  card  │      ← columns divided by rules
 //
-// Every tab is driven by templatesApi.fetchTemplates(), which is stubbed until
-// an endpoint is pasted into TEMPLATE_ENDPOINTS. That gives four render states
-// this component handles explicitly, so the section looks finished today and
-// starts working the moment a URL is filled in:
+// ⚠️ THE TAB ROW IS PRESENTATIONAL. There is exactly one templates endpoint
+// (see templatesApi.js) and it takes no filters, so every tab shows the same
+// fetched pool — switching tabs only moves the active underline. The row is kept
+// because the per-tab endpoints are still coming; when they land, give each tab
+// its own fetch and this component barely changes.
 //
-//   loading       → skeleton cards in the same grid
-//   unconfigured  → a calm "coming soon" panel (no endpoint yet)
-//   error         → the user-safe message plus a Retry button
-//   ok            → real cards, or the tab's own empty hint when the list is bare
+// The data arrives as full { canvas, elements } layouts, so each card PAINTS the
+// design with the shared renderDesignToCanvas() — the same renderer the editor
+// and the chat page use — instead of showing the row's `thumbnail`, which is
+// only a photo used inside the design and not a preview of it. Painting is
+// deferred until a card is near the viewport (see useDesignPreview), so the rail
+// sitting below the fold costs nothing until the user scrolls to it.
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
-  Globe,
   ImageIcon,
   MoreHorizontal,
   RefreshCw,
   Sparkles,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
-import { TEMPLATE_TABS, fetchTemplates } from "./templatesApi";
+import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
+import {
+  TEMPLATE_DISPLAY_LIMIT,
+  TEMPLATE_TABS,
+  fetchPublicTemplates,
+} from "./templatesApi";
 
 /** Horizontal padding shared by the tab row and each card's inset. */
 const GUTTER = "px-4 sm:px-6";
+
+/** Longest edge, in px, of a painted card preview. Keeps the data URLs small. */
+const PREVIEW_MAX_DIM = 480;
 
 /** Relative-ish date label for a card's footer. */
 function formatMeta(value) {
@@ -56,6 +65,10 @@ function formatMeta(value) {
   return date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
+/** Only paint a colour onto the tile when it really is a CSS colour string. */
+const asColor = (value) =>
+  typeof value === "string" && /^(#|rgb|hsl)/i.test(value.trim()) ? value : null;
+
 /**
  * @param {object} props
  * @param {(item: object) => void} [props.onSelect]     Open a template.
@@ -63,31 +76,28 @@ function formatMeta(value) {
  * @param {() => void} [props.onBrowseAll]              The "Browse all" link.
  */
 export default function TemplatesSection({ onSelect, onItemMenu, onBrowseAll }) {
-  const { token } = useAuth();
+  // Presentational only — see the header note. Kept in state so the row still
+  // responds to a click the way the finished, per-tab version will.
   const [activeTab, setActiveTab] = useState(TEMPLATE_TABS[0].id);
-  // The last settled fetch, tagged with the tab it belongs to. Nothing is set
-  // synchronously in the effect below — the loading state is DERIVED from this
-  // tag not matching the active tab, which keeps tab switches instant and
-  // avoids a cascading render on every change.
-  const [result, setResult] = useState(null);
-  // Bumped by "Try again" to re-run the effect for the same tab.
+  const [state, setState] = useState({ status: "loading", items: [] });
+  // Bumped by "Try again" to re-run the fetch.
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
 
     (async () => {
-      const next = await fetchTemplates(activeTab, { token, signal: controller.signal });
+      // No token: the endpoint is public, and staying out of the auth lifecycle
+      // means the rail fetches exactly once instead of again when a token lands.
+      const next = await fetchPublicTemplates({ signal: controller.signal });
       if (controller.signal.aborted) return;
-      setResult({ tabId: activeTab, ...next });
+      setState(next);
     })();
 
-    // Abandon the in-flight request when the tab changes or the page unmounts.
     return () => controller.abort();
-  }, [activeTab, token, reloadKey]);
+  }, [reloadKey]);
 
-  const state = result?.tabId === activeTab ? result : { status: "loading", items: [] };
-  const activeTabMeta = TEMPLATE_TABS.find((tab) => tab.id === activeTab);
+  const items = state.items.slice(0, TEMPLATE_DISPLAY_LIMIT);
 
   return (
     <section className="w-full border-t border-gray-200">
@@ -134,22 +144,14 @@ export default function TemplatesSection({ onSelect, onItemMenu, onBrowseAll }) 
       {/* ── Content ─────────────────────────────────────────────────────── */}
       {state.status === "loading" && <SkeletonGrid />}
 
-      {state.status === "unconfigured" && (
-        <StatePanel
-          icon={Sparkles}
-          title={`${activeTabMeta?.label} are on the way`}
-          body="This rail is built and waiting on its endpoint — it will fill in automatically as soon as the API is connected."
-        />
-      )}
-
       {state.status === "error" && (
         <StatePanel icon={RefreshCw} title={state.message}>
           <button
             type="button"
             onClick={() => {
-              // Drop the stale error so the grid falls back to its derived
-              // loading state immediately, then re-run the effect.
-              setResult(null);
+              // Drop the stale error first so the grid shows its loading state
+              // immediately, then re-run the fetch.
+              setState({ status: "loading", items: [] });
               setReloadKey((key) => key + 1);
             }}
             className="mx-auto mt-3 flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
@@ -161,11 +163,15 @@ export default function TemplatesSection({ onSelect, onItemMenu, onBrowseAll }) 
       )}
 
       {state.status === "ok" &&
-        (state.items.length === 0 ? (
-          <StatePanel icon={ImageIcon} title={activeTabMeta?.emptyHint} />
+        (items.length === 0 ? (
+          <StatePanel
+            icon={Sparkles}
+            title="No templates to show yet"
+            body="Fresh templates land here as soon as they're published — check back shortly."
+          />
         ) : (
           <CardGrid>
-            {state.items.map((item) => (
+            {items.map((item) => (
               <TemplateCard
                 key={item.id}
                 item={item}
@@ -191,9 +197,82 @@ function CardGrid({ children }) {
   );
 }
 
-/** One template/design card — artwork, title, author, then date + open arrow. */
+/**
+ * Paint a { canvas, elements } design into a small JPEG data URL, but only once
+ * the element is within 300px of the viewport. Returns the ref to attach plus
+ * the preview state, so a card below the fold stays free until it's scrolled to.
+ *
+ * @param {{canvas: object, elements: object[], thumbnail: string|null, title: string}} item
+ * @returns {{ref: React.RefObject<HTMLDivElement>, src: string|null, failed: boolean}}
+ */
+function useDesignPreview(item) {
+  const ref = useRef(null);
+  const [src, setSrc] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+
+    let alive = true;
+
+    const paint = async () => {
+      try {
+        const dataUrl = await renderDesignToThumbnail(
+          { canvas: item.canvas, elements: item.elements },
+          { maxDim: PREVIEW_MAX_DIM },
+        );
+        if (!alive) return;
+
+        if (dataUrl) {
+          setSrc(dataUrl);
+          return;
+        }
+        // renderDesignToThumbnail swallows its own errors and returns null.
+        console.warn(`⚠️ [templates] couldn't paint "${item.title}" — falling back`);
+        if (item.thumbnail) setSrc(item.thumbnail);
+        else setFailed(true);
+      } catch (err) {
+        if (!alive) return;
+        console.error(`❌ [templates] preview failed for "${item.title}":`, err);
+        setFailed(true);
+      }
+    };
+
+    // No IntersectionObserver (very old browser / SSR-ish edge): just paint.
+    if (typeof IntersectionObserver === "undefined") {
+      paint();
+      return () => {
+        alive = false;
+      };
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect(); // one paint per card, ever
+        paint();
+      },
+      { rootMargin: "300px" },
+    );
+    observer.observe(node);
+
+    return () => {
+      alive = false;
+      observer.disconnect();
+    };
+  }, [item]);
+
+  return { ref, src, failed };
+}
+
+/** One template card — artwork, title, format, then date + open arrow. */
 function TemplateCard({ item, onSelect, onItemMenu }) {
   const meta = formatMeta(item.meta);
+  const { ref, src, failed } = useDesignPreview(item);
+  // The design's own background fills the letterbox around the contained
+  // preview, so a portrait template reads as artwork rather than a crop.
+  const tileColor = asColor(item.canvas?.background);
 
   const open = () => onSelect?.(item);
 
@@ -214,35 +293,41 @@ function TemplateCard({ item, onSelect, onItemMenu }) {
       className={`group flex cursor-pointer flex-col border-b border-r border-gray-200 py-5 transition-colors hover:bg-gray-100/60 focus:outline-none focus-visible:bg-gray-100/60 ${GUTTER}`}
     >
       {/* Artwork */}
-      <div className="aspect-16/10 overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
-        {item.thumbnail ? (
+      <div
+        ref={ref}
+        className="relative aspect-16/10 overflow-hidden rounded-lg border border-gray-200 bg-gray-100"
+        style={tileColor ? { backgroundColor: tileColor } : undefined}
+      >
+        {src ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={item.thumbnail}
+            src={src}
             alt={item.title}
             loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"
           />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-500/10 to-purple-500/10">
-            <span className="text-3xl font-bold text-blue-600/40">
-              {item.title.charAt(0).toUpperCase()}
-            </span>
+        ) : failed ? (
+          <div className="flex h-full w-full items-center justify-center">
+            <ImageIcon className="h-5 w-5 text-gray-400" />
           </div>
+        ) : (
+          // Still painting — a calm shimmer in the tile's own colour.
+          <div className="h-full w-full animate-pulse bg-gray-200/60" />
+        )}
+
+        {item.premium && (
+          <span className="absolute left-2 top-2 rounded-md bg-gray-900/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+            Premium
+          </span>
         )}
       </div>
 
-      {/* Title + author */}
+      {/* Title + format */}
       <div className="mt-3.5 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-[15px] font-semibold text-gray-900">
-            <span className="truncate">{item.title}</span>
-            {item.isPublic && (
-              <Globe className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-label="Public" />
-            )}
-          </p>
-          {item.author && (
-            <p className="mt-0.5 truncate text-[13px] text-gray-500">by {item.author}</p>
+          <p className="truncate text-[15px] font-semibold text-gray-900">{item.title}</p>
+          {item.subtitle && (
+            <p className="mt-0.5 truncate text-[13px] text-gray-500">{item.subtitle}</p>
           )}
         </div>
 
@@ -298,7 +383,7 @@ function SkeletonGrid() {
   );
 }
 
-/** Shared empty / coming-soon / error panel, centred across the full width. */
+/** Shared empty / error panel, centred across the full width. */
 function StatePanel({ icon: Icon, title, body, children }) {
   return (
     <div className="border-t border-gray-200 px-5 py-14 text-center">

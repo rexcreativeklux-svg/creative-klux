@@ -1,111 +1,10 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
-
-/* ─── Floating orb canvas animation ─────────────────────────── */
-function OrbCanvas({ colorRgb }) {
-  const canvasRef = useRef(null);
-  const animRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    const dpr = window.devicePixelRatio || 1;
-    const CW = canvas.offsetWidth;
-    const CH = canvas.offsetHeight;
-    canvas.width = CW * dpr;
-    canvas.height = CH * dpr;
-    ctx.scale(dpr, dpr);
-
-    const [r, g, b] = colorRgb.split(",").map(Number);
-
-    const particles = Array.from({ length: 18 }, () => ({
-      x: Math.random() * CW,
-      y: Math.random() * CH,
-      r: 1.5 + Math.random() * 2.5,
-      dx: (Math.random() - 0.5) * 0.3,
-      dy: (Math.random() - 0.5) * 0.3,
-      op: 0.08 + Math.random() * 0.18,
-      phase: Math.random() * Math.PI * 2,
-      speed: 0.005 + Math.random() * 0.007,
-    }));
-
-    const orbs = [
-      { x: CW * 0.22, y: CH * 0.38, r: 110, phase: 0, speed: 0.003 },
-      { x: CW * 0.75, y: CH * 0.60, r: 85, phase: 1.9, speed: 0.004 },
-      { x: CW * 0.52, y: CH * 0.18, r: 65, phase: 3.1, speed: 0.006 },
-    ];
-
-    let t = 0;
-
-    function draw() {
-      ctx.clearRect(0, 0, CW, CH);
-
-      orbs.forEach((orb) => {
-        const ox = orb.x + Math.sin(t * orb.speed + orb.phase) * 20;
-        const oy = orb.y + Math.cos(t * orb.speed * 0.7 + orb.phase) * 14;
-        const grad = ctx.createRadialGradient(ox, oy, 0, ox, oy, orb.r);
-        grad.addColorStop(0, `rgba(${r},${g},${b},0.07)`);
-        grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(ox, oy, orb.r, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      particles.forEach((p) => {
-        p.x += p.dx;
-        p.y += p.dy;
-        if (p.x < 0 || p.x > CW) p.dx *= -1;
-        if (p.y < 0 || p.y > CH) p.dy *= -1;
-        const pulse = p.op * (0.5 + 0.5 * Math.sin(t * p.speed + p.phase));
-        ctx.fillStyle = `rgba(${r},${g},${b},${pulse})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 80) {
-            const alpha = (1 - dist / 80) * 0.05;
-            ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
-            ctx.lineWidth = 0.5;
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.stroke();
-          }
-        }
-      }
-
-      t++;
-      animRef.current = requestAnimationFrame(draw);
-    }
-
-    draw();
-    return () => cancelAnimationFrame(animRef.current);
-  }, [colorRgb]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        pointerEvents: "none",
-        borderRadius: 14,
-      }}
-    />
-  );
-}
+import React from "react";
+// The orb field and the scanline are shared with the Studio home page — see
+// AmbientOrbCanvas.jsx. The defaults there are this pane's original values, so
+// nothing here needs tuning.
+import AmbientOrbCanvas, { AmbientSweep } from "./AmbientOrbCanvas";
 
 /* ─── Animated dot-grid glyph ───────────────────────────────── */
 function DotGlyph({ color, colorRgb }) {
@@ -330,16 +229,10 @@ export default function AiPreviewIdle({ config }) {
           from { opacity: 0; transform: translateY(7px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        @keyframes ck-scanline {
-          0%   { transform: translateY(-6px); opacity: 0; }
-          10%  { opacity: 1; }
-          90%  { opacity: 1; }
-          100% { transform: translateY(600px); opacity: 0; }
-        }
       `}</style>
 
       {/* particle bg */}
-      <OrbCanvas colorRgb={colorRgb} />
+      <AmbientOrbCanvas colorRgb={colorRgb} style={{ borderRadius: 14 }} />
 
       {/* content */}
       <div
@@ -392,27 +285,7 @@ export default function AiPreviewIdle({ config }) {
       </div>
 
       {/* scanline sweep */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          pointerEvents: "none",
-          overflow: "hidden",
-          zIndex: 5,
-          borderRadius: 14,
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            height: 1,
-            background: `linear-gradient(90deg, transparent, rgba(${colorRgb},0.25), transparent)`,
-            animation: "ck-scanline 5s ease-in-out infinite 1.5s",
-          }}
-        />
-      </div>
+      <AmbientSweep colorRgb={colorRgb} style={{ zIndex: 5, borderRadius: 14 }} />
     </div>
   );
 }

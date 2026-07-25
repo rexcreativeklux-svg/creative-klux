@@ -7,10 +7,10 @@ import {
   CheckCircle2, ImageIcon,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import AiChatMessage from "./aiChatMessage";
-import AiChatInput from "./aiChatInput";
-import AiChatTypingIndicator from "./aiChatTypingIndicator";
-import AiPreviewIdle from "./aiPreviewIdle";
+import AiChatMessage from "@/app/(components)/studio/AiChatMessage";
+import AiChatInput from "@/app/(components)/studio/AiChatInput";
+import AiChatTypingIndicator from "@/app/(components)/studio/AiChatTypingIndicator";
+import AiPreviewIdle from "@/app/(components)/studio/AiPreviewIdle";
 import Toast from "@/app/(components)/Toast";
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
 // so these previews match exactly what opens in the editor.
@@ -444,6 +444,9 @@ export default function AiCreativeChatPage() {
   const [selectedDesigns, setSelectedDesigns] = useState([]);
 
   const initialMessage = searchParams.get("initialMessage") || "";
+  // Build/Plan, chosen in the Studio composer and carried here on the URL.
+  // Anything unrecognised (or absent) falls back to "build".
+  const mode = searchParams.get("mode") === "plan" ? "plan" : "build";
 
   const [toast, setToast] = useState({
     open: false,
@@ -503,7 +506,12 @@ export default function AiCreativeChatPage() {
           content: m.content,
         }));
 
-        const result = await creativeAiChat({ message: content, creativeType, history });
+        const result = await creativeAiChat({
+          message: content,
+          creativeType,
+          history,
+          mode,
+        });
 
         const reply = result.ok
           ? result.reply
@@ -538,7 +546,7 @@ export default function AiCreativeChatPage() {
         setIsLoading(false);
       }
     },
-    [messages, creativeType, creativeAiChat]
+    [messages, creativeType, creativeAiChat, mode]
   );
 
   const handleInitialSend = useCallback(async (content) => {
@@ -549,6 +557,7 @@ export default function AiCreativeChatPage() {
         message: content,
         creativeType,
         history: [],
+        mode,
       });
 
       const reply = result.ok
@@ -584,7 +593,7 @@ export default function AiCreativeChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [creativeType, creativeAiChat]);
+  }, [creativeType, creativeAiChat, mode]);
 
   const toggleDesignSelection = useCallback((design) => {
     setSelectedDesigns((prev) => {

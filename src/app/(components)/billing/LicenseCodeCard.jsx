@@ -13,7 +13,7 @@ import { toast } from "sonner";
  *
  * ⚠️ Placeholder: there is no redeem endpoint yet, so `onRedeem` is simulated by
  * the parent. This component owns only the input, its formatting/validation, and
- * the in-flight button state — see TODO(endpoint) in src/data/billingData.js.
+ * the in-flight button state — see TODO(endpoint) in ./billingData.js.
  *
  * @param {Function} onRedeem - Async handler called with the cleaned code.
  *                              Should throw on failure so we can toast it.

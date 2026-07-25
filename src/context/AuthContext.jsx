@@ -2157,7 +2157,17 @@ export function AuthProvider({ children }) {
     [token],
   );
 
-  const creativeAiChat = async ({ message, creativeType, history = [] }) => {
+  // `mode` is the Studio composer's Build/Plan choice: "build" generates right
+  // away, "plan" asks the assistant to draft a plan first. It defaults to
+  // "build" so any caller that predates the option keeps its old behaviour.
+  // (The composer's model picker is intentionally NOT sent yet — the backend
+  // doesn't accept a model field, so it only travels on the URL for now.)
+  const creativeAiChat = async ({
+    message,
+    creativeType,
+    history = [],
+    mode = "build",
+  }) => {
     if (!token) {
       console.error("No auth token found. User may not be logged in.");
       return { ok: false, message: "Not authenticated" };
@@ -2173,6 +2183,7 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({
           message,
           creative_type: creativeType,
+          mode, // "build" | "plan"
           history, // array of { role: "user"|"assistant", content: string }
         }),
       });

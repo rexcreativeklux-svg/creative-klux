@@ -13,7 +13,7 @@ import { BILLING_CYCLES } from "@/app/(components)/billing/billingData";
  * The promoted tier (`plan.highlight`) gets a blue ring + "MOST POPULAR" ribbon;
  * the tier the user already owns is shown with a disabled "Current plan" button.
  *
- * @param {object}   plan          - A tier from `PLANS` (see src/data/billingData.js).
+ * @param {object}   plan          - A tier from `PLANS` (see ./billingData.js).
  * @param {string}   cycle         - Active billing cycle (BILLING_CYCLES value).
  * @param {boolean}  isCurrent     - Whether this is the user's active plan.
  * @param {Function} onSelect      - Called with `plan` when the CTA is pressed.

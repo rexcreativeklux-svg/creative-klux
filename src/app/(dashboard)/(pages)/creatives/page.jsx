@@ -181,7 +181,7 @@ const FILTER_GROUPS = [
   { label: "Ads", key: "ads" },
   { label: "Social", key: "social" },
   { label: "Design", key: "design" },
-  { label: "Magic Studio", key: "magic_studio" },
+  // { label: "Magic Studio", key: "magic_studio" },
   { label: "★ Favorites", key: "favorites" },
 ];
 

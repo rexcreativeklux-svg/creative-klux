@@ -8,6 +8,31 @@ import remarkGfm from "remark-gfm";
 // Long messages collapse to this height with a "See more" toggle.
 const COLLAPSED_MAX_HEIGHT = 220;
 
+/**
+ * A message the USER wrote, shown exactly as they typed it.
+ *
+ * Deliberately NOT Markdown. Markdown folds a single newline into a space, so
+ * anything the user laid out over several lines used to arrive as one run-on
+ * paragraph. `white-space: pre-wrap` keeps every line break, blank line and run
+ * of indentation, while still wrapping long lines at the bubble's edge — and it
+ * means characters like *, _ and # appear literally instead of being eaten as
+ * formatting syntax.
+ */
+function UserMessageContent({ content }) {
+  if (!content) return null;
+  return (
+    <div
+      style={{
+        whiteSpace: "pre-wrap",
+        overflowWrap: "anywhere",
+      }}
+    >
+      {content}
+    </div>
+  );
+}
+
+/** A message the ASSISTANT wrote — full Markdown, since replies are authored in it. */
 function MessageContent({ content, color }) {
   if (!content) return null;
   return (
@@ -192,7 +217,11 @@ export default function AiChatMessage({ message, config }) {
             overflow: !expanded && isOverflowing ? "hidden" : "visible",
           }}
         >
-          <MessageContent content={message.content} color={color} />
+          {isUser ? (
+            <UserMessageContent content={message.content} />
+          ) : (
+            <MessageContent content={message.content} color={color} />
+          )}
 
           {/* fade-out hint while collapsed */}
           {!expanded && isOverflowing && (

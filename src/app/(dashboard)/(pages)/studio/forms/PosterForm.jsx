@@ -504,7 +504,7 @@ const PosterForm = ({
                   placeholder="Describe your poster… event name, headline message, mood, key details."
                   rows={4}
                   maxLength={500}
-                  className={`${inputCls} placeholder:text-xs placeholder:text-gray-400 resize-none`}
+                  className={`${inputCls} pb-10 placeholder:text-xs placeholder:text-gray-400 resize-none`}
                 />
                 <button
                   onClick={handleInspire}
@@ -547,7 +547,7 @@ const PosterForm = ({
                       type="text"
                       value={brandColor}
                       onChange={(e) => /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) && setBrandColor(e.target.value)}
-                      className={`${inputCls} w-[5.5rem]! flex-none px-2 text-sm font-mono`}
+                      className={`${inputCls} w-22! flex-none px-2 text-sm font-mono`}
                       maxLength={7}
                     />
                   </div>

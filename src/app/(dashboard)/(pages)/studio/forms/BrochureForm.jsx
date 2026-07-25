@@ -11,14 +11,30 @@ import { FloatingAnimation, FloatingElements } from "@/app/(components)/Floating
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
+import OptionChip from "./OptionChip";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
+/**
+ * Fold glyph — a 22×14 panel outline whose inner lines show where the folds sit,
+ * matching the inline-SVG style already used by ORIENTATION_OPTIONS below.
+ * `folds` are x positions (0–22) and `dashed` marks an accordion (Z) fold.
+ */
+const FoldGlyph = ({ folds, dashed }) => (
+  <svg width="22" height="14" viewBox="0 0 22 14" fill="none">
+    <rect x="0.75" y="0.75" width="20.5" height="12.5" rx="1.5" stroke="currentColor" strokeWidth="1.25" />
+    {folds.map((x) => (
+      <line key={x} x1={x} y1="1.5" x2={x} y2="12.5"
+        stroke="currentColor" strokeWidth="1" strokeDasharray={dashed ? "2 1.5" : undefined} />
+    ))}
+  </svg>
+);
+
 const FOLD_TYPES = [
-  { value: "bi_fold",   label: "Bi-fold",   desc: "2 panels, 1 fold" },
-  { value: "tri_fold",  label: "Tri-fold",  desc: "3 panels, 2 folds" },
-  { value: "z_fold",    label: "Z-fold",    desc: "Accordion style" },
-  { value: "gate_fold", label: "Gate Fold", desc: "Opens like gates" },
+  { value: "bi_fold",   label: "Bi-fold",   desc: "2 panels, 1 fold",  glyph: <FoldGlyph folds={[11]} /> },
+  { value: "tri_fold",  label: "Tri-fold",  desc: "3 panels, 2 folds", glyph: <FoldGlyph folds={[7.7, 14.3]} /> },
+  { value: "z_fold",    label: "Z-fold",    desc: "Accordion style",   glyph: <FoldGlyph folds={[7.7, 14.3]} dashed /> },
+  { value: "gate_fold", label: "Gate Fold", desc: "Opens like gates",  glyph: <FoldGlyph folds={[5.5, 16.5]} /> },
 ];
 
 const SIZE_OPTIONS = [
@@ -412,6 +428,9 @@ const BrochuresForm = ({
     return w && h ? w / h : 816 / 1056;
   })();
 
+  // Selected fold type — its description shows on the Fold Type label row
+  const selectedFold = FOLD_TYPES.find((f) => f.value === formData.foldType);
+
   // Group sizes by type
   const sizeGroups = SIZE_OPTIONS.reduce((acc, s) => {
     if (!acc[s.type]) acc[s.type] = [];
@@ -529,21 +548,23 @@ const BrochuresForm = ({
               </div>
             </Field>
 
-            <Field label="Fold Type">
-              <div className="grid grid-cols-4 gap-2">
+            {/* Fold type — compact chips so the row doesn't stretch across the
+                whole pane; the selected fold's description shows on the label row. */}
+            <Field
+              label="Fold Type"
+              hint={selectedFold ? selectedFold.desc : "How the brochure folds"}
+            >
+              <div className="flex flex-wrap gap-2">
                 {FOLD_TYPES.map((f) => (
-                  <button
+                  <OptionChip
                     key={f.value}
+                    glyph={f.glyph}
+                    label={f.label}
+                    title={f.desc}
+                    theme={T}
+                    active={formData.foldType === f.value}
                     onClick={() => field("foldType", f.value)}
-                    className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
-                      formData.foldType === f.value
-                        ? `${T.border} ${T.bgLight}`
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className={`text-xs font-semibold ${formData.foldType === f.value ? T.textDark : "text-gray-700"}`}>{f.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{f.desc}</p>
-                  </button>
+                  />
                 ))}
               </div>
             </Field>
@@ -887,11 +908,19 @@ const BrochuresForm = ({
 // ── micro-components ──────────────────────────────────────────────────────────
 const inputCls = "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent";
 const SectionTitle = ({ children }) => <h3 className="font-semibold text-gray-900 text-base">{children}</h3>;
-const Field = ({ label, required, children }) => (
+/**
+ * Labelled field wrapper. `hint` renders secondary copy on the right of the
+ * label row — used to surface a selected option's description without spending
+ * vertical space on it.
+ */
+const Field = ({ label, required, hint, children }) => (
   <div className="flex flex-col gap-1.5">
-    <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-      {label}{required && <span className="text-red-400">*</span>}
-    </label>
+    <div className="flex items-center gap-2">
+      <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+        {label}{required && <span className="text-red-400">*</span>}
+      </label>
+      {hint && <span className="text-[10px] text-gray-400 ml-auto truncate">{hint}</span>}
+    </div>
     {children}
   </div>
 );

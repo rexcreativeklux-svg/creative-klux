@@ -134,7 +134,7 @@ export default function AiChatInput({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading || isLoading}
+            disabled={uploading}
             aria-label="Attach files from your device"
             title="Attach files from your device"
             className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
@@ -146,45 +146,42 @@ export default function AiChatInput({
             )}
           </button>
 
+          {/* NOT disabled while a reply is in flight — the user can keep
+              composing (type, dictate, attach) the whole time; only SENDING
+              waits for the assistant. handleSubmit is the single gate. */}
           <textarea
-          ref={textareaRef}
-          rows={1}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          placeholder={voice.listening ? "Listening — start speaking…" : placeholder}
-          disabled={isLoading}
-          style={{
-            flex: 1,
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            resize: "none",
-            fontSize: 12.5,
-            lineHeight: 1.6,
-            color: "#111827",
-            padding: "2px 0",
-            maxHeight: 140,
-            fontFamily: "inherit",
-            opacity: isLoading ? 0.5 : 1,
-          }}
-        />
+            ref={textareaRef}
+            rows={1}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder={voice.listening ? "Listening — start speaking…" : placeholder}
+            style={{
+              flex: 1,
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              resize: "none",
+              fontSize: 12.5,
+              lineHeight: 1.6,
+              color: "#111827",
+              padding: "2px 0",
+              maxHeight: 140,
+              fontFamily: "inherit",
+            }}
+          />
 
-        {/* Dictation — identical engine and states to the AI Select composer. */}
-        <VoiceMicButton
-          voice={voice}
-          onToggle={() => voice.toggle(value)}
-          size="sm"
-          disabled={isLoading}
-        />
+          {/* Dictation — identical engine and states to the AI Select composer. */}
+          <VoiceMicButton voice={voice} onToggle={() => voice.toggle(value)} size="sm" />
 
-        <button
-          onClick={handleSubmit}
-          disabled={!canSend}
-          aria-label="Send message"
-          style={{
+          <button
+            onClick={handleSubmit}
+            disabled={!canSend}
+            aria-label={isLoading ? "Waiting for the reply…" : "Send message"}
+            title={isLoading ? "Waiting for the reply…" : undefined}
+            style={{
             width: 34,
             height: 34,
             borderRadius: 10,
@@ -201,15 +198,15 @@ export default function AiChatInput({
             opacity: canSend ? 1 : 0.6,
             transition: "all 0.15s",
             boxShadow: canSend ? `0 3px 12px rgba(${colorRgb}, 0.35)` : "none",
-          }}
-        >
-          {isLoading ? (
-            <Loader2
-              style={{ width: 14, height: 14, animation: "ck-spin 1s linear infinite" }}
-            />
-          ) : (
-            <SendHorizontal style={{ width: 14, height: 14 }} />
-          )}
+            }}
+          >
+            {isLoading ? (
+              <Loader2
+                style={{ width: 14, height: 14, animation: "ck-spin 1s linear infinite" }}
+              />
+            ) : (
+              <SendHorizontal style={{ width: 14, height: 14 }} />
+            )}
           </button>
         </div>
 

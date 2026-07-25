@@ -48,6 +48,31 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   // by the sidebar's overflow-hidden while collapsed.
   const [userMenuCoords, setUserMenuCoords] = useState({ left: 0, bottom: 0 });
 
+  // ── Collapsed-sidebar label tooltip ─────────────────────────────
+  // While collapsed the sidebar (and its scroll area) clip overflow, so an
+  // absolutely-positioned tooltip would be cut off. We instead snapshot the
+  // hovered item's rect and render ONE fixed-positioned tooltip at the sidebar
+  // root: { label, active, top, left } — or null when nothing is hovered.
+  const [hoverTip, setHoverTip] = useState(null);
+
+  const showTip = (e, label, active = false) => {
+    if (isOpen) return; // labels are already visible when expanded
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoverTip({
+      label,
+      active,
+      top: rect.top + rect.height / 2, // vertically centred on the icon
+      left: rect.right + 14, // just outside the sidebar's right border
+    });
+  };
+
+  const hideTip = () => setHoverTip(null);
+
+  // Drop a stale tooltip when the sidebar expands (its coords no longer apply).
+  useEffect(() => {
+    if (isOpen) setHoverTip(null);
+  }, [isOpen]);
+
   // Toggle the desktop user menu; when collapsed, snapshot the trigger's
   // position so the fixed-positioned popup anchors above the avatar.
   const toggleBottomMenu = () => {
@@ -262,10 +287,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           ${active ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"}
           ${!isOpen ? "justify-center px-0" : ""}
         `}
-        title={!isOpen ? label : undefined}
+        onMouseEnter={(e) => showTip(e, label, active)}
+        onMouseLeave={hideTip}
+        onFocus={(e) => showTip(e, label, active)}
+        onBlur={hideTip}
       >
         <Icon
-          className={`w-4.5 shrink-0 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`}
+          className={`w-4.5 shrink-0 transition-transform duration-150 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"} ${!isOpen ? "group-hover:scale-110" : ""}`}
         />
         {isOpen && <span className="flex-1 truncate">{label}</span>}
         {isOpen && badge && (
@@ -286,7 +314,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       <div key={id} className="relative">
         <button
           onClick={(e) => toggleDropdown(id, e)}
-          title={!isOpen ? label : undefined}
+          onMouseEnter={(e) => showTip(e, label, dropActive)}
+          onMouseLeave={hideTip}
+          onFocus={(e) => showTip(e, label, dropActive)}
+          onBlur={hideTip}
           className={`
             group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer
             transition-all duration-150
@@ -295,7 +326,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           `}
         >
           <Icon
-            className={`w-4.5 shrink-0 ${dropActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`}
+            className={`w-4.5 shrink-0 transition-transform duration-150 ${dropActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"} ${!isOpen ? "group-hover:scale-110" : ""}`}
           />
           {isOpen && (
             <>
@@ -401,6 +432,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         {/* Scrollable nav area */}
         <div
           className={`hide-scrollbar flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-3 ${isOpen ? "px-3" : "px-2"}`}
+          onScroll={hideTip}
         >
           {renderSection("Overview", overviewItems)}
           {renderSection("Create", createItems)}
@@ -500,6 +532,40 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           </button>
         </div>
       </nav>
+
+      {/* ── Collapsed sidebar hover label ──────────────────────────
+          Rendered outside <nav> and fixed-positioned so the sidebar's
+          overflow-hidden can't clip it. Purely decorative → pointer-events
+          are off so it never steals the hover from the item beneath it. */}
+      {!isOpen && hoverTip && (
+        <div
+          className="hidden md:block fixed z-60 pointer-events-none"
+          style={{
+            top: hoverTip.top,
+            left: hoverTip.left,
+            transform: "translateY(-50%)",
+          }}
+          role="tooltip"
+        >
+          <div className="animate-tip-in relative">
+            {/* Pointer/caret aimed back at the icon */}
+            <span
+              className={`absolute -left-1 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rotate-45 rounded-[3px] ${
+                hoverTip.active ? "bg-blue-600" : "bg-gray-900"
+              }`}
+            />
+            <span
+              className={`relative block whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold shadow-lg ${
+                hoverTip.active
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-900 text-surface"
+              }`}
+            >
+              {hoverTip.label}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── Mobile Bottom Nav ──────────────────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-gray-200 flex justify-around items-center py-2 md:hidden">

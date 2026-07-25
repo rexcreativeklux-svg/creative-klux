@@ -5,6 +5,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Globe, Loader2, FileUp, X, CheckCircle2, ChevronRight,
   Sparkles, FileSearch, FolderOpen, Images, Scan, Package,
+  Milk, ShoppingBag, CupSoda, Package2, Cylinder, GlassWater, Tag,
 } from "lucide-react";
 import { FloatingAnimation, FloatingElements } from "@/app/(components)/FloatingAnimation";
 
@@ -14,6 +15,7 @@ import MagicMediaModal from "@/app/(components)/MagicMediaModal";
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import RecommendedImagesSection from "@/app/(components)/RecommendedImagesSection";
 import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSection";
+import OptionChip from "./OptionChip";
 
 import TextToImageTab from "../../old-studio/designer-creatives/create/tabs/text-to-image/page";
 import TextToAudioTab from "../../old-studio/designer-creatives/create/tabs/text-to-audio/page";
@@ -26,14 +28,14 @@ import PersonaBasedGeneratorTab from "../../old-studio/designer-creatives/create
 // ── constants ─────────────────────────────────────────────────────────────────
 
 const MOCKUP_TYPES = [
-  { value: "box",    label: "Box",    desc: "Folding carton, gift box" },
-  { value: "bottle", label: "Bottle", desc: "Glass, plastic, cosmetic" },
-  { value: "bag",    label: "Bag",    desc: "Paper, kraft, shopping" },
-  { value: "can",    label: "Can",    desc: "Beverage, food, spray" },
-  { value: "pouch",  label: "Pouch",  desc: "Stand-up, flat, ziplock" },
-  { value: "tube",   label: "Tube",   desc: "Cosmetic, squeeze, lip" },
-  { value: "jar",    label: "Jar",    desc: "Glass, cream, candle" },
-  { value: "label",  label: "Label",  desc: "Sticker, wrap-around" },
+  { value: "box",    label: "Box",    desc: "Folding carton, gift box",  icon: Package },
+  { value: "bottle", label: "Bottle", desc: "Glass, plastic, cosmetic",  icon: Milk },
+  { value: "bag",    label: "Bag",    desc: "Paper, kraft, shopping",    icon: ShoppingBag },
+  { value: "can",    label: "Can",    desc: "Beverage, food, spray",     icon: CupSoda },
+  { value: "pouch",  label: "Pouch",  desc: "Stand-up, flat, ziplock",   icon: Package2 },
+  { value: "tube",   label: "Tube",   desc: "Cosmetic, squeeze, lip",    icon: Cylinder },
+  { value: "jar",    label: "Jar",    desc: "Glass, cream, candle",      icon: GlassWater },
+  { value: "label",  label: "Label",  desc: "Sticker, wrap-around",      icon: Tag },
 ];
 
 const RESOLUTION_OPTIONS = [
@@ -393,6 +395,10 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
     return w && h ? w / h : 1;
   })();
 
+  // Currently selected mockup type (used for inline hints + the step-2 summary)
+  const selectedMockup     = MOCKUP_TYPES.find((m) => m.value === formData.mockupType);
+  const SelectedMockupIcon = selectedMockup?.icon || Package;
+
   // Group resolutions
   const resolutionGroups = RESOLUTION_OPTIONS.reduce((acc, r) => {
     const g = r.type === "digital" ? "Digital" : "Print";
@@ -405,7 +411,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
   return (
     <>
       {/* ── Step indicator ───────────────────────────────────────────────── */}
-      <div className="bg-surface rounded-2xl px-0 py-4">
+      <div className="bg-surface rounded-2xl px-2 py-4">
         <div className="flex items-center justify-between gap-2">
           {STEPS.map((s, idx) => {
             const Icon = s.icon;
@@ -447,7 +453,9 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
         {/* ═══ STEP 1 — Brand & Product ════════════════════════════════════ */}
         {step === 1 && (
           <div className="flex flex-col gap-5">
-            <SectionTitle>Brand & Product</SectionTitle>
+            <SectionTitle icon={Package} subtitle="Who the brand is and what's going on the packaging.">
+              Brand & Product
+            </SectionTitle>
 
             {/* URL import */}
             <div className={`border ${T.importBorder} rounded-xl p-4 ${T.importBg}`}>
@@ -468,7 +476,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
             </div>
 
             {/* Brand + Project name */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Brand Name" required>
                 <input type="text" value={formData.brandName || ""} onChange={(e) => field("brandName", e.target.value)}
                   placeholder="Your Brand" className={inputCls} />
@@ -485,31 +493,44 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
                 placeholder="e.g. Pure. Natural. Powerful." className={inputCls} />
             </Field>
 
-            {/* Mockup type — required in step 1 so it informs the rest */}
-            <Field label="Packaging / Mockup Type" required>
-              <div className="grid grid-cols-4 gap-2">
+            {/* Mockup type — required in step 1 so it informs the rest.
+                Compact icon chips: they only take the width they need, and the
+                selected type's description shows inline on the label row. */}
+            <Field
+              label="Packaging / Mockup Type"
+              required
+              hint={selectedMockup ? selectedMockup.desc : "Pick the surface you want mocked up"}
+            >
+              <div className="flex flex-wrap gap-2">
                 {MOCKUP_TYPES.map((m) => (
-                  <button key={m.value} onClick={() => field("mockupType", m.value)}
-                    className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
-                      formData.mockupType === m.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}>
-                    <p className={`text-xs font-bold ${formData.mockupType === m.value ? T.textDark : "text-gray-700"}`}>{m.label}</p>
-                    <p className={`text-[10px] mt-0.5 ${formData.mockupType === m.value ? "text-violet-500" : "text-gray-400"}`}>{m.desc}</p>
-                  </button>
+                  <OptionChip
+                    key={m.value}
+                    icon={m.icon}
+                    label={m.label}
+                    title={m.desc}
+                    theme={T}
+                    active={formData.mockupType === m.value}
+                    onClick={() => field("mockupType", m.value)}
+                  />
                 ))}
               </div>
             </Field>
 
-            {/* Description */}
+            {/* Description — pb-10 keeps long briefs from running under the
+                Inspire Me button / counter that sit inside the textarea. */}
             <Field label="Product / Design Brief">
               <div className="relative">
                 <textarea value={formData.description || ""} onChange={(e) => field("description", e.target.value)}
                   placeholder="Describe the product, key design elements, target feel, and any special requirements…"
-                  rows={3} className={`${inputCls} resize-none`} />
+                  rows={4} maxLength={500}
+                  className={`${inputCls} pb-10 placeholder:text-xs placeholder:text-gray-400 resize-none`} />
                 <button onClick={handleInspire}
                   className="absolute bottom-3 left-3 text-xs font-semibold bg-surface border border-gray-200 text-gray-500 hover:border-violet-400 hover:text-violet-600 px-3 py-1 rounded-lg cursor-pointer transition-all">
                   ✨ Inspire Me
                 </button>
+                <span className="absolute bottom-3 right-3 text-[10px] text-gray-400">
+                  {(formData.description?.length || 0)}/500
+                </span>
               </div>
             </Field>
 
@@ -518,7 +539,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
               <div className="flex flex-wrap gap-2">
                 {VISUAL_STYLES.map((s) => (
                   <button key={s.value} onClick={() => field("visualStyle", s.value)}
-                    className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
+                    className={`px-4 py-2 rounded-lg border-2 cursor-pointer text-xs font-semibold transition-all ${
                       formData.visualStyle === s.value ? T.pill : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
                     }`}>
                     {s.label}
@@ -528,9 +549,11 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
             </Field>
 
             {/* Colors */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Primary Color">
-                <div className="flex items-center gap-2">
+                {/* flex-wrap so the swatches + hex input can never force the
+                    column wider than the pane on narrow screens */}
+                <div className="flex items-center gap-2 flex-wrap">
                   <div className="flex items-center gap-1.5 flex-wrap max-w-44">
                     {BRAND_COLORS.map((hex) => (
                       <button key={hex} onClick={() => field("primaryColor", hex)}
@@ -570,7 +593,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
             </div>
 
             {/* Font + Logo */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Font">
                 <select value={formData.font || "Arial"} onChange={(e) => field("font", e.target.value)}
                   className={`${inputCls} bg-surface cursor-pointer`}>
@@ -594,7 +617,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
             </div>
 
             {/* Caption + Hashtags */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Caption">
                 <div className="relative">
                   <input type="text" value={formData.caption || ""} onChange={(e) => field("caption", e.target.value)}
@@ -618,38 +641,48 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
         {/* ═══ STEP 2 — Format & Goals ══════════════════════════════════════ */}
         {step === 2 && (
           <div className="flex flex-col gap-6">
-            <SectionTitle>Format & Goals</SectionTitle>
+            <SectionTitle icon={Scan} subtitle="Output size, file type, and who this mockup is aimed at.">
+              Format & Goals
+            </SectionTitle>
 
-            {/* Resolution — grouped */}
-            <Field label="Resolution" required>
-              {Object.entries(resolutionGroups).map(([group, options]) => (
-                <div key={group} className="mb-3">
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{group}</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {options.map((r) => (
-                      <button key={r.value} onClick={() => field("resolution", r.value)}
-                        className={`text-left px-3 py-2.5 cursor-pointer rounded-lg border-2 transition-all ${
-                          formData.resolution === r.value ? `${T.border} ${T.bgLight} ${T.textDark}` : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
-                        }`}>
-                        <p className="text-xs font-semibold">{r.label}</p>
-                        <p className={`text-[10px] mt-0.5 ${formData.resolution === r.value ? "text-violet-500" : "text-gray-400"}`}>{r.desc}</p>
-                      </button>
-                    ))}
+            {/* Resolution — groups sit side by side so the block stays short */}
+            <Field label="Resolution" required hint="Digital for social, Print for 300 DPI output">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {Object.entries(resolutionGroups).map(([group, options]) => (
+                  <div key={group}>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{group}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {options.map((r) => {
+                        const active = formData.resolution === r.value;
+                        return (
+                          <button key={r.value} onClick={() => field("resolution", r.value)}
+                            className={`flex items-center gap-2.5 text-left px-3 py-2.5 cursor-pointer rounded-xl border-2 transition-all ${
+                              active ? `${T.border} ${T.bgLight} ${T.textDark}` : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
+                            }`}>
+                            <AspectGlyph value={r.value} active={active} />
+                            <span className="min-w-0">
+                              <span className="block text-xs font-semibold truncate">{r.label}</span>
+                              <span className={`block text-[10px] mt-0.5 ${active ? "text-violet-500" : "text-gray-400"}`}>{r.desc}</span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </Field>
 
-            {/* File format */}
+            {/* File format — intrinsic width so the row doesn't stretch edge to edge */}
             <Field label="File Format">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {FILE_FORMATS.map((f) => (
                   <button key={f.value} onClick={() => field("fileFormat", f.value)}
-                    className={`flex-1 px-3 py-2.5 rounded-lg border-2 cursor-pointer text-xs transition-all text-left ${
+                    className={`flex items-baseline gap-2 px-4 py-2 rounded-xl border-2 cursor-pointer text-xs transition-all ${
                       formData.fileFormat === f.value ? T.pill : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"
                     }`}>
-                    <p className="font-bold">{f.label}</p>
-                    <p className="text-gray-400 text-[10px]">{f.desc}</p>
+                    <span className="font-bold">{f.label}</span>
+                    <span className={`text-[10px] ${formData.fileFormat === f.value ? "text-violet-500" : "text-gray-400"}`}>{f.desc}</span>
                   </button>
                 ))}
               </div>
@@ -669,26 +702,35 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
               </div>
             </Field>
 
-            {/* Audience */}
+            {/* Audience — 5 across on wide screens so the row fills evenly */}
             <Field label="Audience">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                 {AUDIENCES.map((a) => (
                   <button key={a.value} onClick={() => field("audience", a.value)}
-                    className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
+                    className={`text-left px-3 py-2.5 cursor-pointer rounded-xl border-2 transition-all ${
                       formData.audience === a.value ? `${T.border} ${T.bgLight}` : "border-gray-100 bg-gray-50 hover:border-gray-300"
                     }`}>
                     <p className={`text-xs font-semibold ${formData.audience === a.value ? T.textDark : "text-gray-700"}`}>{a.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{a.desc}</p>
+                    <p className={`text-[10px] mt-0.5 ${formData.audience === a.value ? "text-violet-500" : "text-gray-400"}`}>{a.desc}</p>
                   </button>
                 ))}
               </div>
             </Field>
 
             {/* Mockup type summary reminder */}
-            {formData.mockupType && (
-              <div className={`rounded-xl p-3 ${T.importBg} border ${T.importBorder}`}>
-                <p className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider mb-1">Selected Mockup</p>
-                <p className="text-xs text-gray-700 capitalize">{formData.mockupType} — {MOCKUP_TYPES.find(m => m.value === formData.mockupType)?.desc}</p>
+            {selectedMockup && (
+              <div className={`flex items-center gap-3 rounded-xl p-3 ${T.importBg} border ${T.importBorder}`}>
+                <span className={`w-9 h-9 shrink-0 rounded-xl ${T.bg} text-white flex items-center justify-center`}>
+                  <SelectedMockupIcon className="w-4 h-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider">Selected Mockup</p>
+                  <p className="text-xs text-gray-700 mt-0.5">{selectedMockup.label} — {selectedMockup.desc}</p>
+                </div>
+                <button onClick={() => setStep(1)}
+                  className="ml-auto shrink-0 text-[11px] font-semibold text-violet-600 hover:text-violet-700 cursor-pointer">
+                  Change
+                </button>
               </div>
             )}
           </div>
@@ -698,7 +740,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
         {step === 3 && (
           <div className="flex flex-col">
             <div className="flex items-center justify-between mb-1">
-              <SectionTitle>Background Image</SectionTitle>
+              <SectionTitle icon={Images}>Background Image</SectionTitle>
               {selectedImages.length > 0 && (
                 <button onClick={handleApplySelected}
                   className={`px-4 py-2 ${T.bg} ${T.bgHover} cursor-pointer text-white text-xs font-semibold rounded-lg flex items-center gap-2`}>
@@ -722,7 +764,7 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
             {croppedImages.length > 0 && (
               <div className="py-2">
                 <p className="text-xs font-medium text-gray-500 mb-2">Selected media</p>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {croppedImages.map((item, index) => {
                     const url = item?.previewUrl ||
                       (item instanceof File || item instanceof Blob ? URL.createObjectURL(item) : null);
@@ -837,15 +879,62 @@ const PackagingForm = ({ formData, setFormData, activeBrand, sendUrl, showToast,
 
 // ── micro-components ──────────────────────────────────────────────────────────
 const inputCls = "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent";
-const SectionTitle = ({ children }) => <h3 className="font-semibold text-gray-900 text-base">{children}</h3>;
-const Field = ({ label, required, children }) => (
+
+/**
+ * Step heading. `icon` renders a tinted theme chip on the left and `subtitle`
+ * a one-line explainer underneath — both optional, so a bare
+ * <SectionTitle>Text</SectionTitle> still renders like the other forms.
+ */
+const SectionTitle = ({ icon: Icon, subtitle, children }) => (
+  <div className="flex items-start gap-2.5">
+    {Icon && (
+      <span className={`w-8 h-8 shrink-0 rounded-xl ${T.bgLight} ${T.text} flex items-center justify-center`}>
+        <Icon className="w-4 h-4" />
+      </span>
+    )}
+    <div className="min-w-0">
+      <h3 className="font-semibold text-gray-900 text-base leading-5">{children}</h3>
+      {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+    </div>
+  </div>
+);
+
+/**
+ * Labelled field wrapper. `hint` shows secondary copy on the right of the label
+ * row — used to surface a selected option's description without spending
+ * vertical space on it.
+ */
+const Field = ({ label, required, hint, children }) => (
   <div className="flex flex-col gap-1.5">
-    <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-      {label}{required && <span className="text-red-400">*</span>}
-    </label>
+    <div className="flex items-center gap-2">
+      <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+        {label}{required && <span className="text-red-400">*</span>}
+      </label>
+      {hint && <span className="text-[10px] text-gray-400 ml-auto truncate">{hint}</span>}
+    </div>
     {children}
   </div>
 );
+
+/**
+ * Tiny outlined rectangle drawn to a resolution's aspect ratio (e.g. 1200x800),
+ * so square vs. rectangular output is readable at a glance.
+ */
+const AspectGlyph = ({ value, active }) => {
+  const [w, h] = String(value).split("x").map(Number);
+  const ratio  = w && h ? w / h : 1;
+  const MAX    = 18;
+  const width  = ratio >= 1 ? MAX : Math.round(MAX * ratio);
+  const height = ratio >= 1 ? Math.round(MAX / ratio) : MAX;
+  return (
+    <span className="w-5 h-5 shrink-0 flex items-center justify-center">
+      <span
+        className={`block rounded-[3px] border-2 transition-colors ${active ? "border-violet-500" : "border-gray-300"}`}
+        style={{ width, height }}
+      />
+    </span>
+  );
+};
 const MediaBtn = ({ icon: Icon, label, onClick }) => (
   <button onClick={onClick}
     className="flex items-center gap-1.5 px-4 py-2 cursor-pointer rounded-lg text-xs font-semibold bg-surface border border-gray-200 text-gray-600 hover:border-violet-400 hover:text-violet-600 transition-all">

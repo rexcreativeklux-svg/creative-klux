@@ -159,7 +159,7 @@ export default function PromptComposer({
         {/* Prompt */}
         <textarea
           ref={textareaRef}
-          rows={1}
+          rows={3}
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={handleKeyDown}

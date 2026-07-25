@@ -255,8 +255,10 @@ const DigitalBusinessCardForm = ({ formData, setFormData, activeBrand, showToast
                   value={description}
                   onChange={(e) => { setDescription(e.target.value); setError(""); }}
                   placeholder="Describe your business card style, industry, and intended use."
-                  rows={3}
-                  className={`${inputCls} placeholder:text-xs placeholder:text-gray-400 resize-none`}
+                  rows={4}
+                  /* pb-10 reserves room for the Inspire Me button + counter that
+                     sit inside the textarea, so long text can't run under them */
+                  className={`${inputCls} pb-10 placeholder:text-xs placeholder:text-gray-400 resize-none`}
                 />
                 <button
                   onClick={handleInspire}

@@ -306,7 +306,7 @@ const InfographicForm = ({
                   placeholder="Describe your infographic… topic, key data points, story you want to tell."
                   rows={4}
                   maxLength={500}
-                  className={`${inputCls} placeholder:text-xs placeholder:text-gray-400 resize-none`}
+                  className={`${inputCls} pb-10 placeholder:text-xs placeholder:text-gray-400 resize-none`}
                 />
                 <button
                   onClick={handleInspire}

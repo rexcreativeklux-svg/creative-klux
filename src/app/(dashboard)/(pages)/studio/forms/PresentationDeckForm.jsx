@@ -315,7 +315,7 @@ const PresentationDeckForm = ({
                   placeholder="Describe your presentation… topic, key message, who it's for, and what you want to achieve."
                   rows={4}
                   maxLength={500}
-                  className={`${inputCls} placeholder:text-xs placeholder:text-gray-400 resize-none`}
+                  className={`${inputCls} pb-10 placeholder:text-xs placeholder:text-gray-400 resize-none`}
                 />
                 <button
                   onClick={handleInspire}

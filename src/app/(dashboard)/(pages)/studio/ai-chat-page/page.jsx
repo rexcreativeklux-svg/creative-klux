@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Sparkles, ArrowLeft, Tv2, Share2, Palette, Wand2,
@@ -11,6 +11,10 @@ import AiChatMessage from "@/app/(components)/studio/AiChatMessage";
 import AiChatInput from "@/app/(components)/studio/AiChatInput";
 import AiChatTypingIndicator from "@/app/(components)/studio/AiChatTypingIndicator";
 import AiPreviewIdle from "@/app/(components)/studio/AiPreviewIdle";
+import {
+  buildTemplateQuery,
+  normalizeDesignTemplate,
+} from "@/app/(components)/studio/designTemplates";
 import Toast from "@/app/(components)/Toast";
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
 // so these previews match exactly what opens in the editor.
@@ -135,6 +139,166 @@ function DesignCanvas({ variation }) {
   );
 }
 
+/* ─── PreviewLoading ───────────────────────────────────────────
+   Shown while templates are being fetched, so the pane never falls back to the
+   idle state mid-request and look like nothing happened.
+──────────────────────────────────────────────────────────────── */
+function PreviewLoading({ config, label }) {
+  const { color, colorRgb } = config;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 16,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 14,
+      }}
+    >
+      <span
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: "50%",
+          border: `2.5px solid rgba(${colorRgb},0.18)`,
+          borderTopColor: color,
+          animation: "ck-spin 0.8s linear infinite",
+          display: "inline-block",
+        }}
+      />
+      <p style={{ fontSize: 12, color: "#8b8b8b", margin: 0 }}>{label}</p>
+      <style>{`@keyframes ck-spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+/* ─── TemplatesPreview ─────────────────────────────────────────
+   The templates pulled from /design-templates/public-fetch once the assistant
+   answers with type:"create". They arrive in the same {canvas, elements} shape
+   as generated variations, so they paint through the very same DesignCanvas.
+──────────────────────────────────────────────────────────────── */
+function TemplatesPreview({ templates, time, config, onPick, selectedId }) {
+  const { color, colorRgb } = config;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 16,
+        background: "#fff",
+        borderRadius: 14,
+        border: "0.5px solid rgba(0,0,0,0.08)",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        animation: "ck-slide-in 0.35s cubic-bezier(0.34,1.56,0.64,1) both",
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: 12,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: 10,
+          alignItems: "start",
+        }}
+      >
+        {templates.map((tpl) => {
+          const isSelected = selectedId === tpl.id;
+          return (
+            <button
+              key={tpl.id}
+              onClick={() => onPick(tpl)}
+              title={tpl.name}
+              style={{
+                position: "relative",
+                display: "block",
+                width: "100%",
+                padding: 0,
+                borderRadius: 12,
+                overflow: "hidden",
+                background: "#fff",
+                cursor: "pointer",
+                textAlign: "left",
+                border: isSelected
+                  ? `2px solid ${color}`
+                  : "1px solid #e5e7eb",
+                boxShadow: isSelected
+                  ? `0 4px 18px rgba(${colorRgb},0.25)`
+                  : "0 1px 4px rgba(0,0,0,0.05)",
+                transition: "all 0.18s",
+              }}
+            >
+              <DesignCanvas variation={tpl} />
+              <div
+                style={{
+                  padding: "8px 10px 9px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 6,
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: "#111",
+                    margin: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {tpl.name}
+                </p>
+                <span
+                  style={{
+                    fontSize: 8.5,
+                    color: "#94a3b8",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
+                  }}
+                >
+                  {Math.round(tpl.canvas.width)}×{Math.round(tpl.canvas.height)}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        style={{
+          padding: "8px 14px",
+          borderTop: "0.5px solid rgba(0,0,0,0.08)",
+          fontSize: 11,
+          color: "#6b6b6b",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: color,
+            display: "inline-block",
+          }}
+        />
+        {templates.length} template{templates.length > 1 ? "s" : ""} · {time}
+      </div>
+    </div>
+  );
+}
+
 function PreviewPanel({ result,
   config,
   creativeType,
@@ -142,8 +306,27 @@ function PreviewPanel({ result,
   setSelectedDesigns,
   onToggleSelect,
   saveDesign,
-  activeBrandId, showToast, }) {
+  activeBrandId, showToast,
+  templatesLoading,
+  onPickTemplate,
+  selectedTemplateId, }) {
   const { colorRgb, colorLight } = config;
+
+  if (templatesLoading) {
+    return <PreviewLoading config={config} label="Finding matching templates…" />;
+  }
+
+  if (result?.type === "templates") {
+    return (
+      <TemplatesPreview
+        templates={result.templates}
+        time={result.time}
+        config={config}
+        onPick={onPickTemplate}
+        selectedId={selectedTemplateId}
+      />
+    );
+  }
 
   if (!result || result.type !== "design") {
     return <AiPreviewIdle config={config} />;
@@ -429,7 +612,7 @@ function PreviewPanel({ result,
 export default function AiCreativeChatPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { creativeAiChat, saveDesign, activeBrandId } = useAuth();
+  const { creativeAiChat, saveDesign, activeBrandId, fetchDesignTemplates } = useAuth();
 
   const creativeType = searchParams.get("creative") || "general";
   const config = CREATIVE_CONFIG[creativeType] || CREATIVE_CONFIG.general;
@@ -439,6 +622,11 @@ export default function AiCreativeChatPage() {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [previewResult, setPreviewResult] = useState(null);
+  // True while /design-templates/public-fetch is in flight, so the preview pane
+  // can show a spinner instead of sitting on the idle state.
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  // The template the user picked from the fetched set (null = none yet).
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
   const messagesEndRef = useRef(null);
   const hasInitialized = useRef(false);
   const [selectedDesigns, setSelectedDesigns] = useState([]);
@@ -495,6 +683,62 @@ export default function AiCreativeChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
+  /**
+   * Inspect a chat reply and, when the assistant signals it has everything it
+   * needs (`type: "create"`), pull the matching design templates.
+   *
+   * Declared ahead of the send handlers because both call it. Failures surface
+   * on the toast and leave the preview pane untouched — a template miss must
+   * never break the conversation itself.
+   *
+   * @param {object} data The parsed chat response body.
+   */
+  const maybeFetchTemplates = useCallback(
+    async (data) => {
+      if (data?.type !== "create") return;
+
+      const query = buildTemplateQuery(data);
+      if (!query) return; // reply lacked a platform/size — already warned
+
+      console.log("🎨 [chat] create signal received, fetching templates:", query);
+      setTemplatesLoading(true);
+      try {
+        const res = await fetchDesignTemplates(query);
+
+        if (!res?.ok) {
+          console.error(
+            "❌ [chat] template fetch failed:",
+            res?.messageForDevs || res?.message,
+          );
+          showToast(res?.message || "Couldn't load design templates.", "error");
+          return;
+        }
+
+        const templates = (Array.isArray(res.data) ? res.data : [])
+          .map(normalizeDesignTemplate)
+          .filter(Boolean);
+
+        if (!templates.length) {
+          console.warn("⚠️ [chat] no usable templates for", query);
+          showToast(
+            `No templates found for ${query.category} at ${query.type_size}.`,
+            "error",
+          );
+          return;
+        }
+
+        console.log(`✅ [chat] ${templates.length} template(s) ready`);
+        setPreviewResult({ type: "templates", templates, time: nowTime() });
+      } catch (err) {
+        console.error("❌ [chat] template fetch threw:", err);
+        showToast("Couldn't load design templates. Please try again.", "error");
+      } finally {
+        setTemplatesLoading(false);
+      }
+    },
+    [fetchDesignTemplates],
+  );
+
   const handleSend = useCallback(
     async (content) => {
       const userMsg = {
@@ -538,6 +782,9 @@ export default function AiCreativeChatPage() {
         if (designType === "design" && Array.isArray(designVars) && designVars.length) {
           setPreviewResult({ type: "design", variations: designVars, time: nowTime() });
         }
+
+        // The assistant has everything it needs → pull matching templates.
+        await maybeFetchTemplates(result.data);
       } catch {
         setMessages((prev) => [
           ...prev,
@@ -551,7 +798,7 @@ export default function AiCreativeChatPage() {
         setIsLoading(false);
       }
     },
-    [messages, creativeType, creativeAiChat, mode]
+    [messages, creativeType, creativeAiChat, mode, maybeFetchTemplates]
   );
 
   const handleInitialSend = useCallback(async (content) => {
@@ -586,6 +833,9 @@ export default function AiCreativeChatPage() {
         setPreviewResult({ type: "design", variations: designVars, time: nowTime() });
       }
 
+      // The assistant has everything it needs → pull matching templates.
+      await maybeFetchTemplates(result.data);
+
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -598,7 +848,15 @@ export default function AiCreativeChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [creativeType, creativeAiChat, mode]);
+  }, [creativeType, creativeAiChat, mode, maybeFetchTemplates]);
+
+  // Which template the user has picked from the fetched set.
+  const handlePickTemplate = useCallback((template) => {
+    setSelectedTemplate((current) =>
+      current?.id === template.id ? null : template,
+    );
+    console.log(`🖼️ [chat] template selected: ${template.name} (${template.id})`);
+  }, []);
 
   const toggleDesignSelection = useCallback((design) => {
     setSelectedDesigns((prev) => {
@@ -828,7 +1086,13 @@ export default function AiCreativeChatPage() {
                 transition: "all 0.3s",
               }}
             >
-              {previewResult ? "Generated" : "Waiting for input"}
+              {templatesLoading
+                ? "Loading templates"
+                : previewResult?.type === "templates"
+                  ? `${previewResult.templates.length} templates`
+                  : previewResult
+                    ? "Generated"
+                    : "Waiting for input"}
             </span>
           </div>
 
@@ -855,6 +1119,9 @@ export default function AiCreativeChatPage() {
               saveDesign={saveDesign}
               activeBrandId={activeBrandId}
               showToast={showToast}
+              templatesLoading={templatesLoading}
+              onPickTemplate={handlePickTemplate}
+              selectedTemplateId={selectedTemplate?.id || null}
             />
 
           </div>

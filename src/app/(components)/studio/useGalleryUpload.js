@@ -50,36 +50,58 @@ function isStorageOrQuotaError(err) {
 }
 
 /**
- * Pull the hosted URL out of an upload response. `uploadMedia` returns the raw
- * body, whose shape varies by route — check every field the API is known to use
- * before giving up.
+ * Pull the uploaded record out of an upload response.
+ *
+ * POST /gallery answers with the record nested under `file`:
+ *
+ *   {
+ *     "success": true,
+ *     "message": "File uploaded successfully",
+ *     "file": {
+ *       "id": 2294,
+ *       "type": "image",
+ *       "image_url": "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/…webp",
+ *       "image_name": "perspective sight of 2 paper bags mockup on wooden table",
+ *       "s3_key": "creativeklux/…webp",
+ *       "size_mb": 0.3,
+ *       …
+ *     }
+ *   }
+ *
+ * `data` and the bare root are also accepted, because AuthContext's uploadMedia
+ * returns whatever the route hands back and other gallery surfaces in this app
+ * read `data.image_url` / `image_url` directly.
  *
  * @param {unknown} response
- * @returns {string|null}
+ * @returns {{url: string, id: string|number|null, name: string|null, type: string|null}|null}
  */
-function extractUrl(response) {
+function extractUploadedFile(response) {
   if (!response) return null;
-  if (typeof response === "string") return response;
+  if (typeof response === "string") return { url: response, id: null, name: null, type: null };
 
-  const body = response?.data && typeof response.data === "object" ? response.data : response;
-  const candidates = [
-    body?.image_url,
-    body?.url,
-    body?.file_url,
-    body?.media_url,
-    body?.src,
-    body?.path,
-    response?.image_url,
-    response?.url,
-  ];
-  return candidates.find((value) => typeof value === "string" && value) || null;
+  // Ordered by how the API actually answers: `file` is the real shape today.
+  const containers = [response.file, response.data?.file, response.data, response];
+
+  for (const container of containers) {
+    if (!container || typeof container !== "object") continue;
+    const url = container.image_url || container.url || container.file_url;
+    if (typeof url === "string" && url) {
+      return {
+        url,
+        id: container.id ?? null,
+        name: container.image_name ?? null,
+        type: typeof container.type === "string" && container.type ? container.type : null,
+      };
+    }
+  }
+  return null;
 }
 
 /**
  * @typedef {object} Attachment
- * @property {string} id        Stable key for React lists.
+ * @property {string} id        Stable key for React lists — the gallery record id when the API sends one.
  * @property {string} url       Hosted gallery URL — what gets sent with the prompt.
- * @property {string} name      Original file name.
+ * @property {string} name      File name (the backend's `image_name`, else the local one).
  * @property {string} category  "image" | "video" | "audio" | "document".
  * @property {string|null} previewUrl Local object URL, images only (revoked on remove).
  */
@@ -155,22 +177,27 @@ export default function useGalleryUpload() {
         try {
           console.log(`💾 [composer-upload] uploading ${file.name} (${asMB(file.size)}, ${category})`);
           const response = await uploadMedia(file);
-          const url = extractUrl(response);
+          const record = extractUploadedFile(response);
 
-          if (!url) {
-            console.error("❌ [composer-upload] upload succeeded but no URL in response:", response);
+          if (!record) {
+            console.error(
+              "❌ [composer-upload] upload succeeded but no URL in response:",
+              response,
+            );
             lastError = { message: "The file uploaded but we didn't get a link back." };
             continue;
           }
 
           uploaded.push({
-            id: `${Date.now()}-${file.name}-${uploaded.length}`,
-            url,
-            name: file.name,
-            category,
+            // Prefer the gallery record's own id so the key is stable and the
+            // attachment can be traced back to the row it created.
+            id: record.id != null ? String(record.id) : `${Date.now()}-${uploaded.length}`,
+            url: record.url,
+            name: record.name || file.name,
+            category: record.type || category,
             previewUrl: category === "image" ? URL.createObjectURL(file) : null,
           });
-          console.log(`✅ [composer-upload] ${file.name} → ${url}`);
+          console.log(`✅ [composer-upload] ${file.name} → ${record.url}`);
         } catch (err) {
           lastError = err;
           console.error(

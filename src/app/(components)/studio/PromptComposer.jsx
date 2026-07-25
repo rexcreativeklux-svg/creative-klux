@@ -116,15 +116,16 @@ export default function PromptComposer({
             : "border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.05)]"
         }`}
       >
-        {/* Attachment chips — only once something is attached */}
+        {/* Attachment chips — one row that scrolls sideways, never wraps, so the
+            composer keeps its height no matter how many files are attached. */}
         {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 border-b border-gray-100 px-3 pb-3 pt-3">
+          <div className="hide-scrollbar flex gap-2 overflow-x-auto border-b border-gray-100 px-3 pb-3 pt-3">
             {attachments.map((item) => {
               const Icon = CATEGORY_ICON[item.category] || Paperclip;
               return (
                 <div
                   key={item.id}
-                  className="group relative flex max-w-52.5 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-1.5 pr-7"
+                  className="group relative flex w-44 shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-1.5 pr-7"
                 >
                   {item.previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

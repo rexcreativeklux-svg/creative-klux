@@ -70,8 +70,8 @@ function normalise(attachments) {
 
 /**
  * @param {object} props
- * @param {(string|object)[]} props.urls Attachment URLs lifted out of the
- *   message string by splitMessageAttachments().
+ * @param {(string|object)[]} props.urls The message's own attachment URLs
+ *   (`message.images`) — they travel beside the text, never inside it.
  * @param {boolean} [props.isUser] Tints the tile chrome to match the bubble.
  */
 export default function MessageAttachments({ urls, isUser = false }) {

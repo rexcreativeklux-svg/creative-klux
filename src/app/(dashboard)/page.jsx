@@ -18,9 +18,11 @@
 //   creative        the pipeline — always "general" here; the assistant infers
 //                   ads / social / design intent from the prompt itself
 //   initialMessage  the typed or dictated prompt
-//   model, mode     the composer's selections, already on the URL so the backend
-//                   only has to start reading them (creativeAiChat is untouched)
-//   attachment      repeated once per attached gallery URL
+//   model           the composer's model choice, sent on to the API
+//   mode            Build/Plan. UI state only for now — the chat API has no
+//                   field for it, so it travels no further than this URL
+//   image           repeated once per attached image URL; the chat page collects
+//                   them back into the API's `images` array
 //
 // Colours come from the app's theme tokens (bg-page / bg-surface / gray-*), so
 // light and dark both follow the user's chosen theme with no per-mode overrides.
@@ -31,7 +33,6 @@ import { useAuth } from "@/context/AuthContext";
 import PromptComposer from "@/app/(components)/studio/PromptComposer";
 import TemplatesSection from "@/app/(components)/studio/TemplatesSection";
 import AmbientVideoBackdrop from "@/app/(components)/home/AmbientVideoBackdrop";
-import { buildMessageWithAttachments } from "@/app/(components)/studio/attachmentUrls";
 
 /** The chat page's own pipeline key — see CREATIVE_CONFIG in ai-chat-page. */
 const DEFAULT_CREATIVE = "general";
@@ -48,19 +49,17 @@ export default function Home() {
 
   /**
    * Send the composer's payload to the chat page.
-   * @param {{prompt: string, model: string, mode: string, attachments: string[]}} payload
+   * @param {{prompt: string, model: string, mode: string, images: string[]}} payload
    */
-  const handleSubmit = ({ prompt, model, mode, attachments }) => {
-    // Attachment URLs are folded into the message string itself, so the chat
-    // page receives one `initialMessage` and the API payload stays
-    // { message, creative_type, mode, history } with message a plain string.
-    const message = buildMessageWithAttachments(prompt, attachments);
-
+  const handleSubmit = ({ prompt, model, mode, images }) => {
+    // Images ride the URL as their own repeated `image` param — they are NOT
+    // folded into the message, because the API takes a separate `images` array.
     const params = new URLSearchParams({ creative: DEFAULT_CREATIVE, model, mode });
-    if (message) params.set("initialMessage", message);
+    if (prompt) params.set("initialMessage", prompt);
+    images.forEach((url) => params.append("image", url));
 
     console.log(
-      `🚀 [home] launching chat — model="${model}", mode="${mode}", ${attachments.length} attachment(s) inlined`,
+      `🚀 [home] launching chat — model="${model}", mode="${mode}", ${images.length} image(s) attached`,
     );
     router.push(`/studio/ai-chat-page?${params.toString()}`);
   };
@@ -89,10 +88,17 @@ export default function Home() {
             · md and up — exactly the space left once --ck-rail-top is reserved
               at the bottom, so the rail beneath starts on the sidebar's THEME
               hairline.
-          `overflow-hidden` scopes the backdrop: it is absolutely positioned to
-          THIS section, so the drifting clip can never bleed over the rail. */}
+          Deliberately NOT overflow-hidden: the composer's Model and Build menus
+          drop UPWARD, and clipping here would cut them off on short viewports.
+          AmbientVideoBackdrop clips itself instead, so the drifting clip still
+          can't bleed past the hero.
+
+          pt-[clamp(...)] is what lowers the composer toward the optical centre:
+          with justify-center, top padding moves the centred block down by half
+          the padding, and min-height is border-box so the section's total height
+          (and therefore the rail alignment) is unaffected. */}
       <section
-        className="relative flex min-h-[calc(100vh-4rem-7rem)] flex-col justify-center overflow-hidden pt-[clamp(1.5rem,7vh,5rem)] md:min-h-[calc(100vh-4rem-var(--ck-rail-top))]"
+        className="relative flex min-h-[calc(100vh-4rem-7rem)] flex-col justify-center pt-[clamp(1.5rem,7vh,5rem)] md:min-h-[calc(100vh-4rem-var(--ck-rail-top))]"
       >
         {/* A different clip every 24h per user, deeply dimmed under a scrim,
             with the old gradient wash still underneath as the fallback. */}

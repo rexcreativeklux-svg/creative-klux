@@ -2157,20 +2157,60 @@ export function AuthProvider({ children }) {
     [token],
   );
 
-  // `mode` is the Studio composer's Build/Plan choice: "build" generates right
-  // away, "plan" asks the assistant to draft a plan first. It defaults to
-  // "build" so any caller that predates the option keeps its old behaviour.
-  // (The composer's model picker is intentionally NOT sent yet — the backend
-  // doesn't accept a model field, so it only travels on the URL for now.)
+  /**
+   * Creative AI chat → POST /creatives/ai-chat.
+   *
+   * The request body is EXACTLY the fields the endpoint validates — nothing
+   * else is sent:
+   *
+   *   'brand_id'  => 'required|integer',
+   *   'message'   => 'required|string|max:2000',
+   *   'save_chat' => 'nullable|string|max:32',
+   *   'details'   => 'nullable|array',
+   *   'images'    => 'nullable|array|max:10',
+   *   'images.*'  => 'nullable|string|url|max:2048',
+   *   'logo'      => 'nullable|string|url|max:2048',
+   *   'model'     => 'nullable|string',
+   *
+   * Deliberately GONE (do not re-add without a backend change):
+   *   history        the server keeps the conversation now — `save_chat` is
+   *                  what ties messages together, so nothing is replayed
+   *   creative_type  no longer part of the contract; the assistant infers intent
+   *   mode           Build/Plan has no field here; it stays UI/URL state only
+   *
+   * `details` is sent as null until the backend defines a shape for it.
+   *
+   * @param {object} params
+   * @param {string} params.message  What the user typed. Required, ≤2000 chars.
+   * @param {number|string} params.brandId  Active brand — required by the API.
+   * @param {string[]} [params.images] Hosted image URLs, ≤10 (see toImagePayload).
+   * @param {string} [params.logo]   The brand's hosted logo URL.
+   * @param {string} [params.model]  The composer's model id, passed straight on.
+   * @returns {Promise<{ok: boolean, reply?: string, data?: unknown, message?: string}>}
+   */
   const creativeAiChat = async ({
     message,
-    creativeType,
-    history = [],
-    mode = "build",
+    brandId,
+    images = [],
+    logo,
+    model,
   }) => {
     if (!token) {
       console.error("No auth token found. User may not be logged in.");
       return { ok: false, message: "Not authenticated" };
+    }
+
+    // Guard the two required fields here so a predictable 422 becomes a clear
+    // message instead of a round trip that fails for a reason the UI must then
+    // decode out of the validation envelope.
+    if (!brandId) {
+      console.error("❌ creativeAiChat: no active brand — brand_id is required.");
+      return { ok: false, message: "Select a brand before starting a chat." };
+    }
+    const text = typeof message === "string" ? message.trim() : "";
+    if (!text) {
+      console.error("❌ creativeAiChat: empty message — message is required.");
+      return { ok: false, message: "Type a message to send." };
     }
 
     try {
@@ -2181,10 +2221,13 @@ export function AuthProvider({ children }) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          message, // a plain string; any attachment URLs are appended inside it
-          creative_type: creativeType,
-          mode, // "build" | "plan"
-          history, // array of { role: "user"|"assistant", content: string }
+          brand_id: brandId,
+          message: text,
+          save_chat: "true", // always persist the conversation server-side
+          details: null, // no agreed shape yet
+          images: images.length ? images : null,
+          logo: logo || null,
+          model: model || null,
         }),
       });
 

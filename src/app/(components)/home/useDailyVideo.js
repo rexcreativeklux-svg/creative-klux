@@ -86,8 +86,17 @@ function saveSavedPick(pick) {
 export default function useDailyVideo(videos = []) {
   const [pick, setPick] = useState(null);
 
+  // The effect below sets state, so depending on `videos` BY REFERENCE would
+  // spin forever for any caller that passes an inline array literal: new
+  // reference each render → effect reruns → setState → render → repeat. Keying
+  // on the joined value instead makes the dependency about the list's CONTENT,
+  // so the effect settles no matter how the caller builds the array. URLs never
+  // contain a bare "|", so the round-trip through the key is lossless.
+  const videoKey = videos.join("|");
+
   useEffect(() => {
-    const count = videos.length;
+    const list = videoKey ? videoKey.split("|") : [];
+    const count = list.length;
     if (count === 0) {
       // Nothing to choose from — leave `pick` at its initial null so the
       // caller keeps showing the gradient.
@@ -121,8 +130,8 @@ export default function useDailyVideo(videos = []) {
     if (next !== saved) saveSavedPick(next);
 
     const index = next.index % count;
-    setPick({ src: videos[index], index });
-  }, [videos]);
+    setPick({ src: list[index], index });
+  }, [videoKey]);
 
   return pick;
 }

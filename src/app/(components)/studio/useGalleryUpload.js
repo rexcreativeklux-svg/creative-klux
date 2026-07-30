@@ -109,6 +109,14 @@ function extractUploadedFile(response) {
 /**
  * Upload-to-gallery for the prompt composer.
  *
+ * @param {object} [options]
+ * @param {string[]} [options.allowedCategories] Restrict to these categories
+ *   ("image" | "video" | "audio" | "document"). Omit to accept everything the
+ *   gallery accepts. The chat surfaces pass ["image"] because the AI chat API
+ *   only carries an `images` array — see creativeAiChat.
+ * @param {number} [options.maxFiles] Hard cap on how many attachments may be
+ *   held at once. The chat surfaces pass 10 to match the API's `max:10`, so an
+ *   over-limit send is stopped here with a clear message instead of 422-ing.
  * @returns {{
  *   attachments: Attachment[], uploading: boolean,
  *   addFiles: (files: FileList|File[]) => Promise<void>,
@@ -116,7 +124,10 @@ function extractUploadedFile(response) {
  *   clearAttachments: () => void,
  * }}
  */
-export default function useGalleryUpload() {
+export default function useGalleryUpload({
+  allowedCategories,
+  maxFiles,
+} = {}) {
   const { uploadMedia } = useAuth();
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -149,6 +160,20 @@ export default function useGalleryUpload() {
           toast.error(`${file.name} isn't a supported file type.`);
           continue;
         }
+        // Surface-level restriction (the chat surfaces are images-only). The
+        // file picker's `accept` already steers the dialog, but a drag-drop or
+        // an "All files" override can still land anything here.
+        if (allowedCategories && !allowedCategories.includes(category)) {
+          console.warn(
+            `⚠️ [composer-upload] ${file.name} is a ${category}; this surface accepts ${allowedCategories.join(", ")} only`,
+          );
+          toast.error(
+            allowedCategories.length === 1 && allowedCategories[0] === "image"
+              ? `${file.name} isn't an image — only images can be attached here.`
+              : `${file.name} isn't a supported file type here.`,
+          );
+          continue;
+        }
         if (file.size > FILE_LIMITS[category]) {
           console.warn(
             `⚠️ [composer-upload] ${file.name} is ${asMB(file.size)}, over the ${category} limit`,
@@ -162,18 +187,40 @@ export default function useGalleryUpload() {
       }
       if (!valid.length) return;
 
-      // 2. Upload sequentially so one failure can't cancel the rest, and the
+      // 2. Enforce the attachment cap against what's ALREADY attached, so two
+      //    separate picks can't add up past the limit. Anything over the line is
+      //    dropped here rather than being uploaded and then rejected on send.
+      let accepted = valid;
+      if (maxFiles) {
+        const room = Math.max(0, maxFiles - attachmentsRef.current.length);
+        if (valid.length > room) {
+          console.warn(
+            `⚠️ [composer-upload] ${valid.length} file(s) picked but only ${room} slot(s) left of ${maxFiles}`,
+          );
+          toast.error(
+            room === 0
+              ? `You can attach up to ${maxFiles} files — remove one to add another.`
+              : `Only ${room} more file${room === 1 ? "" : "s"} can be attached (limit ${maxFiles}).`,
+          );
+          accepted = valid.slice(0, room);
+        }
+        if (!accepted.length) return;
+      }
+
+      // 3. Upload sequentially so one failure can't cancel the rest, and the
       //    progress toast stays truthful about which file is in flight.
       setUploading(true);
       const toastId = toast.loading(
-        valid.length === 1 ? `Uploading ${valid[0].file.name}…` : `Uploading ${valid.length} files…`,
+        accepted.length === 1
+          ? `Uploading ${accepted[0].file.name}…`
+          : `Uploading ${accepted.length} files…`,
       );
 
       const uploaded = [];
       let storageBlocked = false;
       let lastError = null;
 
-      for (const { file, category } of valid) {
+      for (const { file, category } of accepted) {
         try {
           console.log(`💾 [composer-upload] uploading ${file.name} (${asMB(file.size)}, ${category})`);
           const response = await uploadMedia(file);
@@ -216,9 +263,9 @@ export default function useGalleryUpload() {
       setUploading(false);
       if (uploaded.length) setAttachments((prev) => [...prev, ...uploaded]);
 
-      // 3. Resolve the one toast with an outcome the user can act on.
+      // 4. Resolve the one toast with an outcome the user can act on.
       if (storageBlocked) {
-        const stalled = valid.length - uploaded.length;
+        const stalled = accepted.length - uploaded.length;
         toast.error(
           uploaded.length
             ? `Your storage is full — ${uploaded.length} file(s) made it, ${stalled} couldn't. Free up space or upgrade your plan to add the rest.`
@@ -228,7 +275,7 @@ export default function useGalleryUpload() {
         return;
       }
 
-      if (uploaded.length === valid.length) {
+      if (uploaded.length === accepted.length) {
         toast.success(
           uploaded.length === 1 ? "File attached" : `${uploaded.length} files attached`,
           { id: toastId },
@@ -238,7 +285,7 @@ export default function useGalleryUpload() {
 
       if (uploaded.length) {
         toast.warning(
-          `${uploaded.length} of ${valid.length} files attached — ${lastError?.message || "the rest failed"}`,
+          `${uploaded.length} of ${accepted.length} files attached — ${lastError?.message || "the rest failed"}`,
           { id: toastId, duration: 6000 },
         );
         return;
@@ -249,7 +296,7 @@ export default function useGalleryUpload() {
         duration: 6000,
       });
     },
-    [uploadMedia],
+    [uploadMedia, allowedCategories, maxFiles],
   );
 
   const removeAttachment = useCallback((id) => {

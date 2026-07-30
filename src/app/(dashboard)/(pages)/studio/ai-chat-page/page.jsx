@@ -616,7 +616,8 @@ function PreviewPanel({ result,
 export default function AiCreativeChatPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { creativeAiChat, saveDesign, activeBrandId, fetchDesignTemplates } = useAuth();
+  const { creativeAiChat, saveDesign, activeBrand, activeBrandId, fetchDesignTemplates } =
+    useAuth();
 
   const creativeType = searchParams.get("creative") || "general";
   const config = CREATIVE_CONFIG[creativeType] || CREATIVE_CONFIG.general;
@@ -655,9 +656,8 @@ export default function AiCreativeChatPage() {
   });
 
   const initialMessage = searchParams.get("initialMessage") || "";
-  // Build/Plan, chosen in the Studio composer and carried here on the URL.
-  // Anything unrecognised (or absent) falls back to "build".
-  const mode = searchParams.get("mode") === "plan" ? "plan" : "build";
+  // The model the composer picked, passed straight through to the API.
+  const model = searchParams.get("model") || "";
 
   const [toast, setToast] = useState({
     open: false,
@@ -679,17 +679,22 @@ export default function AiCreativeChatPage() {
 
     setPreviewResult(null);
 
-    // `initialMessage` already carries any attachment URLs appended inside it.
+    // The prompt and its images arrive as separate URL params (see the home
+    // page) and stay separate from here to the request body. Read inside the
+    // effect: getAll() builds a fresh array each call, so hoisting it would add
+    // an unstable value to the render scope for no gain — this runs once.
     if (initialMessage.trim()) {
+      const initialImages = searchParams.getAll("image");
       const userMsg = {
         role: "user",
         content: initialMessage,
+        images: initialImages,
         timestamp: new Date().toISOString(),
       };
 
       setMessages([userMsg]);
 
-      handleInitialSend(initialMessage);
+      handleInitialSend(initialMessage, initialImages);
       return;
     }
 
@@ -763,26 +768,25 @@ export default function AiCreativeChatPage() {
   );
 
   const handleSend = useCallback(
-    async (content) => {
+    async (content, images = []) => {
       const userMsg = {
         role: "user",
         content,
+        // Kept on the message so the bubble can render the tiles; the API gets
+        // this same array as its `images` field.
+        images,
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
 
       try {
-        const history = [...messages, userMsg].map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
-
         const result = await creativeAiChat({
           message: content,
-          creativeType,
-          history,
-          mode,
+          brandId: activeBrandId,
+          images,
+          logo: activeBrand?.logo,
+          model,
         });
 
         const reply = result.ok
@@ -821,18 +825,19 @@ export default function AiCreativeChatPage() {
         setIsLoading(false);
       }
     },
-    [messages, creativeType, creativeAiChat, mode, maybeFetchTemplates]
+    [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeFetchTemplates]
   );
 
-  const handleInitialSend = useCallback(async (content) => {
+  const handleInitialSend = useCallback(async (content, images = []) => {
     setIsLoading(true);
 
     try {
       const result = await creativeAiChat({
         message: content,
-        creativeType,
-        history: [],
-        mode,
+        brandId: activeBrandId,
+        images,
+        logo: activeBrand?.logo,
+        model,
       });
 
       const reply = result.ok
@@ -871,7 +876,7 @@ export default function AiCreativeChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [creativeType, creativeAiChat, mode, maybeFetchTemplates]);
+  }, [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeFetchTemplates]);
 
   // Which template the user has picked from the fetched set.
   const handlePickTemplate = useCallback((template) => {

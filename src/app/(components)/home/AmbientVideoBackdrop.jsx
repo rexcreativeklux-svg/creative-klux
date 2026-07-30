@@ -80,15 +80,23 @@ export default function AmbientVideoBackdrop({
   const ready = pick != null && readySrc === pick.src;
   const failed = pick != null && failedSrc === pick.src;
 
-  // Autoplay can still be refused (aggressive power-saving, some enterprise
-  // policies) even though the element is muted. There's nothing to recover — we
-  // just stay on the gradient rather than showing a frozen first frame.
+  // Autoplay can still be REFUSED (aggressive power-saving, some enterprise
+  // policies) even though the element is muted. There's nothing to recover from
+  // that — we just stay on the gradient rather than showing a frozen first frame.
+  //
+  // An INTERRUPTION is a different thing and must not be treated as refusal:
+  // the element carries `autoPlay` as well as this explicit play() (belt and
+  // braces, since a few browsers ignore one or the other), so the two can race
+  // and reject with AbortError. Unmounting mid-play rejects the same way. Both
+  // are benign, and blacklisting the clip over them would drop the backdrop for
+  // the rest of the session for no reason.
   const handleCanPlay = () => {
     const video = videoRef.current;
     if (!video || !pick) return;
     const started = video.play();
     if (started?.catch) {
       started.catch((error) => {
+        if (error?.name === "AbortError") return;
         console.warn("⚠️ [home-video] autoplay was refused:", error?.name || error);
         setFailedSrc(pick.src);
       });
@@ -127,7 +135,7 @@ export default function AmbientVideoBackdrop({
           disablePictureInPicture
           onCanPlay={handleCanPlay}
           onError={handleError}
-          className={`ck-video-drift absolute inset-0 h-full w-full object-cover transition-opacity duration-[1800ms] ease-out ${
+          className={`ck-video-drift absolute inset-0 h-full w-full object-cover transition-opacity duration-1800 ease-out ${
             ready ? "opacity-45 dark:opacity-55" : "opacity-0"
           }`}
         />

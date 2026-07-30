@@ -5,7 +5,6 @@ import { Sparkles, User, Copy, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import MessageAttachments from "./MessageAttachments";
-import { splitMessageAttachments } from "./attachmentUrls";
 
 // Long messages collapse to this height with a "See more" toggle.
 const COLLAPSED_MAX_HEIGHT = 220;
@@ -124,12 +123,10 @@ export default function AiChatMessage({ message, config }) {
   const color = config?.color || "#7c3aed";
   const colorRgb = config?.colorRgb || "124,58,237";
 
-  // Attachments live inside the message string — lift them out so the files
-  // render as tiles above and only the prose goes through the text renderer.
-  const { text, urls } = useMemo(
-    () => splitMessageAttachments(message.content),
-    [message.content],
-  );
+  // The text is exactly what the user typed; any images they attached ride
+  // alongside on `message.images` (they are never folded into the content).
+  const text = message.content || "";
+  const urls = useMemo(() => message.images || [], [message.images]);
 
   const [copied, setCopied] = useState(false);
 
@@ -146,7 +143,6 @@ export default function AiChatMessage({ message, config }) {
   const handleCopy = async () => {
     if (!text) return;
     try {
-      // Copy what's on screen — the prose, not the appended URL block.
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);

@@ -185,6 +185,43 @@ const FILTER_GROUPS = [
   { label: "★ Favorites", key: "favorites" },
 ];
 
+/**
+ * Does one creative belong to a filter tab?
+ *
+ * Pulled out of the list's useMemo so the tab COUNTS and the visible list are
+ * decided by the same rule — if these ever drifted apart, a tab would advertise
+ * a number that clicking it doesn't produce.
+ *
+ * @param {{type: string, category: string, favorite: boolean}} creative
+ * @param {string} filterKey One of FILTER_GROUPS' keys.
+ */
+const matchesFilter = (creative, filterKey) => {
+  if (filterKey === "all") return true;
+  if (filterKey === "favorites") return !!creative.favorite;
+  const allowed = FILTER_TYPE_MAP[filterKey] || [];
+  return (
+    allowed.includes((creative.type || "").toLowerCase()) ||
+    allowed.includes((creative.category || "").toLowerCase())
+  );
+};
+
+/**
+ * Does one creative match the search box? Name, type and tagline, same as
+ * before — shared with the counts for the reason above.
+ *
+ * @param {{name: string, type: string, copy?: {tagline?: string}}} creative
+ * @param {string} term Raw search input; empty matches everything.
+ */
+const matchesSearch = (creative, term) => {
+  const query = term.trim().toLowerCase();
+  if (!query) return true;
+  return (
+    (creative.name || "").toLowerCase().includes(query) ||
+    (creative.type || "").toLowerCase().includes(query) ||
+    (creative.copy?.tagline || "").toLowerCase().includes(query)
+  );
+};
+
 const TYPE_COLOR = {
   ads: {
     bg: "bg-blue-50",
@@ -545,25 +582,29 @@ export default function CreativesPage() {
   );
 
   // ── Filtering ────────────────────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    return creatives.filter((c) => {
-      const matchSearch =
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.type.toLowerCase().includes(search.toLowerCase()) ||
-        (c.copy?.tagline || "").toLowerCase().includes(search.toLowerCase());
+  const filtered = useMemo(
+    () =>
+      creatives.filter(
+        (c) => matchesSearch(c, search) && matchesFilter(c, activeFilter),
+      ),
+    [creatives, search, activeFilter],
+  );
 
-      let matchFilter = true;
-      if (activeFilter === "favorites") {
-        matchFilter = c.favorite;
-      } else if (activeFilter !== "all") {
-        const allowed = FILTER_TYPE_MAP[activeFilter] || [];
-        matchFilter =
-          allowed.includes(c.type.toLowerCase()) ||
-          allowed.includes(c.category.toLowerCase());
-      }
-      return matchSearch && matchFilter;
-    });
-  }, [creatives, search, activeFilter]);
+  /* Per-tab counts, keyed by filter key.
+     The current SEARCH is applied but the active TAB deliberately is not, so
+     each tab reports exactly what clicking it would show. Counting without the
+     search would let a tab read "Ads 12" while opening it lists 3.
+     Note these count what's currently LOADED (the fetchCount selector above),
+     not everything on the server. */
+  const filterCounts = useMemo(() => {
+    const searchMatches = creatives.filter((c) => matchesSearch(c, search));
+    return Object.fromEntries(
+      FILTER_GROUPS.map(({ key }) => [
+        key,
+        searchMatches.filter((c) => matchesFilter(c, key)).length,
+      ]),
+    );
+  }, [creatives, search]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice(
@@ -746,6 +787,7 @@ export default function CreativesPage() {
         <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl flex-wrap">
           {FILTER_GROUPS.map((group) => {
             const isActive = activeFilter === group.key;
+            const count = filterCounts[group.key] ?? 0;
             return (
               <button
                 key={group.key}
@@ -753,9 +795,19 @@ export default function CreativesPage() {
                   setActiveFilter(group.key);
                   setPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${isActive ? "bg-surface text-blue-600 shadow-sm border border-blue-100" : "text-gray-500 hover:text-gray-700"}`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${isActive ? "bg-surface text-blue-600 shadow-sm border border-blue-100" : "text-gray-500 hover:text-gray-700"}`}
               >
                 {group.label}
+                {/* Hidden while designs are still loading — every count would
+                    read 0 and then jump, which looks like a broken empty state.
+                    tabular-nums keeps the pill from twitching as digits change. */}
+                {!loading && (
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums ${isActive ? "bg-blue-50 text-blue-600" : "bg-gray-200/80 text-gray-500"}`}
+                  >
+                    {count}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -875,7 +927,7 @@ export default function CreativesPage() {
 
       {/* ── Sidebar panel ── */}
       <div
-        className={`fixed top-0 right-0 h-full w-[420px] bg-surface shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${selected ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed top-0 right-0 h-full w-105 bg-surface shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${selected ? "translate-x-0" : "translate-x-full"}`}
       >
         {selected && (
           <Sidebar
@@ -922,7 +974,7 @@ export default function CreativesPage() {
 
       {/* ── Delete confirm modal ── */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60]">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-60">
           <div className="bg-surface rounded-2xl p-6 w-full max-w-sm shadow-xl mx-4">
             <h3 className="text-base font-semibold text-gray-900 mb-1">
               {deleteConfirm === "bulk"
@@ -1011,7 +1063,7 @@ const CreativesPageSkeleton = () => (
     </div>
     {/* Toolbar */}
     <div className="py-3 flex flex-wrap items-center gap-3 shrink-0">
-      <div className="h-9 flex-1 min-w-[180px] max-w-xs bg-gray-100 rounded-md" />
+      <div className="h-9 flex-1 min-w-45 max-w-xs bg-gray-100 rounded-md" />
       <div className="h-9 w-80 bg-gray-100 rounded-xl" />
       <div className="h-9 w-24 bg-gray-100 rounded-xl ml-auto" />
       <div className="h-9 w-20 bg-gray-100 rounded-xl" />
@@ -1284,12 +1336,12 @@ const TableView = ({
                       <Wand2 className="w-4 h-4 text-gray-300" />
                     )}
                   </div>
-                  <span className="font-medium text-gray-800 truncate max-w-[160px] text-sm">
+                  <span className="font-medium text-gray-800 truncate max-w-40 text-sm">
                     {c.name}
                   </span>
                 </div>
               </td>
-              <td className="px-4 py-3 text-gray-400 text-xs italic max-w-[180px]">
+              <td className="px-4 py-3 text-gray-400 text-xs italic max-w-45">
                 <span className="truncate block">{c.copy?.tagline || "—"}</span>
               </td>
               <td className="px-4 py-3">
@@ -1824,7 +1876,7 @@ function EditCopyModal({ creative, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[70] px-4">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-70 px-4">
       <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
         {/* Modal header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">

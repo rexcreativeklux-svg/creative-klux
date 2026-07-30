@@ -88,7 +88,7 @@ export default function ComposerDropdown({
       {open && (
         <div
           role="listbox"
-          className={`absolute z-50 w-56 overflow-hidden rounded-xl border border-gray-200 bg-surface py-1 shadow-xl ${
+          className={`absolute z-50 w-56 max-h-80 overflow-hidden overflow-y-scroll rounded-xl border border-gray-200 bg-surface py-1 shadow-xl ${
             align === "right" ? "right-0" : "left-0"
           } ${drop === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
         >
@@ -114,11 +114,11 @@ export default function ComposerDropdown({
                   >
                     {option.label}
                   </p>
-                  {option.description && (
+                  {/* {option.description && (
                     <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
                       {option.description}
                     </p>
-                  )}
+                  )} */}
                 </div>
                 {active && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600" />}
               </button>

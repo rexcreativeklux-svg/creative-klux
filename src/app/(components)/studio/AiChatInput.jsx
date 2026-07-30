@@ -11,16 +11,25 @@
 // Dictation appends to whatever is already typed rather than replacing it, and
 // the mic is disabled while a reply is in flight.
 //
+// Sends via onSend(text, images): the text the user typed, and the hosted image
+// URLs as their own array. Text is required — the API's `message` is
+// `required|string`, so attaching images without typing leaves send disabled.
+//
 // The accent colour comes from the caller's `config` (the creative type's
 // palette), which is why the send button and focus ring stay inline styles.
 
 import { useEffect, useRef, useState } from "react";
 import { FileText, Film, Loader2, Music, Paperclip, Plus, SendHorizontal, X } from "lucide-react";
-import { MEDIA_ACCEPT } from "@/app/(components)/gallery/mediaTypes";
 import VoiceMicButton from "./VoiceMicButton";
 import useGalleryUpload from "./useGalleryUpload";
 import useVoiceInput, { describeVoiceState } from "./useVoiceInput";
-import { buildMessageWithAttachments } from "./attachmentUrls";
+import {
+  CHAT_ATTACHMENT_ACCEPT,
+  CHAT_ATTACHMENT_CATEGORIES,
+  MAX_CHAT_IMAGES,
+  MAX_CHAT_MESSAGE,
+  toImagePayload,
+} from "./attachmentUrls";
 
 /** Icon per non-image attachment category (images render their own thumbnail). */
 const CATEGORY_ICON = { video: Film, audio: Music, document: FileText };
@@ -51,7 +60,10 @@ export default function AiChatInput({
   const voice = useVoiceInput({ onText: setValue });
   const voiceStatus = describeVoiceState(voice);
   const { attachments, uploading, addFiles, removeAttachment, clearAttachments } =
-    useGalleryUpload();
+    useGalleryUpload({
+      allowedCategories: CHAT_ATTACHMENT_CATEGORIES,
+      maxFiles: MAX_CHAT_IMAGES,
+    });
 
   // Auto-grow with the content, but never below the three-row resting height and
   // never past the ceiling (after which the textarea scrolls internally).
@@ -65,11 +77,11 @@ export default function AiChatInput({
 
   const handleSubmit = () => {
     const trimmed = value.trim();
-    // A message may be files only — but never empty, and never mid-upload.
-    if ((!trimmed && attachments.length === 0) || isLoading || uploading) return;
-    // Attachment URLs are folded into the message string itself; there is no
-    // separate attachments field anywhere downstream.
-    onSend(buildMessageWithAttachments(trimmed, attachments));
+    // Text is REQUIRED — the API's `message` is `required|string`, so images
+    // alone is not a sendable request. Never empty, never mid-upload.
+    if (!trimmed || isLoading || uploading) return;
+    // Images are their own argument; they are never folded into the text.
+    onSend(trimmed, toImagePayload(attachments));
     setValue("");
     clearAttachments();
   };
@@ -81,7 +93,7 @@ export default function AiChatInput({
     }
   };
 
-  const canSend = (value.trim().length > 0 || attachments.length > 0) && !isLoading && !uploading;
+  const canSend = value.trim().length > 0 && !isLoading && !uploading;
 
   return (
     <div>
@@ -142,13 +154,14 @@ export default function AiChatInput({
             padding: "9px 10px",
           }}
         >
-          {/* Attach — uploads to the gallery, same pipeline as AI Select. */}
+          {/* Attach — uploads to the gallery, same pipeline as AI Select.
+              Images only: the chat API carries an `images` array, nothing else. */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            aria-label="Attach files from your device"
-            title="Attach files from your device"
+            aria-label="Attach images from your device"
+            title={`Attach images (up to ${MAX_CHAT_IMAGES})`}
             className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
           >
             {uploading ? (
@@ -170,6 +183,7 @@ export default function AiChatInput({
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder={voice.listening ? "Listening — start speaking…" : placeholder}
+            maxLength={MAX_CHAT_MESSAGE}
             style={{
               flex: 1,
               background: "transparent",
@@ -223,12 +237,13 @@ export default function AiChatInput({
           </button>
         </div>
 
-        {/* Hidden picker — same accept list as every other gallery upload. */}
+        {/* Hidden picker — images only, matching what the chat API can carry.
+            useGalleryUpload re-checks, for anything that bypasses the dialog. */}
         <input
           ref={fileInputRef}
           type="file"
           multiple
-          accept={MEDIA_ACCEPT}
+          accept={CHAT_ATTACHMENT_ACCEPT}
           className="hidden"
           onChange={(e) => {
             addFiles(e.target.files);

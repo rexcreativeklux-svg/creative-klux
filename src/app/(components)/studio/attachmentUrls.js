@@ -1,79 +1,72 @@
 // app/(components)/studio/attachmentUrls.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Attachments travel INSIDE the message string — there is no separate
-// `attachments` field on the wire. The chat payload stays exactly:
+// The chat surfaces' attachment contract, in one place.
 //
-//   { message, creative_type, mode, history }
+// HISTORY — worth knowing before changing anything here. Attachments used to be
+// folded INTO the message string (text, a blank line, then one bare URL per
+// line) because the chat API had no field for them. The API now takes a real
+// `images` array, so that encoding is gone: images travel as their own list from
+// the composer all the way to the request body, and the message carries only
+// what the user actually typed. If you find a stray URL appended to a message,
+// it is a leftover from the old scheme, not the current design.
 //
-// …with `message` a plain string, so the assistant reads the file URLs as part
-// of what the user said.
+// The API's shape (see creativeAiChat in AuthContext) is what drives the limits:
 //
-// ENCODING (buildMessageWithAttachments): the text, a blank line, then one bare
-// URL per line at the end:
+//   'message'  => 'required|string|max:2000',
+//   'images'   => 'nullable|array|max:10',
+//   'images.*' => 'nullable|string|url|max:2048',
 //
-//   Make me a summer sale ad from these
-//
-//   https://d3r8chxzp8ea06.cloudfront.net/creativeklux/…-a.webp
-//   https://d3r8chxzp8ea06.cloudfront.net/creativeklux/…-b.webp
-//
-// DECODING (splitMessageAttachments): walks BACKWARDS from the end, taking only
-// trailing lines that are bare media URLs. That precision is the point — a URL
-// the user typed mid-sentence ("see https://example.com for the brief") is left
-// in the text where it belongs, and only the block we appended is lifted out.
-// A message may also be URLs alone, which decodes to empty text plus the files.
+// …so the composers enforce all four of those up front. A send that would 422 is
+// stopped at the button with a message naming the limit, rather than costing a
+// round trip to find out.
 
 /**
- * A line that is nothing but a media URL. Extension-anchored on purpose: a bare
- * link with no file extension is prose, not an attachment, and stays in the text.
+ * Categories the chat surfaces accept. The API carries images and nothing else,
+ * so a video or PDF has nowhere to go — the pickers restrict to images and
+ * useGalleryUpload rejects anything else that slips through (drag-drop, or an
+ * "All files" override in the OS dialog).
  */
-const MEDIA_URL_LINE =
-  /^https?:\/\/\S+\.(?:jpe?g|png|gif|webp|bmp|svg|avif|heic|mp4|webm|mov|mkv|m4v|ogv|mp3|wav|ogg|m4a|aac|flac|opus|pdf|docx?|xlsx?|pptx?|txt|csv|rtf|md)(?:\?\S*)?$/i;
+export const CHAT_ATTACHMENT_CATEGORIES = ["image"];
+
+/** `accept` for the chat surfaces' file inputs — mirrors the categories above. */
+export const CHAT_ATTACHMENT_ACCEPT = "image/*";
+
+/** API `images` cap (`max:10`). Enforced while attaching, not on send. */
+export const MAX_CHAT_IMAGES = 10;
+
+/** API `message` cap (`max:2000`), enforced as the composer's maxLength. */
+export const MAX_CHAT_MESSAGE = 2000;
+
+/** API `images.*` per-URL cap (`max:2048`). */
+const MAX_IMAGE_URL = 2048;
 
 /**
- * Fold attachment URLs into the message string that gets sent.
+ * Normalise a composer's attachment list into the `images` array the API takes:
+ * plain URL strings, nothing longer than the column allows, capped at the limit.
  *
- * @param {string} text  What the user typed (may be empty for a files-only send).
- * @param {(string|{url?: string})[]} urls Attachment URLs, or objects carrying one.
- * @returns {string} The message to send.
+ * Accepts either raw URL strings or the {url} objects useGalleryUpload holds, so
+ * both composers can hand their state straight in.
+ *
+ * @param {(string|{url?: string})[]} attachments
+ * @returns {string[]} Hosted image URLs, ready to send.
  */
-export function buildMessageWithAttachments(text, urls) {
-  const body = (text || "").trim();
-  const list = (urls || [])
+export function toImagePayload(attachments) {
+  const urls = (attachments || [])
     .map((entry) => (typeof entry === "string" ? entry : entry?.url))
-    .filter(Boolean);
+    .filter((url) => typeof url === "string" && url.length > 0);
 
-  if (!list.length) return body;
-  return body ? `${body}\n\n${list.join("\n")}` : list.join("\n");
-}
+  const withinLength = urls.filter((url) => {
+    if (url.length <= MAX_IMAGE_URL) return true;
+    console.warn(
+      `⚠️ [chat-attachments] dropping an image URL of ${url.length} chars — the API caps them at ${MAX_IMAGE_URL}`,
+    );
+    return false;
+  });
 
-/**
- * Pull the trailing attachment URLs back out of a message for rendering.
- *
- * @param {string} content The stored message string.
- * @returns {{text: string, urls: string[]}} The prose, and the files it carried.
- */
-export function splitMessageAttachments(content) {
-  const raw = typeof content === "string" ? content : "";
-  if (!raw) return { text: "", urls: [] };
-
-  const lines = raw.split("\n");
-  const urls = [];
-  // Index where the text ends; everything from here on is blanks + URLs.
-  let cut = lines.length;
-
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index].trim();
-    if (!line) {
-      cut = index; // trailing blank — keep walking back
-      continue;
-    }
-    if (MEDIA_URL_LINE.test(line)) {
-      urls.unshift(line);
-      cut = index;
-      continue;
-    }
-    break; // real prose — the attachment block is done
+  if (withinLength.length > MAX_CHAT_IMAGES) {
+    console.warn(
+      `⚠️ [chat-attachments] ${withinLength.length} images given, sending the first ${MAX_CHAT_IMAGES}`,
+    );
   }
-
-  return { text: lines.slice(0, cut).join("\n").trim(), urls };
+  return withinLength.slice(0, MAX_CHAT_IMAGES);
 }

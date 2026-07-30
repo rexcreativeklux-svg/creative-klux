@@ -13,30 +13,67 @@
 //   └──────────────────────────────────────────────┘
 //
 // Each control is wired to a real capability:
-//   +      → uploads to the user's gallery (useGalleryUpload) and keeps the
-//            returned hosted URLs as attachments on the prompt.
+//   +      → uploads IMAGES to the user's gallery (useGalleryUpload) and keeps
+//            the returned hosted URLs as attachments on the prompt. Images only,
+//            max 10 — the chat API takes an `images` array and nothing else.
 //   Model  → placeholder tiers; the choice rides along on the URL as ?model=.
 //   Build  → Build (generate now) vs Plan (plan first); rides along as ?mode=.
 //   🎙     → dictation (useVoiceInput): live where the browser supports it,
 //            on-device Whisper everywhere else.
 //   ↑      → submits.
 //
-// Submitting hands everything to the parent via onSubmit(); this component owns
-// no routing so it can be dropped onto another surface unchanged.
+// Submitting hands everything to the parent via
+// onSubmit({ prompt, model, mode, images }); this component owns no routing so
+// it can be dropped onto another surface unchanged. Text is required — images
+// alone can't be sent, because the API's `message` is `required|string`.
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, FileText, Film, Loader2, Music, Paperclip, Plus, X } from "lucide-react";
-import { MEDIA_ACCEPT } from "@/app/(components)/gallery/mediaTypes";
+import {
+  ArrowUp,
+  FileText,
+  Film,
+  Loader2,
+  Music,
+  Paperclip,
+  Plus,
+  X,
+  Cpu,
+} from "lucide-react";
 import ComposerDropdown from "./ComposerDropdown";
 import VoiceMicButton from "./VoiceMicButton";
 import useGalleryUpload from "./useGalleryUpload";
 import useVoiceInput, { describeVoiceState } from "./useVoiceInput";
+import {
+  CHAT_ATTACHMENT_ACCEPT,
+  CHAT_ATTACHMENT_CATEGORIES,
+  MAX_CHAT_IMAGES,
+  MAX_CHAT_MESSAGE,
+  toImagePayload,
+} from "./attachmentUrls";
 
 /** Model tiers. Labels are placeholders until the real line-up is decided. */
 export const MODEL_OPTIONS = [
-  { id: "model-1", label: "Model 1", description: "Balanced quality and speed" },
-  { id: "model-2", label: "Model 2", description: "Higher quality, slower" },
-  { id: "model-3", label: "Model 3", description: "Fastest drafts" },
+ // --- CLAUDE MODELS ---
+  { id: "claude-sonnet-5", label: "Claude Sonnet 5", icon: Cpu },
+  { id: "claude-opus-5", label: "Claude Opus 5", icon: Cpu },
+  { id: "claude-opus-4-8", label: "Claude Opus 4.8", icon: Cpu },
+  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", icon: Cpu },
+
+  // --- GPT MODELS ---
+  { id: "gpt-5.6-sol", label: "GPT-5.6 Sol", icon: Cpu },
+  { id: "gpt-5.6-terra", label: "GPT-5.6 Terra", icon: Cpu },
+  { id: "gpt-5.3-codex", label: "GPT-5.3 Codex", icon: Cpu },
+  { id: "gpt-5.2-pro", label: "GPT-5.2 Pro", icon: Cpu },
+  { id: "gpt-5.2", label: "GPT-5.2", icon: Cpu },
+  { id: "gpt-5.1", label: "GPT-5.1", icon: Cpu },
+  { id: "gpt-5-pro", label: "GPT-5 Pro", icon: Cpu },
+  { id: "gpt-5", label: "GPT-5", icon: Cpu },
+  { id: "gpt-5-mini", label: "GPT-5 Mini", icon: Cpu },
+  { id: "gpt-5-nano", label: "GPT-5 Nano", icon: Cpu },
+  { id: "gpt-4.1", label: "GPT-4.1", icon: Cpu },
+  { id: "gpt-4.1-mini", label: "GPT-4.1 Mini", icon: Cpu },
+  { id: "gpt-4o", label: "GPT-4o", icon: Cpu },
+  { id: "gpt-4o-mini", label: "GPT-4o Mini", icon: Cpu },
 ];
 
 /** What the assistant does with the prompt — mirrors the reference's Build/Plan. */
@@ -105,7 +142,10 @@ export default function PromptComposer({
   const fileInputRef = useRef(null);
 
   const { attachments, uploading, addFiles, removeAttachment, clearAttachments } =
-    useGalleryUpload();
+    useGalleryUpload({
+      allowedCategories: CHAT_ATTACHMENT_CATEGORIES,
+      maxFiles: MAX_CHAT_IMAGES,
+    });
   const voice = useVoiceInput({ onText: setValue });
   const voiceStatus = describeVoiceState(voice);
 
@@ -124,7 +164,9 @@ export default function PromptComposer({
   }, [autoFocus]);
 
   const busy = uploading || voice.transcribing;
-  const canSubmit = (value.trim().length > 0 || attachments.length > 0) && !busy;
+  // Text is REQUIRED — the API's `message` is `required|string`, so images alone
+  // is not a sendable request. Attaching without typing leaves send disabled.
+  const canSubmit = value.trim().length > 0 && !busy;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -132,7 +174,8 @@ export default function PromptComposer({
       prompt: value.trim(),
       model,
       mode,
-      attachments: attachments.map((item) => item.url),
+      // Images travel as their own list, never folded into the prompt text.
+      images: toImagePayload(attachments),
     });
     setValue("");
     clearAttachments();
@@ -202,6 +245,7 @@ export default function PromptComposer({
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder={voice.listening ? "Listening — start speaking…" : placeholder}
+          maxLength={MAX_CHAT_MESSAGE}
           style={{ maxHeight }}
           className="w-full resize-none bg-transparent px-4 pt-4 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400"
         />
@@ -213,8 +257,8 @@ export default function PromptComposer({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            aria-label="Attach files from your device"
-            title="Attach files from your device"
+            aria-label="Attach images from your device"
+            title={`Attach images (up to ${MAX_CHAT_IMAGES})`}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
           >
             {uploading ? (
@@ -267,13 +311,14 @@ export default function PromptComposer({
           </button>
         </div>
 
-        {/* Hidden picker — reuses the gallery's accept list so anything attached
-            here is something the gallery can also classify and store. */}
+        {/* Hidden picker — images only, because the chat API carries an `images`
+            array and nothing else. useGalleryUpload enforces the same rule for
+            anything that gets past the dialog (drag-drop, "All files"). */}
         <input
           ref={fileInputRef}
           type="file"
           multiple
-          accept={MEDIA_ACCEPT}
+          accept={CHAT_ATTACHMENT_ACCEPT}
           className="hidden"
           onChange={(event) => {
             addFiles(event.target.files);

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Header from "../(components)/Header";
 import { SecondarySidebarProvider } from "@/context/SecondarySidebarContext";
-import Overview from "./(pages)/overview/page";
+import Home from "./(pages)/home/page";
 import ModalPage from "../(components)/ModalPage";
 import ProtectedRoute from "../(components)/ProtectedRoutes";
 import Sidebar from "../(components)/Sidebar";
@@ -15,6 +15,12 @@ const NO_PADDING_ROUTES = [
     "/studio/ai-select",
     "/studio/ai-chat-page",
     "/studio/select",
+    // Copilot pages are full-bleed (own tinted background + padding).
+    "/copilot",
+    // The create-hero home page owns its own header offset (pt-16) and
+    // full-bleed template rails. Also rendered at "/" — see `noPadding` below,
+    // which matches the root exactly (startsWith("/") would match everything).
+    "/home",
 ];
 
 // Sections that render their own secondary sidebar (see
@@ -89,9 +95,11 @@ export default function DashboardLayout({ children }) {
     const [isPending, startTransition] = useTransition();
 
 
-    const noPadding = [...NO_PADDING_ROUTES, ...SECONDARY_SIDEBAR_ROUTES].some(
-        route => pathname.startsWith(route),
-    );
+    const noPadding =
+        pathname === "/" || // root renders the full-bleed home page
+        [...NO_PADDING_ROUTES, ...SECONDARY_SIDEBAR_ROUTES].some(
+            route => pathname.startsWith(route),
+        );
 
     // On a section route the primary sidebar stays collapsed in the flow and
     // expands only as an overlay (hover, or pinned via the header toggle).
@@ -101,11 +109,14 @@ export default function DashboardLayout({ children }) {
 
     // Overlay pin: header toggle holds the primary sidebar's overlay open on
     // section routes. Per-visit only (not persisted); cleared on leaving.
+    // Cleared during render (React's adjust-state pattern) rather than in an
+    // effect so it doesn't trigger a cascading re-render.
     const [primaryPinned, setPrimaryPinned] = useState(false);
-
-    useEffect(() => {
+    const [wasSectionRoute, setWasSectionRoute] = useState(isSectionRoute);
+    if (wasSectionRoute !== isSectionRoute) {
+        setWasSectionRoute(isSectionRoute);
         if (!isSectionRoute) setPrimaryPinned(false);
-    }, [isSectionRoute]);
+    }
 
     // Sidebar open/collapsed state — persisted in localStorage
     const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -262,7 +273,7 @@ export default function DashboardLayout({ children }) {
                             <SecondarySidebarProvider
                                 value={{ isOpen: secondaryOpen, toggle: toggleSecondary }}
                             >
-                                {children || <Overview />}
+                                {children || <Home />}
                             </SecondarySidebarProvider>
                         </div>
                     </div>

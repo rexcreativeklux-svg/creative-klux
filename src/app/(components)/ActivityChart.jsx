@@ -1,24 +1,80 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
+  Tooltip, ResponsiveContainer,
 } from "recharts";
+import { CalendarDays } from "lucide-react";
+import ComposerDropdown from "@/app/(components)/studio/ComposerDropdown";
 
-function buildChartData(designs = [], days = 14) {
+/**
+ * The periods the header dropdown offers. Each entry doubles as a
+ * ComposerDropdown option ({ id, label, description }) and carries the header
+ * copy for when it's selected. "Today" buckets by hour; the rest by day.
+ */
+const RANGES = [
+  {
+    id: "today",
+    label: "Today",
+    description: "Last 24 hours, by hour",
+    title: "Today's Activity",
+    subtitle: "Designs created in the last 24 hours",
+  },
+  {
+    id: "weekly",
+    label: "Weekly",
+    description: "Last 7 days, by day",
+    title: "Weekly Activity",
+    subtitle: "Designs created over the last 7 days",
+  },
+  {
+    id: "monthly",
+    label: "Monthly",
+    description: "Last 30 days, by day",
+    title: "Monthly Activity",
+    subtitle: "Designs created over the last 30 days",
+  },
+];
+
+/** Bucket key for a day, e.g. "Jul 17". */
+const dayKey = (d) =>
+  d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+/** Bucket key for an hour, e.g. "3 PM". Unique within a 24-hour window. */
+const hourKey = (d) =>
+  d.toLocaleTimeString("en-US", { hour: "numeric" });
+
+function buildChartData(designs = [], rangeId = "weekly") {
+  const hourly = rangeId === "today";
+  const steps = hourly ? 24 : rangeId === "monthly" ? 30 : 7;
+  const keyOf = hourly ? hourKey : dayKey;
+
+  // Oldest bucket's start — designs before it belong to no bucket. Guards the
+  // hourly view especially: without it, a design from "3 PM" days ago would
+  // land in this window's "3 PM" bucket.
+  const windowStart = new Date();
+  if (hourly) {
+    windowStart.setMinutes(0, 0, 0);
+    windowStart.setHours(windowStart.getHours() - (steps - 1));
+  } else {
+    windowStart.setHours(0, 0, 0, 0);
+    windowStart.setDate(windowStart.getDate() - (steps - 1));
+  }
+
   const buckets = {};
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  for (let i = 0; i < steps; i++) {
+    const d = new Date(windowStart);
+    if (hourly) d.setHours(d.getHours() + i);
+    else d.setDate(d.getDate() + i);
+    const key = keyOf(d);
     buckets[key] = { date: key, all: 0, ads: 0, social: 0, designer: 0, magic: 0 };
   }
 
   designs.forEach((design) => {
     const created = design.created_at ? new Date(design.created_at) : null;
-    if (!created) return;
-    const key = created.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    if (!created || created < windowStart) return;
+    const key = keyOf(created);
     if (!buckets[key]) return;
 
     const type = (design.type || "").toLowerCase();
@@ -57,7 +113,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const CustomLegend = () => (
-  <div className="flex items-center justify-center gap-5 mt-3">
+  <div className="flex items-center justify-center gap-5 mt-3 flex-wrap">
     {LINES.map(({ key, color, label }) => (
       <div key={key} className="flex items-center gap-1.5">
         <svg width="24" height="10">
@@ -71,14 +127,31 @@ const CustomLegend = () => (
 );
 
 export default function ActivityChart({ designs = [] }) {
-  const data = useMemo(() => buildChartData(designs, 14), [designs]);
+  const [rangeId, setRangeId] = useState("weekly");
+  const [rangeOpen, setRangeOpen] = useState(false);
+  const range = RANGES.find((r) => r.id === rangeId) ?? RANGES[1];
+
+  const data = useMemo(() => buildChartData(designs, rangeId), [designs, rangeId]);
 
   return (
     <div className="bg-surface border border-gray-100 rounded-2xl p-5 shadow-sm h-full flex flex-col">
-      {/* Header */}
-      <div className="mb-1 shrink-0">
-        <h3 className="text-base font-bold text-gray-900">Weekly Activity</h3>
-        <p className="text-xs text-gray-400 mt-0.5">Designs created over the last 14 days</p>
+      {/* Header — title on the left, period picker opposite it */}
+      <div className="mb-1 shrink-0 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-bold text-gray-900">{range.title}</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{range.subtitle}</p>
+        </div>
+        <ComposerDropdown
+          options={RANGES}
+          value={rangeId}
+          onChange={setRangeId}
+          open={rangeOpen}
+          onOpenChange={setRangeOpen}
+          drop="down"
+          align="right"
+          icon={CalendarDays}
+          ariaLabel="Select the period to view"
+        />
       </div>
 
       {/* Chart */}

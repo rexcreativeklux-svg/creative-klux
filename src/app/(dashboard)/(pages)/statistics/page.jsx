@@ -1,22 +1,23 @@
 "use client";
 
+/**
+ * /statistics — creation activity at a glance.
+ * The data half of the old overview page, extracted to its own page when "/"
+ * became the create-hero home: the stat-cards row (designs by category,
+ * platforms, published posts) with the activity chart full-width below it.
+ * The chart's header dropdown switches the period (today / weekly / monthly).
+ */
+
 import React, { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
-import { Plus, Loader2, RefreshCw } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 import DashboardStats from "@/app/(components)/DashboardStats";
 import ActivityChart from "@/app/(components)/ActivityChart";
-import QuickCreate from "@/app/(components)/QuickCreate";
-import DashboardRecentProjects from "@/app/(components)/DashboardRecentProjects";
 import { getPublishedPosts } from "@/(lib)/integration";
 
-export default function Dashboard() {
+export default function Statistics() {
   const {
-    user,
-    activeBrand,
     activeBrandId,
-    brands,
     brandsLoading,
     myImages,
     teams,
@@ -91,68 +92,12 @@ export default function Dashboard() {
   };
 
   const isLoading = brandsLoading || designsLoading;
-  const firstName = user?.name?.split(" ")?.[0] || "there";
-
-  /* ── latest four designs (newest first) ── */
-  const recentDesigns = [...designs]
-    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-    .slice(0, 4);
 
   return (
     <div
       className="space-y-5 bg-page"
       style={{ fontFamily: "'DM Sans', sans-serif" }}
     >
-
-      {/* ── Welcome header ── */}
-      <div className="flex items-start justify-between">
-        <div>
-          {/* <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Dashboard</p> */}
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-            Welcome back, {firstName} 👋
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {/* {activeBrand
-              ? <>Viewing <span className="font-semibold text-gray-700">{activeBrand.name}</span></>
-              : brands.length > 0
-                ? "Select a brand to see your designs"
-                : "Here's your CreativeKlux overview"
-            } */}
-
-            Here's your CreativeKlux overview
-          </p>
-        </div>
-
-        {/* <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={loadDesigns}
-            disabled={isLoading}
-            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition cursor-pointer disabled:opacity-40"
-          >
-            {isLoading
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <RefreshCw className="w-4 h-4" />
-            }
-          </button>
-
-          <Link
-            href="/studio/select"
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
-          >
-            <Plus className="w-4 h-4" /> New Creative
-          </Link>
-        </div> */}
-      </div>
-
-      {/* ── No active brand notice ── */}
-      {!activeBrand && !brandsLoading && brands.length > 0 && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl text-sm">
-          <span className="text-amber-500">⚠</span>
-          <p className="text-amber-700 font-medium">
-            Select a brand from the sidebar to see brand-specific designs and stats.
-          </p>
-        </div>
-      )}
 
       {/* ── Stats row ── */}
       <DashboardStats
@@ -165,21 +110,10 @@ export default function Dashboard() {
         isLoading={isLoading}
       />
 
-      {/* ── Activity chart + Quick Create ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2">
-          <ActivityChart designs={designs} />
-        </div>
-        <div>
-          <QuickCreate />
-        </div>
+      {/* ── Activity chart — full width, taller than its overview-card days ── */}
+      <div className="h-[420px]">
+        <ActivityChart designs={designs} />
       </div>
-
-      {/* ── Recent designs ── */}
-      <DashboardRecentProjects
-        designs={recentDesigns}
-        isLoading={isLoading}
-      />
     </div>
   );
 }

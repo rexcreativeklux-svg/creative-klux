@@ -22,6 +22,9 @@ import { Check, ChevronDown } from "lucide-react";
  * @param {boolean} props.open
  * @param {(open: boolean) => void} props.onOpenChange
  * @param {"up"|"down"} [props.drop]      Menu direction. Default "up".
+ * @param {"left"|"right"} [props.align]  Which trigger edge the menu hugs — use
+ *   "right" when the trigger sits near a container's right edge so the menu
+ *   opens inward instead of overflowing. Default "left".
  * @param {string} [props.ariaLabel]      Accessible name for the trigger.
  * @param {React.ComponentType<{className?: string}>} [props.icon] Optional leading icon.
  */
@@ -32,6 +35,7 @@ export default function ComposerDropdown({
   open,
   onOpenChange,
   drop = "up",
+  align = "left",
   ariaLabel,
   icon: Icon,
 }) {
@@ -84,9 +88,9 @@ export default function ComposerDropdown({
       {open && (
         <div
           role="listbox"
-          className={`absolute left-0 z-50 w-56 overflow-hidden rounded-xl border border-gray-200 bg-surface py-1 shadow-xl ${
-            drop === "up" ? "bottom-full mb-2" : "top-full mt-2"
-          }`}
+          className={`absolute z-50 w-56 overflow-hidden rounded-xl border border-gray-200 bg-surface py-1 shadow-xl ${
+            align === "right" ? "right-0" : "left-0"
+          } ${drop === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
         >
           {options.map((option) => {
             const active = option.id === selected?.id;

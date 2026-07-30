@@ -30,7 +30,7 @@
  * @param {import("react").ReactNode} props.children  The active section page
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -63,9 +63,12 @@ const SectionLayout = ({ title, items, children }) => {
   const hideTip = () => setHoverTip(null);
 
   // Drop a stale tooltip when the panel expands (its coords no longer apply).
-  useEffect(() => {
+  // Adjusted during render (not in an effect) to avoid a cascading re-render.
+  const [lastOpen, setLastOpen] = useState(isOpen);
+  if (isOpen !== lastOpen) {
+    setLastOpen(isOpen);
     if (isOpen) setHoverTip(null);
-  }, [isOpen]);
+  }
 
   return (
     <div className="h-full pt-16 flex flex-col md:flex-row overflow-hidden">

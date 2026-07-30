@@ -3113,7 +3113,7 @@ export function AuthProvider({ children }) {
       } catch {
         return null;
       }
-      console.log("fetch: ", data);
+      // console.log("fetch: ", data);
       if (!res.ok) return null;
 
       // Normalize: expects array or { data: [...] }

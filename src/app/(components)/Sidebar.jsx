@@ -58,14 +58,14 @@ const Sidebar = ({
   const isOpen = overlayMode ? pinned || hovered : isOpenProp;
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showBottomMenu, setShowBottomMenu] = useState(false);
-  // ── Apps / Agents tabs ──────────────────────────────────────────
+  // ── Apps / Copilot tabs ─────────────────────────────────────────
   // Which nav list the sidebar shows. Derived from the route on load and kept
-  // in sync on navigation (any /agents route → Agents tab, everything else →
+  // in sync on navigation (any /copilot route → Copilot tab, everything else →
   // Apps), while still letting the user flip tabs freely to browse.
   const [activeTab, setActiveTab] = useState(() =>
-    pathname?.startsWith("/agents") ? "agents" : "apps",
+    pathname?.startsWith("/copilot") ? "copilot" : "apps",
   );
-  // Favorites disclosure on the Agents tab (empty state until favorites exist).
+  // Favorites disclosure on the Copilot tab (empty state until favorites exist).
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const bottomMenuRef = useRef(null);
   const mobileBottomMenuRef = useRef(null);
@@ -135,12 +135,17 @@ const Sidebar = ({
   const isActive = (href) =>
     pathname === href || pathname?.startsWith(href + "/");
 
-  // Follow navigation: landing on an /agents route selects the Agents tab,
+  // Follow navigation: landing on a /copilot route selects the Copilot tab,
   // navigating to any app page selects Apps. Manual tab flips (to just look)
-  // stay until the next navigation.
-  useEffect(() => {
-    setActiveTab(pathname?.startsWith("/agents") ? "agents" : "apps");
-  }, [pathname]);
+  // stay until the next navigation. Done during render (React's adjust-state
+  // pattern, same as the profile page) rather than in an effect so it doesn't
+  // trigger a cascading re-render.
+  const routeTab = pathname?.startsWith("/copilot") ? "copilot" : "apps";
+  const [lastRouteTab, setLastRouteTab] = useState(routeTab);
+  if (routeTab !== lastRouteTab) {
+    setLastRouteTab(routeTab);
+    setActiveTab(routeTab);
+  }
 
   // ── Close bottom menu on outside click ──
   // useEffect(() => {
@@ -211,10 +216,15 @@ const Sidebar = ({
     // { id: "rivalLens", label: "Rival Lens", href: "/rivalLens", icon: Radar },
   ];
 
-  // Agents tab — placeholder routes until the agent features land.
-  const agentsItems = [
-    { id: "agents-home", label: "Home", href: "/agents", icon: Home },
-    { id: "agents-all", label: "All Agents", href: "/agents/all", icon: LayoutGrid },
+  // Copilot tab — UI-first pages until the Copilot backend lands.
+  const copilotItems = [
+    { id: "copilot-home", label: "Home", href: "/copilot", icon: Home },
+    {
+      id: "copilot-all",
+      label: "All Copilots",
+      href: "/copilot/all",
+      icon: LayoutGrid,
+    },
   ];
 
   const bottomMenuLinks = [
@@ -257,12 +267,12 @@ const Sidebar = ({
     );
   };
 
-  // ── Apps/Agents tab switcher ───────────────────────────────────
+  // ── Apps/Copilot tab switcher ──────────────────────────────────
   // Expanded: a segmented pill control. Collapsed: two stacked icon buttons
   // (labels come from the shared hover tooltip).
   const tabDefs = [
     { id: "apps", label: "Apps", icon: LayoutGrid },
-    { id: "agents", label: "Agents", icon: Bot },
+    { id: "copilot", label: "Copilot", icon: Bot },
   ];
 
   const renderTabs = () =>
@@ -309,7 +319,7 @@ const Sidebar = ({
       </div>
     );
 
-  // ── Agents tab: Favorites disclosure ───────────────────────────
+  // ── Copilot tab: Favorites disclosure ──────────────────────────
   // Mirrors the reference design — a muted "Favorites" row that expands to an
   // empty state until favoriting exists.
   const renderFavorites = () =>
@@ -369,7 +379,7 @@ const Sidebar = ({
           {isOpen ? <strong className="ml-1"> Creative Klux</strong> : ""}
         </div>
 
-        {/* Apps / Agents tabs */}
+        {/* Apps / Copilot tabs */}
         <div className={`shrink-0 pt-3 ${isOpen ? "px-3" : "px-2"}`}>
           {renderTabs()}
         </div>
@@ -383,7 +393,7 @@ const Sidebar = ({
             appsItems.map(renderNavItem)
           ) : (
             <>
-              {agentsItems.map(renderNavItem)}
+              {copilotItems.map(renderNavItem)}
               {renderFavorites()}
             </>
           )}

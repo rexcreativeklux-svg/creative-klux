@@ -20,6 +20,8 @@
 // stopped at the button with a message naming the limit, rather than costing a
 // round trip to find out.
 
+import { buildAcceptList } from "@/utils/helpers";
+
 /**
  * Categories the chat surfaces accept. The API carries images and nothing else,
  * so a video or PDF has nowhere to go — the pickers restrict to images and
@@ -28,8 +30,12 @@
  */
 export const CHAT_ATTACHMENT_CATEGORIES = ["image"];
 
-/** `accept` for the chat surfaces' file inputs — mirrors the categories above. */
-export const CHAT_ATTACHMENT_ACCEPT = "image/*";
+/**
+ * `accept` for the chat surfaces' file inputs — the image extensions the
+ * BACKEND accepts, built from the same list every other upload path uses.
+ * Not "image/*": that offers .svg/.heic/.tiff, which the API rejects.
+ */
+export const CHAT_ATTACHMENT_ACCEPT = buildAcceptList(CHAT_ATTACHMENT_CATEGORIES);
 
 /** API `images` cap (`max:10`). Enforced while attaching, not on send. */
 export const MAX_CHAT_IMAGES = 10;

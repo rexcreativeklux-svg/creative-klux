@@ -31,7 +31,7 @@ import { downloadGalleryItem } from "./gallery/downloadMedia";
 //    + backend history). Replaces the old per-tool old-studio pages. ──
 import MagicTabPanel from "./magic-studio/MagicTabPanel";
 import { MAGIC_SUBTABS, configIdForLabel } from "./magic-studio/subtabs";
-import { FILE_LIMITS, getFileCategory } from "@/utils/helpers";
+import { FILE_LIMITS, getFileCategory, describeSupportedTypes } from "@/utils/helpers";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -345,7 +345,9 @@ export default function MediaPickerModal({
     const valid = Array.from(files).filter((file) => {
       const category = getFileCategory(file);
       if (!category) {
-        sonnerToast.error(`${file.name} isn't a supported file type.`);
+        sonnerToast.error(
+          `${file.name} isn't a supported file type. Supported: ${describeSupportedTypes()}.`,
+        );
         return false;
       }
       const maxSize = FILE_LIMITS[category];

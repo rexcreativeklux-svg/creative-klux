@@ -2207,8 +2207,11 @@ export function AuthProvider({ children }) {
       console.error("❌ creativeAiChat: no active brand — brand_id is required.");
       return { ok: false, message: "Select a brand before starting a chat." };
     }
-    const text = typeof message === "string" ? message.trim() : "";
-    if (!text) {
+    // NB: named `trimmedMessage`, not `text` — the response body below is read
+    // into a `text` const inside the try block, and reusing the name here would
+    // put this one in that block's temporal dead zone.
+    const trimmedMessage = typeof message === "string" ? message.trim() : "";
+    if (!trimmedMessage) {
       console.error("❌ creativeAiChat: empty message — message is required.");
       return { ok: false, message: "Type a message to send." };
     }
@@ -2222,7 +2225,7 @@ export function AuthProvider({ children }) {
         },
         body: JSON.stringify({
           brand_id: brandId,
-          message: text,
+          message: trimmedMessage,
           save_chat: "true", // always persist the conversation server-side
           details: null, // no agreed shape yet
           images: images.length ? images : null,

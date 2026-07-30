@@ -24,7 +24,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
-import { FILE_LIMITS, getFileCategory } from "@/utils/helpers";
+import { FILE_LIMITS, getFileCategory, describeSupportedTypes } from "@/utils/helpers";
 
 /** Friendly megabyte label for a byte limit (5242880 → "5MB"). */
 const asMB = (bytes) => `${Math.round(bytes / (1024 * 1024))}MB`;
@@ -157,7 +157,9 @@ export default function useGalleryUpload({
         const category = getFileCategory(file);
         if (!category) {
           console.warn(`⚠️ [composer-upload] unsupported type "${file.type}" for ${file.name}`);
-          toast.error(`${file.name} isn't a supported file type.`);
+          toast.error(
+            `${file.name} isn't a supported file type. Supported: ${describeSupportedTypes(allowedCategories)}.`,
+          );
           continue;
         }
         // Surface-level restriction (the chat surfaces are images-only). The

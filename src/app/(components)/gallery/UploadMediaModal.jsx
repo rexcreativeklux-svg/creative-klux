@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { MEDIA_ACCEPT } from "./mediaTypes";
-import { FILE_LIMITS, getFileCategory } from "@/utils/helpers";
+import { FILE_LIMITS, getFileCategory, describeSupportedTypes } from "@/utils/helpers";
 
 // Subtype → friendly extension for names built from a content-type.
 const EXT_BY_SUBTYPE = { jpeg: "jpg", "svg+xml": "svg", mpeg: "mp3", quicktime: "mov" };
@@ -135,7 +135,9 @@ export default function UploadMediaModal({ isOpen, onClose, onUpload }) {
     for (const file of incoming) {
       const category = getFileCategory(file);
       if (!category) {
-        toast.error(`${file.name} isn't a supported file type.`);
+        toast.error(
+          `${file.name} isn't a supported file type. Supported: ${describeSupportedTypes()}.`,
+        );
         continue;
       }
       if (file.size > FILE_LIMITS[category]) {

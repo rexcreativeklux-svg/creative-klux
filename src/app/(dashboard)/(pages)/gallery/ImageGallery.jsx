@@ -30,7 +30,7 @@ import UploadMediaModal from "@/app/(components)/gallery/UploadMediaModal";
 import { galleryGridClass } from "@/app/(components)/gallery/mediaTypes";
 import { downloadGalleryItem } from "@/app/(components)/gallery/downloadMedia";
 import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGallery";
-import { FILE_LIMITS, getFileCategory } from "@/utils/helpers";
+import { FILE_LIMITS, getFileCategory, describeSupportedTypes } from "@/utils/helpers";
 
 export default function ImageGallery() {
   const { uploadMedia, deleteImage } = useAuth();
@@ -113,7 +113,9 @@ export default function ImageGallery() {
       const valid = Array.from(files).filter((file) => {
         const category = getFileCategory(file);
         if (!category) {
-          toast.error(`${file.name} isn't a supported file type.`);
+          toast.error(
+            `${file.name} isn't a supported file type. Supported: ${describeSupportedTypes()}.`,
+          );
           return false;
         }
         const maxSize = FILE_LIMITS[category];

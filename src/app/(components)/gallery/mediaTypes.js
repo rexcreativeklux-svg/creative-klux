@@ -23,11 +23,13 @@ export const MEDIA_TYPES = [
 export const MEDIA_TYPE_IDS = MEDIA_TYPES.map((t) => t.id);
 
 /**
- * The `accept` attribute for any gallery upload input. Kept here so every upload
- * surface offers the same file types the gallery can actually classify.
+ * The `accept` attribute for any gallery upload input.
+ *
+ * Re-exported from utils/helpers so the picker offers EXACTLY what the backend
+ * accepts — one list, no drift. It used to be a hand-written string with
+ * "image/*" wildcards, which offered .svg/.heic/.tiff that the API rejects.
  */
-export const MEDIA_ACCEPT =
-  "image/*, audio/*, video/*, .pdf, .doc, .docx, .xls, .xlsx, .txt";
+export { UPLOAD_ACCEPT as MEDIA_ACCEPT } from "@/utils/helpers";
 
 /** Look up a type's presentation meta (label/icon). Falls back to Images. */
 export const getMediaTypeMeta = (id) =>

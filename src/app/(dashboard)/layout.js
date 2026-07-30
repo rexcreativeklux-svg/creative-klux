@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Header from "../(components)/Header";
+import { SecondarySidebarProvider } from "@/context/SecondarySidebarContext";
 import Overview from "./(pages)/overview/page";
 import ModalPage from "../(components)/ModalPage";
 import ProtectedRoute from "../(components)/ProtectedRoutes";
@@ -14,6 +15,24 @@ const NO_PADDING_ROUTES = [
     "/studio/ai-select",
     "/studio/ai-chat-page",
     "/studio/select",
+];
+
+// Sections that render their own secondary sidebar (see
+// (components)/SectionLayout.jsx). Their layout owns the whole content area —
+// full height, flush against the main sidebar — so the default page padding
+// must not wrap it; SectionLayout applies the equivalent padding around the
+// page content itself.
+//
+// While one of these routes is open the PRIMARY sidebar stays collapsed in the
+// layout flow (the saved preference is untouched and restored on the way out)
+// and instead expands as a floating overlay ON TOP of the secondary sidebar —
+// on hover, or held open when the header's collapse button pins it. The
+// secondary sidebar has its own collapse button in its panel footer, wired
+// through SecondarySidebarContext.
+const SECONDARY_SIDEBAR_ROUTES = [
+    "/ad-intelligence",
+    "/social-content",
+    "/ads-content",
 ];
 
 // Routes that open with the sidebar collapsed. These are canvas-style screens
@@ -70,7 +89,23 @@ export default function DashboardLayout({ children }) {
     const [isPending, startTransition] = useTransition();
 
 
-    const noPadding = NO_PADDING_ROUTES.some(route => pathname.startsWith(route));
+    const noPadding = [...NO_PADDING_ROUTES, ...SECONDARY_SIDEBAR_ROUTES].some(
+        route => pathname.startsWith(route),
+    );
+
+    // On a section route the primary sidebar stays collapsed in the flow and
+    // expands only as an overlay (hover, or pinned via the header toggle).
+    const isSectionRoute = SECONDARY_SIDEBAR_ROUTES.some(route =>
+        pathname.startsWith(route),
+    );
+
+    // Overlay pin: header toggle holds the primary sidebar's overlay open on
+    // section routes. Per-visit only (not persisted); cleared on leaving.
+    const [primaryPinned, setPrimaryPinned] = useState(false);
+
+    useEffect(() => {
+        if (!isSectionRoute) setPrimaryPinned(false);
+    }, [isSectionRoute]);
 
     // Sidebar open/collapsed state — persisted in localStorage
     const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -94,11 +129,39 @@ export default function DashboardLayout({ children }) {
         pathname.startsWith(route),
     );
 
-    const effectiveSidebarOpen = forceCollapsedSidebar
-        ? sidebarRouteOverride?.route === pathname
-            ? sidebarRouteOverride.open
-            : false // ← the default the moment the route is entered
-        : sidebarOpen;
+    // Section routes lock the primary sidebar collapsed for the whole visit —
+    // no override — since the secondary sidebar carries the navigation there.
+    const effectiveSidebarOpen = isSectionRoute
+        ? false
+        : forceCollapsedSidebar
+            ? sidebarRouteOverride?.route === pathname
+                ? sidebarRouteOverride.open
+                : false // ← the default the moment the route is entered
+            : sidebarOpen;
+
+    // Secondary (section) sidebar open/collapsed state — persisted separately
+    // from the primary so each remembers its own preference.
+    const [secondaryOpen, setSecondaryOpen] = useState(() => {
+        if (typeof window === "undefined") return true;
+        try {
+            const saved = localStorage.getItem("secondarySidebarOpen");
+            return saved !== null ? JSON.parse(saved) : true;
+        } catch {
+            return true;
+        }
+    });
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            localStorage.setItem(
+                "secondarySidebarOpen",
+                JSON.stringify(secondaryOpen),
+            );
+        } catch (error) {
+            console.error("Error saving secondary sidebar state:", error);
+        }
+    }, [secondaryOpen]);
 
     /**
      * The one way the sidebar changes. On a collapsed-by-default route it edits
@@ -125,7 +188,20 @@ export default function DashboardLayout({ children }) {
         }
     }, [sidebarOpen]);
 
-    const toggleSidebar = () => setSidebarOpenForRoute((prev) => !prev);
+    // The header's collapse button always drives the PRIMARY sidebar. On
+    // section routes that means pinning/unpinning its overlay (the in-flow
+    // width stays collapsed); everywhere else it expands/collapses as before.
+    const toggleSidebar = () => {
+        if (isSectionRoute) {
+            setPrimaryPinned((prev) => !prev);
+            return;
+        }
+        setSidebarOpenForRoute((prev) => !prev);
+    };
+
+    // Secondary sidebar collapse — toggled from the button in SectionLayout's
+    // panel footer, shared through SecondarySidebarContext.
+    const toggleSecondary = () => setSecondaryOpen((prev) => !prev);
 
     // const shouldShowModal = useMemo(() => {
     //     if (brandsLoading || !brands) return false;
@@ -161,21 +237,33 @@ export default function DashboardLayout({ children }) {
         <ProtectedRoute>
             <div className="h-screen flex overflow-hidden">
 
-                <Sidebar isOpen={effectiveSidebarOpen} setIsOpen={setSidebarOpenForRoute} />
+                <Sidebar
+                    isOpen={effectiveSidebarOpen}
+                    setIsOpen={setSidebarOpenForRoute}
+                    overlayMode={isSectionRoute}
+                    pinned={primaryPinned}
+                />
 
                 <main
                     style={{ "--ck-content-left": effectiveSidebarOpen ? "14rem" : "3.75rem", "--ck-content-top": "4rem" }}
                     className={`flex flex-1 flex-col overflow-hidden h-full transition-opacity duration-200 ${isPending ? "opacity-70 pointer-events-none" : ""}`}
                 >
+                    {/* On section routes the header follows the PIN state: pinned
+                        → shifts to left-56 so its toggle stays reachable beside
+                        the overlay; hover-expands don't move it. */}
                     <Header
-                        sidebarOpen={effectiveSidebarOpen}
+                        sidebarOpen={isSectionRoute ? primaryPinned : effectiveSidebarOpen}
                         toggleSidebar={toggleSidebar}
                     // setShowModal={() => { }}
 
                     />
                     <div className="flex-1 bg-page h-full overflow-y-auto">
                         <div className={`h-full ${noPadding ? "" : "px-9 pt-24"}`}>
-                            {children || <Overview />}
+                            <SecondarySidebarProvider
+                                value={{ isOpen: secondaryOpen, toggle: toggleSecondary }}
+                            >
+                                {children || <Overview />}
+                            </SecondarySidebarProvider>
                         </div>
                     </div>
                 </main>

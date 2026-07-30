@@ -1,5 +1,23 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Old flat URLs → new section URLs (sidebar restructure: Ad Intelligence,
+  // Social Content and Ads Content became sections with a secondary sidebar).
+  // Kept non-permanent (307) so cached 308s can't bite if routes move again.
+  async redirects() {
+    return [
+      { source: '/ad-performance', destination: '/ad-intelligence/ad-performance', permanent: false },
+      { source: '/market-spy', destination: '/ad-intelligence/market-spy', permanent: false },
+      { source: '/ad-guard-ai', destination: '/ad-intelligence/ad-guard-ai', permanent: false },
+      { source: '/ad-scorer-ai', destination: '/ad-intelligence/ad-scorer-ai', permanent: false },
+      { source: '/creative-comparison', destination: '/ad-intelligence/creative-comparison', permanent: false },
+      { source: '/social-publishing', destination: '/social-content/publishing', permanent: false },
+      { source: '/social-calendar', destination: '/social-content/calendar', permanent: false },
+      { source: '/social-analytics', destination: '/social-content/analytics', permanent: false },
+      { source: '/ads-publishing', destination: '/ads-content/publishing', permanent: false },
+      { source: '/ads-calendar', destination: '/ads-content/calendar', permanent: false },
+      { source: '/ads-analytics', destination: '/ads-content/analytics', permanent: false },
+    ];
+  },
   images: {
     remotePatterns: [
       // Production image CDN

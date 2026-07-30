@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 import {
-  Settings,
   HelpCircle,
   Power,
   Megaphone,
@@ -12,19 +11,16 @@ import {
   Workflow,
   ShoppingCart,
   CreditCard,
-  Activity,
-  ShieldCheck,
   ChevronRight,
-  ChevronDown,
   User,
-  Calendar,
   LayoutDashboard,
+  LayoutGrid,
   Palette,
   Folder,
-  Search,
   Star,
-  Lightbulb,
-  GitCompareArrows,
+  Bot,
+  Brain,
+  Home,
   BookImage,
   Sparkles,
   Image,
@@ -34,13 +30,43 @@ import Link from "next/link";
 import LogoutModal from "./LogoutModal";
 import ThemeSwitcher from "./ThemeSwitcher";
 
-const Sidebar = ({ isOpen, setIsOpen }) => {
+/**
+ * @param {Object}  props
+ * @param {boolean} props.isOpen      Expanded/collapsed state (normal mode)
+ * @param {Function} props.setIsOpen  Setter for `isOpen` (kept for API compat)
+ * @param {boolean} [props.overlayMode] Section routes (secondary sidebar pages):
+ *   the sidebar stays collapsed in the layout flow and instead expands as a
+ *   floating overlay ON TOP of the secondary sidebar — on hover (auto-closes
+ *   on mouse-out) or held open while `pinned`. Item tooltips are disabled
+ *   here since hovering reveals the full sidebar anyway.
+ * @param {boolean} [props.pinned]    Overlay mode only: header toggle pinned
+ *   the overlay open, so it survives mouse-out until unpinned.
+ */
+const Sidebar = ({
+  isOpen: isOpenProp,
+  setIsOpen,
+  overlayMode = false,
+  pinned = false,
+}) => {
   const router = useRouter();
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  // Overlay mode: hovering the collapsed strip expands the sidebar.
+  const [hovered, setHovered] = useState(false);
+  // What the render tree treats as "expanded". In overlay mode the layout keeps
+  // the in-flow width collapsed and this only widens the floating panel.
+  const isOpen = overlayMode ? pinned || hovered : isOpenProp;
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showBottomMenu, setShowBottomMenu] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(null);
+  // ── Apps / Agents tabs ──────────────────────────────────────────
+  // Which nav list the sidebar shows. Derived from the route on load and kept
+  // in sync on navigation (any /agents route → Agents tab, everything else →
+  // Apps), while still letting the user flip tabs freely to browse.
+  const [activeTab, setActiveTab] = useState(() =>
+    pathname?.startsWith("/agents") ? "agents" : "apps",
+  );
+  // Favorites disclosure on the Agents tab (empty state until favorites exist).
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
   const bottomMenuRef = useRef(null);
   const mobileBottomMenuRef = useRef(null);
   const userBtnRef = useRef(null);
@@ -56,6 +82,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const [hoverTip, setHoverTip] = useState(null);
 
   const showTip = (e, label, active = false) => {
+    if (overlayMode) return; // hovering expands the whole sidebar instead
     if (isOpen) return; // labels are already visible when expanded
     const rect = e.currentTarget.getBoundingClientRect();
     setHoverTip({
@@ -108,38 +135,11 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const isActive = (href) =>
     pathname === href || pathname?.startsWith(href + "/");
 
-  const isDropdownActive = (children) =>
-    children?.some((c) => isActive(c.href));
-
-  const toggleDropdown = (id, e) => {
-    e.preventDefault();
-    if (!isOpen) {
-      setIsOpen(true);
-      setTimeout(() => setOpenDropdown(id), 250);
-      return;
-    }
-    setOpenDropdown((prev) => (prev === id ? null : id));
-  };
-
-  // Auto-open dropdown if a child is active
+  // Follow navigation: landing on an /agents route selects the Agents tab,
+  // navigating to any app page selects Apps. Manual tab flips (to just look)
+  // stay until the next navigation.
   useEffect(() => {
-    const dropdownItems = [
-      {
-        id: "social",
-        children: [{ href: "/created-socials" }, { href: "/social-planner" }],
-      },
-      {
-        id: "ads",
-        children: [{ href: "/created-ads" }, { href: "/ads-planner" }],
-      },
-    ];
-
-    for (const item of dropdownItems) {
-      if (item.children.some((c) => isActive(c.href))) {
-        setOpenDropdown(item.id);
-        break;
-      }
-    }
+    setActiveTab(pathname?.startsWith("/agents") ? "agents" : "apps");
   }, [pathname]);
 
   // ── Close bottom menu on outside click ──
@@ -161,8 +161,12 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   //   return () => document.removeEventListener("mousedown", handleClickOutside);
   // }, [showBottomMenu, showLogoutModal]);
 
-  // ── Nav sections ───────────────────────────────────────────────
-  const createItems = [
+  // ── Nav items ──────────────────────────────────────────────────
+  // Apps tab — flat list, no category headers. Social Content, Ads Content and
+  // Ad Intelligence are sections: each opens a page with its own secondary
+  // sidebar (see (components)/SectionLayout.jsx) holding the old sub-pages.
+  const appsItems = [
+    { id: "dashboard", label: "Dashboard", href: "/", icon: LayoutDashboard },
     { id: "brand", label: "Brand Kits", href: "/brand/reuse", icon: Palette },
     {
       id: "creatives",
@@ -182,95 +186,43 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       href: "/magic-studio",
       icon: Sparkles,
     },
-  ];
-
-  const overviewItems = [
     {
-      id: "dashboard",
-      label: "Dashboard",
-      href: "/",
-      icon: LayoutDashboard,
+      id: "social-content",
+      label: "Social Content",
+      href: "/social-content",
+      icon: Share2,
     },
-  ];
-
-  const insightsItems = [
+    {
+      id: "ads-content",
+      label: "Ads Content",
+      href: "/ads-content",
+      icon: Megaphone,
+    },
+    {
+      id: "ad-intelligence",
+      label: "Ad Intelligence",
+      href: "/ad-intelligence",
+      icon: Brain,
+    },
+    // Parked ideas (pages exist but are not surfaced yet):
     // { id: "brandPulse", label: "Brand Pulse", href: "/brandPulse", icon: Activity },
     // { id: "creativeIQ", label: "Creative IQ", href: "/creativeIQ", icon: Brain },
-  ];
-
-  const toolsItems = [
     // { id: "adGuard", label: "AdGuard", href: "/adGuard", icon: ShieldCheck },
     // { id: "rivalLens", label: "Rival Lens", href: "/rivalLens", icon: Radar },
-    {
-      id: "ad-performance",
-      label: "Ad Performance",
-      href: "/ad-performance",
-      icon: Lightbulb,
-    },
-    {
-      id: "market-spy",
-      label: "Market Spy",
-      href: "/market-spy",
-      icon: Search,
-    },
-    {
-      id: "ad-guard",
-      label: "Ad Guard AI",
-      href: "/ad-guard-ai",
-      icon: ShieldCheck,
-    },
-    {
-      id: "ad-scorer",
-      label: "Ad Scorer AI",
-      href: "/ad-scorer-ai",
-      icon: Star,
-    },
-    {
-      id: "creative-comparison",
-      label: "Creative Comparison",
-      href: "/creative-comparison",
-      icon: GitCompareArrows,
-    },
   ];
 
-  const manageItems = [
-    {
-      id: "social",
-      label: "Social Content",
-      icon: Share2,
-      type: "dropdown",
-      children: [
-        { label: " Publishing", href: "/social-publishing", icon: Share2 },
-        { label: " Calendar", href: "/social-calendar", icon: Calendar },
-        { label: "Analytics", href: "/social-analytics", icon: Activity },
-      ],
-    },
-    {
-      id: "ads",
-      label: "Ads Content",
-      icon: Megaphone,
-      type: "dropdown",
-      children: [
-        { label: "Publishing", href: "/ads-publishing", icon: Megaphone },
-        { label: "Calendar", href: "/ads-calendar", icon: Calendar },
-        { label: "Analytics", href: "/ads-analytics", icon: Activity },
-      ],
-    },
-    {
-      id: "integrations",
-      label: "Integrations",
-      href: "/integrations",
-      icon: Workflow,
-      type: "link",
-    },
+  // Agents tab — placeholder routes until the agent features land.
+  const agentsItems = [
+    { id: "agents-home", label: "Home", href: "/agents", icon: Home },
+    { id: "agents-all", label: "All Agents", href: "/agents/all", icon: LayoutGrid },
   ];
 
   const bottomMenuLinks = [
-    { label: "Profile", href: "/profile", icon: User },
+    { label: "Profile Settings", href: "/profile", icon: User },
     { label: "Gallery", href: "/gallery", icon: Image },
+    { label: "Integrations", href: "/integrations", icon: Workflow },
     { label: "Resell", href: "/resell", icon: ShoppingCart },
     { label: "Plans And Billing", href: "/billing", icon: CreditCard },
-    { label: "Settings", href: "/settings", icon: Settings },
     { label: "Help", href: "/help", icon: HelpCircle },
   ];
 
@@ -305,111 +257,99 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     );
   };
 
-  // ── Dropdown item ──────────────────────────────────────────────
-  const renderDropdownItem = ({ id, icon: Icon, label, children }) => {
-    const dropOpen = openDropdown === id;
-    const dropActive = isDropdownActive(children);
+  // ── Apps/Agents tab switcher ───────────────────────────────────
+  // Expanded: a segmented pill control. Collapsed: two stacked icon buttons
+  // (labels come from the shared hover tooltip).
+  const tabDefs = [
+    { id: "apps", label: "Apps", icon: LayoutGrid },
+    { id: "agents", label: "Agents", icon: Bot },
+  ];
 
-    return (
-      <div key={id} className="relative">
-        <button
-          onClick={(e) => toggleDropdown(id, e)}
-          onMouseEnter={(e) => showTip(e, label, dropActive)}
-          onMouseLeave={hideTip}
-          onFocus={(e) => showTip(e, label, dropActive)}
-          onBlur={hideTip}
-          className={`
-            group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer
-            transition-all duration-150
-            ${dropActive ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"}
-            ${!isOpen ? "justify-center px-0" : ""}
-          `}
-        >
-          <Icon
-            className={`w-4.5 shrink-0 transition-transform duration-150 ${dropActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"} ${!isOpen ? "group-hover:scale-110" : ""}`}
-          />
-          {isOpen && (
-            <>
-              <span className="flex-1 text-left truncate">{label}</span>
-              <ChevronDown
-                className={`h-4 w-4 shrink-0 transition-transform duration-200 ${dropOpen ? "-rotate-90" : ""}`}
+  const renderTabs = () =>
+    isOpen ? (
+      <div className="grid grid-cols-2 gap-1 p-1 rounded-xl border border-gray-200 bg-gray-100">
+        {tabDefs.map(({ id, label, icon: Icon }) => {
+          const active = activeTab === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold cursor-pointer transition-all duration-150
+                ${active ? "bg-surface text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"}`}
+            >
+              <Icon
+                className={`h-4 w-4 shrink-0 ${active ? "text-blue-600" : ""}`}
               />
-            </>
-          )}
-        </button>
-
-        {/* Accordion — sidebar open */}
-        {isOpen && dropOpen && (
-          <div className="mt-0.5 ml-4 pl-3 border-l-2 border-gray-200 flex flex-col gap-0.5 pb-1">
-            {children.map((child) => {
-              const ChildIcon = child.icon;
-              const childActive = isActive(child.href);
-              return (
-                <Link
-                  key={child.href}
-                  href={child.href}
-                  className={`flex items-center gap-2.5 px-2 py-2 rounded-md text-xs transition-all duration-150
-                    ${childActive ? "text-blue-600 font-semibold" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"}`}
-                >
-                  <ChildIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{child.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Flyout — sidebar collapsed */}
-        {!isOpen && dropOpen && (
-          <div className="absolute left-full top-0 z-50 ml-2 w-48 bg-surface rounded-xl shadow-xl border border-gray-200 py-1.5 overflow-hidden">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500 px-3 py-1.5 border-b border-gray-200 mb-1">
               {label}
-            </p>
-            {children.map((child) => {
-              const ChildIcon = child.icon;
-              return (
-                <Link
-                  key={child.href}
-                  href={child.href}
-                  onClick={() => setOpenDropdown(null)}
-                  className={`flex items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-gray-100
-                    ${isActive(child.href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
-                >
-                  <ChildIcon className="h-3.5 w-3.5 shrink-0" />
-                  {child.label}
-                </Link>
-              );
-            })}
-          </div>
+            </button>
+          );
+        })}
+      </div>
+    ) : (
+      <div className="flex flex-col gap-1 p-1 rounded-xl border border-gray-200 bg-gray-100">
+        {tabDefs.map(({ id, label, icon: Icon }) => {
+          const active = activeTab === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              onMouseEnter={(e) => showTip(e, label, active)}
+              onMouseLeave={hideTip}
+              onFocus={(e) => showTip(e, label, active)}
+              onBlur={hideTip}
+              className={`flex items-center justify-center rounded-lg py-1.5 cursor-pointer transition-all duration-150
+                ${active ? "bg-surface shadow-sm" : "hover:bg-gray-200/60"}`}
+            >
+              <Icon
+                className={`h-4 w-4 shrink-0 ${active ? "text-blue-600" : "text-gray-500"}`}
+              />
+            </button>
+          );
+        })}
+      </div>
+    );
+
+  // ── Agents tab: Favorites disclosure ───────────────────────────
+  // Mirrors the reference design — a muted "Favorites" row that expands to an
+  // empty state until favoriting exists.
+  const renderFavorites = () =>
+    isOpen && (
+      <div className="mt-2 pt-2 border-t border-gray-200">
+        <button
+          onClick={() => setFavoritesOpen((p) => !p)}
+          className="group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
+        >
+          <Star className="w-4.5 shrink-0 text-gray-500 group-hover:text-gray-900" />
+          <span className="flex-1 text-left truncate">Favorites</span>
+          <ChevronRight
+            className={`h-4 w-4 shrink-0 transition-transform duration-200 ${favoritesOpen ? "rotate-90" : ""}`}
+          />
+        </button>
+        {favoritesOpen && (
+          <p className="px-3 py-2 ml-4 text-xs text-gray-400">
+            No favorites yet
+          </p>
         )}
       </div>
     );
-  };
-
-  // ── Route to correct renderer ──────────────────────────────────
-  const renderItem = (item) =>
-    item.type === "dropdown" ? renderDropdownItem(item) : renderNavItem(item);
-
-  const renderSection = (title, items) => (
-    <div className="flex flex-col gap-0.5">
-      {isOpen && (
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 mb-1 mt-1">
-          {title}
-        </p>
-      )}
-      {!isOpen && <div className="my-1 border-t border-gray-200 mx-2" />}
-      {items.map(renderItem)}
-    </div>
-  );
 
   return (
     <>
       {/* ── Desktop Sidebar ───────────────────────────────────── */}
+      {/* Overlay mode: this placeholder holds the collapsed width in the
+          layout flow so the floating panel never pushes the content aside. */}
+      {overlayMode && (
+        <div className="hidden md:block w-15 shrink-0" aria-hidden="true" />
+      )}
       <nav
+        onMouseEnter={overlayMode ? () => setHovered(true) : undefined}
+        onMouseLeave={overlayMode ? () => setHovered(false) : undefined}
         className={`
           hidden md:flex md:flex-col shrink-0
           h-screen bg-surface border-r border-gray-200
           transition-all duration-300 ease-in-out overflow-hidden
+          ${overlayMode ? "fixed left-0 top-0 z-55" : ""}
+          ${overlayMode && isOpen ? "shadow-2xl" : ""}
           ${isOpen ? "w-56" : "w-15"}
         `}
       >
@@ -429,16 +369,24 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           {isOpen ? <strong className="ml-1"> Creative Klux</strong> : ""}
         </div>
 
-        {/* Scrollable nav area */}
+        {/* Apps / Agents tabs */}
+        <div className={`shrink-0 pt-3 ${isOpen ? "px-3" : "px-2"}`}>
+          {renderTabs()}
+        </div>
+
+        {/* Scrollable nav area — flat list for the active tab */}
         <div
-          className={`hide-scrollbar flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-3 ${isOpen ? "px-3" : "px-2"}`}
+          className={`hide-scrollbar flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-0.5 ${isOpen ? "px-3" : "px-2"}`}
           onScroll={hideTip}
         >
-          {renderSection("Overview", overviewItems)}
-          {renderSection("Create", createItems)}
-          {renderSection("Manage", manageItems)}
-          {/* {renderSection("Insights", insightsItems)} */}
-          {renderSection("Ad Intelligence", toolsItems)}
+          {activeTab === "apps" ? (
+            appsItems.map(renderNavItem)
+          ) : (
+            <>
+              {agentsItems.map(renderNavItem)}
+              {renderFavorites()}
+            </>
+          )}
         </div>
 
         {/* Theme switcher (UI only) */}
@@ -567,65 +515,25 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         </div>
       )}
 
-      {/* ── Mobile Bottom Nav ──────────────────────────────────── */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-gray-200 flex justify-around items-center py-2 md:hidden">
-        {[
-          ...overviewItems,
-          ...createItems,
-          ...manageItems.slice(0, 2),
-          ...insightsItems,
-        ].map((item) => {
-          const { id, label, icon: Icon, href, type, children } = item;
-          const isDropOpen = openDropdown === id;
+      {/* ── Mobile Bottom Nav ──────────────────────────────────────
+          Flat app links (sections open their page; sub-navs live in the
+          section's horizontal tab bar — see SectionLayout). Scrolls
+          horizontally if the items outgrow the width. */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-gray-200 flex justify-around items-center gap-0.5 py-2 px-1 overflow-x-auto hide-scrollbar md:hidden">
+        {appsItems.map(({ id, label, icon: Icon, href }) => (
+          <Link
+            key={id}
+            href={href}
+            className={`flex flex-col items-center shrink-0 text-xs p-1.5 rounded-lg ${isActive(href) ? "text-blue-600" : "text-gray-500"}`}
+          >
+            <Icon className="h-5 w-5" />
+            <span className="mt-0.5 font-medium whitespace-nowrap">
+              {label}
+            </span>
+          </Link>
+        ))}
 
-          if (type === "dropdown") {
-            return (
-              <div key={id} className="relative">
-                <button
-                  onClick={(e) => toggleDropdown(id, e)}
-                  className={`flex flex-col items-center text-xs p-2 rounded-lg ${isDropOpen || isDropdownActive(children) ? "text-blue-600" : "text-gray-500"}`}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="mt-0.5 font-medium">{label}</span>
-                </button>
-                {isDropOpen && (
-                  <div className="absolute bottom-14 left-1/2 -translate-x-1/2 w-44 bg-surface rounded-xl shadow-xl border border-gray-200 py-1.5 z-50">
-                    <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-500 px-3 py-1.5 border-b border-gray-200">
-                      {label}
-                    </p>
-                    {children.map((child) => {
-                      const ChildIcon = child.icon;
-                      return (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          onClick={() => setOpenDropdown(null)}
-                          className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-100 ${isActive(child.href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
-                        >
-                          <ChildIcon className="h-3.5 w-3.5 shrink-0" />
-                          {child.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          }
-
-          return (
-            <Link
-              key={id}
-              href={href}
-              className={`flex flex-col items-center text-xs p-2 rounded-lg ${isActive(href) ? "text-blue-600" : "text-gray-500"}`}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="mt-0.5 font-medium">{label}</span>
-            </Link>
-          );
-        })}
-
-        <div ref={mobileBottomMenuRef} className="relative">
+        <div ref={mobileBottomMenuRef} className="relative shrink-0">
           {showBottomMenu && (
             <div
               className="fixed inset-0 z-40"
@@ -643,7 +551,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           </button>
 
           {showBottomMenu && (
-            <div className="absolute bottom-14 right-0 w-48 bg-surface rounded-xl shadow-xl border border-gray-200 py-1.5 z-50">
+            /* fixed (not absolute): the nav scrolls horizontally, so an
+               absolute popup would be clipped by its overflow */
+            <div className="fixed bottom-16 right-2 w-48 bg-surface rounded-xl shadow-xl border border-gray-200 py-1.5 z-50">
               {/* same links, no onMouseDown needed */}
               {bottomMenuLinks.map(({ label, href, icon: Icon }) => (
                 <Link

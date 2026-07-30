@@ -5,22 +5,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Header from "../(components)/Header";
 import { SecondarySidebarProvider } from "@/context/SecondarySidebarContext";
-import Home from "./(pages)/home/page";
+import Home from "./page";
 import ModalPage from "../(components)/ModalPage";
 import ProtectedRoute from "../(components)/ProtectedRoutes";
 import Sidebar from "../(components)/Sidebar";
 import '../globals.css';
 
 const NO_PADDING_ROUTES = [
-    "/studio/ai-select",
     "/studio/ai-chat-page",
     "/studio/select",
     // Copilot pages are full-bleed (own tinted background + padding).
     "/copilot",
-    // The create-hero home page owns its own header offset (pt-16) and
-    // full-bleed template rails. Also rendered at "/" — see `noPadding` below,
-    // which matches the root exactly (startsWith("/") would match everything).
-    "/home",
 ];
 
 // Sections that render their own secondary sidebar (see

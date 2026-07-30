@@ -12,7 +12,7 @@ import {
 
 const QUICK_ACTIONS = [
   {
-    href: "/studio/ai-select",
+    href: "/",
     icon: MessageSquare,
     label: "AI Studio",
     description: "Describe your creative and let AI build it",
@@ -89,7 +89,7 @@ export default function QuickCreate() {
       {/* CTA button */}
       <div className="px-5 pb-5 pt-2 shrink-0">
         <Link
-          href="/studio/ai-select"
+          href="/"
           className="w-full py-3 rounded-xl bg-linear-to-r from-purple-600 to-pink-600 text-sm font-semibold text-white text-center flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] duration-150"
           //   style={{ background: "#2563eb" }}
         >

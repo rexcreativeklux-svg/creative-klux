@@ -616,8 +616,14 @@ function PreviewPanel({ result,
 export default function AiCreativeChatPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { creativeAiChat, saveDesign, activeBrand, activeBrandId, fetchDesignTemplates } =
-    useAuth();
+  const {
+    creativeAiChat,
+    saveDesign,
+    activeBrand,
+    activeBrandId,
+    brandsLoading,
+    fetchDesignTemplates,
+  } = useAuth();
 
   const creativeType = searchParams.get("creative") || "general";
   const config = CREATIVE_CONFIG[creativeType] || CREATIVE_CONFIG.general;
@@ -675,6 +681,13 @@ export default function AiCreativeChatPage() {
 
   useEffect(() => {
     if (hasInitialized.current) return;
+    // WAIT for the active brand before firing the opening send. `activeBrand`
+    // hydrates from localStorage, so on a fresh load (or a hard refresh onto
+    // this URL) it is still null for the first render(s) — sending then would
+    // be rejected for a missing brand_id even though the user has one selected.
+    // Not marking the effect as initialised yet is the point: it re-runs when
+    // brandsLoading flips and sends properly.
+    if (brandsLoading) return;
     hasInitialized.current = true;
 
     setPreviewResult(null);
@@ -705,7 +718,7 @@ export default function AiCreativeChatPage() {
         timestamp: new Date().toISOString(),
       },
     ]);
-  }, [creativeType, initialMessage]);
+  }, [creativeType, initialMessage, brandsLoading]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

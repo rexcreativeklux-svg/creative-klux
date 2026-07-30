@@ -31,7 +31,12 @@ import { downloadGalleryItem } from "./gallery/downloadMedia";
 //    + backend history). Replaces the old per-tool old-studio pages. ──
 import MagicTabPanel from "./magic-studio/MagicTabPanel";
 import { MAGIC_SUBTABS, configIdForLabel } from "./magic-studio/subtabs";
-import { FILE_LIMITS, getFileCategory, describeSupportedTypes } from "@/utils/helpers";
+import {
+  FILE_LIMITS,
+  getFileCategory,
+  describeSupportedTypes,
+  UPLOAD_ACCEPT,
+} from "@/utils/helpers";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -614,7 +619,7 @@ export default function MediaPickerModal({
                     ref={libFileRef}
                     type="file"
                     multiple
-                    accept="image/*, audio/*, video/*, .pdf, .doc, .docx, .xls, .xlsx, .txt"
+                    accept={UPLOAD_ACCEPT}
                     className="hidden"
                     onChange={(e) => {
                       const files = Array.from(e.target.files || []);

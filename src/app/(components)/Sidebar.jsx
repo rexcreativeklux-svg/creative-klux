@@ -244,7 +244,7 @@ const Sidebar = ({
         key={id}
         href={href}
         className={`
-          group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium
+          group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-medium
           transition-all duration-150
           ${active ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"}
           ${!isOpen ? "justify-center px-0" : ""}
@@ -254,8 +254,11 @@ const Sidebar = ({
         onFocus={(e) => showTip(e, label, active)}
         onBlur={hideTip}
       >
+        {/* h-4.5 matters as much as w-4.5: lucide renders height="24" on the
+            <svg>, so a width-only class leaves an 18px glyph letterboxed inside
+            a 24px box — which is what made these rows read as crowded. */}
         <Icon
-          className={`w-4.5 shrink-0 transition-transform duration-150 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"} ${!isOpen ? "group-hover:scale-110" : ""}`}
+          className={`h-4.5 w-4.5 shrink-0 transition-transform duration-150 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"} ${!isOpen ? "group-hover:scale-110" : ""}`}
         />
         {isOpen && <span className="flex-1 truncate">{label}</span>}
         {isOpen && badge && (
@@ -271,7 +274,7 @@ const Sidebar = ({
   // Expanded: a segmented pill control. Collapsed: two stacked icon buttons
   // (labels come from the shared hover tooltip).
   const tabDefs = [
-    { id: "apps", label: "Apps", icon: LayoutGrid },
+    { id: "apps", label: "Designs", icon: LayoutGrid },
     { id: "copilot", label: "Copilot", icon: Bot },
   ];
 
@@ -284,8 +287,8 @@ const Sidebar = ({
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold cursor-pointer transition-all duration-150
-                ${active ? "bg-surface text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"}`}
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] cursor-pointer transition-all duration-150
+                ${active ? "bg-surface text-gray-900 font-semibold shadow-sm" : "text-gray-500 font-medium hover:text-gray-900"}`}
             >
               <Icon
                 className={`h-4 w-4 shrink-0 ${active ? "text-blue-600" : ""}`}
@@ -327,9 +330,9 @@ const Sidebar = ({
       <div className="mt-2 pt-2 border-t border-gray-200">
         <button
           onClick={() => setFavoritesOpen((p) => !p)}
-          className="group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
+          className="group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-medium cursor-pointer text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
         >
-          <Star className="w-4.5 shrink-0 text-gray-500 group-hover:text-gray-900" />
+          <Star className="h-4.5 w-4.5 shrink-0 text-gray-500 group-hover:text-gray-900" />
           <span className="flex-1 text-left truncate">Favorites</span>
           <ChevronRight
             className={`h-4 w-4 shrink-0 transition-transform duration-200 ${favoritesOpen ? "rotate-90" : ""}`}
@@ -376,7 +379,14 @@ const Sidebar = ({
             className="h-7 w-auto max-w-full object-contain"
             loading="lazy"
           />
-          {isOpen ? <strong className="ml-1"> Creative Klux</strong> : ""}
+          {/* An unclassed <strong> here rendered at the UA's bold + the
+              inherited 16px body size, making it the heaviest thing in the
+              sidebar. Explicit type keeps it a wordmark rather than a shout. */}
+          {isOpen && (
+            <span className="ml-2 truncate text-[15px] font-semibold tracking-tight text-gray-900">
+              Creative Klux
+            </span>
+          )}
         </div>
 
         {/* Apps / Copilot tabs */}
@@ -386,7 +396,7 @@ const Sidebar = ({
 
         {/* Scrollable nav area — flat list for the active tab */}
         <div
-          className={`hide-scrollbar flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-0.5 ${isOpen ? "px-3" : "px-2"}`}
+          className={`hide-scrollbar flex-1 overflow-y-auto overflow-x-hidden py-3 flex flex-col gap-1 ${isOpen ? "px-3" : "px-2"}`}
           onScroll={hideTip}
         >
           {activeTab === "apps" ? (
@@ -405,9 +415,13 @@ const Sidebar = ({
         </div>
 
         {/* Bottom user area */}
+        {/* Height is pinned to --ck-rail-foot (globals.css) rather than left to
+            the content, because the home page's template rail lines its own
+            hairlines up with this block's top border. Absolutely-positioned
+            children (the popup, its backdrop) are out of flow and unaffected. */}
         <div
           ref={bottomMenuRef}
-          className={`shrink-0 border-t border-gray-200 relative ${isOpen ? "px-3 py-3" : "px-2 py-3"}`}
+          className={`shrink-0 border-t border-gray-200 relative flex items-center h-(--ck-rail-foot) ${isOpen ? "px-3" : "px-2"}`}
         >
           {/* Backdrop — closes menu when clicking outside */}
           {showBottomMenu && (
@@ -436,8 +450,8 @@ const Sidebar = ({
                     key={href}
                     href={href}
                     onClick={() => setShowBottomMenu(false)}
-                    className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-gray-100
-              ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
+                    className={`flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-100
+              ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-900 font-medium"}`}
                   >
                     <Icon className="h-4 w-4 shrink-0 text-gray-500" />
                     {label}
@@ -449,7 +463,7 @@ const Sidebar = ({
                       setShowBottomMenu(false);
                       setShowLogoutModal(true);
                     }}
-                    className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 w-full transition-colors"
+                    className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-red-500 hover:bg-red-50 w-full transition-colors"
                   >
                     <Power className="h-4 w-4 shrink-0" />
                     Logout
@@ -473,11 +487,16 @@ const Sidebar = ({
               {user.username.charAt(0).toUpperCase()}
             </div>
             {isOpen && (
+              /* leading-4 on both lines, not leading-tight: it pins this stack
+                 to exactly 32px so it matches the avatar beside it. Left to
+                 leading-tight the pair measured 32.5px and quietly made the
+                 expanded sidebar half a pixel taller than the collapsed one —
+                 enough to knock the rail's hairlines off the sidebar's. */
               <div className="flex-1 text-left overflow-hidden">
-                <p className="text-sm font-semibold text-gray-900 truncate leading-tight capitalize">
+                <p className="text-[13px] font-medium text-gray-900 truncate leading-4 capitalize">
                   {user.username}
                 </p>
-                <p className="text-xs text-blue-500 font-medium truncate leading-tight">
+                <p className="text-[11px] text-blue-500 font-medium truncate leading-4">
                   Pro Plan
                 </p>
               </div>
@@ -513,7 +532,7 @@ const Sidebar = ({
               }`}
             />
             <span
-              className={`relative block whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold shadow-lg ${
+              className={`relative block whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-medium shadow-lg ${
                 hoverTip.active
                   ? "bg-blue-600 text-white"
                   : "bg-gray-900 text-surface"

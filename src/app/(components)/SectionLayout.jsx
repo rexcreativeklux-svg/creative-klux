@@ -79,14 +79,14 @@ const SectionLayout = ({ title, items, children }) => {
           ${isOpen ? "w-52" : "w-15"}`}
       >
         {isOpen ? (
-          <p className="px-5 pt-5 pb-3 text-[15px] font-bold text-gray-900 truncate">
+          <p className="px-5 pt-5 pb-3 text-[15px] font-semibold tracking-tight text-gray-900 truncate">
             {title}
           </p>
         ) : (
           <div className="pt-4" />
         )}
         <nav
-          className={`flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar pb-4 flex flex-col gap-0.5 ${isOpen ? "px-3" : "px-2"}`}
+          className={`flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar pb-4 flex flex-col gap-1 ${isOpen ? "px-3" : "px-2"}`}
           onScroll={hideTip}
         >
           {items.map(({ label, href, icon: Icon }) => {
@@ -95,7 +95,7 @@ const SectionLayout = ({ title, items, children }) => {
               <Link
                 key={href}
                 href={href}
-                className={`group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150
+                className={`group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-150
                   ${active ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"}
                   ${!isOpen ? "justify-center px-0" : ""}`}
                 onMouseEnter={(e) => showTip(e, label, active)}
@@ -103,8 +103,10 @@ const SectionLayout = ({ title, items, children }) => {
                 onFocus={(e) => showTip(e, label, active)}
                 onBlur={hideTip}
               >
+                {/* h-4.5 as well as w-4.5 — see the matching note in Sidebar.jsx:
+                    lucide sets height="24", so width alone letterboxes the glyph. */}
                 <Icon
-                  className={`w-4.5 shrink-0 transition-transform duration-150 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"} ${!isOpen ? "group-hover:scale-110" : ""}`}
+                  className={`h-4.5 w-4.5 shrink-0 transition-transform duration-150 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"} ${!isOpen ? "group-hover:scale-110" : ""}`}
                 />
                 {isOpen && <span className="flex-1 truncate">{label}</span>}
               </Link>
@@ -154,7 +156,7 @@ const SectionLayout = ({ title, items, children }) => {
               }`}
             />
             <span
-              className={`relative block whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold shadow-lg ${
+              className={`relative block whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-medium shadow-lg ${
                 hoverTip.active
                   ? "bg-blue-600 text-white"
                   : "bg-gray-900 text-surface"

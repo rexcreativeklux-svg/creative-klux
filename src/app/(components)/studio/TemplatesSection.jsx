@@ -101,8 +101,17 @@ export default function TemplatesSection({ onSelect, onItemMenu, onBrowseAll }) 
 
   return (
     <section className="w-full border-t border-gray-200">
-      {/* ── Tab row ─────────────────────────────────────────────────────── */}
-      <div className={`flex items-center justify-between gap-4 py-3.5 ${GUTTER}`}>
+      {/* ── Tab row ───────────────────────────────────────────────────────
+          On desktop this strip is pinned to --ck-rail-row (see globals.css) —
+          the same height as the sidebar's THEME row. Together with the hero
+          above being sized to --ck-rail-top, that makes this row's two rules
+          (the section's border-t above, the CardGrid's border-t below) land on
+          exactly the same screen lines as the two rules bracketing the THEME
+          row, so the hairlines run unbroken across the whole window.
+          Below `md` there's no sidebar to line up with, so it just flows. */}
+      <div
+        className={`flex items-center justify-between gap-4 py-3.5 md:h-(--ck-rail-row) md:py-0 ${GUTTER}`}
+      >
         <div className="hide-scrollbar flex items-center gap-2.5 overflow-x-auto">
           {TEMPLATE_TABS.map((tab, index) => {
             const active = tab.id === activeTab;

@@ -69,7 +69,10 @@ export default function ThemeSwitcher({ collapsed = false }) {
 
   if (collapsed) {
     return (
-      <div className="relative flex justify-center px-2 py-2">
+      // h-(--ck-rail-row): both variants are pinned to the same height so this
+      // row's top border stays on the line the home page's template rail lines
+      // itself up with. See the --ck-rail-* note in globals.css.
+      <div className="relative flex h-(--ck-rail-row) items-center justify-center px-2">
         {/* Backdrop — closes menu when clicking outside */}
         {menuOpen && (
           <div
@@ -127,8 +130,8 @@ export default function ThemeSwitcher({ collapsed = false }) {
   }
 
   return (
-    <div className="flex items-center justify-between px-3 py-2">
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+    <div className="flex h-(--ck-rail-row) items-center justify-between px-3">
+      <span className="text-[10px] font-medium uppercase tracking-widest text-gray-400">
         Theme
       </span>
       {control}

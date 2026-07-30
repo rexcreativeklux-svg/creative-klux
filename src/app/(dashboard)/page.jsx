@@ -2,15 +2,17 @@
 
 // app/(dashboard)/page.jsx — the "/" home page (first screen after login)
 // ─────────────────────────────────────────────────────────────────────────────
-// A personal greeting, one prompt composer, and the template rails underneath.
-// Formerly lived at /studio/ai-select (and /home) — both routes were retired
-// in favour of this root page. The old overview content now sits at
-// /statistics.
+// A greeting, one prompt composer, and the template rail underneath.
 //
-// The page itself stays deliberately thin — a greeting, <PromptComposer />,
-// <TemplatesSection />, and the routing that ties them to the chat page. All the
-// real behaviour (gallery upload, dictation, template fetching) lives in
-// _components so each piece can be reused on another surface as-is.
+// Formerly lived at /studio/ai-select (and /home) — both routes were retired in
+// favour of this root page. The old overview content now sits at /statistics.
+//
+// THE LAYOUT IS DELIBERATELY MEASURED, not just centred. On desktop the hero is
+// sized to `--ck-rail-top` (globals.css) so the template rail below it starts at
+// exactly the height of the sidebar's THEME row — which makes the rail's two
+// hairlines continue the sidebar's own two hairlines straight across the window.
+// That single alignment is what makes the page read as drafted rather than
+// stacked, so if you change the hero's height, change it via that variable.
 //
 // Everything routes into /studio/ai-chat-page, which reads:
 //   creative        the pipeline — always "general" here; the assistant infers
@@ -28,6 +30,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import PromptComposer from "@/app/(components)/studio/PromptComposer";
 import TemplatesSection from "@/app/(components)/studio/TemplatesSection";
+import AmbientVideoBackdrop from "@/app/(components)/home/AmbientVideoBackdrop";
 import { buildMessageWithAttachments } from "@/app/(components)/studio/attachmentUrls";
 
 /** The chat page's own pipeline key — see CREATIVE_CONFIG in ai-chat-page. */
@@ -79,34 +82,61 @@ export default function Home() {
   return (
     // pt-16 clears the app's fixed 4rem header, which overlays this scroll area.
     <div className="relative min-h-full bg-page pt-16">
-      {/* Ambient wash — a soft brand tint behind the composer. Sits under the
-          content and adapts to the theme via low-alpha colour stops. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-[70vh] bg-[radial-gradient(55%_70%_at_50%_35%,rgba(0,61,218,0.07),transparent_70%)]"
-      />
+      {/* ── Hero ──────────────────────────────────────────────────────────
+          Height is the whole trick (see the note at the top of this file):
+            · below md — a plain viewport-ish height, since there's no sidebar
+              on screen to line anything up with.
+            · md and up — exactly the space left once --ck-rail-top is reserved
+              at the bottom, so the rail beneath starts on the sidebar's THEME
+              hairline.
+          `overflow-hidden` scopes the backdrop: it is absolutely positioned to
+          THIS section, so the drifting clip can never bleed over the rail. */}
+      <section
+        className="relative flex min-h-[calc(100vh-4rem-7rem)] flex-col justify-center overflow-hidden pt-[clamp(1.5rem,7vh,5rem)] md:min-h-[calc(100vh-4rem-var(--ck-rail-top))]"
+      >
+        {/* A different clip every 24h per user, deeply dimmed under a scrim,
+            with the old gradient wash still underneath as the fallback. */}
+        <AmbientVideoBackdrop />
 
-      {/* Hero — capped and centred. Sized to the visible area minus a deliberate
-          7rem sliver, so the composer lands near the optical centre of the
-          screen and the template rail below peeks just enough to invite a
-          scroll without ever showing a whole card. */}
-      <section className="relative mx-auto flex min-h-[calc(100vh-4rem-7rem)] w-full max-w-5xl flex-col justify-center px-5 pb-10 sm:px-8">
-        {/* Greeting */}
-        <header className="mb-8 text-center">
-          {firstName && (
-            <h1 className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900">
-              Hi {firstName}
-              <span className="text-blue-600">.</span>
-            </h1>
-          )}
-          <h2 className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900">
-            What will you create next?
-          </h2>
-        </header>
+        {/* Plinth rules — two hairlines marking out the content column, fading
+            away at both ends. Architecture rather than decoration: they give the
+            hero an edge to sit inside without drawing a box around it, and they
+            land on the same column the composer uses. Desktop only, where
+            there's room for the margins to read as intentional. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-full max-w-5xl -translate-x-1/2 lg:block"
+        >
+          <span className="absolute inset-y-0 left-0 w-px bg-linear-to-b from-transparent via-gray-200 to-transparent" />
+          <span className="absolute inset-y-0 right-0 w-px bg-linear-to-b from-transparent via-gray-200 to-transparent" />
+        </div>
 
-        {/* Composer */}
-        <div className="mx-auto w-full max-w-3xl">
-          <PromptComposer onSubmit={handleSubmit} />
+        <div className="relative mx-auto w-full max-w-5xl px-5 pb-10 sm:px-8">
+          {/* Greeting */}
+          <header
+            className="animate-hero-in mb-7 text-center"
+            style={{ animationDelay: "60ms" }}
+          >
+            {firstName && (
+              <h1 className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900">
+                Hi {firstName}
+                <span className="text-blue-600">.</span>
+              </h1>
+            )}
+            <h2 className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900">
+              What will you create next?
+            </h2>
+          </header>
+
+          {/* Composer — narrower and shorter than the studio's, so it reads as
+              an invitation sitting in space rather than a form to fill in. The
+              glass skin lets the backdrop through behind it. */}
+          <div
+            className="animate-hero-in mx-auto w-full max-w-2xl"
+            style={{ animationDelay: "180ms" }}
+          >
+            <PromptComposer onSubmit={handleSubmit} rows={2} variant="glass" />
+          </div>
         </div>
       </section>
 

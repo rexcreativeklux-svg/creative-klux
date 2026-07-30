@@ -49,15 +49,51 @@ export const MODE_OPTIONS = [
 const CATEGORY_ICON = { video: Film, audio: Music, document: FileText };
 
 /**
+ * How tall the prompt box may grow before it starts scrolling, in px. Applied
+ * as an inline max-height AND used as the auto-grow clamp, so the two can't
+ * drift apart the way a utility class + a JS literal would.
+ */
+const DEFAULT_MAX_HEIGHT = 200;
+
+/**
+ * The panel's two skins. Each variant replaces the border/background/shadow set
+ * wholesale rather than appending to it — two background utilities at equal
+ * specificity would otherwise be decided by Tailwind's emit order, which the
+ * call site can't control.
+ *
+ *   solid  the original card. Opaque, at rest on a plain page.
+ *   glass  floats over artwork: translucent and blurred, so the backdrop shows
+ *          through while the text on top stays fully legible.
+ */
+const PANEL_VARIANTS = {
+  solid: {
+    base: "rounded-2xl border bg-surface transition-shadow duration-200",
+    focused: "border-blue-500/60 shadow-[0_8px_30px_rgba(0,61,218,0.10)]",
+    resting: "border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.05)]",
+  },
+  glass: {
+    base: "rounded-[20px] border bg-surface/72 backdrop-blur-2xl transition-all duration-300",
+    focused: "border-blue-500/45 shadow-[0_28px_70px_-24px_rgba(0,61,218,0.42)]",
+    resting: "border-gray-200/70 shadow-[0_22px_60px_-28px_rgba(15,23,42,0.40)]",
+  },
+};
+
+/**
  * @param {object} props
  * @param {(payload: {prompt: string, model: string, mode: string, attachments: string[]}) => void} props.onSubmit
  * @param {string} [props.placeholder]
  * @param {boolean} [props.autoFocus]
+ * @param {number} [props.rows]       Resting height of the prompt box, in rows.
+ * @param {number} [props.maxHeight]  Growth ceiling in px before it scrolls.
+ * @param {"solid"|"glass"} [props.variant] Panel skin — see PANEL_VARIANTS.
  */
 export default function PromptComposer({
   onSubmit,
   placeholder = "Describe the creative you want to make…",
   autoFocus = true,
+  rows = 3,
+  maxHeight = DEFAULT_MAX_HEIGHT,
+  variant = "solid",
 }) {
   const [value, setValue] = useState("");
   const [model, setModel] = useState(MODEL_OPTIONS[0].id);
@@ -74,12 +110,14 @@ export default function PromptComposer({
   const voiceStatus = describeVoiceState(voice);
 
   // Auto-grow the textarea with its content, up to a readable ceiling.
+  // `rows`/`maxHeight` are in the deps so a page that changes either still
+  // re-measures instead of waiting for the next keystroke.
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
-  }, [value]);
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+  }, [value, rows, maxHeight]);
 
   useEffect(() => {
     if (autoFocus) textareaRef.current?.focus();
@@ -107,14 +145,12 @@ export default function PromptComposer({
     }
   };
 
+  const panel = PANEL_VARIANTS[variant] ?? PANEL_VARIANTS.solid;
+
   return (
     <div className="w-full">
       <div
-        className={`rounded-2xl border bg-surface transition-shadow duration-200 ${
-          focused
-            ? "border-blue-500/60 shadow-[0_8px_30px_rgba(0,61,218,0.10)]"
-            : "border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.05)]"
-        }`}
+        className={`${panel.base} ${focused ? panel.focused : panel.resting}`}
       >
         {/* Attachment chips — one row that scrolls sideways, never wraps, so the
             composer keeps its height no matter how many files are attached. */}
@@ -159,14 +195,15 @@ export default function PromptComposer({
         {/* Prompt */}
         <textarea
           ref={textareaRef}
-          rows={3}
+          rows={rows}
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder={voice.listening ? "Listening — start speaking…" : placeholder}
-          className="max-h-50 w-full resize-none bg-transparent px-4 pt-4 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400"
+          style={{ maxHeight }}
+          className="w-full resize-none bg-transparent px-4 pt-4 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400"
         />
 
         {/* Toolbar */}

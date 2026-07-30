@@ -100,6 +100,7 @@ export function AuthProvider({ children }) {
           Authorization: `Bearer ${token}`,
         },
       });
+      console.log(token)
 
       if (res.status === 401) {
         console.warn("401 detected globally → logging out");
@@ -2422,8 +2423,30 @@ export function AuthProvider({ children }) {
     [token],
   );
 
+  /**
+   * Fetch one PAGE of the brand's designs → GET /creative-designs.
+   *
+   * The endpoint answers with a standard Laravel paginator
+   * ({ current_page, data, total, last_page, per_page, … }). This returns that
+   * envelope — normalised, but with Laravel's own `data` key preserved — so
+   * callers can drive real pagination off `total`/`last_page` instead of
+   * guessing from the length of the page they happen to hold.
+   *
+   * `?page=` needs no backend support: Laravel's paginate() reads it natively.
+   *
+   * ⚠️ The endpoint takes brand_id, per_page and page — and NOTHING else.
+   * `type`, `fav` and `search` were tried and are ignored (every filter came
+   * back with the brand's full count), so filtering and searching are done on
+   * the client. Don't re-add them here without confirming the controller reads
+   * them, or the UI will silently filter nothing.
+   *
+   * @param {number} [perPage] Rows per page.
+   * @param {number} [page]    1-based page number.
+   * @returns {Promise<{data: object[], total: number, current_page: number,
+   *   last_page: number, per_page: number}|null>} null on failure.
+   */
   const fetchDesigns = useCallback(
-    async (perPage = 12) => {
+    async (perPage = 12, page = 1) => {
       if (!token) {
         console.error("fetchDesigns: no auth token.");
         return null;
@@ -2434,7 +2457,7 @@ export function AuthProvider({ children }) {
         return null;
       }
 
-      const url = `${FETCH_DESIGN_URL}?brand_id=${activeBrandId}&per_page=${perPage}`;
+      const url = `${FETCH_DESIGN_URL}?brand_id=${activeBrandId}&per_page=${perPage}&page=${page}`;
 
       try {
         const res = await authFetch(url, {
@@ -2463,13 +2486,27 @@ export function AuthProvider({ children }) {
           return null;
         }
 
-        // console.log("fetchDesigns success:", data);
-
-        return Array.isArray(data)
+        // Normalise to one shape whatever the endpoint returns. A bare array
+        // (no paginator) is treated as a single complete page, so callers never
+        // have to branch on which form came back.
+        const items = Array.isArray(data)
           ? data
-          : Array.isArray(data.data)
+          : Array.isArray(data?.data)
             ? data.data
-            : data;
+            : [];
+
+        const result = {
+          data: items, // Laravel's own key — existing callers already read this
+          total: Number.isFinite(data?.total) ? data.total : items.length,
+          current_page: Number.isFinite(data?.current_page) ? data.current_page : page,
+          last_page: Number.isFinite(data?.last_page) ? data.last_page : 1,
+          per_page: Number.isFinite(data?.per_page) ? data.per_page : perPage,
+        };
+
+        console.log(
+          `📡 [designs] page ${result.current_page}/${result.last_page} — ${items.length} of ${result.total} total`,
+        );
+        return result;
       } catch (err) {
         console.error("fetchDesigns error:", err);
         return null;

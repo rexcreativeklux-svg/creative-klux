@@ -188,9 +188,9 @@ const FILTER_GROUPS = [
 /**
  * Does one creative belong to a filter tab?
  *
- * Pulled out of the list's useMemo so the tab COUNTS and the visible list are
- * decided by the same rule — if these ever drifted apart, a tab would advertise
- * a number that clicking it doesn't produce.
+ * Shared by the visible list AND the tab counts so the two are decided by the
+ * same rule — if they drifted, a tab would advertise a number that clicking it
+ * doesn't produce.
  *
  * @param {{type: string, category: string, favorite: boolean}} creative
  * @param {string} filterKey One of FILTER_GROUPS' keys.
@@ -206,8 +206,7 @@ const matchesFilter = (creative, filterKey) => {
 };
 
 /**
- * Does one creative match the search box? Name, type and tagline, same as
- * before — shared with the counts for the reason above.
+ * Does one creative match the search box? Name, type and tagline.
  *
  * @param {{name: string, type: string, copy?: {tagline?: string}}} creative
  * @param {string} term Raw search input; empty matches everything.
@@ -279,17 +278,65 @@ const DEFAULT_COLOR = {
   dot: "bg-gray-400",
 };
 
-// Display page size — the grid is 4 columns × 3 rows.
-const ITEMS_PER_PAGE = 12;
-// How many designs to pull from the backend at once. Default matches one full
-// page (12); larger choices fetch more and let the client pager page through
-// them 12 at a time.
+// Default rows per page when the user has no saved choice.
+const DEFAULT_PER_PAGE = 12;
+// "Show N" presets — N is how many to show PER PAGE. The server paginates, so
+// any size keeps paging as long as the brand has more than one page of designs.
 const FETCH_OPTIONS = [12, 24, 48, 96];
-// localStorage key remembering the user's "items to load" choice across visits.
+// localStorage key remembering the user's page-size choice across visits.
 const PER_PAGE_STORAGE_KEY = "ck_creatives_per_page";
-// Bounds for the load count so a typed value can't request 0 or thousands.
+// Bounds for the page size so a typed value can't request 0 or thousands.
 const MIN_FETCH = 1;
 const MAX_FETCH = 500;
+
+/* ── Why everything is filtered on the CLIENT ────────────────────────────────
+   GET /creative-designs accepts brand_id, per_page and page only. Passing
+   `type`, `fav` or `search` was tried and the endpoint ignores them — every tab
+   came back with the brand's full count and searching never changed the total.
+   So the page loads the brand's designs ONCE (all pages, see loadDesigns) and
+   does the filtering, searching, counting and paging here. If those params ever
+   land server-side, this is the code to replace.                             */
+
+/** Rows fetched per request while pulling the full set. */
+const FETCH_PAGE_SIZE = 200;
+
+/** Safety stop for the fetch-everything loop (200 × 50 = 10,000 designs). */
+const MAX_FETCH_PAGES = 50;
+
+/** Marker for a gap in the page list. */
+const ELLIPSIS = "…";
+
+/**
+ * The page numbers to actually render.
+ *
+ * The server decides how many pages exist, and a big brand can have dozens —
+ * rendering one button each would overflow the bar. This keeps first and last
+ * always reachable, shows a window around the current page, and drops an
+ * ellipsis wherever numbers were skipped.
+ *
+ * @param {number} current  Current page (1-based).
+ * @param {number} total    Total pages.
+ * @param {number} [span]   How many neighbours to show either side.
+ * @returns {(number|string)[]} e.g. [1, "…", 6, 7, 8, "…", 42]
+ */
+function buildPageWindow(current, total, span = 1) {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const pages = new Set([1, total]);
+  for (let p = current - span; p <= current + span; p += 1) {
+    if (p > 1 && p < total) pages.add(p);
+  }
+
+  const ordered = [...pages].sort((a, b) => a - b);
+  const withGaps = [];
+  ordered.forEach((p, index) => {
+    if (index > 0 && p - ordered[index - 1] > 1) withGaps.push(ELLIPSIS);
+    withGaps.push(p);
+  });
+  return withGaps;
+}
 
 // Clamp any value to a whole number within [MIN_FETCH, MAX_FETCH]; 0/NaN → null.
 const clampFetch = (n) => {
@@ -300,10 +347,10 @@ const clampFetch = (n) => {
 
 // Read the user's saved load count (any valid number, not just a preset).
 const readSavedPerPage = () => {
-  if (typeof window === "undefined") return FETCH_OPTIONS[0];
+  if (typeof window === "undefined") return DEFAULT_PER_PAGE;
   return (
     clampFetch(window.localStorage.getItem(PER_PAGE_STORAGE_KEY)) ??
-    FETCH_OPTIONS[0]
+    DEFAULT_PER_PAGE
   );
 };
 
@@ -341,7 +388,7 @@ function LoadCountSelect({ value, options, onChange }) {
           setText(String(value)); // reflect the applied value when reopening
           setOpen((o) => !o);
         }}
-        title="How many to load"
+        title="How many to show per page"
         className="flex items-center gap-2 bg-gray-100 text-xs font-semibold text-gray-600 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
       >
         Show {value}
@@ -403,9 +450,9 @@ export default function CreativesPage() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [viewMode, setViewMode] = useState("grid");
-  // How many designs to request from the backend (user-selectable). More than
-  // one page's worth (12) turns on the pager below. Restored from the user's
-  // saved choice so it persists across visits.
+  // Rows per PAGE (user-selectable), restored from their saved choice. Paging
+  // is done here over the full set, so the pager appears whenever the current
+  // filter holds more than this many — at every size, not just the large ones.
   const [fetchCount, setFetchCount] = useState(readSavedPerPage);
   const [selectedId, setSelectedId] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -427,32 +474,50 @@ export default function CreativesPage() {
     setToast({ open: true, message, type });
   const closeToast = () => setToast((prev) => ({ ...prev, open: false }));
 
-  // ── Load designs ────────────────────────────────────────────────────────────
+  // ── Load EVERY design for the brand ─────────────────────────────────────────
+  // The endpoint can't filter or search (see the note at the top), so the tabs,
+  // the search box and the counts can only be right if the whole set is here.
+  // Page 1 tells us how many pages exist; any remainder is fetched in parallel.
+  //
+  // Deliberately NOT re-run when the tab, search or page size changes — those
+  // are all client-side now, so refetching would be wasted work.
   const loadDesigns = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchDesigns(fetchCount);
-      console.log("[creatives] fetched designs:", data);
-      if (data) {
-        const arr = Array.isArray(data)
-          ? data
-          : Array.isArray(data.data)
-            ? data.data
-            : [];
-        const normalized = arr.map(normalizeDesign);
-        console.log("[creatives] normalized creatives:", normalized);
-        setCreatives(normalized);
-      } else {
+      const first = await fetchDesigns(FETCH_PAGE_SIZE, 1);
+      if (!first) {
         setCreatives([]);
+        return;
       }
+
+      let rows = first.data;
+      const pageCount = Math.min(first.last_page || 1, MAX_FETCH_PAGES);
+
+      if (pageCount > 1) {
+        const rest = await Promise.all(
+          Array.from({ length: pageCount - 1 }, (_, i) =>
+            fetchDesigns(FETCH_PAGE_SIZE, i + 2),
+          ),
+        );
+        rows = rows.concat(...rest.map((r) => r?.data || []));
+      }
+
+      if (first.last_page > MAX_FETCH_PAGES) {
+        console.warn(
+          `⚠️ [creatives] brand has ${first.last_page} pages; loaded the first ${MAX_FETCH_PAGES} (${rows.length} of ${first.total}). Counts and filters cover only what was loaded.`,
+        );
+      }
+
+      console.log(`✅ [creatives] loaded ${rows.length} of ${first.total} designs`);
+      setCreatives(rows.map(normalizeDesign));
     } catch {
       setError("Failed to load designs.");
       setCreatives([]);
     } finally {
       setLoading(false);
     }
-  }, [fetchDesigns, activeBrandId, fetchCount]);
+  }, [fetchDesigns, activeBrandId]);
 
   useEffect(() => {
     if (!activeBrandId) {
@@ -470,7 +535,7 @@ export default function CreativesPage() {
     loadDesigns();
   }, [loadDesigns, activeBrandId, brandsLoading]);
 
-  // Change how many designs we load, remember it, and jump back to page 1.
+  // Change the page size, remember it, and jump back to page 1.
   // Clamped to a sane range so a typed value can't request 0 or thousands.
   const handleFetchCountChange = (n) => {
     const next = clampFetch(n);
@@ -581,7 +646,9 @@ export default function CreativesPage() {
     [creatives, toggleDesignFavorite],
   );
 
-  // ── Filtering ────────────────────────────────────────────────────────────────
+  // ── Filtering ───────────────────────────────────────────────────────────────
+  // `creatives` holds every design for the brand, so these see the whole set —
+  // the tabs, the search and the counts are all true totals, not page-local.
   const filtered = useMemo(
     () =>
       creatives.filter(
@@ -590,12 +657,10 @@ export default function CreativesPage() {
     [creatives, search, activeFilter],
   );
 
-  /* Per-tab counts, keyed by filter key.
-     The current SEARCH is applied but the active TAB deliberately is not, so
-     each tab reports exactly what clicking it would show. Counting without the
-     search would let a tab read "Ads 12" while opening it lists 3.
-     Note these count what's currently LOADED (the fetchCount selector above),
-     not everything on the server. */
+  /* Per-tab counts, keyed by filter key. The current SEARCH is applied but the
+     active TAB deliberately is not, so each tab reports exactly what clicking it
+     would show — counting without the search would let a tab read "Ads 12" while
+     opening it lists 3. "All" is therefore the brand's real project total. */
   const filterCounts = useMemo(() => {
     const searchMatches = creatives.filter((c) => matchesSearch(c, search));
     return Object.fromEntries(
@@ -606,16 +671,17 @@ export default function CreativesPage() {
     );
   }, [creatives, search]);
 
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-  const paginated = filtered.slice(
-    (page - 1) * ITEMS_PER_PAGE,
-    page * ITEMS_PER_PAGE,
-  );
+  // ── Paging ──────────────────────────────────────────────────────────────────
+  // "Show N" is the page size, so the pager appears whenever the current filter
+  // holds more than N — including at N = 12.
+  const totalResults = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalResults / fetchCount));
+  const paginated = filtered.slice((page - 1) * fetchCount, page * fetchCount);
   const selected = creatives.find((c) => c.id === selectedId) || null;
 
   const handleSearch = (v) => {
     setSearch(v);
-    setPage(1);
+    setPage(1); // a narrower search usually has fewer pages
   };
 
   const handleSelect = (id) => {
@@ -787,19 +853,20 @@ export default function CreativesPage() {
         <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl flex-wrap">
           {FILTER_GROUPS.map((group) => {
             const isActive = activeFilter === group.key;
+            // The tab's real count across every design the brand has.
             const count = filterCounts[group.key] ?? 0;
             return (
               <button
                 key={group.key}
                 onClick={() => {
                   setActiveFilter(group.key);
-                  setPage(1);
+                  setPage(1); // a narrower tab may have fewer pages
                 }}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${isActive ? "bg-surface text-blue-600 shadow-sm border border-blue-100" : "text-gray-500 hover:text-gray-700"}`}
               >
                 {group.label}
-                {/* Hidden while designs are still loading — every count would
-                    read 0 and then jump, which looks like a broken empty state.
+                {/* Hidden while loading — every count would read 0 and then
+                    jump, which looks like a broken empty state.
                     tabular-nums keeps the pill from twitching as digits change. */}
                 {!loading && (
                   <span
@@ -855,8 +922,10 @@ export default function CreativesPage() {
         </div>
 
         {loading ? (
-          <GridSkeleton count={ITEMS_PER_PAGE} />
-        ) : filtered.length === 0 ? (
+          <GridSkeleton count={fetchCount} />
+        ) : paginated.length === 0 ? (
+          // "No matches" vs "nothing created yet" turns on whether the brand has
+          // any designs at all, not on how many survived the current filter.
           <EmptyState hasCreatives={creatives.length > 0} />
         ) : viewMode === "grid" ? (
           <GridView
@@ -885,9 +954,9 @@ export default function CreativesPage() {
       {totalPages > 1 && (
         <div className="shrink-0 flex items-center justify-between px-3 py-3 border-t border-gray-100 rounded bg-surface">
           <p className="text-xs text-gray-400">
-            Showing {(page - 1) * ITEMS_PER_PAGE + 1}–
-            {Math.min(page * ITEMS_PER_PAGE, filtered.length)} of{" "}
-            {filtered.length}
+            Showing {(page - 1) * fetchCount + 1}–
+            {Math.min((page - 1) * fetchCount + paginated.length, totalResults)} of{" "}
+            {totalResults}
           </p>
           <div className="flex items-center gap-1">
             <button
@@ -897,15 +966,24 @@ export default function CreativesPage() {
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`w-8 h-8 rounded-lg text-xs font-semibold cursor-pointer transition-all ${p === page ? "bg-blue-600 text-white shadow-sm" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-              >
-                {p}
-              </button>
-            ))}
+            {buildPageWindow(page, totalPages).map((p, index) =>
+              p === ELLIPSIS ? (
+                <span
+                  key={`gap-${index}`}
+                  className="w-6 text-center text-xs text-gray-400 select-none"
+                >
+                  …
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`w-8 h-8 rounded-lg text-xs font-semibold cursor-pointer transition-all ${p === page ? "bg-blue-600 text-white shadow-sm" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                >
+                  {p}
+                </button>
+              ),
+            )}
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
@@ -1037,7 +1115,7 @@ const CreativeCardSkeleton = () => (
 
 // Grid of card skeletons — shown in the content area while designs are fetching
 // (the brand has already resolved, so the header/toolbar are already visible).
-const GridSkeleton = ({ count = ITEMS_PER_PAGE }) => (
+const GridSkeleton = ({ count = DEFAULT_PER_PAGE }) => (
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
     {Array.from({ length: count }).map((_, i) => (
       <CreativeCardSkeleton key={i} />

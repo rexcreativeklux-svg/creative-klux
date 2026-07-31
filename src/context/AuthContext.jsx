@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import { classifyResult } from "@/utils/errorHelper";
 import { throwClassifiedAuthError } from "@/utils/authErrors";
+import { clearImpersonating } from "@/utils/impersonation";
 import api from "@/app/api/axios";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
@@ -170,6 +171,10 @@ export function AuthProvider({ children }) {
     }
     localStorage.setItem("token", token);
     setToken(token);
+    // A real sign-in replaces whatever session was here, so any impersonation flag
+    // left behind by /impersonate must go with it — otherwise the next user on this
+    // browser would inherit the relaxed verification gate.
+    clearImpersonating();
     // fetchProfile(token);
     // fetchBrands(token);
   };
@@ -595,6 +600,7 @@ export function AuthProvider({ children }) {
     } finally {
       localStorage.removeItem("user");
       localStorage.removeItem("token");
+      clearImpersonating();
       setUser(null);
       setToken(null);
       setBrands([]);

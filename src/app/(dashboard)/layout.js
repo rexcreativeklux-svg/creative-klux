@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { isImpersonating } from "@/utils/impersonation";
 import Header from "../(components)/Header";
 import { SecondarySidebarProvider } from "@/context/SecondarySidebarContext";
 import Home from "./page";
@@ -65,9 +66,24 @@ export default function DashboardLayout({ children }) {
     // ── Email-verification gate ──────────────────────────────────────────────
     // A logged-in but unverified user is bounced to the verify page on any
     // dashboard route (including a plain refresh). `replace` avoids a back-loop.
+    //
+    // Admin impersonation is the one exception. The verify page asks for a code
+    // emailed to the user's address, which the admin has no way of reading, so
+    // the gate would make every unverified account impossible to inspect via
+    // "Login as User". The flag is set by the /impersonate hand-off and lives
+    // exactly as long as the token does (see @/utils/impersonation).
+    //
+    // It's read inside the effect, not during render: localStorage doesn't exist
+    // on the server, so touching it in the render pass would break hydration.
     useEffect(() => {
         if (loading || !user) return;
         if (!verified) {
+            if (isImpersonating()) {
+                console.log(
+                    "🕵️ Impersonated session → skipping the verify-email gate",
+                );
+                return;
+            }
             console.log("📩 User not verified → redirecting to verify-email");
             router.replace(
                 `/verify-email?email=${encodeURIComponent(user.email || "")}`,

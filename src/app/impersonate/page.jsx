@@ -20,11 +20,18 @@
  * The token is stored exactly as a normal login stores it (localStorage "token", see
  * saveAuth in AuthContext), so every existing request, guard and hook keeps working with
  * no changes anywhere else in the app.
+ *
+ * The one thing that DOES need to know the difference is the email-verification gate in
+ * the dashboard layout: it bounces any unverified user to /verify-email, which would put
+ * an admin in front of a code sent to an address they cannot read. This page therefore
+ * flags the session as an impersonation on the way in (see @/utils/impersonation) — this
+ * route is reached for nothing else, so landing here is the signal.
  */
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
+import { clearImpersonating, markImpersonating } from "@/utils/impersonation";
 
 export default function ImpersonatePage() {
   const [error, setError] = useState("");
@@ -64,9 +71,14 @@ export default function ImpersonatePage() {
     // session.
     localStorage.removeItem("user");
     localStorage.removeItem("token");
+    clearImpersonating();
 
     console.log("💾 Impersonation: storing session token");
     localStorage.setItem("token", token);
+
+    // Flagged alongside the token, so the verification gate lets the admin through to
+    // the dashboard even when this user never verified their email.
+    markImpersonating();
 
     console.log("✅ Impersonation: signing in and opening the dashboard");
 

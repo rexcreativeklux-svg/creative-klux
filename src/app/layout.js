@@ -38,6 +38,15 @@ export default function RootLayout({ children }) {
           </AuthProvider>
           <Toaster position="top-right" richColors closeButton />
         </ThemeProvider>
+
+        {/* Pixel Code for https://app.woxelo.com/ — live chat widget (loads after hydration) */}
+        <Script
+          id="woxelo-livechat"
+          src="https://app.woxelo.com/livechat/settings.js"
+          data-widget="6rpUkQ2nZaDjndk3ZkdDYt3F8IBtevo8FdilkR9T"
+          strategy="afterInteractive"
+        />
+        {/* END Pixel Code */}
       </body>
     </html>
   );

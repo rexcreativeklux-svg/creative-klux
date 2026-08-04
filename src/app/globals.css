@@ -126,22 +126,6 @@
     animation: ck-tip-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
-  /* Home hero backdrop (see (components)/home/AmbientVideoBackdrop.jsx): the
-     clip breathes very slowly so the hero reads as having depth without ever
-     drawing the eye. 48s and a ~7% scale swing is deliberately below the
-     threshold where motion registers as "something is moving". The clip is
-     already scaled past 1 at both ends so the drift can never expose an edge. */
-  @keyframes ck-video-drift {
-    0%   { transform: scale(1.06) translate3d(0, 0, 0); }
-    50%  { transform: scale(1.13) translate3d(0, -1.2%, 0); }
-    100% { transform: scale(1.06) translate3d(0, 0, 0); }
-  }
-
-  .ck-video-drift {
-    animation: ck-video-drift 48s ease-in-out infinite;
-    will-change: transform;
-  }
-
   /* Home hero entrance — each piece rises a few pixels into place. Staggered by
      inline animation-delay at the call site so the greeting settles before the
      composer does. */
@@ -157,11 +141,10 @@
 }
 
 /* The hero's decorative motion is exactly what reduced-motion asks us to drop.
-   AmbientVideoBackdrop already skips the video entirely in that mode; this
-   covers the drift and the entrance for anything still on screen. */
+   RotatingHeroBackdrop handles its own side of this in JS — it stops scheduling
+   frame changes, so the backdrop resolved on arrival holds for the visit (see
+   useRotatingIndex.js). This covers the entrance animation. */
 @media (prefers-reduced-motion: reduce) {
-  .ck-video-drift { animation: none !important; }
-
   .animate-hero-in {
     opacity: 1 !important;
     animation: none !important;

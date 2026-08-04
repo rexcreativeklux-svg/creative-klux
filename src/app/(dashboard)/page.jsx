@@ -32,7 +32,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import PromptComposer from "@/app/(components)/studio/PromptComposer";
 import TemplatesSection from "@/app/(components)/studio/TemplatesSection";
-import AmbientVideoBackdrop from "@/app/(components)/home/AmbientVideoBackdrop";
+import RotatingHeroBackdrop from "@/app/(components)/home/RotatingHeroBackdrop";
 
 /** The chat page's own pipeline key — see CREATIVE_CONFIG in ai-chat-page. */
 const DEFAULT_CREATIVE = "general";
@@ -90,8 +90,8 @@ export default function Home() {
               hairline.
           Deliberately NOT overflow-hidden: the composer's Model and Build menus
           drop UPWARD, and clipping here would cut them off on short viewports.
-          AmbientVideoBackdrop clips itself instead, so the drifting clip still
-          can't bleed past the hero.
+          RotatingHeroBackdrop clips itself instead, so its band and patterns
+          still can't bleed past the hero.
 
           pt-[clamp(...)] is what lowers the composer toward the optical centre:
           with justify-center, top padding moves the centred block down by half
@@ -100,22 +100,15 @@ export default function Home() {
       <section
         className="relative flex min-h-[calc(100vh-4rem-7rem)] flex-col justify-center pt-[clamp(1.5rem,7vh,5rem)] md:min-h-[calc(100vh-4rem-var(--ck-rail-top))]"
       >
-        {/* A different clip every 24h per user, deeply dimmed under a scrim,
-            with the old gradient wash still underneath as the fallback. */}
-        <AmbientVideoBackdrop />
-
-        {/* Plinth rules — two hairlines marking out the content column, fading
-            away at both ends. Architecture rather than decoration: they give the
-            hero an edge to sit inside without drawing a box around it, and they
-            land on the same column the composer uses. Desktop only, where
-            there's room for the margins to read as intentional. */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-full max-w-5xl -translate-x-1/2 lg:block"
-        >
-          <span className="absolute inset-y-0 left-0 w-px bg-linear-to-b from-transparent via-gray-200 to-transparent" />
-          <span className="absolute inset-y-0 right-0 w-px bg-linear-to-b from-transparent via-gray-200 to-transparent" />
-        </div>
+        {/* Eighteen still band-and-pattern treatments — grids, graph paper,
+            contours, soft glows — all on the app's blue ramp, differing by form
+            rather than hue, cross-faded one into the next every five hours. It
+            paints its own band and clips itself, so the section needs neither a
+            background nor a z-index of its own. Speed, fade, intensity and the
+            on/off switch all live in HERO_BACKDROP_SETTINGS at the top of
+            heroBackdrops.js. To pin it to one look instead, swap in
+            `<HeroBackdrop backdrop="blueprint" />`. */}
+        <RotatingHeroBackdrop />
 
         <div className="relative mx-auto w-full max-w-5xl px-5 pb-10 sm:px-8">
           {/* Greeting */}

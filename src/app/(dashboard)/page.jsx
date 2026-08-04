@@ -66,23 +66,23 @@ export default function Home() {
   };
 
   /**
-   * Open whatever the rail's details modal was showing — fired by its primary
-   * button, not by a card click (a card opens the modal first).
+   * Open one of the user's own designs from the rail's Recent tab — fired by the
+   * details modal's "Open in editor" button, not by a card click.
    *
-   * Two shapes arrive here, from the rail's two tabs:
-   *   · a saved design carries `href` (/design/<id>) → straight into the editor
-   *   · a Klux template has no destination of its own → seed the chat page with
-   *     its title, which is all the studio needs to start from it
+   * Klux templates do NOT come through here: the modal's button saves them into
+   * the user's designs in place (TemplatesSection.saveTemplate) and stays put.
+   * The chat-page fallback below only runs for a row that somehow arrived with
+   * no `href`, so the button can never be a no-op.
    *
    * @param {{title: string, href?: string|null, kind?: string}} item
    */
-  const handleTemplateSelect = (item) => {
+  const handleOpenDesign = (item) => {
     if (item.href) {
       console.log(`🖼️ [home] opening ${item.kind || "item"} "${item.title}" → ${item.href}`);
       router.push(item.href);
       return;
     }
-    console.log(`🖼️ [home] starting from template "${item.title}"`);
+    console.warn(`⚠️ [home] "${item.title}" has no href — falling back to the studio`);
     const params = new URLSearchParams({
       creative: DEFAULT_CREATIVE,
       initialMessage: `Create something based on the "${item.title}" template`,
@@ -180,7 +180,7 @@ export default function Home() {
 
       {/* Template rails — full-bleed, deliberately outside the wrapper above */}
       <TemplatesSection
-        onSelect={handleTemplateSelect}
+        onSelect={handleOpenDesign}
         onBrowseAll={handleBrowseAll}
       />
     </div>

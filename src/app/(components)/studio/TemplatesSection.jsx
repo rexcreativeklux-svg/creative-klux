@@ -12,13 +12,13 @@
 //
 // Structure:
 //   ── full-width rule ─────────────────────────────────────────────
-//   Recent designs • Klux templates                        Browse all ↗
+//   Klux templates • Recent designs                        Browse all ↗
 //   ── full-width rule ─────────────────────────────────────────────
 //   │  card  │  card  │  card  │  card  │      ← columns divided by rules
 //
 // TWO REAL SOURCES behind the tab row (see templatesApi.js):
+//   "Klux templates" → the public Scraive template pool, newest first (default)
 //   "Recent designs" → the active brand's saved designs (needs token + brand)
-//   "Klux templates" → the public Scraive template pool (no auth)
 // Each has its own state slice and its own effect, and BOTH load on mount — the
 // pool is one small public request, and pre-loading it makes switching tabs
 // instant instead of dropping the user onto a skeleton. Rows from either source
@@ -32,11 +32,13 @@
 // deferred until a card is near the viewport (see useDesignPreview), so the rail
 // sitting below the fold costs nothing until the user scrolls to it.
 //
-// A card does NOT open its template. Clicking anywhere on one opens
-// TemplateDetailsModal (its footer chip grows into "View details" on hover to
-// say so); only the modal's primary button calls `onSelect`. That same modal is
-// what a `?template=<slug>` deep link reopens on load — always against the Klux
-// pool, whichever tab happens to be showing.
+// A card does NOT open anything. Clicking one opens TemplateDetailsModal (its
+// footer chip grows into "View details" on hover to say so), and the modal's
+// primary button is the only action: a TEMPLATE is copied into the brand's
+// designs here in this component (saveTemplate → toast, no navigation), while a
+// saved DESIGN is handed to the page through `onSelect` to open in the editor.
+// That same modal is what a `?template=<slug>` deep link reopens on load —
+// always against the Klux pool, whichever tab happens to be showing.
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
@@ -48,6 +50,7 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
 import TemplateDetailsModal from "./TemplateDetailsModal";
@@ -106,8 +109,9 @@ const asColor = (value) =>
 
 /**
  * @param {object} props
- * @param {(item: object) => void} [props.onSelect]     Use the opened item —
- *   fired by the details modal's primary button, never by a card click.
+ * @param {(item: object) => void} [props.onSelect]     Open a saved DESIGN —
+ *   fired by the details modal's primary button on the Recent tab only.
+ *   Templates never reach it; they are saved in place (see saveTemplate).
  * @param {(item: object) => void} [props.onItemMenu]   The card's "…" menu.
  * @param {(tabId: string) => void} [props.onBrowseAll] "Browse all", told which
  *   tab is open so the page can send designs and templates to different routes.
@@ -118,7 +122,8 @@ export default function TemplatesSection({
   onBrowseAll,
 }) {
   // The brand's designs are per-brand and token-gated; the pool is neither.
-  const { fetchDesigns, activeBrandId, brandsLoading } = useAuth();
+  // saveDesign is what "Save to Designs" writes a copied template through.
+  const { fetchDesigns, saveDesign, activeBrandId, brandsLoading } = useAuth();
 
   const [activeTab, setActiveTab] = useState(TEMPLATE_TABS[0].id);
   // One slice per source — see the header note on why both load up front.
@@ -137,6 +142,8 @@ export default function TemplatesSection({
   const [deepLinkKey, setDeepLinkKey] = useState(readDeepLinkKey);
   // Logging guard — the resolution log should fire once, not on every render.
   const deepLinkLogged = useRef(false);
+  // True while a template is being copied into the brand's designs.
+  const [saving, setSaving] = useState(false);
 
   // ── Klux templates ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -237,10 +244,75 @@ export default function TemplatesSection({
     setDeepLinkKey(null);
   };
 
-  /** The modal's primary button — hand the item to the page and close. */
+  /**
+   * Copy a Klux template into the brand's own designs.
+   *
+   * This does NOT open anything: saveDesign() writes a new design row (and
+   * renders its own stored thumbnail) and the user is told with a toast, which
+   * is the whole point of the action — the copy is theirs to open later from
+   * Recent designs or /creatives.
+   *
+   * `type` / `sub_type` are sent from the template's own taxonomy so the saved
+   * copy lands in the right filter tab on /creatives instead of defaulting to
+   * "ads". Both are lowercased raw keys, not the humanized display strings.
+   *
+   * @param {object} item A normalized template.
+   */
+  const saveTemplate = async (item) => {
+    if (!activeBrandId) {
+      console.error("❌ [templates] save blocked — no active brand");
+      toast.error("Select a brand before saving a template.");
+      return;
+    }
+
+    setSaving(true);
+    console.log(`💾 [templates] saving "${item.title}" to designs (brand ${activeBrandId})`);
+
+    try {
+      const creativeType = (item.designType || "design").toLowerCase();
+      const result = await saveDesign(
+        activeBrandId,
+        [
+          {
+            name: item.title,
+            canvas: item.canvas,
+            elements: item.elements,
+            category: item.formatKey || "image", // → sub_type
+          },
+        ],
+        creativeType,
+      );
+
+      if (!result?.ok) {
+        console.error("❌ [templates] save failed:", result?.message);
+        toast.error(result?.message || "Couldn't save this template. Please try again.");
+        return;
+      }
+
+      console.log(`✅ [templates] saved "${item.title}" to designs`);
+      toast.success(`"${item.title}" saved to your designs`);
+      closeDetails();
+      // Pull the fresh list so the Recent designs tab already has the copy.
+      setRecentReload((key) => key + 1);
+    } catch (err) {
+      console.error("❌ [templates] save threw:", err);
+      toast.error("Couldn't save this template. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /**
+   * The modal's primary button. A template is SAVED into the user's designs; a
+   * saved design is handed to the page, which opens it in the editor.
+   */
   const handleUse = (item) => {
-    closeDetails();
-    onSelect?.(item);
+    if (item.kind === "design") {
+      closeDetails();
+      onSelect?.(item);
+      return;
+    }
+    saveTemplate(item);
   };
 
   /** Switch source. Both are already loaded, so this is instant. */
@@ -361,6 +433,7 @@ export default function TemplatesSection({
       <TemplateDetailsModal
         item={activeDetails?.item ?? null}
         previewSrc={activeDetails?.previewSrc ?? null}
+        busy={saving}
         onUse={handleUse}
         onClose={closeDetails}
       />

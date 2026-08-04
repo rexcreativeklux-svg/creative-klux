@@ -7,11 +7,17 @@
 // acts on the item.
 //
 // It serves BOTH of the rail's tabs, told apart by `item.kind`:
-//   "template" → a public Klux template. "Use this template" seeds the studio
-//                chat; the share links point at a `?template=<slug>` deep link.
+//   "template" → a public Klux template. "Save to Designs" copies it into the
+//                brand's own designs and stays put — it deliberately does NOT
+//                open an editor. The share links point at a `?template=<slug>`
+//                deep link.
 //   "design"   → one of the user's own saved designs. "Open in editor" goes to
 //                /design/<id>; only copy-link and email are offered, because a
 //                private design has nothing to say to Facebook or LinkedIn.
+//
+// Both actions run through the single `onUse` prop — this component stays
+// presentational and never touches the API itself; TemplatesSection owns that
+// and reports back through `busy`.
 //
 // Layout (desktop first, two columns; stacks into a full-height sheet on small
 // screens):
@@ -39,7 +45,7 @@
 // never opens empty.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Link2, Loader2, Mail, PenLine, Sparkles, X } from "lucide-react";
+import { Check, Link2, Loader2, Mail, PenLine, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
 import { TEMPLATE_PARAM } from "./templatesApi";
@@ -141,7 +147,7 @@ function describeItem(item) {
 
   const closing = isDesign
     ? " Open it in the editor to pick up where you left off."
-    : " Open it in the studio to swap the copy, colours and images for your own.";
+    : " Save it to your designs and every layer is yours to edit — copy, colours and images.";
 
   return `${opening}${build}${closing}`;
 }
@@ -211,10 +217,19 @@ function LinkedInIcon({ className = "h-4 w-4" }) {
  *   normalized card shape (`kind` decides the wording); null closes the modal.
  * @param {string|null} [props.previewSrc] The card's already-painted preview,
  *   shown instantly while the high-res one renders.
- * @param {(item: object) => void} props.onUse   Act on the item (parent routes).
+ * @param {boolean} [props.busy] The parent is mid-save; the primary button
+ *   shows a spinner and stops accepting clicks.
+ * @param {(item: object) => void} props.onUse   Act on the item (parent decides
+ *   whether that means saving a copy or routing somewhere).
  * @param {() => void} props.onClose             Dismiss the modal.
  */
-export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose }) {
+export default function TemplateDetailsModal({
+  item,
+  previewSrc,
+  busy = false,
+  onUse,
+  onClose,
+}) {
   const panelRef = useRef(null);
   // The high-res paint, tagged with the template it belongs to: { key, src }.
   // Tagging (rather than clearing on every open) is what keeps the effect below
@@ -319,7 +334,10 @@ export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose 
   };
 
   const handleUse = () => {
-    console.log(`✅ [template-details] using ${noun} "${item.title}"`);
+    if (busy) return;
+    console.log(
+      `${isDesign ? "🖼️" : "💾"} [template-details] ${isDesign ? "opening" : "saving"} ${noun} "${item.title}"`,
+    );
     onUse?.(item);
   };
 
@@ -438,14 +456,30 @@ export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose 
               )}
             </div>
 
-            {/* Primary action — the only way from this modal into the item */}
+            {/* Primary action. A design opens; a template is copied into the
+                user's designs and the modal reports back with a toast. */}
             <button
               type="button"
               onClick={handleUse}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-surface transition-opacity hover:opacity-90 cursor-pointer"
+              disabled={busy}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-surface transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
             >
-              {isDesign ? <PenLine className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-              {isDesign ? "Open in editor" : "Use this template"}
+              {busy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving…
+                </>
+              ) : isDesign ? (
+                <>
+                  <PenLine className="h-4 w-4" />
+                  Open in editor
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Save to Designs
+                </>
+              )}
             </button>
 
             {/* Summary — generated from the row's fields (see header note) */}

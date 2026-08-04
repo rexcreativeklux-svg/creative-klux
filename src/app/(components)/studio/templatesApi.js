@@ -23,7 +23,8 @@
 //   • It takes NO other filters. `design_type`, `sub_category`, `num_template`
 //     and `page` are all accepted and then ignored — every call returns the same
 //     ~20-row public pool in a different random order. So the Klux tab fetches
-//     ONCE; there is nothing to re-query.
+//     ONCE; there is nothing to re-query, and the rail sorts the pool itself
+//     (newest first, see byNewest) rather than showing whatever order arrived.
 //
 // ── THE ROWS ────────────────────────────────────────────────────────────────
 // A template row carries the full design layout (`canvas` + `elements`), the
@@ -41,8 +42,8 @@
  * @type {{id: string, label: string}[]}
  */
 export const TEMPLATE_TABS = [
-  { id: "recent", label: "Recent designs" },
   { id: "klux", label: "Klux templates" },
+  { id: "recent", label: "Recent designs" },
 ];
 
 /** Tab ids, so callers don't repeat the string literals. */
@@ -161,6 +162,10 @@ export function normalizeTemplate(raw, index = 0) {
     // contents" → "Social contents" on its own.
     slug: pick(row, ["slug"]),
     format: humanize(pick(row, ["sub_category"])),
+    // The un-humanized value, kept because saving a template back as a design
+    // sends it as `sub_type` — the backend stores "instagram_portrait", not
+    // "Instagram portrait".
+    formatKey: pick(row, ["sub_category"]),
     category: humanize(pick(row, ["category"])),
     designType: humanize(pick(row, ["design_type"])),
     orientation: humanize(pick(row, ["orientation"])),
@@ -230,6 +235,7 @@ export function normalizeDesign(raw, index = 0) {
 
     slug: null,
     format,
+    formatKey: pick(row, ["sub_type", "sub_category"]),
     // A design's `type` IS its category ("ads", "social", "image") — the same
     // reading /creatives takes. It has no design_type and nothing that means
     // "media", so those stay null and the modal simply omits their rows rather
@@ -247,9 +253,20 @@ export function normalizeDesign(raw, index = 0) {
   };
 }
 
-/** Newest first, by whichever timestamp the row has. */
-const byNewest = (a, b) =>
-  new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+/**
+ * Newest first, by whichever timestamp the row has.
+ *
+ * The id tiebreaker matters: the public pool was seeded in bulk, so most of it
+ * shares a timestamp to the second. Without it, equal rows would keep the order
+ * they arrived in — and this endpoint shuffles that on every call, so the rail
+ * would reorder itself on each visit. Higher id = created later.
+ */
+const byNewest = (a, b) => {
+  const byDate =
+    new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+  if (byDate) return byDate;
+  return (Number(b.id) || 0) - (Number(a.id) || 0);
+};
 
 /**
  * Find one template by the key a share link carries — the row's `slug`, with
@@ -346,10 +363,12 @@ export async function fetchPublicTemplates({ token, signal } = {}) {
     }
 
     const rows = extractRows(body);
-    const items = rows.map(normalizeTemplate).filter(Boolean);
+    // Sorted here, not by the endpoint — it answers in a random order, so the
+    // rail would otherwise show a different twelve of the ~20 on every visit.
+    const items = rows.map(normalizeTemplate).filter(Boolean).sort(byNewest);
     const dropped = rows.length - items.length;
     console.log(
-      `✅ [templates] loaded ${items.length} template(s)` +
+      `✅ [templates] loaded ${items.length} template(s), newest first` +
         (dropped > 0 ? ` (${dropped} skipped — no usable layout)` : ""),
     );
     return { status: "ok", items };

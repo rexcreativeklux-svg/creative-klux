@@ -10,6 +10,7 @@ import {
   AD_PLATFORMS,
   getPlatformName,
 } from "@/(lib)/integrations/platforms";
+import IntegrationsSkeleton from "@/app/(components)/integrations/IntegrationsSkeleton";
 import PlatformPageModal from "@/app/(components)/integrations/PlatformPageModal";
 import { useIntegrationConnect } from "@/app/(components)/integrations/useIntegrationConnect";
 
@@ -324,9 +325,12 @@ const IntegrationsPage = () => {
         </div>
 
         {fetching ? (
-          <div className="flex items-center justify-center py-20 text-sm text-gray-400">
-            Loading integrations…
-          </div>
+          /* The platform rows themselves, greyed out — the list is a fixed set
+             of platforms, so its shape is known before the request returns and
+             only each row's connected/not-connected state is actually pending.
+             Same component the route's loading.jsx uses, so the two frames are
+             indistinguishable. */
+          <IntegrationsSkeleton />
         ) : (
           <>
             <div className="mb-8">

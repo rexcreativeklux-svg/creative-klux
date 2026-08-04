@@ -396,13 +396,22 @@ export default function ImageGallery() {
 
             {/* Content */}
             {loading ? (
-              <div className="text-center py-28">
-                <Loader2
-                  className="mx-auto animate-spin text-blue-500"
-                  size={44}
+              /* The grid the tab is ABOUT to show, not a spinner — the layout
+                 is known before the media is, and reusing the very components
+                 that render the "loading more" state means the first page and
+                 every page after it fill in identically. */
+              activeType === "image" ? (
+                <MasonryGrid
+                  items={[]}
+                  renderItem={() => null}
+                  loadingMore
+                  skeletonPerColumn={3}
                 />
-                <p className="mt-4 text-gray-500">Loading your gallery…</p>
-              </div>
+              ) : (
+                <div className={galleryGridClass(activeType)}>
+                  <GallerySkeleton type={activeType} count={8} />
+                </div>
+              )
             ) : items.length === 0 ? (
               <div
                 className={`text-center py-24 rounded-2xl border-2 border-dashed transition-colors ${

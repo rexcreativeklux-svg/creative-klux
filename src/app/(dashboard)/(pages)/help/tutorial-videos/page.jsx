@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { Play, Search, Clock, Eye, Video } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
+import Skeleton from "@/app/(components)/skeletons/Skeleton";
+import { SkeletonCardGrid } from "@/app/(components)/skeletons/PageSkeleton";
 
 export default function TutorialVideos() {
     const [searchQuery, setSearchQuery] = useState("");
@@ -83,15 +85,27 @@ export default function TutorialVideos() {
         return "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=225&fit=crop";
     };
 
+    // Heading, search and the video grid are all known before the fetch returns
+    // — only the tutorials themselves are pending — so the page draws itself and
+    // greys out just the thumbnails, rather than replacing everything with a
+    // spinner and then re-laying the whole screen out.
     if (tutorialVideosLoading) {
         return (
             <div className="min-h-screen px-12 py-4">
-                <div className="flex items-center justify-center py-20">
-                    <div className="text-center">
-                        <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                        <p className="text-gray-600">Loading tutorials...</p>
-                    </div>
+                <div className="mb-8 flex flex-col gap-3">
+                    <Skeleton className="h-8 w-64 max-w-full rounded-lg" />
+                    <Skeleton className="h-3.5 w-96 max-w-full" tone="soft" />
                 </div>
+                <div className="mb-8">
+                    <Skeleton className="h-12 w-full rounded-lg" tone="soft" />
+                </div>
+                <Skeleton className="mb-6 h-4 w-40" />
+                <SkeletonCardGrid
+                    count={8}
+                    aspect="aspect-video"
+                    columns="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                    gap="gap-6"
+                />
             </div>
         );
     }

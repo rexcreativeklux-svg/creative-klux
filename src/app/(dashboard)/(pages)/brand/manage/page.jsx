@@ -11,8 +11,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, Loader2 } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { SkeletonForm } from "@/app/(components)/skeletons/PageSkeleton";
 import { TAB_CONFIG } from "./config/manageConfig";
 import TabsNav from "./components/TabsNav";
 import ComingSoon from "./components/ComingSoon";
@@ -81,10 +82,11 @@ export default function ManageBrandPage() {
 
       {/* Body */}
       {brandsLoading ? (
-        <div className="flex items-center justify-center rounded-xl border border-gray-200 bg-surface py-20 text-sm text-gray-400">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          Loading brand…
-        </div>
+        /* The panel that's about to render, not a spinner. TAB_CONFIG's first
+           tab is Basic Info — a form — and the tab bar above is already
+           interactive, so previewing that form is both accurate and steadier
+           than a centred spinner collapsing into a full-height panel. */
+        <SkeletonForm fields={5} />
       ) : !activeBrandId ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-200 bg-surface py-20 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-400">

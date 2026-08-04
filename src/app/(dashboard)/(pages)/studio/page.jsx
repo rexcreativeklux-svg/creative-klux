@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ChevronRight } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import StudioSkeleton from "@/app/(components)/skeletons/StudioSkeleton";
 
 import {
   CREATIVES,
@@ -397,9 +398,13 @@ const ComingSoon = ({ creative, category }) => (
 );
 
 // ─── page export (wrapped in Suspense for useSearchParams) ────────────────────
+// The fallback is the same skeleton the route's loading.jsx renders, rather than
+// a line of text: this boundary and the route boundary can both fire on the way
+// in, and sharing one component means the two frames are identical instead of
+// the page flicking from a skeleton to "Loading…" and back.
 export default function StudioPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-gray-400">Loading…</div>}>
+    <Suspense fallback={<StudioSkeleton />}>
       <StudioInner />
     </Suspense>
   );

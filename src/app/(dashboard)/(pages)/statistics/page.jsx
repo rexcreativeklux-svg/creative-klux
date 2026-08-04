@@ -13,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 
 import DashboardStats from "@/app/(components)/DashboardStats";
 import ActivityChart from "@/app/(components)/ActivityChart";
+import { SkeletonChart } from "@/app/(components)/skeletons/PageSkeleton";
 import { getPublishedPosts } from "@/(lib)/integration";
 
 export default function Statistics() {
@@ -110,9 +111,17 @@ export default function Statistics() {
         isLoading={isLoading}
       />
 
-      {/* ── Activity chart — full width, taller than its overview-card days ── */}
+      {/* ── Activity chart — full width, taller than its overview-card days ──
+          While the designs are in flight the chart has nothing to plot, so it
+          used to render as an empty panel: indistinguishable from a brand with
+          no activity. The skeleton says "still loading" instead, and holds the
+          same 420px so the page doesn't resize under the user. */}
       <div className="h-[420px]">
-        <ActivityChart designs={designs} />
+        {isLoading ? (
+          <SkeletonChart height={280} className="h-full rounded-2xl" />
+        ) : (
+          <ActivityChart designs={designs} />
+        )}
       </div>
     </div>
   );

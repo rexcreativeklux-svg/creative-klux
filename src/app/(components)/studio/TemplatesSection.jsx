@@ -28,6 +28,11 @@
 // only a photo used inside the design and not a preview of it. Painting is
 // deferred until a card is near the viewport (see useDesignPreview), so the rail
 // sitting below the fold costs nothing until the user scrolls to it.
+//
+// A card does NOT open its template. Clicking anywhere on one opens
+// TemplateDetailsModal (its footer chip grows into "View details" on hover to
+// say so); only the modal's "Use this template" button calls `onSelect`. That
+// same modal is what a `?template=<slug>` deep link reopens on load.
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
@@ -39,10 +44,13 @@ import {
   Sparkles,
 } from "lucide-react";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
+import TemplateDetailsModal from "./TemplateDetailsModal";
 import {
   TEMPLATE_DISPLAY_LIMIT,
+  TEMPLATE_PARAM,
   TEMPLATE_TABS,
   fetchPublicTemplates,
+  findTemplateByKey,
 } from "./templatesApi";
 
 /** Horizontal padding shared by the tab row and each card's inset. */
@@ -62,26 +70,56 @@ function formatMeta(value) {
   if (days === 1) return "Yesterday";
   if (days < 30) return `${days} days ago`;
   if (days < 365) return `${Math.floor(days / 30)} months ago`;
-  return date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/**
+ * The `?template=<slug>` value on the current URL, or null. Client-only — used
+ * as a lazy useState initializer, so it runs once and returns null during SSR.
+ * @returns {string|null}
+ */
+function readDeepLinkKey() {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(TEMPLATE_PARAM);
 }
 
 /** Only paint a colour onto the tile when it really is a CSS colour string. */
 const asColor = (value) =>
-  typeof value === "string" && /^(#|rgb|hsl)/i.test(value.trim()) ? value : null;
+  typeof value === "string" && /^(#|rgb|hsl)/i.test(value.trim())
+    ? value
+    : null;
 
 /**
  * @param {object} props
- * @param {(item: object) => void} [props.onSelect]     Open a template.
+ * @param {(item: object) => void} [props.onSelect]     Use a template — fired by
+ *   the details modal's primary button, never by a card click.
  * @param {(item: object) => void} [props.onItemMenu]   The card's "…" menu.
  * @param {() => void} [props.onBrowseAll]              The "Browse all" link.
  */
-export default function TemplatesSection({ onSelect, onItemMenu, onBrowseAll }) {
+export default function TemplatesSection({
+  onSelect,
+  onItemMenu,
+  onBrowseAll,
+}) {
   // Presentational only — see the header note. Kept in state so the row still
   // responds to a click the way the finished, per-tab version will.
   const [activeTab, setActiveTab] = useState(TEMPLATE_TABS[0].id);
   const [state, setState] = useState({ status: "loading", items: [] });
   // Bumped by "Try again" to re-run the fetch.
   const [reloadKey, setReloadKey] = useState(0);
+  // The open details modal: { item, previewSrc } — previewSrc is the card's own
+  // painted preview, handed over so the modal opens with artwork already there.
+  const [details, setDetails] = useState(null);
+  // `/?template=<slug>` — read ONCE, lazily, at mount. Straight off
+  // window.location rather than useSearchParams() so this client-only nicety
+  // can't drag the page into a Suspense boundary; the lazy initializer keeps it
+  // out of an effect (no setState-in-effect) and SSR simply reads null.
+  const [deepLinkKey, setDeepLinkKey] = useState(readDeepLinkKey);
+  // Logging guard — the resolution log should fire once, not on every render.
+  const deepLinkLogged = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -97,7 +135,58 @@ export default function TemplatesSection({ onSelect, onItemMenu, onBrowseAll }) 
     return () => controller.abort();
   }, [reloadKey]);
 
+  // ── Deep link ────────────────────────────────────────────────────────────
+  // A shared link resolves against the WHOLE fetched pool, not just the cards
+  // that made the visible cut, so it still opens when its template isn't one of
+  // the rendered twelve. Derived rather than stored: the modal below opens on
+  // whichever of the two sources is live, and both are cleared on close.
+  const deepLinkItem =
+    deepLinkKey && state.status === "ok"
+      ? findTemplateByKey(state.items, deepLinkKey)
+      : null;
+
+  // Report once whether the link resolved — this is the first thing you want in
+  // the console when a shared link opens nothing.
+  useEffect(() => {
+    if (!deepLinkKey || deepLinkLogged.current) return;
+    if (state.status !== "ok" || state.items.length === 0) return;
+
+    deepLinkLogged.current = true;
+    if (deepLinkItem) {
+      console.log(
+        `🔗 [templates] deep link "${deepLinkKey}" → opening "${deepLinkItem.title}"`,
+      );
+    } else {
+      console.warn(
+        `⚠️ [templates] deep link "${deepLinkKey}" matched no template in the pool`,
+      );
+    }
+  }, [deepLinkKey, deepLinkItem, state]);
+
   const items = state.items.slice(0, TEMPLATE_DISPLAY_LIMIT);
+
+  // What the modal shows: an explicitly opened card wins over the deep link.
+  const activeDetails =
+    details ?? (deepLinkItem ? { item: deepLinkItem, previewSrc: null } : null);
+
+  /** A card was clicked — show its details, never the template itself. */
+  const openDetails = (item, previewSrc) => {
+    console.log(`🖼️ [templates] opening details for "${item.title}"`);
+    setDeepLinkKey(null); // a manual open supersedes the URL's template
+    setDetails({ item, previewSrc });
+  };
+
+  /** Dismiss the modal — clears BOTH sources or the deep link would reopen it. */
+  const closeDetails = () => {
+    setDetails(null);
+    setDeepLinkKey(null);
+  };
+
+  /** The modal's primary button — hand the template to the page and close. */
+  const useTemplate = (item) => {
+    closeDetails();
+    onSelect?.(item);
+  };
 
   return (
     <section className="w-full border-t border-gray-200">
@@ -184,12 +273,20 @@ export default function TemplatesSection({ onSelect, onItemMenu, onBrowseAll }) 
               <TemplateCard
                 key={item.id}
                 item={item}
-                onSelect={onSelect}
+                onOpenDetails={openDetails}
                 onItemMenu={onItemMenu}
               />
             ))}
           </CardGrid>
         ))}
+
+      {/* Details modal — the only route from a card into the template itself */}
+      <TemplateDetailsModal
+        item={activeDetails?.item ?? null}
+        previewSrc={activeDetails?.previewSrc ?? null}
+        onUse={useTemplate}
+        onClose={closeDetails}
+      />
     </section>
   );
 }
@@ -238,12 +335,17 @@ function useDesignPreview(item) {
           return;
         }
         // renderDesignToThumbnail swallows its own errors and returns null.
-        console.warn(`⚠️ [templates] couldn't paint "${item.title}" — falling back`);
+        console.warn(
+          `⚠️ [templates] couldn't paint "${item.title}" — falling back`,
+        );
         if (item.thumbnail) setSrc(item.thumbnail);
         else setFailed(true);
       } catch (err) {
         if (!alive) return;
-        console.error(`❌ [templates] preview failed for "${item.title}":`, err);
+        console.error(
+          `❌ [templates] preview failed for "${item.title}":`,
+          err,
+        );
         setFailed(true);
       }
     };
@@ -275,15 +377,17 @@ function useDesignPreview(item) {
   return { ref, src, failed };
 }
 
-/** One template card — artwork, title, format, then date + open arrow. */
-function TemplateCard({ item, onSelect, onItemMenu }) {
+/** One template card — artwork, title, format, then date + "View details". */
+function TemplateCard({ item, onOpenDetails, onItemMenu }) {
   const meta = formatMeta(item.meta);
   const { ref, src, failed } = useDesignPreview(item);
   // The design's own background fills the letterbox around the contained
   // preview, so a portrait template reads as artwork rather than a crop.
   const tileColor = asColor(item.canvas?.background);
 
-  const open = () => onSelect?.(item);
+  // The card's painted preview rides along so the modal opens showing artwork
+  // while it repaints the same design at full size.
+  const open = () => onOpenDetails?.(item, src);
 
   return (
     // A div rather than a button: the "…" menu is itself a button, and nesting
@@ -298,14 +402,14 @@ function TemplateCard({ item, onSelect, onItemMenu }) {
           open();
         }
       }}
-      aria-label={`Open ${item.title}`}
+      aria-label={`View details for ${item.title}`}
       className={`group flex cursor-pointer flex-col border-b border-r border-gray-200 py-5 transition-colors hover:bg-gray-100/60 focus:outline-none focus-visible:bg-gray-100/60 ${GUTTER}`}
     >
       {/* Artwork */}
       <div
         ref={ref}
-        className="relative aspect-16/10 overflow-hidden rounded-lg border border-gray-200 bg-gray-100"
-        style={tileColor ? { backgroundColor: tileColor } : undefined}
+        className="relative aspect-16/10 overflow-hidden rounded-lg border border-gray-200 bg-[#c1d5f7]"
+        // style={tileColor ? { backgroundColor: tileColor } : undefined}
       >
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -324,8 +428,11 @@ function TemplateCard({ item, onSelect, onItemMenu }) {
           <div className="h-full w-full animate-pulse bg-gray-200/60" />
         )}
 
+        {/* text-surface, NOT text-white: gray-900 flips to near-white in dark
+            mode, so white-on-white made this badge disappear. surface inverts
+            with it, so the chip stays legible in both themes. */}
         {item.premium && (
-          <span className="absolute left-2 top-2 rounded-md bg-gray-900/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+          <span className="absolute left-2 top-2 rounded-md bg-gray-900/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-surface backdrop-blur-sm">
             Premium
           </span>
         )}
@@ -334,9 +441,13 @@ function TemplateCard({ item, onSelect, onItemMenu }) {
       {/* Title + format */}
       <div className="mt-3.5 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold text-gray-900">{item.title}</p>
+          <p className="truncate text-[15px] font-semibold text-gray-900">
+            {item.title}
+          </p>
           {item.subtitle && (
-            <p className="mt-0.5 truncate text-[13px] text-gray-500">{item.subtitle}</p>
+            <p className="mt-0.5 truncate text-[13px] text-gray-500">
+              {item.subtitle}
+            </p>
           )}
         </div>
 
@@ -355,16 +466,29 @@ function TemplateCard({ item, onSelect, onItemMenu }) {
         )}
       </div>
 
-      {/* Footer: date + open affordance */}
+      {/* Footer: date + "View details" affordance ─────────────────────────
+          One pill, two states. At rest it's the 32px arrow chip; on hover (or
+          keyboard focus) the label unrolls to its left and the chip grows into
+          a button, so the card says what a click does before you click it.
+          It is NOT a <button>: the whole card already opens the details modal,
+          and a real button in here would nest an interactive element inside a
+          role="button" div for no extra behaviour.
+          Below `md` there is no hover to give, so the label is simply always
+          out — a single-column card has room for it.
+          gray-900 / surface invert together, so this reads as a dark chip in
+          light mode and a light one in dark mode without a second rule. */}
       <div className="mt-auto flex items-center justify-between gap-2 pt-4">
         <span className="truncate text-[13px] text-gray-500">{meta}</span>
-        {/* gray-900 / surface invert together, so this reads as a dark chip in
-            light mode and a light one in dark mode without a second rule. */}
         <span
           aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 text-surface transition-transform group-hover:scale-105"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-gray-900 pl-3 text-surface transition-all duration-300 ease-out md:gap-0 md:pl-0 md:group-hover:gap-1.5 md:group-hover:pl-3 md:group-focus-visible:gap-1.5 md:group-focus-visible:pl-3"
         >
-          <ArrowRight className="h-4 w-4" />
+          <span className="max-w-28 overflow-hidden whitespace-nowrap text-[13px] font-medium opacity-100 transition-all duration-300 ease-out md:max-w-0 md:opacity-0 md:group-hover:max-w-28 md:group-hover:opacity-100 md:group-focus-visible:max-w-28 md:group-focus-visible:opacity-100">
+            View details
+          </span>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center">
+            <ArrowRight className="h-4 w-4" />
+          </span>
         </span>
       </div>
     </div>
@@ -376,7 +500,10 @@ function SkeletonGrid() {
   return (
     <CardGrid>
       {Array.from({ length: 4 }).map((_, index) => (
-        <div key={index} className={`border-b border-r border-gray-200 py-5 ${GUTTER}`}>
+        <div
+          key={index}
+          className={`border-b border-r border-gray-200 py-5 ${GUTTER}`}
+        >
           <div className="aspect-16/10 animate-pulse rounded-lg bg-gray-100" />
           <div className="mt-3.5 space-y-2">
             <div className="h-3.5 w-2/3 animate-pulse rounded bg-gray-100" />
@@ -401,7 +528,9 @@ function StatePanel({ icon: Icon, title, body, children }) {
       </span>
       <p className="text-sm font-semibold text-gray-700">{title}</p>
       {body && (
-        <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-gray-500">{body}</p>
+        <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-gray-500">
+          {body}
+        </p>
       )}
       {children}
     </div>

@@ -64,7 +64,11 @@ export default function Home() {
     router.push(`/studio/ai-chat-page?${params.toString()}`);
   };
 
-  /** A template card opens the chat page seeded with that template's title. */
+  /**
+   * Use a template — fired by the details modal's "Use this template" button,
+   * not by the card click itself (a card opens TemplateDetailsModal first).
+   * Opens the chat page seeded with that template's title.
+   */
   const handleTemplateSelect = (item) => {
     console.log(`🖼️ [home] opening template "${item.title}"`);
     if (item.href) {

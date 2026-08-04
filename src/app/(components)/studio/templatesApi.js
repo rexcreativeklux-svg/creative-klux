@@ -36,6 +36,14 @@ export const TEMPLATE_TABS = [
   { id: "klux", label: "Klux templates" },
 ];
 
+/**
+ * Query param that deep-links one template's details modal, e.g. `/?template=
+ * qfyilyfgbf1ggnetbk48-1784731443-gqi9`. The rail reads it on mount and opens
+ * the matching card; the modal's "Copy link" writes it. The value is the row's
+ * `slug` (stable and shareable), with the numeric id accepted as a fallback.
+ */
+export const TEMPLATE_PARAM = "template";
+
 /** The public template pool. Absolute — this one lives on Scraive, not our API. */
 export const PUBLIC_TEMPLATES_ENDPOINT =
   "https://api.scraive.com/api/design-templates/public-template-fetch";
@@ -97,6 +105,9 @@ function readLayout(row) {
  *
  * Card contract:
  *   { id, title, subtitle, meta, premium, thumbnail, canvas, elements, href }
+ * plus the spec block the details modal reads:
+ *   { slug, format, category, designType, orientation, mediaType, typeSize,
+ *     createdAt, updatedAt }
  *
  * @param {Record<string, unknown>} raw
  * @param {number} index Positional fallback for a missing id.
@@ -123,7 +134,42 @@ export function normalizeTemplate(raw, index = 0) {
     canvas: layout.canvas,
     elements: layout.elements,
     href: pick(row, ["href", "url", "link", "permalink"]),
+
+    // ── Specs ─────────────────────────────────────────────────────────────
+    // The card only ever shows `subtitle`; these are for TemplateDetailsModal,
+    // which both lists them and writes its summary sentence from them. Kept
+    // humanized here (one place) so no consumer has to re-format "social_
+    // contents" → "Social contents" on its own.
+    slug: pick(row, ["slug"]),
+    format: humanize(pick(row, ["sub_category"])),
+    category: humanize(pick(row, ["category"])),
+    designType: humanize(pick(row, ["design_type"])),
+    orientation: humanize(pick(row, ["orientation"])),
+    mediaType: humanize(pick(row, ["type"])),
+    typeSize: size,
+    createdAt: pick(row, ["created_at"]),
+    updatedAt: pick(row, ["updated_at", "modified_at"]),
   };
+}
+
+/**
+ * Find one template by the key a share link carries — the row's `slug`, with
+ * the id accepted too so an older/hand-made link still resolves.
+ *
+ * @param {object[]} items Normalized templates.
+ * @param {string} key The `?template=` value.
+ * @returns {object|null}
+ */
+export function findTemplateByKey(items, key) {
+  if (!key || !Array.isArray(items)) return null;
+  const needle = String(key).toLowerCase();
+  return (
+    items.find(
+      (item) =>
+        String(item.slug ?? "").toLowerCase() === needle ||
+        String(item.id ?? "").toLowerCase() === needle,
+    ) ?? null
+  );
 }
 
 /**

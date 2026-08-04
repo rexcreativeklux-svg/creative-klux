@@ -171,7 +171,7 @@ const Sidebar = ({
   // Ad Intelligence are sections: each opens a page with its own secondary
   // sidebar (see (components)/SectionLayout.jsx) holding the old sub-pages.
   const appsItems = [
-    { id: "dashboard", label: "Dashboard", href: "/", icon: LayoutDashboard },
+    { id: "dashboard", label: "Home", href: "/", icon: LayoutDashboard },
     { id: "brand", label: "Brand Kits", href: "/brand/reuse", icon: Palette },
     {
       id: "creatives",

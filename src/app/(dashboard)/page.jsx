@@ -33,6 +33,7 @@ import { useAuth } from "@/context/AuthContext";
 import PromptComposer from "@/app/(components)/studio/PromptComposer";
 import TemplatesSection from "@/app/(components)/studio/TemplatesSection";
 import RotatingHeroBackdrop from "@/app/(components)/home/RotatingHeroBackdrop";
+import QuickStartCards from "@/app/(components)/home/QuickStartCards";
 
 /** The chat page's own pipeline key — see CREATIVE_CONFIG in ai-chat-page. */
 const DEFAULT_CREATIVE = "general";
@@ -65,21 +66,39 @@ export default function Home() {
   };
 
   /**
-   * Use a template — fired by the details modal's "Use this template" button,
-   * not by the card click itself (a card opens TemplateDetailsModal first).
-   * Opens the chat page seeded with that template's title.
+   * Open whatever the rail's details modal was showing — fired by its primary
+   * button, not by a card click (a card opens the modal first).
+   *
+   * Two shapes arrive here, from the rail's two tabs:
+   *   · a saved design carries `href` (/design/<id>) → straight into the editor
+   *   · a Klux template has no destination of its own → seed the chat page with
+   *     its title, which is all the studio needs to start from it
+   *
+   * @param {{title: string, href?: string|null, kind?: string}} item
    */
   const handleTemplateSelect = (item) => {
-    console.log(`🖼️ [home] opening template "${item.title}"`);
     if (item.href) {
+      console.log(`🖼️ [home] opening ${item.kind || "item"} "${item.title}" → ${item.href}`);
       router.push(item.href);
       return;
     }
+    console.log(`🖼️ [home] starting from template "${item.title}"`);
     const params = new URLSearchParams({
       creative: DEFAULT_CREATIVE,
       initialMessage: `Create something based on the "${item.title}" template`,
     });
     router.push(`/studio/ai-chat-page?${params.toString()}`);
+  };
+
+  /**
+   * "Browse all" — the rail says which tab is open, because the user's own
+   * designs and the public template pool live on different routes.
+   * @param {string} tabId One of TEMPLATE_TABS' ids.
+   */
+  const handleBrowseAll = (tabId) => {
+    const target = tabId === "recent" ? "/creatives" : "/designs";
+    console.log(`🗂️ [home] browse all ("${tabId}") → ${target}`);
+    router.push(target);
   };
 
   return (
@@ -98,11 +117,17 @@ export default function Home() {
           still can't bleed past the hero.
 
           pt-[clamp(...)] is what lowers the composer toward the optical centre:
-          with justify-center, top padding moves the centred block down by half
-          the padding, and min-height is border-box so the section's total height
-          (and therefore the rail alignment) is unaffected. */}
+          top padding moves the centred block down by half the padding, and
+          min-height is border-box so the section's total height (and therefore
+          the rail alignment) is unaffected.
+
+          Two children, in order: the greeting + composer block, which GROWS to
+          take whatever height is going and centres itself inside it, and the
+          quick-start cards, which keep their own height at the foot. That split
+          is what puts the cards just above the rail without pinning them there —
+          see the ⚠️ note in QuickStartCards.jsx. */}
       <section
-        className="relative flex min-h-[calc(100vh-4rem-7rem)] flex-col justify-center pt-[clamp(1.5rem,7vh,5rem)] md:min-h-[calc(100vh-4rem-var(--ck-rail-top))]"
+        className="relative flex min-h-[calc(100vh-4rem-7rem)] flex-col pt-[clamp(1.5rem,7vh,5rem)] md:min-h-[calc(100vh-4rem-var(--ck-rail-top))]"
       >
         {/* Eighteen still band-and-pattern treatments — grids, graph paper,
             contours, soft glows — all on the app's blue ramp, differing by form
@@ -114,7 +139,7 @@ export default function Home() {
             `<HeroBackdrop backdrop="blueprint" />`. */}
         <RotatingHeroBackdrop />
 
-        <div className="relative mx-auto w-full max-w-5xl px-5 pb-10 sm:px-8">
+        <div className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-5 pb-10 sm:px-8">
           {/* Greeting */}
           <header
             className="animate-hero-in mb-7 text-center"
@@ -141,12 +166,22 @@ export default function Home() {
             <PromptComposer onSubmit={handleSubmit} rows={2} variant="glass" />
           </div>
         </div>
+
+        {/* Quick starts — the last thing in the hero, so the padding below them
+            is the only gap between the pair and the rail's tab row. That gap is
+            deliberately about one card tall, so they read as the foot of the
+            hero rather than as a header for the rail.
+            Last in the entrance stagger too (60ms greeting → 180ms composer). */}
+        <QuickStartCards
+          className="animate-hero-in relative pb-6 sm:pb-8"
+          style={{ animationDelay: "300ms" }}
+        />
       </section>
 
       {/* Template rails — full-bleed, deliberately outside the wrapper above */}
       <TemplatesSection
         onSelect={handleTemplateSelect}
-        onBrowseAll={() => router.push("/designs")}
+        onBrowseAll={handleBrowseAll}
       />
     </div>
   );

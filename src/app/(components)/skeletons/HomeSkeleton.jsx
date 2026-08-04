@@ -23,8 +23,8 @@ import Skeleton from "./Skeleton";
 /** Card count in the rail — TEMPLATE_DISPLAY_LIMIT's first row, xl:grid-cols-4. */
 const RAIL_CARDS = 4;
 
-/** Tab-label widths, in px — "Recent designs • Community templates • Klux templates". */
-const TAB_WIDTHS = [92, 130, 106];
+/** Tab-label widths, in px — "Recent designs • Klux templates". */
+const TAB_WIDTHS = [92, 106];
 
 /**
  * @param {object} props

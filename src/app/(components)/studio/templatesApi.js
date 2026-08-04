@@ -1,8 +1,18 @@
 // app/(components)/studio/templatesApi.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Data layer for the template rail under the Studio composer (home page).
+// Data layer for the rail under the Studio composer (home page). TWO sources,
+// one card contract — the tab row picks between them:
 //
-// ── THE ENDPOINT ────────────────────────────────────────────────────────────
+//   "recent" → the signed-in brand's own saved designs, via AuthContext's
+//              fetchDesigns(). Private, needs a token AND an active brand.
+//   "klux"   → the public Scraive template pool (the endpoint below).
+//
+// Both are mapped onto the SAME normalized shape so TemplatesSection, the card
+// and the details modal never branch on where a row came from — except through
+// `kind` ("design" | "template"), which is what the modal uses to say "Open in
+// editor" instead of "Use this template".
+//
+// ── THE PUBLIC TEMPLATE ENDPOINT ────────────────────────────────────────────
 //   POST https://api.scraive.com/api/design-templates/public-template-fetch
 //   body { "type": "image" }            ← required; an empty body returns []
 //   →    { "designs": [ …~20 rows… ] }
@@ -12,29 +22,32 @@
 //     caller has it, matching AuthContext's sibling call to /public-fetch.
 //   • It takes NO other filters. `design_type`, `sub_category`, `num_template`
 //     and `page` are all accepted and then ignored — every call returns the same
-//     ~20-row public pool in a different random order. That is why the rail
-//     fetches ONCE and the tab row above it is presentational only; wiring a tab
-//     to this endpoint a second time would just re-shuffle the same cards.
+//     ~20-row public pool in a different random order. So the Klux tab fetches
+//     ONCE; there is nothing to re-query.
 //
 // ── THE ROWS ────────────────────────────────────────────────────────────────
-// Each row carries the full design layout (`canvas` + `elements`), the same
-// shape the editor and the chat page paint through renderDesignToCanvas(). It
-// also carries a `thumbnail`, but that is just the URL of one photo used INSIDE
-// the design — not a preview of the design — so the card renders the layout
+// A template row carries the full design layout (`canvas` + `elements`), the
+// same shape the editor and the chat page paint through renderDesignToCanvas().
+// It also carries a `thumbnail`, but that is just the URL of one photo used
+// INSIDE the design — not a preview of it — so the card renders the layout
 // itself rather than trusting that field.
+//
+// A saved-design row is close but not identical: its `canvas` is a JSON STRING
+// holding `{ canvas, elements }`, and it has no `type_size` / `orientation` /
+// `pricing`, so normalizeDesign() derives those from the canvas instead.
 
 /**
- * The rail's tabs. PRESENTATIONAL ONLY for now: every tab shows the same fetched
- * templates, because there is exactly one endpoint behind them (see above).
- * When per-tab endpoints land, give each tab its own `endpoint` and switch
- * fetchPublicTemplates() to take the tab id.
+ * The rail's tabs — each one now has a real source behind it (see the header).
  * @type {{id: string, label: string}[]}
  */
 export const TEMPLATE_TABS = [
   { id: "recent", label: "Recent designs" },
-  { id: "community", label: "Community templates" },
   { id: "klux", label: "Klux templates" },
 ];
+
+/** Tab ids, so callers don't repeat the string literals. */
+export const TAB_RECENT = "recent";
+export const TAB_KLUX = "klux";
 
 /**
  * Query param that deep-links one template's details modal, e.g. `/?template=
@@ -53,6 +66,12 @@ const REQUEST_BODY = { type: "image" };
 
 /** How many cards the rail renders. The pool is ~20; each card paints a canvas. */
 export const TEMPLATE_DISPLAY_LIMIT = 12;
+
+/**
+ * How many saved designs to ask for. Fetching a few more than the rail shows
+ * costs nothing extra (one page) and leaves room for rows dropped as unpaintable.
+ */
+export const RECENT_DESIGNS_FETCH_LIMIT = 20;
 
 /** Pull the first present value from a list of candidate keys. */
 const pick = (source, keys) => {
@@ -149,8 +168,88 @@ export function normalizeTemplate(raw, index = 0) {
     typeSize: size,
     createdAt: pick(row, ["created_at"]),
     updatedAt: pick(row, ["updated_at", "modified_at"]),
+
+    // Which source this row came from — the modal's only branch point.
+    kind: "template",
+    pricing: String(pick(row, ["pricing"]) ?? "").toLowerCase() || null,
   };
 }
+
+/** Portrait / Landscape / Square from the canvas, since designs don't send it. */
+function orientationOf(canvas) {
+  const width = Number(canvas?.width);
+  const height = Number(canvas?.height);
+  if (!width || !height) return null;
+  if (width === height) return "Square";
+  return height > width ? "Portrait" : "Landscape";
+}
+
+/**
+ * Map ONE saved-design row (AuthContext.fetchDesigns) onto the SAME card
+ * contract normalizeTemplate() produces, so the rail, the card and the details
+ * modal treat both sources identically.
+ *
+ * Differences from a template row, all handled here:
+ *   • `canvas` is a JSON string of `{ canvas, elements }` — readLayout() parses it.
+ *   • No `type_size` / `orientation` / `pricing` — derived from the canvas, or
+ *     left null so the modal simply omits those rows.
+ *   • It HAS a real destination: `/design/<id>` opens it in the editor, which the
+ *     home page follows through `item.href`.
+ *
+ * Rows with no usable layout (image-only Magic Studio output, for instance)
+ * return null — the card has nothing to paint.
+ *
+ * @param {Record<string, unknown>} raw
+ * @param {number} index Positional fallback for a missing id.
+ * @returns {object|null}
+ */
+export function normalizeDesign(raw, index = 0) {
+  const row = raw && typeof raw === "object" ? raw : {};
+  const layout = readLayout(row);
+  if (!layout) return null;
+
+  const id = String(pick(row, ["id", "uuid", "_id"]) ?? `design-${index}`);
+  const width = Math.round(Number(layout.canvas?.width) || 0);
+  const height = Math.round(Number(layout.canvas?.height) || 0);
+  const size = width && height ? `${width}x${height}` : null;
+  // Designs label themselves with sub_type ("instagram_portrait") when they have
+  // one and fall back to the broader `type` ("ads", "social", "image").
+  const format = humanize(pick(row, ["sub_type", "sub_category"]));
+
+  return {
+    id,
+    title: String(pick(row, ["name", "title", "design_name"]) ?? "Untitled design"),
+    subtitle: [format, size].filter(Boolean).join(" · ") || null,
+    meta: pick(row, ["updated_at", "created_at", "modified_at", "date"]),
+    premium: false,
+    thumbnail: pick(row, ["image_url", "thumbnail", "thumbnail_url", "preview_url"]),
+    canvas: layout.canvas,
+    elements: layout.elements,
+    // The design editor, opened straight from the modal's primary button.
+    href: `/design/${id}`,
+
+    slug: null,
+    format,
+    // A design's `type` IS its category ("ads", "social", "image") — the same
+    // reading /creatives takes. It has no design_type and nothing that means
+    // "media", so those stay null and the modal simply omits their rows rather
+    // than repeating the category under three different labels.
+    category: humanize(pick(row, ["category", "type"])),
+    designType: humanize(pick(row, ["design_type"])),
+    orientation: orientationOf(layout.canvas),
+    mediaType: null,
+    typeSize: size,
+    createdAt: pick(row, ["created_at"]),
+    updatedAt: pick(row, ["updated_at", "modified_at"]),
+
+    kind: "design",
+    pricing: null, // your own design is neither "free" nor "premium"
+  };
+}
+
+/** Newest first, by whichever timestamp the row has. */
+const byNewest = (a, b) =>
+  new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
 
 /**
  * Find one template by the key a share link carries — the row's `slug`, with
@@ -260,6 +359,80 @@ export async function fetchPublicTemplates({ token, signal } = {}) {
     if (err?.name === "AbortError") return { status: "ok", items: [] };
 
     console.error("❌ [templates] request threw:", err);
+    return {
+      status: "error",
+      items: [],
+      message: "Connection problem. Please check your network and try again.",
+      messageForDevs: err?.message || String(err),
+    };
+  }
+}
+
+/**
+ * Load the signed-in brand's most recent saved designs for the "Recent designs"
+ * tab, mapped onto the same card contract as the templates.
+ *
+ * Takes AuthContext's `fetchDesigns` as an argument rather than importing it:
+ * this module stays plain data-layer code with no React dependency, and the
+ * caller already holds the hook.
+ *
+ * fetchDesigns() answers null for every failure it handles itself (no token, no
+ * active brand, bad JSON, non-2xx) and logs the reason, so null is reported here
+ * as one user-safe error.
+ *
+ * Same never-rejects contract as fetchPublicTemplates().
+ *
+ * @param {object} opts
+ * @param {(perPage: number, page: number) => Promise<object|null>} opts.fetchDesigns
+ * @param {number} [opts.limit] How many rows to request.
+ * @returns {Promise<{status: "ok"|"error", items: object[],
+ *                    message?: string, messageForDevs?: string}>}
+ */
+export async function fetchRecentDesigns({
+  fetchDesigns,
+  limit = RECENT_DESIGNS_FETCH_LIMIT,
+} = {}) {
+  if (typeof fetchDesigns !== "function") {
+    console.error("❌ [templates] fetchRecentDesigns called without fetchDesigns()");
+    return {
+      status: "error",
+      items: [],
+      message: "We couldn't load your designs. Please try again.",
+      messageForDevs: "fetchDesigns was not provided",
+    };
+  }
+
+  try {
+    console.log(`📡 [templates] fetching up to ${limit} recent design(s)`);
+    const result = await fetchDesigns(limit, 1);
+
+    if (!result) {
+      // fetchDesigns has already logged which of its guards tripped.
+      return {
+        status: "error",
+        items: [],
+        message: "We couldn't load your designs. Please try again.",
+        messageForDevs: "fetchDesigns returned null",
+      };
+    }
+
+    // Tolerate both the paginator object and a bare array, the same way every
+    // other fetchDesigns caller in the app does.
+    const rows = Array.isArray(result)
+      ? result
+      : Array.isArray(result?.data)
+        ? result.data
+        : [];
+
+    const items = rows.map(normalizeDesign).filter(Boolean).sort(byNewest);
+    const dropped = rows.length - items.length;
+    console.log(
+      `✅ [templates] loaded ${items.length} recent design(s)` +
+        (dropped > 0 ? ` (${dropped} skipped — no usable layout)` : ""),
+    );
+    return { status: "ok", items };
+  } catch (err) {
+    console.error("❌ [templates] recent designs request threw:", err);
     return {
       status: "error",
       items: [],

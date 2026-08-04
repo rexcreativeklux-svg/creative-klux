@@ -2,9 +2,16 @@
 
 // app/(components)/studio/TemplateDetailsModal.jsx
 // ─────────────────────────────────────────────────────────────────────────────
-// The details view for one template card on the home rail. A card no longer
-// jumps straight into the studio — it opens this, and only the primary button
-// in here actually uses the template.
+// The details view for one card on the home rail. A card no longer jumps
+// straight into the studio — it opens this, and only the primary button in here
+// acts on the item.
+//
+// It serves BOTH of the rail's tabs, told apart by `item.kind`:
+//   "template" → a public Klux template. "Use this template" seeds the studio
+//                chat; the share links point at a `?template=<slug>` deep link.
+//   "design"   → one of the user's own saved designs. "Open in editor" goes to
+//                /design/<id>; only copy-link and email are offered, because a
+//                private design has nothing to say to Facebook or LinkedIn.
 //
 // Layout (desktop first, two columns; stacks into a full-height sheet on small
 // screens):
@@ -18,12 +25,12 @@
 //   │                              │ ■ Share  🔗 ✉ f in    │  ← pinned
 //   └──────────────────────────────┴───────────────────────┘
 //
-// ⚠️ THE ENDPOINT SENDS NO PROSE. A row carries only structured fields (format,
+// ⚠️ NEITHER SOURCE SENDS PROSE. A row carries only structured fields (format,
 // size, orientation, category, design type, pricing, dates) plus the layout
 // itself — no description, author, rating or install count. So the summary
 // paragraph is WRITTEN HERE from those fields and from the layer mix inside
 // `elements`; nothing on this screen is invented. If the backend ever adds a
-// real `description`, surface it in place of describeTemplate()'s output.
+// real `description`, surface it in place of describeItem()'s output.
 //
 // The preview is repainted with the shared renderDesignToThumbnail() at a much
 // larger `maxDim` than the card uses, because a card-sized data URL blown up to
@@ -32,7 +39,7 @@
 // never opens empty.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Link2, Loader2, Mail, Sparkles, X } from "lucide-react";
+import { Check, Link2, Loader2, Mail, PenLine, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
 import { TEMPLATE_PARAM } from "./templatesApi";
@@ -105,23 +112,26 @@ function describeLayers(elements) {
 
 /**
  * Write the summary paragraph from the row's real fields — see the header note
- * on why this is generated rather than fetched.
+ * on why this is generated rather than fetched. Phrasing follows `kind`: a saved
+ * design is the user's own work, a template is something to start from.
  *
- * @param {object} item Normalized template.
+ * @param {object} item Normalized template or design.
  * @returns {string}
  */
-function describeTemplate(item) {
-  const tier = item.premium ? "premium" : "free";
+function describeItem(item) {
+  const isDesign = item.kind === "design";
   // "Instagram portrait" reads better than "Social"; fall back down the chain.
-  const kind = (item.format || item.designType || item.category || "design").toLowerCase();
+  const shape = (item.format || item.designType || item.category || "design").toLowerCase();
   const size = formatSize(item);
   const orientation = (item.orientation || "").toLowerCase();
 
-  let opening = `A ${tier} ${kind} template`;
+  let opening = isDesign
+    ? `Your own ${shape} design`
+    : `A ${item.premium ? "premium" : "free"} ${shape} template`;
   if (size) opening += `, sized ${size}`;
   // Only add the orientation when the format hasn't already said it
   // ("Instagram portrait" + "in portrait" reads twice).
-  if (orientation && !kind.includes(orientation)) opening += ` in ${orientation}`;
+  if (orientation && !shape.includes(orientation)) opening += ` in ${orientation}`;
   opening += ".";
 
   const layers = describeLayers(item.elements);
@@ -129,7 +139,11 @@ function describeTemplate(item) {
     ? ` It's built from ${item.elements.length} editable layers — ${layers}.`
     : "";
 
-  return `${opening}${build} Open it in the studio to swap the copy, colours and images for your own.`;
+  const closing = isDesign
+    ? " Open it in the editor to pick up where you left off."
+    : " Open it in the studio to swap the copy, colours and images for your own.";
+
+  return `${opening}${build}${closing}`;
 }
 
 /**
@@ -154,7 +168,9 @@ function buildSpecs(item) {
       label: "Layers",
       value: Array.isArray(item.elements) ? String(item.elements.length) : null,
     },
-    { label: "Access", value: item.premium ? "Premium" : "Free" },
+    // Only the pool prices its rows; a saved design has no tier, so the row is
+    // dropped rather than claiming "Free".
+    { label: "Access", value: item.pricing ? (item.premium ? "Premium" : "Free") : null },
     { label: "Added", value: created },
     // Only worth a row of its own once it differs from the added date.
     { label: "Updated", value: updated && updated !== created ? updated : null },
@@ -168,7 +184,7 @@ function buildTags(item) {
     item.format,
     item.orientation,
     item.mediaType,
-    item.premium ? "Premium" : "Free",
+    item.pricing ? (item.premium ? "Premium" : "Free") : null,
   ].filter((tag, index, all) => tag && all.indexOf(tag) === index);
 }
 
@@ -191,15 +207,19 @@ function LinkedInIcon({ className = "h-4 w-4" }) {
 
 /**
  * @param {object} props
- * @param {object|null} props.item        The template to show; null closes.
+ * @param {object|null} props.item        The template or design to show, in the
+ *   normalized card shape (`kind` decides the wording); null closes the modal.
  * @param {string|null} [props.previewSrc] The card's already-painted preview,
  *   shown instantly while the high-res one renders.
- * @param {(item: object) => void} props.onUse   Use the template (parent routes).
+ * @param {(item: object) => void} props.onUse   Act on the item (parent routes).
  * @param {() => void} props.onClose             Dismiss the modal.
  */
 export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose }) {
   const panelRef = useRef(null);
-  const [hiResSrc, setHiResSrc] = useState(null);
+  // The high-res paint, tagged with the template it belongs to: { key, src }.
+  // Tagging (rather than clearing on every open) is what keeps the effect below
+  // free of a synchronous setState — a stale paint is filtered out on read.
+  const [hiRes, setHiRes] = useState(null);
   const [copied, setCopied] = useState(false);
 
   // ESC closes, matching every other overlay in the app.
@@ -222,7 +242,6 @@ export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose 
   useEffect(() => {
     if (!item) return;
     let alive = true;
-    setHiResSrc(null);
 
     (async () => {
       try {
@@ -231,7 +250,7 @@ export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose 
           { maxDim: PREVIEW_MAX_DIM, quality: 0.92 },
         );
         if (!alive) return;
-        if (dataUrl) setHiResSrc(dataUrl);
+        if (dataUrl) setHiRes({ key: item.id, src: dataUrl });
         else console.warn(`⚠️ [template-details] couldn't paint "${item.title}" large`);
       } catch (err) {
         if (alive) console.error("❌ [template-details] preview failed:", err);
@@ -243,27 +262,37 @@ export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose 
     };
   }, [item]);
 
-  // The shareable deep link — the home page reads ?template= and reopens this.
+  // What a share link points at. A template gets the home-page deep link that
+  // reopens this modal; a saved design gets its editor URL, which is the only
+  // address it actually has (and only opens for the brand's own members).
   const shareUrl = useMemo(() => {
     if (!item || typeof window === "undefined") return "";
+    if (item.kind === "design") {
+      return `${window.location.origin}${item.href || `/design/${item.id}`}`;
+    }
     const key = item.slug || item.id;
     return `${window.location.origin}${window.location.pathname}?${TEMPLATE_PARAM}=${encodeURIComponent(key)}`;
   }, [item]);
 
   const specs = useMemo(() => (item ? buildSpecs(item) : []), [item]);
   const tags = useMemo(() => (item ? buildTags(item) : []), [item]);
-  const summary = useMemo(() => (item ? describeTemplate(item) : ""), [item]);
+  const summary = useMemo(() => (item ? describeItem(item) : ""), [item]);
 
   if (!item) return null;
 
+  const isDesign = item.kind === "design";
+  const noun = isDesign ? "design" : "template";
+
+  // Ignore a paint left over from the previously opened template.
+  const hiResSrc = hiRes?.key === item.id ? hiRes.src : null;
   const src = hiResSrc || previewSrc || item.thumbnail || null;
 
-  /** Copy the deep link, with a short confirmation on the button itself. */
+  /** Copy the link, with a short confirmation on the button itself. */
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
-      toast.success("Template link copied");
+      toast.success(isDesign ? "Design link copied" : "Template link copied");
       console.log("🔗 [template-details] copied link:", shareUrl);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -279,42 +308,50 @@ export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose 
   };
 
   const handleEmail = () => {
-    const subject = encodeURIComponent(`Template: ${item.title}`);
+    const subject = encodeURIComponent(
+      `${isDesign ? "Design" : "Template"}: ${item.title}`,
+    );
     const body = encodeURIComponent(
-      `Thought you'd like this template on Creative Klux:\n\n${item.title}\n${shareUrl}`,
+      `${isDesign ? "Here's my design on Creative Klux" : "Thought you'd like this template on Creative Klux"}:\n\n${item.title}\n${shareUrl}`,
     );
     console.log(`🔗 [template-details] sharing "${item.title}" → email`);
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
   const handleUse = () => {
-    console.log(`✅ [template-details] using template "${item.title}"`);
+    console.log(`✅ [template-details] using ${noun} "${item.title}"`);
     onUse?.(item);
   };
 
   const shareActions = [
     { key: "link", label: "Copy link", icon: copied ? Check : Link2, onClick: handleCopyLink },
     { key: "email", label: "Share by email", icon: Mail, onClick: handleEmail },
-    {
-      key: "facebook",
-      label: "Share on Facebook",
-      icon: FacebookIcon,
-      onClick: () =>
-        openShare(
-          "facebook",
-          `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`,
-        ),
-    },
-    {
-      key: "linkedin",
-      label: "Share on LinkedIn",
-      icon: LinkedInIcon,
-      onClick: () =>
-        openShare(
-          "linkedin",
-          `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`,
-        ),
-    },
+    // Social sharing is for the public pool only — a saved design's link opens
+    // for nobody outside the brand, so posting it would be a dead end.
+    ...(isDesign
+      ? []
+      : [
+          {
+            key: "facebook",
+            label: "Share on Facebook",
+            icon: FacebookIcon,
+            onClick: () =>
+              openShare(
+                "facebook",
+                `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`,
+              ),
+          },
+          {
+            key: "linkedin",
+            label: "Share on LinkedIn",
+            icon: LinkedInIcon,
+            onClick: () =>
+              openShare(
+                "linkedin",
+                `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`,
+              ),
+          },
+        ]),
   ];
 
   return (
@@ -331,6 +368,10 @@ export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose 
         aria-modal="true"
         aria-labelledby="template-details-title"
         onClick={(event) => event.stopPropagation()}
+        // The home hero's entrance utility, sped up: 0.7s is right for a page
+        // settling in, far too slow for a dialog answering a click. Its
+        // reduced-motion override in globals.css still applies.
+        style={{ animationDuration: "0.28s" }}
         className="animate-hero-in relative flex h-full w-full flex-col overflow-hidden bg-surface shadow-2xl outline-none sm:h-[min(88vh,780px)] sm:max-w-6xl sm:rounded-2xl lg:flex-row"
       >
         {/* Close — sits over the panel's top-right corner on every breakpoint */}
@@ -365,7 +406,7 @@ export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose 
         {/* ── Details column ──────────────────────────────────────────────
             A flex column: the middle scrolls, the Share block below it is
             pinned to the bottom edge. */}
-        <div className="flex min-h-0 flex-1 flex-col border-t border-gray-200 lg:w-[400px] lg:flex-none lg:border-l lg:border-t-0">
+        <div className="flex min-h-0 flex-1 flex-col border-t border-gray-200 lg:w-100 lg:flex-none lg:border-l lg:border-t-0">
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-6">
             {/* Title + badges */}
             <h2
@@ -376,6 +417,7 @@ export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose 
             </h2>
 
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              {/* Templates carry a tier; a saved design is simply the user's. */}
               <span
                 className={`rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
                   item.premium
@@ -383,7 +425,7 @@ export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose 
                     : "bg-blue-500/10 text-blue-600"
                 }`}
               >
-                {item.premium ? "Premium" : "Free"}
+                {isDesign ? "Your design" : item.premium ? "Premium" : "Free"}
               </span>
               {item.format && (
                 <span className="text-[13px] text-gray-500">{item.format}</span>
@@ -396,14 +438,14 @@ export default function TemplateDetailsModal({ item, previewSrc, onUse, onClose 
               )}
             </div>
 
-            {/* Primary action */}
+            {/* Primary action — the only way from this modal into the item */}
             <button
               type="button"
               onClick={handleUse}
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-surface transition-opacity hover:opacity-90 cursor-pointer"
             >
-              <Sparkles className="h-4 w-4" />
-              Use this template
+              {isDesign ? <PenLine className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+              {isDesign ? "Open in editor" : "Use this template"}
             </button>
 
             {/* Summary — generated from the row's fields (see header note) */}

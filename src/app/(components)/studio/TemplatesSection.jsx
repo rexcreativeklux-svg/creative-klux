@@ -12,15 +12,18 @@
 //
 // Structure:
 //   ── full-width rule ─────────────────────────────────────────────
-//   Recent designs • Community templates • Klux templates   Browse all ↗
+//   Recent designs • Klux templates                        Browse all ↗
 //   ── full-width rule ─────────────────────────────────────────────
 //   │  card  │  card  │  card  │  card  │      ← columns divided by rules
 //
-// ⚠️ THE TAB ROW IS PRESENTATIONAL. There is exactly one templates endpoint
-// (see templatesApi.js) and it takes no filters, so every tab shows the same
-// fetched pool — switching tabs only moves the active underline. The row is kept
-// because the per-tab endpoints are still coming; when they land, give each tab
-// its own fetch and this component barely changes.
+// TWO REAL SOURCES behind the tab row (see templatesApi.js):
+//   "Recent designs" → the active brand's saved designs (needs token + brand)
+//   "Klux templates" → the public Scraive template pool (no auth)
+// Each has its own state slice and its own effect, and BOTH load on mount — the
+// pool is one small public request, and pre-loading it makes switching tabs
+// instant instead of dropping the user onto a skeleton. Rows from either source
+// arrive in the same normalized shape, so everything below this point is
+// source-agnostic apart from `item.kind`.
 //
 // The data arrives as full { canvas, elements } layouts, so each card PAINTS the
 // design with the shared renderDesignToCanvas() — the same renderer the editor
@@ -31,27 +34,36 @@
 //
 // A card does NOT open its template. Clicking anywhere on one opens
 // TemplateDetailsModal (its footer chip grows into "View details" on hover to
-// say so); only the modal's "Use this template" button calls `onSelect`. That
-// same modal is what a `?template=<slug>` deep link reopens on load.
+// say so); only the modal's primary button calls `onSelect`. That same modal is
+// what a `?template=<slug>` deep link reopens on load — always against the Klux
+// pool, whichever tab happens to be showing.
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
   ImageIcon,
+  LayoutTemplate,
   MoreHorizontal,
   RefreshCw,
   Sparkles,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
 import TemplateDetailsModal from "./TemplateDetailsModal";
 import {
+  TAB_KLUX,
+  TAB_RECENT,
   TEMPLATE_DISPLAY_LIMIT,
   TEMPLATE_PARAM,
   TEMPLATE_TABS,
   fetchPublicTemplates,
+  fetchRecentDesigns,
   findTemplateByKey,
 } from "./templatesApi";
+
+/** The state every source starts in, before its fetch resolves. */
+const LOADING_STATE = { status: "loading", items: [] };
 
 /** Horizontal padding shared by the tab row and each card's inset. */
 const GUTTER = "px-4 sm:px-6";
@@ -94,22 +106,27 @@ const asColor = (value) =>
 
 /**
  * @param {object} props
- * @param {(item: object) => void} [props.onSelect]     Use a template — fired by
- *   the details modal's primary button, never by a card click.
+ * @param {(item: object) => void} [props.onSelect]     Use the opened item —
+ *   fired by the details modal's primary button, never by a card click.
  * @param {(item: object) => void} [props.onItemMenu]   The card's "…" menu.
- * @param {() => void} [props.onBrowseAll]              The "Browse all" link.
+ * @param {(tabId: string) => void} [props.onBrowseAll] "Browse all", told which
+ *   tab is open so the page can send designs and templates to different routes.
  */
 export default function TemplatesSection({
   onSelect,
   onItemMenu,
   onBrowseAll,
 }) {
-  // Presentational only — see the header note. Kept in state so the row still
-  // responds to a click the way the finished, per-tab version will.
+  // The brand's designs are per-brand and token-gated; the pool is neither.
+  const { fetchDesigns, activeBrandId, brandsLoading } = useAuth();
+
   const [activeTab, setActiveTab] = useState(TEMPLATE_TABS[0].id);
-  const [state, setState] = useState({ status: "loading", items: [] });
-  // Bumped by "Try again" to re-run the fetch.
-  const [reloadKey, setReloadKey] = useState(0);
+  // One slice per source — see the header note on why both load up front.
+  const [templates, setTemplates] = useState(LOADING_STATE);
+  const [recent, setRecent] = useState(LOADING_STATE);
+  // Bumped per source by "Try again" so a retry re-runs only that one fetch.
+  const [kluxReload, setKluxReload] = useState(0);
+  const [recentReload, setRecentReload] = useState(0);
   // The open details modal: { item, previewSrc } — previewSrc is the card's own
   // painted preview, handed over so the modal opens with artwork already there.
   const [details, setDetails] = useState(null);
@@ -121,35 +138,55 @@ export default function TemplatesSection({
   // Logging guard — the resolution log should fire once, not on every render.
   const deepLinkLogged = useRef(false);
 
+  // ── Klux templates ───────────────────────────────────────────────────────
   useEffect(() => {
     const controller = new AbortController();
 
     (async () => {
       // No token: the endpoint is public, and staying out of the auth lifecycle
-      // means the rail fetches exactly once instead of again when a token lands.
+      // means the pool fetches exactly once instead of again when a token lands.
       const next = await fetchPublicTemplates({ signal: controller.signal });
       if (controller.signal.aborted) return;
-      setState(next);
+      setTemplates(next);
     })();
 
     return () => controller.abort();
-  }, [reloadKey]);
+  }, [kluxReload]);
+
+  // ── Recent designs ───────────────────────────────────────────────────────
+  // Waits for the active brand: it arrives asynchronously (localStorage hydrate
+  // → fetchBrands), and calling fetchDesigns() without one only earns a null.
+  // While it's still resolving the slice stays in its loading state, which is
+  // why the rail shows skeletons rather than flashing "No designs yet".
+  useEffect(() => {
+    if (!activeBrandId) return;
+    let alive = true;
+
+    (async () => {
+      const next = await fetchRecentDesigns({ fetchDesigns });
+      if (alive) setRecent(next);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [activeBrandId, fetchDesigns, recentReload]);
 
   // ── Deep link ────────────────────────────────────────────────────────────
-  // A shared link resolves against the WHOLE fetched pool, not just the cards
-  // that made the visible cut, so it still opens when its template isn't one of
-  // the rendered twelve. Derived rather than stored: the modal below opens on
-  // whichever of the two sources is live, and both are cleared on close.
+  // Always resolved against the Klux pool — a shared link points at a public
+  // template, so it opens over whichever tab the user is on. Matched against the
+  // WHOLE pool, not just the cards that made the visible cut, so a link still
+  // opens when its template isn't one of the rendered twelve.
   const deepLinkItem =
-    deepLinkKey && state.status === "ok"
-      ? findTemplateByKey(state.items, deepLinkKey)
+    deepLinkKey && templates.status === "ok"
+      ? findTemplateByKey(templates.items, deepLinkKey)
       : null;
 
   // Report once whether the link resolved — this is the first thing you want in
   // the console when a shared link opens nothing.
   useEffect(() => {
     if (!deepLinkKey || deepLinkLogged.current) return;
-    if (state.status !== "ok" || state.items.length === 0) return;
+    if (templates.status !== "ok" || templates.items.length === 0) return;
 
     deepLinkLogged.current = true;
     if (deepLinkItem) {
@@ -161,9 +198,27 @@ export default function TemplatesSection({
         `⚠️ [templates] deep link "${deepLinkKey}" matched no template in the pool`,
       );
     }
-  }, [deepLinkKey, deepLinkItem, state]);
+  }, [deepLinkKey, deepLinkItem, templates]);
 
+  // ── What the grid renders ────────────────────────────────────────────────
+  // Signed in with no brand at all: there is nothing to fetch, so show the empty
+  // state rather than an error the user can't act on.
+  const recentState =
+    !activeBrandId && !brandsLoading ? { status: "ok", items: [] } : recent;
+  const state = activeTab === TAB_KLUX ? templates : recentState;
   const items = state.items.slice(0, TEMPLATE_DISPLAY_LIMIT);
+
+  /** Reset the ACTIVE tab's slice and re-run only that fetch. */
+  const retryActiveTab = () => {
+    console.log(`🔄 [templates] retrying "${activeTab}"`);
+    if (activeTab === TAB_KLUX) {
+      setTemplates(LOADING_STATE);
+      setKluxReload((key) => key + 1);
+    } else {
+      setRecent(LOADING_STATE);
+      setRecentReload((key) => key + 1);
+    }
+  };
 
   // What the modal shows: an explicitly opened card wins over the deep link.
   const activeDetails =
@@ -182,10 +237,17 @@ export default function TemplatesSection({
     setDeepLinkKey(null);
   };
 
-  /** The modal's primary button — hand the template to the page and close. */
-  const useTemplate = (item) => {
+  /** The modal's primary button — hand the item to the page and close. */
+  const handleUse = (item) => {
     closeDetails();
     onSelect?.(item);
+  };
+
+  /** Switch source. Both are already loaded, so this is instant. */
+  const selectTab = (tabId) => {
+    if (tabId === activeTab) return;
+    console.log(`🗂️ [templates] switching to "${tabId}"`);
+    setActiveTab(tabId);
   };
 
   return (
@@ -214,7 +276,7 @@ export default function TemplatesSection({
                 )}
                 <button
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => selectTab(tab.id)}
                   aria-pressed={active}
                   className={`shrink-0 whitespace-nowrap text-[13px] transition-colors cursor-pointer ${
                     active
@@ -229,9 +291,11 @@ export default function TemplatesSection({
           })}
         </div>
 
+        {/* Told which tab is open: the brand's designs and the public pool live
+            on different routes, so one destination would be wrong half the time. */}
         <button
           type="button"
-          onClick={onBrowseAll}
+          onClick={() => onBrowseAll?.(activeTab)}
           className="flex shrink-0 items-center gap-1 text-[13px] font-medium text-gray-600 transition-colors hover:text-gray-900 cursor-pointer"
         >
           Browse all
@@ -246,12 +310,7 @@ export default function TemplatesSection({
         <StatePanel icon={RefreshCw} title={state.message}>
           <button
             type="button"
-            onClick={() => {
-              // Drop the stale error first so the grid shows its loading state
-              // immediately, then re-run the fetch.
-              setState({ status: "loading", items: [] });
-              setReloadKey((key) => key + 1);
-            }}
+            onClick={retryActiveTab}
             className="mx-auto mt-3 flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -262,11 +321,29 @@ export default function TemplatesSection({
 
       {state.status === "ok" &&
         (items.length === 0 ? (
-          <StatePanel
-            icon={Sparkles}
-            title="No templates to show yet"
-            body="Fresh templates land here as soon as they're published — check back shortly."
-          />
+          activeTab === TAB_RECENT ? (
+            // Nothing saved yet — point at the pool rather than dead-ending.
+            <StatePanel
+              icon={LayoutTemplate}
+              title="No designs yet"
+              body="Anything you create and save shows up here. Start from a Klux template if you'd like a head start."
+            >
+              <button
+                type="button"
+                onClick={() => setActiveTab(TAB_KLUX)}
+                className="mx-auto mt-3 flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Browse Klux templates
+              </button>
+            </StatePanel>
+          ) : (
+            <StatePanel
+              icon={Sparkles}
+              title="No templates to show yet"
+              body="Fresh templates land here as soon as they're published — check back shortly."
+            />
+          )
         ) : (
           <CardGrid>
             {items.map((item) => (
@@ -280,11 +357,11 @@ export default function TemplatesSection({
           </CardGrid>
         ))}
 
-      {/* Details modal — the only route from a card into the template itself */}
+      {/* Details modal — the only route from a card into the item itself */}
       <TemplateDetailsModal
         item={activeDetails?.item ?? null}
         previewSrc={activeDetails?.previewSrc ?? null}
-        onUse={useTemplate}
+        onUse={handleUse}
         onClose={closeDetails}
       />
     </section>
@@ -408,7 +485,7 @@ function TemplateCard({ item, onOpenDetails, onItemMenu }) {
       {/* Artwork */}
       <div
         ref={ref}
-        className="relative aspect-16/10 overflow-hidden rounded-lg border border-gray-200 bg-[#c1d5f7]"
+        className="relative aspect-16/10 overflow-hidden rounded-lg border border-gray-200 bg-[#eff6ff8f]"
         // style={tileColor ? { backgroundColor: tileColor } : undefined}
       >
         {src ? (

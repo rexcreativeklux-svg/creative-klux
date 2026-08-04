@@ -792,12 +792,12 @@ export default function CreativesPage() {
           >
             <Plus className="w-4 h-4" /> Create using Scraive
           </Link> */}
-          <Link
+          {/* <Link
             href="/"
             className="flex items-center gap-2 border border-gray-300 hover:bg-gray-200 text-gray-900 text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
           >
             <Plus className="w-4 h-4" /> Instant Creation
-          </Link>
+          </Link> */}
           <Link
             href="/studio/select"
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"

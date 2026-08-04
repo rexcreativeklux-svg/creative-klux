@@ -143,7 +143,7 @@ const Header = ({ sidebarOpen, toggleSidebar }) => {
 
         {/* Dropdown */}
         {!brandsLoading && isDropdownOpen && (
-          <div className="absolute right-0 top-full mt-2 z-9999 w-220px bg-surface border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="absolute right-0 top-full mt-2 z-9999 w-65 max-w-[calc(100vw-2rem)] bg-surface border border-gray-200 rounded-xl shadow-lg overflow-hidden">
             {/* Search */}
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50">
               <input

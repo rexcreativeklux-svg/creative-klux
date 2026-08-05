@@ -40,6 +40,8 @@ import {
   getMetaAdsCampaignStats,
 } from "../../../../../(lib)/integration";
 import { useAuth } from "@/context/AuthContext";
+import ResponsiveTable from "@/app/(components)/ui/ResponsiveTable";
+import { ChartFrame, useChartDensity } from "@/app/(components)/ui/ResponsiveChart";
 
 const PLATFORM_META = {
   facebook: { label: "Facebook", color: "#3b82f6", emoji: "🔵" },
@@ -51,6 +53,82 @@ const PLATFORM_META = {
   linkedin: { label: "LinkedIn", color: "#2563eb", emoji: "💼" },
   twitter: { label: "X/Twitter", color: "#475569", emoji: "🐦" },
 };
+
+/** Format a metric, falling back to an em dash so empty cells still read as cells. */
+const num = (v) => v?.toLocaleString?.() ?? "—";
+
+/**
+ * The Post Performance table, as data.
+ *
+ * One definition drives BOTH renderings in <ResponsiveTable> — the eight-column
+ * table from `md` up, and the stacked label:value card below it. Writing the
+ * cells once is the point: a metric added here appears in both, and the two
+ * cannot drift apart the way a hand-maintained mobile variant would.
+ *
+ * `primary` marks the card's title (the post itself); the rest become labelled
+ * rows inside it.
+ */
+const AD_COLUMNS = [
+  {
+    key: "post",
+    header: "Ad",
+    primary: true,
+    thClassName: "px-4",
+    tdClassName: "px-4",
+    cell: (post) => (
+      <div className="flex items-center gap-2.5">
+        {post.image_url && (
+          <img
+            src={post.image_url}
+            alt=""
+            className="w-8 h-8 rounded object-cover shrink-0"
+          />
+        )}
+        {/* The cap only applies in the table, where eight columns share the
+            width. On a card the title gets the full row. */}
+        <p className="truncate text-xs text-gray-800 md:max-w-[160px]">
+          {post.project_title}
+        </p>
+      </div>
+    ),
+  },
+  {
+    key: "platform",
+    header: "Platform",
+    cell: (post) => {
+      const meta = PLATFORM_META[post.platform] || {
+        emoji: "🌐",
+        label: post.platform,
+      };
+      return (
+        <span className="text-xs text-gray-500">
+          {meta.emoji} {meta.label}
+        </span>
+      );
+    },
+  },
+  { key: "impressions", header: "Impressions", align: "center", cell: (p) => num(p.stats?.impressions) },
+  { key: "reach", header: "Reach", align: "center", cell: (p) => num(p.stats?.reach) },
+  { key: "clicks", header: "Clicks", align: "center", cell: (p) => num(p.stats?.clicks) },
+  { key: "likes", header: "Likes", align: "center", cell: (p) => num(p.stats?.likes) },
+  {
+    key: "ctr",
+    header: "CTR",
+    align: "center",
+    cell: (p) => (p.stats?.ctr ? `${Number(p.stats.ctr).toFixed(2)}%` : "—"),
+  },
+  {
+    key: "updated",
+    header: "Updated",
+    align: "right",
+    thClassName: "px-4",
+    tdClassName: "px-4",
+    cell: (p) =>
+      p.stats?.last_updated
+        ? format(new Date(p.stats.last_updated), "MMM d HH:mm")
+        : "—",
+  },
+];
 
 function StatCard({ icon: Icon, label, value, sub, accent = false }) {
   return (
@@ -371,15 +449,20 @@ export default function AdsAnalytics() {
   const hasAnyStats = publishedPosts.some(
     (p) => p.stats && Object.keys(p.stats).length > 0,
   );
+  // Shared by every chart here — see the matching note in social-content/analytics.
+  const chart = useChartDensity();
   const xAxisProps = {
-    tick: { fontSize: 10, fill: "#9ca3af" },
+    tick: { fontSize: chart.tickFontSize, fill: "#9ca3af" },
     tickLine: false,
     axisLine: false,
+    interval: chart.tickInterval,
+    minTickGap: chart.minTickGap,
   };
   const yAxisProps = {
-    tick: { fontSize: 10, fill: "#9ca3af" },
+    tick: { fontSize: chart.tickFontSize, fill: "#9ca3af" },
     tickLine: false,
     axisLine: false,
+    width: chart.yAxisWidth,
   };
 
   return (
@@ -432,7 +515,7 @@ export default function AdsAnalytics() {
       ) : (
         <div className="space-y-6 pb-5">
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               icon={Eye}
               label="Total Impressions"
@@ -492,7 +575,7 @@ export default function AdsAnalytics() {
             <h3 className="font-semibold text-gray-800 text-sm mb-4">
               Performance — Last 14 Days
             </h3>
-            <ResponsiveContainer width="100%" height={220}>
+            <ChartFrame size="md"><ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={timelineData}
                 margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
@@ -524,7 +607,7 @@ export default function AdsAnalytics() {
                   dot={false}
                 />
               </LineChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer></ChartFrame>
           </div>
 
           {/* Platform breakdown + Engagement pie */}
@@ -538,7 +621,7 @@ export default function AdsAnalytics() {
                   No data
                 </p>
               ) : (
-                <ResponsiveContainer width="100%" height={200}>
+                <ChartFrame size="sm"><ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={platformData}
                     margin={{ top: 0, right: 8, left: -20, bottom: 0 }}
@@ -553,7 +636,7 @@ export default function AdsAnalytics() {
                       ))}
                     </Bar>
                   </BarChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer></ChartFrame>
               )}
             </div>
 
@@ -566,7 +649,7 @@ export default function AdsAnalytics() {
                   No engagement data yet
                 </p>
               ) : (
-                <ResponsiveContainer width="100%" height={200}>
+                <ChartFrame size="sm"><ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={engagementPie}
@@ -584,7 +667,7 @@ export default function AdsAnalytics() {
                     <Tooltip {...CUSTOM_TOOLTIP_STYLE} />
                     <Legend wrapperStyle={{ fontSize: 11, color: "#6b7280" }} />
                   </PieChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer></ChartFrame>
               )}
             </div>
           </div>
@@ -596,94 +679,15 @@ export default function AdsAnalytics() {
                 Ad Performance
               </h3>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left px-4 py-2.5 text-xs text-gray-400 font-semibold">
-                      Ad
-                    </th>
-                    <th className="text-left px-3 py-2.5 text-xs text-gray-400 font-semibold">
-                      Platform
-                    </th>
-                    <th className="text-center px-3 py-2.5 text-xs text-gray-400 font-semibold">
-                      Impressions
-                    </th>
-                    <th className="text-center px-3 py-2.5 text-xs text-gray-400 font-semibold">
-                      Reach
-                    </th>
-                    <th className="text-center px-3 py-2.5 text-xs text-gray-400 font-semibold">
-                      Clicks
-                    </th>
-                    <th className="text-center px-3 py-2.5 text-xs text-gray-400 font-semibold">
-                      Likes
-                    </th>
-                    <th className="text-center px-3 py-2.5 text-xs text-gray-400 font-semibold">
-                      CTR
-                    </th>
-                    <th className="text-right px-4 py-2.5 text-xs text-gray-400 font-semibold">
-                      Updated
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {publishedPosts.map((post, i) => {
-                    const meta = PLATFORM_META[post.platform] || {
-                      emoji: "🌐",
-                      label: post.platform,
-                    };
-                    const s = post.stats || {};
-                    return (
-                      <tr
-                        key={post.id}
-                        className={
-                          "border-b border-gray-100 hover:bg-blue-50 transition-colors " +
-                          (i % 2 !== 0 ? "bg-gray-50/60" : "bg-surface")
-                        }
-                      >
-                        <td className="px-4 py-2.5">
-                          <div className="flex items-center gap-2.5">
-                            {post.image_url && (
-                              <img
-                                src={post.image_url}
-                                alt=""
-                                className="w-8 h-8 rounded object-cover shrink-0"
-                              />
-                            )}
-                            <p className="text-xs text-gray-800 truncate max-w-[160px]">
-                              {post.project_title}
-                            </p>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2.5 text-xs text-gray-500">
-                          {meta.emoji} {meta.label}
-                        </td>
-                        <td className="px-3 py-2.5 text-center text-xs text-gray-800">
-                          {s.impressions?.toLocaleString() || "—"}
-                        </td>
-                        <td className="px-3 py-2.5 text-center text-xs text-gray-800">
-                          {s.reach?.toLocaleString() || "—"}
-                        </td>
-                        <td className="px-3 py-2.5 text-center text-xs text-gray-800">
-                          {s.clicks?.toLocaleString() || "—"}
-                        </td>
-                        <td className="px-3 py-2.5 text-center text-xs text-gray-800">
-                          {s.likes?.toLocaleString() || "—"}
-                        </td>
-                        <td className="px-3 py-2.5 text-center text-xs text-gray-800">
-                          {s.ctr ? `${Number(s.ctr).toFixed(2)}%` : "—"}
-                        </td>
-                        <td className="px-4 py-2.5 text-right text-[10px] text-gray-400">
-                          {s.last_updated
-                            ? format(new Date(s.last_updated), "MMM d HH:mm")
-                            : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {/* Eight metric columns are unreadable by sideways scrolling on a
+                phone. <ResponsiveTable> keeps the table from `md` up and stacks
+                each row into a labelled card below it, from one column config. */}
+            <ResponsiveTable
+              rows={publishedPosts}
+              rowKey={(post) => post.id}
+              columns={AD_COLUMNS}
+              className="border-0 rounded-none"
+            />
           </div>
         </div>
       )}

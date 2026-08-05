@@ -14,7 +14,31 @@ import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-const Header = ({ sidebarOpen, toggleSidebar }) => {
+/**
+ * The app's fixed top bar.
+ *
+ * ── THE OFFSET, AND THE BUG THAT WAS IN IT ──────────────────────────────────
+ * The bar is `fixed`, so it does not sit inside the layout's flex row and has
+ * to be told where the sidebar ends. It used to do that unconditionally:
+ *
+ *     ${sidebarOpen ? "left-56" : "left-15"}
+ *
+ * But the sidebar itself is hidden below `lg`, while `sidebarOpen` is restored
+ * from localStorage and defaults to TRUE. So on a phone the bar was pushed
+ * 224px right against a sidebar that was not on screen — on a 375px device
+ * that left 151px of usable header, with the brand switcher off the edge.
+ *
+ * The offsets are `lg:` prefixed now, so they apply only when there is
+ * actually a sidebar to clear. Below `lg` the bar spans the full width and
+ * carries its own hamburger instead, which opens the sidebar as a drawer.
+ *
+ * @param {Object}   props
+ * @param {boolean}  props.sidebarOpen    Desktop sidebar expanded? Drives the offset.
+ * @param {Function} props.toggleSidebar  Desktop collapse/expand.
+ * @param {Function} [props.onOpenNav]    Opens the mobile nav drawer (below `lg`).
+ *   Supplied by (dashboard)/layout.js, which owns the drawer state.
+ */
+const Header = ({ sidebarOpen, toggleSidebar, onOpenNav }) => {
   const { brands, setActiveBrand, brandsLoading, activeBrand, switchingBrandId } =
     useAuth();
   const router = useRouter();
@@ -68,14 +92,26 @@ const Header = ({ sidebarOpen, toggleSidebar }) => {
 
   return (
     <div
-      className={`fixed top-0 left-0 right-0 z-50 border-custom flex items-center justify-between bg-surface  px-6 h-16
-      ${sidebarOpen ? "left-56 right-0" : "left-15  right-"}`}
+      className={`fixed top-0 left-0 right-0 z-50 border-custom flex items-center justify-between bg-surface px-gutter h-header
+      ${sidebarOpen ? "lg:left-56" : "lg:left-15"}`}
     >
-      {/* Left — sidebar toggle */}
-      <div className="flex items-center gap-3">
+      {/* Left — nav controls */}
+      <div className="flex min-w-0 items-center gap-2">
+        {/* Mobile: opens the full sidebar as a drawer. Without this the whole
+            of the sidebar — the Apps/Copilot tabs, the theme switcher, the
+            account block — is unreachable below `lg`. */}
+        <button
+          onClick={onOpenNav}
+          className="ck-tap lg:hidden p-2 rounded-lg cursor-pointer text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+          aria-label="Open navigation menu"
+        >
+          <AlignLeft className="h-5 w-5 text-[#155dfc]" />
+        </button>
+
+        {/* Desktop: collapse/expand the in-flow sidebar. */}
         <button
           onClick={toggleSidebar}
-          className="p-2 rounded-lg cursor-pointer text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+          className="hidden lg:block p-2 rounded-lg cursor-pointer text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
           aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
         >
           {sidebarOpen ? (
@@ -84,13 +120,22 @@ const Header = ({ sidebarOpen, toggleSidebar }) => {
             <AlignLeft className="h-5 w-5 text-[#155dfc]" />
           )}
         </button>
+
+        {/* No mobile wordmark here by design. It used to sit beside the
+            hamburger, but the nav drawer's own logo row already carries the
+            brand below `lg` — and on a 360px screen those characters are worth
+            more to the brand switcher on the right. */}
       </div>
 
-      {/* Right — brand switcher */}
-      <div className="relative" ref={switcherRef}>
+      {/* Right — brand switcher.
+          `shrink-0` on the wrapper and `min-w-0` on the left group above are
+          what let a long brand name truncate instead of pushing past the edge.
+          The width cap tightens on small screens so the two sides of the
+          header can share a 360px viewport. */}
+      <div className="relative shrink-0" ref={switcherRef}>
         <button
           onClick={() => setDropdownOpen((prev) => !prev)}
-          className="flex items-center cursor-pointer gap-2 px-3 py-2 w-220px border border-gray-200 rounded-lg text-[13px] font-medium text-gray-800 hover:border-gray-300 transition-colors bg-surface truncate max-w-50"
+          className="flex items-center cursor-pointer gap-2 px-2 py-2 sm:px-3 border border-gray-200 rounded-lg text-[13px] font-medium text-gray-800 hover:border-gray-300 transition-colors bg-surface max-w-36 sm:max-w-50"
         >
           {brandsLoading ? (
             <span className="flex-1 text-left text-gray-400">Loading...</span>
@@ -153,9 +198,14 @@ const Header = ({ sidebarOpen, toggleSidebar }) => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 text-sm bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
               />
+              {/* ck-tap: this glyph is 14px. On a touchscreen that is a third
+                  of a fingertip — the tap either misses or lands on the search
+                  field beside it. The class expands only the HIT area, so the
+                  ✕ still renders at exactly 14px. */}
               <button
                 onClick={() => setDropdownOpen(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="ck-tap text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                aria-label="Close brand list"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -245,7 +295,8 @@ const Header = ({ sidebarOpen, toggleSidebar }) => {
                         }}
                         disabled={switching}
                         title="Manage brand"
-                        className="shrink-0 p-1.5 rounded-md text-gray-400 hover:bg-gray-200/70 hover:text-gray-700 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                        aria-label={`Manage ${displayName}`}
+                        className="ck-tap shrink-0 p-1.5 rounded-md text-gray-400 hover:bg-gray-200/70 hover:text-gray-700 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Settings className="h-4 w-4" />
                       </button>

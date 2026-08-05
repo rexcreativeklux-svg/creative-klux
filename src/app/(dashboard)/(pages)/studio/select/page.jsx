@@ -148,7 +148,7 @@ export default function StudioSelectPage() {
 
   return (
     <div
-      className="h-full"
+      className="h-full pb-nav lg:pb-0"
       style={{
         background: "#ffffff",
         position: "relative",

@@ -92,7 +92,11 @@ export default function ProductHistoryGrid({
         </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-3">
+      {/* Container-driven: this grid renders both full-width and inside the
+          narrowed pane beside an open sidebar, so a fixed `grid-cols-4` was
+          right in neither. 150px is the floor at which a product thumbnail is
+          still identifiable. */}
+      <div className="grid grid-fluid-[150px] gap-3">
         {/* Leading generating tile — keeps the in-flight generation visible. */}
         {generating && (
           <div

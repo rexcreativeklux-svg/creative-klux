@@ -4,12 +4,14 @@ import { useEffect, useState, useTransition, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { isImpersonating } from "@/utils/impersonation";
+import { useBreakpoint } from "@/utils/useMediaQuery";
 import Header from "../(components)/Header";
 import { SecondarySidebarProvider } from "@/context/SecondarySidebarContext";
 import Home from "./page";
 import ModalPage from "../(components)/ModalPage";
 import ProtectedRoute from "../(components)/ProtectedRoutes";
 import Sidebar from "../(components)/Sidebar";
+import Drawer from "../(components)/ui/Drawer";
 import '../globals.css';
 
 const NO_PADDING_ROUTES = [
@@ -161,6 +163,31 @@ export default function DashboardLayout({ children }) {
                 : false // ← the default the moment the route is entered
             : sidebarOpen;
 
+    // ── Mobile nav drawer ────────────────────────────────────────────────────
+    // Below `lg` the sidebar is not in the layout flow at all; it opens as a
+    // drawer from the header's hamburger or the bottom bar's "More".
+    //
+    // Deliberately its OWN state and deliberately NOT persisted. `sidebarOpen`
+    // above is a durable preference about the desktop rail; whether a drawer
+    // happens to be open is a transient fact about right now. Reusing
+    // `sidebarOpen` for both would mean opening the drawer on a phone silently
+    // rewrites the user's desktop layout — and the localStorage key would gain
+    // a second writer, which the per-route override logic below depends on not
+    // happening.
+    const [navDrawerOpen, setNavDrawerOpen] = useState(false);
+
+    // Growing past `lg` puts the real sidebar back on screen, which would
+    // otherwise leave the drawer stranded on top of it — rotate a tablet to
+    // landscape with the drawer open and you get both at once. Adjusted during
+    // render (the same pattern as `wasSectionRoute` below) rather than in an
+    // effect, so it does not trigger a cascading re-render.
+    const isDesktopWidth = useBreakpoint("lg");
+    const [wasDesktopWidth, setWasDesktopWidth] = useState(isDesktopWidth);
+    if (wasDesktopWidth !== isDesktopWidth) {
+        setWasDesktopWidth(isDesktopWidth);
+        if (isDesktopWidth && navDrawerOpen) setNavDrawerOpen(false);
+    }
+
     // Secondary (section) sidebar open/collapsed state — persisted separately
     // from the primary so each remembers its own preference.
     const [secondaryOpen, setSecondaryOpen] = useState(() => {
@@ -257,18 +284,53 @@ export default function DashboardLayout({ children }) {
 
     return (
         <ProtectedRoute>
-            <div className="h-screen flex overflow-hidden">
+            {/* 100dvh, not h-screen: on a phone `100vh` resolves against the
+                LARGE viewport, so the bottom of the shell — the mobile nav —
+                sits under the browser's own chrome until the user scrolls. */}
+            <div className="h-[100dvh] flex overflow-hidden">
 
                 <Sidebar
                     isOpen={effectiveSidebarOpen}
                     setIsOpen={setSidebarOpenForRoute}
                     overlayMode={isSectionRoute}
                     pinned={primaryPinned}
+                    onOpenNav={() => setNavDrawerOpen(true)}
                 />
 
+                {/* ── Mobile nav drawer ──────────────────────────────────────
+                    The SAME <Sidebar>, rendered in drawer form. Not a second
+                    nav component to keep in step — one list of links, one
+                    account block, one theme switcher, shown two ways.
+
+                    `onNavigate` closes the drawer when a link is followed.
+                    That lives here rather than inside <Drawer> on purpose: a
+                    usePathname() effect in the drawer would fire on every
+                    route change in the app, including ones it had nothing to
+                    do with. */}
+                <Drawer
+                    isOpen={navDrawerOpen}
+                    onClose={() => setNavDrawerOpen(false)}
+                    label="Main navigation"
+                >
+                    <Sidebar
+                        variant="drawer"
+                        isOpen
+                        setIsOpen={() => { }}
+                        onNavigate={() => setNavDrawerOpen(false)}
+                        onClose={() => setNavDrawerOpen(false)}
+                    />
+                </Drawer>
+
                 <main
-                    style={{ "--ck-content-left": effectiveSidebarOpen ? "14rem" : "3.75rem", "--ck-content-top": "4rem" }}
-                    className={`flex flex-1 flex-col overflow-hidden h-full transition-opacity duration-200 ${isPending ? "opacity-70 pointer-events-none" : ""}`}
+                    // --ck-content-* tell the full-screen loader where the
+                    // content area starts (see loaders/full-overlay-loader.jsx).
+                    // Written as Tailwind arbitrary properties rather than an
+                    // inline style so they can be breakpoint-aware: below `lg`
+                    // there is no sidebar in the flow, so the offset is 0.
+                    className={`flex flex-1 flex-col overflow-hidden h-full transition-opacity duration-200
+                        [--ck-content-left:0px] [--ck-content-top:var(--spacing-header)]
+                        ${effectiveSidebarOpen ? "lg:[--ck-content-left:14rem]" : "lg:[--ck-content-left:3.75rem]"}
+                        ${isPending ? "opacity-70 pointer-events-none" : ""}`}
                 >
                     {/* On section routes the header follows the PIN state: pinned
                         → shifts to left-56 so its toggle stays reachable beside
@@ -276,11 +338,28 @@ export default function DashboardLayout({ children }) {
                     <Header
                         sidebarOpen={isSectionRoute ? primaryPinned : effectiveSidebarOpen}
                         toggleSidebar={toggleSidebar}
+                        onOpenNav={() => setNavDrawerOpen(true)}
                     // setShowModal={() => { }}
 
                     />
                     <div className="flex-1 bg-page h-full overflow-y-auto">
-                        <div className={`h-full ${noPadding ? "" : "px-9 pt-24"}`}>
+                        {/* Was `px-9 pt-24` at every width — 36px gutters and
+                            96px of top padding on a 360px phone, with nothing
+                            reserving the bottom nav's height, so the last row
+                            of every page sat underneath it.
+
+                            Now: fluid gutters (12 → 36px), top padding derived
+                            from the header's own height so the two cannot
+                            drift, and bottom clearance for the nav + the iOS
+                            home indicator, dropped again at `lg` where the bar
+                            is gone. Same shape as <PageContainer>, which pages
+                            adopting their own frame should use instead. */}
+                        <div
+                            className={`h-full ${noPadding
+                                ? ""
+                                : "px-gutter pt-[calc(var(--spacing-header)+var(--spacing-page-y))] pb-[calc(var(--spacing-nav)+var(--spacing-page-y))] lg:pb-page-y"
+                                }`}
+                        >
                             <SecondarySidebarProvider
                                 value={{ isOpen: secondaryOpen, toggle: toggleSecondary }}
                             >

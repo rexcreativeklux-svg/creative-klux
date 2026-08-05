@@ -1525,18 +1525,18 @@ export default function BackgroundRemoverModal({
 
   return (
     <div
-      className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-3"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 sm:p-3"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="bg-surface rounded-2xl shadow-2xl flex overflow-hidden w-full h-full"
+        className="bg-surface shadow-2xl flex flex-col-reverse overflow-hidden w-full h-full lg:flex-row lg:rounded-2xl"
         style={{ maxWidth: "1600px", maxHeight: "960px" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Icon sidebar ── */}
-        <div className="w-16 border-r border-gray-200 flex flex-col items-center py-2 bg-surface shrink-0">
+        <div className="w-16 border-r border-gray-200 flex flex-col items-center py-2 bg-surface shrink-0 overflow-y-auto max-h-[38dvh] lg:max-h-none">
           <SidebarIcon
             active={activePanel === "templates"}
             onClick={() => setActivePanel("templates")}
@@ -1636,7 +1636,7 @@ export default function BackgroundRemoverModal({
         </div>
 
         {/* ── Side panel ── */}
-        <div className="w-64 border-r border-gray-200 flex flex-col bg-surface shrink-0 overflow-hidden">
+        <div className="flex-1 min-w-0 max-h-[38dvh] border-r border-gray-200 flex flex-col bg-surface overflow-hidden lg:w-64 lg:flex-none lg:max-h-none">
           {/* TEMPLATES */}
           {activePanel === "templates" && !showAllTemplates && (
             <div className="flex flex-col h-full">

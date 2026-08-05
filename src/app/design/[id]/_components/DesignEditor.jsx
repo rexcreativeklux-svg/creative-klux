@@ -35,6 +35,7 @@ import {
 import { measureText } from "./textFit";
 import { TABLE_DEFAULTS, makeCells } from "@/(lib)/design/tableUtils";
 import { KEYFRAMES_CSS } from "@/(lib)/design/animations";
+import { useBreakpoint } from "@/utils/useMediaQuery";
 
 const DRAW_TOOLS = ["pen", "marker", "highlighter", "eraser"];
 
@@ -78,6 +79,9 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   } = editor;
 
   const [name, setName] = useState(design?.name || "Untitled design");
+  // Below `lg` the editor is a bottom-bar + sheet layout and the canvas is
+  // fitted on mount rather than opening at a fixed 50% (see fitZoom below).
+  const isCompactEditor = !useBreakpoint("lg");
   const [zoom, setZoom] = useState(0.5); // default zoom 50%
   const [editingId, setEditingId] = useState(null);
   // The cell the user last clicked inside a table: { id, r, c }. Drives which
@@ -584,13 +588,71 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     setZoom(Math.max(z, MIN_ZOOM));
   }, [canvas.width, canvas.height]);
 
-  // The editor opens at a fixed 50% (see the zoom useState) — we no longer
-  // fit-to-screen on mount. Resizing the window still refits.
+  // On desktop the editor opens at a fixed 50% (see the zoom useState) rather
+  // than fitting, because half-size is a useful working zoom on a large screen.
+  //
+  // On a phone that default is unusable: a 1080px-wide design at 50% is 540px
+  // on a 360px screen, so the artboard opens already overflowing and the user
+  // has to zoom out before they can see what they are editing. Below `lg` we
+  // fit on mount instead — once, so it never fights a zoom the user chose.
+  const fittedOnceRef = useRef(false);
+  useLayoutEffect(() => {
+    if (isCompactEditor && !fittedOnceRef.current) {
+      fittedOnceRef.current = true;
+      fitZoom();
+    }
+  }, [isCompactEditor, fitZoom]);
+
   useLayoutEffect(() => {
     const onResize = () => fitZoom();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [fitZoom]);
+
+  // ── Pinch to zoom ─────────────────────────────────────────────────────────
+  // Two-finger pinch on the stage viewport. Written with pointer events on the
+  // wrapper (the same API the editor already uses for its draw/handle
+  // interactions) rather than a library, so it composes with react-rnd's own
+  // pointer handling instead of competing with it.
+  //
+  // Only ever engages with EXACTLY two pointers down, which is what keeps it
+  // out of the way of single-finger element dragging.
+  const pinchRef = useRef(null);
+  const activePointersRef = useRef(new Map());
+
+  const onStagePointerDown = useCallback((e) => {
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (activePointersRef.current.size === 2) {
+      const [a, b] = [...activePointersRef.current.values()];
+      pinchRef.current = {
+        startDist: Math.hypot(b.x - a.x, b.y - a.y),
+        startZoom: zoom,
+      };
+    }
+  }, [zoom]);
+
+  const onStagePointerMove = useCallback((e) => {
+    const pointers = activePointersRef.current;
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    const pinch = pinchRef.current;
+    if (!pinch || pointers.size !== 2) return;
+
+    const [a, b] = [...pointers.values()];
+    const dist = Math.hypot(b.x - a.x, b.y - a.y);
+    if (!pinch.startDist) return;
+
+    const next = pinch.startZoom * (dist / pinch.startDist);
+    setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next)));
+  }, []);
+
+  const onStagePointerUp = useCallback((e) => {
+    activePointersRef.current.delete(e.pointerId);
+    // Drop the gesture as soon as it stops being a two-finger one, so lifting
+    // one finger does not leave a stale scale factor armed for the next touch.
+    if (activePointersRef.current.size < 2) pinchRef.current = null;
+  }, []);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────
   useEffect(() => {
@@ -1197,12 +1259,25 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
           }}
         />
 
-        {/* Stage viewport */}
+        {/* Stage viewport.
+            Below `lg` it scrolls instead of clipping: once a pinch takes the
+            artboard past the viewport there has to be some way to reach its
+            edges, and native overflow scrolling gives that with momentum for
+            free. `[&>*]:m-auto` keeps the artboard centred while it still fits
+            and stops flexbox centring from making the top-left unreachable
+            once it does not — the classic overflow + justify-center trap.
+            pb-nav clears the icon rail, which is fixed to the bottom edge there. */}
         <div
           ref={stageWrapRef}
-          className="relative flex-1 overflow-hidden flex items-center justify-center"
+          className="relative flex-1 flex items-center justify-center overflow-auto pb-nav [&>*]:m-auto lg:overflow-hidden lg:pb-0"
+          onPointerDown={onStagePointerDown}
+          onPointerMove={onStagePointerMove}
+          onPointerUp={onStagePointerUp}
+          onPointerCancel={onStagePointerUp}
           onMouseDown={(e) => {
-            // click empty area → deselect
+            // click empty area → deselect.
+            // ⚠️ Depends on the click landing on THIS node — do not wrap the
+            // stage below in another element without moving this check with it.
             if (e.target === e.currentTarget) {
               selectElement(null);
               setEditingId(null);

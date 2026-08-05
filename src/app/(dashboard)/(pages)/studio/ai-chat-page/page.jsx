@@ -12,6 +12,7 @@ import AiChatInput from "@/app/(components)/studio/AiChatInput";
 import AiChatTypingIndicator from "@/app/(components)/studio/AiChatTypingIndicator";
 import AiPreviewIdle from "@/app/(components)/studio/AiPreviewIdle";
 import PaneResizer, { useResizablePane } from "@/app/(components)/studio/PaneResizer";
+import { useBreakpoint } from "@/utils/useMediaQuery";
 import {
   buildTemplateQuery,
   normalizeDesignTemplate,
@@ -661,6 +662,15 @@ export default function AiCreativeChatPage() {
     minSiblingWidth: 300,
   });
 
+  // ── Split vs. tabs ────────────────────────────────────────────────────────
+  // The two minimums above add up to 600px of content area before the split is
+  // even viable, and that is before either pane has usable padding. Below `lg`
+  // the panes become tabs instead, and the resizer is not rendered at all —
+  // which is also what keeps the saved width single-writer: no handle to drag
+  // means nothing writes to localStorage while the user is on a phone.
+  const isDesktopSplit = useBreakpoint("lg");
+  const [mobilePane, setMobilePane] = useState("chat");
+
   const initialMessage = searchParams.get("initialMessage") || "";
   // The model the composer picked, passed straight through to the API.
   const model = searchParams.get("model") || "";
@@ -915,7 +925,10 @@ export default function AiCreativeChatPage() {
 
   /* ── render ── */
   return (
-    <div className="pt-16 h-full"
+    // pb-nav: this route is in NO_PADDING_ROUTES, so the layout frames nothing
+    // for it. Without this the composer's send button sits under the mobile
+    // bottom bar — the one control the page exists to offer.
+    <div className="pt-header pb-nav lg:pb-0 h-full"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -923,21 +936,50 @@ export default function AiCreativeChatPage() {
           "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       }}
     >
+      {/* ── Mobile pane switcher ─────────────────────────────────────────────
+          Two panes side by side needs roughly 800px before either is usable;
+          below `lg` they become tabs and one owns the screen at a time.
 
+          The panes are NOT unmounted when hidden — `display:none` keeps both
+          in the tree, so switching tabs cannot lose the chat's scroll position,
+          an in-flight response, or anything typed into the composer. */}
+      <div className="flex shrink-0 border-b border-gray-200 bg-surface lg:hidden">
+        {[
+          { id: "chat", label: "Chat" },
+          { id: "preview", label: "Preview" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setMobilePane(tab.id)}
+            className={`flex-1 basis-0 py-3 text-sm font-semibold transition-colors ${
+              mobilePane === tab.id
+                ? "border-b-2 border-blue-600 text-blue-600"
+                : "text-gray-500 hover:text-gray-800"
+            }`}
+            aria-pressed={mobilePane === tab.id}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       {/* ── Body ── */}
       {/* splitRef measures the space the two panes share, so the drag can't push
           the chat panel past what the preview needs. */}
-      <div ref={splitRef} style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div ref={splitRef} style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
 
         {/* ── Chat panel ── */}
         {/* chatPaneProps.style carries the dragged width (plus the min-width and
             the flex rules that stop the flexbox resizing it on its own). Drag it
-            with the <PaneResizer /> further down. */}
+            with the <PaneResizer /> further down.
+            Below `lg` that dragged width is deliberately NOT applied: the pane
+            goes full-width instead. The saved value is still read on mount and
+            never written while here (no resizer is rendered to drag), so the
+            desktop setting survives a visit on a phone untouched. */}
         <div
           style={{
-            ...chatPaneProps.style,
-            display: "flex",
+            ...(isDesktopSplit ? chatPaneProps.style : { width: "100%", flex: 1, minWidth: 0 }),
+            display: isDesktopSplit || mobilePane === "chat" ? "flex" : "none",
             flexDirection: "column",
             background: "#fff",
           }}
@@ -1080,19 +1122,23 @@ export default function AiCreativeChatPage() {
           </div>
         </div>
 
-        {/* ── Drag handle ── (also the divider between the two panes) */}
-        <PaneResizer
-          {...resizerProps}
-          label="Resize the chat panel"
-          accentRgb={colorRgb}
-        />
+        {/* ── Drag handle ── (also the divider between the two panes)
+            Only exists when there IS a split to resize. Its absence below `lg`
+            is what guarantees the saved pane width is never rewritten there. */}
+        {isDesktopSplit && (
+          <PaneResizer
+            {...resizerProps}
+            label="Resize the chat panel"
+            accentRgb={colorRgb}
+          />
+        )}
 
         {/* ── Preview panel ── */}
         <div
           style={{
             flex: 1,
             minWidth: 0,
-            display: "flex",
+            display: isDesktopSplit || mobilePane === "preview" ? "flex" : "none",
             flexDirection: "column",
             background: "#f5f5f5",
             position: "relative",

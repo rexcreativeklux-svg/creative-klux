@@ -20,11 +20,14 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { FaFacebook } from "react-icons/fa";
+import { useBreakpoint } from "@/utils/useMediaQuery";
 
 export default function TeamsList({ onActiveCountChange, showNotification }) {
   // Use shared teams state from AuthContext — no more local fetch loop
   const { teams, teamsLoading, handleDeleteTeam } = useAuth();
 
+  // The table branch only exists from `md` up; below that cards are forced.
+  const isDesktopTable = useBreakpoint("md");
   const [isCardView, setIsCardView] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [entriesPerPage, setEntriesPerPage] = useState(10);
@@ -167,7 +170,12 @@ export default function TeamsList({ onActiveCountChange, showNotification }) {
             </div>
           </div>
         </div>
-        <div className="flex gap-1 border-gray-200 p-0.5 rounded-md">
+        {/* Hidden below `md`: the list view is a four-column table that is not
+            readable on a phone, and leaving the toggle visible lets a user
+            switch into it with no obvious way back. Cards are the only sensible
+            form at that width, so the choice simply is not offered — see the
+            matching `md:` gate on the table branch below. */}
+        <div className="hidden md:flex gap-1 border-gray-200 p-0.5 rounded-md">
           <div>
             <button
               onClick={() => setIsCardView(false)}
@@ -440,7 +448,11 @@ export default function TeamsList({ onActiveCountChange, showNotification }) {
         </div>
       ) : (
         <div>
-          {isCardView ? (
+          {/* `|| !isDesktopTable` forces cards below `md` regardless of the
+              saved toggle — a user who picked list view on a laptop must not
+              land in an unreadable four-column table on their phone. The
+              preference itself is untouched and returns on a wider screen. */}
+          {isCardView || !isDesktopTable ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {paginatedTeams.map((team) => (
                 <div

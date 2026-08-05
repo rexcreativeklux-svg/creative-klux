@@ -858,7 +858,7 @@ export default function CreateFromUrl() {
   // ── RESULT VIEW ───────────────────────────────────────────────────────────
   if (result) {
     return (
-      <div className="min-h-screen py-1">
+      <div className="min-h-full py-1">
         {localToast && (
           <div className="fixed top-5 right-5 z-100 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in">
             {localToast}
@@ -888,7 +888,7 @@ export default function CreateFromUrl() {
 
   // ── FORM VIEW ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen py-10 px-4">
+    <div className="min-h-full py-8 px-gutter sm:py-10">
       {generating && (
         <FullOverlayLoader
           title="Generating your ad creative"
@@ -1547,7 +1547,7 @@ export default function CreateFromUrl() {
                 <p className="text-xs font-medium text-gray-500 mb-2">
                   Selected ({croppedImages.filter(Boolean).length})
                 </p>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-fluid-[76px] gap-2">
                   {croppedImages.map((item, index) => {
                     if (!item) return null;
                     const url = item?.previewUrl;

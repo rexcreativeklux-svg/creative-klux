@@ -117,22 +117,28 @@ export default function ModalPage({ onClose }) {
       aria-modal="true"
       aria-labelledby="modal-title"
     >
-      <div className="relative bg-surface rounded-lg shadow-lg w-full lg:max-w-3xl overflow-hidden">
+      {/* max-h + a scrolling body: this gate has no dismiss until a brand is
+          picked, so if the list grew taller than a phone screen the user was
+          stuck with no way to reach the brand they wanted. */}
+      <div className="relative flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-lg bg-surface shadow-lg lg:max-w-3xl">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
+          className="flex min-h-0 flex-1 flex-col"
         >
-          <div className="flex justify-between items-center p-4">
+          {/* Title and "Create New Brand" wrap onto two rows below `xs` rather
+              than colliding — together they need ~300px. */}
+          <div className="flex shrink-0 flex-wrap justify-between items-center gap-2 p-4">
             <h2 id="modal-title" className="text-lg font-semibold">
               Select a Brand
             </h2>
             <div className="flex gap-2">
-              <div className="flex flex-row gap-2">
-                <FolderInput className="text-[#155dfc]" />
+              <div className="flex flex-row items-center gap-2">
+                <FolderInput className="h-5 w-5 shrink-0 text-[#155dfc]" />
                 <button
                   onClick={handleCreateNewBrand}
-                  className="text-sm cursor-pointer font-medium text-[#155dfc] hover:underline"
+                  className="text-sm cursor-pointer font-medium text-[#155dfc] hover:underline whitespace-nowrap"
                 >
                   Create New Brand
                 </button>
@@ -149,9 +155,9 @@ export default function ModalPage({ onClose }) {
             </div>
           </div>
 
-          <div className="px-4">
+          <div className="shrink-0 px-4">
             <div className="flex items-center border border-gray-200 rounded-md px-3 py-2">
-              <Search className="w-4 h-4 text-gray-500 mr-2" />
+              <Search className="w-4 h-4 shrink-0 text-gray-500 mr-2" />
               <input
                 type="text"
                 placeholder="Search brand"
@@ -185,13 +191,16 @@ export default function ModalPage({ onClose }) {
             ))}
           </div> */}
 
-          <div className="py-0 pb-10 px-4 overflow-y-auto">
+          {/* min-h-0 is what actually lets this scroll: a flex child defaults
+              to min-height:auto, so without it the list grows past the panel's
+              max-h instead of scrolling inside it. */}
+          <div className="min-h-0 flex-1 py-0 pb-10 px-4 overflow-y-auto">
             {error ? (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className="flex flex-col items-center justify-center mt-6 p-20 rounded-md bg-surface"
+                className="flex flex-col items-center justify-center mt-6 p-8 sm:p-20 rounded-md bg-surface"
               >
                 <p className="text-lg font-medium text-center text-red-600 mb-4">
                   {error}
@@ -208,7 +217,7 @@ export default function ModalPage({ onClose }) {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className="flex flex-col items-center justify-center mt-6 p-20 rounded-md bg-surface"
+                className="flex flex-col items-center justify-center mt-6 p-8 sm:p-20 rounded-md bg-surface"
               >
                 <p className="text-lg font-medium text-center text-gray-600 mb-4">
                   Loading brands...
@@ -221,7 +230,7 @@ export default function ModalPage({ onClose }) {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="flex flex-col items-center justify-center mt-6 p-20 rounded-md bg-surface"
+                  className="flex flex-col items-center justify-center mt-6 p-8 sm:p-20 rounded-md bg-surface"
                 >
                   <p className="text-lg font-medium text-center text-gray-600">
                     No brands match “{searchQuery}”
@@ -254,8 +263,10 @@ export default function ModalPage({ onClose }) {
                 </motion.div>
               )
             ) : (
+              // One brand card per row below `xs` — the card carries a logo,
+              // name and description, none of which survive a 160px column.
               <motion.div
-                className="grid grid-cols-2 gap-4 mt-6"
+                className="grid grid-cols-1 xs:grid-cols-2 gap-4 mt-6"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3, staggerChildren: 0.1 }}

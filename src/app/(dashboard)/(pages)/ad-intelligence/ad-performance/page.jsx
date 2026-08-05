@@ -10,6 +10,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   RadialBarChart, RadialBar,
 } from "recharts";
+import { ChartFrame } from "@/app/(components)/ui/ResponsiveChart";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const LEVELS       = ["VERY POOR", "POOR", "NORMAL", "GOOD", "EXCELLENT"];
@@ -279,7 +280,7 @@ export default function CreativeInsights() {
               {data.trendData?.length > 0 && (
                 <Card delay={0.12}>
                   <SectionLabel>Performance Trend (8 Weeks)</SectionLabel>
-                  <ResponsiveContainer width="100%" height={200}>
+                  <ChartFrame size="md"><ResponsiveContainer width="100%" height="100%">
                     <LineChart data={data.trendData}>
                       <XAxis dataKey="week" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                       <YAxis hide />
@@ -295,7 +296,7 @@ export default function CreativeInsights() {
                       <Line type="monotone" dataKey="score" stroke="#8b5cf6" strokeWidth={2} dot={false} name="CI Score" />
                       <Line type="monotone" dataKey="roas"  stroke="#2563eb" strokeWidth={2} dot={false} strokeDasharray="4 2" name="ROAS" />
                     </LineChart>
-                  </ResponsiveContainer>
+                  </ResponsiveContainer></ChartFrame>
                   <div className="flex items-center gap-5 mt-3">
                     <div className="flex items-center gap-1.5">
                       <div className="w-5 h-0.5 rounded-full bg-violet-500" />

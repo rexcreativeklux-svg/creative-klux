@@ -91,7 +91,7 @@ export default function TutorialVideos() {
     // spinner and then re-laying the whole screen out.
     if (tutorialVideosLoading) {
         return (
-            <div className="min-h-screen px-12 py-4">
+            <div className="min-h-full px-gutter py-4">
                 <div className="mb-8 flex flex-col gap-3">
                     <Skeleton className="h-8 w-64 max-w-full rounded-lg" />
                     <Skeleton className="h-3.5 w-96 max-w-full" tone="soft" />
@@ -113,7 +113,7 @@ export default function TutorialVideos() {
     if (tutorialVideosError) {
         return (
             <>
-                <div className="min-h-screen px-12 py-4">
+                <div className="min-h-full px-gutter py-4">
                     <div className="text-center py-12 bg-surface rounded-xl border border-gray-200">
                         <Video className="w-16 h-16 text-red-300 mx-auto mb-4" />
                         <p className="text-red-500 text-lg mb-2">{tutorialVideosError}</p>
@@ -137,7 +137,7 @@ export default function TutorialVideos() {
 
     return (
         <>
-            <div className="min-h-screen relative px-12 py-4">
+            <div className="min-h-full relative px-gutter py-4">
                 <div className="">
                     {/* Header */}
                     <div className="mb-8">

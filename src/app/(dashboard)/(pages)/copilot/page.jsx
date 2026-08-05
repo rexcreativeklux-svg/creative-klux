@@ -197,9 +197,9 @@ export default function CopilotHome() {
   const ideas = IDEAS[activeCategory] ?? [];
 
   return (
-    <div className="min-h-full pt-16 flex flex-col bg-[#eef1f7] dark:bg-page">
+    <div className="min-h-full pt-header pb-nav lg:pb-0 flex flex-col bg-[#eef1f7] dark:bg-page">
       {/* ── Hero ────────────────────────────────────────────────── */}
-      <section className="flex flex-col items-center px-4 pt-14 md:pt-24 pb-12">
+      <section className="flex flex-col items-center px-gutter pt-10 sm:pt-14 lg:pt-24 pb-12">
         <h1 className="text-center text-3xl md:text-[44px] md:leading-[1.2] font-bold text-gray-900">
           Give your
           <br />

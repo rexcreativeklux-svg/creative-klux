@@ -19,6 +19,7 @@ import {
   Grip,
 } from "lucide-react";
 import { mockData } from "../../data/mockProducts";
+import { useBreakpoint } from "@/utils/useMediaQuery";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -32,8 +33,10 @@ export default function ProductsTable() {
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 640; // Tailwind sm breakpoint
-  const [isCardView, setIsCardView] = useState(isMobile);
+  // Was `window.innerWidth < 640` read during render — undefined on the
+  // server, and sampled once so the layout never corrected on a rotate.
+  const isWideEnoughForTable = useBreakpoint("md");
+  const [isCardView, setIsCardView] = useState(true);
 
   // Simulate API fetch
   useEffect(() => {
@@ -341,7 +344,10 @@ export default function ProductsTable() {
       )}
 
       {/* Main Content */}
-      {isCardView ? (
+      {/* `|| !isWideEnoughForTable` forces cards below `md`: nine columns
+          are unreadable on a phone and the toggle would strand a user there.
+          The preference itself is untouched and returns on a wider screen. */}
+      {isCardView || !isWideEnoughForTable ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {paginatedData.map((item) => (
             <div

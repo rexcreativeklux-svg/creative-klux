@@ -45,8 +45,10 @@ const ImageCropperModal = forwardRef(({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden">
+    // Cropping needs every pixel of canvas it can get on a phone, so this one
+    // goes edge to edge below `sm` rather than sitting inside a p-4 inset.
+    <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 sm:items-center sm:p-4">
+      <div className="bg-surface rounded-t-2xl shadow-xl w-full h-[92dvh] flex flex-col overflow-hidden sm:rounded-lg sm:max-w-5xl sm:h-[90dvh]">
         {/* Header */}
         <div className="flex justify-between items-center p-6">
           <h2 className="text-md font-medium text-gray-800">

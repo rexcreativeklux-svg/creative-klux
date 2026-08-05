@@ -69,17 +69,32 @@ export default function Home() {
    * Open one of the user's own designs from the rail's Recent tab — fired by the
    * details modal's "Open in editor" button, not by a card click.
    *
+   * The editor ALWAYS opens in a new tab, the same way /creatives' hover "Edit"
+   * buttons do, so the home rail stays put behind it. `noopener,noreferrer`
+   * matches the `rel` those links carry — the new tab gets no `window.opener`
+   * handle back into this one. This runs synchronously inside the modal's click
+   * handler, so the popup blocker treats it as user-initiated; the router
+   * fallback below covers the case where a blocker still refuses.
+   *
    * Klux templates do NOT come through here: the modal's button saves them into
    * the user's designs in place (TemplatesSection.saveTemplate) and stays put.
-   * The chat-page fallback below only runs for a row that somehow arrived with
-   * no `href`, so the button can never be a no-op.
+   * The chat-page fallback at the end only runs for a row that somehow arrived
+   * with no `href`, so the button can never be a no-op.
    *
    * @param {{title: string, href?: string|null, kind?: string}} item
    */
   const handleOpenDesign = (item) => {
     if (item.href) {
-      console.log(`🖼️ [home] opening ${item.kind || "item"} "${item.title}" → ${item.href}`);
-      router.push(item.href);
+      console.log(
+        `🖼️ [home] opening ${item.kind || "item"} "${item.title}" → ${item.href} (new tab)`,
+      );
+      const tab = window.open(item.href, "_blank", "noopener,noreferrer");
+      if (!tab) {
+        console.warn(
+          `⚠️ [home] new tab blocked for "${item.title}" — navigating in place instead`,
+        );
+        router.push(item.href);
+      }
       return;
     }
     console.warn(`⚠️ [home] "${item.title}" has no href — falling back to the studio`);
@@ -102,15 +117,28 @@ export default function Home() {
   };
 
   return (
-    // pt-16 clears the app's fixed 4rem header, which overlays this scroll area.
-    <div className="relative min-h-full bg-page pt-16">
+    // pt-header clears the app's fixed header, which overlays this scroll
+    // area. Derived from --spacing-header rather than the hardcoded `pt-16` it
+    // replaces, so the clearance follows the header's own fluid height (52px on
+    // a phone → 64px on desktop) instead of drifting from it.
+    // pb-nav: this route is in NO_PADDING_ROUTES, so the layout gives it no
+    // frame at all — without this the end of the template rail sits under the
+    // mobile bottom bar. Dropped at lg, where that bar does not exist.
+    <div className="relative min-h-full bg-page pt-header pb-nav lg:pb-0">
       {/* ── Hero ──────────────────────────────────────────────────────────
           Height is the whole trick (see the note at the top of this file):
-            · below md — a plain viewport-ish height, since there's no sidebar
-              on screen to line anything up with.
-            · md and up — exactly the space left once --ck-rail-top is reserved
+            · below lg — a plain viewport-ish height, since there's no sidebar
+              on screen to line anything up with. The reserve at the bottom is
+              the mobile nav rather than the rail.
+            · lg and up — exactly the space left once --ck-rail-top is reserved
               at the bottom, so the rail beneath starts on the sidebar's THEME
               hairline.
+          ⚠️ `lg`, not `md` — one of the five places that must agree on where
+          the sidebar appears. See the --ck-rail-* note in globals.css.
+
+          100dvh, not 100vh: on a phone `100vh` resolves against the LARGE
+          viewport, so the hero measured taller than the screen actually was
+          and pushed the rail below the fold.
           Deliberately NOT overflow-hidden: the composer's Model and Build menus
           drop UPWARD, and clipping here would cut them off on short viewports.
           RotatingHeroBackdrop clips itself instead, so its band and patterns
@@ -127,7 +155,7 @@ export default function Home() {
           is what puts the cards just above the rail without pinning them there —
           see the ⚠️ note in QuickStartCards.jsx. */}
       <section
-        className="relative flex min-h-[calc(100vh-4rem-7rem)] flex-col pt-[clamp(1.5rem,7vh,5rem)] md:min-h-[calc(100vh-4rem-var(--ck-rail-top))]"
+        className="relative flex min-h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav)-4rem)] flex-col pt-[clamp(1.5rem,7vh,5rem)] lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))]"
       >
         {/* Eighteen still band-and-pattern treatments — grids, graph paper,
             contours, soft glows — all on the app's blue ramp, differing by form

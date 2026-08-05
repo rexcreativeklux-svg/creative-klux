@@ -37,10 +37,15 @@
 // primary button is the only action: a TEMPLATE is copied into the brand's
 // designs here in this component (saveTemplate → toast, no navigation), while a
 // saved DESIGN is handed to the page through `onSelect` to open in the editor.
-// That same modal is what a `?template=<slug>` deep link reopens on load —
-// always against the Klux pool, whichever tab happens to be showing.
+// That same modal is what a `?template=<slug>` share link reopens on load, over
+// whichever tab happens to be showing. It does NOT depend on the tab's random
+// draw containing that slug — see the "Share links" block below.
+//
+// The modal's "More like this" strip is fed from these SAME two slices through
+// pickRelatedItems(), so browsing sideways from one item to the next costs no
+// extra request — a sibling click just re-points `details` at another row.
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -58,11 +63,12 @@ import {
   TAB_KLUX,
   TAB_RECENT,
   TEMPLATE_DISPLAY_LIMIT,
-  TEMPLATE_PARAM,
   TEMPLATE_TABS,
   fetchPublicTemplates,
   fetchRecentDesigns,
-  findTemplateByKey,
+  fetchTemplateBySlug,
+  pickRelatedItems,
+  readTemplateShareLink,
 } from "./templatesApi";
 
 /** The state every source starts in, before its fetch resolves. */
@@ -92,13 +98,15 @@ function formatMeta(value) {
 }
 
 /**
- * The `?template=<slug>` value on the current URL, or null. Client-only — used
- * as a lazy useState initializer, so it runs once and returns null during SSR.
- * @returns {string|null}
+ * The share link on the current URL — `{ key, hints }` or null. Client-only —
+ * used as a lazy useState initializer, so it runs once and returns null during
+ * SSR. See readTemplateShareLink() for what the hints carry.
+ *
+ * @returns {{key: string, hints: object}|null}
  */
-function readDeepLinkKey() {
+function readShareLink() {
   if (typeof window === "undefined") return null;
-  return new URLSearchParams(window.location.search).get(TEMPLATE_PARAM);
+  return readTemplateShareLink(window.location.search);
 }
 
 /** Only paint a colour onto the tile when it really is a CSS colour string. */
@@ -135,13 +143,13 @@ export default function TemplatesSection({
   // The open details modal: { item, previewSrc } — previewSrc is the card's own
   // painted preview, handed over so the modal opens with artwork already there.
   const [details, setDetails] = useState(null);
-  // `/?template=<slug>` — read ONCE, lazily, at mount. Straight off
+  // `/?template=<slug>&name=…` — read ONCE, lazily, at mount. Straight off
   // window.location rather than useSearchParams() so this client-only nicety
   // can't drag the page into a Suspense boundary; the lazy initializer keeps it
   // out of an effect (no setState-in-effect) and SSR simply reads null.
-  const [deepLinkKey, setDeepLinkKey] = useState(readDeepLinkKey);
-  // Logging guard — the resolution log should fire once, not on every render.
-  const deepLinkLogged = useRef(false);
+  const [share, setShare] = useState(readShareLink);
+  // The template that link resolved to — see the "Share links" effect below.
+  const [sharedItem, setSharedItem] = useState(null);
   // True while a template is being copied into the brand's designs.
   const [saving, setSaving] = useState(false);
 
@@ -179,33 +187,50 @@ export default function TemplatesSection({
     };
   }, [activeBrandId, fetchDesigns, recentReload]);
 
-  // ── Deep link ────────────────────────────────────────────────────────────
-  // Always resolved against the Klux pool — a shared link points at a public
-  // template, so it opens over whichever tab the user is on. Matched against the
-  // WHOLE pool, not just the cards that made the visible cut, so a link still
-  // opens when its template isn't one of the rendered twelve.
-  const deepLinkItem =
-    deepLinkKey && templates.status === "ok"
-      ? findTemplateByKey(templates.items, deepLinkKey)
-      : null;
-
-  // Report once whether the link resolved — this is the first thing you want in
-  // the console when a shared link opens nothing.
+  // ── Share links ──────────────────────────────────────────────────────────
+  // A shared link always points at a public template, so it opens over
+  // whichever tab the user is on — and it is resolved on its OWN, deliberately
+  // NOT by looking the slug up in whatever the Klux tab happened to fetch.
+  //
+  // That distinction is the whole reliability story. The pool endpoint answers
+  // a RANDOM 20 rows out of ~200 and accepts no filters, so a given slug is in
+  // any one draw about 1 time in 10 — searching it would leave sharing a coin
+  // flip. fetchTemplateBySlug() instead reads the template's own ~2 KB object
+  // off the CDN by slug: one request, always the right design, and the rail's
+  // random draw stays exactly as random as it was.
+  //
+  // It runs in parallel with the pool fetch (there's nothing to wait for) and
+  // produces the same card contract, so nothing downstream can tell a shared
+  // template from a clicked one.
   useEffect(() => {
-    if (!deepLinkKey || deepLinkLogged.current) return;
-    if (templates.status !== "ok" || templates.items.length === 0) return;
+    if (!share?.key) return;
+    const controller = new AbortController();
 
-    deepLinkLogged.current = true;
-    if (deepLinkItem) {
-      console.log(
-        `🔗 [templates] deep link "${deepLinkKey}" → opening "${deepLinkItem.title}"`,
-      );
-    } else {
+    (async () => {
+      const result = await fetchTemplateBySlug({
+        slug: share.key,
+        hints: share.hints,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+
+      if (result.status === "ok" && result.item) {
+        setSharedItem(result.item);
+        return;
+      }
+
+      // A deterministic lookup, so a failure here really is a dead link (or a
+      // dead network) — worth saying out loud, since the alternative is the
+      // recipient landing on the home page with no idea their link did anything.
       console.warn(
-        `⚠️ [templates] deep link "${deepLinkKey}" matched no template in the pool`,
+        `⚠️ [templates] share link "${share.key}" didn't resolve:`,
+        result.messageForDevs,
       );
-    }
-  }, [deepLinkKey, deepLinkItem, templates]);
+      toast.error(result.message || "We couldn't open that template.");
+    })();
+
+    return () => controller.abort();
+  }, [share]);
 
   // ── What the grid renders ────────────────────────────────────────────────
   // Signed in with no brand at all: there is nothing to fetch, so show the empty
@@ -227,21 +252,47 @@ export default function TemplatesSection({
     }
   };
 
-  // What the modal shows: an explicitly opened card wins over the deep link.
+  // What the modal shows: an explicitly opened card wins over the share link.
   const activeDetails =
-    details ?? (deepLinkItem ? { item: deepLinkItem, previewSrc: null } : null);
+    details ?? (sharedItem ? { item: sharedItem, previewSrc: null } : null);
+
+  // ── The modal's "More like this" strip ───────────────────────────────────
+  // Picked from rows that are already in hand — nothing extra is fetched, and
+  // the pool takes no filters to ask for siblings with anyway (templatesApi
+  // header). The source follows the OPEN ITEM, not the active tab: a template
+  // pulls from the public pool and a saved design from the brand's own
+  // designs, so the strip never offers to open something of a different kind
+  // than the button above it acts on. A shared template resolved from a link
+  // gets one too, since the pool loads on mount either way.
+  //
+  // `recent.items` rather than `recentState.items`: the no-brand fallback is a
+  // fresh object literal each render, which would re-run this every time.
+  const openItem = activeDetails?.item ?? null;
+  const relatedItems = useMemo(() => {
+    if (!openItem) return [];
+    return pickRelatedItems(
+      openItem,
+      openItem.kind === "design" ? recent.items : templates.items,
+    );
+  }, [openItem, recent.items, templates.items]);
+
+  /** Forget the URL's template — and cancel its lookup if it's still running. */
+  const clearShareLink = () => {
+    setShare(null);
+    setSharedItem(null);
+  };
 
   /** A card was clicked — show its details, never the template itself. */
   const openDetails = (item, previewSrc) => {
     console.log(`🖼️ [templates] opening details for "${item.title}"`);
-    setDeepLinkKey(null); // a manual open supersedes the URL's template
+    clearShareLink(); // a manual open supersedes the URL's template
     setDetails({ item, previewSrc });
   };
 
-  /** Dismiss the modal — clears BOTH sources or the deep link would reopen it. */
+  /** Dismiss the modal — clears BOTH sources or the share link would reopen it. */
   const closeDetails = () => {
     setDetails(null);
-    setDeepLinkKey(null);
+    clearShareLink();
   };
 
   /**
@@ -331,9 +382,11 @@ export default function TemplatesSection({
           (the section's border-t above, the CardGrid's border-t below) land on
           exactly the same screen lines as the two rules bracketing the THEME
           row, so the hairlines run unbroken across the whole window.
-          Below `md` there's no sidebar to line up with, so it just flows. */}
+          Below `lg` there's no sidebar to line up with, so it just flows.
+          ⚠️ `lg`, not `md` — one of the five places that must agree on where
+          the sidebar appears. See the --ck-rail-* note in globals.css. */}
       <div
-        className={`flex items-center justify-between gap-4 py-3.5 md:h-(--ck-rail-row) md:py-0 ${GUTTER}`}
+        className={`flex items-center justify-between gap-4 py-3.5 lg:h-(--ck-rail-row) lg:py-0 ${GUTTER}`}
       >
         <div className="hide-scrollbar flex items-center gap-2.5 overflow-x-auto">
           {TEMPLATE_TABS.map((tab, index) => {
@@ -431,9 +484,13 @@ export default function TemplatesSection({
 
       {/* Details modal — the only route from a card into the item itself */}
       <TemplateDetailsModal
-        item={activeDetails?.item ?? null}
+        item={openItem}
         previewSrc={activeDetails?.previewSrc ?? null}
         busy={saving}
+        related={relatedItems}
+        // Same handler a card click uses — a sibling tile simply re-points the
+        // open modal at another row, carrying its painted preview across.
+        onSelectRelated={openDetails}
         onUse={handleUse}
         onClose={closeDetails}
       />

@@ -352,8 +352,17 @@ export default function MembersTab({ brandId }) {
       </div>
 
       {/* Table */}
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-720px border-collapse">
+      {/* `min-w-720px` here was a TYPO, not a style: Tailwind needs
+          `min-w-[720px]` for an arbitrary value, so the class generated nothing
+          and the seven columns were being crushed to fit instead of scrolling.
+          With a real minimum they keep their widths and the container scrolls —
+          which is the right call for this one grid: every column is a short
+          numeric metric, and the row identity (People) stays pinned at the left
+          edge where it reads as the row's label.
+          `-mx-gutter px-gutter` lets the scroll region bleed to the screen edge
+          below `lg`, so it is visibly scrollable rather than looking clipped. */}
+      <div className="mt-4 -mx-gutter overflow-x-auto px-gutter lg:mx-0 lg:px-0">
+        <table className="w-full min-w-[720px] border-collapse">
           <thead>
             <tr className="border-y border-gray-100 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
               <th className="py-3 pl-1 pr-3">People ({filtered.length})</th>

@@ -116,8 +116,10 @@ export default function SearchMediaModal({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-        <div className="bg-surface rounded-lg p-6 w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl">
+      {/* Sheet below `sm`, dialog above. `dvh` rather than `vh` so the panel
+          ends where the screen does, not where the large viewport claims. */}
+      <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 sm:items-center sm:p-4">
+        <div className="bg-surface rounded-t-2xl p-card w-full h-[92dvh] flex flex-col shadow-2xl sm:rounded-lg sm:p-6 sm:max-w-7xl sm:h-[90dvh]">
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold flex items-center gap-3 text-gray-800">

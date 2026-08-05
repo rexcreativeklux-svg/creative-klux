@@ -185,7 +185,7 @@ export default function SocialIntegrations() {
         duration={notification.duration}
       />
 
-      <div className="px-12 py-6 rounded-lg">
+      <div className="px-card sm:px-12 py-6 rounded-lg">
         <h1 className="text-xl font-semibold mb-6">Social Integrations</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 pt-5 gap-6">
           {socialPlatforms.map((platform, idx) => {

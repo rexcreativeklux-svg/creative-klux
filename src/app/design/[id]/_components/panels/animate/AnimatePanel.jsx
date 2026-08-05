@@ -81,7 +81,7 @@ export default function AnimatePanel({ editor, onPlay, onClose }) {
   const canEdit = tab === "page" ? elements.length > 0 : !!el;
 
   return (
-    <section className="w-[300px] shrink-0 bg-surface border-r border-gray-200 flex flex-col">
+    <section className="w-full h-[55dvh] shrink-0 bg-surface border-t border-gray-200 rounded-t-2xl shadow-2xl flex flex-col lg:w-75 lg:h-auto lg:rounded-none lg:shadow-none lg:border-t-0 lg:border-r">
       <header className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-gray-100">
         <h2 className="text-sm font-bold text-gray-800">Animate</h2>
         <button

@@ -98,9 +98,16 @@ export default function EditorContextBar({
   const isBold =
     element.fontWeight === "bold" || Number(element.fontWeight) >= 600;
 
+  // Centred pill at `lg`, full-width strip below.
+  // `max-w-[calc(100vw-340px)]` was reserving room for the editor's rail +
+  // panel (340px) — chrome that no longer sits beside the canvas below `lg`,
+  // where that sum goes NEGATIVE on a 360px screen and collapses the bar.
+  // Below `lg` it spans the viewport with its own inset instead, and scrolls
+  // horizontally: a text element's toolbar is a dozen controls and no phone
+  // width will ever hold them all at once.
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[9999]">
-      <div className="flex items-center gap-1.5 bg-surface border border-gray-200 shadow-lg rounded-xl px-2 py-1.5 max-w-[calc(100vw-340px)] overflow-x-auto">
+    <div className="absolute top-3 inset-x-2 z-[9999] lg:inset-x-auto lg:left-1/2 lg:-translate-x-1/2">
+      <div className="flex items-center gap-1.5 bg-surface border border-gray-200 shadow-lg rounded-xl px-2 py-1.5 overflow-x-auto hide-scrollbar lg:max-w-[calc(100vw-340px)]">
         {element.type === "text" && (
         <>
           <FontButton value={element.fontFamily} onClick={onOpenFontPanel} />

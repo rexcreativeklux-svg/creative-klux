@@ -434,8 +434,14 @@ export default function MediaPickerModal({
       />
 
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-        <div className="bg-surface rounded-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+      {/* Sheet-shaped below `sm`: full-bleed, anchored to the bottom edge,
+          rounded only at the top — the same form <ResponsiveModal> gives, kept
+          inline here because this picker's internals are wired to its own
+          panel structure. `dvh` so the footer's action row is never left
+          under the browser chrome; `100%` height on a phone because a picker
+          wants every pixel it can get. */}
+      <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 sm:items-center sm:p-4">
+        <div className="bg-surface rounded-t-2xl w-full h-[92dvh] flex flex-col overflow-hidden shadow-2xl sm:rounded-2xl sm:max-w-6xl sm:h-[90dvh]">
           {/* ── Header ───────────────────────────────────────────────────── */}
           <div className="flex items-center justify-between px-6 pt-5 pb-0 shrink-0">
             <h2 className="text-lg font-semibold text-gray-900">Add Media</h2>

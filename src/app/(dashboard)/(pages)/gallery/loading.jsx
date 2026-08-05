@@ -12,10 +12,12 @@ import Skeleton from "@/app/(components)/skeletons/Skeleton";
 const TILE_HEIGHTS = [180, 240, 150, 280, 200, 160, 260, 190, 230, 170, 210, 250];
 
 export default function Loading() {
+  // Matches ImageGallery's own frame exactly — a skeleton whose padding
+  // differs from the real page makes the content jump on hand-off.
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-8 lg:px-12">
+    <div className="min-h-full px-gutter py-page-y">
       {/* Header banner — real chrome, placeholder content */}
-      <header className="mb-6 rounded-xl bg-blue-600 px-6 py-6 shadow-lg sm:px-8">
+      <header className="mb-6 rounded-xl bg-blue-600 px-card py-5 shadow-lg sm:px-8 sm:py-6">
         <div className="flex items-center gap-3">
           <Skeleton w={30} h={30} className="rounded-md bg-white/30" tone="soft" />
           <div className="flex flex-col gap-2">

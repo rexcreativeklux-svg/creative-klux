@@ -253,7 +253,10 @@ export default function BatchPage() {
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-6 gap-3">
+          {/* Bare square thumbnails with no caption, so they stay useful much
+              smaller than the labelled grids elsewhere — 96px keeps six across
+              on a desktop pane and three on a phone. */}
+          <div className="grid grid-fluid-[96px] gap-3">
             {files.map((f, i) => (
               <button
                 key={i}

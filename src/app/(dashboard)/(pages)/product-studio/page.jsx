@@ -368,24 +368,31 @@ export default function ProductPhotos() {
         <PhotoEditor mode={editorMode} onClose={() => setEditorOpen(false)} />
       )} */}
 
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between">
+      {/* ── Header ──
+          Stacks below `sm`: a 256px search field beside a heading does not fit
+          a 360px screen, and shrinking both to fit makes each unusable. Full
+          width on its own row is the better trade. */}
+      <div className="flex flex-col gap-stack sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Product Studio</h1>
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search a template"
-            className="pl-9 pr-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 outline-none focus:border-blue-400 w-64 bg-gray-50 cursor-text"
+            className="pl-9 pr-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 outline-none focus:border-blue-400 w-full sm:w-64 bg-gray-50 cursor-text"
           />
         </div>
       </div>
 
       <div className="py-6">
         {/* ── Tool Grid ── */}
+        {/* Container-driven rather than `grid-cols-5`: these tool buttons carry
+            a label, so what matters is whether ~190px of text fits, not what the
+            window measures. The same grid then works in the narrowed pane
+            beside an open sidebar. */}
         {filteredTools.length > 0 && (
-          <div className="grid grid-cols-5 gap-2 mb-8">
+          <div className="grid grid-fluid-[190px] gap-2 mb-8">
             {filteredTools.map((tool) => {
               const { Icon } = tool;
               return (
@@ -431,7 +438,9 @@ export default function ProductPhotos() {
                 Dismiss
               </button>
             </div>
-            <div className="grid grid-cols-4 gap-3 mb-10">
+            {/* Image cards with a caption baked into the artwork — below
+                ~240px the label stops being readable, so that is the floor. */}
+            <div className="grid grid-fluid-[240px] gap-3 mb-10">
               {filteredGetStarted.map((item, i) => (
                 <motion.button
                   key={i}
@@ -463,19 +472,25 @@ export default function ProductPhotos() {
             <h2 className="text-base font-semibold text-gray-900 mb-4">
               Classics
             </h2>
-            <div className="flex gap-3 mb-8">
+            {/* A fixed row of 80px tiles overflows once there are more than
+                four on a phone. Scrolling horizontally is right HERE (unlike a
+                table) — it is a short, homogeneous strip of thumbnails where
+                "there is more to the side" reads instantly. -mx/px keeps the
+                strip bleeding to the screen edge so the last tile is visibly
+                cut rather than looking like the end of the list. */}
+            <div className="flex gap-3 mb-8 overflow-x-auto hide-scrollbar -mx-gutter px-gutter lg:mx-0 lg:px-0">
               {filteredClassics.map((c, i) => (
                 <button
                   key={i}
                   onClick={openAddImages}
-                  className="flex flex-col items-center gap-2 cursor-pointer"
+                  className="flex shrink-0 flex-col items-center gap-2 cursor-pointer"
                 >
                   <div
-                    className={`w-20 h-20 rounded-xl border-2 transition-all hover:border-blue-400 flex items-center justify-center overflow-hidden ${
+                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl border-2 transition-all hover:border-blue-400 flex items-center justify-center overflow-hidden ${
                       c.active ? "border-blue-500" : "border-gray-200"
                     } ${c.bg}`}
                   >
-                    <ProductIcon className="w-10 h-10" />
+                    <ProductIcon className="w-8 h-8 sm:w-10 sm:h-10" />
                   </div>
                   <span className="text-xs text-gray-600">{c.label}</span>
                 </button>
@@ -490,15 +505,16 @@ export default function ProductPhotos() {
             <h2 className="text-base font-semibold text-gray-900 mb-4">
               Studio
             </h2>
-            <div className="flex gap-2">
+            {/* Same scrolling-strip treatment as Classics above. */}
+            <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-gutter px-gutter lg:mx-0 lg:px-0">
               {filteredStudio.map((color, i) => (
                 <button
                   key={i}
                   onClick={openAddImages}
-                  className="w-20 h-20 rounded-xl border border-gray-200 flex items-center justify-center hover:border-blue-400 transition-all cursor-pointer"
+                  className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-xl border border-gray-200 flex items-center justify-center hover:border-blue-400 transition-all cursor-pointer"
                   style={{ backgroundColor: color }}
                 >
-                  <ProductIcon className="w-10 h-10" />
+                  <ProductIcon className="w-8 h-8 sm:w-10 sm:h-10" />
                 </button>
               ))}
             </div>

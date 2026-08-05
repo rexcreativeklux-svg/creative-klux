@@ -277,10 +277,13 @@ export default function UploadMediaModal({ isOpen, onClose, onUpload }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-4"
+      // Backdrop-to-close relies on the click landing on THIS node and not a
+      // child — do not wrap the panel below in another element without moving
+      // this check with it.
       onMouseDown={(e) => e.target === e.currentTarget && handleClose()}
     >
-      <div className="bg-surface w-full max-w-2xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+      <div className="bg-surface w-full max-h-[92dvh] rounded-t-2xl shadow-2xl flex flex-col overflow-hidden sm:max-w-2xl sm:rounded-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2.5">

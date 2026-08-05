@@ -33,9 +33,20 @@ export default function ProtectedRoute({ children }) {
 
   useEffect(() => {
     if (!loading && !user && !hasToken) {
-      router.push('/login');
+      // Carry where they were headed through the login round-trip, the way the
+      // invite and product-studio flows already do. It matters most for shared
+      // template links (`/?template=<slug>&…`): without it the query is dropped
+      // at the gate and the recipient lands on a blank home page with no idea
+      // what was shared with them.
+      //
+      // Path AND query, relative only — the login page re-validates that it
+      // starts with a single "/" before following it, so this can't be turned
+      // into an off-site redirect.
+      const target = `${pathname}${window.location.search}`;
+      console.log('🔒 Not signed in → /login, returning to:', target);
+      router.push(`/login?returnTo=${encodeURIComponent(target)}`);
     }
-  }, [user, loading, hasToken, router]);
+  }, [user, loading, hasToken, router, pathname]);
 
   if (loading) {
     // The home page is full-bleed and paints its own hero, so it takes no page

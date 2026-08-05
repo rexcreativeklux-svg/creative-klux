@@ -50,6 +50,7 @@ import {
 // the same naming used by the photo editor (edit_a_photo/PhotoEditor).
 import { downloadBlob } from "@/utils/downloadName";
 import { toast } from "sonner";
+import { useBreakpoint } from "@/utils/useMediaQuery";
 
 // ── DesignCanvas ──────────────────────────────────────────────────────────────
 // Read-only preview. Paints via the SAME renderer the editor uses
@@ -449,6 +450,8 @@ export default function CreativesPage() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
+  // The table view only exists from `md` up (see the toggle below).
+  const isWideEnoughForTable = useBreakpoint("md");
   const [viewMode, setViewMode] = useState("grid");
   // Rows per PAGE (user-selectable), restored from their saved choice. Paging
   // is done here over the full set, so the pager appears whenever the current
@@ -768,22 +771,26 @@ export default function CreativesPage() {
         type={toast.type}
       />
 
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between pb-4 shrink-0">
-        <div>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+      {/* ── Header ──
+          Two "Create …" buttons plus a heading is ~420px of content, so below
+          `sm` it stacks and the buttons take a row of their own. `flex-1` on
+          each makes them split that row evenly rather than leaving a ragged
+          gap — and keeps both comfortably above the 44px touch minimum. */}
+      <div className="flex flex-col gap-stack pb-4 shrink-0 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-2xs font-semibold text-gray-400 uppercase tracking-widest">
             Library
           </p>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight">
             My Creations
           </h1>
         </div>
-        <div className="flex flex-row gap-3 items-center">
+        <div className="flex flex-row gap-2 items-center shrink-0 sm:gap-3">
           <Link
             href="/studio/create-from-url"
-            className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-gray-50 border border-gray-200 text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
+            className="flex flex-1 items-center justify-center gap-2 whitespace-nowrap bg-gray-900 hover:bg-gray-800 text-gray-50 border border-gray-200 text-sm font-medium px-3 py-2.5 rounded-lg transition-all hover:scale-105 duration-200 sm:flex-none sm:px-4 sm:py-2"
           >
-            <Plus className="w-4 h-4" /> Create from URL
+            <Plus className="w-4 h-4 shrink-0" /> Create from URL
           </Link>
           {/* Create using Scraive button — commented out.
           <Link
@@ -800,9 +807,9 @@ export default function CreativesPage() {
           </Link> */}
           <Link
             href="/studio/select"
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
+            className="flex flex-1 items-center justify-center gap-2 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-3 py-2.5 rounded-lg transition-all hover:scale-105 duration-200 sm:flex-none sm:px-4 sm:py-2"
           >
-            <Plus className="w-4 h-4" /> Custom Creation
+            <Plus className="w-4 h-4 shrink-0" /> Custom Creation
           </Link>
         </div>
       </div>
@@ -887,7 +894,12 @@ export default function CreativesPage() {
           onChange={handleFetchCountChange}
         />
 
-        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+        {/* Hidden below `md`: the list view is an 8-column table that cannot be
+            read on a phone, and offering the toggle strands anyone who taps it.
+            The branch further down forces the grid at that width too, so a
+            preference set on a laptop survives without following the user onto
+            a screen it does not work on. */}
+        <div className="hidden md:flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
           <button
             onClick={() => setViewMode("grid")}
             className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === "grid" ? "bg-surface shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
@@ -927,7 +939,7 @@ export default function CreativesPage() {
           // "No matches" vs "nothing created yet" turns on whether the brand has
           // any designs at all, not on how many survived the current filter.
           <EmptyState hasCreatives={creatives.length > 0} />
-        ) : viewMode === "grid" ? (
+        ) : viewMode === "grid" || !isWideEnoughForTable ? (
           <GridView
             creatives={paginated}
             selectedId={selectedId}
@@ -1641,7 +1653,10 @@ const Sidebar = ({
             </p>
           )}
 
-          {/* Meta grid */}
+          {/* Meta grid — three short label/value pairs. Kept at 3 columns:
+              they are already inside a card whose width the parent grid
+              controls, and the values ("Poster", "★ 8") are short enough to
+              hold at a card's narrowest. */}
           <div className="grid grid-cols-3 gap-1.5">
             {[
               ["Type", c.type],

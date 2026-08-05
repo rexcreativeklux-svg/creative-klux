@@ -14,6 +14,95 @@
   /* Editor/preview canvas — only used via `dark:bg-canvas`, so light keeps its
      exact hex per component; this is the single dark value to tune. */
   --color-canvas: #161619;
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     RESPONSIVE SCALE — the single source of truth for how the app tightens
+     as the viewport narrows. Read this block before adding a breakpoint.
+
+     Two mechanisms, deliberately separated:
+
+       FLUID TOKENS (this block) handle DEGREE — type and spacing shrink
+       continuously with the viewport, so there is never a jump and every
+       width in between is designed for. Existing `text-sm`, `p-card`-style
+       classes pick this up with no call-site change.
+
+       BREAKPOINTS handle KIND — stacking vs. side-by-side, drawer vs. rail,
+       sheet vs. dialog. Use one only when the layout genuinely changes shape.
+
+     Every ramp below runs between a 360px and a 1280px viewport and is
+     clamped flat outside that range, so ≥1280px is byte-for-byte what the
+     app rendered before this system existed.
+
+     The `Nrem + Nvw` middle term is derived, not hand-picked:
+         slope     = (maxPx - minPx) / 920
+         intercept = (minPx - slope * 360) / 16   → rem
+     Change an endpoint and you must redo both numbers, or the ramp will no
+     longer hit its stated min/max. The px endpoints in each comment are the
+     contract; the maths is just how it is expressed.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* ── Breakpoints ────────────────────────────────────────────────────────
+     `xs` is added below Tailwind's defaults for compact phones (360–430px),
+     which otherwise share every style with a 639px phablet. Tailwind sorts
+     by value, so it lands ahead of `sm` in the cascade automatically.
+
+     The other five keep Tailwind's defaults. What changed is which one the
+     app's chrome switches on: the sidebar/rail layouts moved from `md`
+     (768) to `lg` (1024), so tablets get an adapted layout instead of the
+     phone one. See the note in Sidebar.jsx. */
+  --breakpoint-xs: 30rem; /* 480px */
+
+  /* ── Fluid type ─────────────────────────────────────────────────────────
+     Tailwind v4 defines each size's line-height as a UNITLESS RATIO
+     (`--text-sm--line-height: calc(1.25 / 0.875)`), so it multiplies
+     whatever font-size resolves to and needs no override here — the leading
+     tracks the fluid size by itself. Do not add `--text-*--line-height`
+     overrides unless you actually want to change the ratio.
+
+     `2xs` is new: the codebase has ~200 `text-[10px]`/`text-[11px]` call
+     sites for badges, captions and pill labels. They can migrate to
+     `text-2xs` and become fluid instead of being frozen at one size. */
+  --text-2xs:  clamp(0.5625rem, 0.514rem + 0.217vw, 0.6875rem); /*  9 → 11 */
+  --text-xs:   clamp(0.625rem,  0.576rem + 0.217vw, 0.75rem);   /* 10 → 12 */
+  --text-sm:   clamp(0.75rem,   0.701rem + 0.217vw, 0.875rem);  /* 12 → 14 */
+  --text-base: clamp(0.8125rem, 0.739rem + 0.326vw, 1rem);      /* 13 → 16 */
+  --text-lg:   clamp(0.9375rem, 0.864rem + 0.326vw, 1.125rem);  /* 15 → 18 */
+  --text-xl:   clamp(1.0625rem, 0.989rem + 0.326vw, 1.25rem);   /* 17 → 20 */
+  --text-2xl:  clamp(1.25rem,   1.152rem + 0.435vw, 1.5rem);    /* 20 → 24 */
+  --text-3xl:  clamp(1.5rem,    1.353rem + 0.652vw, 1.875rem);  /* 24 → 30 */
+  --text-4xl:  clamp(1.75rem,   1.554rem + 0.870vw, 2.25rem);   /* 28 → 36 */
+  --text-5xl:  clamp(2.125rem,  1.783rem + 1.522vw, 3rem);      /* 34 → 48 */
+
+  /* ── Fluid space ────────────────────────────────────────────────────────
+     NAMED entries in the `--spacing-*` namespace, which means every spacing
+     utility accepts them with no extra plumbing: `p-card`, `px-gutter`,
+     `gap-stack`, `mb-section`, `h-header`, `top-header`, `pt-nav`, …
+
+     Note what is NOT here: Tailwind's global `--spacing` base (0.25rem),
+     which drives the whole numeric scale (`p-4`, `h-5`, `w-56`). It is left
+     alone ON PURPOSE. Making it fluid would also shrink every `h-4 w-4`
+     icon, every fixed chrome height and the --ck-rail-* constants below —
+     an app-wide shift that cannot be reviewed file by file. These named
+     tokens deliver the same density win at the places that actually consume
+     screen real estate, and each application is a visible, reviewable edit. */
+  --spacing-gutter:  clamp(0.75rem,  0.163rem + 2.609vw, 2.25rem); /* 12 → 36 — page side gutter */
+  --spacing-page-y:  clamp(0.75rem,  0.359rem + 1.739vw, 1.75rem); /* 12 → 28 — page top/bottom */
+  --spacing-section: clamp(1rem,     0.413rem + 2.609vw, 2.5rem);  /* 16 → 40 — between page sections */
+  --spacing-card:    clamp(0.625rem, 0.380rem + 1.087vw, 1.25rem); /* 10 → 20 — inside cards/panels */
+  --spacing-stack:   clamp(0.5rem,   0.304rem + 0.870vw, 1rem);    /*  8 → 16 — between stacked items */
+
+  /* ── Chrome heights ─────────────────────────────────────────────────────
+     The fixed header's height was hardcoded in four places as `h-16` /
+     `4rem` / `pt-16` / `pt-24`, which meant the header and the padding that
+     clears it could drift apart. It is one token now; `h-header` sizes the
+     bar and `pt-header` clears it, so they cannot disagree.
+
+     `--spacing-nav` folds the iOS home-indicator inset INTO the mobile bottom
+     nav's height. That is what makes `h-nav` correct for the bar itself (its
+     content sits at 56px with the inset as breathing room below) and `pb-nav`
+     correct for page content that must clear it — one token, both jobs. */
+  --spacing-header: clamp(3.25rem, 2.957rem + 1.304vw, 4rem);      /* 52 → 64 */
+  --spacing-nav:    calc(3.5rem + env(safe-area-inset-bottom, 0px)); /* 56 + inset */
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -63,32 +152,167 @@
        the same vars, so the alignment survives either side being restyled —
        change a number here and both ends move together.
 
-       Desktop only: below `md` the sidebar is replaced by the bottom nav, and
-       the home page lets the rail flow naturally. */
+       Desktop only: below `lg` the sidebar is replaced by the bottom nav +
+       drawer, and the home page lets the rail flow naturally.
+
+       ⚠️ `lg` (1024px), not `md` — the sidebar's breakpoint moved so tablets
+       get an adapted layout rather than the phone one, and this alignment has
+       to move with it. SIX places must agree:
+         · this block
+         · Sidebar.jsx            (hidden lg:flex, h-(--ck-rail-foot))
+         · ThemeSwitcher.jsx      (h-(--ck-rail-row), both variants)
+         · studio/TemplatesSection.jsx  (lg:h-(--ck-rail-row))
+         · (dashboard)/page.jsx   (lg:min-h-[calc(...)])
+         · skeletons/HomeSkeleton.jsx   (a pixel-mirror of the page above —
+           easy to forget, and the symptom is a jump on hand-off rather than a
+           static misalignment, so it hides well)
+       If one of them still says `md`, the rail's hairlines and the sidebar's
+       drift apart between 768px and 1024px. */
     --ck-rail-row: 52px;
     --ck-rail-foot: 76px;
     --ck-rail-top: calc(var(--ck-rail-foot) + 1px + var(--ck-rail-row) + 1px);
+
+    /* ── Safe-area insets ─────────────────────────────────────────────────
+       The notch/home-indicator gaps, exposed as plain variables so anything
+       pinned to a viewport edge can reserve them without repeating the
+       `env()` fallback dance. Zero on every non-notched device and on
+       desktop, so they are always safe to add.
+
+       Most callers should NOT need these directly: `--spacing-nav` already
+       folds the bottom inset in (see @theme), and the modal/sheet primitive
+       handles its own footer. Reach for them when pinning something new to
+       an edge — a floating action button, a full-bleed toolbar. */
+    --ck-safe-t: env(safe-area-inset-top, 0px);
+    --ck-safe-b: env(safe-area-inset-bottom, 0px);
+    --ck-safe-l: env(safe-area-inset-left, 0px);
+    --ck-safe-r: env(safe-area-inset-right, 0px);
   }
 
+  /* The app is a fixed shell: the page itself never scrolls, and each region
+     inside owns its own overflow. `100dvh` rather than `100%` is what makes
+     that hold up on a phone — the DYNAMIC viewport unit tracks the browser
+     UI as it hides and reveals, where `100%`/`100vh` resolve against the
+     LARGE viewport and leave the bottom of the shell (the mobile nav, a
+     sheet's action row) sitting under the browser's own chrome.
+
+     `text-size-adjust` is load-bearing here, not boilerplate: iOS Safari
+     inflates text in landscape by default, which would silently override the
+     fluid type scale above and make a rotated phone render LARGER text than
+     a desktop. Pinning it to 100% hands sizing back to the clamp() ramps. */
   html {
     font-family: var(--font-inter);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    height: 100%;
+    height: 100dvh;
     overflow: hidden;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
     font-family: var(--font-inter);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    height: 100%;
+    height: 100dvh;
     overflow: hidden;
     background: var(--color-surface);
     color: var(--color-gray-900);
   }
 }
 
+
+/* ═════════════════════════════════════════════════════════════════════════
+   RESPONSIVE UTILITIES
+   Companions to the @theme scale above. The named `--spacing-*` tokens
+   already give you `p-card`, `px-gutter`, `gap-stack`, `h-header`, `pb-nav`
+   and friends for free — these are only the things a plain token cannot
+   express: composite frames, hit-area expansion, and container-driven grids.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ── Touch targets ────────────────────────────────────────────────────────
+   A fingertip contact patch is ~45px across. Plenty of controls in this app
+   are 14–28px, which on a touchscreen means the tap lands on a neighbour or
+   on nothing at all.
+
+   `ck-tap` fixes that WITHOUT changing how anything looks or lays out: the
+   element keeps its exact size, and an invisible ::after centred on it
+   claims a ≥44px region. `max(100%, 44px)` is what makes it non-destructive
+   in both directions — a control already larger than 44px keeps its own hit
+   area rather than being shrunk to the minimum.
+
+   Gated on `pointer: coarse`, so it costs a mouse user nothing. A narrow
+   laptop window keeps today's exact density; only real touchscreens pay.
+
+   Safe on positioned elements: Tailwind emits custom utilities BEFORE the
+   core ones, so an explicit `absolute`/`fixed`/`sticky` still wins over the
+   `position: relative` below. (Verified against tailwindcss 4.2.2 — if you
+   upgrade and a `ck-tap absolute` element jumps, check that ordering first.)
+
+   Use `ck-tap` in dense UI — editor toolbars, card overflow menus, table row
+   actions, chip closes. Use `ck-tap-pad` for primary controls that SHOULD
+   grow: bottom-nav items, form submits, sheet footer buttons. */
+@utility ck-tap {
+  position: relative;
+
+  @media (pointer: coarse) {
+    &::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 44px);
+      height: max(100%, 44px);
+      transform: translate(-50%, -50%);
+    }
+  }
+}
+
+@utility ck-tap-pad {
+  @media (pointer: coarse) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* ── A note on page padding ───────────────────────────────────────────────
+   There is deliberately no `px-page`/`py-page` alias here. The named tokens
+   in @theme already generate the full set of core utilities —
+
+       px-gutter   py-page-y   pt-page-y   pb-page-y
+       pt-header   h-header    top-header
+       pb-nav      h-nav
+
+   — and adding a custom-utility alias on top would mix cascade tiers:
+   Tailwind emits custom utilities BEFORE core ones, so `py-page pt-8` would
+   resolve differently from `py-4 pt-8`. One way to say each thing, all in
+   the same tier, no ordering surprises.
+
+   For the composite paddings (header + page rhythm, nav + page rhythm), see
+   <PageContainer> ((components)/ui/PageContainer.jsx) — that is what it is
+   for, and pages should reach for it rather than rebuilding the calc().
+
+   ── Fluid grids ──────────────────────────────────────────────────────────
+   Card counts that follow the CONTAINER rather than the viewport, so a grid
+   reflows correctly inside a narrowed pane (a collapsed sidebar, a split
+   view) — something `grid-cols-4 md:grid-cols-2` cannot do, since it only
+   ever sees the window.
+
+       <div className="grid grid-fluid-[180px] gap-stack">
+
+   `min(…, 100%)` is the part that matters: without it a 180px minimum
+   overflows any container narrower than 180px. With it, the track collapses
+   to the container instead, so these grids cannot cause horizontal scroll.
+
+   `auto-fill` keeps empty tracks so a lone card stays card-sized;
+   `grid-fluid-fit-*` uses `auto-fit` for the cases where you do want the
+   last few items to stretch and fill the row. */
+@utility grid-fluid-* {
+  grid-template-columns: repeat(auto-fill, minmax(min(--value([*]), 100%), 1fr));
+}
+
+@utility grid-fluid-fit-* {
+  grid-template-columns: repeat(auto-fit, minmax(min(--value([*]), 100%), 1fr));
+}
 
 @layer utilities {
   @keyframes slide-in {
@@ -126,6 +350,64 @@
     animation: ck-tip-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
+  /* ── Dialog / bottom-sheet motion ───────────────────────────────────────
+     Used by (components)/ui/ResponsiveModal.jsx. Two entrances and two exits,
+     because the same component is a different object on each form factor: a
+     sheet RISES from the bottom edge it is anchored to, a dialog SETTLES in
+     place from slightly small. Animating a centred dialog upward would read
+     as a mis-anchored sheet.
+
+     ⚠️ The *-out durations must stay in step with EXIT_MS in ResponsiveModal
+     — the component keeps the panel mounted for exactly that long so the exit
+     can play. Shorten one without the other and the panel is either yanked
+     mid-animation or lingers invisibly, swallowing clicks. */
+  @keyframes ck-sheet-in {
+    0%   { transform: translateY(100%); }
+    100% { transform: translateY(0); }
+  }
+
+  @keyframes ck-sheet-out {
+    0%   { transform: translateY(0); }
+    100% { transform: translateY(100%); }
+  }
+
+  @keyframes ck-dialog-in {
+    0%   { opacity: 0; transform: scale(0.96) translateY(8px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  @keyframes ck-dialog-out {
+    0%   { opacity: 1; transform: scale(1) translateY(0); }
+    100% { opacity: 0; transform: scale(0.96) translateY(8px); }
+  }
+
+  @keyframes ck-fade-in  { 0% { opacity: 0; } 100% { opacity: 1; } }
+  @keyframes ck-fade-out { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* ── Drawer motion ──────────────────────────────────────────────────────
+     Used by (components)/ui/Drawer.jsx. A drawer slides in from the edge it
+     is anchored to and leaves the same way, so the two sides need mirrored
+     pairs rather than one shared animation.
+
+     ⚠️ The *-out durations must match EXIT_MS in Drawer.jsx — same contract
+     as the sheet animations above. */
+  @keyframes ck-drawer-in-left   { 0% { transform: translateX(-100%); } 100% { transform: translateX(0); } }
+  @keyframes ck-drawer-out-left  { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+  @keyframes ck-drawer-in-right  { 0% { transform: translateX(100%); }  100% { transform: translateX(0); } }
+  @keyframes ck-drawer-out-right { 0% { transform: translateX(0); } 100% { transform: translateX(100%); } }
+
+  .animate-ck-drawer-in-left   { animation: ck-drawer-in-left   0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  .animate-ck-drawer-out-left  { animation: ck-drawer-out-left  0.2s cubic-bezier(0.4, 0, 1, 1) forwards; }
+  .animate-ck-drawer-in-right  { animation: ck-drawer-in-right  0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  .animate-ck-drawer-out-right { animation: ck-drawer-out-right 0.2s cubic-bezier(0.4, 0, 1, 1) forwards; }
+
+  .animate-ck-sheet-in   { animation: ck-sheet-in  0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  .animate-ck-sheet-out  { animation: ck-sheet-out 0.18s cubic-bezier(0.4, 0, 1, 1) forwards; }
+  .animate-ck-dialog-in  { animation: ck-dialog-in  0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  .animate-ck-dialog-out { animation: ck-dialog-out 0.18s ease-in forwards; }
+  .animate-ck-fade-in    { animation: ck-fade-in  0.2s ease-out forwards; }
+  .animate-ck-fade-out   { animation: ck-fade-out 0.18s ease-in forwards; }
+
   /* Home hero entrance — each piece rises a few pixels into place. Staggered by
      inline animation-delay at the call site so the greeting settles before the
      composer does. */
@@ -148,6 +430,26 @@
   .animate-hero-in {
     opacity: 1 !important;
     animation: none !important;
+  }
+
+  /* Dialogs and sheets keep a fade but lose the travel. The preference is
+     about MOVEMENT, not about state changes appearing instantly — a dialog
+     that pops in with no transition at all is harder to follow, not easier.
+     Note these still take time: ResponsiveModal keeps the panel mounted for
+     EXIT_MS either way, so a zero-duration exit would leave an invisible
+     panel swallowing clicks. */
+  .animate-ck-sheet-in,
+  .animate-ck-dialog-in,
+  .animate-ck-drawer-in-left,
+  .animate-ck-drawer-in-right {
+    animation: ck-fade-in 0.15s ease-out forwards !important;
+  }
+
+  .animate-ck-sheet-out,
+  .animate-ck-dialog-out,
+  .animate-ck-drawer-out-left,
+  .animate-ck-drawer-out-right {
+    animation: ck-fade-out 0.15s ease-in forwards !important;
   }
 }
 
@@ -234,6 +536,41 @@
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
   /* Chrome/Safari */
+}
+
+/* Slim, arrow-free scrollbar for scrollable panels that still need to advertise
+   that there's more below (dropdown menus, chat panes). The standard properties
+   cover Firefox and Chromium 121+; the -webkit- block is the fallback for older
+   Chromium/Safari, which otherwise draw the chunky OS bar with stepper arrows. */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.16) transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-button {
+  display: none;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.16);
+  border-radius: 9999px;
+}
+
+.dark .thin-scrollbar {
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+.dark .thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.22);
 }
 
 /* Shimmer effect — horizontal light sweep across grey blocks for skeleton loaders */

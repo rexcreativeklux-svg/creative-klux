@@ -118,8 +118,11 @@ export default function LibraryMediaModal({
         duration={2500}
       />
 
-      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-        <div className="bg-surface rounded-lg p-6 w-[80%] h-[85%] flex flex-col">
+      {/* `w-[80%] h-[85%]` left 20% of a 360px screen as dead margin and gave
+          the grid ~288px to work with. Full-bleed sheet below `sm`, the old
+          proportional dialog above it. */}
+      <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 sm:items-center">
+        <div className="bg-surface rounded-t-2xl p-card w-full h-[92dvh] flex flex-col sm:rounded-lg sm:p-6 sm:w-[80%] sm:h-[85%]">
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-3">

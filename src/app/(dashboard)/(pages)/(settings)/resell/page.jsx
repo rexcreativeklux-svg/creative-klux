@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from "@/context/AuthContext";
 import NotificationModal from "@/app/(components)/NotificationModal";
+import ResponsiveTable from "@/app/(components)/ui/ResponsiveTable";
 
 const Resell = () => {
     const { fetchResells, createResell, deleteResell } = useAuth();
@@ -101,6 +102,59 @@ const Resell = () => {
     const startIndex = (currentPage - 1) * entriesPerPage;
     const paginatedMembers = filteredMembers.slice(startIndex, startIndex + entriesPerPage);
 
+
+    // One definition drives both the desktop table and the mobile card.
+    // Built here rather than at module scope because the Remove action closes
+    // over handleDeleteResell. Deliberately NOT memoised: that handler is
+    // redefined on every render, so a useMemo keyed on it would recompute
+    // every time anyway while implying it did not. Four object literals are
+    // free to rebuild.
+    const memberColumns = [
+        {
+            key: "member",
+            header: "Member",
+            primary: true,
+            cell: (member) => (
+                <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 shrink-0 bg-gray-300 rounded-lg flex items-center justify-center text-sm font-semibold">
+                        {member.email?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-gray-900">{member.name || "—"}</div>
+                        <div className="truncate text-sm text-gray-500">{member.email}</div>
+                    </div>
+                </div>
+            ),
+        },
+        {
+            key: "status",
+            header: "Status",
+            cell: (member) => (
+                <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(member.status)}`}>
+                    {getStatusLabel(member.status)}
+                </span>
+            ),
+        },
+        {
+            key: "joined",
+            header: "Joined",
+            cell: (member) => (member.created_at ? new Date(member.created_at).toLocaleDateString() : "N/A"),
+        },
+        {
+            key: "action",
+            header: "Action",
+            cardSlot: "footer",
+            cell: (member) => (
+                <button
+                    onClick={() => handleDeleteResell(member.id, member.email)}
+                    aria-label={`Remove ${member.email}`}
+                    className="ck-tap p-2 hover:bg-red-100 rounded-lg text-red-600 transition cursor-pointer"
+                >
+                    <Trash2 size={18} />
+                </button>
+            ),
+        },
+    ];
     const getStatusLabel = (status) => {
         if (status === 1 || status === "1") return "Active";
         if (status === 0 || status === "0") return "Inactive";
@@ -327,51 +381,14 @@ const Resell = () => {
                         ))}
                     </div>
                 ) : (
-                    <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                        <table className="w-full">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Member</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Joined</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-surface divide-y divide-gray-200">
-                                {paginatedMembers.map((member) => (
-                                    <tr key={member.id} className="hover:bg-gray-50 transition">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-gray-300 rounded-lg flex items-center justify-center text-sm font-semibold">
-                                                    {member.email?.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <div className="text-sm font-medium text-gray-900">{member.name || "—"}</div>
-                                                    <div className="text-sm text-gray-500">{member.email}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(member.status)}`}>
-                                                {getStatusLabel(member.status)}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-600">
-                                            {member.created_at ? new Date(member.created_at).toLocaleDateString() : "N/A"}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <button
-                                                onClick={() => handleDeleteResell(member.id, member.email)}
-                                                className="p-2 hover:bg-red-100 rounded-lg text-red-600 transition cursor-pointer"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    // The Action column is a delete button; behind overflow-x-auto
+                    // it sat off the right edge of a phone. <ResponsiveTable> stacks
+                    // each row into a card below `md`, action in the card footer.
+                    <ResponsiveTable
+                        rows={paginatedMembers}
+                        rowKey={(m) => m.id}
+                        columns={memberColumns}
+                    />
                 )}
 
                 {/* Pagination */}

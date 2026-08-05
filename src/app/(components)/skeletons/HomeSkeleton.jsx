@@ -35,11 +35,11 @@ const TAB_WIDTHS = [106, 92];
  */
 export default function HomeSkeleton({ clearsHeader = true }) {
   return (
-    <div className={`relative min-h-full bg-page ${clearsHeader ? "pt-16" : ""}`}>
+    <div className={`relative min-h-full bg-page ${clearsHeader ? "pt-header" : ""}`}>
       {/* ── Hero ────────────────────────────────────────────────────────────
           Same height expression as (dashboard)/page.jsx, so the rail below
           starts on the sidebar's THEME hairline in both states. */}
-      <section className="relative flex min-h-[calc(100vh-4rem-7rem)] flex-col justify-center pt-[clamp(1.5rem,7vh,5rem)] md:min-h-[calc(100vh-4rem-var(--ck-rail-top))]">
+      <section className="relative flex min-h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav)-4rem)] flex-col justify-center pt-[clamp(1.5rem,7vh,5rem)] lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))]">
         <div className="relative mx-auto w-full max-w-5xl px-5 pb-10 sm:px-8">
           {/* Greeting — two lines, centred, at the heading's own height */}
           <div className="mb-7 flex flex-col items-center gap-3">
@@ -81,7 +81,7 @@ export default function HomeSkeleton({ clearsHeader = true }) {
           the ones that continue the sidebar's across the window. */}
       <section className="w-full border-t border-gray-200">
         {/* Tab row — pinned to --ck-rail-row on desktop, as the real one is */}
-        <div className="flex items-center justify-between gap-4 px-4 py-3.5 sm:px-6 md:h-(--ck-rail-row) md:py-0">
+        <div className="flex items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:h-(--ck-rail-row) lg:py-0">
           <div className="flex items-center gap-2.5">
             {TAB_WIDTHS.map((width, index) => (
               <div key={index} className="flex items-center gap-2.5">

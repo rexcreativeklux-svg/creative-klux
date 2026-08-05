@@ -10,7 +10,8 @@
 //   "template" → a public Klux template. "Save to Designs" copies it into the
 //                brand's own designs and stays put — it deliberately does NOT
 //                open an editor. The share links point at a `?template=<slug>`
-//                deep link.
+//                deep link, built by buildTemplateShareQuery() so the recipient
+//                can resolve the design exactly (see templatesApi.js).
 //   "design"   → one of the user's own saved designs. "Open in editor" goes to
 //                /design/<id>; only copy-link and email are offered, because a
 //                private design has nothing to say to Facebook or LinkedIn.
@@ -27,9 +28,17 @@
 //   │        big preview           │ [ Use this template ] │
 //   │   (repainted at high res)    │ summary + tags        │
 //   │                              │ Specs …               │
+//   │                              │ ■ More like this ▫▫▫  │
 //   │                              ├───────────────────────┤
 //   │                              │ ■ Share  🔗 ✉ f in    │  ← pinned
 //   └──────────────────────────────┴───────────────────────┘
+//
+// "More like this" is three sibling cards, chosen by pickRelatedItems() from
+// rows the parent already holds — the public pool for a template, the brand's
+// own designs for a design. Clicking one swaps the modal over to it (`item`
+// changes, everything below re-derives), so the strip is a browse loop rather
+// than a dead end. See the RELATED_WEIGHTS note in templatesApi.js for what
+// counts as related, and why a template with no real match still gets cards.
 //
 // ⚠️ NEITHER SOURCE SENDS PROSE. A row carries only structured fields (format,
 // size, orientation, category, design type, pricing, dates) plus the layout
@@ -45,13 +54,29 @@
 // never opens empty.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Link2, Loader2, Mail, PenLine, Save, X } from "lucide-react";
+import {
+  Check,
+  ImageIcon,
+  Link2,
+  Loader2,
+  Mail,
+  PenLine,
+  Save,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
-import { TEMPLATE_PARAM } from "./templatesApi";
+import { buildTemplateShareQuery } from "./templatesApi";
 
 /** Longest edge of the modal's own preview paint. Card previews are 480. */
 const PREVIEW_MAX_DIM = 1400;
+
+/**
+ * Longest edge of a "More like this" thumbnail. Those tiles are ~105-120 px
+ * wide on every breakpoint (three across a column that is at most 400 px), so
+ * 360 covers a 2× screen with room to spare and keeps the data URL tiny.
+ */
+const RELATED_MAX_DIM = 360;
 
 /** Plural-aware label for one element type, e.g. 3 → "3 text blocks". */
 const ELEMENT_LABELS = {
@@ -219,6 +244,11 @@ function LinkedInIcon({ className = "h-4 w-4" }) {
  *   shown instantly while the high-res one renders.
  * @param {boolean} [props.busy] The parent is mid-save; the primary button
  *   shows a spinner and stops accepting clicks.
+ * @param {object[]} [props.related] Sibling rows for the "More like this"
+ *   strip, already picked by the parent (pickRelatedItems). Empty hides it.
+ * @param {(item: object, previewSrc: string|null) => void} [props.onSelectRelated]
+ *   A sibling card was clicked — the parent re-points `item` at it. The tile's
+ *   own painted preview rides along so the swap shows artwork immediately.
  * @param {(item: object) => void} props.onUse   Act on the item (parent decides
  *   whether that means saving a copy or routing somewhere).
  * @param {() => void} props.onClose             Dismiss the modal.
@@ -227,10 +257,15 @@ export default function TemplateDetailsModal({
   item,
   previewSrc,
   busy = false,
+  related = [],
+  onSelectRelated,
   onUse,
   onClose,
 }) {
   const panelRef = useRef(null);
+  // The scrolling half of the details column, so swapping to a sibling can send
+  // the reader back to the title instead of leaving them mid-specs.
+  const detailsScrollRef = useRef(null);
   // The high-res paint, tagged with the template it belongs to: { key, src }.
   // Tagging (rather than clearing on every open) is what keeps the effect below
   // free of a synchronous setState — a stale paint is filtered out on read.
@@ -250,6 +285,14 @@ export default function TemplateDetailsModal({
   // Move focus into the dialog so keyboard users aren't left behind on the card.
   useEffect(() => {
     if (item) panelRef.current?.focus();
+  }, [item]);
+
+  // A "More like this" click swaps `item` without unmounting the panel, so the
+  // scroll position would otherwise survive into a design the reader hasn't
+  // seen the top of yet. Jumping (not smooth-scrolling) matches the instant
+  // content swap — an animated scroll would just chase it.
+  useEffect(() => {
+    if (item) detailsScrollRef.current?.scrollTo({ top: 0 });
   }, [item]);
 
   // Repaint the design large. The card's low-res preview holds the space until
@@ -280,13 +323,18 @@ export default function TemplateDetailsModal({
   // What a share link points at. A template gets the home-page deep link that
   // reopens this modal; a saved design gets its editor URL, which is the only
   // address it actually has (and only opens for the brand's own members).
+  //
+  // The template link carries more than the slug — see SHARE_PARAM_* in
+  // templatesApi.js. The recipient resolves the design itself from the CDN by
+  // slug (always exact), and those extra params supply the few things that
+  // object doesn't hold: the title, and the taxonomy that decides where their
+  // saved copy is filed.
   const shareUrl = useMemo(() => {
     if (!item || typeof window === "undefined") return "";
     if (item.kind === "design") {
       return `${window.location.origin}${item.href || `/design/${item.id}`}`;
     }
-    const key = item.slug || item.id;
-    return `${window.location.origin}${window.location.pathname}?${TEMPLATE_PARAM}=${encodeURIComponent(key)}`;
+    return `${window.location.origin}${window.location.pathname}?${buildTemplateShareQuery(item)}`;
   }, [item]);
 
   const specs = useMemo(() => (item ? buildSpecs(item) : []), [item]);
@@ -342,7 +390,14 @@ export default function TemplateDetailsModal({
   };
 
   const shareActions = [
-    { key: "link", label: "Copy link", icon: copied ? Check : Link2, onClick: handleCopyLink },
+    {
+      key: "link",
+      // The icon doubles as the confirmation — it flips to a tick for 2s after
+      // a successful copy, so the action needs no extra chrome to acknowledge.
+      label: copied ? "Link copied" : "Copy link",
+      icon: copied ? Check : Link2,
+      onClick: handleCopyLink,
+    },
     { key: "email", label: "Share by email", icon: Mail, onClick: handleEmail },
     // Social sharing is for the public pool only — a saved design's link opens
     // for nobody outside the brand, so posting it would be a dead end.
@@ -425,7 +480,10 @@ export default function TemplateDetailsModal({
             A flex column: the middle scrolls, the Share block below it is
             pinned to the bottom edge. */}
         <div className="flex min-h-0 flex-1 flex-col border-t border-gray-200 lg:w-100 lg:flex-none lg:border-l lg:border-t-0">
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-6">
+          <div
+            ref={detailsScrollRef}
+            className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-6"
+          >
             {/* Title + badges */}
             <h2
               id="template-details-title"
@@ -521,6 +579,31 @@ export default function TemplateDetailsModal({
                 </dl>
               </div>
             )}
+
+            {/* ── More like this ──────────────────────────────────────────
+                Three across on every breakpoint. The column is at most 400px
+                on desktop and the full sheet width on mobile, so the tiles
+                land between ~105px and ~120px either way — small, but the
+                same size everywhere, which is what keeps the row tidy on a
+                phone. Below the grid, only the title and format are shown;
+                anything more would wrap at that width. */}
+            {related.length > 0 && (
+              <div className="mt-7">
+                <h3 className="flex items-center gap-2 text-[13px] font-semibold text-gray-900">
+                  <span aria-hidden="true" className="h-2 w-2 bg-blue-600" />
+                  More like this
+                </h3>
+                <div className="mt-3 grid grid-cols-3 gap-2.5 sm:gap-3">
+                  {related.map((relatedItem) => (
+                    <RelatedCard
+                      key={relatedItem.id}
+                      item={relatedItem}
+                      onOpen={onSelectRelated}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── Share — pinned to the bottom of the details column ──────── */}
@@ -547,5 +630,109 @@ export default function TemplateDetailsModal({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * One tile in the "More like this" strip.
+ *
+ * Paints on mount rather than behind an IntersectionObserver like the rail's
+ * cards do: there are only ever three of them, they're small, and they live
+ * inside a dialog the user has already opened — the deferral the rail needs
+ * (twelve cards sitting below the fold of a page nobody may scroll) buys
+ * nothing here, and waiting for a scroll would leave the strip visibly empty
+ * the moment it comes into view.
+ *
+ * A real <button>, unlike the rail's card: nothing interactive is nested
+ * inside it, so it doesn't need the hand-rolled keyboard handling. Its
+ * children are <span>s for the same reason — a <button> may only contain
+ * phrasing content.
+ *
+ * @param {object} props
+ * @param {object} props.item The sibling row, in the normalized card shape.
+ * @param {(item: object, previewSrc: string|null) => void} [props.onOpen]
+ */
+function RelatedCard({ item, onOpen }) {
+  const [src, setSrc] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const dataUrl = await renderDesignToThumbnail(
+          { canvas: item.canvas, elements: item.elements },
+          { maxDim: RELATED_MAX_DIM },
+        );
+        if (!alive) return;
+
+        if (dataUrl) {
+          setSrc(dataUrl);
+          return;
+        }
+        // renderDesignToThumbnail swallows its own errors and returns null.
+        console.warn(`⚠️ [template-details] couldn't paint related "${item.title}"`);
+        if (item.thumbnail) setSrc(item.thumbnail);
+        else setFailed(true);
+      } catch (err) {
+        if (!alive) return;
+        console.error(
+          `❌ [template-details] related preview failed for "${item.title}":`,
+          err,
+        );
+        setFailed(true);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [item]);
+
+  return (
+    <button
+      type="button"
+      // The painted preview rides along, so the modal it opens shows artwork
+      // straight away instead of the "Painting preview…" spinner.
+      onClick={() => onOpen?.(item, src)}
+      title={item.title}
+      aria-label={`View details for ${item.title}`}
+      className="group flex flex-col text-left cursor-pointer"
+    >
+      <span className="relative block aspect-4/3 w-full overflow-hidden rounded-lg border border-gray-200 bg-[#eff6ff8f] transition-colors group-hover:border-gray-300">
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt={item.title}
+            loading="lazy"
+            className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.05]"
+          />
+        ) : failed ? (
+          <span className="flex h-full w-full items-center justify-center">
+            <ImageIcon className="h-4 w-4 text-gray-400" />
+          </span>
+        ) : (
+          <span className="block h-full w-full animate-pulse bg-gray-200/60" />
+        )}
+
+        {/* Abbreviated to "Pro" — "Premium" doesn't fit a ~105px tile. Same
+            gray-900 / text-surface pairing as the rail's badge, so it stays
+            legible when the theme flips. */}
+        {item.premium && (
+          <span className="absolute left-1 top-1 rounded bg-gray-900/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-surface backdrop-blur-sm">
+            Pro
+          </span>
+        )}
+      </span>
+
+      <span className="mt-1.5 block truncate text-[12px] font-medium leading-snug text-gray-900 transition-colors group-hover:text-blue-600">
+        {item.title}
+      </span>
+      {item.format && (
+        <span className="block truncate text-[11px] text-gray-500">{item.format}</span>
+      )}
+    </button>
   );
 }

@@ -80,7 +80,11 @@ export default function QuickStartCards({ className = "", style }) {
               onClick={() =>
                 console.log(`🚀 [home] quick start → "${title}" (${href})`)
               }
-              className="group flex items-center gap-3 rounded-xl border border-gray-200 bg-surface px-3.5 py-3 text-left shadow-[0_2px_12px_rgba(0,0,0,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-[0_14px_32px_-16px_rgba(15,23,42,0.35)] focus:outline-none focus-visible:border-blue-500/60 focus-visible:ring-2 focus-visible:ring-blue-500/25 w-80"
+              // w-full below `sm`: a fixed 320px card inside the 90%-wide
+              // wrapper leaves ~4px of slack on a 360px screen, so any longer
+              // label pushed the row into horizontal overflow. Stacked cards
+              // should just take the width they are given.
+              className="group flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-surface px-3.5 py-3 text-left shadow-[0_2px_12px_rgba(0,0,0,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-[0_14px_32px_-16px_rgba(15,23,42,0.35)] focus:outline-none focus-visible:border-blue-500/60 focus-visible:ring-2 focus-visible:ring-blue-500/25 sm:w-80"
             >
               {/* Icon tile. h-* AND w-* on the glyph: lucide hard-codes
                   height="24" on its <svg>, so a width-only class letterboxes it. */}

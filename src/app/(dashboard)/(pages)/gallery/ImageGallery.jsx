@@ -254,12 +254,16 @@ export default function ImageGallery() {
 
   return (
     <>
-      <div className="min-h-screen px-4 sm:px-8 lg:px-12 py-6">
+      {/* min-h-screen → min-h-full: the dashboard layout already owns the
+          viewport height and its own scroll area, so a 100vh minimum here
+          stacked on top of the layout's padding and forced a second scrollbar
+          on short screens. */}
+      <div className="min-h-full px-gutter py-page-y">
         {/* Header */}
-        <header className="bg-blue-600 text-white px-6 sm:px-8 py-6 rounded-xl shadow-lg mb-6">
+        <header className="bg-blue-600 text-white px-card py-5 sm:px-8 sm:py-6 rounded-xl shadow-lg mb-6">
           <div className="flex items-center gap-3">
-            <ImageIcon size={30} />
-            <div>
+            <ImageIcon size={30} className="shrink-0" />
+            <div className="min-w-0">
               <h1 className="text-2xl font-bold leading-none">My Gallery</h1>
               <p className="text-sm text-white/80 mt-1">
                 All your media in one place — images, videos, audio &amp; docs.
@@ -287,7 +291,10 @@ export default function ImageGallery() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && runSearch()}
-                  className="flex-1 min-w-60 px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  // `min-w-60` (240px) plus the type select and search button
+                  // could not share a 360px row, so the group overflowed. The
+                  // minimum only applies once there is room for it.
+                  className="flex-1 w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 sm:w-auto sm:min-w-60"
                   autoFocus
                 />
                 <select

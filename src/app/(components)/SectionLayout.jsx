@@ -12,8 +12,13 @@
  * (dashboard)/layout.js. While a section is open the PRIMARY sidebar stays
  * collapsed in the flow and hover/pin expands it as an overlay ABOVE this
  * panel (see Sidebar's overlayMode).
- * Mobile:  the same nav collapses into a horizontal, scrollable pill bar
+ * Below lg: the same nav collapses into a horizontal, scrollable pill bar
  * pinned above the page content.
+ *
+ * ⚠️ That `lg` (1024px) is shared with Sidebar.jsx and the --ck-rail-*
+ * alignment — a section route renders the primary sidebar in overlay mode, so
+ * if the two disagree about where "desktop" starts, one of them reserves rail
+ * width the other is not drawing. See the --ck-rail-* note in globals.css.
  *
  * The dashboard layout skips its default page padding for these routes (see
  * SECONDARY_SIDEBAR_ROUTES in (dashboard)/layout.js), so this shell owns the
@@ -71,10 +76,10 @@ const SectionLayout = ({ title, items, children }) => {
   }
 
   return (
-    <div className="h-full pt-16 flex flex-col md:flex-row overflow-hidden">
+    <div className="h-full pt-header flex flex-col lg:flex-row overflow-hidden">
       {/* ── Desktop: vertical secondary sidebar ─────────────────── */}
       <aside
-        className={`hidden md:flex md:flex-col shrink-0 h-full bg-surface border-r border-gray-200
+        className={`hidden lg:flex lg:flex-col shrink-0 h-full bg-surface border-r border-gray-200
           transition-all duration-300 ease-in-out overflow-hidden
           ${isOpen ? "w-52" : "w-15"}`}
       >
@@ -140,7 +145,7 @@ const SectionLayout = ({ title, items, children }) => {
           can't clip it; pointer-events off so it never steals the hover. */}
       {!isOpen && hoverTip && (
         <div
-          className="hidden md:block fixed z-60 pointer-events-none"
+          className="hidden lg:block fixed z-60 pointer-events-none"
           style={{
             top: hoverTip.top,
             left: hoverTip.left,
@@ -168,8 +173,8 @@ const SectionLayout = ({ title, items, children }) => {
         </div>
       )}
 
-      {/* ── Mobile: horizontal scrollable tab bar ───────────────── */}
-      <div className="md:hidden shrink-0 bg-surface border-b border-gray-200">
+      {/* ── Mobile + tablet: horizontal scrollable tab bar ──────── */}
+      <div className="lg:hidden shrink-0 bg-surface border-b border-gray-200">
         <p className="px-4 pt-3 pb-1 text-sm font-bold text-gray-900 truncate">
           {title}
         </p>
@@ -193,7 +198,14 @@ const SectionLayout = ({ title, items, children }) => {
 
       {/* ── Section page content ────────────────────────────────── */}
       <div className="flex-1 min-w-0 overflow-y-auto bg-page">
-        <div className="px-4 md:px-9 pt-6 md:pt-8 pb-20 md:pb-10">{children}</div>
+        {/* Matches the frame the dashboard layout applies to ordinary pages —
+            fluid gutters, and bottom clearance for the mobile nav (which
+            already folds in the iOS home indicator) that drops away at `lg`
+            where the bar is gone. Section routes are in NO_PADDING_ROUTES, so
+            this shell owns all of that padding itself. */}
+        <div className="px-gutter pt-page-y pb-[calc(var(--spacing-nav)+var(--spacing-page-y))] lg:pb-page-y">
+          {children}
+        </div>
       </div>
     </div>
   );

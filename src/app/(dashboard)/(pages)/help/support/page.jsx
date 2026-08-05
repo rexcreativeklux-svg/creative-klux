@@ -232,7 +232,7 @@ export default function Support({ activePanel, setActivePanel }) {
   };
 
   return (
-    <div className="min-h-screen px-13 py-5">
+    <div className="min-h-full px-gutter py-5">
       <div className="">
         {/* Header */}
         <div className="text-center mb-12">

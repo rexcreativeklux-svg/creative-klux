@@ -30,6 +30,7 @@ import {
   addRow,
   addCol,
 } from "@/(lib)/design/tableUtils";
+import { useIsTouch } from "@/utils/useMediaQuery";
 
 /**
  * EditorElement — renders one design element inside the scaled stage and makes
@@ -142,6 +143,9 @@ export default function EditorElement({
     el.animation.type !== "none" &&
     !editing;
   const animStyle = animated ? animationStyle(el.animation) : null;
+  // Finger vs. mouse — drives handle size, not screen width: a 900px desktop
+  // window is still a mouse, and a 1400px tablet is still a finger.
+  const coarsePointer = useIsTouch();
 
   return (
     <Rnd
@@ -173,9 +177,15 @@ export default function EditorElement({
         // Only lift the element while it's actively selected+editing so its
         // resize handles stay reachable, without overriding the layer order.
         zIndex: editing ? 30 : undefined,
+        // Load-bearing on touch. The stage viewport scrolls below `lg` (that is
+        // how panning a zoomed-in canvas works), so without this the browser
+        // claims a one-finger drag as a scroll gesture and the element never
+        // moves. Suppressed while editing text, where the browser's own
+        // selection and caret dragging must keep working.
+        touchAction: editing ? undefined : "none",
         ...selectionStyle,
       }}
-      resizeHandleStyles={handleStyles(selected)}
+      resizeHandleStyles={handleStyles(selected, zoom, coarsePointer)}
     >
       {/* Rotation lives on the inner content: react-rnd drives the outer node's
           transform (translate) for positioning, so rotating it there is dropped. */}
@@ -1171,14 +1181,37 @@ function AddTrackButton({ orientation, onMouseDown }) {
   );
 }
 
-function handleStyles(selected) {
+/**
+ * Corner resize handles.
+ *
+ * Two corrections over the flat 10px dot this used to return:
+ *
+ *   · divided by `zoom`, because these live INSIDE the stage's
+ *     `transform: scale(zoom)` — at 50% a 10px handle drew as 5px on screen,
+ *     and at fit-to-screen on a phone it could be under 3px. Same technique
+ *     LineHandles in DesignEditor already uses.
+ *   · larger on touch, where a mouse-sized dot is far below what a fingertip
+ *     can reliably land on. `offset` pushes the hit area out past the visible
+ *     dot so the corner is grabbable slightly outside the element too.
+ *
+ * @param {boolean} selected
+ * @param {number}  zoom    Current stage scale.
+ * @param {boolean} coarse  True when the primary input is a finger.
+ */
+function handleStyles(selected, zoom = 1, coarse = false) {
   if (!selected) return {};
+  const size = (coarse ? 20 : 10) / zoom;
+  const border = 2 / zoom;
+  const offset = -size / 2;
   const dot = {
-    width: 10,
-    height: 10,
+    width: size,
+    height: size,
     background: "#fff",
-    border: "2px solid #6366f1",
+    border: `${border}px solid #6366f1`,
     borderRadius: "50%",
+    // Centre each dot on its corner rather than letting it hang inside.
+    marginLeft: offset,
+    marginTop: offset,
   };
   return {
     topLeft: dot,

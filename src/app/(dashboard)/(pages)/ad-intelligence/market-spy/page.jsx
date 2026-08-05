@@ -11,6 +11,7 @@ import {
   PieChart, Pie, Cell,
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
+import { ChartFrame } from "@/app/(components)/ui/ResponsiveChart";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const COLORS = {
@@ -286,7 +287,7 @@ export default function CompetitorInsights() {
 
                 <Card delay={0.27}>
                   <SectionLabel>Traffic Sources</SectionLabel>
-                  <ResponsiveContainer width="100%" height={140}>
+                  <ChartFrame size="sm"><ResponsiveContainer width="100%" height="100%">
                     <BarChart data={sourceData} layout="vertical">
                       <XAxis type="number" hide />
                       <YAxis
@@ -308,7 +309,7 @@ export default function CompetitorInsights() {
                       />
                       <Bar dataKey="value" fill={COLORS.accent} radius={[0, 4, 4, 0]} />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </ResponsiveContainer></ChartFrame>
                 </Card>
               </div>
 
@@ -350,7 +351,7 @@ export default function CompetitorInsights() {
 
                 <Card delay={0.33}>
                   <SectionLabel>Age Distribution</SectionLabel>
-                  <ResponsiveContainer width="100%" height={150}>
+                  <ChartFrame size="sm"><ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data.ageGroups || []}>
                       <XAxis dataKey="age" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                       <YAxis hide />
@@ -365,7 +366,7 @@ export default function CompetitorInsights() {
                       />
                       <Bar dataKey="percent" fill={COLORS.accent} radius={[4, 4, 0, 0]} />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </ResponsiveContainer></ChartFrame>
                 </Card>
               </div>
 

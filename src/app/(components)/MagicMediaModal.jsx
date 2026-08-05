@@ -19,11 +19,14 @@ export default function MagicMediaModal({
 }) {
     if (!isOpen) return null;
 
+    // Sheet below `sm`, proportional dialog above — `w-[80%]` on a phone
+    // wasted a fifth of the screen on backdrop.
     return (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-            <div className="bg-surface rounded-lg w-[80%] h-[95%] flex flex-col overflow-hidden">
-                {/* Header */}
-                <div className="flex justify-between items-center py-5 px-14">
+        <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 sm:items-center">
+            <div className="bg-surface rounded-t-2xl w-full h-[95dvh] flex flex-col overflow-hidden sm:rounded-lg sm:w-[80%] sm:h-[95%]">
+                {/* Header. px-14 (56px) was eating a third of a 360px screen —
+                    fluid card padding below `sm`, the original spacing above. */}
+                <div className="flex justify-between items-center py-5 px-card sm:px-14">
                     <h2 className="text-xl font-semibold">Magic Media</h2>
                     <button
                          onClick={onCancel}

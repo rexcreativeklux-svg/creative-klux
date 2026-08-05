@@ -24,6 +24,8 @@ import {
   BookImage,
   Sparkles,
   Image,
+  MoreHorizontal,
+  X,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -31,6 +33,37 @@ import LogoutModal from "./LogoutModal";
 import ThemeSwitcher from "./ThemeSwitcher";
 
 /**
+ * Which app links get a permanent slot in the mobile bottom bar, in order.
+ *
+ * IDs rather than duplicated link objects, so label, icon and href stay owned
+ * by `appsItems` below — a renamed route cannot leave the bottom bar pointing
+ * somewhere stale. Everything not listed here lives in the drawer behind
+ * "More".
+ *
+ * Four is the ceiling: five slots on a 360px screen give each one ~72px, and
+ * a fifth destination would push the labels below legible.
+ */
+const BOTTOM_NAV_IDS = ["dashboard", "creatives", "magic-studio", "product-studio"];
+
+/**
+ * ── THE THREE PLACES THIS COMPONENT RENDERS ─────────────────────────────────
+ *
+ *   1. `lg` and up — the in-flow rail. Expands/collapses, remembers its state
+ *      in localStorage, shows hover tooltips while collapsed.
+ *   2. Below `lg` — a fixed bottom bar of the FOUR most-used destinations,
+ *      plus a "More" button.
+ *   3. Below `lg`, inside <Drawer> (`variant="drawer"`) — the SAME rail markup
+ *      as (1), always expanded. This is what "More" and the header's hamburger
+ *      open, and it is why the Apps/Copilot tabs, the theme switcher and the
+ *      account block are no longer desktop-only.
+ *
+ * The breakpoint moved from `md` (768) to `lg` (1024) so tablet portrait gets
+ * the adapted layout rather than the phone one. ⚠️ That switch is shared with
+ * SectionLayout.jsx and the --ck-rail-* alignment in globals.css /
+ * ThemeSwitcher.jsx / studio/TemplatesSection.jsx / (dashboard)/page.jsx —
+ * they must all say `lg`, or the home page's rail hairlines stop lining up
+ * with this sidebar's. See the --ck-rail-* note in globals.css.
+ *
  * @param {Object}  props
  * @param {boolean} props.isOpen      Expanded/collapsed state (normal mode)
  * @param {Function} props.setIsOpen  Setter for `isOpen` (kept for API compat)
@@ -41,21 +74,40 @@ import ThemeSwitcher from "./ThemeSwitcher";
  *   here since hovering reveals the full sidebar anyway.
  * @param {boolean} [props.pinned]    Overlay mode only: header toggle pinned
  *   the overlay open, so it survives mouse-out until unpinned.
+ * @param {"default"|"drawer"} [props.variant="default"] "drawer" renders ONLY
+ *   the nav panel — always expanded, no `hidden lg:flex`, no bottom bar, no
+ *   hover tooltips — for mounting inside <Drawer> on mobile.
+ * @param {Function} [props.onOpenNav]  Below `lg`: opens the nav drawer. Wired
+ *   to the bottom bar's "More" button.
+ * @param {Function} [props.onNavigate] Called when a nav link is followed, so
+ *   the drawer that contains it can close itself. Navigation is NOT handled
+ *   here — this is only a notification.
+ * @param {Function} [props.onClose] Drawer variant only: dismisses the drawer.
+ *   Wired to the close (✕) button in the logo row, so the panel has a visible
+ *   affordance beside the scrim tap / Escape / swipe-back it already answers
+ *   to. Omitted (or in any non-drawer variant) the button is not rendered.
  */
 const Sidebar = ({
   isOpen: isOpenProp,
   setIsOpen,
   overlayMode = false,
   pinned = false,
+  variant = "default",
+  onOpenNav,
+  onNavigate,
+  onClose,
 }) => {
   const router = useRouter();
   const pathname = usePathname();
   const { user, logout } = useAuth();
   // Overlay mode: hovering the collapsed strip expands the sidebar.
   const [hovered, setHovered] = useState(false);
+  const isDrawer = variant === "drawer";
   // What the render tree treats as "expanded". In overlay mode the layout keeps
   // the in-flow width collapsed and this only widens the floating panel.
-  const isOpen = overlayMode ? pinned || hovered : isOpenProp;
+  // In the drawer there is nothing to collapse INTO — it is already an overlay
+  // the user deliberately opened — so it is always expanded.
+  const isOpen = isDrawer ? true : overlayMode ? pinned || hovered : isOpenProp;
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showBottomMenu, setShowBottomMenu] = useState(false);
   // ── Apps / Copilot tabs ─────────────────────────────────────────
@@ -68,7 +120,9 @@ const Sidebar = ({
   // Favorites disclosure on the Copilot tab (empty state until favorites exist).
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const bottomMenuRef = useRef(null);
-  const mobileBottomMenuRef = useRef(null);
+  // (The mobile bottom bar used to own a second account popup and a ref for
+  // its outside-click handling. Both are gone — the drawer behind "More"
+  // carries the account block now, so there is one menu instead of two.)
   const userBtnRef = useRef(null);
   // Position for the collapsed user menu — rendered fixed so it isn't clipped
   // by the sidebar's overflow-hidden while collapsed.
@@ -170,24 +224,30 @@ const Sidebar = ({
   // Apps tab — flat list, no category headers. Social Content, Ads Content and
   // Ad Intelligence are sections: each opens a page with its own secondary
   // sidebar (see (components)/SectionLayout.jsx) holding the old sub-pages.
+  // `short` is the bottom-bar caption — the full label does not fit a ~72px
+  // slot, and "Creative S…" is worse than "Creative". Only the four items in
+  // BOTTOM_NAV_IDS need one.
   const appsItems = [
-    { id: "dashboard", label: "Home", href: "/", icon: LayoutDashboard },
+    { id: "dashboard", label: "Home", short: "Home", href: "/", icon: LayoutDashboard },
     { id: "brand", label: "Brand Kits", href: "/brand/reuse", icon: Palette },
     {
       id: "creatives",
       label: "Creative Studio",
+      short: "Creative",
       href: "/creatives",
       icon: Folder,
     },
     {
       id: "product-studio",
       label: "Product Studio",
+      short: "Product",
       href: "/product-studio",
       icon: BookImage,
     },
     {
       id: "magic-studio",
       label: "Magic Studio",
+      short: "Magic",
       href: "/magic-studio",
       icon: Sparkles,
     },
@@ -227,6 +287,13 @@ const Sidebar = ({
     },
   ];
 
+  // Resolved against `appsItems` so the bar cannot drift from the sidebar.
+  // `.filter(Boolean)` guards the case where an id in BOTTOM_NAV_IDS no longer
+  // matches an app — the slot simply disappears rather than crashing the bar.
+  const bottomNavItems = BOTTOM_NAV_IDS.map((id) =>
+    appsItems.find((item) => item.id === id),
+  ).filter(Boolean);
+
   const bottomMenuLinks = [
     { label: "Profile Settings", href: "/profile", icon: User },
     { label: "Gallery", href: "/gallery", icon: Image },
@@ -243,6 +310,10 @@ const Sidebar = ({
       <Link
         key={id}
         href={href}
+        // In the drawer, following a link should also dismiss the drawer —
+        // otherwise the user arrives at the new page with the nav still over
+        // it. The drawer owner supplies this; navigation itself is untouched.
+        onClick={onNavigate}
         className={`
           group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-medium
           transition-all duration-150
@@ -348,22 +419,31 @@ const Sidebar = ({
 
   return (
     <>
-      {/* ── Desktop Sidebar ───────────────────────────────────── */}
+      {/* ── Sidebar rail ──────────────────────────────────────────
+          The same markup serves the desktop rail and the mobile drawer; only
+          the outer classes differ. In the drawer it is always visible and
+          always expanded, so it drops the `hidden lg:flex`, the width
+          transition and the overlay positioning — the <Drawer> owns all of
+          that. */}
       {/* Overlay mode: this placeholder holds the collapsed width in the
           layout flow so the floating panel never pushes the content aside. */}
-      {overlayMode && (
-        <div className="hidden md:block w-15 shrink-0" aria-hidden="true" />
+      {overlayMode && !isDrawer && (
+        <div className="hidden lg:block w-15 shrink-0" aria-hidden="true" />
       )}
       <nav
-        onMouseEnter={overlayMode ? () => setHovered(true) : undefined}
-        onMouseLeave={overlayMode ? () => setHovered(false) : undefined}
+        onMouseEnter={overlayMode && !isDrawer ? () => setHovered(true) : undefined}
+        onMouseLeave={overlayMode && !isDrawer ? () => setHovered(false) : undefined}
         className={`
-          hidden md:flex md:flex-col shrink-0
-          h-screen bg-surface border-r border-gray-200
-          transition-all duration-300 ease-in-out overflow-hidden
-          ${overlayMode ? "fixed left-0 top-0 z-55" : ""}
-          ${overlayMode && isOpen ? "shadow-2xl" : ""}
-          ${isOpen ? "w-56" : "w-15"}
+          flex flex-col shrink-0 bg-surface overflow-hidden
+          ${
+            isDrawer
+              ? "h-full w-64 max-w-full"
+              : `hidden lg:flex h-[100dvh] border-r border-gray-200
+                 transition-all duration-300 ease-in-out
+                 ${overlayMode ? "fixed left-0 top-0 z-55" : ""}
+                 ${overlayMode && isOpen ? "shadow-2xl" : ""}
+                 ${isOpen ? "w-56" : "w-15"}`
+          }
         `}
       >
         {/* Logo row */}
@@ -383,9 +463,31 @@ const Sidebar = ({
               inherited 16px body size, making it the heaviest thing in the
               sidebar. Explicit type keeps it a wordmark rather than a shout. */}
           {isOpen && (
-            <span className="ml-2 truncate text-[15px] font-semibold tracking-tight text-gray-900">
+            <span className="ml-2 min-w-0 truncate text-[15px] font-semibold tracking-tight text-gray-900">
               Creative Klux
             </span>
+          )}
+
+          {/* Close (drawer only) — the scrim, Escape and the swipe-back strip
+              all dismiss the drawer already, but none of them are visible. On a
+              phone the rail fills the screen edge to edge, so without this the
+              only discoverable way out is a tap on the sliver of page beside it.
+              stopPropagation matters: this button sits inside the logo row,
+              which navigates to "/" — without it, closing also routes home. */}
+          {isDrawer && onClose && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              aria-label="Close navigation menu"
+              // -mr-2 pulls the 40px tap target's padding back over the row's
+              // px-4, so the glyph still optically lines up with the edge.
+              className="-mr-2 ml-auto flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200"
+            >
+              <X className="h-5 w-5 shrink-0" />
+            </button>
           )}
         </div>
 
@@ -449,7 +551,13 @@ const Sidebar = ({
                   <Link
                     key={href}
                     href={href}
-                    onClick={() => setShowBottomMenu(false)}
+                    // Closes the popup AND, in the drawer, the drawer itself —
+                    // otherwise navigating from the account menu leaves the
+                    // whole nav sitting over the page you just opened.
+                    onClick={() => {
+                      setShowBottomMenu(false);
+                      onNavigate?.();
+                    }}
                     className={`flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-gray-100
               ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-900 font-medium"}`}
                   >
@@ -516,7 +624,7 @@ const Sidebar = ({
           are off so it never steals the hover from the item beneath it. */}
       {!isOpen && hoverTip && (
         <div
-          className="hidden md:block fixed z-60 pointer-events-none"
+          className="hidden lg:block fixed z-60 pointer-events-none"
           style={{
             top: hoverTip.top,
             left: hoverTip.left,
@@ -545,72 +653,59 @@ const Sidebar = ({
       )}
 
       {/* ── Mobile Bottom Nav ──────────────────────────────────────
-          Flat app links (sections open their page; sub-navs live in the
-          section's horizontal tab bar — see SectionLayout). Scrolls
-          horizontally if the items outgrow the width. */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-gray-200 flex justify-around items-center gap-0.5 py-2 px-1 overflow-x-auto hide-scrollbar md:hidden">
-        {appsItems.map(({ id, label, icon: Icon, href }) => (
-          <Link
-            key={id}
-            href={href}
-            className={`flex flex-col items-center shrink-0 text-xs p-1.5 rounded-lg ${isActive(href) ? "text-blue-600" : "text-gray-500"}`}
-          >
-            <Icon className="h-5 w-5" />
-            <span className="mt-0.5 font-medium whitespace-nowrap">
-              {label}
-            </span>
-          </Link>
-        ))}
+          FIVE fixed slots: the four destinations people actually open, plus
+          "More".
 
-        <div ref={mobileBottomMenuRef} className="relative shrink-0">
-          {showBottomMenu && (
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setShowBottomMenu(false)}
-            />
-          )}
+          It used to render all eight app links plus an Account button in a
+          horizontally-scrolling strip, which meant the last three were off
+          screen and every label was clipped. A bottom bar only works when
+          every slot is visible at once — past about five, the thing to reach
+          for is a drawer, not more scrolling.
+
+          "More" opens the SAME drawer as the header's hamburger, so there is
+          one place holding the rest of the navigation rather than a second
+          menu that has to be kept in step with the sidebar. That is also why
+          the old Account popup is gone: the drawer carries the full account
+          block, the theme switcher and the Apps/Copilot tabs already.
+
+          Not rendered inside the drawer — the drawer IS this bar's overflow. */}
+      {!isDrawer && (
+        <nav
+          className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch bg-surface border-t border-gray-200 h-nav pb-(--ck-safe-b) lg:hidden"
+          aria-label="Primary"
+        >
+          {bottomNavItems.map(({ id, label, short, icon: Icon, href }) => (
+            <Link
+              key={id}
+              href={href}
+              // basis-0 + flex-1: five equal slots regardless of label length,
+              // so the bar can never overflow and never needs to scroll.
+              className={`flex flex-1 basis-0 flex-col items-center justify-center gap-0.5 px-1 ${
+                isActive(href) ? "text-blue-600" : "text-gray-500"
+              }`}
+              // The visible caption is abbreviated, so the full name has to
+              // reach assistive tech some other way.
+              aria-label={label}
+            >
+              <Icon className="h-5 w-5 shrink-0" />
+              <span className="w-full truncate text-center text-2xs font-medium leading-none">
+                {short || label}
+              </span>
+            </Link>
+          ))}
+
           <button
-            onClick={() => setShowBottomMenu((p) => !p)}
-            className="flex flex-col items-center text-xs p-2 rounded-lg text-gray-500"
+            onClick={onOpenNav}
+            aria-label="Open navigation menu"
+            className="flex flex-1 basis-0 cursor-pointer flex-col items-center justify-center gap-0.5 px-1 text-gray-500"
           >
-            <div className="h-5 w-5 rounded-full bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[8px] font-bold">
-              CK
-            </div>
-            <span className="mt-0.5 font-medium">Account</span>
+            <MoreHorizontal className="h-5 w-5 shrink-0" />
+            <span className="w-full truncate text-center text-2xs font-medium leading-none">
+              More
+            </span>
           </button>
-
-          {showBottomMenu && (
-            /* fixed (not absolute): the nav scrolls horizontally, so an
-               absolute popup would be clipped by its overflow */
-            <div className="fixed bottom-16 right-2 w-48 bg-surface rounded-xl shadow-xl border border-gray-200 py-1.5 z-50">
-              {/* same links, no onMouseDown needed */}
-              {bottomMenuLinks.map(({ label, href, icon: Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setShowBottomMenu(false)}
-                  className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-100 ${isActive(href) ? "text-blue-600 font-semibold" : "text-gray-900"}`}
-                >
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  {label}
-                </Link>
-              ))}
-              <div className="border-t border-gray-200 mt-1 pt-1">
-                <button
-                  onClick={() => {
-                    setShowBottomMenu(false);
-                    setShowLogoutModal(true);
-                  }}
-                  className="flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 w-full"
-                >
-                  <Power className="h-3.5 w-3.5 shrink-0" />
-                  Logout
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </nav>
+        </nav>
+      )}
 
       <LogoutModal
         isOpen={showLogoutModal}

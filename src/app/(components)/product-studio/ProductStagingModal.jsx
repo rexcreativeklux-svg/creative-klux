@@ -234,13 +234,12 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
       onClick={closeAll}
     >
       <div
-        className="bg-surface rounded-2xl shadow-2xl flex overflow-hidden"
-        style={{ width: "95vw", height: "92vh", maxWidth: "1400px" }}
+        className="bg-surface shadow-2xl flex flex-col overflow-hidden w-full h-[100dvh] lg:h-[92dvh] lg:w-[95vw] lg:max-w-[1400px] lg:flex-row lg:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Left sidebar ── */}
         {/* Column with a scrollable body and a pinned Generate footer. */}
-        <div className="w-84 border-r border-gray-200 flex flex-col shrink-0">
+        <div className="w-full max-h-[45dvh] border-b border-gray-200 flex flex-col shrink-0 lg:w-84 lg:max-h-none lg:border-b-0 lg:border-r">
           {/* Scrollable content (Generate button stays pinned below) */}
           <div className="flex-1 overflow-y-auto min-h-0">
             {/* Header — click the title to open the tool switcher */}

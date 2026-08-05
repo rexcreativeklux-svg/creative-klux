@@ -51,23 +51,25 @@ function useSavedSidebarOpen() {
 /**
  * @param {object} props
  * @param {React.ReactNode} props.children  The page skeleton for the content area.
- * @param {boolean} [props.padded]          Apply the layout's default page padding
- *                                          (px-9 pt-24). Off for full-bleed pages.
+ * @param {boolean} [props.padded]          Apply the layout's default page frame
+ *                                          (px-gutter + page rhythm + mobile
+ *                                          bottom-nav clearance). Off for
+ *                                          full-bleed pages.
  */
 export default function AppShellSkeleton({ children, padded = true }) {
   const isOpen = useSavedSidebarOpen();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-page">
+    <div className="flex h-[100dvh] overflow-hidden bg-page">
       {/* ── Sidebar ───────────────────────────────────────────────────────── */}
       <nav
-        className={`hidden h-screen shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-surface md:flex ${
+        className={`hidden h-[100dvh] shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-surface lg:flex ${
           isOpen ? "w-56" : "w-15"
         }`}
       >
         {/* Logo row */}
         <div
-          className={`flex h-16 shrink-0 items-center border-b border-gray-200 ${
+          className={`flex h-header shrink-0 items-center border-b border-gray-200 ${
             isOpen ? "px-4" : "justify-center px-0"
           }`}
         >
@@ -136,7 +138,7 @@ export default function AppShellSkeleton({ children, padded = true }) {
       {/* ── Main column ───────────────────────────────────────────────────── */}
       <div className="flex h-full flex-1 flex-col overflow-hidden">
         {/* Header — same height, padding and shadow as the real one */}
-        <div className="border-custom flex h-16 shrink-0 items-center justify-between bg-surface px-6">
+        <div className="border-custom flex h-header shrink-0 items-center justify-between bg-surface px-gutter">
           <Skeleton w={36} h={36} className="rounded-lg" tone="soft" />
           <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
             <Skeleton w={24} h={24} className="rounded-full" />
@@ -145,19 +147,23 @@ export default function AppShellSkeleton({ children, padded = true }) {
           </div>
         </div>
 
-        {/* Content area — pb-20 below md leaves room for the mobile bottom nav */}
+        {/* Content area */}
         <div className="flex-1 overflow-y-auto bg-page">
-          {/* px-9 matches the layout's padded routes. Its pt-24 clears the
-              FIXED real header; this header is in the flow, so the equivalent
-              gap below it is pt-8 (24 - the header's own 16). */}
-          <div className={`h-full ${padded ? "px-9 pb-20 pt-8 md:pb-8" : ""}`}>
+          {/* Mirrors the frame (dashboard)/layout.js applies to padded routes,
+              with ONE deliberate difference: the real header is `fixed` and so
+              overlays the scroll area, which is why the layout adds the header's
+              height to its top padding. This skeleton's header is IN THE FLOW
+              and has already taken that space, so only the page rhythm is
+              needed here. Matching it exactly would double the gap and make the
+              hand-off to the real page jump. */}
+          <div className={`h-full ${padded ? "px-gutter pt-page-y pb-[calc(var(--spacing-nav)+var(--spacing-page-y))] lg:pb-page-y" : ""}`}>
             {children}
           </div>
         </div>
       </div>
 
       {/* ── Mobile bottom nav ─────────────────────────────────────────────── */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around gap-0.5 border-t border-gray-200 bg-surface px-1 py-2 md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t border-gray-200 bg-surface h-nav pb-(--ck-safe-b) lg:hidden">
         {Array.from({ length: 5 }).map((_, index) => (
           <div key={index} className="flex shrink-0 flex-col items-center gap-1 p-1.5">
             <Skeleton w={20} h={20} className="rounded-md" />

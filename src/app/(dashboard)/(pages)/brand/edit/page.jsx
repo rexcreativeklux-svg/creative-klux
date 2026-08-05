@@ -377,7 +377,7 @@ export default function EditBrand({ setActiveTab, brandId }) {
   // ── loading state ──
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-2 items-center justify-center min-h-screen">
+      <div className="flex flex-col gap-2 items-center justify-center min-h-full">
         <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
         <p className="text-gray-400 text-sm">Loading brand…</p>
       </div>
@@ -386,7 +386,7 @@ export default function EditBrand({ setActiveTab, brandId }) {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50/60 px-4 py-8 md:px-10">
+    <div className="min-h-full bg-gray-50/60 px-card py-6 sm:px-4 sm:py-8 md:px-10">
       <NotificationModal
         isOpen={notification.isOpen}
         onClose={closeNotify}
@@ -451,7 +451,10 @@ export default function EditBrand({ setActiveTab, brandId }) {
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Form fields, not cards — these stack rather than shrink. A pair
+              of <select>s squeezed into a 360px row leaves neither wide enough
+              to show its selected value. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Industry" required>
               <select
                 value={form.industry}

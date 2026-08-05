@@ -14,6 +14,7 @@ import {
   Layers,
   Scaling,
   ChevronLeft,
+  ChevronDown,
 } from "lucide-react";
 import TemplatesPanel from "./panels/TemplatesPanel";
 import ElementsPanel from "./panels/ElementsPanel";
@@ -94,20 +95,46 @@ export default function EditorSidebar({ active: activeProp, onActiveChange, ...p
   const ActivePanel = activeTab?.Panel;
 
   return (
-    <div className="flex h-full shrink-0 z-20">
-      {/* Icon rail */}
-      <nav className="w-[72px] shrink-0 bg-surface border-r border-gray-200 flex flex-col items-center py-2 gap-1 overflow-y-auto">
+    // ── TWO ARRANGEMENTS OF THE SAME TREE ────────────────────────────────────
+    // From `lg` this is what it always was: a vertical icon rail with the
+    // active panel as a column beside it, both in the layout flow.
+    //
+    // Below `lg` that shape is impossible — the rail (72px) plus a panel
+    // (300px) is 372px of chrome, which is wider than the phone it has to fit
+    // in, leaving nothing for the canvas. So the whole thing lifts out of the
+    // flow and pins to the bottom edge: the rail becomes a horizontal bar of
+    // icons, and the panel becomes a sheet sitting on top of it.
+    //
+    // `flex-col-reverse` is what puts the rail underneath: the nav is first in
+    // the DOM (so it stays first for tab order and screen readers) but renders
+    // at the bottom, with the panel above it.
+    <div
+      className="fixed inset-x-0 bottom-0 z-40 flex flex-col-reverse
+                 lg:static lg:z-20 lg:h-full lg:shrink-0 lg:flex-row"
+    >
+      {/* Icon rail — vertical column at `lg`, horizontal scrolling bar below.
+          The bottom padding carries the iOS home indicator so the last row of
+          icons is not sitting under it. */}
+      <nav
+        className="w-full shrink-0 bg-surface border-t border-gray-200 flex flex-row items-center gap-1
+                   overflow-x-auto hide-scrollbar px-1 pt-1 pb-[calc(0.25rem+var(--ck-safe-b))]
+                   lg:w-18 lg:flex-col lg:border-t-0 lg:border-r lg:overflow-x-visible
+                   lg:overflow-y-auto lg:px-0 lg:py-2 lg:pb-2"
+      >
         {TABS.map(({ key, label, icon: Icon }) => {
           const on = key === active;
           return (
             <button
               key={key}
               onClick={() => setActive(on ? null : key)}
-              className={`w-14 py-2 flex flex-col items-center gap-1 rounded-lg transition cursor-pointer ${
+              // shrink-0 below lg: these must keep their width and let the bar
+              // scroll, rather than compressing ten tabs into 360px.
+              className={`w-16 shrink-0 py-2 flex flex-col items-center gap-1 rounded-lg transition cursor-pointer lg:w-14 ${
                 on
                   ? "bg-blue-50 text-blue-600"
                   : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
               }`}
+              aria-pressed={on}
             >
               <Icon className="w-5 h-5" />
               <span className="text-[10px] font-medium">{label}</span>
@@ -166,7 +193,7 @@ export default function EditorSidebar({ active: activeProp, onActiveChange, ...p
           flex row, so it can open a second panel beside its nav list. */}
       {activeTab &&
         (activeTab.variant === "rail" ? (
-          <section className="relative w-[76px] shrink-0 flex items-center justify-center">
+          <section className="relative w-full shrink-0 flex items-center justify-center bg-surface border-t border-gray-200 lg:w-19 lg:border-t-0">
             {ActivePanel && (
               <ActivePanel {...props} onClose={() => setActive(null)} />
             )}
@@ -176,20 +203,28 @@ export default function EditorSidebar({ active: activeProp, onActiveChange, ...p
             <ActivePanel {...props} onClose={() => setActive(null)} />
           )
         ) : (
-          <section className="w-[300px] shrink-0 bg-surface border-r border-gray-200 flex flex-col">
+          // Column at `lg`, bottom sheet below it. 55dvh is the compromise the
+          // canvas can afford: enough panel to scan a list of templates or
+          // elements, while the artboard above stays large enough to see what
+          // the change actually did.
+          <section className="w-full h-[55dvh] shrink-0 bg-surface border-t border-gray-200 rounded-t-2xl shadow-2xl flex flex-col lg:w-75 lg:h-auto lg:rounded-none lg:shadow-none lg:border-t-0 lg:border-r">
             <header className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-gray-100">
               <h2 className="text-sm font-bold text-gray-800">
                 {activeTab.panelTitle || activeTab.label}
               </h2>
+              {/* The chevron points left into a rail on desktop and down out of
+                  a sheet on mobile — same action, correct direction for each. */}
               <button
                 onClick={() => setActive(null)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 cursor-pointer transition"
+                className="ck-tap w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 cursor-pointer transition"
                 title="Collapse"
+                aria-label="Close panel"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronDown className="w-4 h-4 lg:hidden" />
+                <ChevronLeft className="hidden w-4 h-4 lg:block" />
               </button>
             </header>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto overscroll-contain">
               {ActivePanel && <ActivePanel {...props} />}
             </div>
           </section>

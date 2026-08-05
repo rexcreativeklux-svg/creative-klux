@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ChevronDown, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import ResponsiveTable from "@/app/(components)/ui/ResponsiveTable";
 
 const CustomDomainIntegration = () => {
   const [selectedWebsite, setSelectedWebsite] = useState('');
@@ -221,55 +222,21 @@ const CustomDomainIntegration = () => {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto border border-gray-200 rounded-lg mb-6">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Website
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Custom Domain
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Action
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-surface divide-y divide-gray-200">
-            {paginatedDomains.length === 0 ? (
-              <tr>
-                <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
-                  No data available in table
-                </td>
-              </tr>
-            ) : (
-              paginatedDomains.map((domain) => (
-                <tr key={domain.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                    {domain.website}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700">
-                    {domain.customDomain}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(domain.status)}`}>
-                      {domain.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button className="text-blue-700 hover:text-blue-800 text-sm font-medium">
-                      Manage
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      {/* Four columns including an Action button. With overflow-x-auto that
+          button sat off the right edge on a phone — reachable only by scrolling
+          a table whose headers had already slid away. <ResponsiveTable> stacks
+          each row into a card below `md`, with the action in the card footer. */}
+      <div className="mb-6">
+        <ResponsiveTable
+          rows={paginatedDomains}
+          rowKey={(d) => d.id}
+          columns={DOMAIN_COLUMNS}
+          empty={
+            <div className="rounded-lg border border-gray-200 px-6 py-12 text-center text-gray-500">
+              No data available in table
+            </div>
+          }
+        />
       </div>
 
       {/* Pagination */}
@@ -319,5 +286,45 @@ const CustomDomainIntegration = () => {
     </div>
   );
 };
+
+/**
+ * The custom-domain table, as data — one definition driving both the desktop
+ * table and the stacked mobile card (see ui/ResponsiveTable.jsx).
+ * `primary` makes the website the card title; `cardSlot: "footer"` puts
+ * Manage in the card footer where a thumb expects it.
+ */
+const DOMAIN_COLUMNS = [
+  {
+    key: "website",
+    header: "Website",
+    primary: true,
+    cell: (d) => <span className="font-medium text-gray-900">{d.website}</span>,
+  },
+  {
+    key: "customDomain",
+    header: "Custom Domain",
+    cell: (d) => <span className="text-gray-700">{d.customDomain}</span>,
+  },
+  {
+    key: "status",
+    header: "Status",
+    cell: (d) => (
+      <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(d.status)}`}>
+        {d.status}
+      </span>
+    ),
+  },
+  {
+    key: "action",
+    header: "Action",
+    cardSlot: "footer",
+    cell: () => (
+      <button className="ck-tap text-blue-700 hover:text-blue-800 text-sm font-medium cursor-pointer">
+        Manage
+      </button>
+    ),
+  },
+];
+
 
 export default CustomDomainIntegration;

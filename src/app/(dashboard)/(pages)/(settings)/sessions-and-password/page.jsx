@@ -136,7 +136,7 @@ export default function Sessions() {
   };
 
   return (
-    <div className="space-y-10 py-4 px-12 rounded-lg">
+    <div className="space-y-10 py-4 px-card sm:px-12 rounded-lg">
       {/* header + logout + delete */}
       <div className="border-b pb-3 border-b-gray-200">
         <div className="space-y-2">

@@ -1092,8 +1092,8 @@ export default function PublishModal({
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[80] px-4">
-      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end justify-center z-[80] sm:items-center sm:px-4">
+      <div className="bg-surface rounded-t-2xl shadow-2xl w-full flex flex-col max-h-[92dvh] sm:rounded-2xl sm:max-w-lg sm:max-h-[90dvh]">
         {/* Header */}
         <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 shrink-0">
           {view === "compose" && (
@@ -1112,7 +1112,7 @@ export default function PublishModal({
               <h3 className="text-sm font-bold text-gray-900">
                 Publish Creative
               </h3>
-              <p className="text-[11px] text-gray-400 truncate max-w-[240px]">
+              <p className="text-[11px] text-gray-400 truncate sm:max-w-[240px]">
                 Publishing “{creative?.name}”
               </p>
             </div>

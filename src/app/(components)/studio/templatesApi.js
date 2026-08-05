@@ -17,14 +17,20 @@
 //   body { "type": "image" }            ← required; an empty body returns []
 //   →    { "designs": [ …~20 rows… ] }
 //
-// Verified against the live endpoint (2026-07-25):
+// Verified against the live endpoint (2026-07-25, re-probed 2026-08-05):
 //   • It is PUBLIC — no bearer token needed. One is still forwarded when the
 //     caller has it, matching AuthContext's sibling call to /public-fetch.
-//   • It takes NO other filters. `design_type`, `sub_category`, `num_template`
-//     and `page` are all accepted and then ignored — every call returns the same
-//     ~20-row public pool in a different random order. So the Klux tab fetches
-//     ONCE; there is nothing to re-query, and the rail sorts the pool itself
-//     (newest first, see byNewest) rather than showing whatever order arrived.
+//   • It takes NO filters and NO pagination. `design_type`, `sub_category`,
+//     `num_template`, `limit`, `page` and `slug` are all accepted and then
+//     ignored: every call returns exactly 20 rows and nothing else moves.
+//   • Those 20 are a RANDOM SAMPLE, not the whole library. 20 successive draws
+//     turned up 178 distinct slugs and were still finding new ones, so the pool
+//     is ~200+ and any one template appears in a given draw roughly 1 time in
+//     10. The rail doesn't care — it shows a random 12 by design — but it means
+//     the pool CANNOT be used to look a template up (see fetchTemplateBySlug).
+//   So the Klux tab fetches ONCE; there is nothing to re-query, and the rail
+//   sorts what arrived (newest first, see byNewest) rather than showing it in
+//   whatever order the endpoint shuffled it into.
 //
 // ── THE ROWS ────────────────────────────────────────────────────────────────
 // A template row carries the full design layout (`canvas` + `elements`), the
@@ -32,6 +38,10 @@
 // It also carries a `thumbnail`, but that is just the URL of one photo used
 // INSIDE the design — not a preview of it — so the card renders the layout
 // itself rather than trusting that field.
+//
+// It ALSO carries `s3_key`, which is what makes share links work: the same
+// layout sits on the CDN as a public ~2 KB JSON object addressed by slug. See
+// TEMPLATE_OBJECT_PREFIX / fetchTemplateBySlug below.
 //
 // A saved-design row is close but not identical: its `canvas` is a JSON STRING
 // holding `{ canvas, elements }`, and it has no `type_size` / `orientation` /
@@ -58,9 +68,95 @@ export const TAB_KLUX = "klux";
  */
 export const TEMPLATE_PARAM = "template";
 
+/**
+ * The OPTIONAL companions to `?template=`, written by buildTemplateShareQuery()
+ * and read back by readTemplateShareLink().
+ *
+ * A shared link is resolved through the CDN object (see fetchTemplateBySlug),
+ * and that object holds ONLY the layout — `{ canvas, elements }`. Dimensions,
+ * orientation and layer count fall out of the layout itself, but four things
+ * cannot be derived from it, so they ride in the URL instead:
+ *
+ *   name   → the template's title, for the modal heading
+ *   format → raw `sub_category` ("instagram_portrait"). This one does real
+ *            work: "Save to Designs" sends it as `sub_type`, so it decides
+ *            which filter tab the copy lands in on /creatives.
+ *   kind   → raw `design_type` ("ads" | "social" | "designer"), sent as the
+ *            saved copy's creative type.
+ *   tier   → "free" | "premium", for the badge and the Access spec row.
+ *
+ * Every one of them is optional and none is trusted for anything but display
+ * and filing. A link with them stripped (or an older/hand-made link that never
+ * had them) still resolves and still paints the right design — it just shows a
+ * generic title and fewer spec rows.
+ */
+export const SHARE_PARAM_NAME = "name";
+export const SHARE_PARAM_FORMAT = "format";
+export const SHARE_PARAM_KIND = "kind";
+export const SHARE_PARAM_TIER = "tier";
+
 /** The public template pool. Absolute — this one lives on Scraive, not our API. */
 export const PUBLIC_TEMPLATES_ENDPOINT =
   "https://api.scraive.com/api/design-templates/public-template-fetch";
+
+/**
+ * CDN the app serves its media from. Mirrors src/(lib)/magic-studio-api.js and
+ * src/(lib)/product-studio-api.js — same host, same env override.
+ */
+const CDN_BASE = (
+  process.env.NEXT_PUBLIC_CDN_URL || "https://d3r8chxzp8ea06.cloudfront.net"
+).replace(/\/+$/, "");
+
+/**
+ * Object-key prefix every public template's layout is stored under.
+ *
+ * Each pool row carries its full key on `s3_key`, and it is ALWAYS
+ * `scraive/templates/30/<slug>.json` — verified across 87 distinct templates on
+ * 2026-08-05, every one of them published by the same account (user 30 /
+ * workspace 36), which is the whole public library.
+ *
+ * This is what makes a shared link exact instead of a lottery. The pool
+ * endpoint answers 20 random rows out of ~200 and takes no filters, so looking
+ * a slug up there lands about 1 time in 10; the object below is a direct hit —
+ * ~2 KB, public, no token.
+ *
+ * ⚠️ It is NOT fetchable from the browser, however tempting that looks. S3
+ * only sends `Access-Control-Allow-Origin` when the request carries an `Origin`
+ * header, and CloudFront caches whichever variant it saw first — so an edge
+ * holding a header-less copy fails CORS in the browser ("200 OK" that fetch
+ * still rejects) while the very same URL succeeds from curl or Node, and it can
+ * flip when a cache entry expires. The read goes through our own
+ * /api/template-layout route instead, which does it server-side where CORS
+ * doesn't apply. See templateLayoutPath().
+ *
+ * If Scraive ever publishes from a second account, the derived key 404/403s for
+ * those templates and fetchTemplateBySlug() reports "not-found" — the user is
+ * told the link is unavailable rather than being dropped on a blank page.
+ */
+const TEMPLATE_OBJECT_PREFIX = "scraive/templates/30";
+
+/**
+ * Where one template's layout lives on the CDN. For the API route that reads it
+ * server-side — from the browser, use templateLayoutPath().
+ *
+ * @param {string} slug
+ * @returns {string}
+ */
+export function templateLayoutUrl(slug) {
+  const safe = encodeURIComponent(String(slug).trim());
+  return `${CDN_BASE}/${TEMPLATE_OBJECT_PREFIX}/${safe}.json`;
+}
+
+/**
+ * Same-origin path the browser reads one template's layout from — our route
+ * handler, which fetches the CDN object above on the server.
+ *
+ * @param {string} slug
+ * @returns {string}
+ */
+export function templateLayoutPath(slug) {
+  return `/api/template-layout?slug=${encodeURIComponent(String(slug).trim())}`;
+}
 
 /** The only body the endpoint acts on. `image` is the design (non-video) library. */
 const REQUEST_BODY = { type: "image" };
@@ -268,24 +364,312 @@ const byNewest = (a, b) => {
   return (Number(b.id) || 0) - (Number(a.id) || 0);
 };
 
+// ── "More like this" ────────────────────────────────────────────────────────
+//
+// The details modal ends on a small strip of sibling rows. There is no
+// "related" endpoint — the pool takes no filters at all (see the header) — so
+// the strip is picked LOCALLY out of rows the app already holds: the public
+// pool for a template, the brand's own saved designs for a design. Nothing
+// extra is fetched.
+
+/** How many sibling cards the details modal shows under "More like this". */
+export const RELATED_DISPLAY_LIMIT = 3;
+
 /**
- * Find one template by the key a share link carries — the row's `slug`, with
- * the id accepted too so an older/hand-made link still resolves.
+ * What makes two rows feel like siblings, heaviest signal first.
  *
- * @param {object[]} items Normalized templates.
- * @param {string} key The `?template=` value.
- * @returns {object|null}
+ * `formatKey` ("instagram_portrait") outweighs everything else on purpose: it
+ * is the one field a user actually shops by — asked for "more Instagram
+ * templates", this is the field that answers. The rest only break ties.
+ *
+ * @type {{key: string, weight: number}[]}
  */
-export function findTemplateByKey(items, key) {
-  if (!key || !Array.isArray(items)) return null;
-  const needle = String(key).toLowerCase();
-  return (
-    items.find(
-      (item) =>
-        String(item.slug ?? "").toLowerCase() === needle ||
-        String(item.id ?? "").toLowerCase() === needle,
-    ) ?? null
-  );
+const RELATED_WEIGHTS = [
+  { key: "formatKey", weight: 6 }, // instagram_portrait, facebook_cover …
+  { key: "designType", weight: 3 }, // Ads / Social / Designer
+  { key: "category", weight: 2 },
+  { key: "orientation", weight: 1 },
+  { key: "pricing", weight: 1 }, // free next to free, premium next to premium
+];
+
+/** Case- and whitespace-insensitive equality; a null on either side never matches. */
+const sameField = (a, b) =>
+  Boolean(a) && Boolean(b) && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+
+/**
+ * How closely one candidate matches the open item, 0 = nothing in common.
+ * Exported for the tie-break comment above and for anywhere else that wants to
+ * rank rows against a reference row.
+ *
+ * @param {object} item      The open template or design.
+ * @param {object} candidate A row from the same source.
+ * @returns {number}
+ */
+export function relatednessScore(item, candidate) {
+  let score = 0;
+  for (const { key, weight } of RELATED_WEIGHTS) {
+    if (sameField(item?.[key], candidate?.[key])) score += weight;
+  }
+  return score;
+}
+
+/**
+ * Pick the sibling rows shown under an open item.
+ *
+ * Ranked by relatednessScore(), with the pool's existing order as the
+ * tie-break — which is also what makes the "no real match" case behave the way
+ * the design asks for. A zero-score tail keeps pool order, and the pool is
+ * itself a random 20-of-~200 draw from the library (see the header), so an item
+ * with nothing in common still gets three plausible cards rather than an empty
+ * strip. Stable within a page load: no shuffling on re-render.
+ *
+ * @param {object|null} item        The open row; excluded from its own strip.
+ * @param {object[]} pool           Rows from the SAME source as `item`.
+ * @param {number} [limit]          How many to return.
+ * @returns {object[]} Up to `limit` rows, best match first. Never null.
+ */
+export function pickRelatedItems(item, pool, limit = RELATED_DISPLAY_LIMIT) {
+  if (!item || !Array.isArray(pool) || pool.length === 0) return [];
+
+  // Both keys are checked: a shared template resolved off the CDN is keyed by
+  // slug, so its id won't equal the pool row's numeric id even though it IS
+  // that template — matching on either keeps it out of its own strip.
+  const isSelf = (row) =>
+    String(row.id) === String(item.id) ||
+    (Boolean(item.slug) && Boolean(row.slug) && String(row.slug) === String(item.slug));
+
+  const ranked = pool
+    .filter((row) => row && !isSelf(row))
+    .map((row, index) => ({ row, index, score: relatednessScore(item, row) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, limit);
+
+  if (ranked.length > 0) {
+    const matched = ranked.filter((entry) => entry.score > 0).length;
+    console.log(
+      `🔗 [templates] "${item.title}" → ${ranked.length} related card(s)` +
+        (matched === ranked.length
+          ? ""
+          : ` (${ranked.length - matched} filled from the rest of the pool)`),
+    );
+  }
+
+  return ranked.map((entry) => entry.row);
+}
+
+// ── Share links ─────────────────────────────────────────────────────────────
+//
+// A shared link is resolved ONLY by fetchTemplateBySlug() below. Searching the
+// pool for the slug — which is what this module used to do — cannot work: the
+// endpoint answers a random 20 of ~200 rows and takes no filters, so it holds
+// any given slug about 1 time in 10.
+
+/**
+ * The query string one template is shared with — `template=<slug>` plus the
+ * optional display/filing hints described on SHARE_PARAM_*. Returned WITHOUT a
+ * leading "?" so the caller decides how to join it onto a URL.
+ *
+ * `designType` and `pricing` are lowercased back to the raw keys the backend
+ * uses ("Social" → "social"): normalizeTemplate() humanizes them for display,
+ * and a link should carry what the API speaks, not what the UI shows.
+ *
+ * @param {object} item A normalized template.
+ * @returns {string}
+ */
+export function buildTemplateShareQuery(item) {
+  const params = new URLSearchParams();
+  params.set(TEMPLATE_PARAM, String(item?.slug || item?.id || ""));
+
+  if (item?.title) params.set(SHARE_PARAM_NAME, item.title);
+  if (item?.formatKey) params.set(SHARE_PARAM_FORMAT, String(item.formatKey));
+  if (item?.designType)
+    params.set(SHARE_PARAM_KIND, String(item.designType).toLowerCase());
+  if (item?.pricing) params.set(SHARE_PARAM_TIER, String(item.pricing).toLowerCase());
+
+  return params.toString();
+}
+
+/**
+ * Read a share link back off a URL's query string.
+ *
+ * @param {string} search e.g. `window.location.search`.
+ * @returns {{key: string, hints: {title: string|null, formatKey: string|null,
+ *            designTypeKey: string|null, pricing: string|null}}|null}
+ *   null when the URL carries no `?template=` at all.
+ */
+export function readTemplateShareLink(search) {
+  const params = new URLSearchParams(search || "");
+  const key = params.get(TEMPLATE_PARAM);
+  if (!key) return null;
+
+  return {
+    key,
+    hints: {
+      title: params.get(SHARE_PARAM_NAME),
+      formatKey: params.get(SHARE_PARAM_FORMAT),
+      designTypeKey: params.get(SHARE_PARAM_KIND),
+      pricing: params.get(SHARE_PARAM_TIER),
+    },
+  };
+}
+
+/**
+ * Build a card-contract item from a CDN layout plus a share link's hints —
+ * the cold-resolve counterpart to normalizeTemplate().
+ *
+ * Same shape, same keys, so the modal can't tell the two apart. What the CDN
+ * object can't say is simply left null, and the modal drops empty spec rows by
+ * itself: `category`, `mediaType` and the created/updated dates are never
+ * present on this path.
+ *
+ * @param {object} args
+ * @param {string} args.slug
+ * @param {object} args.canvas
+ * @param {object[]} args.elements
+ * @param {object} [args.hints] From readTemplateShareLink().
+ * @returns {object}
+ */
+export function buildTemplateFromLayout({ slug, canvas, elements, hints = {} }) {
+  const width = Math.round(Number(canvas?.width) || 0);
+  const height = Math.round(Number(canvas?.height) || 0);
+  const size = width && height ? `${width}x${height}` : null;
+  const format = humanize(hints.formatKey);
+  const pricing = String(hints.pricing || "").toLowerCase() || null;
+
+  return {
+    id: String(slug),
+    // The link is the only source of a title. Without it the modal still reads
+    // sensibly — it just can't name the template.
+    title: hints.title || "Klux template",
+    subtitle: [format, size].filter(Boolean).join(" · ") || null,
+    meta: null,
+    premium: pricing === "premium",
+    thumbnail: null,
+    canvas,
+    elements,
+    href: null,
+
+    slug: String(slug),
+    format,
+    formatKey: hints.formatKey || null,
+    category: null,
+    designType: humanize(hints.designTypeKey),
+    orientation: orientationOf(canvas),
+    mediaType: null,
+    typeSize: size,
+    createdAt: null,
+    updatedAt: null,
+
+    kind: "template",
+    pricing,
+  };
+}
+
+/**
+ * Resolve ONE shared template by slug, exactly.
+ *
+ * Reads the template's own CDN object — through our /api/template-layout route,
+ * because the browser can't reach the CDN directly (see TEMPLATE_OBJECT_PREFIX)
+ * — rather than hunting for the slug in the pool: the pool is a random
+ * 20-of-~200 sample with no filters and no pagination, so searching it is a
+ * ~1-in-10 chance, while this is a single deterministic ~2 KB GET.
+ *
+ * Same never-rejects contract as fetchPublicTemplates():
+ *   "ok"        → `item` is a card-contract template
+ *   "not-found" → the slug isn't published (bad or retired link)
+ *   "error"     → network/format problem; `message` is safe to show
+ *
+ * @param {object} opts
+ * @param {string} opts.slug        The `?template=` value.
+ * @param {object} [opts.hints]     From readTemplateShareLink().
+ * @param {AbortSignal} [opts.signal]
+ * @returns {Promise<{status: "ok"|"not-found"|"error", item: object|null,
+ *                    message?: string, messageForDevs?: string}>}
+ */
+export async function fetchTemplateBySlug({ slug, hints, signal } = {}) {
+  const key = String(slug || "").trim();
+  if (!key) {
+    console.error("❌ [templates] fetchTemplateBySlug called without a slug");
+    return {
+      status: "error",
+      item: null,
+      message: "That template link is incomplete.",
+      messageForDevs: "fetchTemplateBySlug called with an empty slug",
+    };
+  }
+
+  const url = templateLayoutPath(key);
+
+  try {
+    console.log(`📡 [templates] resolving shared template "${key}" →`, url);
+    const res = await fetch(url, { signal, headers: { Accept: "application/json" } });
+
+    // The route normalises "no such object" (the bucket answers 403 for a
+    // missing key, since it doesn't allow listing) into a plain 404.
+    if (res.status === 403 || res.status === 404) {
+      console.warn(`⚠️ [templates] no published template for "${key}" (HTTP ${res.status})`);
+      return {
+        status: "not-found",
+        item: null,
+        message: "That template isn't available any more.",
+        messageForDevs: `HTTP ${res.status} for ${url}`,
+      };
+    }
+
+    if (!res.ok) {
+      console.error(`❌ [templates] shared template request failed: HTTP ${res.status}`);
+      return {
+        status: "error",
+        item: null,
+        message: "We couldn't open that template. Please try again.",
+        messageForDevs: `HTTP ${res.status} for ${url}`,
+      };
+    }
+
+    const text = await res.text();
+    let body = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      console.error("❌ [templates] shared template is not JSON:", text.slice(0, 200));
+      return {
+        status: "error",
+        item: null,
+        message: "We couldn't open that template. Please try again.",
+        messageForDevs: `Non-JSON object at ${url}`,
+      };
+    }
+
+    // The object is `{ canvas, elements }` — the same shape readLayout() already
+    // understands, so both paths parse a layout through one function.
+    const layout = readLayout(body);
+    if (!layout) {
+      console.error(`❌ [templates] shared template "${key}" has no usable layout`);
+      return {
+        status: "error",
+        item: null,
+        message: "That template can't be opened.",
+        messageForDevs: `No canvas/elements in ${url}`,
+      };
+    }
+
+    const item = buildTemplateFromLayout({ slug: key, ...layout, hints });
+    console.log(
+      `✅ [templates] resolved "${item.title}" (${layout.elements.length} layers) from the CDN`,
+    );
+    return { status: "ok", item };
+  } catch (err) {
+    // An abort is a normal unmount / superseded link, not a failure.
+    if (err?.name === "AbortError") return { status: "ok", item: null };
+
+    console.error("❌ [templates] shared template request threw:", err);
+    return {
+      status: "error",
+      item: null,
+      message: "Connection problem. Please check your network and try again.",
+      messageForDevs: err?.message || String(err),
+    };
+  }
 }
 
 /**

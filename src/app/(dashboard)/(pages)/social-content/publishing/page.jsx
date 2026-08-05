@@ -571,30 +571,36 @@ export default function SocialPublishing() {
 
       {/* ── Status Tabs ── */}
       {posts.length > 0 && (
-        <div className="flex items-center border-b border-gray-200 bg-surface rounded-t-xl px-2 shadow-sm">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setStatusFilter(tab.key)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
+        <div className="border-b border-gray-200 bg-surface rounded-t-xl shadow-sm">
+          {/* The tab row scrolls sideways on narrow screens instead of squeezing or
+              spilling out of the card. The -1px pull lives on the scroller (not on
+              each button) so the active tab's underline still covers the wrapper's
+              hairline without overflowing — and being clipped by — the scroll box. */}
+          <div className="-mb-px flex items-center overflow-x-auto hide-scrollbar px-2">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setStatusFilter(tab.key)}
+                className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 statusFilter === tab.key
-                  ? "border-[#003dda] text-[#003dda]"
-                  : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
-              }`}
-            >
-              {tab.label}
-              <span
-                className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                style={
-                  statusFilter === tab.key
-                    ? { backgroundColor: BRAND, color: "#fff" }
-                    : { backgroundColor: "#f3f4f6", color: "#6b7280" }
-                }
+                    ? "border-[#003dda] text-[#003dda]"
+                    : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
+                }`}
               >
-                {TAB_COUNTS[tab.key]}
-              </span>
-            </button>
-          ))}
+                {tab.label}
+                <span
+                  className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                  style={
+                    statusFilter === tab.key
+                      ? { backgroundColor: BRAND, color: "#fff" }
+                      : { backgroundColor: "#f3f4f6", color: "#6b7280" }
+                  }
+                >
+                  {TAB_COUNTS[tab.key]}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -761,8 +767,11 @@ export default function SocialPublishing() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
+                        {/* whitespace-nowrap: when the table is squeezed the emoji
+                            and the platform name must stay on one line — wrapping
+                            them stacks the two inside the pill's fixed height. */}
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${meta.cls}`}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${meta.cls}`}
                         >
                           {meta.icon} {meta.label}
                         </span>

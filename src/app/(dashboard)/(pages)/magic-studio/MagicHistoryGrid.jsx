@@ -217,10 +217,12 @@ export default function MagicHistoryGrid({
           const isRemoving = removingId != null && item.id === removingId;
           // Keep this item's ⋯ trigger visible while its menu is open, so
           // clicking ⋯ (and moving to the menu) doesn't make the trigger vanish.
+          // Below `lg` it is always visible — there is no hover on a phone, so
+          // hiding it there put Download / Save / Delete out of reach entirely.
           const menuOpen = menu?.item?.id === item.id;
           const triggerVisibility = menuOpen
             ? "opacity-100"
-            : "opacity-0 group-hover:opacity-100";
+            : "opacity-100 lg:opacity-0 lg:group-hover:opacity-100";
 
           // ── Persona text result ──
           if (item.type === "text") {
@@ -292,7 +294,7 @@ export default function MagicHistoryGrid({
                   onClick={(e) => openMenu(item, e)}
                   role="button"
                   aria-label="Result actions"
-                  className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  className={`absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow ${triggerVisibility} transition-opacity cursor-pointer`}
                 >
                   <MoreHorizontal className="w-4 h-4" />
                 </span>

@@ -18,6 +18,23 @@
  * generic. Option rows open RICH, side-anchored FloatingPanel dropdowns (image
  * cards, icon+desc lists, ratio frames, language flags, pills). Accent is blue.
  * Clicking the backdrop does NOT close — only the ✕ button or Escape.
+ *
+ * ── BELOW `lg` (phones/small tablets) ───────────────────────────────────────
+ * The two sides can't sit next to each other, and stacking them gave two
+ * half-height scroll areas that both felt cramped. So on small screens the
+ * modal goes full-bleed and shows ONE side at a time, switched by a segmented
+ * Create | Result control in a pinned header:
+ *
+ *   ┌ header ─ title ▾ · ✕ ─────────┐
+ *   │ [ Create ][ Result ]          │  ← segmented (mobile only)
+ *   │ …the active side, full height…│
+ *   │ ┌ ✨ Generate ───────────────┐│  ← pinned in BOTH views
+ *   └───────────────────────────────┘
+ *
+ * Starting a generation flips to Result automatically, so the progress state /
+ * new history item is what you land on. The option pickers become bottom
+ * sheets there (see OptionSheet) — a 340px popover doesn't fit a 360px phone.
+ * Desktop markup and behaviour are unchanged.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -49,9 +66,12 @@ import {
   FileText,
   Captions,
   FolderOpen,
+  SlidersHorizontal,
+  Images,
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
+import { useIsCompact } from "@/utils/useMediaQuery";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import AudioCard, { formatClock } from "@/app/(components)/gallery/AudioCard";
 import ResultActionsMenu, {
@@ -77,8 +97,16 @@ import {
 import { checkVideoGenerationStatus } from "@/(lib)/magic-studio-api";
 import useMagicHistory from "./useMagicHistory";
 import MagicHistoryGrid from "./MagicHistoryGrid";
+import OptionSheet from "./OptionSheet";
 
 const CREATIVE_ID = "magic_studio";
+
+// The two halves of the modal, as a mobile-only switch (see the file header).
+// Above `lg` both are on screen at once and this control is hidden.
+const MOBILE_VIEWS = [
+  { id: "create", label: "Create", Icon: SlidersHorizontal },
+  { id: "result", label: "Result", Icon: Images },
+];
 
 // Async video jobs: poll the status endpoint every 15s, giving up after ~5 min.
 const VIDEO_POLL_INTERVAL_MS = 15000;
@@ -700,6 +728,11 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   const creative = getCreativeById(CREATIVE_ID);
   const config = getMagicConfig(categoryId);
 
+  // Below `lg` the pickers open as bottom sheets instead of anchored popovers.
+  // Used for BEHAVIOUR only (which layer to render once the user taps a row) —
+  // the Create/Result split itself is done in CSS, so nothing flashes on load.
+  const isCompact = useIsCompact();
+
   // On-device speech engine (Kokoro-82M in a Web Worker) — only the
   // text_to_audio category calls it; it stays idle otherwise (the worker
   // spawns on first generate) and cleans up its worker + URLs on unmount.
@@ -762,6 +795,10 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState("");
 
+  // Which half is on screen below `lg` ("create" | "result"). Ignored above it —
+  // the CSS shows both sides regardless of this value.
+  const [mobileView, setMobileView] = useState("create");
+
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState(null); // { assets?, text?, resultType? }
   const [copied, setCopied] = useState(false);
@@ -781,19 +818,32 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     [],
   );
 
-  // Body scroll lock + Escape-to-close.
+  // Body scroll lock — mount/unmount only, so the original value is captured
+  // once and can't be overwritten by a re-run (see the Escape effect below,
+  // which changes deps and therefore had to be split out).
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose?.();
-    };
-    window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, []);
+
+  // Escape closes the top-most layer: an open picker/switcher first (on mobile
+  // that's a sheet covering the modal), and only then the modal itself.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (openPanel || switcherOpen) {
+        setOpenPanel(null);
+        setSwitcherOpen(false);
+        return;
+      }
+      onClose?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, openPanel, switcherOpen]);
 
   // Revoke object URLs on unmount.
   useEffect(
@@ -970,6 +1020,10 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
     setOpenPanel(null);
     setAssetMenu(null);
     voicePreview.stop(); // free the shared speech worker for the real run
+    // Mobile: hand the screen to the canvas so the progress state (or the new
+    // history tile) is what the user is looking at while it runs. No-op on
+    // desktop, where both sides are already visible.
+    setMobileView("result");
     setGenerating(true);
     try {
       const res = await config.generate({
@@ -1270,6 +1324,10 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
 
   const wordCount = textInput.trim() ? textInput.trim().split(/\s+/).length : 0;
   const readTime = Math.max(5, Math.round(wordCount / 2.5));
+  // Shared by the desktop (sidebar) and mobile (pinned footer) Generate buttons,
+  // so the two can never disagree about when generating is allowed.
+  const generateDisabled =
+    generating || Boolean(voicePreview.loadingId) || recorder.recording;
   const hasResult = !!(result?.assets?.length || result?.text);
   const resultType =
     result?.resultType ||
@@ -1283,19 +1341,73 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
       {/* Backdrop does NOT close (no onClick) — only ✕ / Escape. Menus close on
           backdrop click so open panels dismiss without closing the modal. */}
       <div
-        className="fixed inset-0 z-120 flex items-center justify-center bg-black/60 p-2 sm:p-4"
+        className="fixed inset-0 z-120 flex items-center justify-center bg-black/60 lg:p-4"
         onClick={closeMenus}
       >
+        {/* Full-bleed sheet below `lg` (a picker wants every pixel on a phone),
+            centred panel above it. */}
         <div
-          className="bg-surface rounded-2xl shadow-2xl flex flex-col lg:flex-row overflow-hidden w-full h-full"
-          style={{ maxWidth: "1400px", maxHeight: "940px" }}
+          className="bg-surface shadow-2xl flex flex-col overflow-hidden w-full h-[100dvh] lg:h-[92dvh] lg:max-h-[940px] lg:w-[95vw] lg:max-w-[1400px] lg:flex-row lg:rounded-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* ── Left sidebar ── */}
-          <div className="w-full lg:w-96 border-b lg:border-b-0 lg:border-r border-gray-200 flex flex-col shrink-0 max-h-[45vh] lg:max-h-none">
+          {/* ── Mobile header — title switcher, ✕ and the Create/Result switch.
+              Pinned (outside both scroll areas) so the close button and the
+              switch never scroll away. Hidden above `lg`, where the title lives
+              in the sidebar and ✕ sits on the canvas. ── */}
+          <div className="lg:hidden shrink-0 border-b border-gray-200 bg-surface">
+            <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
+              <div className="min-w-0">
+                <button
+                  onClick={() => setSwitcherOpen((o) => !o)}
+                  className="flex items-center gap-1.5 max-w-full font-bold text-lg text-gray-900 hover:opacity-70 transition-opacity cursor-pointer"
+                >
+                  <span className="truncate">{config.title}</span>
+                  <ChevronDown
+                    className={`w-4.5 h-4.5 shrink-0 text-gray-500 transition-transform ${switcherOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2">
+                  {config.subtitle || creative?.inner}
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="ck-tap shrink-0 w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors cursor-pointer"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
+
+            {/* Create | Result — same segmented control as the Upload|Record
+                toggle further down, so the two read as one system. */}
+            <div className="px-4 pb-3">
+              <div className="flex p-1 bg-gray-100 rounded-xl">
+                {MOBILE_VIEWS.map((view) => {
+                  const active = mobileView === view.id;
+                  return (
+                    <button
+                      key={view.id}
+                      onClick={() => setMobileView(view.id)}
+                      aria-pressed={active}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${active ? "bg-surface text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                    >
+                      <view.Icon className="w-3.5 h-3.5" />
+                      {view.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Left sidebar (mobile: the "Create" view) ── */}
+          <div
+            className={`${mobileView === "create" ? "flex" : "hidden"} w-full flex-1 min-h-0 flex-col border-gray-200 lg:flex lg:w-96 lg:flex-none lg:border-r`}
+          >
             <div className="flex-1 overflow-y-auto hide-scrollbar min-h-0">
-              {/* Title → category switcher */}
-              <div className="px-5 pt-5 pb-1">
+              {/* Title → category switcher (desktop; mobile uses the header above) */}
+              <div className="hidden lg:block px-5 pt-5 pb-1">
                 <button
                   ref={headerRef}
                   onClick={() => setSwitcherOpen((o) => !o)}
@@ -1373,39 +1485,31 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
               </div>
             </div>
 
-            {/* Pinned Generate */}
-            <div className="px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
-              <button
+            {/* Pinned Generate (desktop — mobile pins its own copy below the
+                whole modal so it stays reachable from BOTH views). */}
+            <div className="hidden lg:block px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
+              <GenerateButton
                 onClick={handleGenerate}
-                disabled={
-                  generating || Boolean(voicePreview.loadingId) || recorder.recording
-                }
-                className="w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Generating…
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" /> {config.generateLabel}
-                  </>
-                )}
-              </button>
+                disabled={generateDisabled}
+                generating={generating}
+                label={config.generateLabel}
+              />
             </div>
           </div>
 
-          {/* ── Right canvas ── */}
-          <div className="flex-1 flex flex-col relative bg-[#f8f8f8] dark:bg-canvas min-w-0">
+          {/* ── Right canvas (mobile: the "Result" view) ── */}
+          <div
+            className={`${mobileView === "result" ? "flex" : "hidden"} flex-1 min-h-0 flex-col relative bg-[#f8f8f8] dark:bg-canvas min-w-0 lg:flex`}
+          >
             <button
               onClick={onClose}
               aria-label="Close"
-              className="absolute top-4 right-4 z-20 w-10 h-10 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-300 hover:text-red-500 shadow-md cursor-pointer transition-all"
+              className="hidden lg:flex absolute top-4 right-4 z-20 w-10 h-10 bg-surface rounded-full border border-gray-200 items-center justify-center hover:bg-red-50 hover:border-red-300 hover:text-red-500 shadow-md cursor-pointer transition-all"
             >
               <X className="w-5 h-5 text-gray-600" />
             </button>
 
-            <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar p-6 sm:p-8">
+            <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar p-4 sm:p-6 lg:p-8">
               <AnimatePresence mode="wait">
                 {usesHistory ? (
                   // ── Backend tools (logged in): server-side history canvas ──
@@ -1471,6 +1575,22 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
               </AnimatePresence>
             </div>
           </div>
+
+          {/* ── Pinned Generate (mobile) ── Belongs to the Create view, so it
+              leaves with it: the Result view is for looking at what came back,
+              not for firing another run. Lives outside the sidebar's scroll
+              area so it stays pinned, and is padded past the home indicator.
+              Hidden above `lg`, where the sidebar keeps its own pinned copy. */}
+          <div
+            className={`${mobileView === "create" ? "block" : "hidden"} lg:hidden shrink-0 border-t border-gray-200 bg-surface px-4 pt-3 pb-[calc(0.75rem+var(--ck-safe-b))]`}
+          >
+            <GenerateButton
+              onClick={handleGenerate}
+              disabled={generateDisabled}
+              generating={generating}
+              label={config.generateLabel}
+            />
+          </div>
         </div>
 
         {/* Click-away catcher — a click anywhere outside an open panel/dropdown
@@ -1478,67 +1598,76 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
             is open; sits above the modal content but below the panels (z-220),
             mirroring the Product Studio modals. The modal body's own
             stopPropagation otherwise swallows these clicks. */}
-        {(openPanel || switcherOpen) && (
+        {/* (Desktop only — a mobile sheet brings its own backdrop.) */}
+        {!isCompact && (openPanel || switcherOpen) && (
           <div className="fixed inset-0 z-210" onClick={closeMenus} />
         )}
 
-        {/* ── Category switcher ── */}
+        {/* ── Category switcher — dropdown on desktop, sheet on mobile ── */}
         <AnimatePresence>
-          {switcherOpen && (
-            <DropdownBelow key="switcher" anchorRef={headerRef} width={300}>
-              <p className="text-[11px] font-semibold text-gray-500 px-2 pt-1 pb-2">
-                Switch tool
-              </p>
-              <div className="space-y-1">
-                {categories.map((cat) => {
-                  const cfg = MAGIC_STUDIO_CONFIGS[cat.id];
-                  const Icon = cfg?.Icon;
-                  const active = cat.id === categoryId;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => handleSwitch(cat.id)}
-                      className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left transition-colors ${active ? "bg-blue-50 ring-2 ring-blue-500" : "hover:bg-gray-100"}`}
-                    >
-                      <span
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cfg?.color || "bg-gray-100 text-gray-500"}`}
-                      >
-                        {Icon && <Icon className="w-4 h-4" />}
-                      </span>
-                      <span
-                        className={`text-sm font-semibold ${active ? "text-blue-700" : "text-gray-900"}`}
-                      >
-                        {cat.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </DropdownBelow>
-          )}
+          {switcherOpen &&
+            (isCompact ? (
+              <OptionSheet
+                key="switcher-sheet"
+                title="Switch tool"
+                subtitle={config.title}
+                onClose={() => setSwitcherOpen(false)}
+              >
+                <div className="p-3">
+                  <ToolSwitcherList
+                    categories={categories}
+                    categoryId={categoryId}
+                    onSelect={handleSwitch}
+                  />
+                </div>
+              </OptionSheet>
+            ) : (
+              <DropdownBelow key="switcher" anchorRef={headerRef} width={300}>
+                <p className="text-[11px] font-semibold text-gray-500 px-2 pt-1 pb-2">
+                  Switch tool
+                </p>
+                <ToolSwitcherList
+                  categories={categories}
+                  categoryId={categoryId}
+                  onSelect={handleSwitch}
+                />
+              </DropdownBelow>
+            ))}
         </AnimatePresence>
 
-        {/* ── Option floating panels ── */}
+        {/* ── Option pickers — anchored panel on desktop, sheet on mobile ── */}
         <AnimatePresence>
           {openPanel &&
             (() => {
               const option = config.options.find((o) => o.key === openPanel);
               if (!option) return null;
-              return (
+              const body = (
+                <PanelBody
+                  option={option}
+                  value={values[option.key]}
+                  voicePreview={voicePreview}
+                  onSelect={(val) => {
+                    setValue(option.key, val);
+                    setOpenPanel(null);
+                  }}
+                />
+              );
+              return isCompact ? (
+                <OptionSheet
+                  key={`${openPanel}-sheet`}
+                  title={option.label}
+                  subtitle={summarize(option, values[option.key])}
+                  onClose={() => setOpenPanel(null)}
+                >
+                  {body}
+                </OptionSheet>
+              ) : (
                 <FloatingPanel
                   key={openPanel}
                   anchorRef={{ current: optionRefs.current[openPanel] }}
                   width={option.width || 340}
                 >
-                  <PanelBody
-                    option={option}
-                    value={values[option.key]}
-                    voicePreview={voicePreview}
-                    onSelect={(val) => {
-                      setValue(option.key, val);
-                      setOpenPanel(null);
-                    }}
-                  />
+                  {body}
                 </FloatingPanel>
               );
             })()}
@@ -1571,6 +1700,76 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
         )}
       </div>
     </MotionConfig>
+  );
+}
+
+/**
+ * The "switch tool" list — icon + label per category, current one ringed.
+ * Shared by the desktop dropdown and the mobile sheet.
+ *
+ * @param {object} props
+ * @param {Array<{id: string, label: string}>} props.categories From studio/creatives.js.
+ * @param {string} props.categoryId  The category currently open.
+ * @param {(id: string) => void} props.onSelect
+ */
+function ToolSwitcherList({ categories, categoryId, onSelect }) {
+  return (
+    <div className="space-y-1">
+      {categories.map((cat) => {
+        const cfg = MAGIC_STUDIO_CONFIGS[cat.id];
+        const Icon = cfg?.Icon;
+        const active = cat.id === categoryId;
+        return (
+          <button
+            key={cat.id}
+            onClick={() => onSelect(cat.id)}
+            className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left transition-colors cursor-pointer ${active ? "bg-blue-50 ring-2 ring-blue-500" : "hover:bg-gray-100"}`}
+          >
+            <span
+              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cfg?.color || "bg-gray-100 text-gray-500"}`}
+            >
+              {Icon && <Icon className="w-4 h-4" />}
+            </span>
+            <span
+              className={`text-sm font-semibold ${active ? "text-blue-700" : "text-gray-900"}`}
+            >
+              {cat.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * The Generate CTA. Rendered twice — pinned under the sidebar on desktop and
+ * under the whole modal on mobile — so it is a component rather than two
+ * copies of the same markup drifting apart.
+ *
+ * @param {object} props
+ * @param {() => void} props.onClick
+ * @param {boolean} props.disabled
+ * @param {boolean} props.generating Swaps the label for a spinner.
+ * @param {string} props.label       Per-tool CTA copy (config.generateLabel).
+ */
+function GenerateButton({ onClick, disabled, generating, label }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+    >
+      {generating ? (
+        <>
+          <Loader2 className="w-4 h-4 animate-spin" /> Generating…
+        </>
+      ) : (
+        <>
+          <Sparkles className="w-4 h-4" /> {label}
+        </>
+      )}
+    </button>
   );
 }
 
@@ -1920,10 +2119,12 @@ function EmptyState({ config }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="h-full flex flex-col items-center justify-center px-6"
+      className="h-full flex flex-col items-center justify-center px-2 sm:px-6"
     >
-      <div className="flex items-center gap-3 mb-9">
-        <div className="w-40 h-52 sm:w-44 sm:h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
+      {/* Two cards + the arrow are ~416px wide at their desktop size — wider
+          than a phone — so they scale down rather than overflow the canvas. */}
+      <div className="flex items-center gap-1.5 xs:gap-3 mb-6 sm:mb-9">
+        <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
           <img
             src={sample.before}
             alt="before"
@@ -1935,7 +2136,7 @@ function EmptyState({ config }) {
           height="60"
           viewBox="0 0 72 60"
           fill="none"
-          className="text-blue-500 shrink-0 -mt-6"
+          className="w-10 xs:w-12 sm:w-18 h-auto text-blue-500 shrink-0 -mt-6"
         >
           <path
             d="M6 44 C 24 8, 50 8, 62 32"
@@ -1951,7 +2152,7 @@ function EmptyState({ config }) {
             strokeLinejoin="round"
           />
         </svg>
-        <div className="w-40 h-52 sm:w-44 sm:h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
+        <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
           <img
             src={sample.after}
             alt="after"
@@ -1959,10 +2160,10 @@ function EmptyState({ config }) {
           />
         </div>
       </div>
-      <h3 className="text-gray-900 text-center text-lg font-semibold max-w-sm leading-snug">
+      <h3 className="text-gray-900 text-center text-base sm:text-lg font-semibold max-w-sm leading-snug">
         {sample.headline}
       </h3>
-      <p className="text-gray-500 text-center text-sm mt-2 max-w-xs leading-relaxed">
+      <p className="text-gray-500 text-center text-xs sm:text-sm mt-2 max-w-xs leading-relaxed">
         {sample.subtext}
       </p>
     </motion.div>
@@ -2049,7 +2250,7 @@ function ProcessingState({ config, engine, engineType }) {
         transition={{ duration: 0.2 }}
         className="h-full flex items-center justify-center"
       >
-        <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-linear-to-br from-blue-50 to-indigo-50 dark:from-canvas dark:to-canvas shadow-inner p-8">
+        <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-linear-to-br from-blue-50 to-indigo-50 dark:from-canvas dark:to-canvas shadow-inner p-5 sm:p-8">
           <motion.div
             className="pointer-events-none absolute inset-y-0 w-1/3 bg-linear-to-r from-transparent via-white/40 to-transparent"
             animate={{ x: ["-120%", "320%"] }}
@@ -2319,7 +2520,7 @@ function ResultCanvas({
               <button
                 onClick={(e) => onOpenMenu(a, e)}
                 aria-label="Result actions"
-                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity cursor-pointer"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
@@ -2348,7 +2549,7 @@ function ResultCanvas({
               <button
                 onClick={(e) => onOpenMenu(a, e)}
                 aria-label="Result actions"
-                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity cursor-pointer"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
@@ -2376,7 +2577,7 @@ function ResultCanvas({
               <button
                 onClick={(e) => onOpenMenu(a, e)}
                 aria-label="Result actions"
-                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-gray-700 hover:text-blue-600 flex items-center justify-center shadow opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity cursor-pointer"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>

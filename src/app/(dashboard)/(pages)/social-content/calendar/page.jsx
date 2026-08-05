@@ -277,30 +277,36 @@ export default function SocialContentCalendar() {
 
       {/* ── Status Tabs (matches the Publishing page) ── */}
       {posts.length > 0 && (
-        <div className="flex items-center border-b border-gray-200 bg-surface rounded-t-xl px-2 shadow-sm">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setStatusFilter(tab.key)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap cursor-pointer ${
-                statusFilter === tab.key
-                  ? "border-[#003dda] text-[#003dda]"
-                  : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
-              }`}
-            >
-              {tab.label}
-              <span
-                className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                style={
+        <div className="border-b border-gray-200 bg-surface rounded-t-xl shadow-sm">
+          {/* The tab row scrolls sideways on narrow screens instead of squeezing or
+              spilling out of the card. The -1px pull lives on the scroller (not on
+              each button) so the active tab's underline still covers the wrapper's
+              hairline without overflowing — and being clipped by — the scroll box. */}
+          <div className="-mb-px flex items-center overflow-x-auto hide-scrollbar px-2">
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setStatusFilter(tab.key)}
+                className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
                   statusFilter === tab.key
-                    ? { backgroundColor: "#003dda", color: "#fff" }
-                    : { backgroundColor: "#f3f4f6", color: "#6b7280" }
-                }
+                    ? "border-[#003dda] text-[#003dda]"
+                    : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
+                }`}
               >
-                {statusCounts[tab.key]}
-              </span>
-            </button>
-          ))}
+                {tab.label}
+                <span
+                  className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                  style={
+                    statusFilter === tab.key
+                      ? { backgroundColor: "#003dda", color: "#fff" }
+                      : { backgroundColor: "#f3f4f6", color: "#6b7280" }
+                  }
+                >
+                  {statusCounts[tab.key]}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

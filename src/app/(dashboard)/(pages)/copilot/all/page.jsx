@@ -24,8 +24,11 @@ export default function AllCopilots() {
   const [view, setView] = useState("grid");
 
   return (
-    <div className="min-h-full pt-header pb-nav lg:pb-0 bg-[#eef1f7] dark:bg-page">
-      <div className="px-4 md:px-10 py-8 pb-24 md:pb-10">
+    // No pb-nav: `main` in (dashboard)/layout.js reserves the mobile bottom
+    // bar for every route. The inner `pb-24` that stacked on top of it is gone
+    // for the same reason — the page's own rhythm is all that belongs here.
+    <div className="min-h-full pt-header bg-[#eef1f7] dark:bg-page">
+      <div className="px-4 md:px-10 py-8 pb-10">
         {/* ── Header ──────────────────────────────────────────── */}
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div>

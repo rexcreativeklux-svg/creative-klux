@@ -71,7 +71,12 @@ export default function QuickStartCards({ className = "", style }) {
     // pair stays clear of both edges and reads as sitting under the composer
     // rather than spanning wider than it.
     <div className={`mx-auto w-[90%] max-w-5xl sm:w-3/4 ${className}`} style={style}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 justify-between">
+      {/* Tighter stack below `sm`. Every size below is trimmed on mobile ONLY
+          (`sm:` restores the desktop values): the pair is the last thing in the
+          hero, so whatever height it gives back goes to the flex-1 block above,
+          which re-centres — and the composer settles a little lower on a phone
+          without the rail beneath moving at all. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:gap-4 justify-between">
         {QUICK_START_ACTIONS.map(
           ({ href, icon: Icon, title, description, accent }) => (
             <Link
@@ -84,14 +89,14 @@ export default function QuickStartCards({ className = "", style }) {
               // wrapper leaves ~4px of slack on a 360px screen, so any longer
               // label pushed the row into horizontal overflow. Stacked cards
               // should just take the width they are given.
-              className="group flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-surface px-3.5 py-3 text-left shadow-[0_2px_12px_rgba(0,0,0,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-[0_14px_32px_-16px_rgba(15,23,42,0.35)] focus:outline-none focus-visible:border-blue-500/60 focus-visible:ring-2 focus-visible:ring-blue-500/25 sm:w-80"
+              className="group flex w-full items-center gap-2.5 rounded-xl border border-gray-200 bg-surface px-3 py-2 text-left shadow-[0_2px_12px_rgba(0,0,0,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-[0_14px_32px_-16px_rgba(15,23,42,0.35)] focus:outline-none focus-visible:border-blue-500/60 focus-visible:ring-2 focus-visible:ring-blue-500/25 sm:w-80 sm:gap-3 sm:px-3.5 sm:py-3"
             >
               {/* Icon tile. h-* AND w-* on the glyph: lucide hard-codes
                   height="24" on its <svg>, so a width-only class letterboxes it. */}
               <span
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${accent}`}
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9 ${accent}`}
               >
-                <Icon className="h-4.5 w-4.5" />
+                <Icon className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
               </span>
 
               {/* Spans, not <p>s — an <a> may not contain block-level content.
@@ -102,7 +107,7 @@ export default function QuickStartCards({ className = "", style }) {
                 <span className="block truncate text-[13px] font-semibold leading-tight text-gray-900">
                   {title}
                 </span>
-                <span className="mt-1 block text-[11px] leading-snug text-gray-500">
+                <span className="mt-0.5 block text-[11px] leading-snug text-gray-500 sm:mt-1">
                   {description}
                 </span>
               </span>

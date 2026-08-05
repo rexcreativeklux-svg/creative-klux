@@ -93,6 +93,23 @@ const CATEGORY_ICON = { video: Film, audio: Music, document: FileText };
 const DEFAULT_MAX_HEIGHT = 200;
 
 /**
+ * Viewports the composer must NOT auto-focus on (see the effect below). A media
+ * query list — either clause matching is enough:
+ *
+ *   pointer: coarse   a touch primary pointer: phones and tablets, the devices
+ *                     with a soft keyboard to raise. This is the real signal.
+ *   max-width         the app's `lg` sidebar breakpoint minus a pixel, so
+ *                     "mobile" here means the same thing it means in the
+ *                     layout. Belt and braces: it also covers a touch device
+ *                     whose browser reports its pointer as fine.
+ *
+ * A desktop window dragged narrower than 1024px therefore doesn't autofocus
+ * either — it is showing the mobile layout, so that reads as consistent rather
+ * than as a miss.
+ */
+const NO_AUTOFOCUS_QUERY = "(pointer: coarse), (max-width: 1023px)";
+
+/**
  * The panel's two skins. Each variant replaces the border/background/shadow set
  * wholesale rather than appending to it — two background utilities at equal
  * specificity would otherwise be decided by Tailwind's emit order, which the
@@ -119,7 +136,8 @@ const PANEL_VARIANTS = {
  * @param {object} props
  * @param {(payload: {prompt: string, model: string, mode: string, attachments: string[]}) => void} props.onSubmit
  * @param {string} [props.placeholder]
- * @param {boolean} [props.autoFocus]
+ * @param {boolean} [props.autoFocus] Focus the prompt on mount. Desktop only —
+ *   always ignored on a touch/mobile viewport (see NO_AUTOFOCUS_QUERY).
  * @param {number} [props.rows]       Resting height of the prompt box, in rows.
  * @param {number} [props.maxHeight]  Growth ceiling in px before it scrolls.
  * @param {"solid"|"glass"} [props.variant] Panel skin — see PANEL_VARIANTS.
@@ -159,8 +177,21 @@ export default function PromptComposer({
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
   }, [value, rows, maxHeight]);
 
+  // Focus the prompt on mount — DESKTOP ONLY, never on a phone or tablet.
+  //
+  // On a touch device an unasked-for focus is a net loss: it can raise the soft
+  // keyboard over the page, and the browser may scroll the textarea to the
+  // viewport edge to make room, taking the greeting above it off screen before
+  // the user has done anything. `autoFocus` still gates the behaviour; this is
+  // a second gate the call site doesn't have to know about, so every surface
+  // that mounts a composer gets the same rule.
   useEffect(() => {
-    if (autoFocus) textareaRef.current?.focus();
+    if (!autoFocus) return;
+    if (window.matchMedia(NO_AUTOFOCUS_QUERY).matches) {
+      console.log("⌨️ [composer] autofocus skipped — touch/mobile viewport");
+      return;
+    }
+    textareaRef.current?.focus();
   }, [autoFocus]);
 
   const busy = uploading || voice.transcribing;

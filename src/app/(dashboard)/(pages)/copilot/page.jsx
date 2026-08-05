@@ -197,7 +197,9 @@ export default function CopilotHome() {
   const ideas = IDEAS[activeCategory] ?? [];
 
   return (
-    <div className="min-h-full pt-header pb-nav lg:pb-0 flex flex-col bg-[#eef1f7] dark:bg-page">
+    // No pb-nav: `main` in (dashboard)/layout.js reserves the mobile bottom
+    // bar for every route, so repeating it here would only add dead space.
+    <div className="min-h-full pt-header flex flex-col bg-[#eef1f7] dark:bg-page">
       {/* ── Hero ────────────────────────────────────────────────── */}
       <section className="flex flex-col items-center px-gutter pt-10 sm:pt-14 lg:pt-24 pb-12">
         <h1 className="text-center text-3xl md:text-[44px] md:leading-[1.2] font-bold text-gray-900">

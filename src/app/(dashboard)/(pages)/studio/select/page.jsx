@@ -148,7 +148,9 @@ export default function StudioSelectPage() {
 
   return (
     <div
-      className="h-full pb-nav lg:pb-0"
+      // No pb-nav: `main` in (dashboard)/layout.js already ends the scroll
+      // viewport at the mobile bottom bar's top edge.
+      className="h-full"
       style={{
         background: "#ffffff",
         position: "relative",

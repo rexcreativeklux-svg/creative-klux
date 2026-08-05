@@ -925,10 +925,10 @@ export default function AiCreativeChatPage() {
 
   /* ── render ── */
   return (
-    // pb-nav: this route is in NO_PADDING_ROUTES, so the layout frames nothing
-    // for it. Without this the composer's send button sits under the mobile
-    // bottom bar — the one control the page exists to offer.
-    <div className="pt-header pb-nav lg:pb-0 h-full"
+    // No pb-nav here: `main` in (dashboard)/layout.js ends the scroll viewport
+    // at the mobile bottom bar, so the composer already clears it. Adding it
+    // again would leave a bar-height gap under the send button.
+    <div className="pt-header h-full"
       style={{
         display: "flex",
         flexDirection: "column",

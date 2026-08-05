@@ -199,11 +199,13 @@ const SectionLayout = ({ title, items, children }) => {
       {/* ── Section page content ────────────────────────────────── */}
       <div className="flex-1 min-w-0 overflow-y-auto bg-page">
         {/* Matches the frame the dashboard layout applies to ordinary pages —
-            fluid gutters, and bottom clearance for the mobile nav (which
-            already folds in the iOS home indicator) that drops away at `lg`
-            where the bar is gone. Section routes are in NO_PADDING_ROUTES, so
-            this shell owns all of that padding itself. */}
-        <div className="px-gutter pt-page-y pb-[calc(var(--spacing-nav)+var(--spacing-page-y))] lg:pb-page-y">
+            fluid gutters and page rhythm. Section routes are in
+            NO_PADDING_ROUTES, so this shell owns that padding itself.
+
+            Not the mobile bar's height though: `main` in (dashboard)/layout.js
+            ends the scroll viewport above the bar for every route, so adding
+            it here would leave a bar-height gap under the last row. */}
+        <div className="px-gutter pt-page-y pb-page-y">
           {children}
         </div>
       </div>

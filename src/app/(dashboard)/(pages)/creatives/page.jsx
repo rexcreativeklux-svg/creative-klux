@@ -40,6 +40,10 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
 import PublishModal from "@/app/(components)/PublishModal";
+// The app's edge-anchored panel primitive — the same one the mobile nav uses.
+// Brings the scrim, Escape, focus trap, swipe-to-dismiss, the notch insets and
+// (the reason it's here) a width that cannot exceed the screen.
+import Drawer from "@/app/(components)/ui/Drawer";
 // Shared, read-only renderer — the exact one the editor (/design/[id]) uses to
 // paint and export. Reused here so creatives previews/exports match the editor.
 import {
@@ -307,6 +311,11 @@ const MAX_FETCH_PAGES = 50;
 /** Marker for a gap in the page list. */
 const ELLIPSIS = "…";
 
+/* How many page numbers sit either side of the current one. A phone can hold
+   roughly "‹ 1 … 4 … 6 ›" beside the range label before the pager wraps onto a
+   second line, so below `xs` the window collapses to the current page alone. */
+const PAGER_SPAN = { compact: 0, roomy: 1 };
+
 /**
  * The page numbers to actually render.
  *
@@ -317,11 +326,18 @@ const ELLIPSIS = "…";
  *
  * @param {number} current  Current page (1-based).
  * @param {number} total    Total pages.
- * @param {number} [span]   How many neighbours to show either side.
+ * @param {number} [span]   How many neighbours to show either side. The page
+ *   passes 0 on a phone, where a full row of numbers wrapped the pager onto a
+ *   second line (see PAGER_SPAN below).
  * @returns {(number|string)[]} e.g. [1, "…", 6, 7, 8, "…", 42]
  */
 function buildPageWindow(current, total, span = 1) {
-  if (total <= 7) {
+  // How many pages still fit without needing gaps: first + last + the window
+  // either side of the current page + one number in place of each gap. Derived
+  // from `span` rather than hardcoded, so the compact pager starts collapsing
+  // at 5 pages while the roomy one still lists all 7.
+  const maxWithoutGaps = 2 * span + 5;
+  if (total <= maxWithoutGaps) {
     return Array.from({ length: total }, (_, i) => i + 1);
   }
 
@@ -382,7 +398,9 @@ function LoadCountSelect({ value, options, onChange }) {
   };
 
   return (
-    <div ref={ref} className="relative ml-auto">
+    // No `ml-auto` here: the toolbar groups this with the select toggle and the
+    // view switcher and pushes the whole cluster right, so they stay on one line.
+    <div ref={ref} className="relative">
       <button
         type="button"
         onClick={() => {
@@ -390,7 +408,7 @@ function LoadCountSelect({ value, options, onChange }) {
           setOpen((o) => !o);
         }}
         title="How many to show per page"
-        className="flex items-center gap-2 bg-gray-100 text-xs font-semibold text-gray-600 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+        className="flex items-center gap-1.5 bg-gray-100 text-xs font-semibold text-gray-600 rounded-xl px-2.5 py-2 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer sm:gap-2 sm:px-3"
       >
         Show {value}
         <ChevronDown
@@ -433,6 +451,117 @@ function LoadCountSelect({ value, options, onChange }) {
   );
 }
 
+// ── Create actions ────────────────────────────────────────────────────────────
+// The ways to start a creative, declared ONCE. The desktop button pair and the
+// mobile "+" menu both render from this list, so a route added here shows up in
+// both and the two can't drift apart.
+//
+// `buttonClass` is only the desktop button's colourway — shape, padding and
+// motion live on the shared class string at the call site.
+const CREATE_ACTIONS = [
+  {
+    href: "/studio/create-from-url",
+    label: "Create from URL",
+    description: "Pull copy, colours and images straight from a web page.",
+    buttonClass:
+      "bg-gray-900 hover:bg-gray-800 text-gray-50 border border-gray-200 font-medium",
+  },
+  // Create using Scraive — kept out of the UI for now.
+  // {
+  //   href: "/studio/create-from-url?engine=redesign",
+  //   label: "Create using Scraive",
+  //   description: "Redesign an existing page with the Scraive engine.",
+  //   buttonClass: "bg-violet-600 hover:bg-violet-700 text-white font-medium",
+  // },
+  // Instant Creation — kept out of the UI for now.
+  // {
+  //   href: "/",
+  //   label: "Instant Creation",
+  //   description: "Jump straight into a one-click creative.",
+  //   buttonClass:
+  //     "border border-gray-300 hover:bg-gray-200 text-gray-900 font-medium",
+  // },
+  {
+    href: "/studio/select",
+    label: "Custom Creation",
+    description: "Start from a template or a blank canvas.",
+    buttonClass: "bg-blue-600 hover:bg-blue-700 text-white font-semibold",
+  },
+];
+
+// ── Create menu (phones) ──────────────────────────────────────────────────────
+// Two "Create …" buttons are ~420px of content. On a 360px phone they took a
+// full row of their own directly under the title, and between them the header
+// ate half the first screen before a single design was visible.
+//
+// Nothing is removed — the same destinations open from one "+", so the header
+// collapses to a single line and the grid starts near the top. From `sm` up the
+// buttons are shown inline as before and this is hidden.
+function CreateMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  // Close on outside tap and on Escape. The panel floats over the grid, so
+  // leaving it open would otherwise swallow the next tap on a card.
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative shrink-0 sm:hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Create a new design"
+        className="ck-tap flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm transition-transform duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+      >
+        {/* The icon rotates into an "×" so the button reads as a toggle. */}
+        <Plus
+          className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-45" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-1.5 w-60 max-w-[75vw] overflow-hidden rounded-xl border border-gray-200 bg-surface shadow-lg py-1 z-50"
+        >
+          {CREATE_ACTIONS.map(({ href, label, description }) => (
+            <Link
+              key={href}
+              href={href}
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="block px-3 py-2.5 hover:bg-gray-50 transition"
+            >
+              <span className="block text-sm font-semibold text-gray-800">
+                {label}
+              </span>
+              <span className="block mt-0.5 text-2xs text-gray-400 leading-snug">
+                {description}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function CreativesPage() {
   const {
@@ -452,6 +581,9 @@ export default function CreativesPage() {
   const [activeFilter, setActiveFilter] = useState("all");
   // The table view only exists from `md` up (see the toggle below).
   const isWideEnoughForTable = useBreakpoint("md");
+  // Below `xs` (480px) the pager shares its line with the range label and can
+  // only hold a handful of controls, so it drops to the narrow page window.
+  const isWideEnoughForFullPager = useBreakpoint("xs");
   const [viewMode, setViewMode] = useState("grid");
   // Rows per PAGE (user-selectable), restored from their saved choice. Paging
   // is done here over the full set, so the pager appears whenever the current
@@ -682,6 +814,16 @@ export default function CreativesPage() {
   const paginated = filtered.slice((page - 1) * fetchCount, page * fetchCount);
   const selected = creatives.find((c) => c.id === selectedId) || null;
 
+  /* The detail drawer stays mounted for its 200ms exit animation, but
+     `selectedId` is cleared the instant it's dismissed — so the panel would
+     slide away blank. Remembering the last id keeps its contents on screen
+     until it is gone. Tracked as a primitive id and adjusted during render
+     (the same pattern as (dashboard)/layout.js) rather than in an effect. */
+  const [lastSelectedId, setLastSelectedId] = useState(null);
+  if (selectedId && selectedId !== lastSelectedId) setLastSelectedId(selectedId);
+  const panelCreative =
+    selected || creatives.find((c) => c.id === lastSelectedId) || null;
+
   const handleSearch = (v) => {
     setSearch(v);
     setPage(1); // a narrower search usually has fewer pages
@@ -762,7 +904,10 @@ export default function CreativesPage() {
   }
 
   return (
-    <div className="flex flex-col justify-between pb-4 h-full">
+    // No bottom padding of its own: the pager is the last row and the dashboard
+    // layout already reserves the mobile nav + page rhythm underneath. The extra
+    // 16px only showed up as dead space between the pager and the bottom bar.
+    <div className="flex flex-col justify-between h-full">
       {/* ── Toast ── */}
       <Toast
         message={toast.message}
@@ -772,51 +917,43 @@ export default function CreativesPage() {
       />
 
       {/* ── Header ──
-          Two "Create …" buttons plus a heading is ~420px of content, so below
-          `sm` it stacks and the buttons take a row of their own. `flex-1` on
-          each makes them split that row evenly rather than leaving a ragged
-          gap — and keeps both comfortably above the 44px touch minimum. */}
-      <div className="flex flex-col gap-stack pb-4 shrink-0 sm:flex-row sm:items-center sm:justify-between">
+          One line at every width. Two "Create …" buttons plus a heading is
+          ~420px of content, so below `sm` they collapse behind the single "+"
+          (<CreateMenu>) instead of stacking onto a row of their own — that row
+          plus the eyebrow was most of what pushed the grid off a phone screen.
+          The "LIBRARY" eyebrow is decorative, so it also waits for `sm`. */}
+      <div className="flex flex-row items-center justify-between gap-3 pb-2 shrink-0 sm:pb-4">
         <div className="min-w-0">
-          <p className="text-2xs font-semibold text-gray-400 uppercase tracking-widest">
+          <p className="hidden text-2xs font-semibold text-gray-400 uppercase tracking-widest sm:block">
             Library
           </p>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+          <h1 className="text-lg font-bold text-gray-900 tracking-tight truncate sm:text-xl">
             My Creations
           </h1>
         </div>
-        <div className="flex flex-row gap-2 items-center shrink-0 sm:gap-3">
-          <Link
-            href="/studio/create-from-url"
-            className="flex flex-1 items-center justify-center gap-2 whitespace-nowrap bg-gray-900 hover:bg-gray-800 text-gray-50 border border-gray-200 text-sm font-medium px-3 py-2.5 rounded-lg transition-all hover:scale-105 duration-200 sm:flex-none sm:px-4 sm:py-2"
-          >
-            <Plus className="w-4 h-4 shrink-0" /> Create from URL
-          </Link>
-          {/* Create using Scraive button — commented out.
-          <Link
-            href="/studio/create-from-url?engine=redesign"
-            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
-          >
-            <Plus className="w-4 h-4" /> Create using Scraive
-          </Link> */}
-          {/* <Link
-            href="/"
-            className="flex items-center gap-2 border border-gray-300 hover:bg-gray-200 text-gray-900 text-sm font-medium px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200"
-          >
-            <Plus className="w-4 h-4" /> Instant Creation
-          </Link> */}
-          <Link
-            href="/studio/select"
-            className="flex flex-1 items-center justify-center gap-2 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-3 py-2.5 rounded-lg transition-all hover:scale-105 duration-200 sm:flex-none sm:px-4 sm:py-2"
-          >
-            <Plus className="w-4 h-4 shrink-0" /> Custom Creation
-          </Link>
+
+        {/* Phones — same destinations, one button. */}
+        <CreateMenu />
+
+        {/* `sm` and up — both buttons inline, rendered from CREATE_ACTIONS. */}
+        <div className="hidden shrink-0 items-center gap-3 sm:flex">
+          {CREATE_ACTIONS.map(({ href, label, buttonClass }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`flex items-center justify-center gap-2 whitespace-nowrap text-sm px-4 py-2 rounded-lg transition-all hover:scale-105 duration-200 ${buttonClass}`}
+            >
+              <Plus className="w-4 h-4 shrink-0" /> {label}
+            </Link>
+          ))}
         </div>
       </div>
 
-      {/* ── Bulk action bar ── */}
+      {/* ── Bulk action bar ──
+          `flex-wrap`: four labels plus the delete button is wider than a 360px
+          phone, and without it the row overflowed the page sideways. */}
       {isBulkMode && (
-        <div className="flex items-center gap-3 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl mb-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl mb-2 shrink-0 sm:py-2.5 sm:mb-3">
           <span className="text-xs font-semibold text-blue-700">
             {bulkSelected.length} selected
           </span>
@@ -843,9 +980,20 @@ export default function CreativesPage() {
         </div>
       )}
 
-      {/* ── Toolbar ── */}
-      <div className="py-3 flex flex-wrap items-center gap-3 shrink-0">
-        <div className="relative flex-1 min-w-45 max-w-xs">
+      {/* ── Toolbar ──
+          Two lines on a phone, one wrapping line from `sm` up — the `order-*`
+          swap is what does it, so both layouts come out of the same markup:
+
+            phone   [ search ][ select · show N ]
+                    [ ←— filter tabs, scrolling —→ ]
+
+            sm+     [ search ][ tabs ] … [ select · show N · view ]
+
+          The tabs scroll horizontally rather than wrapping. Wrapped, "★
+          Favorites" dropped onto a second row and cost the grid another ~40px
+          of height on exactly the screens that had none to spare. */}
+      <div className="py-2 flex flex-wrap items-center gap-2 shrink-0 sm:py-3 sm:gap-3">
+        <div className="relative order-1 flex-1 min-w-0 sm:min-w-45 sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
           <input
             type="text"
@@ -856,83 +1004,97 @@ export default function CreativesPage() {
           />
         </div>
 
-        {/* ── Flat filter tabs ── */}
-        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl flex-wrap">
-          {FILTER_GROUPS.map((group) => {
-            const isActive = activeFilter === group.key;
-            // The tab's real count across every design the brand has.
-            const count = filterCounts[group.key] ?? 0;
-            return (
-              <button
-                key={group.key}
-                onClick={() => {
-                  setActiveFilter(group.key);
-                  setPage(1); // a narrower tab may have fewer pages
-                }}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${isActive ? "bg-surface text-blue-600 shadow-sm border border-blue-100" : "text-gray-500 hover:text-gray-700"}`}
-              >
-                {group.label}
-                {/* Hidden while loading — every count would read 0 and then
-                    jump, which looks like a broken empty state.
-                    tabular-nums keeps the pill from twitching as digits change. */}
-                {!loading && (
-                  <span
-                    className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums ${isActive ? "bg-blue-50 text-blue-600" : "bg-gray-200/80 text-gray-500"}`}
-                  >
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Quantity — pick a preset or type a custom amount (persisted). */}
-        <LoadCountSelect
-          value={fetchCount}
-          options={FETCH_OPTIONS}
-          onChange={handleFetchCountChange}
-        />
-
-        {/* Hidden below `md`: the list view is an 8-column table that cannot be
-            read on a phone, and offering the toggle strands anyone who taps it.
-            The branch further down forces the grid at that width too, so a
-            preference set on a laptop survives without following the user onto
-            a screen it does not work on. */}
-        <div className="hidden md:flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
-          <button
-            onClick={() => setViewMode("grid")}
-            className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === "grid" ? "bg-surface shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
-            title="Grid view"
-          >
-            <LayoutGrid className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode("table")}
-            className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === "table" ? "bg-surface shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
-            title="List view"
-          >
-            <List className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* ── Content ── */}
-      <div className="flex-1 overflow-y-auto pb-2">
-        <div className="py-1">
+        {/* ── List controls ──
+            Bulk-select, page size and (from `md`) the view switcher, kept in
+            one cluster so they share a line at every width. The select toggle
+            used to sit on its own row above the grid, where it was a whole row
+            of height for one 32px button. */}
+        <div className="order-2 flex shrink-0 items-center gap-1.5 sm:order-3 sm:ml-auto sm:gap-2">
           <button
             onClick={toggleBulkMode}
-            className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${isBulkMode ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-300 hover:bg-gray-100 text-gray-600"}`}
+            title={isBulkMode ? "Exit select mode" : "Select multiple"}
+            aria-label={isBulkMode ? "Exit select mode" : "Select multiple"}
+            aria-pressed={isBulkMode}
+            className={`ck-tap flex items-center justify-center p-2 rounded-xl transition-all cursor-pointer ${isBulkMode ? "bg-blue-50 text-blue-600 ring-1 ring-blue-200" : "bg-gray-100 text-gray-500 hover:text-gray-700"}`}
           >
             {isBulkMode ? (
               <CheckSquare className="w-4 h-4" />
             ) : (
               <Square className="w-4 h-4" />
             )}
-            {/* {isBulkMode ? "Exit Select" : "Select"} */}
           </button>
+
+          {/* Quantity — pick a preset or type a custom amount (persisted). */}
+          <LoadCountSelect
+            value={fetchCount}
+            options={FETCH_OPTIONS}
+            onChange={handleFetchCountChange}
+          />
+
+          {/* Hidden below `md`: the list view is an 8-column table that cannot
+              be read on a phone, and offering the toggle strands anyone who
+              taps it. The branch further down forces the grid at that width
+              too, so a preference set on a laptop survives without following
+              the user onto a screen it does not work on. */}
+          <div className="hidden md:flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === "grid" ? "bg-surface shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
+              title="Grid view"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("table")}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === "table" ? "bg-surface shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
+              title="List view"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
+        {/* ── Flat filter tabs ──
+            `w-max` on the inner row is what lets it overflow its scroller
+            instead of wrapping; the scrollbar itself is hidden (hide-scrollbar)
+            because the pills are visibly cut off, which is affordance enough. */}
+        <div className="order-3 w-full overflow-x-auto overflow-y-hidden hide-scrollbar sm:order-2 sm:w-auto">
+          <div className="flex w-max items-center gap-1 bg-gray-100 p-1 rounded-xl">
+            {FILTER_GROUPS.map((group) => {
+              const isActive = activeFilter === group.key;
+              // The tab's real count across every design the brand has.
+              const count = filterCounts[group.key] ?? 0;
+              return (
+                <button
+                  key={group.key}
+                  onClick={() => {
+                    setActiveFilter(group.key);
+                    setPage(1); // a narrower tab may have fewer pages
+                  }}
+                  className={`inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${isActive ? "bg-surface text-blue-600 shadow-sm border border-blue-100" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  {group.label}
+                  {/* Hidden while loading — every count would read 0 and then
+                      jump, which looks like a broken empty state.
+                      tabular-nums keeps the pill from twitching as digits change. */}
+                  {!loading && (
+                    <span
+                      className={`rounded-md px-1.5 py-0.5 text-2xs font-semibold leading-none tabular-nums ${isActive ? "bg-blue-50 text-blue-600" : "bg-gray-200/80 text-gray-500"}`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Content ──
+          The select toggle that used to sit here now lives in the toolbar's
+          control cluster, beside the "Show N" dropdown. */}
+      <div className="flex-1 overflow-y-auto pb-1 sm:pb-2">
         {loading ? (
           <GridSkeleton count={fetchCount} />
         ) : paginated.length === 0 ? (
@@ -962,27 +1124,40 @@ export default function CreativesPage() {
         )}
       </div>
 
-      {/* ── Pagination ── */}
+      {/* ── Pagination ──
+          The page's last row, and the page is a full-height column, so this
+          sits on the bottom edge at every width — flush against the mobile nav
+          rather than floating with dead space beneath it.
+
+          Everything here stays on ONE line: a narrower page window below `xs`,
+          a shortened range label, and smaller controls. Wrapped, this bar was
+          three lines tall on a phone and stole them from the grid. */}
       {totalPages > 1 && (
-        <div className="shrink-0 flex items-center justify-between px-3 py-3 border-t border-gray-100 rounded bg-surface">
-          <p className="text-xs text-gray-400">
-            Showing {(page - 1) * fetchCount + 1}–
+        <div className="shrink-0 flex items-center justify-between gap-2 px-1 py-2 border-t border-gray-100 rounded bg-surface sm:px-3 sm:py-3">
+          <p className="text-2xs text-gray-400 whitespace-nowrap sm:text-xs">
+            <span className="hidden xs:inline">Showing </span>
+            {(page - 1) * fetchCount + 1}–
             {Math.min((page - 1) * fetchCount + paginated.length, totalResults)} of{" "}
             {totalResults}
           </p>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 sm:gap-1">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
+              aria-label="Previous page"
+              className="ck-tap p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            {buildPageWindow(page, totalPages).map((p, index) =>
+            {buildPageWindow(
+              page,
+              totalPages,
+              isWideEnoughForFullPager ? PAGER_SPAN.roomy : PAGER_SPAN.compact,
+            ).map((p, index) =>
               p === ELLIPSIS ? (
                 <span
                   key={`gap-${index}`}
-                  className="w-6 text-center text-xs text-gray-400 select-none"
+                  className="w-4 text-center text-2xs text-gray-400 select-none sm:w-6 sm:text-xs"
                 >
                   …
                 </span>
@@ -990,7 +1165,9 @@ export default function CreativesPage() {
                 <button
                   key={p}
                   onClick={() => setPage(p)}
-                  className={`w-8 h-8 rounded-lg text-xs font-semibold cursor-pointer transition-all ${p === page ? "bg-blue-600 text-white shadow-sm" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                  aria-label={`Page ${p}`}
+                  aria-current={p === page ? "page" : undefined}
+                  className={`w-7 h-7 rounded-lg text-2xs font-semibold cursor-pointer transition-all sm:w-8 sm:h-8 sm:text-xs ${p === page ? "bg-blue-600 text-white shadow-sm" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}
                 >
                   {p}
                 </button>
@@ -999,7 +1176,8 @@ export default function CreativesPage() {
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
+              aria-label="Next page"
+              className="ck-tap p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
             >
               <ChevronLeft className="w-4 h-4 rotate-180" />
             </button>
@@ -1007,21 +1185,28 @@ export default function CreativesPage() {
         </div>
       )}
 
-      {/* ── Sidebar backdrop ── */}
-      {selected && (
-        <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-50"
-          onClick={() => setSelectedId(null)}
-        />
-      )}
+      {/* ── Detail panel ──
+          The app's own right-anchored <Drawer> rather than a hand-rolled fixed
+          panel. The old one was a flat `w-105` (420px) at every width: on a
+          360px phone it hung 60px past the left edge, so every line inside was
+          clipped. Drawer caps itself at 85vw — which also leaves a strip of
+          scrim to tap — and brings Escape, a focus trap, swipe-to-dismiss and
+          the notch insets that the hand-rolled panel never had.
 
-      {/* ── Sidebar panel ── */}
-      <div
-        className={`fixed top-0 right-0 h-full w-105 bg-surface shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${selected ? "translate-x-0" : "translate-x-full"}`}
+          `zIndex={50}` preserves the stacking this page already relied on: the
+          edit-copy (z-70) and delete-confirm (z-60) modals open FROM the panel
+          and must cover it, and Drawer's default of 120 would bury them. */}
+      <Drawer
+        isOpen={!!selected}
+        onClose={() => setSelectedId(null)}
+        side="right"
+        label="Design details"
+        zIndex={50}
+        className="w-105"
       >
-        {selected && (
+        {panelCreative && (
           <Sidebar
-            creative={selected}
+            creative={panelCreative}
             onClose={() => setSelectedId(null)}
             onToggleFavorite={toggleFavorite}
             onCopy={handleCopy}
@@ -1030,18 +1215,18 @@ export default function CreativesPage() {
             onEdit={setEditTarget}
             onPublish={() => {
               setPublishStartSchedule(false);
-              setPublishTarget(selected); // capture the creative
-              setSelectedId(null); // close the sidebar
+              setPublishTarget(panelCreative); // capture the creative
+              setSelectedId(null); // close the panel
             }}
             onSchedule={() => {
               setPublishStartSchedule(true); // open the modal straight into scheduling
-              setPublishTarget(selected);
+              setPublishTarget(panelCreative);
               setSelectedId(null);
             }}
             onDownload={handleDownloadDesign}
           />
         )}
-      </div>
+      </Drawer>
 
       {/* ── Edit Copy Modal ── */}
       {editTarget && (
@@ -1110,14 +1295,13 @@ export default function CreativesPage() {
 // the real designs land.
 const CreativeCardSkeleton = () => (
   <div className="bg-surface rounded-lg border-2 border-gray-100 overflow-hidden flex flex-col animate-pulse">
-    <div
-      className="bg-gray-100"
-      style={{ aspectRatio: "16/9", minHeight: 120 }}
-    />
-    <div className="flex flex-col flex-1 px-3 pt-2.5 pb-3 gap-2">
+    {/* Same geometry as the real card's preview — see the note there on why the
+        120px floor only applies from `sm`. */}
+    <div className="bg-gray-100 aspect-video min-h-20 sm:min-h-30" />
+    <div className="flex flex-col flex-1 px-2 pt-2 pb-2 gap-2 sm:px-3 sm:pt-2.5 sm:pb-3">
       <div className="h-3.5 bg-gray-100 rounded w-3/4" />
       <div className="h-2.5 bg-gray-100 rounded w-1/2" />
-      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-50">
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50 sm:mt-3 sm:pt-2.5">
         <div className="h-2.5 bg-gray-100 rounded w-12" />
         <div className="h-5 bg-gray-100 rounded w-12" />
       </div>
@@ -1125,10 +1309,16 @@ const CreativeCardSkeleton = () => (
   </div>
 );
 
+// The one grid definition the cards, the fetch skeleton and the brand-resolving
+// skeleton all share — two across on a phone (one was a single card per screen),
+// widening to four on a large desktop.
+const GRID_COLUMNS =
+  "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4";
+
 // Grid of card skeletons — shown in the content area while designs are fetching
 // (the brand has already resolved, so the header/toolbar are already visible).
 const GridSkeleton = ({ count = DEFAULT_PER_PAGE }) => (
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+  <div className={GRID_COLUMNS}>
     {Array.from({ length: count }).map((_, i) => (
       <CreativeCardSkeleton key={i} />
     ))}
@@ -1138,25 +1328,29 @@ const GridSkeleton = ({ count = DEFAULT_PER_PAGE }) => (
 // Full-page shimmer shown while the active brand is still resolving. Mimics the
 // header, toolbar and card grid so the page fades in place once the brand lands.
 const CreativesPageSkeleton = () => (
-  <div className="flex flex-col pb-4 h-full animate-pulse">
-    {/* Header */}
-    <div className="flex items-center justify-between pb-4 shrink-0">
+  <div className="flex flex-col h-full animate-pulse">
+    {/* Header — one "+" on a phone, both CTAs from `sm`, matching <CreateMenu>
+        and the button pair it stands in for. */}
+    <div className="flex items-center justify-between gap-3 pb-2 shrink-0 sm:pb-4">
       <div className="space-y-2">
-        <div className="h-2.5 w-16 bg-gray-100 rounded" />
+        <div className="hidden h-2.5 w-16 bg-gray-100 rounded sm:block" />
         <div className="h-6 w-40 bg-gray-100 rounded" />
       </div>
-      <div className="flex gap-3">
-        <div className="h-9 w-36 bg-gray-100 rounded-lg" />
+      <div className="h-9 w-9 bg-gray-100 rounded-lg sm:hidden" />
+      <div className="hidden gap-3 sm:flex">
         <div className="h-9 w-36 bg-gray-100 rounded-lg" />
         <div className="h-9 w-36 bg-gray-100 rounded-lg" />
       </div>
     </div>
-    {/* Toolbar */}
-    <div className="py-3 flex flex-wrap items-center gap-3 shrink-0">
-      <div className="h-9 flex-1 min-w-45 max-w-xs bg-gray-100 rounded-md" />
-      <div className="h-9 w-80 bg-gray-100 rounded-xl" />
-      <div className="h-9 w-24 bg-gray-100 rounded-xl ml-auto" />
-      <div className="h-9 w-20 bg-gray-100 rounded-xl" />
+    {/* Toolbar — search + controls on one line, tabs on their own below `sm`. */}
+    <div className="py-2 flex flex-wrap items-center gap-2 shrink-0 sm:py-3 sm:gap-3">
+      <div className="order-1 h-9 flex-1 min-w-0 bg-gray-100 rounded-md sm:min-w-45 sm:max-w-xs" />
+      <div className="order-2 flex shrink-0 items-center gap-1.5 sm:order-3 sm:ml-auto sm:gap-2">
+        <div className="h-9 w-9 bg-gray-100 rounded-xl" />
+        <div className="h-9 w-24 bg-gray-100 rounded-xl" />
+        <div className="hidden h-9 w-20 bg-gray-100 rounded-xl md:block" />
+      </div>
+      <div className="order-3 h-9 w-full bg-gray-100 rounded-xl sm:order-2 sm:w-80" />
     </div>
     {/* Grid */}
     <div className="flex-1 pt-2">
@@ -1175,7 +1369,7 @@ const GridView = ({
   onToggleFavorite,
   onDeleteRequest,
 }) => (
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+  <div className={GRID_COLUMNS}>
     {creatives.map((c) => (
       <CreativeCard
         key={c.id}
@@ -1219,11 +1413,12 @@ const CreativeCard = ({
         </div>
       )}
 
-      {/* Canvas / image preview area */}
-      <div
-        className="relative overflow-hidden bg-gray-100 flex items-center justify-center"
-        style={{ aspectRatio: "16/9", minHeight: 120 }}
-      >
+      {/* Canvas / image preview area.
+          The 120px floor is a `sm`-and-up rule now. Two cards across on a phone
+          makes each ~160px wide, where 16:9 is only ~90px tall — the floor was
+          padding every preview with 30px of empty grey and costing a row of
+          cards per screen. `aspect-video` alone still can't collapse to zero. */}
+      <div className="relative overflow-hidden bg-gray-100 flex items-center justify-center aspect-video min-h-20 sm:min-h-30">
         {/* Prefer the backend thumbnail when present; only render the canvas
             for designs that don't have one. */}
         {c.thumbnail ? (
@@ -1260,10 +1455,11 @@ const CreativeCard = ({
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-        {/* Type badge — top left */}
-        <div className="absolute top-2.5 left-2.5">
+        {/* Type badge — top left. Tighter inset on a phone so it doesn't sit
+            across a third of a 160px-wide preview. */}
+        <div className="absolute top-1.5 left-1.5 sm:top-2.5 sm:left-2.5">
           <span
-            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border backdrop-blur-sm bg-surface/90 ${tc.text} ${tc.border} capitalize`}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-2xs font-bold border backdrop-blur-sm bg-surface/90 ${tc.text} ${tc.border} capitalize sm:gap-1.5 sm:px-2`}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${tc.dot}`} />
             {c.category}
@@ -1272,7 +1468,7 @@ const CreativeCard = ({
 
         {/* Favorite indicator — top right */}
         {c.favorite && (
-          <div className="absolute top-2.5 right-2.5 w-6 h-6 bg-surface/90 backdrop-blur-sm rounded-full flex items-center justify-center border border-amber-100 shadow-sm">
+          <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-surface/90 backdrop-blur-sm rounded-full flex items-center justify-center border border-amber-100 shadow-sm sm:top-2.5 sm:right-2.5 sm:w-6 sm:h-6">
             <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
           </div>
         )}
@@ -1294,27 +1490,28 @@ const CreativeCard = ({
         )}
       </div>
 
-      {/* Card body */}
-      <div className="flex flex-col flex-1 px-3 pt-2.5 pb-3">
+      {/* Card body — tighter padding and rhythm on a phone, where the body used
+          to be nearly as tall as the preview it described. */}
+      <div className="flex flex-col flex-1 px-2 pt-2 pb-2 sm:px-3 sm:pt-2.5 sm:pb-3">
         <p className="text-sm font-semibold text-gray-900 truncate">{c.name}</p>
 
         {/* Tagline always visible below name */}
         {tagline ? (
-          <p className="text-[11px] text-gray-400 mt-0.5 truncate italic">
+          <p className="text-2xs text-gray-400 mt-0.5 truncate italic">
             {tagline}
           </p>
         ) : (
-          <p className="text-[11px] text-gray-300 mt-0.5 truncate capitalize">
+          <p className="text-2xs text-gray-300 mt-0.5 truncate capitalize">
             {c.category}
           </p>
         )}
 
-        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-50">
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-3 h-3 text-gray-300" />
-            <span className="text-[11px] text-gray-400">{c.date}</span>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50 sm:mt-3 sm:pt-2.5">
+          <div className="flex items-center gap-1 min-w-0 sm:gap-1.5">
+            <Clock className="w-3 h-3 text-gray-300 shrink-0" />
+            <span className="text-2xs text-gray-400 truncate">{c.date}</span>
           </div>
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-0.5 shrink-0">
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -1538,13 +1735,18 @@ const Sidebar = ({
           <span className={`w-1.5 h-1.5 rounded-full ${tc.dot}`} />
           {c.type}
         </span>
+        {/* Favourite / delete / close. `ck-tap-pad` GROWS these to 44px on a
+            touchscreen rather than expanding an invisible halo (`ck-tap`) —
+            they sit 4px apart, so overlapping halos would hand taps aimed at
+            the star to the delete button beside it. Mouse widths are unchanged. */}
         <div className="flex items-center gap-1">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onToggleFavorite(c.id, e);
             }}
-            className={`w-7 h-7 flex items-center justify-center rounded-lg border cursor-pointer transition-all ${c.favorite ? "bg-amber-50 border-amber-200 text-amber-500" : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-400"}`}
+            aria-label={c.favorite ? "Remove from favorites" : "Add to favorites"}
+            className={`ck-tap-pad w-7 h-7 flex items-center justify-center rounded-lg border cursor-pointer transition-all ${c.favorite ? "bg-amber-50 border-amber-200 text-amber-500" : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-400"}`}
           >
             <Star
               className={`w-3.5 h-3.5 ${c.favorite ? "fill-amber-400" : ""}`}
@@ -1552,13 +1754,15 @@ const Sidebar = ({
           </button>
           <button
             onClick={() => onDeleteRequest(c.id)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500 cursor-pointer transition"
+            aria-label="Delete design"
+            className="ck-tap-pad w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500 cursor-pointer transition"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 transition cursor-pointer text-gray-400 hover:text-gray-700"
+            aria-label="Close details"
+            className="ck-tap-pad w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 transition cursor-pointer text-gray-400 hover:text-gray-700"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1598,28 +1802,37 @@ const Sidebar = ({
               <span className="text-xs">No preview available</span>
             </div>
           )}
-          {/* Hovering Edit buttons */}
-          <div className="absolute inset-0 flex items-center justify-center gap-4 opacity-0 group-hover/preview:opacity-100 transition-opacity duration-200 cursor-pointer">
-            {/* Hovering Edit button — opens the full design editor at /design/[id] */}
+          {/* ── Edit buttons ──
+              Revealed on hover on a mouse, ALWAYS shown on a touchscreen: a
+              finger cannot hover, so on a phone these two — the only way into
+              the editor from here — were invisible and unreachable. The
+              `pointer: coarse` gate is the same one `ck-tap` uses, so JS and
+              CSS agree on who counts as touch, and a mouse user's view is
+              byte-for-byte unchanged.
+
+              The scrim comes with them on touch, since permanently-visible
+              buttons have to stay legible over a bright design. */}
+          <div className="absolute inset-0 flex items-center justify-center gap-2 px-3 opacity-0 transition-opacity duration-200 cursor-pointer group-hover/preview:opacity-100 pointer-coarse:bg-black/15 pointer-coarse:opacity-100 sm:gap-4">
+            {/* Opens the full design editor at /design/[id] */}
             <Link
               href={`/design/${c.id}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 bg-surface/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 hover:scale-105 rounded-lg text-sm font-semibold text-gray-700 hover:bg-surface transition"
+              className="flex items-center gap-1.5 whitespace-nowrap bg-surface/90 backdrop-blur-sm border border-gray-200 shadow-lg px-3 py-2 hover:scale-105 rounded-lg text-xs font-semibold text-gray-700 hover:bg-surface transition sm:gap-2 sm:px-4 sm:text-sm"
             >
-              <Edit2 className="w-3.5 h-3.5" />
+              <Edit2 className="w-3.5 h-3.5 shrink-0" />
               Edit with editor
             </Link>
 
-            {/* Hovering Edit button — opens the editor with the Klux AI panel
-                already open via the `?panel=klux` deep link. */}
+            {/* Opens the editor with the Klux AI panel already open via the
+                `?panel=klux` deep link. */}
             <Link
               href={`/design/${c.id}?panel=klux`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 bg-surface/90 backdrop-blur-sm border border-gray-200 shadow-lg px-4 py-2 hover:scale-105 rounded-lg text-sm font-semibold text-gray-700 hover:bg-surface transition"
+              className="flex items-center gap-1.5 whitespace-nowrap bg-surface/90 backdrop-blur-sm border border-gray-200 shadow-lg px-3 py-2 hover:scale-105 rounded-lg text-xs font-semibold text-gray-700 hover:bg-surface transition sm:gap-2 sm:px-4 sm:text-sm"
             >
-              <Edit2 className="w-3.5 h-3.5" />
+              <Edit2 className="w-3.5 h-3.5 shrink-0" />
               Edit with Ai
             </Link>
           </div>
@@ -1691,18 +1904,21 @@ const Sidebar = ({
 
           {/* Action buttons */}
           <div className="flex flex-col gap-2">
+            {/* Three equal buttons across a panel that is only ~300px wide on a
+                phone. `whitespace-nowrap` + `min-w-0` keep "Downloading…" on one
+                line there instead of wrapping and growing the row's height. */}
             <div className="flex gap-2">
               <button
                 onClick={onPublish}
-                className="flex-1 cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded-lg transition-all shadow-sm"
+                className="flex-1 min-w-0 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded-lg transition-all shadow-sm sm:gap-2"
               >
-                <Send className="w-3 h-3" /> Publish
+                <Send className="w-3 h-3 shrink-0" /> Publish
               </button>
               <button
                 onClick={onSchedule}
-                className="flex-1 cursor-pointer flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold py-2 rounded-lg transition-all"
+                className="flex-1 min-w-0 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold py-2 rounded-lg transition-all sm:gap-2"
               >
-                <CalendarClock className="w-3 h-3" /> Schedule
+                <CalendarClock className="w-3 h-3 shrink-0" /> Schedule
               </button>
               <button
                 onClick={async () => {
@@ -1712,12 +1928,12 @@ const Sidebar = ({
                   setDownloading(false);
                 }}
                 disabled={downloading}
-                className="flex-1 cursor-pointer flex items-center justify-center gap-2 border border-gray-200 hover:bg-gray-100 text-gray-800 text-xs font-semibold py-2 rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 min-w-0 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap border border-gray-200 hover:bg-gray-100 text-gray-800 text-xs font-semibold py-2 rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed sm:gap-2"
               >
                 {downloading ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin shrink-0" />
                 ) : (
-                  <Download className="w-3 h-3" />
+                  <Download className="w-3 h-3 shrink-0" />
                 )}
                 {downloading ? "Downloading…" : "Download"}
               </button>
@@ -1786,8 +2002,10 @@ const Sidebar = ({
         </div>
       </div>
 
-      {/* Sticky footer */}
-      <div className="shrink-0 px-4 py-3 border-t border-gray-100 flex items-center gap-2 bg-surface">
+      {/* Sticky footer.
+          The bottom padding folds in the iOS home-indicator inset, or the
+          "Copy Text" button sits under it on a notched phone. */}
+      <div className="shrink-0 px-4 pt-3 pb-[calc(0.75rem+var(--ck-safe-b))] border-t border-gray-100 flex items-center gap-2 bg-surface">
         <button
           onClick={onCopy}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${copied ? "bg-green-50 border-green-200 text-green-600" : "bg-gray-50 border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50"}`}

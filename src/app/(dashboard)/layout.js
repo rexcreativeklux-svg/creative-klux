@@ -327,7 +327,28 @@ export default function DashboardLayout({ children }) {
                     // Written as Tailwind arbitrary properties rather than an
                     // inline style so they can be breakpoint-aware: below `lg`
                     // there is no sidebar in the flow, so the offset is 0.
+                    //
+                    // pb-nav: THE mobile bottom-bar clearance, reserved once,
+                    // here. The bar is `fixed bottom-0` and opaque, so anything
+                    // the scroll area paints in that strip is simply covered —
+                    // and a page CANNOT fix that for itself with padding: the
+                    // scroll frame below is `h-full`, so bottom padding on a
+                    // page taller than the viewport lands at the 100%-height
+                    // mark, above the overflowing content, not after it. That
+                    // is why the last row of every long page (Magic Studio's
+                    // gallery, Product Studio, the settings screens) sat under
+                    // the bar despite the padding that was meant to clear it.
+                    //
+                    // Shortening `main` instead ends the SCROLL VIEWPORT at the
+                    // bar's top edge, so content can never travel under it —
+                    // including inside pages that scroll in their own nested
+                    // panes, which page-level padding could never reach. It
+                    // reserves exactly --spacing-nav (the bar's height, iOS
+                    // home indicator folded in) and nothing more, so nothing
+                    // gains dead space. Gone at lg, where the bar is not
+                    // rendered. Pages must NOT add their own pb-nav on top.
                     className={`flex flex-1 flex-col overflow-hidden h-full transition-opacity duration-200
+                        pb-nav lg:pb-0
                         [--ck-content-left:0px] [--ck-content-top:var(--spacing-header)]
                         ${effectiveSidebarOpen ? "lg:[--ck-content-left:14rem]" : "lg:[--ck-content-left:3.75rem]"}
                         ${isPending ? "opacity-70 pointer-events-none" : ""}`}
@@ -344,20 +365,23 @@ export default function DashboardLayout({ children }) {
                     />
                     <div className="flex-1 bg-page h-full overflow-y-auto">
                         {/* Was `px-9 pt-24` at every width — 36px gutters and
-                            96px of top padding on a 360px phone, with nothing
-                            reserving the bottom nav's height, so the last row
-                            of every page sat underneath it.
+                            96px of top padding on a 360px phone.
 
-                            Now: fluid gutters (12 → 36px), top padding derived
-                            from the header's own height so the two cannot
-                            drift, and bottom clearance for the nav + the iOS
-                            home indicator, dropped again at `lg` where the bar
-                            is gone. Same shape as <PageContainer>, which pages
-                            adopting their own frame should use instead. */}
+                            Now: fluid gutters (12 → 36px) and top padding
+                            derived from the header's own height so the two
+                            cannot drift. Same shape as <PageContainer>, which
+                            pages adopting their own frame should use instead.
+
+                            `pb-page-y` is the page's own bottom rhythm ONLY —
+                            it is deliberately not `pb-nav`. Clearing the mobile
+                            bar from here cannot work (this box is `h-full`, so
+                            its bottom padding sits above the overflow on any
+                            page taller than the viewport); `main` reserves the
+                            bar's height for every route instead. */}
                         <div
                             className={`h-full ${noPadding
                                 ? ""
-                                : "px-gutter pt-[calc(var(--spacing-header)+var(--spacing-page-y))] pb-[calc(var(--spacing-nav)+var(--spacing-page-y))] lg:pb-page-y"
+                                : "px-gutter pt-[calc(var(--spacing-header)+var(--spacing-page-y))] pb-page-y"
                                 }`}
                         >
                             <SecondarySidebarProvider

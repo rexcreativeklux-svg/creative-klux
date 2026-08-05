@@ -121,10 +121,11 @@ export default function Home() {
     // area. Derived from --spacing-header rather than the hardcoded `pt-16` it
     // replaces, so the clearance follows the header's own fluid height (52px on
     // a phone → 64px on desktop) instead of drifting from it.
-    // pb-nav: this route is in NO_PADDING_ROUTES, so the layout gives it no
-    // frame at all — without this the end of the template rail sits under the
-    // mobile bottom bar. Dropped at lg, where that bar does not exist.
-    <div className="relative min-h-full bg-page pt-header pb-nav lg:pb-0">
+    // No pb-nav here: the mobile bottom bar is reserved once, by `main` in
+    // (dashboard)/layout.js, which ends the scroll viewport at the bar's top
+    // edge. Adding it again would push the template rail up by the bar's
+    // height a second time.
+    <div className="relative min-h-full bg-page pt-header">
       {/* ── Hero ──────────────────────────────────────────────────────────
           Height is the whole trick (see the note at the top of this file):
             · below lg — a plain viewport-ish height, since there's no sidebar

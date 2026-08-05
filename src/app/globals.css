@@ -100,7 +100,14 @@
      `--spacing-nav` folds the iOS home-indicator inset INTO the mobile bottom
      nav's height. That is what makes `h-nav` correct for the bar itself (its
      content sits at 56px with the inset as breathing room below) and `pb-nav`
-     correct for page content that must clear it — one token, both jobs. */
+     correct for the shell that must clear it — one token, both jobs.
+
+     `pb-nav` has exactly ONE caller by design: `main` in
+     (dashboard)/layout.js, which shortens the scroll viewport so the bar can
+     never cover content. Pages must not repeat it — a page cannot reliably
+     clear the bar with its own padding anyway (the scroll frame is `h-full`,
+     so bottom padding on anything taller than the viewport lands above the
+     overflow), and a second copy only leaves a bar-height gap. */
   --spacing-header: clamp(3.25rem, 2.957rem + 1.304vw, 4rem);      /* 52 → 64 */
   --spacing-nav:    calc(3.5rem + env(safe-area-inset-bottom, 0px)); /* 56 + inset */
 }

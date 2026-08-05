@@ -135,8 +135,10 @@ export default function AppShellSkeleton({ children, padded = true }) {
         </div>
       </nav>
 
-      {/* ── Main column ───────────────────────────────────────────────────── */}
-      <div className="flex h-full flex-1 flex-col overflow-hidden">
+      {/* ── Main column ─────────────────────────────────────────────────────
+          pb-nav mirrors `main` in (dashboard)/layout.js: the content area stops
+          at the fixed mobile bar instead of running under it. */}
+      <div className="flex h-full flex-1 flex-col overflow-hidden pb-nav lg:pb-0">
         {/* Header — same height, padding and shadow as the real one */}
         <div className="border-custom flex h-header shrink-0 items-center justify-between bg-surface px-gutter">
           <Skeleton w={36} h={36} className="rounded-lg" tone="soft" />
@@ -156,7 +158,7 @@ export default function AppShellSkeleton({ children, padded = true }) {
               and has already taken that space, so only the page rhythm is
               needed here. Matching it exactly would double the gap and make the
               hand-off to the real page jump. */}
-          <div className={`h-full ${padded ? "px-gutter pt-page-y pb-[calc(var(--spacing-nav)+var(--spacing-page-y))] lg:pb-page-y" : ""}`}>
+          <div className={`h-full ${padded ? "px-gutter pt-page-y pb-page-y" : ""}`}>
             {children}
           </div>
         </div>

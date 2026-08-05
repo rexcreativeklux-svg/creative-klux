@@ -9,13 +9,16 @@
 // ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
 // The dashboard layout wrapped every page in a flat `px-9 pt-24` — 36px
 // gutters and 96px of top padding at EVERY width, including a 360px phone,
-// where that alone eats a fifth of the screen. And because nothing reserved
-// the bottom nav's height, the last row of every page sat underneath it.
+// where that alone eats a fifth of the screen.
 //
 // Both numbers are now tokens (see globals.css): `px-page` ramps 12 → 36px
-// with the viewport, `pt-header` tracks the header's own fluid height, and
-// `pb-nav` reserves the bottom nav plus the iOS home indicator. Change the
-// header's height in one place and the clearance follows.
+// with the viewport and `pt-header` tracks the header's own fluid height.
+// Change the header's height in one place and the clearance follows.
+//
+// The mobile bottom bar is deliberately NOT this component's problem: `main`
+// in (dashboard)/layout.js shortens the scroll viewport by --spacing-nav, so
+// no page — framed here or not, scrolling as a whole or in a nested pane —
+// can put content under the bar.
 //
 // ── THE TWO PADDINGS THAT ARE NOT INTERCHANGEABLE ───────────────────────────
 // `pt-header` clears the FIXED header, which overlays the scroll area — it is
@@ -71,15 +74,17 @@ export default function PageContainer({
   // Three paddings, each doing one job:
   //   px-gutter  fluid side gutters (12 → 36px)
   //   pt-*       clears the FIXED header, plus the page's own top rhythm
-  //   pb-*       clears the mobile bottom nav (which already includes the iOS
-  //              home indicator), plus rhythm; at lg the nav is gone and only
-  //              the rhythm remains
+  //   pb-page-y  the page's own bottom rhythm — and only that. The mobile
+  //              bottom nav is NOT cleared here: `main` in
+  //              (dashboard)/layout.js ends the scroll viewport at the bar's
+  //              top edge for every route, so repeating it would leave a
+  //              bar-height gap under the last row.
   return (
     <div
       className={`
         px-gutter
         ${topPadding === "header" ? "pt-[calc(var(--spacing-header)+var(--spacing-page-y))]" : "pt-page-y"}
-        pb-[calc(var(--spacing-nav)+var(--spacing-page-y))] lg:pb-page-y
+        pb-page-y
         ${className}
       `}
     >

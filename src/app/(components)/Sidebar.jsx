@@ -451,7 +451,14 @@ const Sidebar = ({
           className={`flex items-center h-16 shrink-0 border-b border-gray-200 cursor-pointer
             ${isOpen ? "px-4" : "justify-center px-0"}
           `}
-          onClick={() => router.push("/")}
+          // Same deal as the nav links' `onNavigate`: the logo is a route to
+          // "/" like any other, so in the drawer it has to dismiss the panel
+          // too — otherwise home opens with the nav still sitting over it.
+          // No-op on the desktop rail, where `onNavigate` isn't supplied.
+          onClick={() => {
+            router.push("/");
+            onNavigate?.();
+          }}
         >
           <img
             src="/logoblue.svg"

@@ -13,10 +13,22 @@
  * an <AnimatePresence> with `animated` so they fade/scale in and out; the other
  * modals leave it off and get the plain (instant) panel exactly as before — so
  * this extraction changes nothing visually for any existing modal.
+ *
+ * ── BELOW `lg` BOTH BECOME A BOTTOM SHEET ───────────────────────────────────
+ * Anchoring only works when there is somewhere to anchor TO. These panels are
+ * 320–460px wide, which is wider than a phone, so on a small screen they were
+ * clamped to the viewport edge and dropped on top of the control that opened
+ * them. Below `lg` they render <OptionSheet> instead — full width, own scroll,
+ * swipe to dismiss. Because every Product Studio dropdown (tool switcher,
+ * quality, size, backgrounds, poses…) goes through these two components, that
+ * one swap covers all of them; call sites only add a `title` for the sheet
+ * header. Desktop is untouched.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { useIsCompact } from "@/utils/useMediaQuery";
+import OptionSheet from "@/app/(components)/ui/OptionSheet";
 
 // ── Popover animations (used only when `animated` is set) ──
 // DropdownBelow staggers its children in; wrap each child in a
@@ -47,16 +59,31 @@ export const DROPDOWN_ITEM = {
 };
 
 /**
- * Panel anchored directly below `anchorRef`. When `animated`, render it inside an
- * <AnimatePresence> so the exit transition plays.
+ * Panel anchored directly below `anchorRef` — a bottom sheet below `lg`. When
+ * `animated`, render it inside an <AnimatePresence> so the exit transition plays.
  *
  * @param {object} props
  * @param {React.RefObject} props.anchorRef Trigger element to anchor under.
  * @param {React.ReactNode} props.children
  * @param {number} [props.width=460]
  * @param {boolean} [props.animated=false]
+ * @param {string} [props.title]    Heading for the mobile sheet. Ignored on desktop.
+ * @param {string} [props.subtitle] Sub-heading for the mobile sheet (e.g. the
+ *   current value). Ignored on desktop.
+ * @param {() => void} [props.onClose] Close handler for the mobile sheet's ✕ /
+ *   backdrop / swipe. Desktop keeps using the caller's own click-away catcher,
+ *   so this is only needed to make the sheet dismissible.
  */
-export function DropdownBelow({ anchorRef, children, width = 460, animated = false }) {
+export function DropdownBelow({
+  anchorRef,
+  children,
+  width = 460,
+  animated = false,
+  title,
+  subtitle,
+  onClose,
+}) {
+  const isCompact = useIsCompact();
   const [pos, setPos] = useState({ top: 0, left: 0 });
   useEffect(() => {
     if (anchorRef?.current) {
@@ -64,6 +91,15 @@ export function DropdownBelow({ anchorRef, children, width = 460, animated = fal
       setPos({ top: r.bottom + 6, left: r.left });
     }
   }, [anchorRef]);
+
+  // Mobile: there is no room to anchor beside anything — go full-width sheet.
+  if (isCompact) {
+    return (
+      <OptionSheet title={title} subtitle={subtitle} onClose={onClose}>
+        <div className="p-3">{children}</div>
+      </OptionSheet>
+    );
+  }
 
   const className =
     "fixed z-210 bg-surface rounded-2xl shadow-2xl border border-gray-200 p-3 max-h-[80vh] overflow-y-auto";
@@ -96,16 +132,30 @@ export function DropdownBelow({ anchorRef, children, width = 460, animated = fal
 }
 
 /**
- * Panel anchored to the right of `anchorRef`, clamped into the viewport. When
- * `animated`, render it inside an <AnimatePresence> so the exit transition plays.
+ * Panel anchored to the right of `anchorRef`, clamped into the viewport — a
+ * bottom sheet below `lg`. When `animated`, render it inside an
+ * <AnimatePresence> so the exit transition plays.
  *
  * @param {object} props
  * @param {React.RefObject} props.anchorRef Trigger element to anchor beside.
  * @param {React.ReactNode} props.children
  * @param {number} [props.width=320]
  * @param {boolean} [props.animated=false]
+ * @param {string} [props.title]    Heading for the mobile sheet. Ignored on desktop.
+ * @param {string} [props.subtitle] Sub-heading for the mobile sheet. Ignored on desktop.
+ * @param {() => void} [props.onClose] Close handler for the mobile sheet's ✕ /
+ *   backdrop / swipe (desktop keeps the caller's click-away catcher).
  */
-export function FloatingPanel({ anchorRef, children, width = 320, animated = false }) {
+export function FloatingPanel({
+  anchorRef,
+  children,
+  width = 320,
+  animated = false,
+  title,
+  subtitle,
+  onClose,
+}) {
+  const isCompact = useIsCompact();
   const panelRef = useRef(null);
   const [pos, setPos] = useState({ top: -9999, left: -9999 });
 
@@ -131,6 +181,16 @@ export function FloatingPanel({ anchorRef, children, width = 320, animated = fal
 
     setPos({ top, left });
   }, [anchorRef, width]);
+
+  // Mobile: full-width sheet (the panel body brings its own padding, so unlike
+  // DropdownBelow there is none added here).
+  if (isCompact) {
+    return (
+      <OptionSheet title={title} subtitle={subtitle} onClose={onClose}>
+        {children}
+      </OptionSheet>
+    );
+  }
 
   const className =
     "fixed z-200 bg-surface rounded-xl shadow-2xl border border-gray-200 max-h-[85vh] overflow-y-auto";

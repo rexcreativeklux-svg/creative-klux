@@ -1,13 +1,19 @@
 "use client";
 
+// app/(components)/ui/OptionSheet.jsx
 /**
- * OptionSheet — the MOBILE form of a Magic Studio picker.
+ * OptionSheet — the MOBILE form of an in-modal picker.
  * ─────────────────────────────────────────────────────────────────────────────
- * Below `lg`, MagicStudioModal swaps its side-anchored `FloatingPanel` /
- * `DropdownBelow` popovers for this bottom sheet. A 340px popover anchored
+ * Below `lg`, the studio modals swap their side-anchored `FloatingPanel` /
+ * `DropdownBelow` popovers for this bottom sheet. A 340–460px popover anchored
  * beside its trigger is wider than a 360px phone, so it ended up clamped over
  * the form it belongs to — the sheet gives every picker (visual style, ratios,
- * voices, languages, "switch tool") the full width and its own scroll instead.
+ * voices, quality, size, "switch tool") the full width and its own scroll.
+ *
+ * Used by BOTH studios, from one place each:
+ *   • Magic Studio   → MagicStudioModal picks it directly per option row
+ *   • Product Studio → product-studio/FloatingPanels.jsx renders it in place of
+ *     the anchored panel, so every modal that opens a dropdown gets it for free
  *
  * Deliberately NOT <ResponsiveModal>: that primitive switches form at `md` and
  * owns a header/footer/focus-trap contract meant for task dialogs. This is a
@@ -16,8 +22,8 @@
  * handle, rounded top, swipe-to-dismiss, safe-area padding) so the two read as
  * the same UI.
  *
- * Rendered inside the modal's <AnimatePresence> so the exit plays; the modal
- * owns Escape (Escape closes an open sheet first, then the modal itself).
+ * Render it inside an <AnimatePresence> for the exit to play. Escape belongs to
+ * the owning modal (which should close an open sheet before closing itself).
  *
  * @example
  * <AnimatePresence>
@@ -39,7 +45,7 @@ const FLICK_VELOCITY = 500;
 
 /**
  * @param {object} props
- * @param {string} props.title           Sheet heading (usually the option label).
+ * @param {string} [props.title]         Sheet heading (usually the option label).
  * @param {string} [props.subtitle]      Optional one-line hint under the title.
  * @param {() => void} props.onClose     Close on ✕, backdrop tap, or swipe down.
  * @param {React.ReactNode} props.children  Sheet body (scrolls).
@@ -67,7 +73,7 @@ export default function OptionSheet({ title, subtitle, onClose, children }) {
       <motion.div
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={title || "Options"}
         initial={{ y: "100%" }}
         animate={{
           y: 0,
@@ -101,9 +107,11 @@ export default function OptionSheet({ title, subtitle, onClose, children }) {
           </div>
           <div className="flex items-center justify-between gap-3 px-4 pb-3">
             <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-gray-900">
-                {title}
-              </span>
+              {title && (
+                <span className="block truncate text-sm font-semibold text-gray-900">
+                  {title}
+                </span>
+              )}
               {subtitle && (
                 <span className="block truncate text-[11px] text-gray-400">
                   {subtitle}

@@ -6,6 +6,7 @@ import { X, Upload, Loader2, ChevronDown, ChevronLeft, ChevronRight, Check } fro
 import { toast } from "sonner";
 import { px, VIDEO_SIZES } from "./constants";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
+import ToolModalMobileHeader from "./ToolModalMobileHeader";
 import SizeDropdown from "./SizeDropdown";
 
 // Video accepts up to 4 input photos — different angles improve fidelity.
@@ -147,6 +148,9 @@ export default function VideoGeneratorModal({
   const [generating, setGenerating] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
+  // Which half is on screen below `lg` ("setup" | "result") — see
+  // ToolModalMobileHeader. Ignored above it, where both are side by side.
+  const [mobileView, setMobileView] = useState("setup");
   const [seeAllOpen, setSeeAllOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
   const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
@@ -227,6 +231,9 @@ export default function VideoGeneratorModal({
     }
     setGenerating(true);
     setOpenDropdown(null);
+    // Mobile: hand the screen to the canvas so progress is what the user is
+    // looking at. No-op on desktop, where both halves are visible.
+    setMobileView("result");
     try {
       // Resolve every image to a hosted URL. Gallery/search picks already have one;
       // fresh local uploads are uploaded here to obtain one. We upload sequentially
@@ -308,11 +315,26 @@ export default function VideoGeneratorModal({
         className="bg-surface shadow-2xl flex flex-col overflow-hidden w-full h-[100dvh] lg:h-[92dvh] lg:w-[95vw] lg:max-w-[1400px] lg:flex-row lg:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Left sidebar ── */}
-        <div className="w-full max-h-[45dvh] border-b border-gray-200 flex flex-col shrink-0 lg:w-84 lg:max-h-none lg:border-b-0 lg:border-r">
+        {/* ── Mobile header — title switcher, ✕ and the Setup/Result switch.
+            Pinned outside both scroll areas; hidden above `lg`. ── */}
+        <ToolModalMobileHeader
+          title="Video Generator"
+          subtitle="Your product, brought to life with motion."
+          onTitleClick={() => setToolMenuOpen((o) => !o)}
+          switcherOpen={toolMenuOpen}
+          view={mobileView}
+          onViewChange={setMobileView}
+          onClose={onClose}
+        />
+
+        {/* ── Left sidebar (mobile: the "Setup" view) ── */}
+        <div
+          className={`${mobileView === "setup" ? "flex" : "hidden"} w-full flex-1 min-h-0 flex-col border-gray-200 lg:flex lg:w-84 lg:flex-none lg:border-r`}
+        >
           <div className="flex-1 overflow-y-auto min-h-0">
-            {/* Header */}
-            <div className="px-5 pt-5 pb-1">
+            {/* Header (desktop; mobile has the same switcher in the header
+                above) */}
+            <div className="hidden lg:block px-5 pt-5 pb-1">
               <button
                 ref={headerRef}
                 onClick={() => setToolMenuOpen((o) => !o)}
@@ -444,7 +466,7 @@ export default function VideoGeneratorModal({
           </div>
 
           {/* Generate footer */}
-          <div className="px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
+          <div className="px-4 pt-3 pb-[calc(1.25rem+var(--ck-safe-b))] lg:pb-5 border-t border-gray-200 bg-surface">
             <button
               onClick={handleGenerate}
               disabled={generating}
@@ -465,18 +487,23 @@ export default function VideoGeneratorModal({
           </div>
         </div>
 
-        {/* ── Right content ── */}
-        <div className="flex-1 flex flex-col relative bg-[#f8f8f8] dark:bg-canvas">
+        {/* ── Right content (mobile: the "Result" view) ── */}
+        <div
+          className={`${mobileView === "result" ? "flex" : "hidden"} flex-1 min-h-0 flex-col relative bg-[#f8f8f8] dark:bg-canvas lg:flex`}
+        >
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 z-10 w-8 h-8 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-100 shadow-sm cursor-pointer"
+            aria-label="Close"
+            className="hidden lg:flex absolute top-3 right-3 z-10 w-8 h-8 bg-surface rounded-full border border-gray-200 items-center justify-center hover:bg-gray-100 shadow-sm cursor-pointer"
           >
             <X className="w-4 h-4 text-gray-500" />
           </button>
 
-          <div className="flex-1 flex flex-col items-center justify-center px-6">
-            <div className="flex items-center gap-3 mb-9">
-              <div className="w-44 h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
+          <div className="flex-1 flex flex-col items-center justify-center px-2 sm:px-6">
+            {/* Two 44-wide cards + the arrow overflow a phone at their desktop
+                size, so they scale down rather than get clipped. */}
+            <div className="flex items-center gap-1.5 xs:gap-3 mb-6 sm:mb-9">
+              <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
                 <img
                   src={VID_BEFORE}
                   alt="before"
@@ -488,7 +515,7 @@ export default function VideoGeneratorModal({
                 height="60"
                 viewBox="0 0 72 60"
                 fill="none"
-                className="text-blue-500 shrink-0 -mt-6"
+                className="w-10 xs:w-12 sm:w-18 h-auto text-blue-500 shrink-0 -mt-6"
               >
                 <path
                   d="M6 44 C 24 8, 50 8, 62 32"
@@ -504,7 +531,7 @@ export default function VideoGeneratorModal({
                   strokeLinejoin="round"
                 />
               </svg>
-              <div className="w-44 h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
+              <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
                 <img
                   src={VID_AFTER}
                   alt="after"
@@ -512,10 +539,10 @@ export default function VideoGeneratorModal({
                 />
               </div>
             </div>
-            <h3 className="text-gray-900 text-center text-lg font-semibold max-w-sm leading-snug">
+            <h3 className="text-gray-900 text-center text-base sm:text-lg font-semibold max-w-sm leading-snug">
               Generate a video from a template
             </h3>
-            <p className="text-gray-500 text-center text-sm mt-2 max-w-xs leading-relaxed">
+            <p className="text-gray-500 text-center text-xs sm:text-sm mt-2 max-w-xs leading-relaxed">
               Bring your product to life with motion — pick a template or
               describe the video you want.
             </p>
@@ -534,6 +561,7 @@ export default function VideoGeneratorModal({
             anchorRef={headerRef}
             activeToolId="video"
             onSelect={handleToolClick}
+            onClose={() => setToolMenuOpen(false)}
           />
         </>
       )}

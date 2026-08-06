@@ -799,9 +799,11 @@ function ColorSwatch({ color, selected, onClick }) {
 
 function SidebarIcon({ icon, label, active, onClick }) {
   return (
+    // Below `lg` the rail is a horizontal strip, so each item is a fixed-width
+    // tile that scrolls sideways instead of a full-width row in a 64px column.
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 py-3 px-1 w-full transition-colors cursor-pointer ${active ? "text-blue-600 bg-blue-50" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"}`}
+      className={`flex shrink-0 flex-col items-center gap-1 py-3 px-1 w-16 lg:w-full transition-colors cursor-pointer ${active ? "text-blue-600 bg-blue-50" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"}`}
     >
       <div
         className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${active ? "bg-blue-100" : ""}`}
@@ -1535,8 +1537,13 @@ export default function BackgroundRemoverModal({
         style={{ maxWidth: "1600px", maxHeight: "960px" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Icon sidebar ── */}
-        <div className="w-16 border-r border-gray-200 flex flex-col items-center py-2 bg-surface shrink-0 overflow-y-auto max-h-[38dvh] lg:max-h-none">
+        {/* ── Icon sidebar ──
+            Desktop: a 64px rail down the left. Below `lg` the whole modal is
+            `flex-col-reverse` (canvas on top), and a 64px-WIDE column at the
+            bottom of a phone is unusable — so the rail turns into a full-width
+            horizontal toolbar that scrolls sideways, sitting under the panel
+            like a tab bar and padded past the home indicator. */}
+        <div className="w-full flex flex-row items-center overflow-x-auto hide-scrollbar border-t border-gray-200 bg-surface shrink-0 pb-(--ck-safe-b) lg:w-16 lg:flex-col lg:overflow-x-visible lg:overflow-y-auto lg:border-t-0 lg:border-r lg:py-2 lg:pb-2 lg:max-h-none">
           <SidebarIcon
             active={activePanel === "templates"}
             onClick={() => setActivePanel("templates")}
@@ -1635,8 +1642,11 @@ export default function BackgroundRemoverModal({
           />
         </div>
 
-        {/* ── Side panel ── */}
-        <div className="flex-1 min-w-0 max-h-[38dvh] border-r border-gray-200 flex flex-col bg-surface overflow-hidden lg:w-64 lg:flex-none lg:max-h-none">
+        {/* ── Side panel ──
+            A sheet-like drawer above the toolbar on mobile (its own scroll,
+            capped so the canvas keeps most of the screen); a fixed 256px
+            column beside the canvas from `lg`. */}
+        <div className="flex-1 w-full min-w-0 max-h-[42dvh] border-t border-gray-200 flex flex-col bg-surface overflow-hidden lg:w-64 lg:flex-none lg:max-h-none lg:border-t-0 lg:border-r">
           {/* TEMPLATES */}
           {activePanel === "templates" && !showAllTemplates && (
             <div className="flex flex-col h-full">
@@ -2240,7 +2250,9 @@ export default function BackgroundRemoverModal({
             <X className="w-4 h-4 text-gray-500" />
           </button>
 
-          <div className="absolute top-3.5 left-4 z-20 text-xs text-gray-500">
+          {/* Status line — kept clear of the ✕ so a long "Processing 3/12…"
+              can't run under it on a narrow screen. */}
+          <div className="absolute top-3.5 left-4 right-14 z-20 truncate text-xs text-gray-500">
             {batchMode
               ? (() => {
                   const done = batchItems.filter(
@@ -2260,7 +2272,7 @@ export default function BackgroundRemoverModal({
                   : "Upload an image to start"}
           </div>
 
-          <div className="flex-1 min-h-0 flex items-center justify-center p-8 overflow-auto">
+          <div className="flex-1 min-h-0 flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-auto">
             {removing ? (
               <div className="flex flex-col items-center gap-4 w-60">
                 <div className="w-20 h-20 rounded-2xl bg-surface shadow-lg flex items-center justify-center">

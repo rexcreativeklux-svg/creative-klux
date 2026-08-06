@@ -251,24 +251,27 @@ export default function SocialContentCalendar() {
       </div>
 
       {/* ── Month nav ── */}
-      <div className="flex items-center gap-4 mb-4">
+      {/* Arrows stay square (shrink-0) and the month label only reserves its
+          full 160px from sm up — the four controls together are wider than a
+          small phone otherwise. */}
+      <div className="flex items-center gap-2 sm:gap-4 mb-4">
         <button
-          className="h-8 w-8 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-surface text-gray-600 hover:bg-gray-50 transition-all duration-200"
+          className="h-8 w-8 shrink-0 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-surface text-gray-600 hover:bg-gray-50 transition-all duration-200"
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <h2 className="font-semibold text-gray-900 text-lg min-w-[160px] text-center">
+        <h2 className="font-semibold text-gray-900 text-lg min-w-30 sm:min-w-40 text-center">
           {format(currentMonth, "MMMM yyyy")}
         </h2>
         <button
-          className="h-8 w-8 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-surface text-gray-600 hover:bg-gray-50 transition-colors"
+          className="h-8 w-8 shrink-0 flex cursor-pointer hover:scale-95 items-center justify-center rounded-lg border border-gray-200 bg-surface text-gray-600 hover:bg-gray-50 transition-colors"
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
         >
           <ChevronRight className="w-4 h-4" />
         </button>
         <button
-          className="text-xs text-gray-500 hover:text-gray-800 ml-2 transition-colors"
+          className="text-xs text-gray-500 hover:text-gray-800 shrink-0 ml-0 sm:ml-2 transition-colors"
           onClick={() => setCurrentMonth(new Date())}
         >
           Today

@@ -5,6 +5,9 @@
  * Product Studio modals. Defaults to the full SIZES set; the Video Generator
  * passes its reduced VIDEO_SIZES. The caller owns the open state + backdrop and
  * reacts to `onSelect`; pass `animated` for the OnDeviceToolModal variant.
+ *
+ * Below `lg` FloatingPanel renders this as a bottom sheet — pass `onClose` so
+ * its ✕ / backdrop / swipe can dismiss it.
  */
 
 import { FloatingPanel } from "./FloatingPanels";
@@ -15,6 +18,7 @@ import { SIZES } from "./constants";
  * @param {React.RefObject} props.anchorRef Trigger to anchor beside.
  * @param {string} props.value Currently-selected size id (e.g. "square").
  * @param {(id: string) => void} props.onSelect Called with the chosen size id.
+ * @param {() => void} [props.onClose] Dismiss the mobile sheet (see above).
  * @param {Array} [props.sizes=SIZES] Size options to render.
  * @param {boolean} [props.animated=false]
  * @param {number} [props.width=380]
@@ -23,12 +27,21 @@ export default function SizeDropdown({
   anchorRef,
   value,
   onSelect,
+  onClose,
   sizes = SIZES,
   animated = false,
   width = 380,
 }) {
   return (
-    <FloatingPanel anchorRef={anchorRef} width={width} animated={animated}>
+    <FloatingPanel
+      anchorRef={anchorRef}
+      width={width}
+      animated={animated}
+      title="Size"
+      subtitle={sizes.find((s) => s.id === value)?.name}
+      onClose={onClose}
+    >
+      {/* Three across still fits a 360px sheet (its swatches are ~90px). */}
       <div className="grid grid-cols-3 gap-2.5 p-3">
         {sizes.map((s) => {
           const active = value === s.id;

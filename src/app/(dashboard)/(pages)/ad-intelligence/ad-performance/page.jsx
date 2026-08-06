@@ -109,19 +109,21 @@ export default function CreativeInsights() {
           </div>
         </div>
 
-        {/* ── Input bar ── */}
+        {/* ── Input bar ──
+            min-w-0 lets the input shrink past its ~20-character default width,
+            and shrink-0 keeps the button whole, so the row fits a phone. */}
         <div className="flex gap-3 mb-6">
           <input
             value={brand}
             onChange={(e) => setBrand(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && analyze()}
             placeholder="Enter your brand or account name (e.g. Nike, Shopify)"
-            className="flex-1 bg-surface border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all "
+            className="flex-1 min-w-0 bg-surface border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all "
           />
           <button
             onClick={analyze}
             disabled={loading || !brand.trim()}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 cursor-pointer "
+            className="flex shrink-0 whitespace-nowrap items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 cursor-pointer "
             style={{ background: "linear-gradient(135deg, #8b5cf6, #9333ea)" }}
           >
             {loading

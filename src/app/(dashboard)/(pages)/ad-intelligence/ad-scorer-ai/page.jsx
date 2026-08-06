@@ -600,7 +600,9 @@ export default function CreativeScoring() {
                   {/* Score gauges */}
                   <div className="bg-surface border border-gray-100 rounded-2xl p-6 shadow-sm">
                     <p className="font-semibold text-sm text-gray-800 mb-4">Scores</p>
-                    <div className="grid grid-cols-3 gap-3">
+                    {/* Each gauge draws a fixed 90px chart, so three across
+                        (≈366px + padding) cannot fit a phone — two until sm. */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {[
                         { label: "Conversion", value: data.conversionScore },
                         { label: "Brand", value: data.brandScore },

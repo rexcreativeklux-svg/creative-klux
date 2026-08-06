@@ -868,7 +868,9 @@ export default function SocialPublishing() {
               {filteredPosts.length} posts
             </span>
             {totalPages > 1 && (
-              <div className="flex items-center gap-1">
+              // flex-wrap: every page gets its own number button, so a long list
+              // must wrap onto a second line rather than run off the card.
+              <div className="flex flex-wrap items-center justify-end gap-1">
                 <button
                   className="h-7 w-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                   disabled={page === 1}

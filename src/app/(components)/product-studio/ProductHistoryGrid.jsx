@@ -84,7 +84,7 @@ export default function ProductHistoryGrid({
   }
 
   return (
-    <div className="flex-1 overflow-auto p-6">
+    <div className="flex-1 min-h-0 overflow-auto p-4 sm:p-6">
       <div className="flex items-baseline justify-between mb-4">
         <h3 className="text-base font-semibold text-gray-900">History</h3>
         <p className="text-xs text-gray-500">
@@ -137,7 +137,9 @@ export default function ProductHistoryGrid({
                       : { item, x: e.clientX, y: e.clientY },
                   );
                 }}
-                className="absolute top-2 right-2 w-8 h-8 bg-surface/90 rounded-full flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                // Always visible below `lg`: there is no hover on a phone, so
+                // hiding it there put Download / Save / Delete out of reach.
+                className="absolute top-2 right-2 w-8 h-8 bg-surface/90 rounded-full flex items-center justify-center shadow opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity cursor-pointer"
               >
                 <MoreHorizontal className="w-4 h-4 text-gray-500" />
               </span>

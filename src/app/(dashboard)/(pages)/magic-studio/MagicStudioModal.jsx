@@ -28,7 +28,7 @@
  *   ┌ header ─ title ▾ · ✕ ─────────┐
  *   │ [ Create ][ Result ]          │  ← segmented (mobile only)
  *   │ …the active side, full height…│
- *   │ ┌ ✨ Generate ───────────────┐│  ← pinned in BOTH views
+ *   │ ┌ ✨ Generate ───────────────┐│  ← pinned under the Create view
  *   └───────────────────────────────┘
  *
  * Starting a generation flips to Result automatically, so the progress state /
@@ -97,7 +97,7 @@ import {
 import { checkVideoGenerationStatus } from "@/(lib)/magic-studio-api";
 import useMagicHistory from "./useMagicHistory";
 import MagicHistoryGrid from "./MagicHistoryGrid";
-import OptionSheet from "./OptionSheet";
+import OptionSheet from "@/app/(components)/ui/OptionSheet";
 
 const CREATIVE_ID = "magic_studio";
 
@@ -1485,9 +1485,11 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
               </div>
             </div>
 
-            {/* Pinned Generate (desktop — mobile pins its own copy below the
-                whole modal so it stays reachable from BOTH views). */}
-            <div className="hidden lg:block px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
+            {/* Pinned Generate. On mobile the sidebar IS the Create view, so
+                this is the screen's bottom bar and clears the home indicator;
+                it leaves with the view, because the Result view is for looking
+                at what came back, not for firing another run. */}
+            <div className="px-4 pt-3 pb-[calc(1.25rem+var(--ck-safe-b))] lg:pb-5 border-t border-gray-200 bg-surface">
               <GenerateButton
                 onClick={handleGenerate}
                 disabled={generateDisabled}
@@ -1576,21 +1578,6 @@ export default function MagicStudioModal({ categoryId, onSwitch, onClose }) {
             </div>
           </div>
 
-          {/* ── Pinned Generate (mobile) ── Belongs to the Create view, so it
-              leaves with it: the Result view is for looking at what came back,
-              not for firing another run. Lives outside the sidebar's scroll
-              area so it stays pinned, and is padded past the home indicator.
-              Hidden above `lg`, where the sidebar keeps its own pinned copy. */}
-          <div
-            className={`${mobileView === "create" ? "block" : "hidden"} lg:hidden shrink-0 border-t border-gray-200 bg-surface px-4 pt-3 pb-[calc(0.75rem+var(--ck-safe-b))]`}
-          >
-            <GenerateButton
-              onClick={handleGenerate}
-              disabled={generateDisabled}
-              generating={generating}
-              label={config.generateLabel}
-            />
-          </div>
         </div>
 
         {/* Click-away catcher — a click anywhere outside an open panel/dropdown

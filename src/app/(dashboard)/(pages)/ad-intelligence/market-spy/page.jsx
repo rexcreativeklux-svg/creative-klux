@@ -152,22 +152,25 @@ export default function CompetitorInsights() {
           </div>
         </div>
 
-        {/* ── Search bar ── */}
+        {/* ── Search bar ──
+            min-w-0 (on both the field and its wrapper) lets the input shrink
+            past its ~20-character default width, and shrink-0 keeps the button
+            whole, so the row fits a phone. */}
         <div className="flex gap-3 mb-6">
-          <div className="flex-1 flex items-center gap-3 bg-surface border border-gray-200 rounded-xl px-4 py-3  focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
+          <div className="flex-1 min-w-0 flex items-center gap-3 bg-surface border border-gray-200 rounded-xl px-4 py-3  focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
             <Globe className="w-4 h-4 text-gray-400 shrink-0" />
             <input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && analyze()}
               placeholder="Enter competitor website URL, e.g. https://competitor.com"
-              className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none"
+              className="flex-1 min-w-0 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none"
             />
           </div>
           <button
             onClick={analyze}
             disabled={loading || !url.trim()}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 cursor-pointer "
+            className="flex shrink-0 whitespace-nowrap items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 cursor-pointer "
             style={{ background: "linear-gradient(135deg, #ec4899, #f43f5e)" }}
           >
             {loading
@@ -219,9 +222,11 @@ export default function CompetitorInsights() {
             >
               {/* Domain + summary */}
               <div className="flex items-start justify-between gap-4 flex-wrap">
-                <p className="text-sm text-gray-400">
+                {/* break-all on the URL: it is one long "word" and would
+                    otherwise push the whole page sideways on mobile. */}
+                <p className="text-sm text-gray-400 min-w-0">
                   Insights for:{" "}
-                  <span className="text-gray-800 font-bold">{data.domain || url}</span>
+                  <span className="text-gray-800 font-bold break-all">{data.domain || url}</span>
                 </p>
                 {data.marketPositionSummary && (
                   <p className="text-xs text-gray-400 max-w-md text-right italic leading-relaxed">
@@ -267,7 +272,9 @@ export default function CompetitorInsights() {
 
                 <Card delay={0.24}>
                   <SectionLabel>Device Traffic Share</SectionLabel>
-                  <div className="flex items-center gap-8">
+                  {/* The pie is a fixed 140px, so the gap tightens on phones to
+                      keep chart + legend inside the card. */}
+                  <div className="flex items-center gap-4 sm:gap-8">
                     <PieChart width={140} height={140}>
                       <Pie data={trafficData} cx={65} cy={65} innerRadius={45} outerRadius={65} dataKey="value" strokeWidth={0}>
                         {trafficData.map((entry, i) => <Cell key={i} fill={entry.color} />)}

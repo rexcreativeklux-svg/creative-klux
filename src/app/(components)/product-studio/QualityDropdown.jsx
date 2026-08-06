@@ -5,6 +5,10 @@
  * with feature bullets) shared by the AI Product Studio modals. The caller owns
  * the open state + outside-click backdrop and reacts to `onSelect`; pass
  * `animated` for the framer-motion variant used by OnDeviceToolModal.
+ *
+ * Below `lg` FloatingPanel renders this as a bottom sheet, which has its own ✕ /
+ * backdrop / swipe — so pass `onClose` too, or the sheet can only be dismissed
+ * by picking a value.
  */
 
 import { FloatingPanel } from "./FloatingPanels";
@@ -15,6 +19,7 @@ import { QUALITY_TIERS } from "./constants";
  * @param {React.RefObject} props.anchorRef Trigger to anchor beside.
  * @param {string} props.value Currently-selected quality id (e.g. "High").
  * @param {(id: string) => void} props.onSelect Called with the chosen quality id.
+ * @param {() => void} [props.onClose] Dismiss the mobile sheet (see above).
  * @param {boolean} [props.animated=false]
  * @param {number} [props.width=380]
  */
@@ -22,11 +27,19 @@ export default function QualityDropdown({
   anchorRef,
   value,
   onSelect,
+  onClose,
   animated = false,
   width = 380,
 }) {
   return (
-    <FloatingPanel anchorRef={anchorRef} width={width} animated={animated}>
+    <FloatingPanel
+      anchorRef={anchorRef}
+      width={width}
+      animated={animated}
+      title="Quality"
+      subtitle={QUALITY_TIERS.find((t) => t.id === value)?.name}
+      onClose={onClose}
+    >
       <div className="p-2 space-y-2">
         {QUALITY_TIERS.map((t) => {
           const active = value === t.id;

@@ -923,15 +923,17 @@ export default function Comparison() {
           </div>
         </div>
 
-        {/* ── Mode Selector ── */}
-        <div className="flex gap-3 mb-8">
+        {/* ── Mode Selector ──
+            Side by side these two cards leave ~150px each on a phone, which
+            wraps their descriptions to four lines — so they stack until sm. */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-8">
           {MODES.map((m) => {
             const active = mode === m.id;
             return (
               <button
                 key={m.id}
                 onClick={() => switchMode(m.id)}
-                className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl border text-left transition-all duration-200 flex-1 max-w-xs cursor-pointer ${
+                className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl border text-left transition-all duration-200 flex-1 max-w-none sm:max-w-xs cursor-pointer ${
                   active
                     ? "border-indigo-300 bg-indigo-50 "
                     : "border-gray-200 bg-surface hover:border-indigo-200 hover:bg-indigo-50/40"

@@ -67,6 +67,7 @@ import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { stashPendingSave, takePendingSave } from "./pendingSave";
 import { SIZES, QUALITY_TIERS } from "./constants";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
+import ToolModalMobileHeader from "./ToolModalMobileHeader";
 import QualityDropdown from "./QualityDropdown";
 import SizeDropdown from "./SizeDropdown";
 
@@ -208,6 +209,10 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   const [quality, setQuality] = useState(defaultQuality);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
+  // Which half is on screen below `lg` ("setup" | "result") — see
+  // ToolModalMobileHeader. The right side here is the live canvas, so it is
+  // labelled "Preview". Ignored above `lg`, where both are side by side.
+  const [mobileView, setMobileView] = useState("setup");
   const [saving, setSaving] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [applyBrandStyle, setApplyBrandStyle] = useState(true);
@@ -331,6 +336,9 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     setPickerOpen(false);
     const item = images[0];
     if (!item || busy) return;
+    // Mobile: the pick immediately starts the on-device pipeline, which draws
+    // into the canvas — so show it. No-op on desktop (both halves visible).
+    setMobileView("result");
     if (item.file instanceof File) {
       startWithFile(item.file, item.src || undefined);
       return;
@@ -768,11 +776,27 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
           style={{ maxWidth: "1500px", maxHeight: "940px" }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* ── Left sidebar ── */}
-          <div className="w-full max-h-[45dvh] border-b border-gray-200 flex flex-col shrink-0 lg:w-84 lg:max-h-none lg:border-b-0 lg:border-r">
+          {/* ── Mobile header — title switcher, ✕ and the Setup/Preview switch.
+              Pinned outside both scroll areas; hidden above `lg`. ── */}
+          <ToolModalMobileHeader
+            title={title}
+            subtitle={sample?.headline}
+            onTitleClick={() => setToolMenuOpen((o) => !o)}
+            switcherOpen={toolMenuOpen}
+            view={mobileView}
+            onViewChange={setMobileView}
+            onClose={onClose}
+            resultLabel="Preview"
+          />
+
+          {/* ── Left sidebar (mobile: the "Setup" view) ── */}
+          <div
+            className={`${mobileView === "setup" ? "flex" : "hidden"} w-full flex-1 min-h-0 flex-col border-gray-200 lg:flex lg:w-84 lg:flex-none lg:border-r`}
+          >
             <div className="flex-1 overflow-y-auto min-h-0">
-              {/* Header — click the title to open the tool switcher */}
-              <div className="px-5 pt-5 pb-1">
+              {/* Header — click the title to open the tool switcher (desktop;
+                  mobile has the same switcher in the header above) */}
+              <div className="hidden lg:block px-5 pt-5 pb-1">
                 <button
                   ref={headerRef}
                   onClick={() => setToolMenuOpen((o) => !o)}
@@ -891,7 +915,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
             {/* Pinned footer — Generate (when the tool supports it), or Cancel
               while ANY engine is working (on-device run, AI-render adoption,
               or backend generate — the label shows which). */}
-            <div className="px-4 pb-5 pt-3 border-t border-gray-200 bg-surface">
+            <div className="px-4 pt-3 pb-[calc(1.25rem+var(--ck-safe-b))] lg:pb-5 border-t border-gray-200 bg-surface">
               <AnimatePresence mode="wait" initial={false}>
                 {busy || generating ? (
                   <motion.button
@@ -931,18 +955,22 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
             </div>
           </div>
 
-          {/* ── Right content ── */}
-          <div className="flex-1 flex flex-col relative bg-[#f8f8f8] dark:bg-canvas min-w-0">
-            {/* Close — large + clearly visible */}
+          {/* ── Right content (mobile: the "Preview" view) ── */}
+          <div
+            className={`${mobileView === "result" ? "flex" : "hidden"} flex-1 min-h-0 flex-col relative bg-[#f8f8f8] dark:bg-canvas min-w-0 lg:flex`}
+          >
+            {/* Close — large + clearly visible (desktop; mobile closes from the
+                header above) */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 z-20 w-10 h-10 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-300 hover:text-red-500 shadow-md cursor-pointer transition-all"
+              aria-label="Close"
+              className="hidden lg:flex absolute top-4 right-4 z-20 w-10 h-10 bg-surface rounded-full border border-gray-200 items-center justify-center hover:bg-red-50 hover:border-red-300 hover:text-red-500 shadow-md cursor-pointer transition-all"
             >
               <X className="w-5 h-5 text-gray-600" />
             </button>
 
             {/* Canvas / interacting space — pan/zoom lives inside, so no scrollbars */}
-            <div className="flex-1 min-h-0 flex items-center justify-center p-8 overflow-hidden">
+            <div className="flex-1 min-h-0 flex items-center justify-center p-3 sm:p-6 lg:p-8 overflow-hidden">
               <AnimatePresence mode="wait" initial={false}>
                 {showEmpty ? (
                   <motion.div
@@ -951,10 +979,12 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="flex flex-col items-center justify-center px-6"
+                    className="flex flex-col items-center justify-center px-2 sm:px-6"
                   >
-                    <div className="flex items-center gap-3 mb-9">
-                      <div className="w-44 h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
+                    {/* Two 44-wide cards + the arrow overflow a phone at their
+                        desktop size, so they scale down rather than clip. */}
+                    <div className="flex items-center gap-1.5 xs:gap-3 mb-6 sm:mb-9">
+                      <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
                         <img
                           src={sample.before}
                           alt="before"
@@ -966,7 +996,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                         height="60"
                         viewBox="0 0 72 60"
                         fill="none"
-                        className="text-blue-500 shrink-0 -mt-6"
+                        className="w-10 xs:w-12 sm:w-18 h-auto text-blue-500 shrink-0 -mt-6"
                       >
                         <path
                           d="M6 44 C 24 8, 50 8, 62 32"
@@ -982,7 +1012,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                           strokeLinejoin="round"
                         />
                       </svg>
-                      <div className="w-44 h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
+                      <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
                         <img
                           src={sample.after}
                           alt="after"
@@ -990,10 +1020,10 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                         />
                       </div>
                     </div>
-                    <h3 className="text-gray-900 text-center text-lg font-semibold max-w-sm leading-snug">
+                    <h3 className="text-gray-900 text-center text-base sm:text-lg font-semibold max-w-sm leading-snug">
                       {sample.headline}
                     </h3>
-                    <p className="text-gray-500 text-center text-sm mt-2 max-w-xs leading-relaxed">
+                    <p className="text-gray-500 text-center text-xs sm:text-sm mt-2 max-w-xs leading-relaxed">
                       {sample.subtext}
                     </p>
                   </motion.div>
@@ -1359,6 +1389,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
               anchorRef={headerRef}
               activeToolId={config.toolId}
               onSelect={handleToolClick}
+              onClose={() => setToolMenuOpen(false)}
               animated
             />
           )}
@@ -1379,6 +1410,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
               anchorRef={qualityRef}
               value={quality}
               onSelect={changeQuality}
+              onClose={() => setOpenDropdown(null)}
               animated
             />
           )}
@@ -1389,6 +1421,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
               anchorRef={sizeRef}
               value={size}
               onSelect={changeSize}
+              onClose={() => setOpenDropdown(null)}
               animated
             />
           )}

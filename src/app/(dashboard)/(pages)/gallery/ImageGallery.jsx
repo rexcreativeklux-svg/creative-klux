@@ -283,40 +283,53 @@ export default function ImageGallery() {
                 <ArrowLeft size={18} /> Back to gallery
               </button>
             </div>
-            <div className="bg-surface rounded-xl p-4 shadow-sm border border-gray-100 mb-6">
-              <div className="flex flex-wrap gap-3 items-center">
-                <input
-                  type="text"
-                  placeholder="Search millions of free stock images & videos…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && runSearch()}
-                  // `min-w-60` (240px) plus the type select and search button
-                  // could not share a 360px row, so the group overflowed. The
-                  // minimum only applies once there is room for it.
-                  className="flex-1 w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 sm:w-auto sm:min-w-60"
-                  autoFocus
-                />
-                <select
-                  value={pexelsType}
-                  onChange={(e) => setPexelsType(e.target.value)}
-                  className="px-3 py-2.5 border cursor-pointer border-gray-200 rounded-lg"
-                >
-                  <option value="Images">Images</option>
-                  <option value="Videos">Videos</option>
-                </select>
-                <button
-                  onClick={runSearch}
-                  disabled={searchLoading}
-                  className="px-6 py-2.5 bg-blue-600 cursor-pointer hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors shadow-sm disabled:opacity-60"
-                >
-                  {searchLoading ? (
-                    <Loader2 className="animate-spin" size={20} />
-                  ) : (
-                    <Search size={20} />
-                  )}
-                  Search
-                </button>
+            {/* Search bar. The three controls shared one wrapping row at every
+                width, and the field's `flex-1` (flex-basis: 0%) beat its own
+                `w-full`, so on a phone it collapsed to a couple of characters
+                beside the select and the button. Now the field owns the full
+                first row on mobile and the select + Search button split the
+                row under it; from `sm` up the original single row returns. */}
+            <div className="bg-surface rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 mb-6">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
+                <div className="relative flex-1 min-w-0 sm:min-w-60">
+                  <Search
+                    size={18}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Search millions of free stock images & videos…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && runSearch()}
+                    className="w-full h-11 pl-10 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                    autoFocus
+                  />
+                </div>
+                {/* Second row on mobile: each control takes half of it, so both
+                    keep a 44px-tall tap target instead of being squeezed. */}
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <select
+                    value={pexelsType}
+                    onChange={(e) => setPexelsType(e.target.value)}
+                    className="h-11 flex-1 sm:flex-none px-3 text-sm bg-surface text-gray-900 border cursor-pointer border-gray-200 rounded-lg"
+                  >
+                    <option value="Images">Images</option>
+                    <option value="Videos">Videos</option>
+                  </select>
+                  <button
+                    onClick={runSearch}
+                    disabled={searchLoading}
+                    className="h-11 flex-1 sm:flex-none px-5 text-sm font-medium bg-blue-600 cursor-pointer hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm disabled:opacity-60"
+                  >
+                    {searchLoading ? (
+                      <Loader2 className="animate-spin" size={18} />
+                    ) : (
+                      <Search size={18} />
+                    )}
+                    Search
+                  </button>
+                </div>
               </div>
             </div>
 

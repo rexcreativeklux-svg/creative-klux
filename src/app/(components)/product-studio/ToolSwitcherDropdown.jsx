@@ -10,6 +10,9 @@
  * renders the anchored panel + its tool grids, which is the part that was
  * duplicated. Pass `animated` to get the staggered framer-motion entrance used
  * by OnDeviceToolModal.
+ *
+ * Below `lg` DropdownBelow renders this as a bottom sheet — pass `onClose` so
+ * its ✕ / backdrop / swipe can dismiss it.
  */
 
 import { motion } from "framer-motion";
@@ -22,6 +25,7 @@ import { TOOL_LIST, RECENT_TOOL_IDS } from "./constants";
  * @param {React.RefObject} props.anchorRef Header title button to anchor under.
  * @param {string} props.activeToolId The currently-open tool's id.
  * @param {(id: string) => void} props.onSelect Called with the chosen tool id.
+ * @param {() => void} [props.onClose] Dismiss the mobile sheet (see above).
  * @param {boolean} [props.animated=false]
  * @param {number} [props.width=460]
  */
@@ -29,6 +33,7 @@ export default function ToolSwitcherDropdown({
   anchorRef,
   activeToolId,
   onSelect,
+  onClose,
   animated = false,
   width = 460,
 }) {
@@ -50,7 +55,14 @@ export default function ToolSwitcherDropdown({
   };
 
   return (
-    <DropdownBelow anchorRef={anchorRef} width={width} animated={animated}>
+    <DropdownBelow
+      anchorRef={anchorRef}
+      width={width}
+      animated={animated}
+      title="Switch tool"
+      subtitle={TOOL_LIST.find((t) => t.id === activeToolId)?.label}
+      onClose={onClose}
+    >
       <p className="text-xs font-semibold text-gray-500 px-1 mb-2">
         Recently used
       </p>

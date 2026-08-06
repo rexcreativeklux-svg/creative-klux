@@ -101,7 +101,9 @@ const AD_COLUMNS = [
         label: post.platform,
       };
       return (
-        <span className="text-xs text-gray-500">
+        // whitespace-nowrap keeps the emoji and the platform name on one line when
+        // the eight columns squeeze this cell.
+        <span className="text-xs text-gray-500 whitespace-nowrap">
           {meta.emoji} {meta.label}
         </span>
       );
@@ -128,7 +130,7 @@ const AD_COLUMNS = [
         ? format(new Date(p.stats.last_updated), "MMM d HH:mm")
         : "—",
   },
-];
+];
 
 function StatCard({ icon: Icon, label, value, sub, accent = false }) {
   return (

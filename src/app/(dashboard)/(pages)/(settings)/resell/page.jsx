@@ -99,7 +99,18 @@ const Resell = () => {
     );
 
     const totalPages = Math.ceil(filteredMembers.length / entriesPerPage);
-    const startIndex = (currentPage - 1) * entriesPerPage;
+
+    // The current page is CLAMPED for rendering rather than reset in an effect,
+    // because three ordinary actions shrink totalPages out from under a user who
+    // is already past it: typing in the search, lowering the page size, and
+    // deleting the last row on the final page. Unclamped, each one strands them
+    // on a page that no longer exists — an empty list, and (now that the
+    // controls hide at a single page) nothing left on screen to click to get
+    // back. Deriving the value makes that unreachable by construction, with no
+    // extra render pass. `currentPage` itself is left alone, so widening the
+    // filter again returns the user to where they were.
+    const safePage = Math.min(currentPage, Math.max(1, totalPages));
+    const startIndex = (safePage - 1) * entriesPerPage;
     const paginatedMembers = filteredMembers.slice(startIndex, startIndex + entriesPerPage);
 
 
@@ -180,9 +191,9 @@ const Resell = () => {
                 duration={notification.duration}
             />
 
-            <div className="w-full flex flex-col gap-4 p-4 rounded-lg bg-surface">
+            <div className="w-full flex flex-col gap-4 p-3 sm:p-4 rounded-lg bg-surface">
                 {/* Header */}
-                <div className="space-y-2 pb-8">
+                <div className="space-y-2 pb-4 sm:pb-8">
                     <h1 className="font-semibold text-2xl">Resell accounts</h1>
                     <p className="text-gray-600 text-sm">Expand Your Business by Managing Resell Accounts Effectively</p>
                 </div>
@@ -198,23 +209,27 @@ const Resell = () => {
                 </div>
 
                 {/* Invite Form */}
-                <div className="w-full py-5">
+                <div className="w-full py-4 sm:py-5">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                         Email Address
                     </label>
+                    {/* Stacked on a phone (the button stretches to full width via
+                        the column's default `stretch`), side by side from `sm`.
+                        The extra `py` below `sm` is what lifts both controls to a
+                        44px touch target; desktop keeps its original `py-2`. */}
                     <div className="flex flex-col w-full max-w-2xl sm:flex-row gap-3">
                         <input
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="Enter email address"
-                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none cursor-text"
+                            className="flex-1 px-4 py-2.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none cursor-text"
                             disabled={loading}
                         />
                         <button
                             onClick={handleInvite}
                             disabled={loading || !email.trim()}
-                            className="px-6 py-2 bg-[#155dfc] hover:bg-blue-800 disabled:bg-gray-400 text-white rounded-lg font-medium flex items-center gap-2 justify-center transition-colors duration-300 min-w-[120px] cursor-pointer disabled:cursor-not-allowed"
+                            className="ck-tap-pad px-6 py-2.5 sm:py-2 bg-[#155dfc] hover:bg-blue-800 disabled:bg-gray-400 text-white rounded-lg font-medium flex items-center gap-2 justify-center transition-colors duration-300 min-w-[120px] cursor-pointer disabled:cursor-not-allowed"
                         >
                             {loading ? (
                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -226,50 +241,65 @@ const Resell = () => {
                     </div>
                 </div>
 
-                {/* Controls — Fixed Layout */}
-                <div className="flex flex-col  sm:flex-row justify-between items-start sm:items-center gap-6 mb-6">
-                    <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center w-full sm:w-auto">
-                        {/* Entries per page */}
-                        <div className="flex justify-center items-center flex-col">
-                            <div className="flex rounded-lg justify-between px-2 border border-gray-200">
-                                <select
-                                    value={entriesPerPage}
-                                    onChange={(e) => setEntriesPerPage(Number(e.target.value))}
-                                    className="appearance-none  bg-surface border-gray-300 rounded-lg py-2 pr-8 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none cursor-pointer"
-                                >
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
-                                </select>
-                                <ChevronDown size={16} className="mt-3 text-gray-400 pointer-events-none" />
-                            </div>
-                            {/* <span className="text-xs py-1 text-gray-600">entries per page</span> */}
+                {/* Controls — ONE wrapping row, rearranged by `order-*` on a phone.
+                    Below `sm` the search takes a full-width line of its own and the
+                    entries select pairs with the view toggle underneath it, spread
+                    apart — two balanced rows instead of the three left-aligned
+                    stragglers a plain `flex-col` produced. (The search also never
+                    actually filled the width there: the old `items-start` parent
+                    shrank it to the input's intrinsic size, so `w-full` had nothing
+                    to resolve against.)
+                    Every `order-*` resets at `sm`, where source order takes over and
+                    `ml-auto` on the toggle reproduces the previous `justify-between`
+                    — so the desktop bar is unchanged: [entries] [search] … [toggle]. */}
+                <div className="flex flex-wrap items-center gap-3 sm:gap-6 mb-6">
+                    {/* Entries per page */}
+                    <div className="order-2 sm:order-0 flex justify-center items-center flex-col">
+                        <div className="flex rounded-lg justify-between px-2 border border-gray-200">
+                            <select
+                                value={entriesPerPage}
+                                onChange={(e) => setEntriesPerPage(Number(e.target.value))}
+                                className="appearance-none  bg-surface border-gray-300 rounded-lg py-2 pr-8 focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none cursor-pointer"
+                            >
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                            </select>
+                            <ChevronDown size={16} className="mt-3 text-gray-400 pointer-events-none" />
                         </div>
-
-                        {/* Search */}
-                        <div className="relative">
-                            <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-                            <input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Search..."
-                                className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none w-full sm:w-48 cursor-text"
-                            />
-                        </div>
+                        {/* <span className="text-xs py-1 text-gray-600">entries per page</span> */}
                     </div>
 
-                    {/* View Toggle */}
-                    <div className="flex gap-1 border border-gray-200 p-0.5 rounded-md">
+                    {/* Search */}
+                    <div className="relative order-1 w-full sm:order-0 sm:w-auto">
+                        <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Search..."
+                            className="pl-10 pr-4 py-2.5 sm:py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-700 focus:border-transparent outline-none w-full sm:w-48 cursor-text"
+                        />
+                    </div>
+
+                    {/* View Toggle — `ml-auto` pins it to the right of whichever
+                        line it lands on, so it works the same wrapped or not.
+                        `ck-tap` grows each 36px button to a 44px touch region on a
+                        touchscreen without moving or resizing anything on screen. */}
+                    <div className="order-3 sm:order-0 ml-auto flex gap-1 border border-gray-200 p-0.5 rounded-md">
                         <button
                             onClick={() => setIsCardView(false)}
-                            className={`p-2 rounded transition duration-300 ${!isCardView ? 'bg-[#155dfc] text-white' : 'text-gray-700'} cursor-pointer hover:bg-gray-100`}
+                            aria-label="List view"
+                            aria-pressed={!isCardView}
+                            className={`ck-tap p-2 rounded transition duration-300 ${!isCardView ? 'bg-[#155dfc] text-white' : 'text-gray-700'} cursor-pointer hover:bg-gray-100`}
                         >
                             <List strokeWidth={1.5} size={20} />
                         </button>
                         <button
                             onClick={() => setIsCardView(true)}
-                            className={`p-2 rounded transition duration-300 ${isCardView ? 'bg-[#155dfc] text-white' : 'text-gray-700'} cursor-pointer hover:bg-gray-100`}
+                            aria-label="Card view"
+                            aria-pressed={isCardView}
+                            className={`ck-tap p-2 rounded transition duration-300 ${isCardView ? 'bg-[#155dfc] text-white' : 'text-gray-700'} cursor-pointer hover:bg-gray-100`}
                         >
                             <Grip strokeWidth={1.5} size={20} />
                         </button>
@@ -285,9 +315,13 @@ const Resell = () => {
                     <div className="text-center">
                         <div className="max-w-md mx-auto">
                             {/* Beautiful SVG Illustration */}
+                            {/* 224px of illustration is over half the height of a
+                                360px phone's first screen — it pushed the heading
+                                that explains the empty state below the fold. Scaled
+                                back below `sm`; unchanged from `sm` up. */}
                             <svg
                                 viewBox="0 0 240 240"
-                                className="w-56 h-56 mx-auto mb-8 text-gray-200"
+                                className="w-36 h-36 xs:w-44 xs:h-44 sm:w-56 sm:h-56 mx-auto mb-5 sm:mb-8 text-gray-200"
                                 fill="none"
                                 xmlns="http://www.w3.org/2000/svg"
                             >
@@ -330,28 +364,33 @@ const Resell = () => {
                             </svg>
 
                             {/* Text */}
-                            <h3 className="text-xl font-bold text-gray-800 mb-3">
+                            <h3 className="text-xl font-bold text-gray-800 mb-2 sm:mb-3">
                                 No resell accounts yet
                             </h3>
-                            <p className="text-gray-600 mb- leading-relaxed">
+                            {/* (`mb-` here was a typo — an incomplete class name
+                                that produced no CSS at any width.) */}
+                            <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
                                 Start growing your business! Invite your first resell partner using the form above.
                             </p>
                         </div>
                     </div>
                 ) : isCardView ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                         {paginatedMembers.map((member) => (
-                            <div key={member.id} className="bg-surface border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow cursor-default">
+                            <div key={member.id} className="bg-surface border border-gray-200 rounded-lg p-4 sm:p-6 hover:shadow-lg transition-shadow cursor-default">
                                 <div className="flex justify-between items-start mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-lg font-semibold text-gray-700">
+                                    {/* min-w-0 + wrap: the avatar and the status pill
+                                        sit side by side, and at 360px the pill was
+                                        squeezing the row rather than dropping below. */}
+                                    <div className="flex flex-wrap items-center gap-3 min-w-0">
+                                        <div className="w-12 h-12 shrink-0 bg-gray-300 rounded-full flex items-center justify-center text-lg font-semibold text-gray-700">
                                             {member.email?.charAt(0).toUpperCase()}
                                         </div>
                                         <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(member.status)}`}>
                                             {getStatusLabel(member.status)}
                                         </span>
                                     </div>
-                                    <button className="p-2 hover:bg-gray-100 rounded transition cursor-pointer">
+                                    <button className="shrink-0 p-2 hover:bg-gray-100 rounded transition cursor-pointer">
                                         <MoreVertical size={18} className="text-gray-400" />
                                     </button>
                                 </div>
@@ -391,43 +430,63 @@ const Resell = () => {
                     />
                 )}
 
-                {/* Pagination */}
-                <div className="flex flex-col sm:flex-row justify-between items-center mt-10 gap-4">
-                    <div className="text-sm text-gray-700">
-                        Showing {startIndex + 1} to {Math.min(startIndex + entriesPerPage, filteredMembers.length)} of {filteredMembers.length} entries
-                    </div>
+                {/* Pagination — rendered ONLY when there is more than one page to
+                    move between. At a single page every part of this bar is
+                    noise: the arrows and the lone "1" do nothing, and the count
+                    restates what is already on screen ("Showing 1 to 1 of 1
+                    entries" above a single card). It also means the empty state
+                    is no longer followed by "Showing 1 to 0 of 0 entries".
 
-                    <div className="flex items-center justify-end gap-2">
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                            disabled={currentPage === 1}
-                            className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
-                        >
-                            <ChevronLeft size={16} />
-                        </button>
+                    Mobile: the button row is `flex-wrap` + centred below `sm`
+                    because it genuinely does not fit otherwise — two arrows and
+                    five page numbers need ~330px, where a 360px phone leaves
+                    ~310px inside the page gutter and this card's padding.
+                    Un-wrapped and right-aligned from `sm`, as before. */}
+                {totalPages > 1 && (
+                    <div className="flex flex-col sm:flex-row justify-between items-center mt-6 sm:mt-10 gap-3 sm:gap-4">
+                        <div className="text-sm text-gray-700 text-center sm:text-left">
+                            Showing {startIndex + 1} to {Math.min(startIndex + entriesPerPage, filteredMembers.length)} of {filteredMembers.length} entries
+                        </div>
 
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => (
+                        {/* Every control below reads `safePage`, never `currentPage`
+                            — so "previous" always steps back from the page actually
+                            on screen, and the highlight cannot land on a button
+                            that is no longer rendered. */}
+                        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
                             <button
-                                key={i + 1}
-                                onClick={() => setCurrentPage(i + 1)}
-                                className={`px-4 py-2 text-sm font-medium rounded-lg border transition cursor-pointer ${currentPage === i + 1
-                                    ? 'bg-[#155dfc] text-white border-[#155dfc]'
-                                    : 'border-gray-300 hover:bg-gray-50'
-                                    }`}
+                                onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+                                disabled={safePage === 1}
+                                aria-label="Previous page"
+                                className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
                             >
-                                {i + 1}
+                                <ChevronLeft size={16} />
                             </button>
-                        ))}
 
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                            disabled={currentPage === totalPages}
-                            className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
-                        >
-                            <ChevronRight size={16} />
-                        </button>
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => (
+                                <button
+                                    key={i + 1}
+                                    onClick={() => setCurrentPage(i + 1)}
+                                    aria-current={safePage === i + 1 ? "page" : undefined}
+                                    className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-lg border transition cursor-pointer ${safePage === i + 1
+                                        ? 'bg-[#155dfc] text-white border-[#155dfc]'
+                                        : 'border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                >
+                                    {i + 1}
+                                </button>
+                            ))}
+
+                            <button
+                                onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+                                disabled={safePage >= totalPages}
+                                aria-label="Next page"
+                                className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
+                            >
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </>
     );

@@ -392,7 +392,7 @@ export default function ProductPhotos() {
             window measures. The same grid then works in the narrowed pane
             beside an open sidebar. */}
         {filteredTools.length > 0 && (
-          <div className="grid grid-fluid-[190px] gap-2 mb-8">
+          <div className="grid grid-fluid-[230px] gap-2 mb-8">
             {filteredTools.map((tool) => {
               const { Icon } = tool;
               return (

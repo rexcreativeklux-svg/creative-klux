@@ -630,7 +630,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     input: "image",
     resultType: "image",
     generateLabel: "Generate variations",
-    historyTool: "image_to_variation",
+    historyTool: "image_to_variations",
     sample: {
       before:
         "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80",
@@ -731,7 +731,7 @@ export const MAGIC_STUDIO_CONFIGS = {
       const payload = {
         tool: "image_to_variations",
         visual_style: values.style,
-        image: input,
+        image_url: input,
       };
       const data = await generateMagicStudio(payload);
       return normalizeMagicResponse(data, "image");

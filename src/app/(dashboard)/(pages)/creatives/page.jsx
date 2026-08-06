@@ -1012,7 +1012,7 @@ export default function CreativesPage() {
           The tabs scroll horizontally rather than wrapping. Wrapped, "★
           Favorites" dropped onto a second row and cost the grid another ~40px
           of height on exactly the screens that had none to spare. */}
-      <div className="py-2 flex flex-wrap items-center gap-2 shrink-0 sm:py-3 sm:gap-3">
+      <div className="py-2 flex flex-wrap items-center gap-2 shrink-0 sm:py-3 sm:gap-3 pb-2">
         <div className="relative order-1 flex-1 min-w-0 sm:min-w-45 sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
           <input

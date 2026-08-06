@@ -11,7 +11,7 @@
 // the brand tab) seeds the prompt text. Wiring the selection into the request is
 // a separate, deliberate step — see the note in (dashboard)/page.jsx.
 
-import { Globe, Palette, Smartphone } from "lucide-react";
+import { Globe, Palette, Sparkles } from "lucide-react";
 
 export const TAB_WEB = "web";
 export const TAB_MOBILE = "mobile";
@@ -25,19 +25,19 @@ export const TAB_BRAND = "brand";
 export const HOME_COMPOSER_TABS = [
   {
     id: TAB_WEB,
-    label: "Web App",
-    icon: Globe,
+    label: "Ai Chat",
+    icon: Sparkles,
     placeholder: "Describe your idea we will bring it to life..",
   },
   {
     id: TAB_MOBILE,
-    label: "Mobile App",
-    icon: Smartphone,
-    placeholder: "Describe your mobile app idea, we'll bring it to life..",
+    label: "Import Site",
+    icon: Globe,
+    placeholder: "Paste your website link and we'll learn your brand…",
   },
   {
     id: TAB_BRAND,
-    label: "Active Brand",
+    label: "Brand Kit",
     icon: Palette,
     placeholder: "Add anything else you want built around this brand..",
   },

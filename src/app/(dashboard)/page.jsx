@@ -318,7 +318,7 @@ export default function Home() {
               <PromptComposer
                 ref={composerRef}
                 onSubmit={handleSubmit}
-                rows={3}
+                rows={4}
                 variant="inset"
                 placeholder={placeholderForTab(composerTab)}
                 onFocusedChange={setComposerFocused}

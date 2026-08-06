@@ -188,7 +188,7 @@ export default function PromptComposer({
   onSubmit,
   placeholder = "Describe the creative you want to make…",
   autoFocus = true,
-  rows = 3,
+  rows = 4,
   maxHeight = DEFAULT_MAX_HEIGHT,
   variant = "solid",
   onFocusedChange,

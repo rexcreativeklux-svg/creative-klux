@@ -61,7 +61,14 @@ import { useBreakpoint } from "@/utils/useMediaQuery";
 // (renderDesignToCanvas) so a creative's thumbnail matches exactly what opens in
 // /design/[id] — including web-font loading, library shapes, background images,
 // and text layout. No editing behavior is pulled in; this is pure paint.
-function DesignCanvas({ variation }) {
+//
+// `fit` is for the fixed-size frames (the card's 16:9 tile, the table's 56×40
+// thumb): the canvas is sized to fit INSIDE the box on both axes instead of
+// being stretched to its width, so a portrait design is scaled down rather than
+// having its top and bottom cropped away. Off by default, because the detail
+// panel deliberately renders at full width with no height limit — and there a
+// percentage max-height would resolve against an auto-height parent anyway.
+function DesignCanvas({ variation, fit = false }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -97,11 +104,24 @@ function DesignCanvas({ variation }) {
   return (
     <canvas
       ref={canvasRef}
-      style={{
-        width: "100%",
-        height: "auto",
-        display: "block",
-      }}
+      style={
+        fit
+          ? {
+              // Both caps + auto sizing is the replaced-element equivalent of
+              // `object-contain`: the browser shrinks the canvas until it fits
+              // the box on both axes, keeping the design's own aspect ratio.
+              maxWidth: "100%",
+              maxHeight: "100%",
+              width: "auto",
+              height: "auto",
+              display: "block",
+            }
+          : {
+              width: "100%",
+              height: "auto",
+              display: "block",
+            }
+      }
     />
   );
 }
@@ -1094,7 +1114,7 @@ export default function CreativesPage() {
       {/* ── Content ──
           The select toggle that used to sit here now lives in the toolbar's
           control cluster, beside the "Show N" dropdown. */}
-      <div className="flex-1 overflow-y-auto pb-1 sm:pb-2">
+      <div className="flex-1 overflow-y-auto pb-1 sm:pb-2 lg:pb-0">
         {loading ? (
           <GridSkeleton count={fetchCount} />
         ) : paginated.length === 0 ? (
@@ -1131,9 +1151,24 @@ export default function CreativesPage() {
 
           Everything here stays on ONE line: a narrower page window below `xs`,
           a shortened range label, and smaller controls. Wrapped, this bar was
-          three lines tall on a phone and stole them from the grid. */}
+          three lines tall on a phone and stole them from the grid.
+
+          `lg:-mb-page-y` — desktop only. The dashboard shell pads every page
+          with `pb-page-y` (28px at ≥1280), which on a bottom-anchored bar like
+          this reads as dead space under the pager rather than page rhythm. The
+          negative margin lets the bar reach INTO that padding so it sits flush
+          on the viewport's bottom edge, and — because a flex item's outer size
+          includes its margins — hands those 28px to the card grid above
+          instead. Same trick as `-mx-gutter` on the bleed-to-edge scrollers in
+          product-studio/MembersTab, one axis over.
+
+          It cannot cause a scrollbar: the bar's border box then ends exactly on
+          the shell's own bottom edge, never past it. Scoped to `lg` so phones
+          and tablets keep the padded rhythm they were tuned with, and it lives
+          inside the `totalPages > 1` branch, so a single-page library keeps its
+          normal bottom padding. */}
       {totalPages > 1 && (
-        <div className="shrink-0 flex items-center justify-between gap-2 px-1 py-2 border-t border-gray-100 rounded bg-surface sm:px-3 sm:py-3">
+        <div className="shrink-0 flex items-center justify-between gap-2 px-1 py-2 border-t border-gray-100 rounded bg-surface sm:px-3 sm:py-3 lg:py-2 lg:-mb-page-y">
           <p className="text-2xs text-gray-400 whitespace-nowrap sm:text-xs">
             <span className="hidden xs:inline">Showing </span>
             {(page - 1) * fetchCount + 1}–
@@ -1385,6 +1420,90 @@ const GridView = ({
   </div>
 );
 
+// ── Card artwork ──────────────────────────────────────────────────────────────
+/**
+ * What fills a creative card's 16:9 preview frame.
+ *
+ * Designs are saved in every ratio — 1:1 and 4:5 social posts, 3:1 banners, the
+ * odd 16:9 ad — but the frame is fixed. This used to stretch the artwork to the
+ * card's WIDTH and let its height fall where it may, so anything taller than
+ * 16:9 had its top and bottom cropped off and anything wider sat in a band of
+ * grey. The artwork is CONTAINED here instead: the whole design is always
+ * visible, and the letterbox around it is filled with a blurred, zoomed copy of
+ * the same file — one network request, painted twice — so an off-ratio design
+ * reads as a tile in its own colours rather than art floating in grey.
+ *
+ * Sources are tried in the order this page has always used — backend thumbnail,
+ * then a canvas repaint, then any stored image URL — with one change: a source
+ * that fails to load now falls THROUGH to the next one. Hiding the broken <img>
+ * (the old `onError`) left an empty grey box with nothing to explain it.
+ *
+ * @param {{creative: object}} props `creative` is a normalizeDesign() result.
+ */
+const CardArtwork = ({ creative: c }) => {
+  // Sources that 404'd or were blocked, so the ladder below can skip them.
+  const [failed, setFailed] = useState({ thumbnail: false, image: false });
+
+  const hasCanvas = c.canvas && c.elements?.length > 0;
+  const thumbSrc = failed.thumbnail ? null : c.thumbnail;
+  const imageSrc = failed.image ? null : c.image;
+  // Thumbnail first; the image URL only stands in when there's no canvas to
+  // paint — the same priority the card had before.
+  const src = thumbSrc || (hasCanvas ? null : imageSrc);
+
+  if (src) {
+    const sourceKey = thumbSrc ? "thumbnail" : "image";
+    return (
+      <>
+        {/* Backdrop. Same `src`, so it is served from cache, not fetched again.
+            `scale-125` overshoots the frame by more than the blur radius at
+            every card width — that overshoot is what stops a soft rim from
+            showing along the edges. aria-hidden: it is the picture below. */}
+        <img
+          src={src}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          decoding="async"
+          className="pointer-events-none absolute inset-0 h-full w-full scale-125 select-none object-cover opacity-60 blur-lg"
+        />
+        {/* The design itself — `relative` so it paints ABOVE the absolutely
+            positioned backdrop, which would otherwise cover a static sibling. */}
+        <img
+          src={src}
+          alt={c.name}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed((prev) => ({ ...prev, [sourceKey]: true }))}
+          className="relative h-full w-full object-contain drop-shadow-sm transition-transform duration-500 group-hover:scale-[1.04]"
+        />
+      </>
+    );
+  }
+
+  if (hasCanvas) {
+    // A canvas can't be blurred into a backdrop the way an <img> can, so this
+    // keeps the neutral tile — matched to the studio's TemplateCard — and just
+    // makes sure the repaint is scaled to FIT the frame (see DesignCanvas's
+    // `fit`) instead of overflowing it.
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-gray-50 p-1.5 sm:p-2">
+        <DesignCanvas
+          variation={{ canvas: c.canvas, elements: c.elements }}
+          fit
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2 text-gray-300">
+      <Wand2 className="w-8 h-8" />
+      <span className="text-xs">No preview</span>
+    </div>
+  );
+};
+
 // ── Card ──────────────────────────────────────────────────────────────────────
 const CreativeCard = ({
   creative: c,
@@ -1396,7 +1515,6 @@ const CreativeCard = ({
   onDeleteRequest,
 }) => {
   const tc = TYPE_COLOR[c.type?.toLowerCase()] || DEFAULT_COLOR;
-  const hasCanvas = c.canvas && c.elements?.length > 0;
   const tagline = c.copy?.tagline || "";
 
   return (
@@ -1419,38 +1537,9 @@ const CreativeCard = ({
           padding every preview with 30px of empty grey and costing a row of
           cards per screen. `aspect-video` alone still can't collapse to zero. */}
       <div className="relative overflow-hidden bg-gray-100 flex items-center justify-center aspect-video min-h-20 sm:min-h-30">
-        {/* Prefer the backend thumbnail when present; only render the canvas
-            for designs that don't have one. */}
-        {c.thumbnail ? (
-          <img
-            src={c.thumbnail}
-            alt={c.name}
-            className="w-full h-auto block transition-transform duration-500 group-hover:scale-[1.04]"
-            onError={(e) => {
-              e.target.style.display = "none";
-            }}
-          />
-        ) : hasCanvas ? (
-          <div className="w-full flex items-center justify-center p-2 bg-gray-50">
-            <DesignCanvas
-              variation={{ canvas: c.canvas, elements: c.elements }}
-            />
-          </div>
-        ) : c.image ? (
-          <img
-            src={c.image}
-            alt={c.name}
-            className="w-full h-auto block transition-transform duration-500 group-hover:scale-[1.04]"
-            onError={(e) => {
-              e.target.style.display = "none";
-            }}
-          />
-        ) : (
-          <div className="flex flex-col items-center gap-2 text-gray-300">
-            <Wand2 className="w-8 h-8" />
-            <span className="text-xs">No preview</span>
-          </div>
-        )}
+        {/* Thumbnail → canvas repaint → image URL → placeholder, all contained
+            in the frame rather than cropped by it. See <CardArtwork>. */}
+        <CardArtwork creative={c} />
 
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

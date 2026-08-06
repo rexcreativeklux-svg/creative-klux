@@ -38,7 +38,10 @@ function DotGlyph({ color, colorRgb }) {
           width: 80,
           height: 80,
           borderRadius: "50%",
-          background: "rgba(255,255,255,0.88)",
+          // Every white-alpha fill in this file becomes the surface token: on
+          // the dark preview pane a translucent white was a bright blob, and
+          // the ambient orbs behind it still show through the same way.
+          background: "var(--color-surface)",
           border: `0.5px solid rgba(${colorRgb},0.2)`,
           boxShadow: `0 8px 32px rgba(${colorRgb},0.10)`,
           display: "flex",
@@ -109,7 +112,7 @@ function HintChips({ config }) {
             fontSize: 10,
             padding: "4px 10px",
             borderRadius: 20,
-            background: "rgba(255,255,255,0.9)",
+            background: "var(--color-surface)",
             border: `0.5px solid rgba(${colorRgb},0.2)`,
             color,
             fontWeight: 600,
@@ -117,12 +120,15 @@ function HintChips({ config }) {
             cursor: "default",
             transition: "all 0.15s",
           }}
+          // Hover tints with a translucent accent instead of `config.colorLight`
+          // (#eff6ff and friends) — those pastels are opaque, so on the dark
+          // pane they came out as near-white chips.
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = config.colorLight;
+            e.currentTarget.style.background = `color-mix(in srgb, rgb(${colorRgb}) 10%, var(--color-surface))`;
             e.currentTarget.style.borderColor = `rgba(${colorRgb},0.4)`;
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,0.9)";
+            e.currentTarget.style.background = "var(--color-surface)";
             e.currentTarget.style.borderColor = `rgba(${colorRgb},0.2)`;
           }}
         >
@@ -158,8 +164,8 @@ function SkeletonStrips({ colorRgb }) {
           style={{
             width: s.width,
             borderRadius: 10,
-            background: "rgba(255,255,255,0.85)",
-            border: "0.5px solid rgba(0,0,0,0.07)",
+            background: "var(--color-surface)",
+            border: "0.5px solid var(--color-gray-200)",
             overflow: "hidden",
           }}
         >
@@ -178,7 +184,7 @@ function SkeletonStrips({ colorRgb }) {
                   height: 6,
                   flex: f,
                   borderRadius: 3,
-                  background: "rgba(0,0,0,0.08)",
+                  background: "var(--color-gray-200)",
                   animation: "ck-shimmer 2s ease-in-out infinite",
                   animationDelay: s.delays[j],
                 }}
@@ -259,7 +265,7 @@ export default function AiPreviewIdle({ config }) {
             style={{
               fontSize: 14,
               fontWeight: 700,
-              color: "#111",
+              color: "var(--color-gray-900)",
               letterSpacing: "-0.02em",
               margin: "0 0 5px",
             }}
@@ -269,7 +275,7 @@ export default function AiPreviewIdle({ config }) {
           <p
             style={{
               fontSize: 11,
-              color: "#aaa",
+              color: "var(--color-gray-400)",
               lineHeight: 1.6,
               maxWidth: 190,
               margin: "0 auto",

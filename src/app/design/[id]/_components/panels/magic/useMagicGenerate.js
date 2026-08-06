@@ -23,6 +23,13 @@ const GENERATORS = {
  * aspect, results, running flag) for the given `mode`. The transport lives
  * behind the per-mode generator, so this hook stays about state. Instantiate
  * one per mode so each tab keeps its own prompt and results.
+ *
+ * NOTE: this is the PLACEHOLDER machine — only the Graphics and 3D tabs still
+ * run on it, because their pipelines aren't connected (the generators below
+ * throw MagicNotConnectedError, which the panel turns into a plain "not
+ * connected yet" message). The live tabs — Images, Variations, Persona — go
+ * through MagicToolTab instead, which calls the real /magic-studio endpoints via
+ * the shared configs. See MagicMediaPanel for how the two are routed.
  */
 export default function useMagicGenerate(mode = "images") {
   const config = GENERATORS[mode] || GENERATORS.images;

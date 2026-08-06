@@ -12,18 +12,24 @@
 //
 // Structure:
 //   ── full-width rule ─────────────────────────────────────────────
-//   Klux templates • Recent designs                        Browse all ↗
+//   Templates • Recent Saved Designs • Chat History        Browse all ↗
 //   ── full-width rule ─────────────────────────────────────────────
 //   │  card  │  card  │  card  │  card  │      ← columns divided by rules
 //
-// TWO REAL SOURCES behind the tab row (see templatesApi.js):
-//   "Klux templates" → the public Scraive template pool, newest first (default)
-//   "Recent designs" → the active brand's saved designs (needs token + brand)
-// Each has its own state slice and its own effect, and BOTH load on mount — the
-// pool is one small public request, and pre-loading it makes switching tabs
-// instant instead of dropping the user onto a skeleton. Rows from either source
-// arrive in the same normalized shape, so everything below this point is
-// source-agnostic apart from `item.kind`.
+// THREE TABS, TWO REAL SOURCES behind them (see templatesApi.js):
+//   "Templates"           → the public Scraive template pool, newest first
+//                           (default tab)
+//   "Recent Saved Designs"→ the active brand's saved designs (token + brand)
+//   "Chat History"        → NOTHING YET. The backend has no endpoint for past
+//                           chat sessions, so the tab is wired up around
+//                           CHAT_HISTORY_STATE (permanently empty) and shows an
+//                           empty panel. Nothing is fetched and "Browse all" is
+//                           hidden on it, since it has no destination either.
+// The two live sources each have their own state slice and their own effect,
+// and BOTH load on mount — the pool is one small public request, and
+// pre-loading it makes switching tabs instant instead of dropping the user onto
+// a skeleton. Rows from either arrive in the same normalized shape, so
+// everything below this point is source-agnostic apart from `item.kind`.
 //
 // The data arrives as full { canvas, elements } layouts, so each card PAINTS the
 // design with the shared renderDesignToCanvas() — the same renderer the editor
@@ -35,8 +41,9 @@
 // A card does NOT open anything. Clicking one opens TemplateDetailsModal (its
 // footer chip grows into "View details" on hover to say so), and the modal's
 // primary button is the only action: a TEMPLATE is copied into the brand's
-// designs here in this component (saveTemplate → toast, no navigation), while a
-// saved DESIGN is handed to the page through `onSelect` to open in the editor.
+// designs here in this component (saveTemplate → toast, then `onSaved` so the
+// page can move the user on), while a saved DESIGN is handed to the page through
+// `onSelect` to open in the editor.
 // That same modal is what a `?template=<slug>` share link reopens on load, over
 // whichever tab happens to be showing. It does NOT depend on the tab's random
 // draw containing that slug — see the "Share links" block below.
@@ -51,6 +58,7 @@ import {
   ArrowUpRight,
   ImageIcon,
   LayoutTemplate,
+  MessagesSquare,
   MoreHorizontal,
   RefreshCw,
   Sparkles,
@@ -60,6 +68,8 @@ import { useAuth } from "@/context/AuthContext";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
 import TemplateDetailsModal from "./TemplateDetailsModal";
 import {
+  CHAT_HISTORY_STATE,
+  TAB_CHATS,
   TAB_KLUX,
   TAB_RECENT,
   TEMPLATE_DISPLAY_LIMIT,
@@ -123,11 +133,16 @@ const asColor = (value) =>
  * @param {(item: object) => void} [props.onItemMenu]   The card's "…" menu.
  * @param {(tabId: string) => void} [props.onBrowseAll] "Browse all", told which
  *   tab is open so the page can send designs and templates to different routes.
+ * @param {(item: object) => void} [props.onSaved]      A TEMPLATE was just
+ *   copied into the brand's designs. The home page uses this to send the user to
+ *   /creatives, where the new copy is waiting. Optional — see saveTemplate() for
+ *   what happens without it.
  */
 export default function TemplatesSection({
   onSelect,
   onItemMenu,
   onBrowseAll,
+  onSaved,
 }) {
   // The brand's designs are per-brand and token-gated; the pool is neither.
   // saveDesign is what "Save to Designs" writes a copied template through.
@@ -237,10 +252,23 @@ export default function TemplatesSection({
   // state rather than an error the user can't act on.
   const recentState =
     !activeBrandId && !brandsLoading ? { status: "ok", items: [] } : recent;
-  const state = activeTab === TAB_KLUX ? templates : recentState;
+  // Chat history has no endpoint yet, so its slice is a constant "ok, nothing
+  // here" (templatesApi.CHAT_HISTORY_STATE). Reading it as a normal slice means
+  // the loading and error paths below need no special case — the empty panel is
+  // the only thing that knows this tab is a placeholder.
+  const state =
+    activeTab === TAB_KLUX
+      ? templates
+      : activeTab === TAB_CHATS
+        ? CHAT_HISTORY_STATE
+        : recentState;
   const items = state.items.slice(0, TEMPLATE_DISPLAY_LIMIT);
 
-  /** Reset the ACTIVE tab's slice and re-run only that fetch. */
+  /**
+   * Reset the ACTIVE tab's slice and re-run only that fetch. Only ever called
+   * from the error panel, which the chats tab can't reach — its slice is a
+   * constant "ok".
+   */
   const retryActiveTab = () => {
     console.log(`🔄 [templates] retrying "${activeTab}"`);
     if (activeTab === TAB_KLUX) {
@@ -298,10 +326,12 @@ export default function TemplatesSection({
   /**
    * Copy a Klux template into the brand's own designs.
    *
-   * This does NOT open anything: saveDesign() writes a new design row (and
-   * renders its own stored thumbnail) and the user is told with a toast, which
-   * is the whole point of the action — the copy is theirs to open later from
-   * Recent designs or /creatives.
+   * This does NOT open the editor: saveDesign() writes a new design row (and
+   * renders its own stored thumbnail), the user is told with a toast, and then
+   * the page is handed the saved item through `onSaved` — which the home page
+   * answers by routing to /creatives, so the copy is on screen rather than only
+   * described by a toast. Without that prop the rail simply stays put and
+   * refreshes its own Recent tab instead, so the copy is still visible.
    *
    * `type` / `sub_type` are sent from the template's own taxonomy so the saved
    * copy lands in the right filter tab on /creatives instead of defaulting to
@@ -343,7 +373,20 @@ export default function TemplatesSection({
       console.log(`✅ [templates] saved "${item.title}" to designs`);
       toast.success(`"${item.title}" saved to your designs`);
       closeDetails();
-      // Pull the fresh list so the Recent designs tab already has the copy.
+
+      // Hand the page the saved copy. The home page navigates to /creatives on
+      // this, so refreshing the rail underneath would only fire a request for a
+      // list that is about to unmount — the tab reloads by itself when the user
+      // comes back, since leaving remounts this component.
+      // The toast survives the route change: sonner's <Toaster> is mounted once
+      // in the root layout (app/layout.js), not per page.
+      if (onSaved) {
+        onSaved(item);
+        return;
+      }
+
+      // No handler — we're staying here, so pull the fresh list ourselves and
+      // the Recent designs tab already has the copy.
       setRecentReload((key) => key + 1);
     } catch (err) {
       console.error("❌ [templates] save threw:", err);
@@ -417,15 +460,19 @@ export default function TemplatesSection({
         </div>
 
         {/* Told which tab is open: the brand's designs and the public pool live
-            on different routes, so one destination would be wrong half the time. */}
-        <button
-          type="button"
-          onClick={() => onBrowseAll?.(activeTab)}
-          className="flex shrink-0 items-center gap-1 text-[13px] font-medium text-gray-600 transition-colors hover:text-gray-900 cursor-pointer"
-        >
-          Browse all
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </button>
+            on different routes, so one destination would be wrong half the time.
+            Hidden on Chat History — there is no chats route to send anyone to
+            yet, and a button that lands on the wrong page is worse than none. */}
+        {activeTab !== TAB_CHATS && (
+          <button
+            type="button"
+            onClick={() => onBrowseAll?.(activeTab)}
+            className="flex shrink-0 items-center gap-1 text-[13px] font-medium text-gray-600 transition-colors hover:text-gray-900 cursor-pointer"
+          >
+            Browse all
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {/* ── Content ─────────────────────────────────────────────────────── */}
@@ -446,29 +493,10 @@ export default function TemplatesSection({
 
       {state.status === "ok" &&
         (items.length === 0 ? (
-          activeTab === TAB_RECENT ? (
-            // Nothing saved yet — point at the pool rather than dead-ending.
-            <StatePanel
-              icon={LayoutTemplate}
-              title="No designs yet"
-              body="Anything you create and save shows up here. Start from a Klux template if you'd like a head start."
-            >
-              <button
-                type="button"
-                onClick={() => setActiveTab(TAB_KLUX)}
-                className="mx-auto mt-3 flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Browse Klux templates
-              </button>
-            </StatePanel>
-          ) : (
-            <StatePanel
-              icon={Sparkles}
-              title="No templates to show yet"
-              body="Fresh templates land here as soon as they're published — check back shortly."
-            />
-          )
+          <EmptyPanel
+            activeTab={activeTab}
+            onBrowseTemplates={() => setActiveTab(TAB_KLUX)}
+          />
         ) : (
           <CardGrid>
             {items.map((item) => (
@@ -723,6 +751,59 @@ function SkeletonGrid() {
         </div>
       ))}
     </CardGrid>
+  );
+}
+
+/**
+ * "Nothing to show" for whichever tab is open. One per source, because an empty
+ * rail means something different on each: the pool is empty only if nothing is
+ * published, the user's designs are empty until they save one, and chat history
+ * is empty because the feature isn't wired to a backend yet.
+ *
+ * @param {object} props
+ * @param {string} props.activeTab              The open tab's id.
+ * @param {() => void} props.onBrowseTemplates  Send the user to the Klux tab.
+ */
+function EmptyPanel({ activeTab, onBrowseTemplates }) {
+  // No endpoint yet — say so plainly rather than implying the user has no
+  // chats. Swap this panel for the real grid when the source lands (see the
+  // CHAT_HISTORY_STATE note in templatesApi.js).
+  if (activeTab === TAB_CHATS) {
+    return (
+      <StatePanel
+        icon={MessagesSquare}
+        title="Chat history is on the way"
+        body="Your past conversations with the assistant will show up here, ready to pick back up where you left off."
+      />
+    );
+  }
+
+  // Nothing saved yet — point at the pool rather than dead-ending.
+  if (activeTab === TAB_RECENT) {
+    return (
+      <StatePanel
+        icon={LayoutTemplate}
+        title="No designs yet"
+        body="Anything you create and save shows up here. Start from a Klux template if you'd like a head start."
+      >
+        <button
+          type="button"
+          onClick={onBrowseTemplates}
+          className="mx-auto mt-3 flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          Browse templates
+        </button>
+      </StatePanel>
+    );
+  }
+
+  return (
+    <StatePanel
+      icon={Sparkles}
+      title="No templates to show yet"
+      body="Fresh templates land here as soon as they're published — check back shortly."
+    />
   );
 }
 

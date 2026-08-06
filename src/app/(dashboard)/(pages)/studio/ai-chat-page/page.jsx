@@ -173,7 +173,7 @@ function PreviewLoading({ config, label }) {
           display: "inline-block",
         }}
       />
-      <p style={{ fontSize: 12, color: "#8b8b8b", margin: 0 }}>{label}</p>
+      <p style={{ fontSize: 12, color: "var(--color-gray-500)", margin: 0 }}>{label}</p>
       <style>{`@keyframes ck-spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -192,9 +192,12 @@ function TemplatesPreview({ templates, time, config, onPick, selectedId }) {
       style={{
         position: "absolute",
         inset: 16,
-        background: "#fff",
+        background: "var(--color-surface)",
         borderRadius: 14,
-        border: "0.5px solid rgba(0,0,0,0.08)",
+        // A black-alpha hairline disappears on a dark panel, so the divider
+        // takes the palette's border token instead — see the .dark block in
+        // globals.css. Same swap throughout this file.
+        border: "0.5px solid var(--color-gray-200)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -226,12 +229,12 @@ function TemplatesPreview({ templates, time, config, onPick, selectedId }) {
                 padding: 0,
                 borderRadius: 12,
                 overflow: "hidden",
-                background: "#fff",
+                background: "var(--color-surface)",
                 cursor: "pointer",
                 textAlign: "left",
                 border: isSelected
                   ? `2px solid ${color}`
-                  : "1px solid #e5e7eb",
+                  : "1px solid var(--color-gray-200)",
                 boxShadow: isSelected
                   ? `0 4px 18px rgba(${colorRgb},0.25)`
                   : "0 1px 4px rgba(0,0,0,0.05)",
@@ -252,7 +255,7 @@ function TemplatesPreview({ templates, time, config, onPick, selectedId }) {
                   style={{
                     fontSize: 10,
                     fontWeight: 600,
-                    color: "#111",
+                    color: "var(--color-gray-900)",
                     margin: 0,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -264,7 +267,7 @@ function TemplatesPreview({ templates, time, config, onPick, selectedId }) {
                 <span
                   style={{
                     fontSize: 8.5,
-                    color: "#94a3b8",
+                    color: "var(--color-gray-400)",
                     whiteSpace: "nowrap",
                     flexShrink: 0,
                   }}
@@ -280,9 +283,9 @@ function TemplatesPreview({ templates, time, config, onPick, selectedId }) {
       <div
         style={{
           padding: "8px 14px",
-          borderTop: "0.5px solid rgba(0,0,0,0.08)",
+          borderTop: "0.5px solid var(--color-gray-200)",
           fontSize: 11,
-          color: "#6b6b6b",
+          color: "var(--color-gray-500)",
           display: "flex",
           alignItems: "center",
           gap: 6,
@@ -346,9 +349,9 @@ function PreviewPanel({ result,
       style={{
         position: "absolute",
         inset: 16,
-        background: "#fff",
+        background: "var(--color-surface)",
         borderRadius: 14,
-        border: "0.5px solid rgba(0,0,0,0.08)",
+        border: "0.5px solid var(--color-gray-200)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -362,12 +365,12 @@ function PreviewPanel({ result,
             position: "sticky",
             top: 0,
             zIndex: 20,
-            background: "#fff",
+            background: "var(--color-surface)",
             padding: "10px 12px",
             display: "flex",
             justifyContent: "flex-end",
             gap: 10,
-            borderBottom: "1px solid #eee",
+            borderBottom: "1px solid var(--color-gray-200)",
             transform: "translateY(-10px)",
             animation: "slideDown 0.25s ease forwards",
           }}
@@ -404,9 +407,9 @@ function PreviewPanel({ result,
           <button className="hover:scale-95"
             onClick={() => setSelectedDesigns([])}
             style={{
-              background: "#f3f4f6",
-              color: "#111",
-              border: "1px solid #e5e7eb",
+              background: "var(--color-gray-100)",
+              color: "var(--color-gray-900)",
+              border: "1px solid var(--color-gray-200)",
               padding: "8px 10px",
               borderRadius: 10,
               fontSize: 12,
@@ -429,7 +432,9 @@ function PreviewPanel({ result,
           gap: 10,
           alignItems: "start",
           scrollbarWidth: "thin",
-          scrollbarColor: "rgba(0,0,0,0.08) transparent",
+          // A black-alpha thumb is invisible on the dark panel; gray-300 tracks
+          // the theme and stays subtle in light.
+          scrollbarColor: "var(--color-gray-300) transparent",
         }}
       >
         {variations.map((v) => {
@@ -446,8 +451,12 @@ function PreviewPanel({ result,
                     style={{
                       borderRadius: 12,
                       overflow: "hidden",
-                      background: "#fff",
-                      border: isSelected ? "2px solid #22c55e" : "1px solid #e5e7eb",
+                      background: "var(--color-surface)",
+                      // The selected green stays literal — it is a state colour,
+                      // not a theme one, and reads on both backgrounds.
+                      border: isSelected
+                        ? "2px solid #22c55e"
+                        : "1px solid var(--color-gray-200)",
                     }}
                   >
 
@@ -489,7 +498,7 @@ function PreviewPanel({ result,
 
                       {/* name + category row */}
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: "#111", margin: 0, lineHeight: 1.3 }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: "var(--color-gray-900)", margin: 0, lineHeight: 1.3 }}>
                           {v.name}
                         </p>
                         <span style={{
@@ -497,8 +506,8 @@ function PreviewPanel({ result,
                           fontWeight: 600,
                           padding: "2px 7px",
                           borderRadius: 20,
-                          background: "rgba(0,0,0,0.05)",
-                          color: "#666",
+                          background: "var(--color-gray-100)",
+                          color: "var(--color-gray-500)",
                           whiteSpace: "nowrap",
                           marginLeft: 6,
                           flexShrink: 0,
@@ -509,14 +518,14 @@ function PreviewPanel({ result,
 
                       {/* headline */}
                       {v.copy?.headline && (
-                        <p style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", margin: "0 0 2px", lineHeight: 1.35 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: "var(--color-gray-900)", margin: "0 0 2px", lineHeight: 1.35 }}>
                           {v.copy.headline}
                         </p>
                       )}
 
                       {/* tagline */}
                       {v.copy?.tagline && (
-                        <p style={{ fontSize: 9.5, color: "#64748b", margin: "0 0 6px", lineHeight: 1.4, fontStyle: "italic" }}>
+                        <p style={{ fontSize: 9.5, color: "var(--color-gray-500)", margin: "0 0 6px", lineHeight: 1.4, fontStyle: "italic" }}>
                           {v.copy.tagline}
                         </p>
                       )}
@@ -525,7 +534,7 @@ function PreviewPanel({ result,
                       {v.copy?.body && (
                         <p style={{
                           fontSize: 9,
-                          color: "#94a3b8",
+                          color: "var(--color-gray-400)",
                           margin: "0 0 8px",
                           lineHeight: 1.55,
                           display: "-webkit-box",
@@ -540,13 +549,18 @@ function PreviewPanel({ result,
                       {/* CTA + score row */}
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                         {v.copy?.cta && (
+                          // The CTA chip is deliberately the INVERSE of the
+                          // card it sits on, not a fixed near-black: gray-900
+                          // over surface keeps it dark-on-white in light and
+                          // flips to light-on-dark in dark, where a #0f172a
+                          // pill would have disappeared into the card.
                           <span style={{
                             fontSize: 8.5,
                             fontWeight: 700,
                             padding: "3px 9px",
                             borderRadius: 20,
-                            background: "#0f172a",
-                            color: "#fff",
+                            background: "var(--color-gray-900)",
+                            color: "var(--color-surface)",
                             whiteSpace: "nowrap",
                           }}>
                             {v.copy.cta}
@@ -577,9 +591,9 @@ function PreviewPanel({ result,
       <div
         style={{
           padding: "8px 14px",
-          borderTop: "0.5px solid rgba(0,0,0,0.08)",
+          borderTop: "0.5px solid var(--color-gray-200)",
           fontSize: 11,
-          color: "#6b6b6b",
+          color: "var(--color-gray-500)",
           display: "flex",
           alignItems: "center",
           gap: 6,
@@ -629,7 +643,10 @@ export default function AiCreativeChatPage() {
   const creativeType = searchParams.get("creative") || "general";
   const config = CREATIVE_CONFIG[creativeType] || CREATIVE_CONFIG.general;
   const Icon = config.icon;
-  const { color, colorRgb, colorLight } = config;
+  // `config.colorLight` is deliberately NOT pulled in: its opaque pastels
+  // (#eff6ff…) only work on a white chrome, so every hover in this file tints
+  // with `rgba(colorRgb, …)` instead, which holds up in both themes.
+  const { color, colorRgb } = config;
 
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -981,7 +998,7 @@ export default function AiCreativeChatPage() {
             ...(isDesktopSplit ? chatPaneProps.style : { width: "100%", flex: 1, minWidth: 0 }),
             display: isDesktopSplit || mobilePane === "chat" ? "flex" : "none",
             flexDirection: "column",
-            background: "#fff",
+            background: "var(--color-surface)",
           }}
         >
           {/* ── Header ── */}
@@ -991,8 +1008,8 @@ export default function AiCreativeChatPage() {
               display: "flex",
               alignItems: "center",
               gap: 10,
-              borderBottom: "0.5px solid rgba(0,0,0,0.08)",
-              background: "#fff",
+              borderBottom: "0.5px solid var(--color-gray-200)",
+              background: "var(--color-surface)",
               flexShrink: 0,
               zIndex: 10,
             }}
@@ -1004,23 +1021,28 @@ export default function AiCreativeChatPage() {
                 width: 28,
                 height: 28,
                 borderRadius: 8,
-                border: "0.5px solid rgba(0,0,0,0.1)",
-                background: "#f5f5f5",
+                border: "0.5px solid var(--color-gray-200)",
+                background: "var(--color-gray-100)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "#888",
+                color: "var(--color-gray-500)",
                 cursor: "pointer",
                 flexShrink: 0,
                 transition: "background 0.15s",
               }}
+              // Hover paints a TRANSLUCENT accent tint rather than the config's
+              // `colorLight` hex (#eff6ff and friends). Those are opaque pastels
+              // — a near-white block on the dark header. A 12% wash of the same
+              // accent reads on either surface, and matches the type icon tile
+              // immediately to the right, which already tints this way.
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = colorLight;
+                e.currentTarget.style.background = `rgba(${colorRgb},0.12)`;
                 e.currentTarget.style.color = color;
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#f5f5f5";
-                e.currentTarget.style.color = "#888";
+                e.currentTarget.style.background = "var(--color-gray-100)";
+                e.currentTarget.style.color = "var(--color-gray-500)";
               }}
             >
               <ArrowLeft style={{ width: 13, height: 13 }} />
@@ -1048,14 +1070,14 @@ export default function AiCreativeChatPage() {
                 style={{
                   fontSize: 13,
                   fontWeight: 700,
-                  color: "#0f0f0f",
+                  color: "var(--color-gray-900)",
                   margin: 0,
                   letterSpacing: "-0.01em",
                 }}
               >
                 {config.label}
               </p>
-              <p style={{ fontSize: 10, color: "#b0b0b0", margin: 0 }}>
+              <p style={{ fontSize: 10, color: "var(--color-gray-400)", margin: 0 }}>
                 Powered by CreativeKlux AI
               </p>
             </div>
@@ -1080,7 +1102,7 @@ export default function AiCreativeChatPage() {
                   display: "inline-block",
                 }}
               />
-              <span style={{ fontSize: 10, color: "#b0b0b0" }}>Online</span>
+              <span style={{ fontSize: 10, color: "var(--color-gray-400)" }}>Online</span>
             </div>
           </header>
 
@@ -1094,7 +1116,9 @@ export default function AiCreativeChatPage() {
               flexDirection: "column",
               gap: 14,
               scrollbarWidth: "thin",
-              scrollbarColor: "rgba(0,0,0,0.08) transparent",
+              // A black-alpha thumb is invisible on the dark panel; gray-300 tracks
+          // the theme and stays subtle in light.
+          scrollbarColor: "var(--color-gray-300) transparent",
             }}
           >
             {messages.map((msg, i) => (
@@ -1108,8 +1132,8 @@ export default function AiCreativeChatPage() {
           <div
             style={{
               padding: "10px 12px 14px",
-              background: "#fff",
-              borderTop: "0.5px solid rgba(0,0,0,0.07)",
+              background: "var(--color-surface)",
+              borderTop: "0.5px solid var(--color-gray-200)",
               flexShrink: 0,
             }}
           >
@@ -1140,7 +1164,10 @@ export default function AiCreativeChatPage() {
             minWidth: 0,
             display: isDesktopSplit || mobilePane === "preview" ? "flex" : "none",
             flexDirection: "column",
-            background: "#f5f5f5",
+            // The recessed layer BEHIND the floating preview card, so it takes
+            // --color-page (the app's page background) rather than a flat grey.
+            // That keeps it a step darker than the card in both themes.
+            background: "var(--color-page)",
             position: "relative",
             overflow: "hidden",
           }}

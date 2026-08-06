@@ -593,7 +593,7 @@ export default function SocialPublishing() {
                   style={
                     statusFilter === tab.key
                       ? { backgroundColor: BRAND, color: "#fff" }
-                      : { backgroundColor: "#f3f4f6", color: "#6b7280" }
+                      : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
                   }
                 >
                   {TAB_COUNTS[tab.key]}

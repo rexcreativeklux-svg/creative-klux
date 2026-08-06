@@ -8,7 +8,7 @@ import useKluxAi from "./useKluxAi";
 import { KLUX_ACTIONS } from "./kluxActions";
 
 // The "Edit with Ai" entry point drops the user straight into a redesign, so we
-// pre-fill the composer with the "Redesign this page" action's full prompt.
+// send the "Redesign this page" action's full prompt for them on arrival.
 // Sourced from KLUX_ACTIONS so the text stays single-defined.
 const REDESIGN_SEED =
   KLUX_ACTIONS.find((a) => a.id === "redesign")?.prompt ?? "";
@@ -20,12 +20,18 @@ const REDESIGN_SEED =
  * bottom. The actual assistant call lives behind runKluxAi() — this panel is the
  * chat surface around it.
  *
- * Props: { insert, setBackground, background, editor, kluxSeedRedesign }
+ * Props: { insert, setBackground, background, editor, kluxSeedRedesign,
+ * onKluxSeedUsed }
  */
-export default function KluxAiPanel({ editor, kluxSeedRedesign }) {
+export default function KluxAiPanel({
+  editor,
+  kluxSeedRedesign,
+  onKluxSeedUsed,
+}) {
   const klux = useKluxAi({
     editor,
-    initialInput: kluxSeedRedesign ? REDESIGN_SEED : "",
+    autoSendPrompt: kluxSeedRedesign ? REDESIGN_SEED : "",
+    onAutoSent: onKluxSeedUsed,
   });
   const started = klux.messages.length > 0 || klux.working;
 

@@ -1,11 +1,14 @@
 // app/(components)/studio/templatesApi.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Data layer for the rail under the Studio composer (home page). TWO sources,
-// one card contract — the tab row picks between them:
+// Data layer for the rail under the Studio composer (home page). THREE tabs
+// over TWO live sources, one card contract — the tab row picks between them:
 //
 //   "recent" → the signed-in brand's own saved designs, via AuthContext's
 //              fetchDesigns(). Private, needs a token AND an active brand.
 //   "klux"   → the public Scraive template pool (the endpoint below).
+//   "chats"  → past AI-chat sessions. NO SOURCE YET — the backend has no
+//              endpoint for it, so the tab renders an empty state and nothing
+//              is fetched. See CHAT_HISTORY_STATE for where it plugs in.
 //
 // Both are mapped onto the SAME normalized shape so TemplatesSection, the card
 // and the details modal never branch on where a row came from — except through
@@ -48,17 +51,43 @@
 // `pricing`, so normalizeDesign() derives those from the canvas instead.
 
 /**
- * The rail's tabs — each one now has a real source behind it (see the header).
+ * The rail's tabs. The first two have a real source behind them (see the
+ * header); "chats" does NOT yet — the backend has no chat-history endpoint, so
+ * that tab deliberately renders an empty state. See CHAT_HISTORY_STATE below
+ * for where the fetch plugs in once the endpoint exists.
+ *
  * @type {{id: string, label: string}[]}
  */
 export const TEMPLATE_TABS = [
-  { id: "klux", label: "Klux templates" },
-  { id: "recent", label: "Recent designs" },
+  { id: "klux", label: "Templates" },
+  { id: "recent", label: "Recent Saved Designs" },
+  { id: "chats", label: "Chat History" },
 ];
 
 /** Tab ids, so callers don't repeat the string literals. */
 export const TAB_RECENT = "recent";
 export const TAB_KLUX = "klux";
+export const TAB_CHATS = "chats";
+
+/**
+ * The Chat History tab's stand-in slice.
+ *
+ * There is no endpoint for past AI-chat sessions yet, so this tab is wired up
+ * end to end — tab button, empty panel, "Browse all" suppressed — around a
+ * source that is permanently empty rather than being left out of the rail. That
+ * way turning it on is a one-place change instead of a re-layout.
+ *
+ * ⚠️ WHEN THE ENDPOINT LANDS: a chat row is NOT a design. It has no
+ * `canvas`/`elements`, so it cannot go through the painting TemplateCard the
+ * other two tabs use — it needs its own card (title, last message, timestamp,
+ * a link into /studio/ai-chat-page) and its own normalizer alongside
+ * normalizeTemplate() / normalizeDesign(). Replace this constant with a
+ * fetchChatHistory() written to the same never-rejects contract as
+ * fetchRecentDesigns(), and give the rail a branch for `kind: "chat"`.
+ *
+ * @type {{status: "ok", items: object[]}}
+ */
+export const CHAT_HISTORY_STATE = { status: "ok", items: [] };
 
 /**
  * Query param that deep-links one template's details modal, e.g. `/?template=

@@ -302,7 +302,7 @@ export default function SocialContentCalendar() {
                   style={
                     statusFilter === tab.key
                       ? { backgroundColor: "#003dda", color: "#fff" }
-                      : { backgroundColor: "#f3f4f6", color: "#6b7280" }
+                      : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
                   }
                 >
                   {statusCounts[tab.key]}

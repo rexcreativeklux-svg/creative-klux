@@ -731,7 +731,7 @@ export const MAGIC_STUDIO_CONFIGS = {
       const payload = {
         tool: "image_to_variations",
         visual_style: values.style,
-        source_image: input,
+        image: input,
       };
       const data = await generateMagicStudio(payload);
       return normalizeMagicResponse(data, "image");

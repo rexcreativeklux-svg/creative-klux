@@ -154,16 +154,21 @@ function StatCard({ icon: Icon, label, value, sub, accent = false }) {
   );
 }
 
+/**
+ * Recharts renders its tooltip through inline styles, so it can carry no
+ * `dark:` class — the palette variables from globals.css are the only way it
+ * follows the theme. Each var resolves to the hex it replaced in light mode,
+ * and flips with the rest of the app in dark. */
 const CUSTOM_TOOLTIP_STYLE = {
   contentStyle: {
-    background: "#ffffff",
-    border: "1px solid #e5e7eb",
+    background: "var(--color-surface)",
+    border: "1px solid var(--color-gray-200)",
     borderRadius: 8,
     fontSize: 12,
     boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
   },
-  labelStyle: { color: "#111827", fontWeight: 600 },
-  itemStyle: { color: "#374151" },
+  labelStyle: { color: "var(--color-gray-900)", fontWeight: 600 },
+  itemStyle: { color: "var(--color-gray-700)" },
 };
 
 export default function SocialAnalytics() {

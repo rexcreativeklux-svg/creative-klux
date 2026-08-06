@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 
@@ -13,14 +13,20 @@ const nextMsgId = () => `m_${++__mid}`;
  * value, the working flag, and send/stop. The assistant call lives behind
  * runKluxAi so this hook stays about state, not transport.
  *
- * @param {{ editor?: { toDesign?: () => object }, initialInput?: string }} deps
+ * @param {{
+ *   editor?: { toDesign?: () => object },
+ *   autoSendPrompt?: string,
+ *   onAutoSent?: () => void,
+ * }} deps
  */
-export default function useKluxAi({ editor, initialInput = "" } = {}) {
+export default function useKluxAi({
+  editor,
+  autoSendPrompt = "",
+  onAutoSent,
+} = {}) {
   const { aiRedesign } = useAuth();
   const [messages, setMessages] = useState([]);
-  // Seeded from `initialInput` so an entry point (e.g. "Edit with Ai") can land
-  // the user in the composer with a starter prompt already typed.
-  const [input, setInput] = useState(initialInput);
+  const [input, setInput] = useState("");
   const [working, setWorking] = useState(false);
   const abortRef = useRef(null);
 
@@ -82,6 +88,26 @@ export default function useKluxAi({ editor, initialInput = "" } = {}) {
       abortRef.current = null;
     }
   };
+
+  // Auto-send: an entry point (e.g. "Edit with Ai") hands us a prompt to fire
+  // the moment the panel mounts, so the user lands in a redesign that is
+  // already running instead of a composer they still have to submit. The ref
+  // keeps it to a single turn — React StrictMode re-runs mount effects in dev,
+  // and one redesign request per entry is the whole point.
+  const autoSentRef = useRef(false);
+  useEffect(() => {
+    const seed = autoSendPrompt.trim();
+    if (!seed || autoSentRef.current) return;
+    autoSentRef.current = true;
+    console.log("✨ Klux AI: auto-sending the seeded prompt");
+    // Tell the owner the seed is spent before the (async) turn starts, so a
+    // remount of this panel doesn't hand us the same prompt again.
+    onAutoSent?.();
+    send(seed);
+    // Mount-only: the seed is a one-off hand-off from the entry point, not a
+    // reactive input, and `send` is re-created on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const stop = () => abortRef.current?.abort();
   const reset = () => {

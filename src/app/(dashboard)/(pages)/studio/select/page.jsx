@@ -48,7 +48,11 @@ const PIPELINE_OPTIONS = [
   // },
 ];
 
-/* ── Soft light canvas background ── */
+/* ── Soft ambient canvas background ─────────────────────────────────────────
+   Deliberately TRANSPARENT: it clears each frame and paints only the orbs and
+   dots, so the themed page background behind it (white in light, --color-page
+   in dark) is what shows through. Filling an opaque colour here would pin the
+   page to one theme — which is exactly what it used to do. */
 function LightCanvas() {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
@@ -95,8 +99,6 @@ function LightCanvas() {
       const w = W(),
         h = H();
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, w, h);
 
       orbs.forEach((orb) => {
         orb.ang += orb.spd;
@@ -150,9 +152,12 @@ export default function StudioSelectPage() {
     <div
       // No pb-nav: `main` in (dashboard)/layout.js already ends the scroll
       // viewport at the mobile bottom bar's top edge.
-      className="h-full"
+      //
+      // `dark:bg-page` (#0e0e11), NOT bg-surface: the cards below sit on
+      // --color-surface (#1c1c20 in dark), so the page has to be the DARKER
+      // layer or they'd disappear into it. loading.jsx carries the same pair.
+      className="h-full bg-white dark:bg-page"
       style={{
-        background: "#ffffff",
         position: "relative",
         overflow: "hidden",
         display: "flex",
@@ -174,11 +179,16 @@ export default function StudioSelectPage() {
         }}
       >
         {/* Headline */}
+        {/* Text colours move from inline styles to classes so the `.dark`
+            palette in globals.css can flip them — gray-900/500 resolve to the
+            same light hexes they replace (#0f172a → gray-900 is a shade off at
+            #101828-ish; the ramp is the app's own, so it matches every other
+            heading) and to near-white/soft-gray in dark. */}
         <h1
+          className="text-[#0f172a] dark:text-gray-900"
           style={{
             fontSize: "clamp(26px, 4vw, 46px)",
             fontWeight: 800,
-            color: "#0f172a",
             textAlign: "center",
             lineHeight: 1.1,
             margin: "0 0 12px",
@@ -186,17 +196,18 @@ export default function StudioSelectPage() {
           }}
         >
           What would you like to{" "}
-          <span className="bg-linear-to-r from-[#003dda] via-blue-300 to-blue-600 bg-clip-text text-transparent">
+          {/* #003dda is near-invisible on the dark page, so the ramp lifts to
+              the 400/500 blues there — same treatment as /changed. */}
+          <span className="bg-linear-to-r from-[#003dda] via-blue-300 to-blue-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-blue-500">
             Create
           </span>{" "}
           today?
         </h1>
 
         <p
-          className="pb-20"
+          className="pb-20 text-[#64748b] dark:text-gray-500"
           style={{
             fontSize: 14,
-            color: "#64748b",
             textAlign: "center",
             margin: "0 0 44px",
             letterSpacing: "0.01em",
@@ -241,7 +252,13 @@ export default function StudioSelectPage() {
                       ? `rgba(${opt.colorRgb}, 0.7)`
                       : `rgba(${opt.colorRgb}, 0.18)`
                   }`,
-                  background: isHov ? `rgba(${opt.colorRgb}, 0.03)` : "#ffffff",
+                  // Mix the accent INTO the themed surface rather than laying a
+                  // translucent tint over a hardcoded white — that way the
+                  // hover wash works on the light card (#ffffff) and the dark
+                  // one (#1c1c20) alike, with no second code path.
+                  background: isHov
+                    ? `color-mix(in srgb, rgb(${opt.colorRgb}) 3%, var(--color-surface))`
+                    : "var(--color-surface)",
                   cursor: "pointer",
                   transition: "all 0.2s cubic-bezier(0.4,0,0.2,1)",
                   boxShadow: isHov
@@ -293,10 +310,10 @@ export default function StudioSelectPage() {
                 <div style={{ paddingLeft: 14, flex: 1 }}>
                   {/* name */}
                   <p
+                    className="text-[#0f172a] dark:text-gray-900"
                     style={{
                       fontSize: 13.5,
                       fontWeight: 700,
-                      color: "#0f172a",
                       margin: "0 0 3px",
                       letterSpacing: "-0.01em",
                     }}
@@ -320,9 +337,9 @@ export default function StudioSelectPage() {
 
                   {/* description */}
                   <p
+                    className="text-[#64748b] dark:text-gray-500"
                     style={{
                       fontSize: 12,
-                      color: "#64748b",
                       margin: "0 0 10px",
                       lineHeight: 1.55,
                     }}

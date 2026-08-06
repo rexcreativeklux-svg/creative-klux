@@ -33,7 +33,10 @@ export default function KluxComposer({
         }}
         rows={2}
         placeholder="Describe your idea"
-        className="w-full resize-none bg-transparent text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none"
+        // hide-scrollbar: a long prompt still scrolls with the caret/wheel, but
+        // the chunky OS bar (with stepper arrows) no longer sits inside the
+        // composer's rounded frame.
+        className="w-full resize-none bg-transparent text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none hide-scrollbar"
       />
       <div className="mt-1 flex items-center justify-between">
         <button

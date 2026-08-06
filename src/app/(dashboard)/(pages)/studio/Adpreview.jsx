@@ -157,8 +157,11 @@ function DesignResultPanel({
           alignItems: "center",
           justifyContent: "space-between",
           padding: "10px 14px",
-          borderBottom: "1px solid #f0f0f0",
-          background: "#fff",
+          // Palette vars throughout this file: every surface here is styled
+          // inline, so a `dark:` class is not an option and the hexes were
+          // pinning the whole result panel to a light chrome.
+          borderBottom: "1px solid var(--color-gray-200)",
+          background: "var(--color-surface)",
           flexShrink: 0,
           zIndex: 10,
         }}
@@ -174,11 +177,11 @@ function DesignResultPanel({
               gap: 5,
               padding: "5px 10px",
               borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: "#fafafa",
+              border: "1px solid var(--color-gray-200)",
+              background: "var(--color-gray-100)",
               fontSize: 12,
               fontWeight: 500,
-              color: "#555",
+              color: "var(--color-gray-600)",
               cursor: "pointer",
             }}
           >
@@ -196,7 +199,7 @@ function DesignResultPanel({
                   : "0 0 0 3px rgba(34,197,94,0.18)",
               }}
             />
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#555" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-gray-600)" }}>
               {isLoadingMore
                 ? `Generating ${variations.length} of ${expectedCount} designs…`
                 : `${variations.length} designs ready`}
@@ -212,11 +215,11 @@ function DesignResultPanel({
             style={{
               padding: "5px 10px",
               borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: "#fff",
+              border: "1px solid var(--color-gray-200)",
+              background: "var(--color-surface)",
               fontSize: 11,
               fontWeight: 500,
-              color: "#555",
+              color: "var(--color-gray-600)",
               cursor: "pointer",
             }}
           >
@@ -241,11 +244,11 @@ function DesignResultPanel({
                     gap: 5,
                     padding: "5px 10px",
                     borderRadius: 8,
-                    border: "1px solid #e5e7eb",
-                    background: "#fff",
+                    border: "1px solid var(--color-gray-200)",
+                    background: "var(--color-surface)",
                     fontSize: 11,
                     fontWeight: 500,
-                    color: "#555",
+                    color: "var(--color-gray-600)",
                     cursor: "pointer",
                   }}
                 >
@@ -309,10 +312,12 @@ function DesignResultPanel({
                 marginBottom: 10,
                 borderRadius: 12,
                 overflow: "hidden",
+                // The selected green stays literal — a state colour, legible
+                // against either background.
                 border: isSelected
                   ? "2px solid #22c55e"
-                  : "1.5px solid #e5e7eb",
-                background: "#fff",
+                  : "1.5px solid var(--color-gray-200)",
+                background: "var(--color-surface)",
                 cursor: "pointer",
                 position: "relative",
                 boxShadow: isSelected
@@ -331,8 +336,8 @@ function DesignResultPanel({
                   width: 18,
                   height: 18,
                   borderRadius: "50%",
-                  background: isSelected ? "#22c55e" : "rgba(255,255,255,0.92)",
-                  border: isSelected ? "none" : "1.5px solid #d1d5db",
+                  background: isSelected ? "#22c55e" : "var(--color-surface)",
+                  border: isSelected ? "none" : "1.5px solid var(--color-gray-300)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -349,7 +354,9 @@ function DesignResultPanel({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: "#f4f5f8",
+                  // The mat the rendered design sits on — a step back from the
+                  // card, so it takes the page token rather than a fixed grey.
+                  background: "var(--color-page)",
                   padding: 8,
                 }}
               >
@@ -370,7 +377,7 @@ function DesignResultPanel({
                     style={{
                       fontSize: 10,
                       fontWeight: 700,
-                      color: "#111",
+                      color: "var(--color-gray-900)",
                       margin: 0,
                       flex: 1,
                       minWidth: 0,
@@ -387,8 +394,8 @@ function DesignResultPanel({
                       fontWeight: 600,
                       padding: "1px 6px",
                       borderRadius: 20,
-                      background: "#f3f4f6",
-                      color: "#777",
+                      background: "var(--color-gray-100)",
+                      color: "var(--color-gray-500)",
                       marginLeft: 4,
                       flexShrink: 0,
                     }}
@@ -402,7 +409,7 @@ function DesignResultPanel({
                     style={{
                       fontSize: 10,
                       fontWeight: 700,
-                      color: "#0f172a",
+                      color: "var(--color-gray-900)",
                       margin: "0 0 2px",
                       lineHeight: 1.3,
                       overflow: "hidden",
@@ -419,7 +426,7 @@ function DesignResultPanel({
                   <p
                     style={{
                       fontSize: 9,
-                      color: "#64748b",
+                      color: "var(--color-gray-500)",
                       margin: "0 0 5px",
                       fontStyle: "italic",
                       overflow: "hidden",
@@ -448,8 +455,12 @@ function DesignResultPanel({
                         fontWeight: 700,
                         padding: "2px 8px",
                         borderRadius: 20,
-                        background: "#0f172a",
-                        color: "#fff",
+                        // Inverse of the card rather than a fixed near-black,
+                        // so the chip keeps its contrast in dark instead of
+                        // sinking into the card. Same treatment as the chat
+                        // page's CTA chip.
+                        background: "var(--color-gray-900)",
+                        color: "var(--color-surface)",
                         whiteSpace: "nowrap",
                       }}
                     >
@@ -493,7 +504,9 @@ function DesignResultPanel({
               className="mb-2.5 overflow-hidden rounded-xl border border-gray-200 bg-surface"
               style={{ breakInside: "avoid" }}
             >
-              <div className="bg-[#f4f5f8] p-2">
+              {/* bg-page, not a fixed grey — mirrors the real card's canvas mat
+                  above, so the skeleton doesn't flash a light block in dark. */}
+              <div className="bg-page p-2">
                 {/* image placeholder — left-to-right shimmer sweep */}
                 <div className="relative w-full aspect-square overflow-hidden rounded-md bg-gray-300">
                   <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.9)_50%,transparent_100%)] animate-[shimmer-slide_1.5s_ease-in-out_infinite]" />
@@ -586,10 +599,10 @@ const AdPreview = ({
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          background: "#fafafa",
+          background: "var(--color-page)",
           borderRadius: 16,
           overflow: "hidden",
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--color-gray-200)",
         }}
       >
         <DesignResultPanel
@@ -781,7 +794,7 @@ const AdPreview = ({
         </div>
       </div>
 
-      <div className="flex items-center justify-center bg-[#f0f2f7] rounded-xl p-5 min-h-[280px]">
+      <div className="flex items-center justify-center bg-page rounded-xl p-5 min-h-[280px]">
         <div
           className="relative w-full overflow-hidden rounded-xl shadow-lg"
           style={{ maxWidth: 400, aspectRatio: getAspectRatio() }}

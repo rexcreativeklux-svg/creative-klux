@@ -104,6 +104,12 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   // Seeded from `initialPanel` so an entry point (e.g. "Edit with Ai") can deep-
   // link straight into a panel like Klux AI; falls back to the templates panel.
   const [activePanel, setActivePanel] = useState(initialPanel || "templates");
+  // The "Edit with Ai" deep link auto-sends its redesign prompt the first time
+  // the Klux panel mounts. The sidebar unmounts a panel when you switch rail
+  // tabs, so "already sent" has to be remembered here — otherwise coming back
+  // to the Klux tab would fire a second redesign request.
+  const [kluxSeedUsed, setKluxSeedUsed] = useState(false);
+  const markKluxSeedUsed = useCallback(() => setKluxSeedUsed(true), []);
   // Descriptor for the contextual Color panel: which element props the picked
   // colour writes to. Set when a swatch in the context bar is clicked.
   const [colorTarget, setColorTarget] = useState(null);
@@ -855,9 +861,21 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     });
   };
 
-  const insertImageUrl = (src) => {
+  /**
+   * Drop a hosted image onto the canvas: centred, on top of the stack, sized to
+   * a fraction of the artboard while keeping its own aspect.
+   *
+   * @param {string} src Image URL.
+   * @param {{ offsetIndex?: number }} [opts] `offsetIndex` cascades the placement
+   *   by a small step so a batch (e.g. four Magic Studio results inserted at
+   *   once) lands as a readable stagger instead of one perfectly hidden pile.
+   */
+  const insertImageUrl = (src, { offsetIndex = 0 } = {}) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
+    // ~3% of the artboard's short side — visible on a 1080px canvas, still
+    // proportional on a tiny one.
+    const step = offsetIndex * Math.round(Math.min(canvas.width, canvas.height) * 0.03);
     const place = (natW, natH) => {
       const maxW = canvas.width * 0.6;
       const ratio = natH && natW ? natH / natW : 1;
@@ -866,8 +884,8 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
       addElement({
         type: "image",
         src,
-        x: cx() - w / 2,
-        y: cy() - h / 2,
+        x: cx() - w / 2 + step,
+        y: cy() - h / 2 + step,
         width: w,
         height: h,
       });
@@ -1225,7 +1243,8 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
           setTool={setTool}
           active={activePanel}
           onActiveChange={setActivePanel}
-          kluxSeedRedesign={initialPanel === "klux"}
+          kluxSeedRedesign={initialPanel === "klux" && !kluxSeedUsed}
+          onKluxSeedUsed={markKluxSeedUsed}
           colorTarget={colorTarget}
           onPlayAnimation={playAnimations}
           imageActions={{

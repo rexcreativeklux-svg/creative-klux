@@ -220,12 +220,16 @@ function PulseGauge({ value }) {
     // color stops along the gauge
     const gaugeColor = value < 40 ? "#ef4444" : value < 60 ? "#f59e0b" : value < 80 ? PRIMARY : "#10b981";
 
+    // SVG paint attributes take the palette vars rather than fixed hexes: the
+    // rest of this page is already on the gray-* ramp, so the gauge was the one
+    // piece that stayed near-black-on-dark. `gaugeColor` stays literal — those
+    // are status colours, not theme colours.
     return (
         <svg width="140" height="140" viewBox="0 0 140 140">
-            <path d={trackPath} fill="none" stroke="#f1f5f9" strokeWidth="12" strokeLinecap="round" />
+            <path d={trackPath} fill="none" stroke="var(--color-gray-100)" strokeWidth="12" strokeLinecap="round" />
             <path d={fillPath} fill="none" stroke={gaugeColor} strokeWidth="12" strokeLinecap="round" />
-            <text x="70" y="66" textAnchor="middle" fontSize="24" fontWeight="700" fill="#111827">{value}%</text>
-            <text x="70" y="84" textAnchor="middle" fontSize="11" fill="#6b7280" letterSpacing="1">NORMAL</text>
+            <text x="70" y="66" textAnchor="middle" fontSize="24" fontWeight="700" fill="var(--color-gray-900)">{value}%</text>
+            <text x="70" y="84" textAnchor="middle" fontSize="11" fill="var(--color-gray-500)" letterSpacing="1">NORMAL</text>
         </svg>
     );
 }

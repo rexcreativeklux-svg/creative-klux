@@ -19,8 +19,12 @@ export default function AiChatTypingIndicator({ config }) {
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.1)",
+          // These were WHITE-alpha fills — left over from a dark mock, which
+          // made the avatar and bubble all but invisible on the light chat
+          // pane. The palette's raised-grey gives them a real edge in both
+          // themes and matches the assistant bubble they precede.
+          background: "var(--color-gray-100)",
+          border: "1px solid var(--color-gray-200)",
         }}
       >
         <img
@@ -39,14 +43,16 @@ export default function AiChatTypingIndicator({ config }) {
         style={{
           padding: "14px 18px",
           borderRadius: "18px 18px 18px 4px",
-          background: "rgba(255,255,255,0.055)",
-          border: "1px solid rgba(255,255,255,0.09)",
+          background: "var(--color-gray-100)",
+          border: "1px solid var(--color-gray-200)",
           backdropFilter: "blur(12px)",
           WebkitBackdropFilter: "blur(12px)",
           display: "flex",
           alignItems: "center",
           gap: 5,
-          boxShadow: "0 2px 16px rgba(0,0,0,0.3)",
+          // Was 0.3 — sized for a dark mock, where it read as depth. Over a
+          // light pane that is a smudge, so it drops to the app's card weight.
+          boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
         }}
       >
         {[0, 1, 2].map((i) => (

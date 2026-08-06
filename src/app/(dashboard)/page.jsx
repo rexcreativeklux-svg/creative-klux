@@ -77,7 +77,8 @@ export default function Home() {
    * fallback below covers the case where a blocker still refuses.
    *
    * Klux templates do NOT come through here: the modal's button saves them into
-   * the user's designs in place (TemplatesSection.saveTemplate) and stays put.
+   * the user's designs (TemplatesSection.saveTemplate) and reports back through
+   * `onSaved` → handleTemplateSaved below.
    * The chat-page fallback at the end only runs for a row that somehow arrived
    * with no `href`, so the button can never be a no-op.
    *
@@ -106,8 +107,33 @@ export default function Home() {
   };
 
   /**
+   * A Klux template was just copied into the brand's designs — send the user to
+   * their library so the fresh copy is on screen instead of only being promised
+   * by a toast.
+   *
+   * Same tab, not a new one: this is the user's own library rather than an
+   * editor session, so the home page is left behind (and the browser's Back
+   * button returns to it) instead of piling up a second tab.
+   *
+   * The "saved" toast fires in TemplatesSection just before this and outlives
+   * the navigation — sonner's <Toaster> is mounted once in the root layout — so
+   * it is still on screen when /creatives paints.
+   *
+   * @param {{title: string}} item The template that was saved.
+   */
+  const handleTemplateSaved = (item) => {
+    console.log(`🗂️ [home] "${item.title}" saved → /creatives`);
+    router.push("/creatives");
+  };
+
+  /**
    * "Browse all" — the rail says which tab is open, because the user's own
    * designs and the public template pool live on different routes.
+   *
+   * The rail's third tab (Chat History) never reaches this: it has no route to
+   * browse to yet, so TemplatesSection hides the button on it entirely. Add the
+   * destination here at the same time as that tab gets its endpoint.
+   *
    * @param {string} tabId One of TEMPLATE_TABS' ids.
    */
   const handleBrowseAll = (tabId) => {
@@ -155,9 +181,7 @@ export default function Home() {
           quick-start cards, which keep their own height at the foot. That split
           is what puts the cards just above the rail without pinning them there —
           see the ⚠️ note in QuickStartCards.jsx. */}
-      <section
-        className="relative flex min-h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav)-4rem)] flex-col pt-[clamp(1.5rem,7vh,5rem)] lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))]"
-      >
+      <section className="relative flex min-h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav)-4rem)] flex-col pt-[clamp(1.5rem,7vh,5rem)] lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))]">
         {/* Eighteen still band-and-pattern treatments — grids, graph paper,
             contours, soft glows — all on the app's blue ramp, differing by form
             rather than hue, cross-faded one into the next every five hours. It
@@ -181,7 +205,11 @@ export default function Home() {
               </h1>
             )}
             <h2 className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900">
-              What will you create next?
+              What will you{" "}
+              <span className="bg-linear-to-r from-[#003dda] via-blue-300 to-blue-600 bg-clip-text text-transparent">
+                Create
+              </span>{" "}
+              next?
             </h2>
           </header>
 
@@ -210,6 +238,7 @@ export default function Home() {
       {/* Template rails — full-bleed, deliberately outside the wrapper above */}
       <TemplatesSection
         onSelect={handleOpenDesign}
+        onSaved={handleTemplateSaved}
         onBrowseAll={handleBrowseAll}
       />
     </div>

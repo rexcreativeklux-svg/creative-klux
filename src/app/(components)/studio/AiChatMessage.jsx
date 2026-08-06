@@ -73,7 +73,7 @@ function MessageContent({ content, color }) {
           code: (props) => (
             <code
               style={{
-                background: "rgba(0,0,0,0.06)",
+                background: "var(--color-gray-100)",
                 padding: "1px 5px",
                 borderRadius: 4,
                 fontSize: 11.5,
@@ -86,7 +86,7 @@ function MessageContent({ content, color }) {
           pre: (props) => (
             <pre
               style={{
-                background: "rgba(0,0,0,0.06)",
+                background: "var(--color-gray-100)",
                 padding: "10px 12px",
                 borderRadius: 8,
                 margin: "0 0 8px",
@@ -99,16 +99,16 @@ function MessageContent({ content, color }) {
           blockquote: (props) => (
             <blockquote
               style={{
-                borderLeft: "3px solid rgba(0,0,0,0.12)",
+                borderLeft: "3px solid var(--color-gray-300)",
                 margin: "0 0 8px",
                 paddingLeft: 10,
-                color: "#4b5563",
+                color: "var(--color-gray-600)",
               }}
               {...props}
             />
           ),
           hr: (props) => (
-            <hr style={{ border: "none", borderTop: "1px solid #e5e7eb", margin: "10px 0" }} {...props} />
+            <hr style={{ border: "none", borderTop: "1px solid var(--color-gray-200)", margin: "10px 0" }} {...props} />
           ),
         }}
       >
@@ -202,16 +202,19 @@ export default function AiChatMessage({ message, config }) {
           padding: "11px 14px",
           fontSize: 12.5,
           lineHeight: 1.65,
-          color: "#111827",
+          color: "var(--color-gray-900)",
           borderRadius: isUser
             ? "16px 16px 4px 16px"
             : "16px 16px 16px 4px",
+          // The user bubble was already a translucent accent wash, so it needed
+          // nothing; the assistant's flat #f8fafc is what pinned the thread to a
+          // light chrome, and becomes the palette's raised-grey instead.
           background: isUser
             ? `linear-gradient(135deg, rgba(${colorRgb}, 0.12) 0%, rgba(${colorRgb}, 0.07) 100%)`
-            : "#f8fafc",
+            : "var(--color-gray-100)",
           border: isUser
             ? `1px solid rgba(${colorRgb}, 0.25)`
-            : "1px solid #e9ecef",
+            : "1px solid var(--color-gray-200)",
         }}
       >
         {/* Files ride ABOVE the text — you see what was sent before reading it,
@@ -242,9 +245,15 @@ export default function AiChatMessage({ message, config }) {
                 right: 0,
                 bottom: 0,
                 height: 36,
-                background: `linear-gradient(to bottom, rgba(${
-                  isUser ? "255,255,255" : "248,250,252"
-                },0), rgba(${isUser ? "255,255,255" : "248,250,252"},0.95))`,
+                // The fade has to land on whatever the bubble behind it is, so
+                // it can no longer name a literal white/slate. The user bubble
+                // ends its wash at 7% accent over the surface — color-mix
+                // reproduces exactly that; the assistant's is the flat grey.
+                background: `linear-gradient(to bottom, transparent, ${
+                  isUser
+                    ? `color-mix(in srgb, rgb(${colorRgb}) 7%, var(--color-surface))`
+                    : "var(--color-gray-100)"
+                })`,
                 pointerEvents: "none",
               }}
             />
@@ -280,7 +289,7 @@ export default function AiChatMessage({ message, config }) {
               width: "100%",
               maxWidth: 300,
               objectFit: "cover",
-              border: "1px solid #e9ecef",
+              border: "1px solid var(--color-gray-200)",
             }}
           />
         )}
@@ -313,7 +322,7 @@ export default function AiChatMessage({ message, config }) {
                   ? "#22c55e"
                   : isUser
                     ? `rgba(${colorRgb}, 0.6)`
-                    : "#9ca3af",
+                    : "var(--color-gray-400)",
               }}
             >
               {copied ? (
@@ -326,7 +335,7 @@ export default function AiChatMessage({ message, config }) {
           <span
             style={{
               fontSize: 10,
-              color: isUser ? `rgba(${colorRgb}, 0.55)` : "#9ca3af",
+              color: isUser ? `rgba(${colorRgb}, 0.55)` : "var(--color-gray-400)",
             }}
           >
             {message.timestamp

@@ -5,13 +5,26 @@ import { Square, RectangleVertical, RectangleHorizontal } from "lucide-react";
  * UI and the (future) generation request read from one list.
  */
 
-// The generation modes, mirroring Canva's Magic Media tabs. Only "images" is
-// wired today; the rest are placeholders until their pipelines are pasted in.
+/**
+ * The panel's tabs.
+ *
+ * `tool` is the Magic Studio backend config id (see MAGIC_STUDIO_CONFIGS in
+ * src/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs.jsx). A tab with a
+ * `tool` is LIVE — it runs the same generate + history endpoints as the Magic
+ * Studio page, via MagicToolTab. A tab with `tool: null` is a placeholder that
+ * still runs on the local stub generators in this folder, so it explains itself
+ * ("isn't connected yet") instead of calling the backend.
+ *
+ * Video tools are deliberately absent: the editor composes a design to a static
+ * image and has no video element, so a generated clip has nowhere to land (the
+ * same rule the uploads panel states in useMediaInsert).
+ */
 export const MAGIC_TABS = [
-  { id: "images", label: "Images" },
-  { id: "graphics", label: "Graphics" },
-  { id: "videos", label: "Videos" },
-  { id: "3d", label: "3D" },
+  { id: "images", label: "Images", tool: "text_to_image" },
+  { id: "variations", label: "Variations", tool: "image_to_variations" },
+  { id: "persona", label: "Persona", tool: "persona_generator" },
+  { id: "graphics", label: "Graphics", tool: null },
+  { id: "3d", label: "3D", tool: null },
 ];
 
 // Visual styles the prompt can be biased toward. `id` is what the request sends;

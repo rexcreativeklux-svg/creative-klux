@@ -2,7 +2,10 @@
 
 // /studio/select — loading UI.
 // Full-bleed (see NO_PADDING_ROUTES): a centred headline over a single row of
-// pipeline cards, on the page's own white canvas rather than bg-page.
+// pipeline cards, on the page's own canvas.
+//
+// ⚠️ The background pair MUST stay identical to page.jsx's root
+// (`bg-white dark:bg-page`), or the canvas changes tone on hand-off.
 
 import Skeleton from "@/app/(components)/skeletons/Skeleton";
 
@@ -11,7 +14,7 @@ const PIPELINE_CARDS = 4;
 
 export default function Loading() {
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-surface">
+    <div className="relative flex h-full flex-col overflow-hidden bg-white dark:bg-page">
       <div className="relative z-1 flex flex-1 flex-col items-center pt-40">
         {/* Headline + sub */}
         <Skeleton className="h-9 w-[min(560px,90%)] rounded-lg" />

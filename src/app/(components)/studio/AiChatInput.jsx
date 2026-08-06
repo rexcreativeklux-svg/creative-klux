@@ -100,8 +100,10 @@ export default function AiChatInput({
       <div
         style={{
           borderRadius: 14,
-          border: `1.5px solid ${focused ? `rgba(${colorRgb}, 0.6)` : "#e5e7eb"}`,
-          background: "#fff",
+          // Palette vars, not hexes — this shell is styled inline so it can
+          // carry no `dark:` class, and it used to pin the composer to white.
+          border: `1.5px solid ${focused ? `rgba(${colorRgb}, 0.6)` : "var(--color-gray-200)"}`,
+          background: "var(--color-surface)",
           transition: "border-color 0.2s, box-shadow 0.2s",
           boxShadow: focused ? `0 0 0 3px rgba(${colorRgb}, 0.1)` : "none",
         }}
@@ -192,7 +194,7 @@ export default function AiChatInput({
               resize: "none",
               fontSize: 12.5,
               lineHeight: 1.6,
-              color: "#111827",
+              color: "var(--color-gray-900)",
               padding: "2px 0",
               minHeight: MIN_INPUT_HEIGHT,
               maxHeight: MAX_INPUT_HEIGHT,
@@ -219,8 +221,8 @@ export default function AiChatInput({
             border: "none",
             background: canSend
               ? `linear-gradient(135deg, ${color} 0%, rgba(${colorRgb}, 0.75) 100%)`
-              : "#f1f5f9",
-            color: canSend ? "#fff" : "#9ca3af",
+              : "var(--color-gray-100)",
+            color: canSend ? "#fff" : "var(--color-gray-400)",
             cursor: canSend ? "pointer" : "not-allowed",
             opacity: canSend ? 1 : 0.6,
             transition: "all 0.15s",
@@ -262,9 +264,10 @@ export default function AiChatInput({
           fontWeight: voiceStatus ? 600 : 400,
           color: voiceStatus
             ? voiceStatus.tone === "recording"
+              // Recording red stays literal — a state colour, legible on both.
               ? "#ef4444"
-              : "#6b7280"
-            : "#9ca3af",
+              : "var(--color-gray-500)"
+            : "var(--color-gray-400)",
         }}
       >
         {voiceStatus ? voiceStatus.text : "Enter to send · Shift+Enter for new line"}

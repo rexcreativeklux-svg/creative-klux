@@ -306,12 +306,15 @@ export default function CompetitorInsights() {
                         width={55}
                       />
                       <Tooltip
+                        // Palette vars, not hexes: Recharts styles the tooltip
+                        // inline so it can carry no `dark:` class. Each var is
+                        // the same colour in light and flips in dark.
                         contentStyle={{
-                          background: "#fff",
-                          border: "1px solid #e5e7eb",
+                          background: "var(--color-surface)",
+                          border: "1px solid var(--color-gray-200)",
                           borderRadius: 8,
                           fontSize: 12,
-                          color: "#374151",
+                          color: "var(--color-gray-700)",
                         }}
                       />
                       <Bar dataKey="value" fill={COLORS.accent} radius={[0, 4, 4, 0]} />
@@ -363,12 +366,15 @@ export default function CompetitorInsights() {
                       <XAxis dataKey="age" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                       <YAxis hide />
                       <Tooltip
+                        // Palette vars, not hexes: Recharts styles the tooltip
+                        // inline so it can carry no `dark:` class. Each var is
+                        // the same colour in light and flips in dark.
                         contentStyle={{
-                          background: "#fff",
-                          border: "1px solid #e5e7eb",
+                          background: "var(--color-surface)",
+                          border: "1px solid var(--color-gray-200)",
                           borderRadius: 8,
                           fontSize: 12,
-                          color: "#374151",
+                          color: "var(--color-gray-700)",
                         }}
                       />
                       <Bar dataKey="percent" fill={COLORS.accent} radius={[4, 4, 0, 0]} />

@@ -344,20 +344,48 @@ const Sidebar = ({
   // ── Apps/Copilot tab switcher ──────────────────────────────────
   // Expanded: a segmented pill control. Collapsed: two stacked icon buttons
   // (labels come from the shared hover tooltip).
+  //
+  // Each tab is a real link to that tab's home — picking a tab both flips the
+  // nav list AND lands you on its landing page, instead of leaving you on the
+  // previous tab's page looking at a list you have to click again. `home` is
+  // read from the lists above (`appsItems`/`copilotItems` first entry) so a
+  // renamed route cannot leave a tab pointing somewhere stale.
+  //
+  // <Link> rather than a button: it keeps prefetch, middle-click and
+  // ctrl+click working. `setActiveTab` still fires on click so the pill
+  // highlights immediately — the route-following effect below would otherwise
+  // only catch up once the navigation commits.
   const tabDefs = [
-    { id: "apps", label: "Designs", icon: LayoutGrid },
-    { id: "copilot", label: "Copilot", icon: Bot },
+    {
+      id: "apps",
+      label: "Designs",
+      icon: LayoutGrid,
+      home: appsItems[0].href,
+    },
+    {
+      id: "copilot",
+      label: "Copilot",
+      icon: Bot,
+      home: copilotItems[0].href,
+    },
   ];
+
+  // Flip the pill straight away, and let the drawer close behind the link.
+  const handleTabClick = (id) => {
+    setActiveTab(id);
+    onNavigate?.();
+  };
 
   const renderTabs = () =>
     isOpen ? (
       <div className="grid grid-cols-2 gap-1 p-1 rounded-xl border border-gray-200 bg-gray-100">
-        {tabDefs.map(({ id, label, icon: Icon }) => {
+        {tabDefs.map(({ id, label, icon: Icon, home }) => {
           const active = activeTab === id;
           return (
-            <button
+            <Link
               key={id}
-              onClick={() => setActiveTab(id)}
+              href={home}
+              onClick={() => handleTabClick(id)}
               className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] cursor-pointer transition-all duration-150
                 ${active ? "bg-surface text-gray-900 font-semibold shadow-sm" : "text-gray-500 font-medium hover:text-gray-900"}`}
             >
@@ -365,18 +393,19 @@ const Sidebar = ({
                 className={`h-4 w-4 shrink-0 ${active ? "text-blue-600" : ""}`}
               />
               {label}
-            </button>
+            </Link>
           );
         })}
       </div>
     ) : (
       <div className="flex flex-col gap-1 p-1 rounded-xl border border-gray-200 bg-gray-100">
-        {tabDefs.map(({ id, label, icon: Icon }) => {
+        {tabDefs.map(({ id, label, icon: Icon, home }) => {
           const active = activeTab === id;
           return (
-            <button
+            <Link
               key={id}
-              onClick={() => setActiveTab(id)}
+              href={home}
+              onClick={() => handleTabClick(id)}
               onMouseEnter={(e) => showTip(e, label, active)}
               onMouseLeave={hideTip}
               onFocus={(e) => showTip(e, label, active)}
@@ -387,7 +416,7 @@ const Sidebar = ({
               <Icon
                 className={`h-4 w-4 shrink-0 ${active ? "text-blue-600" : "text-gray-500"}`}
               />
-            </button>
+            </Link>
           );
         })}
       </div>

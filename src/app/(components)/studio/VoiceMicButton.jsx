@@ -20,6 +20,23 @@ import { Loader2, Mic, Square } from "lucide-react";
 const SIZES = {
   sm: { button: "h-[34px] w-[34px]", icon: "h-3.5 w-3.5", stop: "h-3 w-3" },
   md: { button: "h-8 w-8", icon: "h-4 w-4", stop: "h-3.5 w-3.5" },
+  lg: { button: "h-9 w-9", icon: "h-4 w-4", stop: "h-3.5 w-3.5" },
+};
+
+/**
+ * Outline of the button when it is idle. "square" is the original and stays the
+ * default so the chat input is untouched; "round" is the outlined circle the
+ * home composer pairs with its attach and send buttons.
+ *
+ * Neither applies while a take is RECORDING — that state is a filled red pill in
+ * both shapes, and an outline on top of a solid fill only muddies it.
+ */
+const SHAPES = {
+  square: { idle: "rounded-lg hover:bg-gray-100", recording: "rounded-lg" },
+  round: {
+    idle: "rounded-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+    recording: "rounded-full",
+  },
 };
 
 /**
@@ -27,11 +44,19 @@ const SIZES = {
  * @param {{listening: boolean, transcribing: boolean}} props.voice The
  *   useVoiceInput() return value — only the two flags are read.
  * @param {() => void} props.onToggle Start or stop the take.
- * @param {"sm"|"md"} [props.size] Visual scale. Default "md".
+ * @param {"sm"|"md"|"lg"} [props.size] Visual scale. Default "md".
+ * @param {"square"|"round"} [props.shape] Outline. Default "square".
  * @param {boolean} [props.disabled] Force-disable (e.g. while a reply streams).
  */
-export default function VoiceMicButton({ voice, onToggle, size = "md", disabled = false }) {
+export default function VoiceMicButton({
+  voice,
+  onToggle,
+  size = "md",
+  shape = "square",
+  disabled = false,
+}) {
   const metrics = SIZES[size] || SIZES.md;
+  const outline = SHAPES[shape] || SHAPES.square;
   const { listening, transcribing } = voice;
   const label = listening ? "Stop recording" : "Dictate your message";
 
@@ -42,12 +67,12 @@ export default function VoiceMicButton({ voice, onToggle, size = "md", disabled 
       disabled={transcribing || disabled}
       aria-label={label}
       title={label}
-      className={`flex shrink-0 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed ${
+      className={`flex shrink-0 items-center justify-center transition-colors disabled:cursor-not-allowed ${
         metrics.button
       } ${
         listening
-          ? "bg-red-500 text-white hover:bg-red-600 cursor-pointer"
-          : "text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40 cursor-pointer"
+          ? `${outline.recording} bg-red-500 text-white hover:bg-red-600 cursor-pointer`
+          : `${outline.idle} text-gray-500 hover:text-gray-900 disabled:opacity-40 cursor-pointer`
       }`}
     >
       {transcribing ? (

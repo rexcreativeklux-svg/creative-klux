@@ -20,23 +20,32 @@
 // presentational and never touches the API itself; TemplatesSection owns that
 // and reports back through `busy`.
 //
-// Layout (desktop first, two columns; stacks into a full-height sheet on small
-// screens):
+// Layout (desktop first; the whole dialog is ONE vertical scroller, and the two
+// columns of the top band stack into a full-height sheet on small screens):
 //
 //   ┌──────────────────────────────┬───────────────────────┐
-//   │                              │ Title, badges         │  ← scrolls
+//   │                              │ Title, badges         │
 //   │        big preview           │ [ Use this template ] │
-//   │   (repainted at high res)    │ summary + tags        │
-//   │                              │ Specs …               │
-//   │                              │ ■ More like this ▫▫▫  │
-//   │                              ├───────────────────────┤
-//   │                              │ ■ Share  🔗 ✉ f in    │  ← pinned
-//   └──────────────────────────────┴───────────────────────┘
+//   │   (repainted at high res,    │ summary + tags        │
+//   │    sticky while you scroll)  │ Specs …               │
+//   │                              │ ■ Share  🔗 ✉ f in    │
+//   ├──────────────────────────────┴───────────────────────┤
+//   │ ■ More like this                                     │
+//   ├──────────────┬──────────────┬────────────────────────┤
+//   │     card     │     card     │        card            │
+//   └──────────────┴──────────────┴────────────────────────┘
 //
-// "More like this" is three sibling cards, chosen by pickRelatedItems() from
-// rows the parent already holds — the public pool for a template, the brand's
-// own designs for a design. Clicking one swaps the modal over to it (`item`
-// changes, everything below re-derives), so the strip is a browse loop rather
+// "More like this" is a FULL-WIDTH band across the bottom, and it renders the
+// very same <TemplateCard> the home rail does — same artwork, same badge, same
+// "View details" chip — in the same divided grid. That is deliberate: the card
+// lives in TemplateCard.jsx precisely so these two places cannot drift apart.
+// There is no author, rating or install count on any of them because no source
+// sends those fields (see the note below, and the one in TemplateCard.jsx).
+//
+// Its three siblings are chosen by pickRelatedItems() from rows the parent
+// already holds — the public pool for a template, the brand's own designs for a
+// design. Clicking one swaps the modal over to it (`item` changes, everything
+// re-derives) and scrolls back to the top, so the band is a browse loop rather
 // than a dead end. See the RELATED_WEIGHTS note in templatesApi.js for what
 // counts as related, and why a template with no real match still gets cards.
 //
@@ -54,29 +63,24 @@
 // never opens empty.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Check,
-  ImageIcon,
-  Link2,
-  Loader2,
-  Mail,
-  PenLine,
-  Save,
-  X,
-} from "lucide-react";
+import { Check, Link2, Loader2, Mail, PenLine, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
+import TemplateCard, { GUTTER, TemplateCardGrid } from "./TemplateCard";
 import { buildTemplateShareQuery } from "./templatesApi";
 
 /** Longest edge of the modal's own preview paint. Card previews are 480. */
 const PREVIEW_MAX_DIM = 1400;
 
-/**
- * Longest edge of a "More like this" thumbnail. Those tiles are ~105-120 px
- * wide on every breakpoint (three across a column that is at most 400 px), so
- * 360 covers a 2× screen with room to spare and keeps the data URL tiny.
- */
-const RELATED_MAX_DIM = 360;
+// ⚠️ DESKTOP HEIGHT OF THE TOP BAND — `min(70vh,600px)` — is spelled out twice
+// below, as `lg:h-[…]` on the preview pane and `lg:min-h-[…]` on the details
+// column beside it, and THE TWO MUST STAY EQUAL. Matching them is what makes
+// the rule between the columns run the full band even when the details are
+// short, and what stops the sticky preview from outgrowing its own row.
+// It can't live in a constant: Tailwind only generates a utility it can find
+// spelled out in the source, so a class built by interpolation produces no CSS.
+// It is deliberately shorter than the panel (min(88vh,780px)) so the "More like
+// this" band below peeks into view and says there is more to scroll to.
 
 /** Plural-aware label for one element type, e.g. 3 → "3 text blocks". */
 const ELEMENT_LABELS = {
@@ -263,9 +267,9 @@ export default function TemplateDetailsModal({
   onClose,
 }) {
   const panelRef = useRef(null);
-  // The scrolling half of the details column, so swapping to a sibling can send
-  // the reader back to the title instead of leaving them mid-specs.
-  const detailsScrollRef = useRef(null);
+  // The dialog's single scroller, so swapping to a sibling can send the reader
+  // back to the title instead of leaving them down in the card band.
+  const scrollRef = useRef(null);
   // The high-res paint, tagged with the template it belongs to: { key, src }.
   // Tagging (rather than clearing on every open) is what keeps the effect below
   // free of a synchronous setState — a stale paint is filtered out on read.
@@ -287,12 +291,13 @@ export default function TemplateDetailsModal({
     if (item) panelRef.current?.focus();
   }, [item]);
 
-  // A "More like this" click swaps `item` without unmounting the panel, so the
-  // scroll position would otherwise survive into a design the reader hasn't
-  // seen the top of yet. Jumping (not smooth-scrolling) matches the instant
-  // content swap — an animated scroll would just chase it.
+  // A "More like this" click swaps `item` without unmounting the panel, and the
+  // band lives at the BOTTOM of the dialog — so without this the reader would
+  // stay parked on the cards, never seeing the item they just opened. Jumping
+  // (not smooth-scrolling) matches the instant content swap — an animated
+  // scroll would just chase it.
   useEffect(() => {
-    if (item) detailsScrollRef.current?.scrollTo({ top: 0 });
+    if (item) scrollRef.current?.scrollTo({ top: 0 });
   }, [item]);
 
   // Repaint the design large. The card's low-res preview holds the space until
@@ -445,7 +450,7 @@ export default function TemplateDetailsModal({
         // settling in, far too slow for a dialog answering a click. Its
         // reduced-motion override in globals.css still applies.
         style={{ animationDuration: "0.28s" }}
-        className="animate-hero-in relative flex h-full w-full flex-col overflow-hidden bg-surface shadow-2xl outline-none sm:h-[min(88vh,780px)] sm:max-w-6xl sm:rounded-2xl lg:flex-row"
+        className="animate-hero-in relative flex h-full w-full flex-col overflow-hidden bg-surface shadow-2xl outline-none sm:h-[min(88vh,780px)] sm:max-w-6xl sm:rounded-2xl"
       >
         {/* Close — sits over the panel's top-right corner on every breakpoint */}
         <button
@@ -457,282 +462,209 @@ export default function TemplateDetailsModal({
           <X className="h-4 w-4" />
         </button>
 
-        {/* ── Preview ─────────────────────────────────────────────────────
-            Capped on mobile so the details below always have room; free to
-            fill the column on desktop. */}
-        <div className="relative flex h-[38vh] shrink-0 items-center justify-center bg-page p-4 sm:h-[42vh] lg:h-auto lg:min-h-0 lg:flex-1 lg:p-8">
-          {src ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={src}
-              alt={item.title}
-              className="max-h-full max-w-full rounded-lg object-contain shadow-lg"
-            />
-          ) : (
-            <div className="flex flex-col items-center gap-2 text-gray-400">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-xs">Painting preview…</span>
-            </div>
-          )}
-        </div>
-
-        {/* ── Details column ──────────────────────────────────────────────
-            A flex column: the middle scrolls, the Share block below it is
-            pinned to the bottom edge. */}
-        <div className="flex min-h-0 flex-1 flex-col border-t border-gray-200 lg:w-100 lg:flex-none lg:border-l lg:border-t-0">
-          <div
-            ref={detailsScrollRef}
-            className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-6"
-          >
-            {/* Title + badges */}
-            <h2
-              id="template-details-title"
-              className="pr-8 text-xl font-bold leading-snug tracking-tight text-gray-900"
-            >
-              {item.title}
-            </h2>
-
-            <div className="mt-2.5 flex flex-wrap items-center gap-2">
-              {/* Templates carry a tier; a saved design is simply the user's. */}
-              <span
-                className={`rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-                  item.premium
-                    ? "bg-gray-900 text-surface"
-                    : "bg-blue-500/10 text-blue-600"
-                }`}
-              >
-                {isDesign ? "Your design" : item.premium ? "Premium" : "Free"}
-              </span>
-              {item.format && (
-                <span className="text-[13px] text-gray-500">{item.format}</span>
-              )}
-              {formatSize(item) && (
-                <>
-                  <span aria-hidden="true" className="h-1 w-1 rounded-full bg-gray-300" />
-                  <span className="text-[13px] text-gray-500">{formatSize(item)}</span>
-                </>
-              )}
-            </div>
-
-            {/* Primary action. A design opens; a template is copied into the
-                user's designs and the modal reports back with a toast. */}
-            <button
-              type="button"
-              onClick={handleUse}
-              disabled={busy}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-surface transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-            >
-              {busy ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving…
-                </>
-              ) : isDesign ? (
-                <>
-                  <PenLine className="h-4 w-4" />
-                  Open in editor
-                </>
+        {/* The dialog's ONE scroller — the top band and the card band below it
+            move together, so there is never a second scrollbar to hunt for. */}
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+          {/* ── Top band: preview + details ───────────────────────────────
+              `items-start` (not stretch) is what lets the preview stick: a
+              stretched flex child fills the row and has nowhere to travel. */}
+          <div className="flex flex-col lg:flex-row lg:items-start">
+            {/* ── Preview ───────────────────────────────────────────────
+                Capped on mobile so the details below always have room. On
+                desktop it pins to the top of the scroller, so the artwork
+                stays on screen while the reader works down the specs and
+                only slides away once the card band arrives. */}
+            <div className="relative flex h-[38vh] shrink-0 items-center justify-center bg-page p-4 sm:h-[42vh] lg:sticky lg:top-0 lg:h-[min(70vh,600px)] lg:flex-1 lg:p-8">
+              {src ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={src}
+                  alt={item.title}
+                  className="max-h-full max-w-full rounded-lg object-contain shadow-lg"
+                />
               ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Save to Designs
-                </>
+                <div className="flex flex-col items-center gap-2 text-gray-400">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-xs">Painting preview…</span>
+                </div>
               )}
-            </button>
+            </div>
 
-            {/* Summary — generated from the row's fields (see header note) */}
-            <p className="mt-5 text-[13.5px] leading-relaxed text-gray-600">{summary}</p>
+            {/* ── Details column ────────────────────────────────────────
+                No scroller of its own any more — it simply grows, and the
+                dialog scrolls. `lg:min-h-[…]` matches the preview's height
+                (see the note at the top of this file). */}
+            <div className="w-full border-t border-gray-200 px-5 py-6 sm:px-6 lg:w-100 lg:shrink-0 lg:min-h-[min(70vh,600px)] lg:border-l lg:border-t-0">
+              {/* Title + badges */}
+              <h2
+                id="template-details-title"
+                className="pr-8 text-xl font-bold leading-snug tracking-tight text-gray-900"
+              >
+                {item.title}
+              </h2>
 
-            {/* Tags */}
-            {tags.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-1.5">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-md border border-gray-200 px-2 py-1 text-[11.5px] font-medium text-gray-600"
-                  >
-                    {tag}
-                  </span>
-                ))}
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                {/* Templates carry a tier; a saved design is simply the user's. */}
+                <span
+                  className={`rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
+                    item.premium
+                      ? "bg-gray-900 text-surface"
+                      : "bg-blue-500/10 text-blue-600"
+                  }`}
+                >
+                  {isDesign ? "Your design" : item.premium ? "Premium" : "Free"}
+                </span>
+                {item.format && (
+                  <span className="text-[13px] text-gray-500">{item.format}</span>
+                )}
+                {formatSize(item) && (
+                  <>
+                    <span aria-hidden="true" className="h-1 w-1 rounded-full bg-gray-300" />
+                    <span className="text-[13px] text-gray-500">{formatSize(item)}</span>
+                  </>
+                )}
               </div>
-            )}
 
-            {/* Specs */}
-            {specs.length > 0 && (
-              <div className="mt-6">
+              {/* Primary action. A design opens; a template is copied into the
+                  user's designs and the modal reports back with a toast. */}
+              <button
+                type="button"
+                onClick={handleUse}
+                disabled={busy}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-surface transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+              >
+                {busy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : isDesign ? (
+                  <>
+                    <PenLine className="h-4 w-4" />
+                    Open in editor
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Save to Designs
+                  </>
+                )}
+              </button>
+
+              {/* Summary — generated from the row's fields (see header note) */}
+              <p className="mt-5 text-[13.5px] leading-relaxed text-gray-600">{summary}</p>
+
+              {/* Tags */}
+              {tags.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-md border border-gray-200 px-2 py-1 text-[11.5px] font-medium text-gray-600"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Specs */}
+              {specs.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="flex items-center gap-2 text-[13px] font-semibold text-gray-900">
+                    <span aria-hidden="true" className="h-2 w-2 bg-blue-600" />
+                    Specs
+                  </h3>
+                  <dl className="mt-3 divide-y divide-gray-200 border-t border-gray-200">
+                    {specs.map((spec) => (
+                      <div
+                        key={spec.label}
+                        className="flex items-baseline justify-between gap-4 py-2.5"
+                      >
+                        <dt className="text-[13px] text-gray-500">{spec.label}</dt>
+                        <dd className="text-right text-[13px] font-medium text-gray-900">
+                          {spec.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
+
+              {/* ── Share ───────────────────────────────────────────────
+                  In the column's flow now rather than pinned to its bottom
+                  edge: the dialog scrolls as one page, so there is no fixed
+                  edge left to pin anything to. */}
+              <div className="mt-7 border-t border-gray-200 pt-5">
                 <h3 className="flex items-center gap-2 text-[13px] font-semibold text-gray-900">
                   <span aria-hidden="true" className="h-2 w-2 bg-blue-600" />
-                  Specs
+                  Share
                 </h3>
-                <dl className="mt-3 divide-y divide-gray-200 border-t border-gray-200">
-                  {specs.map((spec) => (
-                    <div
-                      key={spec.label}
-                      className="flex items-baseline justify-between gap-4 py-2.5"
+                <div className="mt-3 flex items-center gap-2">
+                  {shareActions.map(({ key, label, icon: Icon, onClick }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={onClick}
+                      aria-label={label}
+                      title={label}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
                     >
-                      <dt className="text-[13px] text-gray-500">{spec.label}</dt>
-                      <dd className="text-right text-[13px] font-medium text-gray-900">
-                        {spec.value}
-                      </dd>
-                    </div>
+                      <Icon className="h-4 w-4" />
+                    </button>
                   ))}
-                </dl>
+                </div>
               </div>
-            )}
+            </div>
+          </div>
 
-            {/* ── More like this ──────────────────────────────────────────
-                Three across on every breakpoint. The column is at most 400px
-                on desktop and the full sheet width on mobile, so the tiles
-                land between ~105px and ~120px either way — small, but the
-                same size everywhere, which is what keeps the row tidy on a
-                phone. Below the grid, only the title and format are shown;
-                anything more would wrap at that width. */}
-            {related.length > 0 && (
-              <div className="mt-7">
+          {/* ── More like this ─────────────────────────────────────────────
+              A full-width band under both columns, rendering the SAME
+              <TemplateCard> as the home rail in the SAME divided grid — see
+              the diagram at the top of this file. Three siblings, so the grid
+              tops out at three columns instead of the rail's four.
+
+              The grid pulls itself a hairline past its own box on two edges —
+              `-mr-px` to swallow the right-most column's divider, `-mb-px` to
+              swallow the last row's, which would otherwise land just above the
+              panel's rounded bottom edge. In the rail those overhangs spill
+              onto the page harmlessly; in here the dialog's scroller would
+              answer the 1px with a horizontal scrollbar, so the band clips
+              them with `overflow-hidden`.
+
+              A card here paints itself lazily, exactly as it does in the rail:
+              the band opens below the fold, and its previews render as the
+              reader scrolls down to them. */}
+          {related.length > 0 && (
+            <div className="overflow-hidden border-t border-gray-200">
+              <div className={`flex items-center py-4 ${GUTTER}`}>
                 <h3 className="flex items-center gap-2 text-[13px] font-semibold text-gray-900">
                   <span aria-hidden="true" className="h-2 w-2 bg-blue-600" />
                   More like this
                 </h3>
-                <div className="mt-3 grid grid-cols-3 gap-2.5 sm:gap-3">
-                  {related.map((relatedItem) => (
-                    <RelatedCard
-                      key={relatedItem.id}
-                      item={relatedItem}
-                      onOpen={onSelectRelated}
-                    />
-                  ))}
-                </div>
               </div>
-            )}
-          </div>
 
-          {/* ── Share — pinned to the bottom of the details column ──────── */}
-          <div className="shrink-0 border-t border-gray-200 bg-surface px-5 py-4 sm:px-6">
-            <h3 className="flex items-center gap-2 text-[13px] font-semibold text-gray-900">
-              <span aria-hidden="true" className="h-2 w-2 bg-blue-600" />
-              Share
-            </h3>
-            <div className="mt-3 flex items-center gap-2">
-              {shareActions.map(({ key, label, icon: Icon, onClick }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={onClick}
-                  aria-label={label}
-                  title={label}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
-                >
-                  <Icon className="h-4 w-4" />
-                </button>
-              ))}
+              <TemplateCardGrid
+                columns="sm:grid-cols-2 lg:grid-cols-3"
+                className="-mb-px"
+              >
+                {related.map((relatedItem) => (
+                  // No `onItemMenu`: there is nothing to manage from inside a
+                  // dialog, and omitting it drops the "…" button entirely.
+                  // onSelectRelated takes (item, previewSrc) — the same shape
+                  // the rail's own card click uses, so the painted preview
+                  // rides across into the modal it re-points.
+                  <TemplateCard
+                    key={relatedItem.id}
+                    item={relatedItem}
+                    onOpenDetails={onSelectRelated}
+                  />
+                ))}
+              </TemplateCardGrid>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
-  );
-}
-
-/**
- * One tile in the "More like this" strip.
- *
- * Paints on mount rather than behind an IntersectionObserver like the rail's
- * cards do: there are only ever three of them, they're small, and they live
- * inside a dialog the user has already opened — the deferral the rail needs
- * (twelve cards sitting below the fold of a page nobody may scroll) buys
- * nothing here, and waiting for a scroll would leave the strip visibly empty
- * the moment it comes into view.
- *
- * A real <button>, unlike the rail's card: nothing interactive is nested
- * inside it, so it doesn't need the hand-rolled keyboard handling. Its
- * children are <span>s for the same reason — a <button> may only contain
- * phrasing content.
- *
- * @param {object} props
- * @param {object} props.item The sibling row, in the normalized card shape.
- * @param {(item: object, previewSrc: string|null) => void} [props.onOpen]
- */
-function RelatedCard({ item, onOpen }) {
-  const [src, setSrc] = useState(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      try {
-        const dataUrl = await renderDesignToThumbnail(
-          { canvas: item.canvas, elements: item.elements },
-          { maxDim: RELATED_MAX_DIM },
-        );
-        if (!alive) return;
-
-        if (dataUrl) {
-          setSrc(dataUrl);
-          return;
-        }
-        // renderDesignToThumbnail swallows its own errors and returns null.
-        console.warn(`⚠️ [template-details] couldn't paint related "${item.title}"`);
-        if (item.thumbnail) setSrc(item.thumbnail);
-        else setFailed(true);
-      } catch (err) {
-        if (!alive) return;
-        console.error(
-          `❌ [template-details] related preview failed for "${item.title}":`,
-          err,
-        );
-        setFailed(true);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [item]);
-
-  return (
-    <button
-      type="button"
-      // The painted preview rides along, so the modal it opens shows artwork
-      // straight away instead of the "Painting preview…" spinner.
-      onClick={() => onOpen?.(item, src)}
-      title={item.title}
-      aria-label={`View details for ${item.title}`}
-      className="group flex flex-col text-left cursor-pointer"
-    >
-      <span className="relative block aspect-4/3 w-full overflow-hidden rounded-lg border border-gray-200 bg-[#eff6ff8f] transition-colors group-hover:border-gray-300">
-        {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt={item.title}
-            loading="lazy"
-            className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.05]"
-          />
-        ) : failed ? (
-          <span className="flex h-full w-full items-center justify-center">
-            <ImageIcon className="h-4 w-4 text-gray-400" />
-          </span>
-        ) : (
-          <span className="block h-full w-full animate-pulse bg-gray-200/60" />
-        )}
-
-        {/* Abbreviated to "Pro" — "Premium" doesn't fit a ~105px tile. Same
-            gray-900 / text-surface pairing as the rail's badge, so it stays
-            legible when the theme flips. */}
-        {item.premium && (
-          <span className="absolute left-1 top-1 rounded bg-gray-900/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-surface backdrop-blur-sm">
-            Pro
-          </span>
-        )}
-      </span>
-
-      <span className="mt-1.5 block truncate text-[12px] font-medium leading-snug text-gray-900 transition-colors group-hover:text-blue-600">
-        {item.title}
-      </span>
-      {item.format && (
-        <span className="block truncate text-[11px] text-gray-500">{item.format}</span>
-      )}
-    </button>
   );
 }

@@ -27,7 +27,7 @@
 // it can be dropped onto another surface unchanged. Text is required — images
 // alone can't be sent, because the API's `message` is `required|string`.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
   ArrowUp,
   FileText,
@@ -110,25 +110,45 @@ const DEFAULT_MAX_HEIGHT = 200;
 const NO_AUTOFOCUS_QUERY = "(pointer: coarse), (max-width: 1023px)";
 
 /**
- * The panel's two skins. Each variant replaces the border/background/shadow set
+ * The panel's skins. Each variant replaces the border/background/shadow set
  * wholesale rather than appending to it — two background utilities at equal
  * specificity would otherwise be decided by Tailwind's emit order, which the
- * call site can't control.
+ * call site can't control. `field` is the prompt's type scale, kept in the same
+ * table so the placeholder overlay can't drift from the textarea it stands in
+ * for.
  *
  *   solid  the original card. Opaque, at rest on a plain page.
  *   glass  floats over artwork: translucent and blurred, so the backdrop shows
  *          through while the text on top stays fully legible.
+ *   inset  lives INSIDE a ComposerShell tray. No border and NO shadow in either
+ *          state, because the tray around it already draws both — a second edge
+ *          6px inside the first is what makes an assembly look like two things
+ *          stacked instead of one object. Opaque, so the tray's translucent rim
+ *          reads as a rim rather than as more of the same panel.
  */
 const PANEL_VARIANTS = {
   solid: {
     base: "rounded-2xl border bg-surface transition-shadow duration-200",
     focused: "border-blue-500/60 shadow-[0_8px_30px_rgba(0,61,218,0.10)]",
     resting: "border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.05)]",
+    field: "text-sm",
   },
   glass: {
     base: "rounded-[20px] border bg-surface/72 backdrop-blur-2xl transition-all duration-300",
     focused: "border-blue-500/45 shadow-[0_28px_70px_-24px_rgba(0,61,218,0.42)]",
-    resting: "border-gray-200/70 shadow-[0_22px_60px_-28px_rgba(15,23,42,0.40)]",
+    // NO shadow at rest, on purpose: the panel should sit flat in the hero and
+    // only lift once the user is actually typing in it. `base` transitions
+    // `all`, so the shadow grows in rather than snapping on at focus.
+    resting: "border-gray-200/70",
+    field: "text-sm",
+  },
+  inset: {
+    // Radius = the tray's 21px minus its 6px padding, so the two curves are
+    // concentric. Change one and change the other.
+    base: "rounded-[15px] bg-surface",
+    focused: "",
+    resting: "",
+    field: "text-[15px]",
   },
 };
 
@@ -140,7 +160,17 @@ const PANEL_VARIANTS = {
  *   always ignored on a touch/mobile viewport (see NO_AUTOFOCUS_QUERY).
  * @param {number} [props.rows]       Resting height of the prompt box, in rows.
  * @param {number} [props.maxHeight]  Growth ceiling in px before it scrolls.
- * @param {"solid"|"glass"} [props.variant] Panel skin — see PANEL_VARIANTS.
+ * @param {"solid"|"glass"|"inset"} [props.variant] Panel skin — see PANEL_VARIANTS.
+ * @param {(focused: boolean) => void} [props.onFocusedChange] Told whenever the
+ *   prompt gains or loses focus. `inset` draws no focus state of its own, so the
+ *   shell around it is what reacts — this is the wire between the two.
+ * @param {React.Ref<{setPrompt: (text: string) => void, appendPrompt: (text: string) => void, clear: () => void, focus: () => void}>} [props.ref]
+ *   Optional handle for a parent that needs to WRITE into the box — the home
+ *   page's "Active Brand" tab seeds it with the brand's details and clears it
+ *   again on the way out, and its starter-prompt chips append to it.
+ *   Deliberately imperative rather than a `value`/`onChange` pair: the prompt is
+ *   this component's own state on every other surface, and lifting it would make
+ *   every call site responsible for it.
  */
 export default function PromptComposer({
   onSubmit,
@@ -149,6 +179,8 @@ export default function PromptComposer({
   rows = 3,
   maxHeight = DEFAULT_MAX_HEIGHT,
   variant = "solid",
+  onFocusedChange,
+  ref,
 }) {
   const [value, setValue] = useState("");
   const [model, setModel] = useState(MODEL_OPTIONS[0].id);
@@ -166,6 +198,66 @@ export default function PromptComposer({
     });
   const voice = useVoiceInput({ onText: setValue });
   const voiceStatus = describeVoiceState(voice);
+
+  // What the box is prompting with right now — dictation takes over the line
+  // while the mic is live, whatever the call site passed. The home page's tabs
+  // change it on every switch; the fade that carries that change is a `key` on
+  // the placeholder span, so it costs no state and no timer (see the render).
+  const wantedPlaceholder = voice.listening
+    ? "Listening — start speaking…"
+    : placeholder;
+
+  /**
+   * Focus the prompt and park the caret at the end of whatever is in it.
+   *
+   * Deferred by a frame on purpose: React has not committed the new value at
+   * the point the writers below call this, so setSelectionRange run now would
+   * measure the PREVIOUS text and leave the caret short of the end.
+   */
+  const caretToEnd = () => {
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    });
+  };
+
+  // Let a parent write into the box. Only mounted when the call site passes a
+  // ref; every other surface keeps the prompt as private state.
+  useImperativeHandle(
+    ref,
+    () => ({
+      /** Replace the prompt, focus it, and drop the caret at the end. */
+      setPrompt(text) {
+        setValue(String(text ?? "").slice(0, MAX_CHAT_MESSAGE));
+        caretToEnd();
+      },
+      /**
+       * Add to the prompt instead of replacing it — on its own line when there
+       * is already something there. This is what a starter prompt uses, so
+       * picking one while the brand's details are seeded in the box adds to them
+       * rather than throwing the user's context away.
+       */
+      appendPrompt(text) {
+        const addition = String(text ?? "").trim();
+        if (!addition) return;
+        setValue((current) => {
+          const next = current.trim() ? `${current.trimEnd()}\n${addition}` : addition;
+          return next.slice(0, MAX_CHAT_MESSAGE);
+        });
+        caretToEnd();
+      },
+      /** Empty the prompt. Attachments are left alone — they are the user's. */
+      clear() {
+        setValue("");
+      },
+      focus() {
+        textareaRef.current?.focus();
+      },
+    }),
+    [],
+  );
 
   // Auto-grow the textarea with its content, up to a readable ceiling.
   // `rows`/`maxHeight` are in the deps so a page that changes either still
@@ -266,23 +358,58 @@ export default function PromptComposer({
           </div>
         )}
 
-        {/* Prompt */}
-        <textarea
-          ref={textareaRef}
-          rows={rows}
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          placeholder={voice.listening ? "Listening — start speaking…" : placeholder}
-          maxLength={MAX_CHAT_MESSAGE}
-          style={{ maxHeight }}
-          className="w-full resize-none bg-transparent px-4 pt-4 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400"
-        />
+        {/* Prompt.
+            The placeholder is a SIBLING SPAN, not the textarea's own attribute:
+            a native ::placeholder can change colour but it cannot cross-fade
+            between two different strings, and the home page's tabs swap the line
+            on every switch. The textarea therefore carries an aria-label instead
+            — which is the better label for a screen reader either way — and the
+            span is aria-hidden so the line is never announced twice.
+            Positioned to the textarea's own text origin (px-4 / pt-4) and given
+            the same size and leading, so it sits exactly where typing starts. */}
+        <div className="relative">
+          <textarea
+            ref={textareaRef}
+            rows={rows}
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => {
+              setFocused(true);
+              onFocusedChange?.(true);
+            }}
+            onBlur={() => {
+              setFocused(false);
+              onFocusedChange?.(false);
+            }}
+            aria-label={wantedPlaceholder}
+            maxLength={MAX_CHAT_MESSAGE}
+            style={{ maxHeight }}
+            className={`w-full resize-none bg-transparent px-4 pt-4 leading-relaxed text-gray-900 outline-none ${panel.field}`}
+          />
 
-        {/* Toolbar */}
-        <div className="flex items-center gap-1.5 px-2.5 pb-2.5 pt-1.5">
+          {!value && (
+            // `key` is the whole animation: change the line and React swaps the
+            // element, so the new one plays ck-fade-in from scratch. No state,
+            // no timer, and nothing to clean up when the user switches tabs
+            // faster than the fade can finish.
+            <span
+              key={wantedPlaceholder}
+              aria-hidden="true"
+              className={`animate-ck-fade-in pointer-events-none absolute left-4 right-4 top-4 line-clamp-2 leading-relaxed text-gray-400 ${panel.field}`}
+            >
+              {wantedPlaceholder}
+            </span>
+          )}
+        </div>
+
+        {/* Toolbar.
+            Attach, mic and send are ROUND — outlined circles for the two that
+            only offer something, a filled one for send, which is the only
+            control here that commits anything. The model and mode menus stay
+            plain text triggers so the three circles read as the toolbar's
+            actions and the two menus as its settings. */}
+        <div className="flex items-center gap-2 px-3 pb-3 pt-1.5">
           {/* Attach */}
           <button
             type="button"
@@ -290,7 +417,7 @@ export default function PromptComposer({
             disabled={uploading}
             aria-label="Attach images from your device"
             title={`Attach images (up to ${MAX_CHAT_IMAGES})`}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
           >
             {uploading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -299,7 +426,7 @@ export default function PromptComposer({
             )}
           </button>
 
-          <span className="mx-0.5 h-5 w-px shrink-0 bg-gray-200" />
+          <span className="h-5 w-px shrink-0 bg-gray-200" />
 
           {/* Model */}
           <ComposerDropdown
@@ -324,7 +451,12 @@ export default function PromptComposer({
           />
 
           {/* Voice */}
-          <VoiceMicButton voice={voice} onToggle={() => voice.toggle(value)} size="md" />
+          <VoiceMicButton
+            voice={voice}
+            onToggle={() => voice.toggle(value)}
+            size="lg"
+            shape="round"
+          />
 
           {/* Send */}
           <button
@@ -332,9 +464,9 @@ export default function PromptComposer({
             onClick={handleSubmit}
             disabled={!canSubmit}
             aria-label="Start creating"
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all ${
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all ${
               canSubmit
-                ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700 cursor-pointer"
+                ? "bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
                 : "bg-gray-100 text-gray-400 cursor-not-allowed"
             }`}
           >

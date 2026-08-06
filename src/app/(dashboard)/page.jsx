@@ -27,20 +27,98 @@
 // Colours come from the app's theme tokens (bg-page / bg-surface / gray-*), so
 // light and dark both follow the user's chosen theme with no per-mode overrides.
 
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import ComposerShell from "@/app/(components)/studio/ComposerShell";
 import PromptComposer from "@/app/(components)/studio/PromptComposer";
 import TemplatesSection from "@/app/(components)/studio/TemplatesSection";
 import RotatingHeroBackdrop from "@/app/(components)/home/RotatingHeroBackdrop";
 import QuickStartCards from "@/app/(components)/home/QuickStartCards";
+import HomePromptSuggestions from "@/app/(components)/home/HomePromptSuggestions";
+import {
+  HOME_COMPOSER_TABS,
+  TAB_BRAND,
+  buildBrandPrompt,
+  placeholderForTab,
+} from "@/app/(components)/home/homeComposerTabs";
 
 /** The chat page's own pipeline key — see CREATIVE_CONFIG in ai-chat-page. */
 const DEFAULT_CREATIVE = "general";
 
 export default function Home() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, activeBrand, brandsLoading } = useAuth();
+
+  // ── The composer's tab strip ───────────────────────────────────────────────
+  // ⚠️ THE SELECTED TAB IS NOT PART OF THE SUBMIT PAYLOAD YET. It changes the
+  // placeholder, and on "Active Brand" it seeds the prompt with the brand's
+  // details — nothing more. handleSubmit below is untouched by it on purpose;
+  // where each tab's details belong in the request is a separate, deliberate
+  // step still to come.
+  const [composerTab, setComposerTab] = useState(HOME_COMPOSER_TABS[0].id);
+  // The composer owns its own text; this is the handle it exposes so the brand
+  // tab can write into it and take that text back out again.
+  const composerRef = useRef(null);
+  // Focus lives up here because the SHELL is what reacts to it: the assembly
+  // lifts as one object when the user starts typing, instead of the input
+  // growing a shadow inside the tray that already surrounds it.
+  const [composerFocused, setComposerFocused] = useState(false);
+
+  /**
+   * Switch tabs, and do that tab's one job to the prompt box:
+   *   Active Brand  → fill the box with the active brand's details
+   *   anything else → if we're LEAVING Active Brand, take those details back out
+   *
+   * The clear is unconditional by design: the seeded block belongs to that tab,
+   * so it leaves with it whether or not the user edited it. Switching between
+   * Web App and Mobile App never touches the text — neither of them put any
+   * there.
+   *
+   * @param {string} tabId One of HOME_COMPOSER_TABS' ids.
+   */
+  const handleTabChange = (tabId) => {
+    const leaving = composerTab;
+    setComposerTab(tabId);
+
+    if (tabId === TAB_BRAND) {
+      if (brandsLoading) {
+        console.log("⏳ [home] brands still loading — nothing to seed yet");
+        toast.info("Still loading your brands — try that again in a moment.");
+        return;
+      }
+      const details = buildBrandPrompt(activeBrand);
+      if (!details) {
+        console.warn("⚠️ [home] no active brand details to seed the prompt with");
+        toast.error(
+          activeBrand
+            ? "This brand has no details saved yet — add them under Brand."
+            : "No active brand yet — pick one from the brand menu first.",
+        );
+        return;
+      }
+      console.log(`🎨 [home] seeding the prompt with "${activeBrand.name}"`);
+      composerRef.current?.setPrompt(details);
+      return;
+    }
+
+    if (leaving === TAB_BRAND) {
+      console.log("🧹 [home] left Active Brand — clearing the seeded details");
+      composerRef.current?.clear();
+    }
+  };
+
+  /**
+   * A starter prompt was clicked. It APPENDS rather than replaces, so picking
+   * one while the Active Brand tab has seeded the box adds a line under those
+   * details instead of wiping them.
+   *
+   * @param {string} suggestion The chip's text.
+   */
+  const handleSuggestionPick = (suggestion) => {
+    composerRef.current?.appendPrompt(suggestion);
+  };
 
   // First name only — "Hi Kingsley." reads better than the full account name.
   const firstName = useMemo(() => {
@@ -214,24 +292,56 @@ export default function Home() {
           </header>
 
           {/* Composer — narrower and shorter than the studio's, so it reads as
-              an invitation sitting in space rather than a form to fill in. The
-              glass skin lets the backdrop through behind it. */}
+              an invitation sitting in space rather than a form to fill in.
+
+              The tabs, the pale tray and the input are ONE object: the shell
+              draws the tray and the tab row, and the composer sits inside it on
+              the `inset` skin, which drops its own border and shadow so the tray
+              is the only frame. The translucent tray is what lets the hero's
+              backdrop through as the rim you see around the white card. */}
           <div
             className="animate-hero-in mx-auto w-full max-w-2xl"
             style={{ animationDelay: "180ms" }}
           >
-            <PromptComposer onSubmit={handleSubmit} rows={2} variant="glass" />
+            <ComposerShell
+              tabs={HOME_COMPOSER_TABS}
+              value={composerTab}
+              onChange={handleTabChange}
+              elevated={composerFocused}
+              ariaLabel="What you're creating"
+            >
+              <PromptComposer
+                ref={composerRef}
+                onSubmit={handleSubmit}
+                rows={2}
+                variant="inset"
+                placeholder={placeholderForTab(composerTab)}
+                onFocusedChange={setComposerFocused}
+              />
+            </ComposerShell>
           </div>
+
+          {/* Starter prompts — wider than the composer (max-w-3xl vs max-w-2xl)
+              so five chips settle on two tidy rows instead of three cramped
+              ones. Third in the entrance stagger: greeting 60ms → composer
+              180ms → these 300ms → quick starts 420ms. */}
+          <HomePromptSuggestions
+            tabId={composerTab}
+            onPick={handleSuggestionPick}
+            className="animate-hero-in mx-auto mt-6 max-w-3xl sm:mt-7"
+            style={{ animationDelay: "300ms" }}
+          />
         </div>
 
         {/* Quick starts — the last thing in the hero, so the padding below them
             is the only gap between the pair and the rail's tab row. That gap is
             deliberately about one card tall, so they read as the foot of the
             hero rather than as a header for the rail.
-            Last in the entrance stagger too (60ms greeting → 180ms composer). */}
+            Last in the entrance stagger too — 60ms greeting → 180ms composer →
+            300ms starter prompts → 420ms here. */}
         <QuickStartCards
           className="animate-hero-in relative pb-6 sm:pb-8"
-          style={{ animationDelay: "300ms" }}
+          style={{ animationDelay: "420ms" }}
         />
       </section>
 

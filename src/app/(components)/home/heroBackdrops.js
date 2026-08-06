@@ -74,7 +74,33 @@ export const HERO_BACKDROP_SETTINGS = {
   intervalMs: 5 * 60 * 60 * 1000, // 18000000 — five hours
   fadeMs: 1500,
   intensity: { light: 0.35, dark: 0.28 },
+  dim: { light: 0.07, dark: 0.12 },
 };
+
+/**
+ * The dim — one soft wash of brand blue across the middle of the hero, painted
+ * by every frame under its patterns.
+ *
+ * It exists for ONE reason: the composer's shell is translucent, and the band
+ * behind it runs surface → page, which in light mode is white → near-white. A
+ * translucent tray over white is white, so the tabs, the tray and the rim around
+ * the input all vanished — the assembly only reads when there is something
+ * behind it to be translucent AGAINST.
+ *
+ * That is why this is a wide, soft ellipse centred where the greeting and the
+ * composer sit, rather than a flat overlay: it gives that band a tint to sit on
+ * while leaving the top edge (under the fixed header) and the bottom edge (where
+ * the band lands on the template rail) exactly as they were, so neither seam
+ * moves. `dim` above is its volume knob — 0 restores the old, flat hero.
+ *
+ * @param {boolean} dark Which theme's alpha to use.
+ * @returns {string} A CSS `background-image` value.
+ */
+export const heroDimLayer = (dark) =>
+  `radial-gradient(125% 62% at 50% 40%, ${rgba(
+    dark ? BRAND.sky : BRAND.deep,
+    HERO_BACKDROP_SETTINGS.dim[dark ? "dark" : "light"],
+  )} 0%, transparent 72%)`;
 
 /** Where every band starts: the app surface, which is also the header's fill. */
 const SURFACE = "var(--color-surface)";

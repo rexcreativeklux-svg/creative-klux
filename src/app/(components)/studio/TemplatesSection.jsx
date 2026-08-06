@@ -35,8 +35,13 @@
 // design with the shared renderDesignToCanvas() — the same renderer the editor
 // and the chat page use — instead of showing the row's `thumbnail`, which is
 // only a photo used inside the design and not a preview of it. Painting is
-// deferred until a card is near the viewport (see useDesignPreview), so the rail
-// sitting below the fold costs nothing until the user scrolls to it.
+// deferred until a card is near the viewport, so the rail sitting below the fold
+// costs nothing until the user scrolls to it.
+//
+// The card itself lives in TemplateCard.jsx, not here: the details modal's
+// "More like this" band renders the very same component, so the two stay
+// identical by construction. This file owns the tabs, the fetching and the
+// modal — the card owns how a row looks.
 //
 // A card does NOT open anything. Clicking one opens TemplateDetailsModal (its
 // footer chip grows into "View details" on hover to say so), and the modal's
@@ -52,21 +57,22 @@
 // pickRelatedItems(), so browsing sideways from one item to the next costs no
 // extra request — a sibling click just re-points `details` at another row.
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
-  ArrowRight,
   ArrowUpRight,
-  ImageIcon,
   LayoutTemplate,
   MessagesSquare,
-  MoreHorizontal,
   RefreshCw,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
-import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
 import TemplateDetailsModal from "./TemplateDetailsModal";
+import TemplateCard, {
+  GUTTER,
+  TemplateCardGrid,
+  TemplateCardSkeleton,
+} from "./TemplateCard";
 import {
   CHAT_HISTORY_STATE,
   TAB_CHATS,
@@ -84,29 +90,6 @@ import {
 /** The state every source starts in, before its fetch resolves. */
 const LOADING_STATE = { status: "loading", items: [] };
 
-/** Horizontal padding shared by the tab row and each card's inset. */
-const GUTTER = "px-4 sm:px-6";
-
-/** Longest edge, in px, of a painted card preview. Keeps the data URLs small. */
-const PREVIEW_MAX_DIM = 480;
-
-/** Relative-ish date label for a card's footer. */
-function formatMeta(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-
-  const days = Math.floor((Date.now() - date.getTime()) / 86_400_000);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 30) return `${days} days ago`;
-  if (days < 365) return `${Math.floor(days / 30)} months ago`;
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    year: "numeric",
-  });
-}
-
 /**
  * The share link on the current URL — `{ key, hints }` or null. Client-only —
  * used as a lazy useState initializer, so it runs once and returns null during
@@ -118,12 +101,6 @@ function readShareLink() {
   if (typeof window === "undefined") return null;
   return readTemplateShareLink(window.location.search);
 }
-
-/** Only paint a colour onto the tile when it really is a CSS colour string. */
-const asColor = (value) =>
-  typeof value === "string" && /^(#|rgb|hsl)/i.test(value.trim())
-    ? value
-    : null;
 
 /**
  * @param {object} props
@@ -422,7 +399,7 @@ export default function TemplatesSection({
           On desktop this strip is pinned to --ck-rail-row (see globals.css) —
           the same height as the sidebar's THEME row. Together with the hero
           above being sized to --ck-rail-top, that makes this row's two rules
-          (the section's border-t above, the CardGrid's border-t below) land on
+          (the section's border-t above, the card grid's border-t below) land on
           exactly the same screen lines as the two rules bracketing the THEME
           row, so the hairlines run unbroken across the whole window.
           Below `lg` there's no sidebar to line up with, so it just flows.
@@ -498,7 +475,7 @@ export default function TemplatesSection({
             onBrowseTemplates={() => setActiveTab(TAB_KLUX)}
           />
         ) : (
-          <CardGrid>
+          <TemplateCardGrid>
             {items.map((item) => (
               <TemplateCard
                 key={item.id}
@@ -507,7 +484,7 @@ export default function TemplatesSection({
                 onItemMenu={onItemMenu}
               />
             ))}
-          </CardGrid>
+          </TemplateCardGrid>
         ))}
 
       {/* Details modal — the only route from a card into the item itself */}
@@ -526,231 +503,14 @@ export default function TemplatesSection({
   );
 }
 
-/**
- * The full-bleed grid. `-mr-px` swallows the right-most column's divider so the
- * rule doesn't hang off the edge of the viewport.
- */
-function CardGrid({ children }) {
-  return (
-    <div className="-mr-px grid grid-cols-1 border-t border-gray-200 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {children}
-    </div>
-  );
-}
-
-/**
- * Paint a { canvas, elements } design into a small JPEG data URL, but only once
- * the element is within 300px of the viewport. Returns the ref to attach plus
- * the preview state, so a card below the fold stays free until it's scrolled to.
- *
- * @param {{canvas: object, elements: object[], thumbnail: string|null, title: string}} item
- * @returns {{ref: React.RefObject<HTMLDivElement>, src: string|null, failed: boolean}}
- */
-function useDesignPreview(item) {
-  const ref = useRef(null);
-  const [src, setSrc] = useState(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-
-    let alive = true;
-
-    const paint = async () => {
-      try {
-        const dataUrl = await renderDesignToThumbnail(
-          { canvas: item.canvas, elements: item.elements },
-          { maxDim: PREVIEW_MAX_DIM },
-        );
-        if (!alive) return;
-
-        if (dataUrl) {
-          setSrc(dataUrl);
-          return;
-        }
-        // renderDesignToThumbnail swallows its own errors and returns null.
-        console.warn(
-          `⚠️ [templates] couldn't paint "${item.title}" — falling back`,
-        );
-        if (item.thumbnail) setSrc(item.thumbnail);
-        else setFailed(true);
-      } catch (err) {
-        if (!alive) return;
-        console.error(
-          `❌ [templates] preview failed for "${item.title}":`,
-          err,
-        );
-        setFailed(true);
-      }
-    };
-
-    // No IntersectionObserver (very old browser / SSR-ish edge): just paint.
-    if (typeof IntersectionObserver === "undefined") {
-      paint();
-      return () => {
-        alive = false;
-      };
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        observer.disconnect(); // one paint per card, ever
-        paint();
-      },
-      { rootMargin: "300px" },
-    );
-    observer.observe(node);
-
-    return () => {
-      alive = false;
-      observer.disconnect();
-    };
-  }, [item]);
-
-  return { ref, src, failed };
-}
-
-/** One template card — artwork, title, format, then date + "View details". */
-function TemplateCard({ item, onOpenDetails, onItemMenu }) {
-  const meta = formatMeta(item.meta);
-  const { ref, src, failed } = useDesignPreview(item);
-  // The design's own background fills the letterbox around the contained
-  // preview, so a portrait template reads as artwork rather than a crop.
-  const tileColor = asColor(item.canvas?.background);
-
-  // The card's painted preview rides along so the modal opens showing artwork
-  // while it repaints the same design at full size.
-  const open = () => onOpenDetails?.(item, src);
-
-  return (
-    // A div rather than a button: the "…" menu is itself a button, and nesting
-    // buttons is invalid HTML. Keyboard support is wired up by hand instead.
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={open}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          open();
-        }
-      }}
-      aria-label={`View details for ${item.title}`}
-      className={`group flex cursor-pointer flex-col border-b border-r border-gray-200 py-5 transition-colors hover:bg-gray-100/60 focus:outline-none focus-visible:bg-gray-100/60 ${GUTTER}`}
-    >
-      {/* Artwork */}
-      <div
-        ref={ref}
-        className="relative aspect-16/10 overflow-hidden rounded-lg border border-gray-200 bg-[#eff6ff8f]"
-        // style={tileColor ? { backgroundColor: tileColor } : undefined}
-      >
-        {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt={item.title}
-            loading="lazy"
-            className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"
-          />
-        ) : failed ? (
-          <div className="flex h-full w-full items-center justify-center">
-            <ImageIcon className="h-5 w-5 text-gray-400" />
-          </div>
-        ) : (
-          // Still painting — a calm shimmer in the tile's own colour.
-          <div className="h-full w-full animate-pulse bg-gray-200/60" />
-        )}
-
-        {/* text-surface, NOT text-white: gray-900 flips to near-white in dark
-            mode, so white-on-white made this badge disappear. surface inverts
-            with it, so the chip stays legible in both themes. */}
-        {item.premium && (
-          <span className="absolute left-2 top-2 rounded-md bg-gray-900/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-surface backdrop-blur-sm">
-            Premium
-          </span>
-        )}
-      </div>
-
-      {/* Title + format */}
-      <div className="mt-3.5 flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold text-gray-900">
-            {item.title}
-          </p>
-          {item.subtitle && (
-            <p className="mt-0.5 truncate text-[13px] text-gray-500">
-              {item.subtitle}
-            </p>
-          )}
-        </div>
-
-        {onItemMenu && (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation(); // don't also open the card
-              onItemMenu(item);
-            }}
-            aria-label={`More options for ${item.title}`}
-            className="-mr-1 shrink-0 rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 cursor-pointer"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-
-      {/* Footer: date + "View details" affordance ─────────────────────────
-          One pill, two states. At rest it's the 32px arrow chip; on hover (or
-          keyboard focus) the label unrolls to its left and the chip grows into
-          a button, so the card says what a click does before you click it.
-          It is NOT a <button>: the whole card already opens the details modal,
-          and a real button in here would nest an interactive element inside a
-          role="button" div for no extra behaviour.
-          Below `md` there is no hover to give, so the label is simply always
-          out — a single-column card has room for it.
-          gray-900 / surface invert together, so this reads as a dark chip in
-          light mode and a light one in dark mode without a second rule. */}
-      <div className="mt-auto flex items-center justify-between gap-2 pt-4">
-        <span className="truncate text-[13px] text-gray-500">{meta}</span>
-        <span
-          aria-hidden="true"
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-gray-900 pl-3 text-surface transition-all duration-300 ease-out md:gap-0 md:pl-0 md:group-hover:gap-1.5 md:group-hover:pl-3 md:group-focus-visible:gap-1.5 md:group-focus-visible:pl-3"
-        >
-          <span className="max-w-28 overflow-hidden whitespace-nowrap text-[13px] font-medium opacity-100 transition-all duration-300 ease-out md:max-w-0 md:opacity-0 md:group-hover:max-w-28 md:group-hover:opacity-100 md:group-focus-visible:max-w-28 md:group-focus-visible:opacity-100">
-            View details
-          </span>
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center">
-            <ArrowRight className="h-4 w-4" />
-          </span>
-        </span>
-      </div>
-    </div>
-  );
-}
-
 /** Skeleton cards, laid out in the same grid so nothing shifts on load. */
 function SkeletonGrid() {
   return (
-    <CardGrid>
+    <TemplateCardGrid>
       {Array.from({ length: 4 }).map((_, index) => (
-        <div
-          key={index}
-          className={`border-b border-r border-gray-200 py-5 ${GUTTER}`}
-        >
-          <div className="aspect-16/10 animate-pulse rounded-lg bg-gray-100" />
-          <div className="mt-3.5 space-y-2">
-            <div className="h-3.5 w-2/3 animate-pulse rounded bg-gray-100" />
-            <div className="h-3 w-1/2 animate-pulse rounded bg-gray-100" />
-          </div>
-          <div className="mt-4 flex items-center justify-between">
-            <div className="h-3 w-20 animate-pulse rounded bg-gray-100" />
-            <div className="h-8 w-8 animate-pulse rounded-lg bg-gray-100" />
-          </div>
-        </div>
+        <TemplateCardSkeleton key={index} />
       ))}
-    </CardGrid>
+    </TemplateCardGrid>
   );
 }
 

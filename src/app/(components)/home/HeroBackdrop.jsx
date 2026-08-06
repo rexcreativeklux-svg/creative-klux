@@ -27,7 +27,7 @@
 // The cost is one extra hidden div per frame. `hidden` is `display: none`, so
 // the wrong-theme stack is never laid out or painted.
 
-import { backdropById } from "./heroBackdrops";
+import { backdropById, heroDimLayer } from "./heroBackdrops";
 
 /**
  * @param {object} props
@@ -58,7 +58,8 @@ export default function HeroBackdrop({ backdrop, className = "", style }) {
 }
 
 /**
- * One theme's treatment of a frame: the band, then its pattern/glow layers.
+ * One theme's treatment of a frame: the band, the dim, then its pattern/glow
+ * layers.
  * @param {{entry: object, dark: boolean, className: string}} props
  */
 function ThemeFrame({ entry, dark, className }) {
@@ -77,6 +78,15 @@ function ThemeFrame({ entry, dark, className }) {
         backgroundSize: "100% 100%",
       }}
     >
+      {/* The dim, FIRST — under every pattern, so it tints the band rather than
+          washing over the texture painted on it. It's what the composer's
+          translucent shell is translucent against; see heroDimLayer's note in
+          heroBackdrops.js for why the hero can't stay flat white behind it. */}
+      <div
+        className="absolute inset-0"
+        style={{ backgroundImage: heroDimLayer(dark) }}
+      />
+
       {layers.map((layer, i) => (
         <div key={i} className="absolute inset-0" style={layer} />
       ))}

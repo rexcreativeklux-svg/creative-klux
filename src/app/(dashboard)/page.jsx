@@ -310,13 +310,21 @@ export default function Home() {
               elevated={composerFocused}
               ariaLabel="What you're creating"
             >
+              {/* Stripped to the reference's three controls: attach, dictate,
+                  send. The model and Build/Plan menus and the "Enter to send"
+                  hint are all hidden — but `model` and `mode` still travel in
+                  the payload at their defaults, so handleSubmit's URL and the
+                  chat page reading it are completely unaffected. */}
               <PromptComposer
                 ref={composerRef}
                 onSubmit={handleSubmit}
-                rows={2}
+                rows={3}
                 variant="inset"
                 placeholder={placeholderForTab(composerTab)}
                 onFocusedChange={setComposerFocused}
+                showModelPicker={false}
+                showModePicker={false}
+                showHint={false}
               />
             </ComposerShell>
           </div>
@@ -339,10 +347,10 @@ export default function Home() {
             hero rather than as a header for the rail.
             Last in the entrance stagger too — 60ms greeting → 180ms composer →
             300ms starter prompts → 420ms here. */}
-        <QuickStartCards
+        {/* <QuickStartCards
           className="animate-hero-in relative pb-6 sm:pb-8"
           style={{ animationDelay: "420ms" }}
-        />
+        /> */}
       </section>
 
       {/* Template rails — full-bleed, deliberately outside the wrapper above */}

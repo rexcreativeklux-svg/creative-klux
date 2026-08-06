@@ -55,59 +55,49 @@ export default function HomeSkeleton({ clearsHeader = true }) {
           </div>
 
           {/* Composer — ComposerShell's footprint, in the same three pieces:
-              the tab row, the tray, and the input card inside it. The tray's
-              rounded-tl-none and its 1.5 padding are copied from the real shell
-              (see ComposerShell.jsx) — get either wrong and the whole assembly
-              visibly resizes the moment the page loads. */}
+              the tab row, the tray, and the input card inside it. Every number
+              below is copied from the real shell (see ComposerShell.jsx) — get
+              one wrong and the whole assembly visibly resizes on load. */}
           <div className="mx-auto w-full max-w-2xl">
-            {/* Tab row. The first tab is full height (it's the selected one);
-                the other two rest lower, exactly as the live strip draws them. */}
-            <div className="flex h-10 items-end sm:h-11">
+            {/* Tab row. Inset from the tray's left edge, tabs separated by a
+                gap, the first at full height (it's the selected one) and the
+                other two resting lower — exactly as the live strip draws it. */}
+            <div className="flex h-10 items-end gap-1 pl-4 sm:h-11 sm:gap-1.5">
               {/* `rounded` (the inline prop) rather than a class — it has to beat
                   Skeleton's own default radius on the two bottom corners, which
                   must stay square where the tab meets the tray. */}
               <Skeleton
                 rounded="15px 15px 0 0"
-                className="h-10 w-24 sm:h-11 sm:w-[132px]"
+                className="h-10 w-24 sm:h-11 sm:w-[148px]"
               />
               {[0, 1].map((index) => (
                 <Skeleton
                   key={index}
                   tone="soft"
                   rounded="15px 15px 0 0"
-                  // Height = the row minus the 7px an unselected tab rests at,
-                  // and the negative margin is the strip's overlap. Both are
-                  // ComposerShell's numbers.
-                  className="-ml-2.5 h-[33px] w-24 sm:-ml-3 sm:h-[37px] sm:w-[132px]"
+                  // Height = the row minus the 7px an unselected tab rests at.
+                  className="h-[33px] w-24 sm:h-[37px] sm:w-[148px]"
                 />
               ))}
             </div>
 
-            <div className="rounded-[21px] rounded-tl-none bg-gray-100 p-1.5">
-              <div className="rounded-[15px] bg-surface p-4">
-                {/* Prompt area (rows={2}) */}
-                <div className="flex flex-col gap-2.5 px-1 pt-1">
+            <div className="rounded-[21px] bg-gray-100 p-1.5">
+              <div className="rounded-[15px] bg-surface px-5 pb-3 pt-5">
+                {/* Prompt area (rows={3}) */}
+                <div className="flex flex-col gap-2.5">
                   <Skeleton className="h-3.5 w-3/4" tone="soft" />
                   <Skeleton className="h-3.5 w-1/2" tone="soft" />
                 </div>
 
-                {/* Toolbar: attach · divider · model · mode … mic · send.
-                    Round, matching the live composer's circular controls. */}
-                <div className="mt-5 flex items-center gap-2">
-                  <Skeleton w={36} h={36} className="rounded-full" tone="soft" />
-                  <span className="h-5 w-px shrink-0 bg-gray-200" />
-                  <Skeleton className="h-8 w-28 rounded-lg" tone="soft" />
+                {/* Toolbar: attach … mic · send. Three round controls and
+                    nothing else — no model menu, no Build/Plan, no hint line. */}
+                <div className="mt-8 flex items-center gap-2">
+                  <Skeleton w={40} h={40} className="rounded-full" tone="soft" />
                   <div className="flex-1" />
-                  <Skeleton className="h-8 w-20 rounded-lg" tone="soft" />
-                  <Skeleton w={36} h={36} className="rounded-full" tone="soft" />
-                  <Skeleton w={36} h={36} className="rounded-full" />
+                  <Skeleton w={40} h={40} className="rounded-full" tone="soft" />
+                  <Skeleton w={40} h={40} className="rounded-full" />
                 </div>
               </div>
-            </div>
-
-            {/* The hint line under the composer */}
-            <div className="mt-2.5 flex min-h-4.5 justify-center">
-              <Skeleton className="h-2.5 w-52" tone="soft" />
             </div>
           </div>
 

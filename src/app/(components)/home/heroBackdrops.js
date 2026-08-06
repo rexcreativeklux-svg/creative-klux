@@ -74,33 +74,44 @@ export const HERO_BACKDROP_SETTINGS = {
   intervalMs: 5 * 60 * 60 * 1000, // 18000000 — five hours
   fadeMs: 1500,
   intensity: { light: 0.35, dark: 0.28 },
-  dim: { light: 0.07, dark: 0.12 },
+  dim: { light: 0.28, dark: 0.08 },
 };
 
 /**
- * The dim — one soft wash of brand blue across the middle of the hero, painted
+ * The dim — white mixed with light blue across the middle of the hero, painted
  * by every frame under its patterns.
  *
- * It exists for ONE reason: the composer's shell is translucent, and the band
- * behind it runs surface → page, which in light mode is white → near-white. A
- * translucent tray over white is white, so the tabs, the tray and the rim around
- * the input all vanished — the assembly only reads when there is something
- * behind it to be translucent AGAINST.
+ * It exists for ONE reason: the composer's shell is a stack of TRANSLUCENT
+ * layers, and the band behind it runs surface → page, which in light mode is
+ * white → near-white. Translucent white over white is white, so the tabs, the
+ * tray and the rim around the input all collapsed into one flat sheet. The
+ * assembly only separates into its three steps when there is a colour behind it
+ * to be translucent AGAINST — this is that colour.
  *
- * That is why this is a wide, soft ellipse centred where the greeting and the
- * composer sit, rather than a flat overlay: it gives that band a tint to sit on
- * while leaving the top edge (under the fixed header) and the bottom edge (where
- * the band lands on the template rail) exactly as they were, so neither seam
- * moves. `dim` above is its volume knob — 0 restores the old, flat hero.
+ * It uses BRAND.sky rather than BRAND.deep on purpose: `deep` at an alpha strong
+ * enough to matter turns the hero navy, where `sky` lightens toward the blue-100
+ * end of the ramp — a white/light-blue mix, which is what the hero wants to be.
+ *
+ * Vertical, and transparent at BOTH ends, so it tints the middle without moving
+ * either seam the band is carefully built around: the top continues the fixed
+ * header's white, the bottom still resolves into the page colour the template
+ * rail sits on. `dim` above is its volume knob — 0 restores the flat hero.
+ *
+ * ⚠️ The three shell fills in ComposerShell.jsx are calibrated against this. Turn
+ * it down and they start converging again; turn it up and the greeting's contrast
+ * goes with it.
  *
  * @param {boolean} dark Which theme's alpha to use.
  * @returns {string} A CSS `background-image` value.
  */
-export const heroDimLayer = (dark) =>
-  `radial-gradient(125% 62% at 50% 40%, ${rgba(
-    dark ? BRAND.sky : BRAND.deep,
-    HERO_BACKDROP_SETTINGS.dim[dark ? "dark" : "light"],
-  )} 0%, transparent 72%)`;
+export const heroDimLayer = (dark) => {
+  const a = HERO_BACKDROP_SETTINGS.dim[dark ? "dark" : "light"];
+  const tint = (alpha) => rgba(BRAND.sky, alpha);
+
+  return `linear-gradient(180deg, transparent 0%, ${tint(a * 0.35)} 14%, ${tint(
+    a,
+  )} 44%, ${tint(a * 0.85)} 68%, transparent 94%)`;
+};
 
 /** Where every band starts: the app surface, which is also the header's fill. */
 const SURFACE = "var(--color-surface)";

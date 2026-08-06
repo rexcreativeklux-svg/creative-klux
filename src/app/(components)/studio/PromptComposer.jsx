@@ -132,6 +132,7 @@ const PANEL_VARIANTS = {
     focused: "border-blue-500/60 shadow-[0_8px_30px_rgba(0,61,218,0.10)]",
     resting: "border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.05)]",
     field: "text-sm",
+    pad: "px-4 pt-4",
   },
   glass: {
     base: "rounded-[20px] border bg-surface/72 backdrop-blur-2xl transition-all duration-300",
@@ -141,6 +142,7 @@ const PANEL_VARIANTS = {
     // `all`, so the shadow grows in rather than snapping on at focus.
     resting: "border-gray-200/70",
     field: "text-sm",
+    pad: "px-4 pt-4",
   },
   inset: {
     // Radius = the tray's 21px minus its 6px padding, so the two curves are
@@ -149,6 +151,7 @@ const PANEL_VARIANTS = {
     focused: "",
     resting: "",
     field: "text-[15px]",
+    pad: "px-5 pt-5",
   },
 };
 
@@ -164,6 +167,15 @@ const PANEL_VARIANTS = {
  * @param {(focused: boolean) => void} [props.onFocusedChange] Told whenever the
  *   prompt gains or loses focus. `inset` draws no focus state of its own, so the
  *   shell around it is what reacts — this is the wire between the two.
+ * @param {boolean} [props.showModelPicker] Show the model menu. Hiding it does
+ *   NOT drop the field from the payload — `model` still travels, at its default.
+ * @param {boolean} [props.showModePicker]  Same for the Build/Plan menu.
+ * @param {boolean} [props.showHint] Show the "Enter to send" line underneath.
+ *   ⚠️ Turning it off removes the whole status row, dictation's "Recording…"
+ *   included. The mic itself still turns into a red stop button and the
+ *   placeholder still reads "Listening — start speaking…", so a take is never
+ *   unannounced, but if a surface needs the transcribing state spelled out in
+ *   words it must keep this on.
  * @param {React.Ref<{setPrompt: (text: string) => void, appendPrompt: (text: string) => void, clear: () => void, focus: () => void}>} [props.ref]
  *   Optional handle for a parent that needs to WRITE into the box — the home
  *   page's "Active Brand" tab seeds it with the brand's details and clears it
@@ -180,6 +192,9 @@ export default function PromptComposer({
   maxHeight = DEFAULT_MAX_HEIGHT,
   variant = "solid",
   onFocusedChange,
+  showModelPicker = true,
+  showModePicker = true,
+  showHint = true,
   ref,
 }) {
   const [value, setValue] = useState("");
@@ -385,7 +400,7 @@ export default function PromptComposer({
             aria-label={wantedPlaceholder}
             maxLength={MAX_CHAT_MESSAGE}
             style={{ maxHeight }}
-            className={`w-full resize-none bg-transparent px-4 pt-4 leading-relaxed text-gray-900 outline-none ${panel.field}`}
+            className={`w-full resize-none bg-transparent leading-relaxed text-gray-900 outline-none ${panel.field} ${panel.pad}`}
           />
 
           {!value && (
@@ -393,10 +408,12 @@ export default function PromptComposer({
             // element, so the new one plays ck-fade-in from scratch. No state,
             // no timer, and nothing to clean up when the user switches tabs
             // faster than the fade can finish.
+            // It takes the textarea's OWN padding rather than matching offsets,
+            // so the two can never drift apart when a variant changes the pad.
             <span
               key={wantedPlaceholder}
               aria-hidden="true"
-              className={`animate-ck-fade-in pointer-events-none absolute left-4 right-4 top-4 line-clamp-2 leading-relaxed text-gray-400 ${panel.field}`}
+              className={`animate-ck-fade-in pointer-events-none absolute inset-0 line-clamp-2 leading-relaxed text-gray-400 ${panel.field} ${panel.pad}`}
             >
               {wantedPlaceholder}
             </span>
@@ -408,7 +425,10 @@ export default function PromptComposer({
             only offer something, a filled one for send, which is the only
             control here that commits anything. The model and mode menus stay
             plain text triggers so the three circles read as the toolbar's
-            actions and the two menus as its settings. */}
+            actions and the two menus as its settings.
+            Either menu can be hidden; `model` and `mode` still travel in the
+            submit payload at their defaults, so a surface that turns them off
+            doesn't change the request it makes. */}
         <div className="flex items-center gap-2 px-3 pb-3 pt-1.5">
           {/* Attach */}
           <button
@@ -417,7 +437,7 @@ export default function PromptComposer({
             disabled={uploading}
             aria-label="Attach images from your device"
             title={`Attach images (up to ${MAX_CHAT_IMAGES})`}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
           >
             {uploading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -426,29 +446,36 @@ export default function PromptComposer({
             )}
           </button>
 
-          <span className="h-5 w-px shrink-0 bg-gray-200" />
+          {showModelPicker && (
+            <>
+              {/* Divider — it separates attach from the model menu, so it goes
+                  with the menu rather than living on its own. */}
+              <span className="h-5 w-px shrink-0 bg-gray-200" />
 
-          {/* Model */}
-          <ComposerDropdown
-            options={MODEL_OPTIONS}
-            value={model}
-            onChange={setModel}
-            open={openMenu === "model"}
-            onOpenChange={(next) => setOpenMenu(next ? "model" : null)}
-            ariaLabel="Choose a model"
-          />
+              <ComposerDropdown
+                options={MODEL_OPTIONS}
+                value={model}
+                onChange={setModel}
+                open={openMenu === "model"}
+                onOpenChange={(next) => setOpenMenu(next ? "model" : null)}
+                ariaLabel="Choose a model"
+              />
+            </>
+          )}
 
           <div className="flex-1" />
 
           {/* Build / Plan */}
-          <ComposerDropdown
-            options={MODE_OPTIONS}
-            value={mode}
-            onChange={setMode}
-            open={openMenu === "mode"}
-            onOpenChange={(next) => setOpenMenu(next ? "mode" : null)}
-            ariaLabel="Choose what happens on submit"
-          />
+          {showModePicker && (
+            <ComposerDropdown
+              options={MODE_OPTIONS}
+              value={mode}
+              onChange={setMode}
+              open={openMenu === "mode"}
+              onOpenChange={(next) => setOpenMenu(next ? "mode" : null)}
+              ariaLabel="Choose what happens on submit"
+            />
+          )}
 
           {/* Voice */}
           <VoiceMicButton
@@ -464,7 +491,7 @@ export default function PromptComposer({
             onClick={handleSubmit}
             disabled={!canSubmit}
             aria-label="Start creating"
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all ${
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all ${
               canSubmit
                 ? "bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
                 : "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -490,8 +517,14 @@ export default function PromptComposer({
         />
       </div>
 
-      {/* Status line — one row, so the layout never jumps between states */}
-      <div className="mt-2.5 flex min-h-4.5 items-center justify-center gap-2 text-[11px]">
+      {/* Status line — one row, so the layout never jumps between states.
+          Dropped entirely when the call site turns the hint off; see the
+          showHint note in the props above for what goes with it. */}
+      <div
+        className={`mt-2.5 flex min-h-4.5 items-center justify-center gap-2 text-[11px] ${
+          showHint ? "" : "hidden"
+        }`}
+      >
         {voiceStatus ? (
           <span
             className={`flex items-center gap-2 font-medium ${

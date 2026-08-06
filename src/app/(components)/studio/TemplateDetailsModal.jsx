@@ -20,19 +20,19 @@
 // presentational and never touches the API itself; TemplatesSection owns that
 // and reports back through `busy`.
 //
-// Layout (desktop first; the whole dialog is ONE vertical scroller, and the two
-// columns of the top band stack into a full-height sheet on small screens):
+// Layout (desktop first; the two columns of the top band stack into a
+// full-height sheet on small screens):
 //
 //   ┌──────────────────────────────┬───────────────────────┐
 //   │                              │ Title, badges         │
-//   │        big preview           │ [ Use this template ] │
-//   │   (repainted at high res,    │ summary + tags        │
-//   │    sticky while you scroll)  │ Specs …               │
+//   │        big preview           │ [ Use this template ] │  ← band scrolls
+//   │   (repainted at high res)    │ summary + tags        │    on its own
+//   │                              │ Specs …               │
 //   │                              │ ■ Share  🔗 ✉ f in    │
 //   ├──────────────────────────────┴───────────────────────┤
 //   │ ■ More like this                                     │
 //   ├──────────────┬──────────────┬────────────────────────┤
-//   │     card     │     card     │        card            │
+//   │     card     │     card     │        card            │  ← peeks on open
 //   └──────────────┴──────────────┴────────────────────────┘
 //
 // "More like this" is a FULL-WIDTH band across the bottom, and it renders the
@@ -72,15 +72,19 @@ import { buildTemplateShareQuery } from "./templatesApi";
 /** Longest edge of the modal's own preview paint. Card previews are 480. */
 const PREVIEW_MAX_DIM = 1400;
 
-// ⚠️ DESKTOP HEIGHT OF THE TOP BAND — `min(70vh,600px)` — is spelled out twice
-// below, as `lg:h-[…]` on the preview pane and `lg:min-h-[…]` on the details
-// column beside it, and THE TWO MUST STAY EQUAL. Matching them is what makes
-// the rule between the columns run the full band even when the details are
-// short, and what stops the sticky preview from outgrowing its own row.
-// It can't live in a constant: Tailwind only generates a utility it can find
-// spelled out in the source, so a class built by interpolation produces no CSS.
-// It is deliberately shorter than the panel (min(88vh,780px)) so the "More like
-// this" band below peeks into view and says there is more to scroll to.
+// ⚠️ THE TOP BAND IS HEIGHT-BOUNDED ON DESKTOP — `lg:h-[min(62vh,540px)]` —
+// AND THAT IS LORE-BEARING. The panel is min(88vh,780px), so capping the band
+// well under it leaves the "More like this" heading plus the top of the cards
+// showing the moment the dialog opens: the band announces itself instead of
+// hiding below a fold nobody scrolls to.
+//
+// The cost is that the details column gets its own `lg:overflow-y-auto` — a
+// long spec list can't be allowed to push the band down past the panel edge.
+// So on desktop there are two scrollers: the column, and the dialog itself for
+// the card band. Below `lg` the columns stack and the whole sheet is one
+// scroller, which is why every class involved is `lg:`-prefixed.
+//
+// Change the cap and the peek changes with it; drop it and the peek is gone.
 
 /** Plural-aware label for one element type, e.g. 3 → "3 text blocks". */
 const ELEMENT_LABELS = {
@@ -198,17 +202,17 @@ function buildSpecs(item) {
     { label: "Orientation", value: item.orientation },
     { label: "Category", value: item.category },
     { label: "Design type", value: item.designType },
-    { label: "Media", value: item.mediaType },
-    {
-      label: "Layers",
-      value: Array.isArray(item.elements) ? String(item.elements.length) : null,
-    },
+    // { label: "Media", value: item.mediaType },
+    // {
+    //   label: "Layers",
+    //   value: Array.isArray(item.elements) ? String(item.elements.length) : null,
+    // },
     // Only the pool prices its rows; a saved design has no tier, so the row is
     // dropped rather than claiming "Free".
-    { label: "Access", value: item.pricing ? (item.premium ? "Premium" : "Free") : null },
-    { label: "Added", value: created },
+    // { label: "Access", value: item.pricing ? (item.premium ? "Premium" : "Free") : null },
+    // { label: "Added", value: created },
     // Only worth a row of its own once it differs from the added date.
-    { label: "Updated", value: updated && updated !== created ? updated : null },
+    // { label: "Updated", value: updated && updated !== created ? updated : null },
   ].filter((row) => row.value);
 }
 
@@ -267,9 +271,11 @@ export default function TemplateDetailsModal({
   onClose,
 }) {
   const panelRef = useRef(null);
-  // The dialog's single scroller, so swapping to a sibling can send the reader
-  // back to the title instead of leaving them down in the card band.
+  // The dialog's own scroller — the one the card band lives in.
   const scrollRef = useRef(null);
+  // The details column's scroller, which is a SEPARATE one on desktop (see the
+  // top-band note at the head of this file). Both get reset on a sibling swap.
+  const detailsScrollRef = useRef(null);
   // The high-res paint, tagged with the template it belongs to: { key, src }.
   // Tagging (rather than clearing on every open) is what keeps the effect below
   // free of a synchronous setState — a stale paint is filtered out on read.
@@ -293,11 +299,15 @@ export default function TemplateDetailsModal({
 
   // A "More like this" click swaps `item` without unmounting the panel, and the
   // band lives at the BOTTOM of the dialog — so without this the reader would
-  // stay parked on the cards, never seeing the item they just opened. Jumping
-  // (not smooth-scrolling) matches the instant content swap — an animated
-  // scroll would just chase it.
+  // stay parked on the cards, never seeing the item they just opened. BOTH
+  // scrollers are reset: the dialog's, and the details column's, which would
+  // otherwise open the new item halfway down its specs. Jumping (not
+  // smooth-scrolling) matches the instant content swap — an animated scroll
+  // would just chase it.
   useEffect(() => {
-    if (item) scrollRef.current?.scrollTo({ top: 0 });
+    if (!item) return;
+    scrollRef.current?.scrollTo({ top: 0 });
+    detailsScrollRef.current?.scrollTo({ top: 0 });
   }, [item]);
 
   // Repaint the design large. The card's low-res preview holds the space until
@@ -450,7 +460,7 @@ export default function TemplateDetailsModal({
         // settling in, far too slow for a dialog answering a click. Its
         // reduced-motion override in globals.css still applies.
         style={{ animationDuration: "0.28s" }}
-        className="animate-hero-in relative flex h-full w-full flex-col overflow-hidden bg-surface shadow-2xl outline-none sm:h-[min(88vh,780px)] sm:max-w-6xl sm:rounded-2xl"
+        className="animate-hero-in relative flex h-full w-full flex-col overflow-hidden bg-surface shadow-2xl outline-none sm:h-[min(88vh,780px)] sm:max-w-6xl sm:rounded-lg"
       >
         {/* Close — sits over the panel's top-right corner on every breakpoint */}
         <button
@@ -462,19 +472,18 @@ export default function TemplateDetailsModal({
           <X className="h-4 w-4" />
         </button>
 
-        {/* The dialog's ONE scroller — the top band and the card band below it
-            move together, so there is never a second scrollbar to hunt for. */}
+        {/* The dialog's scroller — it carries the top band and the card band
+            below it, and on mobile it is the only scroller there is. */}
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
           {/* ── Top band: preview + details ───────────────────────────────
-              `items-start` (not stretch) is what lets the preview stick: a
-              stretched flex child fills the row and has nowhere to travel. */}
-          <div className="flex flex-col lg:flex-row lg:items-start">
+              Height-bounded on desktop so the card band always peeks — see the
+              note at the top of this file. Below `lg` it just stacks and
+              flows. */}
+          <div className="flex flex-col lg:h-[min(62vh,540px)] lg:flex-row">
             {/* ── Preview ───────────────────────────────────────────────
-                Capped on mobile so the details below always have room. On
-                desktop it pins to the top of the scroller, so the artwork
-                stays on screen while the reader works down the specs and
-                only slides away once the card band arrives. */}
-            <div className="relative flex h-[38vh] shrink-0 items-center justify-center bg-page p-4 sm:h-[42vh] lg:sticky lg:top-0 lg:h-[min(70vh,600px)] lg:flex-1 lg:p-8">
+                Capped on mobile so the details below always have room; fills
+                the band's full height on desktop. */}
+            <div className="relative flex h-[38vh] shrink-0 items-center justify-center bg-page p-4 sm:h-[42vh] lg:h-full lg:min-h-0 lg:flex-1 lg:p-8">
               {src ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -491,10 +500,13 @@ export default function TemplateDetailsModal({
             </div>
 
             {/* ── Details column ────────────────────────────────────────
-                No scroller of its own any more — it simply grows, and the
-                dialog scrolls. `lg:min-h-[…]` matches the preview's height
-                (see the note at the top of this file). */}
-            <div className="w-full border-t border-gray-200 px-5 py-6 sm:px-6 lg:w-100 lg:shrink-0 lg:min-h-[min(70vh,600px)] lg:border-l lg:border-t-0">
+                Scrolls WITHIN the band on desktop: however long the specs
+                run, they can't push the card band below the panel's edge and
+                cost it its peek. On mobile it simply flows into the sheet. */}
+            <div
+              ref={detailsScrollRef}
+              className="w-full border-t border-gray-200 px-5 py-6 sm:px-6 lg:h-full lg:w-100 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            >
               {/* Title + badges */}
               <h2
                 id="template-details-title"

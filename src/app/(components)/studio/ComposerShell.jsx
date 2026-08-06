@@ -15,34 +15,34 @@
 // The whole point is that it reads as ONE object. Three rules do that, and all
 // three are easy to break by accident:
 //
-//   1. THE SELECTED TAB IS THE SAME SURFACE AS THE INPUT — opaque, not the
-//      tray's translucent fill. The tab is the sheet the prompt is written on;
-//      the tray is the pale frame both of them sit in. Its edge MEETS the tray's
-//      rather than overlapping it, so the tab row carries no negative margin
-//      against the tray: the row's bottom edge IS the tray's top edge. (An
-//      overlap between two translucent layers stacks their alphas into a band
-//      that reads as a seam, which is the one thing this component must avoid.)
+//   1. THE SELECTED TAB AND THE TRAY ARE THE SAME SURFACE — one fill (SHELL_FILL
+//      below), used by both, so the tab looks like the tray growing a handle
+//      rather than like a separate card resting on it. Their edges MEET rather
+//      than overlap: the tab row carries no negative margin against the tray, so
+//      the row's bottom edge IS the tray's top edge. (An overlap between two
+//      translucent layers stacks their alphas into a brighter band, which is
+//      exactly the seam this component exists to hide.)
 //
-//   2. THE TRAY'S TOP-LEFT CORNER IS SQUARE (`rounded-tl-none`). The leftmost tab
-//      is flush with the tray's left edge and always covers that corner down to
-//      the tray's top edge — selected or not — so a radius there would cut a
-//      notch out from under it. Every other corner is rounded.
+//   2. THE TABS ARE SEPARATED, not stacked. A few pixels of daylight between
+//      them, and the whole strip inset from the tray's left edge, so each tab
+//      reads as its own card. Nothing overlaps anything, which is also why the
+//      tray keeps a radius on all four corners — no tab sits over one.
 //
-//   3. TABS OVERLAP EACH OTHER, selected one on top, the rest stacked left over
-//      right. That overlap IS translucent-over-translucent, and there it's the
-//      point: the darker sliver where two tabs meet is what makes them read as
-//      cards in a stack rather than as buttons in a row.
+//   3. THE STRIP ALWAYS ENDS SHORT OF THE TRAY. Three tabs come to well under
+//      half the composer's width, so the rightmost one can never reach the
+//      tray's rounded top-right corner and cut a notch out from under itself.
 //
 // ── The movement ─────────────────────────────────────────────────────────────
 // TWO THINGS MOVE, and they are deliberately different animations.
 //
 //   CLICKING slides. The selected tab is ONE element for the whole strip — not a
 //   per-tab background that switches on — and it TRAVELS to whichever tab was
-//   picked, riding over the tabs it passes. Every tab is the same width and the
-//   overlap is fixed, so the distance is exactly `index × step` with no measuring
-//   and no layout effect: both numbers are CSS variables declared on the row, and
-//   the slide is a plain `translateX` off them. The tab it lands on fades its own
-//   resting fill out as the slider arrives; the one it left fades back in.
+//   picked, riding over the tabs and the gaps it passes. Every tab is the same
+//   width and the gap between them is fixed, so the distance is exactly
+//   `inset + index × step` with no measuring and no layout effect: all three
+//   numbers are CSS variables declared on the row, and the slide is a plain
+//   `translateX` off them. The tab it lands on fades its own resting fill out as
+//   the slider arrives; the one it left fades back in.
 //
 //   HOVERING lifts. An unselected tab is SHORTER — its fill is pushed down so
 //   only part of it shows above the tray — and hovering raises it most of the way
@@ -56,16 +56,24 @@
 // half that at first and the whole strip felt like it was snapping between
 // states rather than moving between them.
 //
-// ── Colours ──────────────────────────────────────────────────────────────────
-// Theme tokens only (bg-surface / gray-*), at one solid value and three
-// opacities: the selected tab is FULLY opaque like the input it belongs to, the
-// tray is 55%, an unselected tab 25%, and 42% under the cursor. Whatever is
-// behind the shell tints the translucent three, which is what makes the tray
-// read as pale blue on the home hero without a single hard-coded blue.
+// ── Colours: THREE STEPS, and the order is the whole design ──────────────────
 //
-// ⚠️ That also means the shell needs something behind it. Dropped onto a plain
-// white page every translucent part of it disappears; the home hero paints a
-// soft wash for exactly this reason (heroDimLayer in home/heroBackdrops.js).
+//   the input        opaque bg-surface — white. The brightest thing here, and
+//                    the only opaque one, because it's what you write on.
+//   tray + selected  SHELL_FILL, 58% — NOT white. Bright enough to read as the
+//                    frame around the input, tinted enough to be a step below it.
+//   other tabs       20% (38% under the cursor) — the dimmest step, so an
+//                    unselected tab sits back toward the page.
+//
+// All three are the SAME token at different opacities (bg-surface, which flips
+// with the theme), so whatever is behind the shell tints them and the ladder
+// holds in light and dark without one hard-coded colour.
+//
+// ⚠️ Which is also why the shell needs something behind it. Dropped onto a plain
+// white page, translucent white over white is white — all three steps collapse
+// into one flat sheet. The home hero paints a light-blue wash for exactly this
+// reason, and the alphas above are calibrated against it: see heroDimLayer in
+// home/heroBackdrops.js before changing either side.
 //
 // ⚠️ NO backdrop-blur on the tray or the tabs, on purpose. backdrop-filter
 // samples the backdrop PER ELEMENT, so two blurred boxes that merely touch each
@@ -75,27 +83,43 @@
 // never carrying any legibility.
 
 /**
- * The strip's geometry, as CSS variables on the row so ONE declaration feeds
- * both the tabs' width and the slider's travel. They must stay consistent:
+ * The strip's geometry, declared once as CSS variables on the row. FOUR numbers
+ * per breakpoint and they are tied together — change one and check the rest:
  *
- *     step = width − overlap        (overlap is the tabs' negative margin)
- *      86  =   96   −   10          below `sm`
- *     120  =  132   −   12          `sm` and up
+ *              inset   width   gap   step (= width + gap)
+ *   below sm     16      96      4     100
+ *   sm and up    16     148      6     154
  *
- * Change a width and change its step, or the slider will drift off the tab it is
- * supposed to be sitting on — a drift that only shows at the far end of the row,
- * which is exactly where nobody looks first.
+ *   inset  how far the strip starts in from the tray's left edge. The same at
+ *          both sizes, and NOT less than it: the tray's corner radius is 21px,
+ *          so a strip that started nearer the edge would leave a sliver of the
+ *          corner's curve showing under the leftmost tab. At 16px the curve has
+ *          dropped less than a pixel by the time the tab begins.
+ *   gap    the daylight between two tabs (a flex `gap`, see the row).
+ *   step   the slider's travel per tab. Get it wrong and the selected tab drifts
+ *          off the label it belongs to — a drift that only shows at the far end
+ *          of the row, which is exactly where nobody looks first.
  *
- * Fixed widths rather than `flex-1`, deliberately: the strip must always end
- * short of the tray's right edge, or the selected tab would cover the tray's
- * rounded top-right corner and open the same notch rule 2 closes on the left.
+ * `inset` is in the slider's travel as well as the row's padding, because the
+ * slider is absolutely positioned: `left-0` resolves against the row's PADDING
+ * BOX and so ignores that padding entirely. Without adding it back the slider
+ * would sit one inset to the left of every tab.
+ *
+ * Fixed widths rather than `flex-1`, deliberately — see rule 3. Three tabs come
+ * to 312px / 472px, well inside the composer either way.
  */
 const ROW_METRICS =
-  "[--ck-tab-w:96px] [--ck-tab-step:86px] sm:[--ck-tab-w:132px] sm:[--ck-tab-step:120px]";
-const TAB_METRICS = "w-(--ck-tab-w) -ml-2.5 first:ml-0 sm:-ml-3";
+  "[--ck-tab-inset:16px] [--ck-tab-w:96px] [--ck-tab-step:100px] sm:[--ck-tab-w:148px] sm:[--ck-tab-step:154px]";
 
 /** Shared corner radius for the tabs — the tray's, minus its padding. */
 const TAB_SHAPE = "rounded-t-[15px]";
+
+/**
+ * The tray's fill, and the selected tab's. ONE constant used in both places —
+ * they have to be identical to the last percent or the join between them stops
+ * being invisible (rule 1). Middle step of the three; see the colour note above.
+ */
+const SHELL_FILL = "bg-surface/58";
 
 /**
  * The lift, as whole class strings. Tailwind scans SOURCE TEXT for candidates,
@@ -159,19 +183,18 @@ export default function ComposerShell({
       <div
         role="tablist"
         aria-label={ariaLabel}
-        className={`relative flex h-10 items-stretch overflow-hidden sm:h-11 ${ROW_METRICS}`}
+        className={`relative flex h-10 items-stretch gap-1 overflow-hidden pl-(--ck-tab-inset) sm:h-11 sm:gap-1.5 ${ROW_METRICS}`}
       >
         {/* ── The selected tab ──────────────────────────────────────────────
-            One element for the whole row, slid into place. Opaque bg-surface —
-            the input's colour, not the tray's — so the tab reads as the sheet
-            you write on and the tray as the frame around it.
+            One element for the whole row, slid into place. SHELL_FILL — the
+            tray's own colour, so the two read as one surface (rule 1).
             z-30 puts it over every resting fill it passes on the way — but under
             the labels (z-40), so no label is ever washed out mid-flight. */}
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-y-0 left-0 z-30 w-(--ck-tab-w) bg-surface transition-transform duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${TAB_SHAPE}`}
+          className={`pointer-events-none absolute inset-y-0 left-0 z-30 w-(--ck-tab-w) transition-transform duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${TAB_SHAPE} ${SHELL_FILL}`}
           style={{
-            transform: `translateX(calc(var(--ck-tab-step) * ${selectedIndex}))`,
+            transform: `translateX(calc(var(--ck-tab-inset) + var(--ck-tab-step) * ${selectedIndex}))`,
           }}
         />
 
@@ -190,13 +213,11 @@ export default function ComposerShell({
               // plus a z-index would open a stacking context and trap the label
               // inside it, below the slider it has to stay above. The two spans
               // carry their own layers instead.
-              className={`group relative flex shrink-0 cursor-pointer items-center justify-center outline-none ${TAB_METRICS}`}
+              className="group relative flex w-(--ck-tab-w) shrink-0 cursor-pointer items-center justify-center outline-none"
             >
               {/* The resting fill — what an UNSELECTED tab shows. It fades out
                   as the slider arrives and back in as it leaves, so the handover
-                  is a cross-fade rather than a swap. Stacked left-over-right so
-                  each tab's right edge tucks under its neighbour, the way a row
-                  of file tabs does.
+                  is a cross-fade rather than a swap.
                   ⚠️ The fade-out is DELAYED and the fade-in is not. Without the
                   delay the tab being selected loses its own fill before the
                   slider has finished travelling to it, and for a moment there is
@@ -209,7 +230,7 @@ export default function ComposerShell({
                 className={`absolute inset-0 transition-[transform,opacity,background-color] duration-[380ms] ease-out motion-reduce:transition-none ${TAB_SHAPE} ${
                   selected
                     ? `${FILL_SELECTED} opacity-0 delay-150`
-                    : `${FILL_RESTING} bg-surface/25 opacity-100 delay-0 group-hover:bg-surface/42`
+                    : `${FILL_RESTING} bg-surface/20 opacity-100 delay-0 group-hover:bg-surface/38`
                 }`}
               />
 
@@ -238,17 +259,17 @@ export default function ComposerShell({
       </div>
 
       {/* ── The tray ───────────────────────────────────────────────────────
-          The same fill as the sliding tab above, meeting it edge to edge, which
-          is what makes the two read as one surface.
-          rounded-tl-none — see rule 2. The padding is the rim you see around the
-          composer on three sides; keep it in step with the composer's own radius
-          (tray radius − padding) or the corners will look nested rather than
-          concentric.
+          Meets the selected tab edge to edge along its top, which is what makes
+          the two read as one object. All four corners are rounded — the strip is
+          inset from this edge, so no tab sits over one (rule 2).
+          The padding is the rim you see around the composer on all four sides;
+          keep it in step with the composer's own radius (tray radius − padding)
+          or the corners will look nested rather than concentric.
           The shadow is the ONLY one in the assembly, and it belongs here rather
           than on the input: the whole object lifts when the user starts typing,
           and sits perfectly flat until then. */}
       <div
-        className={`relative z-40 rounded-[21px] rounded-tl-none bg-surface/55 p-1.5 transition-shadow duration-300 motion-reduce:transition-none ${
+        className={`relative z-40 rounded-[21px] p-1.5 transition-shadow duration-300 motion-reduce:transition-none ${SHELL_FILL} ${
           elevated ? "shadow-[0_28px_70px_-24px_rgba(0,61,218,0.42)]" : "shadow-none"
         }`}
       >

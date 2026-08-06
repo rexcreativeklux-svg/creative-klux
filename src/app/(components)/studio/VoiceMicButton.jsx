@@ -20,7 +20,7 @@ import { Loader2, Mic, Square } from "lucide-react";
 const SIZES = {
   sm: { button: "h-[34px] w-[34px]", icon: "h-3.5 w-3.5", stop: "h-3 w-3" },
   md: { button: "h-8 w-8", icon: "h-4 w-4", stop: "h-3.5 w-3.5" },
-  lg: { button: "h-9 w-9", icon: "h-4 w-4", stop: "h-3.5 w-3.5" },
+  lg: { button: "h-10 w-10", icon: "h-4 w-4", stop: "h-3.5 w-3.5" },
 };
 
 /**

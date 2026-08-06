@@ -8,7 +8,7 @@
 //
 //   Create from URL  → /studio/create-from-url   paste a site, it scrapes the
 //                      brand and generates matching creatives
-//   Custom Creation  → /studio/select            pick a pipeline, then work
+//   Create from Active Brand  → /studio/select            pick a pipeline, then work
 //                      through that creative's guided form
 //
 // Both are plain <Link>s and collect nothing here: each destination already owns
@@ -50,7 +50,7 @@ export const QUICK_START_ACTIONS = [
   {
     href: "/studio/select",
     icon: Wand2,
-    title: "Custom Creation",
+    title: "Create from Active Brand",
     description:
       "Pick a creative type and shape it yourself with a guided form.",
     accent: "bg-violet-500/10 text-violet-600",

@@ -38,6 +38,7 @@ import {
 } from "../../../../../(lib)/integration";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
 const BRAND = "#003dda";
 const BRAND_LIGHT = "#003dda14";
@@ -252,6 +253,8 @@ export default function AdsPublishing() {
   const { fetchIntegrations, updateIntegration } = useAuth();
   const [integrations, setIntegrations] = useState([]);
   const [integrationsReady, setIntegrationsReady] = useState(false);
+  // First load only — see the skeleton guard below the hooks.
+  const [loading, setLoading] = useState(true);
 
   // Show saved posts immediately — even before integrations resolve, or if there are none.
   useEffect(() => {
@@ -261,9 +264,16 @@ export default function AdsPublishing() {
   // 1. Load integrations first
   useEffect(() => {
     const loadIntegrations = async () => {
-      const data = await fetchIntegrations();
-      setIntegrations(data || []);
-      setIntegrationsReady(true);
+      try {
+        const data = await fetchIntegrations();
+        setIntegrations(data || []);
+      } catch {
+        // A failed lookup still has to unblock step 3 — otherwise the page waits
+        // on a flag that will never flip and the skeleton never resolves.
+        setIntegrations([]);
+      } finally {
+        setIntegrationsReady(true);
+      }
     };
     loadIntegrations();
   }, [fetchIntegrations]);
@@ -315,6 +325,7 @@ export default function AdsPublishing() {
         setAllPosts(getPublishedPosts());
       } finally {
         setFetchingLive(false);
+        setLoading(false);
       }
     },
     [integrations],
@@ -509,6 +520,12 @@ export default function AdsPublishing() {
     scheduled: posts.filter((p) => p.status === "scheduled").length,
     failed: posts.filter((p) => p.status === "failed").length,
   };
+
+  // Only when there is nothing to show yet. Ads restored from localStorage paint
+  // on the first frame and stay up while the live merge runs behind them — the
+  // skeleton is here for the cold case, where the alternative is the "no ads
+  // yet" empty state flashing at someone who does have ads.
+  if (loading && posts.length === 0) return <PublishingSkeleton />;
 
   return (
     <div className="pb-5">

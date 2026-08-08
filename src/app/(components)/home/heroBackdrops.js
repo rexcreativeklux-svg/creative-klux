@@ -34,6 +34,9 @@
 //   free and the band can never drift out of sync with the page.
 // • Pattern layers are masked top and bottom (PATTERN_MASK) so they dissolve
 //   rather than ending on a hard edge.
+// • THE GRID IS NOT AN ENTRY. Ruled paper is a constant of the hero, painted
+//   under every frame here (heroGridLayer). What an entry adds is what goes ON
+//   that paper. A frame ruling its own sets `baseGrid: false`.
 // • Colour concentrates low and to the edges; the upper middle, where the
 //   greeting and composer sit, stays near-plain in every frame.
 //
@@ -67,6 +70,16 @@
  *              Only the patterns and glows scale — the band gradient is fixed
  *              tints in TINTS below, so the hero keeps its shape and its
  *              seamless landing on the page surface at any intensity.
+ *
+ *   grid       the ruled grid every frame paints (heroGridLayer). `size` is the
+ *              cell in px; `light`/`dark` are the LINE ALPHA, per theme.
+ *
+ *              ⚠️ Deliberately NOT multiplied by `intensity`. The frames' own
+ *              hairlines are, and 0.05 × 0.35 lands at about 0.018 alpha — which
+ *              is why the three grid frames in this file have always been closer
+ *              to invisible than to faint. This one is a constant of the hero
+ *              rather than one frame's texture, so it is dialled on its own and
+ *              turning the frames down doesn't take it with them. 0 removes it.
  * ══════════════════════════════════════════════════════════════════════════
  */
 export const HERO_BACKDROP_SETTINGS = {
@@ -75,6 +88,7 @@ export const HERO_BACKDROP_SETTINGS = {
   fadeMs: 1500,
   intensity: { light: 0.35, dark: 0.28 },
   dim: { light: 0.28, dark: 0.08 },
+  grid: { light: 0.062, dark: 0.05, size: 48 },
 };
 
 /**
@@ -224,6 +238,41 @@ const pattern = (style) => ({
   maskImage: PATTERN_MASK,
 });
 
+/**
+ * THE GRID — horizontal rules crossed by vertical ones, repeated across the
+ * whole hero. Painted by EVERY frame (see HeroBackdrop's ThemeFrame), under that
+ * frame's own patterns and glows.
+ *
+ * It is a base layer rather than a twentieth entry in HERO_BACKDROPS because the
+ * rotation holds a frame for five hours: a grid that is one frame in nineteen is
+ * a grid the hero wears about twice a week, which is not what "the home page has
+ * a grid" means. Frames still supply the variety — rings, rays, discs, washes —
+ * they now do it over ruled paper.
+ *
+ * Two 1px gradients, not an image and not an SVG: one draws the horizontals, one
+ * the verticals, and a single background-size tiles both into square cells.
+ *
+ * ⚠️ Its alpha is set directly in HERO_BACKDROP_SETTINGS.grid and NOT run through
+ * `hair`, which would scale it by `intensity` — see the note there.
+ *
+ * A frame carrying its own grid opts out with `baseGrid: false`, or the two
+ * stack: blueprint's cell is this one exactly, so it would simply come out twice
+ * as dark as every other frame's.
+ *
+ * @param {boolean} dark Which theme's line alpha to use.
+ * @returns {React.CSSProperties} A ready-to-spread layer style, masked like any
+ *   other pattern so it dissolves under the header and above the rail.
+ */
+export const heroGridLayer = (dark) => {
+  const { size, ...alphas } = HERO_BACKDROP_SETTINGS.grid;
+  const line = rgba(dark ? BRAND.pale : BRAND.deep, alphas[dark ? "dark" : "light"]);
+
+  return pattern({
+    backgroundImage: `linear-gradient(${line} 1px, transparent 1px), linear-gradient(90deg, ${line} 1px, transparent 1px)`,
+    backgroundSize: `${size}px ${size}px, ${size}px ${size}px`,
+  });
+};
+
 /** A soft light layer (blobs, spotlights, bokeh). */
 const glow = (style) => ({
   ...style,
@@ -238,6 +287,9 @@ export const HERO_BACKDROPS = [
     // The plain ruled grid, and the frame the array starts on — so it is also
     // what SSR renders before the client resolves the current window.
     band: bandOf("core"),
+    // Its grid IS the base grid, at the same 48px cell — painting both would
+    // just draw every line twice and make this one frame the dark outlier.
+    baseGrid: false,
     layers: (dark) => {
       const c = ink(dark);
       const line = c.hair(1.1);
@@ -257,6 +309,9 @@ export const HERO_BACKDROPS = [
     id: "graph",
     label: "Graph paper",
     band: bandOf("sky"),
+    // Rules its own paper at 24px with every fifth line heavier. A 48px grid on
+    // top would land on alternate minor lines and thicken half of them.
+    baseGrid: false,
     layers: (dark) => {
       const c = ink(dark);
       const minor = c.hair(0.7);
@@ -554,6 +609,9 @@ export const HERO_BACKDROPS = [
     id: "spotlight",
     label: "Spotlight",
     band: bandOf("core"),
+    // Carries a 72px grid of its own. 72 against 48 shares a line only every
+    // 144px, so the two would read as a moiré rather than as one grid.
+    baseGrid: false,
     layers: (dark) => {
       const c = ink(dark);
       const line = c.hair(0.9);

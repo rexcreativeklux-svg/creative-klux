@@ -26,9 +26,70 @@ const BASE_URL = "https://api.creativeklux.com/api/creativeklux-userend";
 // empty, so we build the URL from the key against this base (the same
 // CloudFront host the app serves its other media from). Mirrors
 // src/(lib)/product-studio-api.js.
-const CDN_BASE = (
+export const CDN_BASE = (
   process.env.NEXT_PUBLIC_CDN_URL || "https://d3r8chxzp8ea06.cloudfront.net"
 ).replace(/\/+$/, "");
+
+/**
+ * The hosted URL out of an upload response.
+ *
+ * ⚠️ THE GALLERY ENDPOINT NESTS ITS RESULT UNDER `file`, which is the envelope
+ * that matters most here and the one that is easiest to miss:
+ *
+ *   { success: true, message: "File uploaded successfully",
+ *     file: { id, s3_key, image_url, … } }
+ *
+ * Other endpoints put the same fields under `data`, or at the top level, so all
+ * four shapes are tried in order. Getting this wrong doesn't fail loudly at the
+ * request — the upload SUCCEEDS and then the caller reports "no URL came back",
+ * which sends you looking at the wrong end of the problem entirely.
+ *
+ * Lives here, beside resolveMediaUrl, because more than one surface uploads on
+ * the user's behalf and they were each carrying their own copy of this — which
+ * is how the `file` case came to be missing from every one of them at once.
+ *
+ * @param {object} response Whatever uploadMedia() resolved with.
+ * @returns {string|null}
+ */
+export function pickHostedUrl(response) {
+  const roots = [
+    response?.file,
+    response?.data?.file,
+    response?.data,
+    response,
+  ];
+  for (const root of roots) {
+    if (!root || typeof root !== "object") continue;
+    const url =
+      resolveMediaUrl(root.image_url) ||
+      resolveMediaUrl(root.url) ||
+      resolveMediaUrl(root.file_url) ||
+      resolveMediaUrl(root.s3_key);
+    if (url) return url;
+  }
+  return null;
+}
+
+/**
+ * Is this URL already hosted by us?
+ *
+ * The test that decides whether a picked image needs uploading: anything from
+ * the user's own library is already on the CDN and can be used as-is, where a
+ * Pexels result is a third-party URL that has to be pulled into the gallery
+ * first. Compares ORIGINS rather than string-prefixes, so a CDN path that
+ * differs only by scheme or trailing slash isn't mistaken for a stranger.
+ *
+ * @param {string} url
+ * @returns {boolean} false for anything unparseable — the safe answer, since it
+ *   only ever costs an upload that turns out to have been unnecessary.
+ */
+export function isHostedUrl(url) {
+  try {
+    return new URL(url).origin === new URL(CDN_BASE).origin;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Resolve a hosted URL from either a full URL or an S3 object key. Returns null

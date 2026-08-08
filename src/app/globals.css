@@ -1,4 +1,8 @@
 @import "tailwindcss";
+/* Whole-app appearance packs (the Appearance panel's "Skins"). Re-points the
+   same tokens the .dark block below re-points, so it has to load after
+   Tailwind's own theme and can stay out of this file entirely. */
+@import "./skins.css";
 
 /* Tailwind v4: make `.dark` (and `dark:` variants) drive styles — the JS config's
    darkMode:"class" is ignored in v4. */
@@ -603,10 +607,60 @@
   animation: shimmer-sweep 1.6s infinite linear;
 }
 
+.dark .shimmer {
+  background-color: var(--color-gray-200);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
 /* Left-to-right sweep for an overlay band (used by skeleton loader cards) */
 @keyframes shimmer-slide {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
+}
+
+/* Shimmer as an OVERLAY rather than a background.
+   `.shimmer` above owns the block's own background, so it can only be used on a
+   bare grey rectangle. This one paints a moving highlight on ::after instead,
+   which means it composes with whatever background the element already has —
+   that's what lets <Skeleton tone="soft" shimmer /> keep its tone AND sweep.
+   The sweep is white in light mode and a very low-alpha white in dark, where a
+   0.7-alpha band would read as a strobe against the dark slate. */
+.shimmer-sweep {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    transparent 100%
+  );
+  animation: shimmer-slide 1.6s infinite;
+}
+
+.dark .shimmer-sweep::after {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.07) 50%,
+    transparent 100%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-sweep::after {
+    animation: none;
+  }
 }
 
 /* GeneratingOverlay — blocks that pop into place one by one (looping) */

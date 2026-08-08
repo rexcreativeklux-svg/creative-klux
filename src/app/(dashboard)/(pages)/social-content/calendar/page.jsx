@@ -32,6 +32,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import Link from "next/link";
+import { CalendarSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
 const PLATFORM_META = {
   facebook: { label: "FB", emoji: "🔵" },
@@ -111,6 +112,11 @@ export default function SocialContentCalendar() {
   const [platformFilter, setPlatformFilter] = useState("all");
   const [search, setSearch] = useState("");
 
+  // First platform fetch only. An empty month grid is indistinguishable from a
+  // month with nothing scheduled, so the page holds a skeleton until we know
+  // which of the two it is. Later refetches (after a delete) keep the grid up.
+  const [loading, setLoading] = useState(true);
+
   const reload = useCallback(() => setAllPosts(getPublishedPosts()), []);
 
   const fetchLive = useCallback(async () => {
@@ -148,6 +154,8 @@ export default function SocialContentCalendar() {
       setAllPosts(all);
     } catch {
       reload();
+    } finally {
+      setLoading(false);
     }
   }, [reload, fetchIntegrations]);
 
@@ -217,6 +225,10 @@ export default function SocialContentCalendar() {
   const totalPublished = filteredPosts.filter(
     (p) => p.status === "published",
   ).length;
+
+  // Match the number of week rows the real grid is about to draw, so the page
+  // doesn't grow by a row's height when the posts land.
+  if (loading) return <CalendarSkeleton weeks={days.length / 7} />;
 
   return (
     <div className="">

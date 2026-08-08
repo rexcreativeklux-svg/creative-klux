@@ -47,7 +47,6 @@ export default function useSpeechToText() {
   const [autoDetecting, setAutoDetecting] = useState(false);
   // Rising token so an unmount can't apply state from an in-flight run.
   const tokenRef = useRef(0);
-  const toastedDownloadRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -80,15 +79,10 @@ export default function useSpeechToText() {
           if (currentStage) setStage(currentStage);
           if (typeof p.partialText === "string") setPartialText(p.partialText);
           if (p.detectedLanguage) setDetectedLanguage(p.detectedLanguage);
-          if (isDownloading) {
-            setDownloading(true);
-            if (!toastedDownloadRef.current) {
-              toastedDownloadRef.current = true;
-              toast.info(
-                "Preparing the transcription engine — one-time ~77 MB download, instant after this.",
-              );
-            }
-          }
+          // No toast — see the matching note in useTextToSpeech. The engine
+          // fetch is reported as state for anyone drawing a progress bar, but
+          // it is not announced.
+          if (isDownloading) setDownloading(true);
         },
       });
       if (!isCurrent()) return null;

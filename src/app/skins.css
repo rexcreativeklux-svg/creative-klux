@@ -1,0 +1,824 @@
+/* ═════════════════════════════════════════════════════════════════════════
+   SKINS — the whole-app appearance packs behind the Appearance panel.
+   Imported by globals.css. Nothing else imports this.
+
+   A skin is TWO things: a PALETTE and a WALLPAPER.
+
+     palette   re-points the same tokens the `.dark` block re-points, so every
+               `bg-surface`, `text-gray-*`, `bg-blue-600` in the app follows
+               with no per-component edit. This is why "the entire app
+               changes" is a CSS file rather than a refactor.
+     wallpaper the artwork, painted ONCE on <html> and left there. The app's
+               own surfaces are translucent under a skin, so the art shows
+               through the page behind the chrome rather than being tiled
+               into every panel.
+
+   ── How a skin is switched on ────────────────────────────────────────────
+   `data-skin="<id>"` on <html>, written by two places that must agree:
+   the boot script in app/layout.js (before first paint, so there is no flash
+   of the default palette) and setSkin() in appearance/skins.js. Default is
+   the ABSENCE of the attribute, so the app you have today is what you get
+   when nothing is selected — no default skin block to keep in sync.
+
+   ── Adding one ───────────────────────────────────────────────────────────
+   Two blocks below — the light one, then the dark one — plus one entry in
+   SKINS in appearance/skins.js. Nothing else. Author these SEVEN values and
+   the eleven-step gray ramp, the blue ramp and the preview swatch all derive
+   themselves:
+
+     --ck-skin-base      the OPAQUE background under the art. Every mix below
+                         resolves against it, so it must have no alpha (see
+                         the warning on --ck-skin-surface).
+     --ck-skin-page      what `bg-page` becomes. TRANSLUCENT — this is the
+                         window the wallpaper is seen through, so it is the
+                         one number that decides how present the art is.
+     --ck-skin-surface   what `bg-surface` becomes. Translucent too, but only
+                         slightly: cards and the sidebar have to stay
+                         readable, and the fixed header has to keep the page
+                         from showing through as it scrolls underneath.
+     --ck-skin-ink       primary text. The gray ramp is mixed from this
+                         toward --ck-skin-base, which is what makes one
+                         formula serve both themes: in light, ink is dark and
+                         base is pale; in dark, ink is pale and base is dark,
+                         and the ramp inverts on its own.
+     --ck-skin-accent    what `blue-600` becomes — buttons, active nav, the
+                         send arrow. `-strong` is its hover (blue-700),
+                         `-soft` its lighter step (blue-500, focus rings).
+     --ck-skin-art       the wallpaper: a `background-image` value, gradients
+                         only. Three or four layers is plenty — this paints
+                         behind every page in the app, on every device.
+
+   Optional, and only when a layer needs to TILE (a star field, a dot drift)
+   rather than fill the frame:
+
+     --ck-skin-art-size  a `background-size` list, ONE ENTRY PER LAYER and
+                         starting with `cover` for the --ck-skin-image slot,
+                         e.g. `cover, auto, auto, 92px 88px`. It has to be a
+                         variable rather than a plain `background-size` in
+                         the skin's block, because the `:root[data-skin]`
+                         rule that paints the wallpaper outweighs that block
+                         and would stretch the tiling layer to fill instead.
+
+   ⚠️ --ck-skin-surface and --ck-skin-page CARRY ALPHA; --ck-skin-base MUST
+   NOT. The ramp is `color-mix(ink, base)`, and mixing into a translucent
+   base returns a translucent colour — which, applied to --color-gray-900,
+   is see-through TEXT. That is what the separate opaque `base` is for.
+
+   ⚠️ Dark blocks come AFTER their light block, always. Both selectors weigh
+   the same (`:where()` contributes nothing), so it is source order that
+   decides which one wins — exactly the trick globals.css's own dark variant
+   uses.
+
+   ── Upgrading a skin to real artwork ─────────────────────────────────────
+   Set --ck-skin-image on the skin's block:
+
+       --ck-skin-image: url("/skins/emerald-nebula.jpg");
+
+   It layers OVER the gradients (first in the stack), so the gradients keep
+   working as the tint and the fallback while the photo loads, and the swatch
+   in the panel picks it up with no other change. Nothing else to touch.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ── The wallpaper ───────────────────────────────────────────────────────
+   On <html>, not on a fixed <div> the app has to remember to mount: there
+   is no element to stack, nothing for a modal's z-index to fight, and it
+   costs one paint for the whole session.
+
+   `fixed` attachment so the art stays put while a page scrolls — the app's
+   scroll frame is an inner element anyway, but a skin also has to survive
+   the pages that scroll the document.
+
+   ⚠️ <body> paints `--color-surface` (see globals.css). Under a skin that is
+   translucent, and 0.9-something alpha over the art is a wash, not a
+   window — so body steps out of the way and the app's own panels are what
+   the art shows through. */
+:root[data-skin] {
+  background-color: var(--ck-skin-base);
+  background-image: var(--ck-skin-image, none), var(--ck-skin-art);
+  background-attachment: fixed;
+  background-size: var(--ck-skin-art-size, cover);
+  background-position: center;
+}
+
+:root[data-skin] body {
+  background: transparent;
+}
+
+/* ── The derived tokens ──────────────────────────────────────────────────
+   One block, every skin. This is the part that makes a skin seven values
+   instead of forty.
+
+   The ramp is mixed in oklab, so the steps are perceptually even rather
+   than evenly-numbered — a plain sRGB mix bunches the mid greys together
+   and leaves 700→900 nearly indistinguishable, which is exactly the range
+   the app uses for body text against headings.
+
+   Percentages are tuned against Tailwind's own gray ramp at ink #101828 on
+   white, so a skin whose ink is near-black lands within a step or two of
+   the palette the app was designed in.
+
+   ⚠️ THE SELECTOR CARRIES TWO PIECES OF SPECIFICITY AND BOTH ARE LOAD-BEARING.
+   This was `[data-skin]` on its own, which is (0,1,0) — the SAME weight as
+   the `.dark` block in globals.css that re-points these very tokens, and this
+   file is imported at the TOP of globals.css, so `.dark` came later and won.
+   The result was a skin with no palette in dark mode: `--color-page` snapped
+   back to the opaque #0e0e11 and buried the wallpaper completely, while the
+   swatches in the panel still looked right (an element's OWN rule beats an
+   inherited value, so the tiles never saw the conflict).
+
+   `:root[data-skin]` is (0,2,0) and clears `.dark`. The swatch needs its own
+   arm of the selector rather than riding the bare attribute, because it is
+   not the root — and it needs to stay at (0,2,0) too, so the two arms can't
+   resolve differently when both match.
+
+   Anything added here that `.dark` also sets has to keep this shape. */
+:root[data-skin],
+.ck-skin-swatch[data-skin] {
+  --color-page: var(--ck-skin-page);
+  --color-surface: var(--ck-skin-surface);
+
+  --color-gray-950: var(--ck-skin-ink);
+  --color-gray-900: color-mix(in oklab, var(--ck-skin-ink) 96%, var(--ck-skin-base));
+  --color-gray-800: color-mix(in oklab, var(--ck-skin-ink) 88%, var(--ck-skin-base));
+  --color-gray-700: color-mix(in oklab, var(--ck-skin-ink) 78%, var(--ck-skin-base));
+  --color-gray-600: color-mix(in oklab, var(--ck-skin-ink) 68%, var(--ck-skin-base));
+  --color-gray-500: color-mix(in oklab, var(--ck-skin-ink) 58%, var(--ck-skin-base));
+  --color-gray-400: color-mix(in oklab, var(--ck-skin-ink) 44%, var(--ck-skin-base));
+  --color-gray-300: color-mix(in oklab, var(--ck-skin-ink) 28%, var(--ck-skin-base));
+  --color-gray-200: color-mix(in oklab, var(--ck-skin-ink) 16%, var(--ck-skin-base));
+  --color-gray-100: color-mix(in oklab, var(--ck-skin-ink) 8%, var(--ck-skin-base));
+  --color-gray-50: color-mix(in oklab, var(--ck-skin-ink) 4%, var(--ck-skin-base));
+
+  /* The accent. The app spends its blues on ONE idea — "this is the action"
+     — so a skin only has to say what its action colour is and the five
+     steps the app actually reaches for follow.
+     blue-600 is the button, 700 its hover, 500 the focus ring, and 50/100
+     the tinted backgrounds behind active nav rows. */
+  --color-blue-700: var(--ck-skin-accent-strong);
+  --color-blue-600: var(--ck-skin-accent);
+  --color-blue-500: var(--ck-skin-accent-soft);
+  --color-blue-400: color-mix(in oklab, var(--ck-skin-accent-soft) 74%, var(--ck-skin-base));
+  --color-blue-300: color-mix(in oklab, var(--ck-skin-accent-soft) 52%, var(--ck-skin-base));
+  --color-blue-200: color-mix(in oklab, var(--ck-skin-accent-soft) 32%, var(--ck-skin-base));
+  --color-blue-100: color-mix(in oklab, var(--ck-skin-accent) 16%, var(--ck-skin-base));
+  --color-blue-50: color-mix(in oklab, var(--ck-skin-accent) 8%, var(--ck-skin-base));
+}
+
+/* ── The preview swatch ──────────────────────────────────────────────────
+   The tile in the Appearance panel. It carries `data-skin` ITSELF, which is
+   the whole trick: the block above is an attribute selector, not a
+   `:root` rule, so a swatch gets that skin's variables locally and paints
+   with the real thing. A preview therefore cannot drift from the skin it
+   previews — there is no second set of colours to keep in step.
+
+   With no `data-skin` (the Default tile) the fallbacks resolve to the live
+   tokens, so Default previews the app as it stands, in whichever theme is
+   currently on. */
+.ck-skin-swatch {
+  background-color: var(--ck-skin-base, var(--color-page));
+  background-image: var(--ck-skin-image, none), var(--ck-skin-art, none);
+  background-size: var(--ck-skin-art-size, cover);
+  background-position: center;
+}
+
+/* The little card inside the swatch. Without it a tile is just a gradient,
+   and the thing being chosen is a UI, not a wallpaper — this is what shows
+   that the panels go pale in one skin and near-black in another. */
+.ck-skin-swatch-card {
+  background-color: var(--ck-skin-surface, var(--color-surface));
+  border-color: color-mix(in oklab, var(--ck-skin-ink, var(--color-gray-900)) 14%, transparent);
+}
+
+.ck-skin-swatch-line {
+  background-color: color-mix(in oklab, var(--ck-skin-ink, var(--color-gray-900)) 55%, transparent);
+}
+
+.ck-skin-swatch-dot {
+  background-color: var(--ck-skin-accent, var(--color-blue-600));
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   THE SKINS
+   Light block, then dark block. Seven values each; see the header.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ── Emerald Nebula ──────────────────────────────────────────────────────
+   Deep space green. The art is two nebula clouds and a star field; the
+   stars are a dot grid at an odd spacing so the tile is hard to spot. */
+[data-skin="nebula"] {
+  --ck-skin-base: #eef6f1;
+  --ck-skin-page: rgb(233 245 238 / 0.55);
+  --ck-skin-surface: rgb(253 255 254 / 0.92);
+  --ck-skin-ink: #0a1f17;
+  --ck-skin-accent: #0d8f66;
+  --ck-skin-accent-strong: #0a7351;
+  --ck-skin-accent-soft: #2fae87;
+  --ck-skin-art:
+    radial-gradient(58% 44% at 18% 14%, rgb(13 143 102 / 0.16) 0%, transparent 68%),
+    radial-gradient(52% 46% at 84% 76%, rgb(47 174 135 / 0.14) 0%, transparent 70%),
+    radial-gradient(rgb(10 31 23 / 0.05) 1px, transparent 1.2px);
+  --ck-skin-art-size: cover, auto, auto, 92px 88px;
+}
+
+:where(.dark, .dark *)[data-skin="nebula"] {
+  --ck-skin-base: #08130f;
+  --ck-skin-page: rgb(8 19 15 / 0.58);
+  --ck-skin-surface: rgb(19 34 28 / 0.92);
+  --ck-skin-ink: #e4f4ec;
+  --ck-skin-accent: #2fc795;
+  --ck-skin-accent-strong: #1da97b;
+  --ck-skin-accent-soft: #5cdab4;
+  --ck-skin-art:
+    radial-gradient(58% 44% at 18% 14%, rgb(47 199 149 / 0.20) 0%, transparent 68%),
+    radial-gradient(52% 46% at 84% 76%, rgb(16 122 92 / 0.28) 0%, transparent 70%),
+    radial-gradient(rgb(228 244 236 / 0.10) 1px, transparent 1.2px);
+  --ck-skin-art-size: cover, auto, auto, 92px 88px;
+}
+
+/* ── City Lights ─────────────────────────────────────────────────────────
+   Dusk over a skyline. The verticals are a repeating gradient at two
+   spacings — buildings near and far — under a low amber glow. */
+[data-skin="city"] {
+  --ck-skin-base: #f5f1ea;
+  --ck-skin-page: rgb(245 241 234 / 0.52);
+  --ck-skin-surface: rgb(255 253 249 / 0.92);
+  --ck-skin-ink: #241a11;
+  --ck-skin-accent: #c2622a;
+  --ck-skin-accent-strong: #a04c1c;
+  --ck-skin-accent-soft: #e08040;
+  --ck-skin-art:
+    radial-gradient(80% 40% at 50% 96%, rgb(194 98 42 / 0.18) 0%, transparent 72%),
+    repeating-linear-gradient(90deg, rgb(36 26 17 / 0.05) 0 2px, transparent 2px 34px),
+    repeating-linear-gradient(90deg, rgb(36 26 17 / 0.03) 0 1px, transparent 1px 13px);
+}
+
+:where(.dark, .dark *)[data-skin="city"] {
+  --ck-skin-base: #11111b;
+  --ck-skin-page: rgb(17 17 27 / 0.56);
+  --ck-skin-surface: rgb(28 28 41 / 0.92);
+  --ck-skin-ink: #f2ece3;
+  --ck-skin-accent: #ff9d4d;
+  --ck-skin-accent-strong: #e8802c;
+  --ck-skin-accent-soft: #ffb877;
+  --ck-skin-art:
+    radial-gradient(80% 42% at 50% 98%, rgb(255 157 77 / 0.22) 0%, transparent 74%),
+    repeating-linear-gradient(90deg, rgb(255 200 140 / 0.06) 0 2px, transparent 2px 34px),
+    repeating-linear-gradient(90deg, rgb(120 150 255 / 0.05) 0 1px, transparent 1px 13px);
+}
+
+/* ── Sakura Midnight ─────────────────────────────────────────────────────
+   Blossom at dusk. Two soft blooms and a drift of petals, which is a dot
+   field at two sizes rather than any shape worth calling a petal. */
+[data-skin="sakura"] {
+  --ck-skin-base: #f8f0f7;
+  --ck-skin-page: rgb(248 240 247 / 0.55);
+  --ck-skin-surface: rgb(255 253 255 / 0.92);
+  --ck-skin-ink: #2a1630;
+  --ck-skin-accent: #b8479b;
+  --ck-skin-accent-strong: #983880;
+  --ck-skin-accent-soft: #d46bba;
+  --ck-skin-art:
+    radial-gradient(60% 46% at 82% 10%, rgb(212 107 186 / 0.16) 0%, transparent 70%),
+    radial-gradient(58% 50% at 12% 88%, rgb(139 92 216 / 0.14) 0%, transparent 72%),
+    radial-gradient(rgb(212 107 186 / 0.10) 1.6px, transparent 1.8px);
+  --ck-skin-art-size: cover, auto, auto, 74px 62px;
+}
+
+:where(.dark, .dark *)[data-skin="sakura"] {
+  --ck-skin-base: #150e20;
+  --ck-skin-page: rgb(21 14 32 / 0.58);
+  --ck-skin-surface: rgb(33 24 48 / 0.92);
+  --ck-skin-ink: #f1e6f7;
+  --ck-skin-accent: #e07cc6;
+  --ck-skin-accent-strong: #c45faa;
+  --ck-skin-accent-soft: #efa3da;
+  --ck-skin-art:
+    radial-gradient(60% 46% at 82% 10%, rgb(224 124 198 / 0.20) 0%, transparent 70%),
+    radial-gradient(58% 50% at 12% 88%, rgb(112 74 190 / 0.26) 0%, transparent 72%),
+    radial-gradient(rgb(239 163 218 / 0.12) 1.6px, transparent 1.8px);
+  --ck-skin-art-size: cover, auto, auto, 74px 62px;
+}
+
+/* ── Claymorphism ────────────────────────────────────────────────────────
+   Soft pastel shapes, the one skin with no dark subject behind it: four wide
+   blobs on a warm off-white, and the same four dimmed for the dark theme. */
+[data-skin="clay"] {
+  --ck-skin-base: #f3efe9;
+  --ck-skin-page: rgb(243 239 233 / 0.5);
+  --ck-skin-surface: rgb(255 254 252 / 0.93);
+  --ck-skin-ink: #2b2933;
+  --ck-skin-accent: #7a71e8;
+  --ck-skin-accent-strong: #6259cf;
+  --ck-skin-accent-soft: #9d96f0;
+  --ck-skin-art:
+    radial-gradient(38% 40% at 8% 12%, rgb(122 113 232 / 0.16) 0%, transparent 72%),
+    radial-gradient(34% 36% at 92% 22%, rgb(232 168 190 / 0.20) 0%, transparent 72%),
+    radial-gradient(40% 42% at 84% 92%, rgb(140 206 186 / 0.20) 0%, transparent 72%),
+    radial-gradient(36% 38% at 14% 90%, rgb(240 206 150 / 0.20) 0%, transparent 72%);
+}
+
+:where(.dark, .dark *)[data-skin="clay"] {
+  --ck-skin-base: #17161d;
+  --ck-skin-page: rgb(23 22 29 / 0.56);
+  --ck-skin-surface: rgb(35 33 44 / 0.92);
+  --ck-skin-ink: #eeebf5;
+  --ck-skin-accent: #a79dff;
+  --ck-skin-accent-strong: #8b80f0;
+  --ck-skin-accent-soft: #c2bbff;
+  --ck-skin-art:
+    radial-gradient(38% 40% at 8% 12%, rgb(122 113 232 / 0.24) 0%, transparent 72%),
+    radial-gradient(34% 36% at 92% 22%, rgb(232 168 190 / 0.16) 0%, transparent 72%),
+    radial-gradient(40% 42% at 84% 92%, rgb(96 176 156 / 0.20) 0%, transparent 72%),
+    radial-gradient(36% 38% at 14% 90%, rgb(210 168 104 / 0.16) 0%, transparent 72%);
+}
+
+/* ── Felt Landscape ──────────────────────────────────────────────────────
+   Rolling green under a warm sun. The hills are two very wide, very flat
+   radials low in the frame; the sun is a small one high and right. */
+[data-skin="felt"] {
+  --ck-skin-base: #f4f1e2;
+  --ck-skin-page: rgb(244 241 226 / 0.52);
+  --ck-skin-surface: rgb(255 254 248 / 0.93);
+  --ck-skin-ink: #1f2e19;
+  --ck-skin-accent: #4a8b38;
+  --ck-skin-accent-strong: #3a712b;
+  --ck-skin-accent-soft: #6faa58;
+  --ck-skin-art:
+    radial-gradient(18% 22% at 78% 16%, rgb(240 186 62 / 0.34) 0%, transparent 70%),
+    radial-gradient(120% 46% at 22% 104%, rgb(74 139 56 / 0.22) 0%, transparent 72%),
+    radial-gradient(110% 38% at 88% 108%, rgb(111 170 88 / 0.20) 0%, transparent 74%);
+}
+
+:where(.dark, .dark *)[data-skin="felt"] {
+  --ck-skin-base: #101509;
+  --ck-skin-page: rgb(16 21 9 / 0.58);
+  --ck-skin-surface: rgb(28 34 22 / 0.92);
+  --ck-skin-ink: #e9f0dd;
+  --ck-skin-accent: #7fb864;
+  --ck-skin-accent-strong: #669c4d;
+  --ck-skin-accent-soft: #a3d189;
+  --ck-skin-art:
+    radial-gradient(18% 22% at 78% 16%, rgb(240 186 62 / 0.22) 0%, transparent 70%),
+    radial-gradient(120% 46% at 22% 104%, rgb(74 139 56 / 0.26) 0%, transparent 72%),
+    radial-gradient(110% 38% at 88% 108%, rgb(40 90 40 / 0.30) 0%, transparent 74%);
+}
+
+/* ── Stellar ─────────────────────────────────────────────────────────────
+   The warm one. A low sun and a wide arc of sky, no pattern at all — it is
+   the quietest skin here on purpose, so the set isn't six busy ones. */
+[data-skin="stellar"] {
+  --ck-skin-base: #fdf2e6;
+  --ck-skin-page: rgb(253 242 230 / 0.5);
+  --ck-skin-surface: rgb(255 253 250 / 0.93);
+  --ck-skin-ink: #33210f;
+  --ck-skin-accent: #dd6420;
+  --ck-skin-accent-strong: #ba4f16;
+  --ck-skin-accent-soft: #f08442;
+  --ck-skin-art:
+    radial-gradient(70% 50% at 50% 108%, rgb(221 100 32 / 0.20) 0%, transparent 72%),
+    radial-gradient(90% 60% at 50% -14%, rgb(245 180 90 / 0.22) 0%, transparent 70%);
+}
+
+:where(.dark, .dark *)[data-skin="stellar"] {
+  --ck-skin-base: #1a1008;
+  --ck-skin-page: rgb(26 16 8 / 0.56);
+  --ck-skin-surface: rgb(40 27 18 / 0.92);
+  --ck-skin-ink: #fbe8d6;
+  --ck-skin-accent: #ff8a3d;
+  --ck-skin-accent-strong: #e86f22;
+  --ck-skin-accent-soft: #ffab72;
+  --ck-skin-art:
+    radial-gradient(70% 50% at 50% 108%, rgb(255 138 61 / 0.24) 0%, transparent 72%),
+    radial-gradient(90% 60% at 50% -14%, rgb(160 70 30 / 0.30) 0%, transparent 70%);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   IMAGE-BACKED SKINS
+   The three below ship real artwork out of /public/skins rather than
+   composing themselves from gradients.
+
+   Each still authors the SAME seven values — an image changes what the
+   wallpaper IS, not how a skin works — plus two things the gradient skins
+   do not need:
+
+     --ck-skin-image  the plate, ONE PER THEME. They are SVG, so a whole
+                      wallpaper is 1–2KB, it is sharp at any display density
+                      with no @2x twin to ship, and it stays readable source
+                      anyone can open and retint rather than a binary.
+
+     a fallback --ck-skin-art. The image layer sits ON TOP of it, so the
+     gradient is what fills the screen for the moment before the plate
+     arrives and what stays if it 404s. A skin whose art fails to load
+     should look plainer, never broken — which is also why each fallback is
+     that plate's own sky gradient rather than a generic wash.
+
+   ⚠️ Their page and surface are MORE OPAQUE than the gradient skins'
+   (0.66 / 0.94 against ~0.55 / 0.92). A drawn plate has detail and hard
+   edges where a wash has neither, and text on a translucent panel over a
+   ridgeline is the one place this system can actually cost legibility. If
+   you turn these down, check a dense page — a table under Ad Intelligence
+   is the honest test, not the home hero.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ── Aurora Ridge ────────────────────────────────────────────────────────
+   Ridgelines under an aurora: dawn blues in light, deep indigo and a green
+   curtain in dark. */
+[data-skin="aurora"] {
+  --ck-skin-base: #eef2f9;
+  --ck-skin-page: rgb(238 242 249 / 0.66);
+  --ck-skin-surface: rgb(255 255 255 / 0.94);
+  --ck-skin-ink: #101c30;
+  --ck-skin-accent: #2f7bd6;
+  --ck-skin-accent-strong: #245fa8;
+  --ck-skin-accent-soft: #5b9ce8;
+  --ck-skin-image: url("/skins/aurora-light.svg");
+  --ck-skin-art: linear-gradient(180deg, #e4eefb 0%, #f2f2f6 55%, #fdf6ec 100%);
+}
+
+:where(.dark, .dark *)[data-skin="aurora"] {
+  --ck-skin-base: #070d1c;
+  --ck-skin-page: rgb(7 13 28 / 0.66);
+  --ck-skin-surface: rgb(19 28 46 / 0.94);
+  --ck-skin-ink: #e6eefc;
+  --ck-skin-accent: #4fd6a8;
+  --ck-skin-accent-strong: #2fb88b;
+  --ck-skin-accent-soft: #7ee6c4;
+  --ck-skin-image: url("/skins/aurora-dark.svg");
+  --ck-skin-art: linear-gradient(180deg, #0a1024 0%, #0d1730 60%, #101d38 100%);
+}
+
+/* ── Ocean Swell ─────────────────────────────────────────────────────────
+   Four stacked swells under a low sun, and the same water at night with a
+   moon sitting on it. */
+[data-skin="swell"] {
+  --ck-skin-base: #edf5f4;
+  --ck-skin-page: rgb(237 245 244 / 0.66);
+  --ck-skin-surface: rgb(255 255 255 / 0.94);
+  --ck-skin-ink: #0d2a2e;
+  --ck-skin-accent: #12808c;
+  --ck-skin-accent-strong: #0c6570;
+  --ck-skin-accent-soft: #3aa3ad;
+  --ck-skin-image: url("/skins/swell-light.svg");
+  --ck-skin-art: linear-gradient(180deg, #fdf8ef 0%, #e6f2f2 100%);
+}
+
+:where(.dark, .dark *)[data-skin="swell"] {
+  --ck-skin-base: #04121a;
+  --ck-skin-page: rgb(4 18 26 / 0.66);
+  --ck-skin-surface: rgb(16 34 44 / 0.94);
+  --ck-skin-ink: #ddf1f2;
+  --ck-skin-accent: #3fc0c9;
+  --ck-skin-accent-strong: #2aa1aa;
+  --ck-skin-accent-soft: #6fd8de;
+  --ck-skin-image: url("/skins/swell-dark.svg");
+  --ck-skin-art: linear-gradient(180deg, #050f1a 0%, #08202b 100%);
+}
+
+/* ── Retro Sun ───────────────────────────────────────────────────────────
+   The striped disc over a perspective grid. The loudest skin in the set,
+   and the only one whose dark treatment is a DIFFERENT palette rather than
+   a darker one: the light plate is sunset orange, the dark plate is neon. */
+[data-skin="retro"] {
+  --ck-skin-base: #fbf0e4;
+  --ck-skin-page: rgb(251 240 228 / 0.66);
+  --ck-skin-surface: rgb(255 253 250 / 0.94);
+  --ck-skin-ink: #35211c;
+  --ck-skin-accent: #e2542a;
+  --ck-skin-accent-strong: #bc4020;
+  --ck-skin-accent-soft: #f07a4e;
+  --ck-skin-image: url("/skins/retro-light.svg");
+  --ck-skin-art: linear-gradient(180deg, #fceadd 0%, #fdf6ec 100%);
+}
+
+:where(.dark, .dark *)[data-skin="retro"] {
+  --ck-skin-base: #150a1e;
+  --ck-skin-page: rgb(21 10 30 / 0.66);
+  --ck-skin-surface: rgb(37 20 48 / 0.94);
+  --ck-skin-ink: #f9e6f2;
+  --ck-skin-accent: #ff5f9e;
+  --ck-skin-accent-strong: #e0407f;
+  --ck-skin-accent-soft: #ff8ab9;
+  --ck-skin-image: url("/skins/retro-dark.svg");
+  --ck-skin-art: linear-gradient(180deg, #160a26 0%, #2a0f33 100%);
+}
+
+/* ── Doodle Art ──────────────────────────────────────────────────────────
+   Marker scribbles on paper. The only skin drawn in STROKES rather than
+   fills, which is what keeps it reading as hand-drawn at any size. */
+[data-skin="doodle"] {
+  --ck-skin-base: #fdfcf8;
+  --ck-skin-page: rgb(253 252 248 / 0.66);
+  --ck-skin-surface: rgb(255 255 255 / 0.94);
+  --ck-skin-ink: #1b1b22;
+  --ck-skin-accent: #2f6bff;
+  --ck-skin-accent-strong: #1f52d8;
+  --ck-skin-accent-soft: #6b96ff;
+  --ck-skin-image: url("/skins/doodle-light.svg");
+  --ck-skin-art: linear-gradient(180deg, #fdfcf8 0%, #f6f4ec 100%);
+}
+
+:where(.dark, .dark *)[data-skin="doodle"] {
+  --ck-skin-base: #0f0f14;
+  --ck-skin-page: rgb(15 15 20 / 0.66);
+  --ck-skin-surface: rgb(28 28 36 / 0.94);
+  --ck-skin-ink: #f3f3f7;
+  --ck-skin-accent: #ffd23f;
+  --ck-skin-accent-strong: #e8b81f;
+  --ck-skin-accent-soft: #ffe27a;
+  --ck-skin-image: url("/skins/doodle-dark.svg");
+  --ck-skin-art: linear-gradient(180deg, #0f0f14 0%, #16161d 100%);
+}
+
+/* ── Winter ──────────────────────────────────────────────────────────────
+   Snowfall over ridges and pines. The palest skin in the set — its light
+   treatment is nearly white, so its ink carries all of the contrast. */
+[data-skin="winter"] {
+  --ck-skin-base: #eff5fa;
+  --ck-skin-page: rgb(239 245 250 / 0.66);
+  --ck-skin-surface: rgb(255 255 255 / 0.94);
+  --ck-skin-ink: #13202c;
+  --ck-skin-accent: #3a7fb5;
+  --ck-skin-accent-strong: #2b6492;
+  --ck-skin-accent-soft: #69a6d4;
+  --ck-skin-image: url("/skins/winter-light.svg");
+  --ck-skin-art: linear-gradient(180deg, #e8f1f9 0%, #f7fbfd 100%);
+}
+
+:where(.dark, .dark *)[data-skin="winter"] {
+  --ck-skin-base: #08111b;
+  --ck-skin-page: rgb(8 17 27 / 0.66);
+  --ck-skin-surface: rgb(20 32 46 / 0.94);
+  --ck-skin-ink: #e5f0f9;
+  --ck-skin-accent: #7fc4ec;
+  --ck-skin-accent-strong: #5aa7d4;
+  --ck-skin-accent-soft: #a9dbf6;
+  --ck-skin-image: url("/skins/winter-dark.svg");
+  --ck-skin-art: linear-gradient(180deg, #08111b 0%, #0e1e2e 100%);
+}
+
+/* ── Halloween Night ─────────────────────────────────────────────────────
+   Moon, hill, pumpkins, bats. Seasonal and unapologetic — the accent is the
+   pumpkin, not a tint of the page. */
+[data-skin="halloween"] {
+  --ck-skin-base: #f8efe0;
+  --ck-skin-page: rgb(248 239 224 / 0.66);
+  --ck-skin-surface: rgb(255 252 246 / 0.94);
+  --ck-skin-ink: #2a1b12;
+  --ck-skin-accent: #d9641a;
+  --ck-skin-accent-strong: #b44f11;
+  --ck-skin-accent-soft: #ef8b45;
+  --ck-skin-image: url("/skins/halloween-light.svg");
+  --ck-skin-art: linear-gradient(180deg, #fce9c9 0%, #f8efe0 100%);
+}
+
+:where(.dark, .dark *)[data-skin="halloween"] {
+  --ck-skin-base: #120a1c;
+  --ck-skin-page: rgb(18 10 28 / 0.66);
+  --ck-skin-surface: rgb(32 20 46 / 0.94);
+  --ck-skin-ink: #f7e9d4;
+  --ck-skin-accent: #ff8c1a;
+  --ck-skin-accent-strong: #e07110;
+  --ck-skin-accent-soft: #ffae5c;
+  --ck-skin-image: url("/skins/halloween-dark.svg");
+  --ck-skin-art: linear-gradient(180deg, #120a1c 0%, #1e1030 100%);
+}
+
+/* ── Mexican Heritage ────────────────────────────────────────────────────
+   Papel picado over a mission and agave. Terracotta, mustard and jade —
+   three accents in the plate, one of them (terracotta) promoted to the UI. */
+[data-skin="mexican"] {
+  --ck-skin-base: #fbf1e0;
+  --ck-skin-page: rgb(251 241 224 / 0.66);
+  --ck-skin-surface: rgb(255 252 246 / 0.94);
+  --ck-skin-ink: #38211a;
+  --ck-skin-accent: #c2432b;
+  --ck-skin-accent-strong: #a03420;
+  --ck-skin-accent-soft: #de6f4f;
+  --ck-skin-image: url("/skins/mexican-light.svg");
+  --ck-skin-art: linear-gradient(180deg, #fce3c0 0%, #fbf1e0 100%);
+}
+
+:where(.dark, .dark *)[data-skin="mexican"] {
+  --ck-skin-base: #17100c;
+  --ck-skin-page: rgb(23 16 12 / 0.66);
+  --ck-skin-surface: rgb(38 26 20 / 0.94);
+  --ck-skin-ink: #f7e6d4;
+  --ck-skin-accent: #e8613c;
+  --ck-skin-accent-strong: #c74a29;
+  --ck-skin-accent-soft: #f2906f;
+  --ck-skin-image: url("/skins/mexican-dark.svg");
+  --ck-skin-art: linear-gradient(180deg, #17100c 0%, #241610 100%);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   MORE GRADIENT SKINS
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ── Midnight Ink ────────────────────────────────────────────────────────
+   The restrained one: graphite, one blue, ruled paper, no scene. A set of
+   fifteen needs somewhere plain to land. */
+[data-skin="midnight"] {
+  --ck-skin-base: #edeff4;
+  --ck-skin-page: rgb(237 239 244 / 0.55);
+  --ck-skin-surface: rgb(253 253 255 / 0.93);
+  --ck-skin-ink: #121724;
+  --ck-skin-accent: #3050d8;
+  --ck-skin-accent-strong: #2440b4;
+  --ck-skin-accent-soft: #6079ea;
+  --ck-skin-art:
+    linear-gradient(140deg, rgb(48 80 216 / 0.10) 0%, transparent 46%),
+    linear-gradient(rgb(18 23 36 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(18 23 36 / 0.045) 1px, transparent 1px);
+  --ck-skin-art-size: cover, auto, 44px 44px, 44px 44px;
+}
+
+:where(.dark, .dark *)[data-skin="midnight"] {
+  --ck-skin-base: #090b12;
+  --ck-skin-page: rgb(9 11 18 / 0.58);
+  --ck-skin-surface: rgb(22 25 36 / 0.92);
+  --ck-skin-ink: #e7eaf4;
+  --ck-skin-accent: #7d8dff;
+  --ck-skin-accent-strong: #6172f0;
+  --ck-skin-accent-soft: #a3aeff;
+  --ck-skin-art:
+    linear-gradient(140deg, rgb(125 141 255 / 0.14) 0%, transparent 46%),
+    linear-gradient(rgb(231 234 244 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(231 234 244 / 0.05) 1px, transparent 1px);
+  --ck-skin-art-size: cover, auto, 44px 44px, 44px 44px;
+}
+
+/* ── Desert Dune ─────────────────────────────────────────────────────────
+   Sand, terracotta and a high sun. Three very wide, very flat radials read
+   as dunes without anyone drawing one. */
+[data-skin="dune"] {
+  --ck-skin-base: #f8f0e2;
+  --ck-skin-page: rgb(248 240 226 / 0.52);
+  --ck-skin-surface: rgb(255 253 248 / 0.93);
+  --ck-skin-ink: #3a2a18;
+  --ck-skin-accent: #c07a2e;
+  --ck-skin-accent-strong: #a0611f;
+  --ck-skin-accent-soft: #dd9b52;
+  --ck-skin-art:
+    radial-gradient(16% 20% at 84% 12%, rgb(245 196 90 / 0.36) 0%, transparent 70%),
+    radial-gradient(130% 40% at 18% 100%, rgb(192 122 46 / 0.20) 0%, transparent 72%),
+    radial-gradient(120% 34% at 92% 106%, rgb(221 155 82 / 0.20) 0%, transparent 74%);
+}
+
+:where(.dark, .dark *)[data-skin="dune"] {
+  --ck-skin-base: #171007;
+  --ck-skin-page: rgb(23 16 7 / 0.58);
+  --ck-skin-surface: rgb(36 26 16 / 0.92);
+  --ck-skin-ink: #f4e5d1;
+  --ck-skin-accent: #e0954a;
+  --ck-skin-accent-strong: #c07a2e;
+  --ck-skin-accent-soft: #f0b477;
+  --ck-skin-art:
+    radial-gradient(16% 20% at 84% 12%, rgb(245 196 90 / 0.22) 0%, transparent 70%),
+    radial-gradient(130% 40% at 18% 100%, rgb(140 84 30 / 0.30) 0%, transparent 72%),
+    radial-gradient(120% 34% at 92% 106%, rgb(90 52 20 / 0.34) 0%, transparent 74%);
+}
+
+/* ── Arctic Frost ────────────────────────────────────────────────────────
+   Pale ice and long shards of light. The coldest, lightest skin here. */
+[data-skin="arctic"] {
+  --ck-skin-base: #edf6fb;
+  --ck-skin-page: rgb(237 246 251 / 0.52);
+  --ck-skin-surface: rgb(253 255 255 / 0.93);
+  --ck-skin-ink: #0f2230;
+  --ck-skin-accent: #2b90c4;
+  --ck-skin-accent-strong: #1f739f;
+  --ck-skin-accent-soft: #58b0dc;
+  --ck-skin-art:
+    radial-gradient(60% 50% at 16% 6%, rgb(88 176 220 / 0.18) 0%, transparent 70%),
+    radial-gradient(70% 46% at 88% 96%, rgb(43 144 196 / 0.14) 0%, transparent 72%),
+    repeating-linear-gradient(58deg, rgb(15 34 48 / 0.035) 0 1px, transparent 1px 58px);
+}
+
+:where(.dark, .dark *)[data-skin="arctic"] {
+  --ck-skin-base: #061019;
+  --ck-skin-page: rgb(6 16 25 / 0.58);
+  --ck-skin-surface: rgb(18 32 44 / 0.92);
+  --ck-skin-ink: #e1f1fb;
+  --ck-skin-accent: #52bfe8;
+  --ck-skin-accent-strong: #349fc9;
+  --ck-skin-accent-soft: #86d6f2;
+  --ck-skin-art:
+    radial-gradient(60% 50% at 16% 6%, rgb(82 191 232 / 0.20) 0%, transparent 70%),
+    radial-gradient(70% 46% at 88% 96%, rgb(20 78 110 / 0.34) 0%, transparent 72%),
+    repeating-linear-gradient(58deg, rgb(225 241 251 / 0.045) 0 1px, transparent 1px 58px);
+}
+
+/* ── Neon Grid ───────────────────────────────────────────────────────────
+   Magenta and cyan over a receding grid. The dark treatment is the point;
+   the light one is the same idea with the volume most of the way down. */
+[data-skin="neon"] {
+  --ck-skin-base: #f4f0fb;
+  --ck-skin-page: rgb(244 240 251 / 0.54);
+  --ck-skin-surface: rgb(254 253 255 / 0.93);
+  --ck-skin-ink: #241a35;
+  --ck-skin-accent: #8b3fd8;
+  --ck-skin-accent-strong: #7130b8;
+  --ck-skin-accent-soft: #b06ff0;
+  --ck-skin-art:
+    radial-gradient(56% 44% at 14% 10%, rgb(224 79 255 / 0.14) 0%, transparent 70%),
+    radial-gradient(56% 44% at 88% 22%, rgb(64 208 232 / 0.14) 0%, transparent 70%),
+    linear-gradient(rgb(36 26 53 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(36 26 53 / 0.05) 1px, transparent 1px);
+  --ck-skin-art-size: cover, auto, auto, 54px 54px, 54px 54px;
+}
+
+:where(.dark, .dark *)[data-skin="neon"] {
+  --ck-skin-base: #0a0516;
+  --ck-skin-page: rgb(10 5 22 / 0.6);
+  --ck-skin-surface: rgb(26 16 44 / 0.92);
+  --ck-skin-ink: #f0e6ff;
+  --ck-skin-accent: #c04fff;
+  --ck-skin-accent-strong: #a032e8;
+  --ck-skin-accent-soft: #dd8aff;
+  --ck-skin-art:
+    radial-gradient(56% 44% at 14% 10%, rgb(224 79 255 / 0.24) 0%, transparent 70%),
+    radial-gradient(56% 44% at 88% 22%, rgb(64 208 232 / 0.20) 0%, transparent 70%),
+    linear-gradient(rgb(192 79 255 / 0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(64 208 232 / 0.08) 1px, transparent 1px);
+  --ck-skin-art-size: cover, auto, auto, 54px 54px, 54px 54px;
+}
+
+/* ── Mocha ───────────────────────────────────────────────────────────────
+   Coffee and cream. Warm, low-contrast, nothing moving — the one to read a
+   long page in. */
+[data-skin="mocha"] {
+  --ck-skin-base: #f4ede4;
+  --ck-skin-page: rgb(244 237 228 / 0.52);
+  --ck-skin-surface: rgb(255 253 250 / 0.93);
+  --ck-skin-ink: #2f2119;
+  --ck-skin-accent: #8a5a3c;
+  --ck-skin-accent-strong: #6f462d;
+  --ck-skin-accent-soft: #b07d57;
+  --ck-skin-art:
+    radial-gradient(64% 50% at 82% 8%, rgb(176 125 87 / 0.16) 0%, transparent 72%),
+    radial-gradient(70% 52% at 10% 96%, rgb(138 90 60 / 0.14) 0%, transparent 74%);
+}
+
+:where(.dark, .dark *)[data-skin="mocha"] {
+  --ck-skin-base: #130f0b;
+  --ck-skin-page: rgb(19 15 11 / 0.58);
+  --ck-skin-surface: rgb(33 26 20 / 0.92);
+  --ck-skin-ink: #f0e4d8;
+  --ck-skin-accent: #c08a5e;
+  --ck-skin-accent-strong: #a06f47;
+  --ck-skin-accent-soft: #d8a982;
+  --ck-skin-art:
+    radial-gradient(64% 50% at 82% 8%, rgb(192 138 94 / 0.18) 0%, transparent 72%),
+    radial-gradient(70% 52% at 10% 96%, rgb(80 48 28 / 0.34) 0%, transparent 74%);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   THE IMAGE — a photo behind the app (the panel's "Images" section).
+
+   An image is a DIFFERENT AXIS from a skin, and they compose:
+
+     skin   palette + wallpaper
+     image  wallpaper only
+
+   So a photo swaps the art and leaves a skin's colours alone. That is the
+   whole reason `data-wallpaper` is its own attribute rather than another
+   skin id — a photo cannot say what the gray ramp should be, and a palette
+   per Pexels result is not a thing anyone can author.
+
+   ⚠️ ORDER IS THE MECHANISM HERE. `:root[data-wallpaper]` and
+   `:root[data-skin]` are both (0,2,0), so the ONLY reason a photo covers a
+   skin's gradients is that this block comes later in the file. Move it above
+   the skins and every photo silently loses to the skin's own art.
+
+   The URL arrives as a custom property set by wallpapers.js, so no rule here
+   has to know it — and it is the one value in this file that comes from the
+   network rather than from source.
+   ═════════════════════════════════════════════════════════════════════════ */
+:root[data-wallpaper] {
+  background-image: var(--ck-wallpaper);
+  background-attachment: fixed;
+  background-size: cover;
+  background-position: center;
+}
+
+:root[data-wallpaper] body {
+  background: transparent;
+}
+
+/* The glass treatment, and ONLY when no skin is supplying its own.
+   `:not([data-skin])` is what keeps the two axes from fighting: with a skin
+   on, its palette already reads over art and this must not touch it.
+
+   Values are a step MORE opaque than the gradient skins use. A photograph is
+   the busiest thing that can end up back there — arbitrary contrast, faces,
+   text in the image itself — so the app's own panels stay more solid over one
+   than they do over artwork this file drew and can vouch for. */
+:root[data-wallpaper]:not([data-skin]) {
+  --color-page: rgb(247 248 252 / 0.6);
+  --color-surface: rgb(255 255 255 / 0.94);
+}
+
+:root.dark[data-wallpaper]:not([data-skin]) {
+  --color-page: rgb(14 14 17 / 0.62);
+  --color-surface: rgb(28 28 32 / 0.94);
+}

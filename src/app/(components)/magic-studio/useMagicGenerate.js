@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  getVideoError,
   getVideoStatus,
   normalizeVideoResult,
 } from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
@@ -76,8 +77,19 @@ export default function useMagicGenerate({
             const status = getVideoStatus(data);
             if (status === "completed") return resolve(data);
             if (status === "failed") {
+              // The record's own `error` where there is one. "Please try again"
+              // is the wrong advice for a rejected input — the same request
+              // fails the same way forever — and the backend usually says
+              // exactly which field the provider refused.
+              const reason = getVideoError(data);
+              if (reason) {
+                console.error(
+                  `❌ [magic-studio] video job ${jobId} failed:`,
+                  reason,
+                );
+              }
               return reject(
-                new Error("Video generation failed. Please try again."),
+                new Error(reason || "Video generation failed. Please try again."),
               );
             }
             if (attempts >= VIDEO_POLL_MAX_ATTEMPTS) {

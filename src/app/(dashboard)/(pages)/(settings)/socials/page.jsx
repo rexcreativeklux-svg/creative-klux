@@ -5,6 +5,7 @@ import { Info } from "lucide-react";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import NotificationModal from "@/app/(components)/NotificationModal";
+import Skeleton from "@/app/(components)/skeletons/Skeleton";
 
 const socialPlatforms = [
   {
@@ -60,6 +61,11 @@ const socialPlatforms = [
 export default function SocialIntegrations() {
   const { fetchSocialAccounts, token, brandId, user, handleDelete, connectSocialAccount } = useAuth();
   const [connectedAccounts, setConnectedAccounts] = useState([]);
+  // The eight cards are static, so the page itself needs no skeleton — but until
+  // the accounts land we cannot say whether a card's button reads "Connect" or
+  // "Disconnect", and guessing "Connect" invites a click that re-connects an
+  // already-connected platform. Only that button waits.
+  const [accountsReady, setAccountsReady] = useState(false);
 
   // Notification Modal State
   const [notification, setNotification] = useState({
@@ -85,14 +91,29 @@ export default function SocialIntegrations() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadAccounts = async () => {
+      // No token yet — the effect re-runs when auth supplies one.
       if (!token) return;
-      const res = await fetchSocialAccounts(token);
-      if (res?.success) {
-        setConnectedAccounts(res.data);
+      try {
+        const res = await fetchSocialAccounts(token);
+        if (!cancelled && res?.success) {
+          setConnectedAccounts(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to load social accounts", err);
+      } finally {
+        // Even on failure: the buttons have to become clickable again, and
+        // "Connect" is the correct fallback when we know of no connection.
+        if (!cancelled) setAccountsReady(true);
       }
     };
+
     loadAccounts();
+    return () => {
+      cancelled = true;
+    };
   }, [token, fetchSocialAccounts]);
 
   const isPlatformConnected = (platformKey) => {
@@ -216,18 +237,24 @@ export default function SocialIntegrations() {
                 </div>
                 <div className="flex justify-between items-center">
                   <Info className="w-7 h-7 text-gray-400 cursor-pointer" />
-                  <button
-                    onClick={() =>
-                      connected
-                        ? handleDisconnect(platform.key)
-                        : handleConnect(platform.key)
-                    }
-                    className={`${
-                      connected ? "bg-red-500 hover:bg-red-600" : "bg-blue-600 hover:bg-blue-700"
-                    } text-white cursor-pointer transition duration-300 px-2 py-1.5 rounded-md text-sm uppercase`}
-                  >
-                    {connected ? "Disconnect" : "Connect"}
-                  </button>
+                  {/* Sized to the widest of the two labels so the card doesn't
+                      resettle when the real button takes over. */}
+                  {!accountsReady ? (
+                    <Skeleton className="h-8 w-26 rounded-md" tone="soft" shimmer />
+                  ) : (
+                    <button
+                      onClick={() =>
+                        connected
+                          ? handleDisconnect(platform.key)
+                          : handleConnect(platform.key)
+                      }
+                      className={`${
+                        connected ? "bg-red-500 hover:bg-red-600" : "bg-blue-600 hover:bg-blue-700"
+                      } text-white cursor-pointer transition duration-300 px-2 py-1.5 rounded-md text-sm uppercase`}
+                    >
+                      {connected ? "Disconnect" : "Connect"}
+                    </button>
+                  )}
                 </div>
               </div>
             );

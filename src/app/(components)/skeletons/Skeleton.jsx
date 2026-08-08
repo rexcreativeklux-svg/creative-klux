@@ -14,14 +14,21 @@
 // gray ramp inside `.dark`, so `bg-gray-200` becomes a dark slate automatically.
 // Never write a hex in a skeleton — it will be wrong in one of the two themes.
 //
-// MOTION. `animate-pulse`, matching what the app already used everywhere. It is
-// applied on the block itself rather than a parent so a skeleton dropped inside
-// a real grid still pulses in step with its neighbours.
+// MOTION. `animate-pulse` by default, matching what the app already used
+// everywhere. It is applied on the block itself rather than a parent so a
+// skeleton dropped inside a real grid still pulses in step with its neighbours.
+//
+// `shimmer` swaps that for the horizontal light sweep (`.shimmer-sweep` in
+// globals.css). Pulse and sweep are mutually exclusive on purpose — running both
+// on one block reads as a flicker. Reach for `shimmer` on the few large blocks
+// that carry a page (the artwork tile, the calendar grid, a chart plot area) and
+// leave the small text bars on pulse; a page where every bar sweeps is noisier
+// than one that breathes.
 //
 // Usage — Tailwind classes for anything the design system already has a scale
 // for, the `w`/`h` props only for the odd pixel-exact measurement:
 //   <Skeleton className="h-4 w-32" />
-//   <Skeleton className="aspect-video w-full rounded-xl" />
+//   <Skeleton className="aspect-video w-full rounded-xl" shimmer />
 //   <Skeleton w={36} h={36} className="rounded-full" />
 
 /**
@@ -41,6 +48,7 @@ const TONES = {
  * @param {object} props
  * @param {"base"|"soft"} [props.tone]        Which grey — see TONES.
  * @param {string} [props.className]          Tailwind sizing/rounding. Preferred over w/h.
+ * @param {boolean} [props.shimmer]           Sweep instead of pulse — see MOTION.
  * @param {number|string} [props.w]           Pixel-exact width, when no Tailwind step fits.
  * @param {number|string} [props.h]           Pixel-exact height, when no Tailwind step fits.
  * @param {string} [props.rounded]            Pixel-exact border-radius (e.g. "50%").
@@ -49,6 +57,7 @@ const TONES = {
 export default function Skeleton({
   tone = "base",
   className = "",
+  shimmer = false,
   w,
   h,
   rounded,
@@ -57,7 +66,7 @@ export default function Skeleton({
   return (
     <div
       aria-hidden="true"
-      className={`animate-pulse rounded ${TONES[tone] ?? TONES.base} ${className}`}
+      className={`rounded ${shimmer ? "shimmer-sweep" : "animate-pulse"} ${TONES[tone] ?? TONES.base} ${className}`}
       style={{
         width: w,
         height: h,

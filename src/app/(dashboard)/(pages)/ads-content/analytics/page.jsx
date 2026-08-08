@@ -42,6 +42,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import ResponsiveTable from "@/app/(components)/ui/ResponsiveTable";
 import { ChartFrame, useChartDensity } from "@/app/(components)/ui/ResponsiveChart";
+import { AnalyticsSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
 const PLATFORM_META = {
   facebook: { label: "Facebook", color: "#3b82f6", emoji: "🔵" },
@@ -179,6 +180,11 @@ export default function AdsAnalytics() {
   const { fetchIntegrations, updateIntegration } = useAuth();
 
   const [integrations, setIntegrations] = useState([]);
+  // This page loads in two hops — integrations, then live posts and per-ad
+  // stats — and only the second one produces numbers. Both are tracked so the
+  // KPI tiles never render a page of zeroes on the way there.
+  const [integrationsReady, setIntegrationsReady] = useState(false);
+  const [statsLoaded, setStatsLoaded] = useState(false);
 
   useEffect(() => {
     const loadIntegrations = async () => {
@@ -188,6 +194,8 @@ export default function AdsAnalytics() {
       } catch (err) {
         console.error("Failed to load integrations", err);
         setIntegrations([]);
+      } finally {
+        setIntegrationsReady(true);
       }
     };
 
@@ -247,7 +255,7 @@ export default function AdsAnalytics() {
   }, [integrations]);
 
   useEffect(() => {
-    if (!integrations.length) return;
+    if (!integrationsReady || !integrations.length) return;
 
     const initializeAnalytics = async () => {
       await fetchLive(true);
@@ -309,11 +317,18 @@ export default function AdsAnalytics() {
         console.error(err);
       } finally {
         setRefreshingAll(false);
+        setStatsLoaded(true);
       }
     };
 
     initializeAnalytics();
-  }, [integrations, fetchLive, accountsMap, reload]);
+  }, [integrationsReady, integrations, fetchLive, accountsMap, reload]);
+
+  // Derived rather than a third state flag, so the "no connected accounts" case
+  // needs no effect to resolve it: with nothing to fetch, the page is already in
+  // its final state the moment the integrations lookup returns empty.
+  const initializing =
+    !integrationsReady || (integrations.length > 0 && !statsLoaded);
 
   const posts = allPosts.filter((p) => p.type === "ad");
   const connectedPlatforms = new Set(integrations.map((i) => i.platform));
@@ -471,6 +486,11 @@ export default function AdsAnalytics() {
     axisLine: false,
     width: chart.yAxisWidth,
   };
+
+  // Held until the stats pass finishes, not just the post sync: with ads but no
+  // stats yet the page is real charts full of zeroes, which is a worse lie than
+  // a placeholder.
+  if (initializing) return <AnalyticsSkeleton />;
 
   return (
     <div>

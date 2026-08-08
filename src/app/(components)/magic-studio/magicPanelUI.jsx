@@ -3,11 +3,14 @@
 /**
  * magicPanelUI.jsx
  * ─────────────────────────────────────────────────────────────────────────────
- * Presentational pieces for the Magic Studio tabs embedded in the media picker,
- * ported from the standalone `MagicStudioModal` (file-private there). Reusing the
- * config machine — not extracting a shared core — means the standalone modal is
- * untouched and these copies render the SAME config `options` data in the
- * picker's narrower, single-column layout.
+ * Presentational pieces for rendering a Magic Studio tool's `options` — the rich
+ * choosers a config declares, in whatever layout the surface around them wants.
+ *
+ * Originally ported out of MagicStudioModal, which has since been deleted; this
+ * is now THE implementation rather than a copy of one, and there is nothing left
+ * to keep it in sync with. Two surfaces render these today: the Magic Studio tab
+ * inside the media picker (inline, under an expandable row) and the Magic Studio
+ * composer's toolbar chips (in a portalled drop-up panel).
  *
  *   • OptionPanelBody — the rich option chooser (cards / ratios / flags / voices
  *     / pills / list), rendered INLINE under an expandable option row instead of
@@ -16,8 +19,6 @@
  *   • ProcessingState — on-device real-progress panel (STT/TTS) shown while an
  *     on-device tool runs.
  *   • TRANSCRIPT_DOWNLOADS — the TXT / SRT / VTT export menu items.
- *
- * Keep in sync with src/app/(dashboard)/(pages)/magic-studio/MagicStudioModal.jsx.
  */
 
 import { useEffect, useRef } from "react";

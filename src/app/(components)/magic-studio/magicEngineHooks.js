@@ -3,19 +3,17 @@
 /**
  * magicEngineHooks.js
  * ─────────────────────────────────────────────────────────────────────────────
- * On-device engine GLUE for the Magic Studio tabs embedded in the media picker.
+ * On-device engine GLUE for the Magic Studio tools.
  *
- * These two hooks — voice auditioning (Text to Audio) and microphone capture
- * (Audio to Text) — are ported from the standalone `MagicStudioModal`, where
- * they live as file-private helpers. We chose to *reuse the config machine*
- * rather than extract a shared core from that modal, so the standalone stays
- * untouched and the picker carries its own copies of this small glue. The
- * underlying engines they drive (Kokoro TTS / Whisper STT via
- * `@/(lib)/ai-engine/hooks/*`) are the exact same shared engines — nothing is
- * duplicated there.
+ * Two hooks — voice auditioning (Text to Audio) and microphone capture (Audio to
+ * Text). Originally ported out of MagicStudioModal, which has since been
+ * deleted; these are now the only copies, shared by the Magic Studio composer
+ * and the Magic Studio tab inside the media picker, so there is nothing left to
+ * keep them in sync with.
  *
- * If these ever need to change, keep them in sync with the originals in
- * src/app/(dashboard)/(pages)/magic-studio/MagicStudioModal.jsx.
+ * The engines they drive (Kokoro TTS / Whisper STT via
+ * `@/(lib)/ai-engine/hooks/*`) were always the shared ones — nothing about the
+ * models themselves was ever duplicated here.
  */
 
 import { useEffect, useRef, useState } from "react";

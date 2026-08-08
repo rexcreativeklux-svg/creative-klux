@@ -61,7 +61,7 @@ import {
   buildVtt,
   transcriptFileName,
 } from "@/(lib)/ai-engine/tasks/transcriptExports";
-import { resolveMediaUrl } from "@/(lib)/magic-studio-api";
+import { pickHostedUrl } from "@/(lib)/magic-studio-api";
 import AudioCard, { formatClock } from "@/app/(components)/gallery/AudioCard";
 
 import { useVoicePreview, useMicRecorder } from "./magicEngineHooks";
@@ -73,19 +73,11 @@ import {
 } from "./magicPanelUI";
 import useMagicGenerate from "./useMagicGenerate";
 
-// Pull a hosted URL out of an uploadMedia() response (shape varies by endpoint).
-const pickHostedUrl = (data) => {
-  const d = data?.data || data || {};
-  return (
-    resolveMediaUrl(d.image_url) ||
-    resolveMediaUrl(d.url) ||
-    resolveMediaUrl(d.file_url) ||
-    resolveMediaUrl(d.s3_key) ||
-    resolveMediaUrl(data?.image_url) ||
-    resolveMediaUrl(data?.url) ||
-    null
-  );
-};
+// `pickHostedUrl` used to be duplicated here. It missed the gallery endpoint's
+// `file` envelope — so an upload that had genuinely succeeded came back as
+// "Upload succeeded but no URL came back". It now lives in magic-studio-api
+// beside resolveMediaUrl, so this surface and the Magic Studio composer can't
+// drift apart on it again.
 
 /**
  * @param {object} props

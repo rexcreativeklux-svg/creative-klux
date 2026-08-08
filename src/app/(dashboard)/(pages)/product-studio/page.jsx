@@ -31,6 +31,28 @@ import {
   ON_DEVICE_TOOLS,
   ON_DEVICE_TOOL_IDS,
 } from "@/app/(components)/product-studio/onDeviceToolConfigs";
+import {
+  PresetStrip,
+  PresetTile,
+  PhotoTile,
+  FilterTile,
+  AvatarTile,
+} from "./PresetStrip";
+import {
+  PRESET_SNEAKER,
+  PRESET_TEE,
+  PRESET_PORTRAIT,
+  PRESET_HEADSHOT,
+  getStarted,
+  classics,
+  studioColors,
+  essentialColors,
+  professionalColors,
+  photoFilters,
+  trending,
+  marbleAndWood,
+  avatarColors,
+} from "./presetSections";
 
 // Product Staging now has its own dedicated modal (ProductStagingModal) with the
 // gallery picker + structured Generate payload, matching Virtual Model. Beautifier
@@ -114,68 +136,6 @@ const tools = [
   // },
 ];
 
-const getStarted = [
-  {
-    label: "Remove a background",
-    img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80",
-  },
-  {
-    label: "Generate AI backgrounds",
-    img: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&q=80",
-  },
-  {
-    label: "Edit hundreds of images at once",
-    img: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80",
-  },
-  {
-    label: "Retouch an image",
-    img: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&q=80",
-  },
-];
-
-const classics = [
-  { label: "White", bg: "bg-surface border border-gray-200" },
-  { label: "Black", bg: "bg-black", active: true },
-  {
-    label: "Transparent",
-    bg: 'bg-[url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2210%22%20height%3D%2210%22%3E%3Crect%20width%3D%225%22%20height%3D%225%22%20fill%3D%22%23ccc%22/%3E%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%225%22%20height%3D%225%22%20fill%3D%22%23ccc%22/%3E%3C/svg%3E")]',
-  },
-  { label: "Original Image", bg: "bg-[#f5f0e8]" },
-];
-
-const studioColors = [
-  "#f5f0e0",
-  "#ede8d8",
-  "#e0dbd0",
-  "#f0ede0",
-  "#f5e8e0",
-  "#e8f0e0",
-  "#e0eef5",
-  "#f5e0ed",
-];
-
-// SVG product placeholder used inside classic & studio swatches
-function ProductIcon({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 40 40"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-    >
-      <path
-        d="M8 30 Q10 22 20 20 Q30 18 32 30"
-        stroke="#9ca3af"
-        strokeWidth="1.5"
-        fill="none"
-      />
-      <ellipse cx="20" cy="30" rx="12" ry="3" fill="#e5e7eb" />
-      <rect x="15" y="14" width="10" height="14" rx="5" fill="#d1d5db" />
-      <rect x="13" y="18" width="14" height="8" rx="2" fill="#e5e7eb" />
-    </svg>
-  );
-}
-
 export default function ProductPhotos() {
   const [search, setSearch] = useState("");
   const [addImagesOpen, setAddImagesOpen] = useState(false); // Photoroom-style picker (the "Edit a photo" flow)
@@ -187,10 +147,17 @@ export default function ProductPhotos() {
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
   const [mannequinOpen, setMannequinOpen] = useState(false); // API-only Ghost Mannequin modal
   const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/flatlay)
+  const [showMorePresets, setShowMorePresets] = useState(false); // "Show more" — appends the rest of the preset rows
 
   // The "Edit a photo" flow opens the Photoroom-style Add images picker first;
   // picking an image there navigates to /edit_a_photo with it preloaded.
   const openAddImages = () => setAddImagesOpen(true);
+
+  // The preset rows below (Get started / Classics / Studio) skip the picker and
+  // drop straight into the editor. Landing on /edit_a_photo with no ?image makes
+  // PhotoEditor pop the file chooser on mount, so the click costs one step
+  // instead of two — and the library is still reachable from inside the editor.
+  const openPhotoEditor = () => router.push("/edit_a_photo?mode=start");
 
   // Central tool router — used by the tool grid AND the in-modal tool switcher.
   // `opts.initialImageUrl` lets a result's "Generate video" preselect that image
@@ -277,10 +244,9 @@ export default function ProductPhotos() {
   const filteredGetStarted = q
     ? getStarted.filter((g) => g.label.toLowerCase().includes(q))
     : getStarted;
-  const filteredClassics = q
-    ? classics.filter((c) => c.label.toLowerCase().includes(q))
-    : classics;
-  const filteredStudio = q ? [] : studioColors; // studio has no labels to match
+  // The preset rows are browsing surfaces, not search results — a query hides
+  // them outright rather than leaving swatches on screen that ignore it.
+  const showPresets = !q;
 
   return (
     <div>
@@ -438,15 +404,17 @@ export default function ProductPhotos() {
                 Dismiss
               </button>
             </div>
-            {/* Image cards with a caption baked into the artwork — below
-                ~240px the label stops being readable, so that is the floor. */}
-            <div className="grid grid-fluid-[240px] gap-3 mb-10">
+            {/* Image cards with a caption baked into the artwork. The floor is
+                ~330px: these are the page's hero entry points and the artwork
+                has to read as a preview of the RESULT — much below that the
+                shoe/bag/batch grid shrinks into an unreadable thumbnail. */}
+            <div className="grid grid-fluid-[330px] gap-4 mb-10">
               {filteredGetStarted.map((item, i) => (
                 <motion.button
                   key={i}
-                  onClick={openAddImages}
+                  onClick={openPhotoEditor}
                   whileHover={{ scale: 1.02 }}
-                  className="relative rounded-2xl overflow-hidden aspect-4/3 group cursor-pointer"
+                  className="relative rounded-2xl overflow-hidden aspect-5/3 group cursor-pointer"
                 >
                   <img
                     src={item.img}
@@ -454,11 +422,11 @@ export default function ProductPhotos() {
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent" />
-                  <div className="absolute bottom-0 left-0 p-4 flex items-end justify-between w-full">
-                    <p className="text-white text-sm font-semibold leading-tight text-left">
+                  <div className="absolute bottom-0 left-0 p-5 flex items-end justify-between gap-2 w-full">
+                    <p className="text-white text-base font-semibold leading-tight text-left">
                       {item.label}
                     </p>
-                    <ChevronRight className="w-4 h-4 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    <ChevronRight className="w-5 h-5 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                   </div>
                 </motion.button>
               ))}
@@ -467,58 +435,204 @@ export default function ProductPhotos() {
         )}
 
         {/* ── Classics ── */}
-        {filteredClassics.length > 0 && !q && (
+        {showPresets && (
           <>
             <h2 className="text-base font-semibold text-gray-900 mb-4">
               Classics
             </h2>
-            {/* A fixed row of 80px tiles overflows once there are more than
-                four on a phone. Scrolling horizontally is right HERE (unlike a
-                table) — it is a short, homogeneous strip of thumbnails where
-                "there is more to the side" reads instantly. -mx/px keeps the
-                strip bleeding to the screen edge so the last tile is visibly
-                cut rather than looking like the end of the list. */}
-            <div className="flex gap-3 mb-8 overflow-x-auto hide-scrollbar -mx-gutter px-gutter lg:mx-0 lg:px-0">
-              {filteredClassics.map((c, i) => (
+            <PresetStrip className="mb-8">
+              {classics.map((c, i) => (
                 <button
                   key={i}
-                  onClick={openAddImages}
+                  onClick={openPhotoEditor}
                   className="flex shrink-0 flex-col items-center gap-2 cursor-pointer"
                 >
-                  <div
-                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl border-2 transition-all hover:border-blue-400 flex items-center justify-center overflow-hidden ${
+                  {/* 128px on desktop: the tile has to show what the backdrop
+                      does to a product, and the difference between white,
+                      transparent and the original is not legible at 80px. */}
+                  <PresetTile
+                    img={c.img}
+                    blend={c.blend !== false}
+                    className={`w-24 h-24 sm:w-32 sm:h-32 rounded-xl border-2 transition-all hover:border-blue-400 ${
                       c.active ? "border-blue-500" : "border-gray-200"
                     } ${c.bg}`}
-                  >
-                    <ProductIcon className="w-8 h-8 sm:w-10 sm:h-10" />
-                  </div>
-                  <span className="text-xs text-gray-600">{c.label}</span>
+                  />
+                  <span className="text-xs sm:text-sm text-gray-600">
+                    {c.label}
+                  </span>
                 </button>
               ))}
-            </div>
+            </PresetStrip>
           </>
         )}
 
         {/* ── Studio ── */}
-        {!q && filteredStudio.length > 0 && (
+        {showPresets && (
           <>
             <h2 className="text-base font-semibold text-gray-900 mb-4">
               Studio
             </h2>
-            {/* Same scrolling-strip treatment as Classics above. */}
-            <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-gutter px-gutter lg:mx-0 lg:px-0">
-              {filteredStudio.map((color, i) => (
+            <PresetStrip className="mb-8">
+              {studioColors.map((color, i) => (
                 <button
                   key={i}
-                  onClick={openAddImages}
-                  className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-xl border border-gray-200 flex items-center justify-center hover:border-blue-400 transition-all cursor-pointer"
-                  style={{ backgroundColor: color }}
+                  onClick={openPhotoEditor}
+                  className="shrink-0 cursor-pointer"
                 >
-                  <ProductIcon className="w-8 h-8 sm:w-10 sm:h-10" />
+                  <PresetTile
+                    img={PRESET_SNEAKER}
+                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
+                    style={{ backgroundColor: color }}
+                  />
                 </button>
               ))}
-            </div>
+            </PresetStrip>
           </>
+        )}
+
+        {/* ── Essentials ── the plain-backdrop ramp, white through charcoal. */}
+        {showPresets && (
+          <>
+            <h2 className="text-base font-semibold text-gray-900 mb-4">
+              Essentials
+            </h2>
+            <PresetStrip className="mb-8">
+              {essentialColors.map((color, i) => (
+                <button
+                  key={i}
+                  onClick={openPhotoEditor}
+                  className="shrink-0 cursor-pointer"
+                >
+                  <PresetTile
+                    img={PRESET_TEE}
+                    className="w-28 h-32 sm:w-32 sm:h-40 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
+                    style={{ backgroundColor: color }}
+                  />
+                </button>
+              ))}
+            </PresetStrip>
+          </>
+        )}
+
+        {/* ── "Show more" rows ──
+            Everything below the fold on first load. These are browsing rows,
+            not tools: holding them back keeps the page one screen of decisions
+            while leaving the full catalogue one click away. */}
+        {showPresets && showMorePresets && (
+          <>
+            {/* Photo Editing Classics — one portrait, seven treatments, each
+                rendered in CSS so the tile previews the real effect. */}
+            <h2 className="text-base font-semibold text-gray-900 mb-4">
+              Photo Editing Classics
+            </h2>
+            <PresetStrip className="mb-8">
+              {photoFilters.map((f) => (
+                <button
+                  key={f.label}
+                  onClick={openPhotoEditor}
+                  className="flex shrink-0 flex-col items-center gap-2 cursor-pointer"
+                >
+                  <FilterTile
+                    img={PRESET_PORTRAIT}
+                    filter={f.filter}
+                    kind={f.kind}
+                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
+                  />
+                  <span className="text-xs sm:text-sm text-gray-600">
+                    {f.label}
+                  </span>
+                </button>
+              ))}
+            </PresetStrip>
+
+            <h2 className="text-base font-semibold text-gray-900 mb-4">
+              Trending
+            </h2>
+            <PresetStrip className="mb-8">
+              {trending.map((img, i) => (
+                <button
+                  key={i}
+                  onClick={openPhotoEditor}
+                  className="shrink-0 cursor-pointer"
+                >
+                  <PhotoTile
+                    img={img}
+                    className="w-28 h-36 sm:w-32 sm:h-40 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
+                  />
+                </button>
+              ))}
+            </PresetStrip>
+
+            <h2 className="text-base font-semibold text-gray-900 mb-4">
+              Marble &amp; Wood 🪵
+            </h2>
+            <PresetStrip className="mb-8">
+              {marbleAndWood.map((img, i) => (
+                <button
+                  key={i}
+                  onClick={openPhotoEditor}
+                  className="shrink-0 cursor-pointer"
+                >
+                  <PhotoTile
+                    img={img}
+                    className="w-28 h-32 sm:w-32 sm:h-32 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
+                  />
+                </button>
+              ))}
+            </PresetStrip>
+
+            <h2 className="text-base font-semibold text-gray-900 mb-4">
+              Professional Product Imagery
+            </h2>
+            <PresetStrip className="mb-8">
+              {professionalColors.map((color, i) => (
+                <button
+                  key={i}
+                  onClick={openPhotoEditor}
+                  className="shrink-0 cursor-pointer"
+                >
+                  <PresetTile
+                    img={PRESET_TEE}
+                    className="w-28 h-32 sm:w-32 sm:h-40 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
+                    style={{ backgroundColor: color }}
+                  />
+                </button>
+              ))}
+            </PresetStrip>
+
+            <h2 className="text-base font-semibold text-gray-900 mb-4">
+              Profile Pics
+            </h2>
+            <PresetStrip className="mb-8">
+              {avatarColors.map((color, i) => (
+                <button
+                  key={i}
+                  onClick={openPhotoEditor}
+                  className="shrink-0 cursor-pointer"
+                >
+                  <AvatarTile
+                    img={PRESET_HEADSHOT}
+                    color={color}
+                    className="w-24 h-24 sm:w-32 sm:h-32 hover:opacity-90 transition-opacity"
+                  />
+                </button>
+              ))}
+            </PresetStrip>
+          </>
+        )}
+
+        {/* One-way reveal: the button is spent once the rows are out. Offering
+            "Show less" would scroll the page out from under someone who is
+            already reading the rows it collapses. */}
+        {showPresets && !showMorePresets && (
+          <div className="flex justify-center mt-2 mb-4">
+            <button
+              onClick={() => setShowMorePresets(true)}
+              className="px-4 py-2 rounded-lg border border-gray-200 bg-surface text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer"
+            >
+              Show more
+            </button>
+          </div>
         )}
 
         {/* ── Empty search state ── */}

@@ -330,6 +330,16 @@ try {
   copyOrtRuntime();
   copyTransformersOrtRuntime();
   for (const model of MODELS) await downloadModel(model);
+  // ⚠️ This call was MISSING, and the script still exited 0 and printed
+  // "assets ready" — so every dev and every deploy came up with
+  // public/models/kokoro/voices/ empty. Text to Speech and Script to Voiceover
+  // seed their "kokoro-voices" CacheStorage from that folder (see
+  // ai-engine/workers/tts.worker.js); with it absent, kokoro-js falls through
+  // to the huggingface.co URLs it hard-codes — which is the one thing the
+  // self-hosted engine exists to prevent, and it fails outright behind a CSP
+  // or offline. The function was written, exported and documented; it was
+  // just never invoked.
+  copyKokoroVoices();
   console.log("🎉 AI engine assets ready.");
 } catch (err) {
   console.error(`❌ ${err.message}`);

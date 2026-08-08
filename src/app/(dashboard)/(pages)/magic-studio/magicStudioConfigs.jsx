@@ -274,6 +274,67 @@ export function getVideoStatus(data) {
 }
 
 /**
+ * Why a video job failed, as the backend recorded it — or "" if it didn't say.
+ *
+ * ⚠️ WORTH SURFACING RATHER THAN SWALLOWING. A failed record carries the real
+ * reason on `error`, and it is frequently something the user can act on:
+ *
+ *   fal.ai queue result error (fal-ai/kling-video):
+ *   {"detail":[{"loc":["body","duration"],"msg":"Input should be '5' or '10'"}]}
+ *
+ * Replacing that with "Video generation failed, please try again" doesn't just
+ * lose detail — it gives the wrong instruction, because trying again with the
+ * same inputs fails identically every time.
+ *
+ * @param {object} data A video status/generate response.
+ * @returns {string}
+ */
+export function getVideoError(data) {
+  const root = unwrapGeneration(data);
+  const raw =
+    root?.error ||
+    root?.error_message ||
+    root?.message ||
+    data?.data?.error ||
+    "";
+  return typeof raw === "string" ? readableProviderError(raw.trim()) : "";
+}
+
+/**
+ * Turn a provider's validation dump into one readable line.
+ *
+ *   fal.ai queue result error (fal-ai/kling-video): {"detail":[{"type":
+ *   "literal_error","loc":["body","duration"],"msg":"Input should be '5' or
+ *   '10'","input":"3", …}]}
+ *     → duration: Input should be '5' or '10'
+ *
+ * Best-effort by design: anything it doesn't recognise comes back untouched, so
+ * a change in the provider's error shape costs detail, never the message. The
+ * raw string is logged at the call site either way.
+ */
+function readableProviderError(raw) {
+  const start = raw.indexOf("{");
+  if (start === -1) return raw;
+  try {
+    const detail = JSON.parse(raw.slice(start))?.detail;
+    if (!Array.isArray(detail) || detail.length === 0) return raw;
+    const lines = detail
+      .map((entry) => {
+        if (!entry?.msg) return null;
+        // `loc` is the path to the offending field — its last segment is the
+        // field name the user actually chose ("duration"), where the earlier
+        // ones are envelope ("body").
+        const field = Array.isArray(entry.loc) ? entry.loc.at(-1) : null;
+        return field ? `${field}: ${entry.msg}` : entry.msg;
+      })
+      .filter(Boolean);
+    return lines.length > 0 ? lines.join(" · ") : raw;
+  } catch {
+    return raw;
+  }
+}
+
+/**
  * Kick off an async video generation. POSTs the payload, then either returns a
  * finished result (fast path, if a URL already came back) or a pending
  * descriptor { pending, jobId } for the modal to poll on. Shared by both video
@@ -585,15 +646,26 @@ export const MAGIC_STUDIO_CONFIGS = {
         label: "Duration",
         panel: "list",
         width: 320,
-        default: "3",
+        // ⚠️ FIVE AND TEN ARE THE ONLY VALUES THE PROVIDER ACCEPTS. The video
+        // model behind this tool (fal-ai/kling-video) validates `duration`
+        // against the literals '5' and '10' and rejects the request outright
+        // otherwise:
+        //
+        //   Input should be '5' or '10'
+        //
+        // This list used to offer 1, 2, 3, 15 and 30 as well, and DEFAULT TO 3 —
+        // so five of the seven choices failed and the default was one of them.
+        // The failure only surfaces once the job has been queued and come back,
+        // which is why it read as "text to video is broken" rather than as an
+        // invalid option.
+        //
+        // Do not add durations here to widen the menu. The provider's contract
+        // is what decides this list; if a different model is swapped in behind
+        // `startVideoGeneration`, change these to match ITS accepted values.
+        default: "5",
         items: [
-          { value: "1", label: "1 seconds", desc: "Quickest clip", icon: Clock },
-          { value: "2", label: "2 seconds", desc: "Quicker clip", icon: Clock },
-          { value: "3", label: "3 seconds", desc: "Quick clip", icon: Clock },
           { value: "5", label: "5 seconds", desc: "Short clip", icon: Clock },
           { value: "10", label: "10 seconds", desc: "Short form", icon: Clock },
-          { value: "15", label: "15 seconds", desc: "Story / ad", icon: Clock },
-          { value: "30", label: "30 seconds", desc: "Full spot", icon: Clock },
         ],
       },
       {

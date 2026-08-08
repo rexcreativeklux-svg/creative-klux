@@ -22,8 +22,17 @@
  * one, and the grid visibly thickens in the middle.
  */
 
-import { useState } from "react";
-import { FileText, Loader2, MoreHorizontal, Play, Volume2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Copy,
+  Download,
+  FileText,
+  Loader2,
+  MoreHorizontal,
+  Play,
+  Volume2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import Lightbox from "@/app/(components)/Lightbox";
 import ResultActionsMenu, {
@@ -38,19 +47,104 @@ const MENU_WIDTH = 208;
 /** See the ⚠️ above — LCM of the 2 / 3 / 4 column counts. */
 const CELL_MULTIPLE = 12;
 
+/** Elapsed seconds as "8s" / "1:24" — minutes only once there are any. */
+const formatElapsed = (seconds) =>
+  seconds < 60
+    ? `${seconds}s`
+    : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
+/**
+ * The in-flight cell.
+ *
+ * ⚠️ TWO KINDS OF WAIT, and the difference is why `progress` may be null. The
+ * on-device engines report real percentages; a backend generation is a request
+ * we are waiting on, and the client cannot see inside it. So a bar is drawn ONLY
+ * when there is a true number behind it — a bar that advances on a guess is
+ * worse than no bar, because it makes a promise the run can't keep.
+ *
+ * The elapsed counter shows either way, and carries the wait on its own where
+ * there is no percentage. It is the part that distinguishes "still working" from
+ * "quietly died": a video legitimately runs for minutes, and a still spinner
+ * alone would have people reloading the page on a job that was fine.
+ *
+ * The counter runs from mount, which is exactly the life of one run — the tile
+ * appears when generating starts and is replaced by the result — so there is no
+ * timer to reset and nothing to reconcile when a second run follows the first.
+ */
+function GeneratingCell({ label, progress }) {
+  const [seconds, setSeconds] = useState(0);
+  const hasProgress = typeof progress === "number";
+
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((value) => value + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="flex aspect-square flex-col items-center justify-center gap-3 border-b border-r border-gray-200 bg-gray-50 px-5 text-center">
+      <Loader2 className="h-7 w-7 animate-spin text-blue-500" />
+      <p className="text-xs font-medium leading-snug text-gray-600">{label}</p>
+
+      {hasProgress ? (
+        <div className="w-full max-w-36">
+          <div
+            className="h-1 w-full overflow-hidden rounded-full bg-gray-200"
+            role="progressbar"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={label}
+          >
+            {/* Transitioning WIDTH, not transform: the bar has to end exactly
+                where the percentage says, and a scaled element rounds. */}
+            <div
+              className="h-full rounded-full bg-blue-500 transition-[width] duration-300 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="mt-1.5 text-[11px] tabular-nums text-gray-400">
+            {progress}% · {formatElapsed(seconds)}
+          </p>
+        </div>
+      ) : (
+        <p className="text-[11px] tabular-nums text-gray-400">
+          {formatElapsed(seconds)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What a result of this type should be saved as when the URL doesn't say.
+ *
+ * ⚠️ THE FALLBACK CARRIES REAL WEIGHT HERE. Text to Audio runs in the browser
+ * and its result is a `blob:` URL, which has no extension at all — so every
+ * fallback is the one that gets used, and a single default of "png" saved
+ * generated speech as a .png that nothing would open.
+ */
+const DEFAULT_EXT = { video: "mp4", audio: "mp3", image: "png" };
+
 /** Extension from a hosted URL, ignoring query/hash, with a type-aware default. */
-function extFromUrl(url, fallback) {
+function extFromUrl(url, type) {
   const clean = String(url || "")
     .split("?")[0]
     .split("#")[0];
   const match = clean.match(/\.([a-z0-9]{2,5})$/i);
-  return match ? match[1].toLowerCase() : fallback;
+  return match ? match[1].toLowerCase() : DEFAULT_EXT[type] || "png";
 }
 
 /**
  * @param {object} props
- * @param {Array} props.items      Merged history, newest first.
+ * @param {Array} props.items      History, newest first.
  * @param {boolean} props.loading  Initial fetch in flight.
+ * @param {boolean} [props.generating] A run is in flight — takes the first cell
+ *   so the wait is visible where the result will land, rather than only as a
+ *   spinner on the send button.
+ * @param {string} [props.generatingLabel] Copy under that cell's spinner.
+ * @param {number|null} [props.generatingProgress] Whole percent, when the run
+ *   can actually report one. Null draws the elapsed counter alone — see the
+ *   note on GeneratingCell for why that isn't a bar at zero.
  * @param {(id: string|number) => void} [props.onDelete]
  * @param {string|number|null} [props.removingId]
  * @param {string} [props.emptyHint] One quiet line dropped into the first cell
@@ -59,12 +153,18 @@ function extFromUrl(url, fallback) {
 export default function HistoryLattice({
   items,
   loading,
+  generating = false,
+  generatingLabel = "Generating…",
+  generatingProgress = null,
   onDelete,
   removingId = null,
   emptyHint,
 }) {
   const [menu, setMenu] = useState(null); // { item, x, y }
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  // A text result open for reading. Its own viewer rather than the Lightbox,
+  // which handles media and has no notion of a wall of prose.
+  const [reading, setReading] = useState(null);
 
   // The lightbox only handles images and video, so it is keyed off that subset —
   // arrowing through the grid then skips a persona's text result instead of
@@ -80,7 +180,7 @@ export default function HistoryLattice({
   const handleDownload = async (item) => {
     const id = toast.loading("Downloading…");
     try {
-      const ext = extFromUrl(item.url, item.type === "video" ? "mp4" : "png");
+      const ext = extFromUrl(item.url, item.type);
       await downloadImageUrl(item.url, { filePrefix: "magic", ext });
       toast.success("Downloaded", { id });
     } catch (err) {
@@ -120,16 +220,31 @@ export default function HistoryLattice({
     );
   };
 
+  // The generating cell occupies the slot the result will take, so the grid
+  // doesn't reshuffle under the pointer when the run lands — the placeholder is
+  // replaced in place rather than everything shifting one cell along.
+  const filled = items.length + (generating ? 1 : 0);
   const cellCount = Math.max(
     CELL_MULTIPLE,
-    Math.ceil(items.length / CELL_MULTIPLE) * CELL_MULTIPLE,
+    Math.ceil(filled / CELL_MULTIPLE) * CELL_MULTIPLE,
   );
-  const cells = Array.from({ length: cellCount }, (_, index) => items[index]);
+  const cells = Array.from({ length: cellCount }, (_, index) =>
+    generating ? (index === 0 ? null : items[index - 1]) : items[index],
+  );
 
   return (
     <>
       <div className="grid grid-cols-2 border-l border-t border-gray-200 sm:grid-cols-3 lg:grid-cols-4">
+        {generating && (
+          <GeneratingCell
+            label={generatingLabel}
+            progress={generatingProgress}
+          />
+        )}
+
         {cells.map((item, index) => {
+          // The generating tile above already rendered cell 0.
+          if (generating && index === 0) return null;
           // ── Empty cross-section ──
           if (!item) {
             return (
@@ -168,15 +283,47 @@ export default function HistoryLattice({
               key={item.id ?? `${item.type}-${index}`}
               className="group relative aspect-square border-b border-r border-gray-200"
             >
-              <button
-                type="button"
-                onClick={() => isMedia && openLightbox(item)}
-                // Text and audio results have nothing to open, so they are not
-                // pretending to be clickable.
-                className={`block h-full w-full overflow-hidden text-left ${
-                  isMedia ? "cursor-pointer" : "cursor-default"
-                }`}
-              >
+              {/* ⚠️ AUDIO IS NOT WRAPPED IN THE TILE BUTTON. A <button> may not
+                  contain interactive content — a player nested in one is invalid
+                  HTML, and its transport swallows or fights the tile's own click.
+                  So an audio result is its own cell: you can hear it here,
+                  before deciding whether it is worth downloading. */}
+              {item.type === "audio" ? (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-gray-50 p-4">
+                  <Volume2 className="h-6 w-6 shrink-0 text-gray-400" />
+                  <p className="line-clamp-3 text-center text-[11px] text-gray-500">
+                    {item.prompt || "Audio"}
+                  </p>
+                  <audio
+                    src={item.url || undefined}
+                    controls
+                    preload="metadata"
+                    // One thing playing at a time. Two tiles talking over each
+                    // other is nobody's intent, and the browser won't stop it.
+                    onPlay={(event) => {
+                      document.querySelectorAll("audio").forEach((player) => {
+                        if (player !== event.currentTarget) player.pause();
+                      });
+                    }}
+                    className="h-9 w-full"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isMedia) openLightbox(item);
+                    // A transcript is the whole point of Audio to Text, and five
+                    // clamped lines in a square tile is not somewhere you can
+                    // read one — so a text tile opens into a reader.
+                    else if (item.type === "text" && item.content) setReading(item);
+                  }}
+                  className={`block h-full w-full overflow-hidden text-left ${
+                    isMedia || (item.type === "text" && item.content)
+                      ? "cursor-pointer"
+                      : "cursor-default"
+                  }`}
+                >
                 {item.type === "image" && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -205,24 +352,21 @@ export default function HistoryLattice({
                   </span>
                 )}
 
-                {item.type === "audio" && (
-                  <span className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gray-50 p-4">
-                    <Volume2 className="h-6 w-6 text-gray-400" />
-                    <span className="line-clamp-3 text-center text-[11px] text-gray-500">
-                      {item.prompt || "Audio"}
+                  {item.type === "text" && (
+                    <span className="flex h-full w-full flex-col gap-2 p-4">
+                      <FileText className="h-4 w-4 shrink-0 text-gray-400" />
+                      <span className="line-clamp-5 whitespace-pre-wrap text-[11px] leading-relaxed text-gray-600">
+                        {item.content}
+                      </span>
+                      {/* Says the tile is a preview, so a clamped transcript
+                          reads as "there is more" rather than as all there is. */}
+                      <span className="mt-auto text-[10px] font-medium text-blue-600">
+                        Read full text →
+                      </span>
                     </span>
-                  </span>
-                )}
-
-                {item.type === "text" && (
-                  <span className="flex h-full w-full flex-col gap-2 p-4">
-                    <FileText className="h-4 w-4 shrink-0 text-gray-400" />
-                    <span className="line-clamp-6 whitespace-pre-wrap text-[11px] leading-relaxed text-gray-600">
-                      {item.content}
-                    </span>
-                  </span>
-                )}
-              </button>
+                  )}
+                </button>
+              )}
 
               {/* Which tool made it — the whole point of a MERGED grid is that
                   the answer isn't implied by the page you're on. Media tiles get
@@ -293,6 +437,103 @@ export default function HistoryLattice({
           onDownload={handleDownload}
         />
       )}
+
+      {reading && <TextReader item={reading} onClose={() => setReading(null)} />}
     </>
+  );
+}
+
+/**
+ * The full text of a result — a transcript, a persona's copy — in something
+ * actually shaped for reading, with the two things anyone wants next to hand.
+ *
+ * Its own component rather than a branch of the Lightbox: that one is built
+ * around media, navigation between frames and a download of a file, none of
+ * which a wall of prose has any use for.
+ */
+function TextReader({ item, onClose }) {
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    // The page behind is a scrolling canvas; letting it move under a reader
+    // that is itself scrollable makes both feel broken.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  const download = () => {
+    const blob = new Blob([item.content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "transcript.txt";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    // Backdrop closes; the panel stops the click so a selection drag that ends
+    // outside the text doesn't dismiss what you were reading.
+    <div
+      className="fixed inset-0 z-9999 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Result text"
+      >
+        <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
+          <FileText className="h-4 w-4 shrink-0 text-gray-400" />
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
+            Transcript
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(item.content);
+              toast.success("Copied!");
+            }}
+            className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            <Copy className="h-3.5 w-3.5 shrink-0" />
+            Copy
+          </button>
+          <button
+            type="button"
+            onClick={download}
+            className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            <Download className="h-3.5 w-3.5 shrink-0" />
+            .txt
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="shrink-0 cursor-pointer rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* max-w-prose on the text itself: a transcript set the full width of a
+            672px panel is a genuinely harder read than one set to a measure. */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <p className="max-w-prose whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
+            {item.content}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

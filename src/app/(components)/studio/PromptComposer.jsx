@@ -192,6 +192,9 @@ export default function PromptComposer({
 
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  // Set by a WRITER (setPrompt) to mean "when the box has finished re-measuring,
+  // show the FIRST line of what was just written". See scrollToTop below.
+  const revealTopRef = useRef(false);
 
   const { attachments, uploading, addFiles, removeAttachment, clearAttachments } =
     useGalleryUpload({
@@ -215,14 +218,38 @@ export default function PromptComposer({
    * Deferred by a frame on purpose: React has not committed the new value at
    * the point the writers below call this, so setSelectionRange run now would
    * measure the PREVIOUS text and leave the caret short of the end.
+   *
+   * @param {{revealTop?: boolean}} [options] `revealTop` scrolls the box back to
+   *   its first line once the caret is placed — see scrollToTop.
    */
-  const caretToEnd = () => {
+  const caretToEnd = ({ revealTop = false } = {}) => {
+    if (revealTop) revealTopRef.current = true;
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
       if (!textarea) return;
       textarea.focus();
       textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      // Focusing scrolls the caret into view, and the caret is at the BOTTOM of
+      // what was just written, so this has to run after it rather than instead
+      // of it.
+      if (revealTop) scrollToTop();
     });
+  };
+
+  /**
+   * Scroll the box back to its first line, and forget any pending request to.
+   *
+   * Text written in by a parent can easily be taller than the box — the home
+   * page's Brand Kit tab seeds eight-odd lines into a four-row composer — and
+   * what shows then decides whether the user can tell the seed landed at all.
+   * The first line is the one that says so ("Brand: <their brand>"), so that is
+   * the line the box opens on. The caret still sits at the END of the block, so
+   * typing scrolls down to it and the user's own instructions carry on under the
+   * details, exactly as before.
+   */
+  const scrollToTop = () => {
+    revealTopRef.current = false;
+    if (textareaRef.current) textareaRef.current.scrollTop = 0;
   };
 
   // Let a parent write into the box. Only mounted when the call site passes a
@@ -230,10 +257,15 @@ export default function PromptComposer({
   useImperativeHandle(
     ref,
     () => ({
-      /** Replace the prompt, focus it, and drop the caret at the end. */
+      /**
+       * Replace the prompt, focus it, and drop the caret at the end — but leave
+       * the box showing its FIRST line, not the caret's. What gets written here
+       * is a block the user did not type (a seeded brand, a starter prompt), so
+       * it has to be recognisable at a glance before it is editable.
+       */
       setPrompt(text) {
         setValue(String(text ?? "").slice(0, MAX_CHAT_MESSAGE));
-        caretToEnd();
+        caretToEnd({ revealTop: true });
       },
       /**
        * Add to the prompt instead of replacing it — on its own line when there
@@ -270,6 +302,13 @@ export default function PromptComposer({
     if (!textarea) return;
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+
+    // The other half of setPrompt's "open on the first line". React does not
+    // promise whether this effect or caretToEnd's animation frame runs first,
+    // and re-measuring the height is itself something that can move scrollTop —
+    // so the reset is claimed from BOTH sides and whichever lands last wins.
+    // They set the same value, so there is no order to get wrong.
+    if (revealTopRef.current) scrollToTop();
   }, [value, rows, maxHeight]);
 
   // Focus the prompt on mount — DESKTOP ONLY, never on a phone or tablet.

@@ -34,7 +34,14 @@ export default function Loading() {
           <Skeleton className="h-4 w-32" />
           <Skeleton className="h-2.5 w-64" tone="soft" />
         </div>
-        <SkeletonCardGrid count={8} aspect="aspect-square" />
+        {/* Matches the real row: four 330px-floor cards at 5/3, caption baked
+            into the artwork rather than sitting in a footer. */}
+        <SkeletonCardGrid
+          count={4}
+          aspect="aspect-5/3"
+          withFooter={false}
+          columns="grid-fluid-[330px]"
+        />
       </div>
     </div>
   );

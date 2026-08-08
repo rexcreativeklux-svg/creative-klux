@@ -5,15 +5,15 @@
 // The starter prompts under the home composer:
 //
 //     Not sure where to start? Try these  ⤨
-//     ( ● Route app for a delivery driver )  ( ● Job tracker for a handyman )  …
+//     ( ● Instagram post for a sale )  ( ● Poster for a live show )  …
 //
 // Clicking one writes it into the prompt box; the shuffle control swaps the five
 // on screen for the next five in that tab's pool. Both effects belong to the
 // CALLER — this component reports the click and owns nothing but which slice of
 // the pool is showing.
 //
-// The suggestions follow the selected tab, so switching from Web App to Mobile
-// App changes what is on offer here as well as what the placeholder says.
+// The suggestions follow the selected tab, so switching from Ai Chat to Import
+// Site changes what is on offer here as well as what the placeholder says.
 //
 // ⚠️ The shuffle walks the pool in order — it does NOT pick at random. Random
 // would resolve differently in the server render and the client's, and React

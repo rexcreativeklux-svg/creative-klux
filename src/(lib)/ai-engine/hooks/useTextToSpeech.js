@@ -38,7 +38,6 @@ export default function useTextToSpeech() {
   const urlsRef = useRef(new Set());
   // Rising token so an unmount can't apply state from an in-flight run.
   const tokenRef = useRef(0);
-  const toastedDownloadRef = useRef(false);
 
   useEffect(() => {
     const urls = urlsRef.current;
@@ -69,15 +68,14 @@ export default function useTextToSpeech() {
           if (!isCurrent()) return;
           if (typeof pct === "number") setProgress(pct);
           if (currentStage) setStage(currentStage);
-          if (isDownloading) {
-            setDownloading(true);
-            if (!toastedDownloadRef.current) {
-              toastedDownloadRef.current = true;
-              toast.info(
-                "Preparing the voice engine — one-time ~93 MB download, instant after this.",
-              );
-            }
-          }
+          // ⚠️ NO TOAST HERE. `downloading` is still reported — callers that
+          // want a progress bar have it — but the one-time engine fetch is not
+          // announced to the user. Telling somebody their generation needs a
+          // 93 MB download reads as a warning about the product, not as
+          // reassurance: it invites "why is this so heavy", and it makes an
+          // implementation detail their problem. The surfaces that run this
+          // already show that work is in progress.
+          if (isDownloading) setDownloading(true);
         },
       });
       if (!isCurrent()) return null;

@@ -27,7 +27,7 @@
 // The cost is one extra hidden div per frame. `hidden` is `display: none`, so
 // the wrong-theme stack is never laid out or painted.
 
-import { backdropById, heroDimLayer } from "./heroBackdrops";
+import { backdropById, heroDimLayer, heroGridLayer } from "./heroBackdrops";
 
 /**
  * @param {object} props
@@ -58,8 +58,8 @@ export default function HeroBackdrop({ backdrop, className = "", style }) {
 }
 
 /**
- * One theme's treatment of a frame: the band, the dim, then its pattern/glow
- * layers.
+ * One theme's treatment of a frame: the band, the dim, the grid, then its
+ * pattern/glow layers.
  * @param {{entry: object, dark: boolean, className: string}} props
  */
 function ThemeFrame({ entry, dark, className }) {
@@ -86,6 +86,14 @@ function ThemeFrame({ entry, dark, className }) {
         className="absolute inset-0"
         style={{ backgroundImage: heroDimLayer(dark) }}
       />
+
+      {/* The grid — ruled over the dim and UNDER the frame's own layers, so a
+          frame's glow washes across it the way it washes across the band. Every
+          frame paints it except the ones already ruling their own paper; see
+          heroGridLayer and the `baseGrid: false` notes in heroBackdrops.js. */}
+      {entry.baseGrid !== false && (
+        <div className="absolute inset-0" style={heroGridLayer(dark)} />
+      )}
 
       {layers.map((layer, i) => (
         <div key={i} className="absolute inset-0" style={layer} />

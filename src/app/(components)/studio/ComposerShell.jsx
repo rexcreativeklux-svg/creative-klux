@@ -62,8 +62,16 @@
 //                    the only opaque one, because it's what you write on.
 //   tray + selected  SHELL_FILL, 58% — NOT white. Bright enough to read as the
 //                    frame around the input, tinted enough to be a step below it.
-//   other tabs       20% (38% under the cursor) — the dimmest step, so an
+//   other tabs       36% (48% under the cursor) — the dimmest step, so an
 //                    unselected tab sits back toward the page.
+//
+// ⚠️ The bottom step was 20% (38% hovered), and that was set when the hero was a
+// near-white wash. Against the ruled, blue hero it now sits on, 20% white was
+// too little to draw a tab at all: the strip read as two words floating over the
+// backdrop with no shape under them, and `text-gray-500` on it measured 4.07:1 —
+// under the 4.5:1 AA floor for 12–13px text. The step is still a clear third
+// place behind the tray's 58%; it just draws a tab now. If the hero's backdrop
+// gets stronger again, this is the number that has to move with it.
 //
 // All three are the SAME token at different opacities (bg-surface, which flips
 // with the theme), so whatever is behind the shell tints them and the ladder
@@ -230,7 +238,7 @@ export default function ComposerShell({
                 className={`absolute inset-0 transition-[transform,opacity,background-color] duration-[380ms] ease-out motion-reduce:transition-none ${TAB_SHAPE} ${
                   selected
                     ? `${FILL_SELECTED} opacity-0 delay-150`
-                    : `${FILL_RESTING} bg-surface/20 opacity-100 delay-0 group-hover:bg-surface/38`
+                    : `${FILL_RESTING} bg-surface/36 opacity-100 delay-0 group-hover:bg-surface/48`
                 }`}
               />
 
@@ -242,7 +250,13 @@ export default function ComposerShell({
                 } ${
                   selected
                     ? "font-semibold text-gray-900"
-                    : "font-medium text-gray-500 group-hover:text-gray-700"
+                    // gray-600, not the gray-500 this was: 6.4:1 against the
+                    // resting fill where 500 measured 4.07:1. An unselected tab
+                    // still sits back — that is the WEIGHT and the lift's job,
+                    // and neither of them costs any legibility. Hover goes all
+                    // the way to gray-900 so the label a cursor is on matches
+                    // the one that is actually selected.
+                    : "font-medium text-gray-600 group-hover:text-gray-900"
                 }`}
               >
                 {/* Hidden below `sm`: three labels plus three glyphs don't fit

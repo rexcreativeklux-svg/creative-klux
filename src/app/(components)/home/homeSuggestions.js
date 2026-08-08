@@ -3,10 +3,17 @@
 // The starter prompts under the home composer — the "Not sure where to start?"
 // row.
 //
-// One pool PER TAB, because the tab already says what is being made: offering
-// "Route app for a delivery driver" while the Mobile App tab is selected is a
-// different suggestion from offering it under Active Brand, and a single shared
-// list would be wrong on two tabs out of three.
+// One pool PER TAB, because the tab already says HOW the work starts, and that
+// changes what a useful starting line even looks like: Ai Chat starts from a
+// description, Import Site starts from a link the user pastes, Brand Kit starts
+// from the brand already seeded in the box. A single shared list would be wrong
+// on two tabs out of three.
+//
+// ⚠️ Every line is something THIS PRODUCT MAKES — an ad, a post, a poster, a
+// brand asset. The pools used to offer "Booking site for a barber shop" and
+// "Route app for a delivery driver", which described a website builder rather
+// than Creative Klux; a chip that asks for something the app doesn't produce is
+// worse than no chip at all.
 //
 // Each pool is deliberately longer than the five that show at once. The shuffle
 // control walks a window through it (see nextSuggestions below) rather than
@@ -38,30 +45,43 @@ export const SUGGESTIONS_VISIBLE = 5;
  * starts reading as an example.
  */
 const SUGGESTIONS_BY_TAB = {
+  // Ai Chat — nothing has been given to the app yet, so these are plain briefs:
+  // one creative, named by what it is and what it's for.
   [TAB_WEB]: [
-    "Booking site for a barber shop",
-    "Landing page for a fitness coach",
-    "Menu site for a food truck",
-    "Portfolio for an interior designer",
-    "Client portal for an accountant",
-    "Course page for a music teacher",
-    "Quote request page for a roofer",
-    "Storefront for a candle maker",
-    "Event page for a wedding planner",
-    "Membership site for a run club",
+    "Instagram post for a sale",
+    "Product ad for a new launch",
+    "Flyer for a weekend event",
+    "YouTube thumbnail for a video",
+    "Poster for a live show",
+    "Logo for a coffee brand",
+    "Facebook ad for a discount",
+    "Business card for my team",
+    "Story ad for a new product",
+    "Menu design for a cafe",
   ],
+  // Import Site — the box is waiting for a LINK, so every line here says what to
+  // make FROM that site. They read as the half-sentence that follows the URL,
+  // which is also why none of them is a pretend link: a fake https:// in the box
+  // is something the user has to delete before they can paste their own.
+  //
+  // ⚠️ Picking one REPLACES the box (see handleSuggestionPick on the home page),
+  // so a chip clicked after a link is pasted takes the link with it. That is the
+  // same rule on all three tabs; if it ever bites here, the fix is to append on
+  // this tab, not to soften the copy.
   [TAB_MOBILE]: [
-    "Route app for a delivery driver",
-    "Tip tracker for a restaurant",
-    "Job tracker for a handyman",
-    "Shot list for a photographer",
-    "Lead capture app for a booth",
-    "Shift swap app for a cafe team",
-    "Inventory scanner for a shop",
-    "Progress log for a trainer",
-    "Estimate app for a landscaper",
-    "Check-in app for a clinic",
+    "Ads from my homepage",
+    "Social posts from my site",
+    "Banner in my site's colours",
+    "Brand kit from my website",
+    "Flyer that matches my site",
+    "Product ad from my shop page",
+    "Email header from my site",
+    "Stories in my site's style",
+    "Ad copy from my landing page",
+    "Deck cover from my website",
   ],
+  // Brand Kit — the brand's details are already seeded in the box, so these say
+  // what to make WITH them rather than restating the brand.
   [TAB_BRAND]: [
     "Launch campaign in my colours",
     "Instagram carousel about us",

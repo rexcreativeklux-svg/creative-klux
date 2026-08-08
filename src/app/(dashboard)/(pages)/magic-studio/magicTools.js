@@ -40,8 +40,22 @@ const CREATIVE_ID = "magic_studio";
  * @property {string}  label   Nav + filter label.
  * @property {string}  short   Compact label for the filter pills and the
  *   composer's picker, where the full name would wrap.
+ * @property {string}  working What the placeholder tile says while this tool
+ *   runs. Written per tool because the waits are not comparable — an image is
+ *   seconds where a video is minutes, and a shared "Generating…" would leave
+ *   someone three minutes into a video wondering whether it had hung.
+ * @property {string} [emptyHint] What the empty canvas says. Only needed where
+ *   the default ("Everything you make with X lands here") would be wrong —
+ *   which is the two tools that keep no history.
  * @property {boolean} backend Whether generations persist to server history.
  * @property {import("react").ElementType} icon
+ *
+ * ⚠️ NO USER-FACING COPY HERE MENTIONS WHERE THE WORK HAPPENS. Two of these
+ * tools run entirely on the user's own machine, and saying so in a loader reads
+ * to a customer as an excuse — "on your device" sounds like a lesser model, or
+ * like no real AI at all, on a paid product. It is an implementation detail and
+ * a privacy advantage, not a caveat to lead with. The distinction still matters
+ * to US, which is what `backend` is for; it just isn't the user's problem.
  */
 
 /** @type {MagicTool[]} */
@@ -51,6 +65,7 @@ export const MAGIC_TOOLS = [
     slug: "text-to-image",
     label: "Text to Image",
     short: "Image",
+    working: "Painting your image…",
     backend: true,
     icon: FileImage,
   },
@@ -59,6 +74,9 @@ export const MAGIC_TOOLS = [
     slug: "text-to-video",
     label: "Text to Video",
     short: "Video",
+    // The only one that routinely runs into minutes — it says so, because a
+    // silent three-minute wait is indistinguishable from a hang.
+    working: "Rendering your video — this one takes a few minutes…",
     backend: true,
     icon: Video,
   },
@@ -67,6 +85,7 @@ export const MAGIC_TOOLS = [
     slug: "image-to-variations",
     label: "Image to Variations",
     short: "Variations",
+    working: "Spinning up variations…",
     backend: true,
     icon: Layers,
   },
@@ -75,6 +94,7 @@ export const MAGIC_TOOLS = [
     slug: "script-to-voiceover",
     label: "Script to Voiceover to Video",
     short: "Voiceover",
+    working: "Recording the voiceover and cutting the video…",
     backend: true,
     icon: Mic,
   },
@@ -83,6 +103,7 @@ export const MAGIC_TOOLS = [
     slug: "persona-generator",
     label: "Persona-based Generator",
     short: "Persona",
+    working: "Writing in your persona's voice…",
     backend: true,
     icon: User,
   },
@@ -91,6 +112,8 @@ export const MAGIC_TOOLS = [
     slug: "audio-to-text",
     label: "Audio to Text",
     short: "Transcribe",
+    working: "Transcribing your audio…",
+    emptyHint: "Your transcript appears here.",
     backend: false,
     icon: AudioLines,
   },
@@ -99,6 +122,8 @@ export const MAGIC_TOOLS = [
     slug: "text-to-audio",
     label: "Text to Audio",
     short: "Audio",
+    working: "Generating your audio…",
+    emptyHint: "Your audio appears here.",
     backend: false,
     icon: Music,
   },

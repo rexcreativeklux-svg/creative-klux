@@ -58,7 +58,7 @@ export default function HomeSkeleton({ clearsHeader = true }) {
               the tab row, the tray, and the input card inside it. Every number
               below is copied from the real shell (see ComposerShell.jsx) — get
               one wrong and the whole assembly visibly resizes on load. */}
-          <div className="mx-auto w-full max-w-2xl">
+          <div className="mx-auto w-full max-w-3xl">
             {/* Tab row. Inset from the tray's left edge, tabs separated by a
                 gap, the first at full height (it's the selected one) and the
                 other two resting lower — exactly as the live strip draws it. */}
@@ -89,9 +89,17 @@ export default function HomeSkeleton({ clearsHeader = true }) {
                   <Skeleton className="h-3.5 w-1/2" tone="soft" />
                 </div>
 
-                {/* Toolbar: attach … mic · send. Three round controls and
-                    nothing else — no model menu, no Build/Plan, no hint line. */}
+                {/* Toolbar: model ▾ │ attach … mic · send. The model menu leads,
+                    then the divider, then the three round controls — no
+                    Build/Plan and no hint line, which the home composer hides. */}
                 <div className="mt-8 flex items-center gap-2">
+                  {/* The menu trigger is text, not a circle — a pill roughly as
+                      wide as "Model ▾", so nothing shifts when the live toolbar
+                      replaces it. It stays that width whatever model is
+                      selected, because the trigger names the setting rather
+                      than reporting the value. */}
+                  <Skeleton className="h-7 w-20 rounded-lg" tone="soft" />
+                  <span className="h-5 w-px shrink-0 bg-gray-100" />
                   <Skeleton w={40} h={40} className="rounded-full" tone="soft" />
                   <div className="flex-1" />
                   <Skeleton w={40} h={40} className="rounded-full" tone="soft" />

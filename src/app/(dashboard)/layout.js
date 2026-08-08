@@ -37,6 +37,7 @@ const SECONDARY_SIDEBAR_ROUTES = [
     "/ad-intelligence",
     "/social-content",
     "/ads-content",
+    "/magic-studio",
 ];
 
 // Routes that open with the sidebar collapsed. These are canvas-style screens

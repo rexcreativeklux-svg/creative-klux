@@ -32,6 +32,15 @@
  * @param {string}   props.title    Section heading shown at the top of the panel
  * @param {Array<{label: string, href: string, icon: import("react").ElementType}>} props.items
  *                                  Navs rendered in the secondary sidebar
+ * @param {boolean}  [props.bleed]  Hand the content area to the page UNPADDED.
+ *                                  For sections whose pages run edge to edge —
+ *                                  Magic Studio's history lattice draws its own
+ *                                  hairlines out to the panel and the window, and
+ *                                  a gutter around it would leave the grid
+ *                                  floating in a frame. Such a page owns its own
+ *                                  padding. Off by default: an ordinary section
+ *                                  page expects the same frame the dashboard puts
+ *                                  around every other route.
  * @param {import("react").ReactNode} props.children  The active section page
  */
 
@@ -41,7 +50,7 @@ import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useSecondarySidebar } from "@/context/SecondarySidebarContext";
 
-const SectionLayout = ({ title, items, children }) => {
+const SectionLayout = ({ title, items, bleed = false, children }) => {
   const pathname = usePathname();
   const { isOpen, toggle } = useSecondarySidebar();
 
@@ -197,17 +206,26 @@ const SectionLayout = ({ title, items, children }) => {
       </div>
 
       {/* ── Section page content ────────────────────────────────── */}
-      <div className="flex-1 min-w-0 overflow-y-auto bg-page">
-        {/* Matches the frame the dashboard layout applies to ordinary pages —
-            fluid gutters and page rhythm. Section routes are in
-            NO_PADDING_ROUTES, so this shell owns that padding itself.
+      {/* `bleed` also drops the SCROLL from this element, not just the padding:
+          a full-bleed page wants the height to pin its own furniture against —
+          Magic Studio's composer floats at the foot of the canvas — and it can
+          only do that if the box it is given ends at the viewport instead of
+          growing with its content. Such a page scrolls its own grid. */}
+      <div
+        className={`flex-1 min-w-0 bg-page ${bleed ? "overflow-hidden" : "overflow-y-auto"}`}
+      >
+        {bleed ? (
+          children
+        ) : (
+          /* Matches the frame the dashboard layout applies to ordinary pages —
+             fluid gutters and page rhythm. Section routes are in
+             NO_PADDING_ROUTES, so this shell owns that padding itself.
 
-            Not the mobile bar's height though: `main` in (dashboard)/layout.js
-            ends the scroll viewport above the bar for every route, so adding
-            it here would leave a bar-height gap under the last row. */}
-        <div className="px-gutter pt-page-y pb-page-y">
-          {children}
-        </div>
+             Not the mobile bar's height though: `main` in (dashboard)/layout.js
+             ends the scroll viewport above the bar for every route, so adding
+             it here would leave a bar-height gap under the last row. */
+          <div className="px-gutter pt-page-y pb-page-y">{children}</div>
+        )}
       </div>
     </div>
   );

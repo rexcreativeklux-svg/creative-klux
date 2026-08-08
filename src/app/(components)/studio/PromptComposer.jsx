@@ -9,14 +9,17 @@
 //   │ [attachment chips, only when files attached] │
 //   │ Describe what you want to create…            │
 //   │ ────────────────────────────────────────────  │
-//   │ +   Model 1 ▾            Build ▾  🎙  ↑      │
+//   │ Model ▾ │ +            Build ▾  🎙  ↑        │
 //   └──────────────────────────────────────────────┘
 //
 // Each control is wired to a real capability:
+//   Model  → placeholder tiers, folded into Claude / GPT sections. The choice is
+//            APP-WIDE and remembered between visits (composerModel.js), not this
+//            component's own state, so every composer shows the same one. It
+//            rides along on the URL as ?model=.
 //   +      → uploads IMAGES to the user's gallery (useGalleryUpload) and keeps
 //            the returned hosted URLs as attachments on the prompt. Images only,
 //            max 10 — the chat API takes an `images` array and nothing else.
-//   Model  → placeholder tiers; the choice rides along on the URL as ?model=.
 //   Build  → Build (generate now) vs Plan (plan first); rides along as ?mode=.
 //   🎙     → dictation (useVoiceInput): live where the browser supports it,
 //            on-device Whisper everywhere else.
@@ -37,10 +40,16 @@ import {
   Paperclip,
   Plus,
   X,
-  Cpu,
 } from "lucide-react";
 import ComposerDropdown from "./ComposerDropdown";
 import VoiceMicButton from "./VoiceMicButton";
+// The model list AND the choice itself — the choice is app-wide and persisted,
+// so it is deliberately NOT this component's own state. See composerModel.js.
+import {
+  MODEL_GROUPS,
+  MODEL_OPTIONS,
+  useComposerModel,
+} from "./composerModel";
 import useGalleryUpload from "./useGalleryUpload";
 import useVoiceInput, { describeVoiceState } from "./useVoiceInput";
 import {
@@ -50,31 +59,6 @@ import {
   MAX_CHAT_MESSAGE,
   toImagePayload,
 } from "./attachmentUrls";
-
-/** Model tiers. Labels are placeholders until the real line-up is decided. */
-export const MODEL_OPTIONS = [
- // --- CLAUDE MODELS ---
-  { id: "claude-sonnet-5", label: "Claude Sonnet 5", icon: Cpu },
-  { id: "claude-opus-5", label: "Claude Opus 5", icon: Cpu },
-  { id: "claude-opus-4-8", label: "Claude Opus 4.8", icon: Cpu },
-  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", icon: Cpu },
-
-  // --- GPT MODELS ---
-  { id: "gpt-5.6-sol", label: "GPT-5.6 Sol", icon: Cpu },
-  { id: "gpt-5.6-terra", label: "GPT-5.6 Terra", icon: Cpu },
-  { id: "gpt-5.3-codex", label: "GPT-5.3 Codex", icon: Cpu },
-  { id: "gpt-5.2-pro", label: "GPT-5.2 Pro", icon: Cpu },
-  { id: "gpt-5.2", label: "GPT-5.2", icon: Cpu },
-  { id: "gpt-5.1", label: "GPT-5.1", icon: Cpu },
-  { id: "gpt-5-pro", label: "GPT-5 Pro", icon: Cpu },
-  { id: "gpt-5", label: "GPT-5", icon: Cpu },
-  { id: "gpt-5-mini", label: "GPT-5 Mini", icon: Cpu },
-  { id: "gpt-5-nano", label: "GPT-5 Nano", icon: Cpu },
-  { id: "gpt-4.1", label: "GPT-4.1", icon: Cpu },
-  { id: "gpt-4.1-mini", label: "GPT-4.1 Mini", icon: Cpu },
-  { id: "gpt-4o", label: "GPT-4o", icon: Cpu },
-  { id: "gpt-4o-mini", label: "GPT-4o Mini", icon: Cpu },
-];
 
 /** What the assistant does with the prompt — mirrors the reference's Build/Plan. */
 export const MODE_OPTIONS = [
@@ -179,7 +163,7 @@ const PANEL_VARIANTS = {
  * @param {React.Ref<{setPrompt: (text: string) => void, appendPrompt: (text: string) => void, clear: () => void, focus: () => void}>} [props.ref]
  *   Optional handle for a parent that needs to WRITE into the box — the home
  *   page's "Active Brand" tab seeds it with the brand's details and clears it
- *   again on the way out, and its starter-prompt chips append to it.
+ *   again on the way out, and its starter-prompt chips replace it outright.
  *   Deliberately imperative rather than a `value`/`onChange` pair: the prompt is
  *   this component's own state on every other surface, and lifting it would make
  *   every call site responsible for it.
@@ -198,7 +182,10 @@ export default function PromptComposer({
   ref,
 }) {
   const [value, setValue] = useState("");
-  const [model, setModel] = useState(MODEL_OPTIONS[0].id);
+  // Shared across every composer in the app and remembered between visits —
+  // hence a store rather than useState. Shaped like useState all the same, so
+  // everything below reads exactly as it did.
+  const [model, setModel] = useComposerModel();
   const [mode, setMode] = useState(MODE_OPTIONS[0].id);
   const [openMenu, setOpenMenu] = useState(null); // "model" | "mode" | null
   const [focused, setFocused] = useState(false);
@@ -250,9 +237,10 @@ export default function PromptComposer({
       },
       /**
        * Add to the prompt instead of replacing it — on its own line when there
-       * is already something there. This is what a starter prompt uses, so
-       * picking one while the brand's details are seeded in the box adds to them
-       * rather than throwing the user's context away.
+       * is already something there. Nothing calls this today (the home page's
+       * starter chips moved to setPrompt, which replaces); it stays because
+       * "add a line without disturbing what's there" is the other half of this
+       * handle's job and the next caller that needs it shouldn't rebuild it.
        */
       appendPrompt(text) {
         const addition = String(text ?? "").trim();
@@ -430,6 +418,32 @@ export default function PromptComposer({
             submit payload at their defaults, so a surface that turns them off
             doesn't change the request it makes. */}
         <div className="flex items-center gap-2 px-3 pb-3 pt-1.5">
+          {/* Model — FIRST, ahead of attach. It is the only control here that
+              changes what the request does rather than what it carries, so it
+              leads the row and the three round buttons follow it. */}
+          {showModelPicker && (
+            <>
+              <ComposerDropdown
+                options={MODEL_OPTIONS}
+                groups={MODEL_GROUPS}
+                value={model}
+                onChange={setModel}
+                open={openMenu === "model"}
+                onOpenChange={(next) => setOpenMenu(next ? "model" : null)}
+                ariaLabel="Choose a model"
+                // The trigger keeps saying "Model", before and after a choice —
+                // it names the setting rather than reporting the value, which is
+                // what keeps the toolbar the same width whichever model is on.
+                // The tick inside the menu is where the current one is shown.
+                triggerLabel="Model"
+              />
+
+              {/* Divider — it separates the model menu from attach, so it goes
+                  with the menu rather than living on its own. */}
+              <span className="h-5 w-px shrink-0 bg-gray-200" />
+            </>
+          )}
+
           {/* Attach */}
           <button
             type="button"
@@ -445,23 +459,6 @@ export default function PromptComposer({
               <Plus className="h-4.5 w-4.5" />
             )}
           </button>
-
-          {showModelPicker && (
-            <>
-              {/* Divider — it separates attach from the model menu, so it goes
-                  with the menu rather than living on its own. */}
-              <span className="h-5 w-px shrink-0 bg-gray-200" />
-
-              <ComposerDropdown
-                options={MODEL_OPTIONS}
-                value={model}
-                onChange={setModel}
-                open={openMenu === "model"}
-                onOpenChange={(next) => setOpenMenu(next ? "model" : null)}
-                ariaLabel="Choose a model"
-              />
-            </>
-          )}
 
           <div className="flex-1" />
 

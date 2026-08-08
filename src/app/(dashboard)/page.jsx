@@ -110,14 +110,16 @@ export default function Home() {
   };
 
   /**
-   * A starter prompt was clicked. It APPENDS rather than replaces, so picking
-   * one while the Active Brand tab has seeded the box adds a line under those
-   * details instead of wiping them.
+   * A starter prompt was clicked. It REPLACES whatever is in the box rather than
+   * adding to it — a chip is a fresh starting point, so picking a second one
+   * swaps the idea instead of stacking two unrelated prompts on top of each
+   * other. That includes the Active Brand tab's seeded details: a chip clicked
+   * there is the user choosing a different starting point.
    *
    * @param {string} suggestion The chip's text.
    */
   const handleSuggestionPick = (suggestion) => {
-    composerRef.current?.appendPrompt(suggestion);
+    composerRef.current?.setPrompt(suggestion);
   };
 
   // First name only — "Hi Kingsley." reads better than the full account name.
@@ -300,7 +302,7 @@ export default function Home() {
               is the only frame. The translucent tray is what lets the hero's
               backdrop through as the rim you see around the white card. */}
           <div
-            className="animate-hero-in mx-auto w-full max-w-2xl"
+            className="animate-hero-in mx-auto w-full max-w-3xl"
             style={{ animationDelay: "180ms" }}
           >
             <ComposerShell
@@ -310,11 +312,13 @@ export default function Home() {
               elevated={composerFocused}
               ariaLabel="What you're creating"
             >
-              {/* Stripped to the reference's three controls: attach, dictate,
-                  send. The model and Build/Plan menus and the "Enter to send"
-                  hint are all hidden — but `model` and `mode` still travel in
-                  the payload at their defaults, so handleSubmit's URL and the
-                  chat page reading it are completely unaffected. */}
+              {/* Four controls: pick a model, attach, dictate, send. The model
+                  menu leads the toolbar, ahead of the + — it decides what the
+                  request DOES, where the other three decide what it carries.
+                  The Build/Plan menu and the "Enter to send" hint stay hidden;
+                  `mode` still travels in the payload at its default, so
+                  handleSubmit's URL and the chat page reading it are unaffected
+                  either way. */}
               <PromptComposer
                 ref={composerRef}
                 onSubmit={handleSubmit}
@@ -322,17 +326,18 @@ export default function Home() {
                 variant="inset"
                 placeholder={placeholderForTab(composerTab)}
                 onFocusedChange={setComposerFocused}
-                showModelPicker={false}
                 showModePicker={false}
                 showHint={false}
               />
             </ComposerShell>
           </div>
 
-          {/* Starter prompts — wider than the composer (max-w-3xl vs max-w-2xl)
-              so five chips settle on two tidy rows instead of three cramped
-              ones. Third in the entrance stagger: greeting 60ms → composer
-              180ms → these 300ms → quick starts 420ms. */}
+          {/* Starter prompts — EXACTLY the composer's width (max-w-3xl on both),
+              so the row ends on the same two edges as the box above it instead
+              of spilling past them. That shared measure is what makes the five
+              chips read as balanced under the input rather than as a separate,
+              wider block. Third in the entrance stagger: greeting 60ms →
+              composer 180ms → these 300ms → quick starts 420ms. */}
           <HomePromptSuggestions
             tabId={composerTab}
             onPick={handleSuggestionPick}

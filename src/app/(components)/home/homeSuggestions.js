@@ -19,9 +19,23 @@ import { TAB_BRAND, TAB_MOBILE, TAB_WEB } from "./homeComposerTabs";
 export const SUGGESTIONS_VISIBLE = 5;
 
 /**
- * The pools. Keep every line short enough to sit on one row of a chip — these
- * are prompts to START from, and a sentence that wraps stops reading as a
- * suggestion and starts reading as an example.
+ * The pools.
+ *
+ * ⚠️ EVERY LINE STAYS UNDER ~32 CHARACTERS, and that is a layout rule, not a
+ * style preference. The chips are one centred, wrapping row inside the
+ * composer's own width, so where the row breaks is decided by how wide the copy
+ * is: five lines of about thirty characters settle as three chips and then two,
+ * which is the balanced arrangement you see on the Ai Chat tab. Let one line run
+ * to forty and that tab alone breaks 2/2/1 or 2/3, and the tabs stop matching
+ * each other.
+ *
+ * The ceiling applies to ALL TEN in a pool, not just the first five — the
+ * shuffle walks a window through the list, so any line can end up on screen with
+ * any other four.
+ *
+ * Short copy is the right shape for these anyway: they are prompts to START
+ * from, and a sentence long enough to wrap stops reading as a suggestion and
+ * starts reading as an example.
  */
 const SUGGESTIONS_BY_TAB = {
   [TAB_WEB]: [
@@ -38,27 +52,27 @@ const SUGGESTIONS_BY_TAB = {
   ],
   [TAB_MOBILE]: [
     "Route app for a delivery driver",
-    "Tip pool tracker for a restaurant manager",
+    "Tip tracker for a restaurant",
     "Job tracker for a handyman",
-    "Shot-list app for a wedding photographer",
-    "Lead capture app for an event booth",
+    "Shot list for a photographer",
+    "Lead capture app for a booth",
     "Shift swap app for a cafe team",
-    "Inventory scanner for a boutique",
-    "Progress log for a personal trainer",
-    "Estimate builder for a landscaper",
-    "Check-in app for a dental clinic",
+    "Inventory scanner for a shop",
+    "Progress log for a trainer",
+    "Estimate app for a landscaper",
+    "Check-in app for a clinic",
   ],
   [TAB_BRAND]: [
-    "A launch campaign in my brand colours",
-    "Instagram carousel about what we do",
-    "A one-page media kit for my brand",
-    "Product ad using my brand palette",
-    "Email header set that matches my logo",
-    "Story templates in my brand fonts",
-    "A pitch deck cover for my brand",
+    "Launch campaign in my colours",
+    "Instagram carousel about us",
+    "One-page media kit for us",
+    "Product ad in my palette",
+    "Email headers matching my logo",
+    "Story templates in my fonts",
+    "Pitch deck cover for my brand",
     "Poster for our next promotion",
-    "Profile banners for every channel",
-    "A hiring post that looks like us",
+    "Banners for every channel",
+    "Hiring post that looks like us",
   ],
 };
 

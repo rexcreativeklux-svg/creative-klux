@@ -45,8 +45,15 @@ const MAX_PANEL_HEIGHT = 340;
  * @param {boolean} props.open
  * @param {() => void} props.onToggle
  * @param {() => void} props.onClose  Outside click / Escape.
- * @param {string} props.label        The setting's name, e.g. "Visual style".
- * @param {React.ReactNode} props.summary The current value, shown beside it.
+ * @param {string} props.label The setting's name, e.g. "Visual style".
+ *
+ *   ⚠️ THE CURRENT VALUE IS NOT SHOWN ON THE TRIGGER. A chip reading "Visual
+ *   style · Photorealistic" is more than twice the width of one reading "Visual
+ *   style", and a tool with four options then fills the composer and starts
+ *   scrolling — so the settings push each other out of view exactly when you
+ *   want to compare them. The chip names the setting; the open panel is where
+ *   the current choice is marked, with a tick. Same reasoning as the model
+ *   menu's fixed "Model" trigger.
  * @param {number} [props.width]      Panel width in px — the option's own
  *   `width` from the config, since a grid of style cards needs more room than a
  *   list of aspect ratios.
@@ -57,7 +64,6 @@ export default function ToolbarChip({
   onToggle,
   onClose,
   label,
-  summary,
   width = 340,
   children,
 }) {
@@ -165,10 +171,7 @@ export default function ToolbarChip({
             : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
         }`}
       >
-        <span className="whitespace-nowrap text-gray-500">{label}</span>
-        <span className="max-w-32 truncate font-semibold text-blue-600">
-          {summary}
-        </span>
+        <span className="whitespace-nowrap">{label}</span>
         <ChevronDown
           className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
         />

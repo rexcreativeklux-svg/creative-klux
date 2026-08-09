@@ -64,6 +64,8 @@ import {
   Crown,
   Mars,
   Venus,
+  Megaphone,
+  Share2,
 } from "lucide-react";
 
 import { generateMagicStudio, resolveMediaUrl } from "@/(lib)/magic-studio-api";
@@ -382,6 +384,49 @@ const RATIO_WIDE = {
   h: 9,
 };
 
+/**
+ * What the result is FOR — shared by the three tools that produce something
+ * publishable (Text to Image, Text to Video, Script to Voiceover). Audio to Text
+ * and the persona generator have no equivalent: a transcript isn't for anything
+ * in this sense, and the persona already carries its own framing.
+ *
+ * ⚠️ NOT IN ANY PAYLOAD YET. Each `generate` below builds an explicit,
+ * whitelisted body, so `values.purpose` rides along and is simply not read —
+ * deliberately, because posting a field the API hasn't declared is how you earn
+ * a 422. Sending it is one line per config once the backend names the field.
+ *
+ * ONE constant rather than three copies: the three tools must offer the same
+ * three purposes, or "Ads" would come to mean something different depending on
+ * which tool you happened to be in.
+ */
+const PURPOSE_OPTION = {
+  key: "purpose",
+  label: "Purpose",
+  panel: "list",
+  width: 300,
+  default: "general",
+  items: [
+    {
+      value: "ads",
+      label: "Ads",
+      desc: "Built to sell — a clear offer and a reason to click",
+      icon: Megaphone,
+    },
+    {
+      value: "social",
+      label: "Social",
+      desc: "Built for the feed — native, scrollable, shareable",
+      icon: Share2,
+    },
+    {
+      value: "general",
+      label: "General",
+      desc: "No particular channel in mind",
+      icon: Sparkles,
+    },
+  ],
+};
+
 // ── Visual-style cards (shared between Text-to-Image / Text-to-Video) ─────────
 const IMAGE_STYLES = [
   {
@@ -569,6 +614,9 @@ export const MAGIC_STUDIO_CONFIGS = {
       ],
     },
     options: [
+      // Purpose leads: it frames every choice after it — an ad and a feed post
+      // want different styles and different crops.
+      PURPOSE_OPTION,
       {
         key: "style",
         label: "Visual style",
@@ -633,6 +681,7 @@ export const MAGIC_STUDIO_CONFIGS = {
       ],
     },
     options: [
+      PURPOSE_OPTION,
       {
         key: "style",
         label: "Visual style",
@@ -843,6 +892,7 @@ export const MAGIC_STUDIO_CONFIGS = {
       ],
     },
     options: [
+      PURPOSE_OPTION,
       {
         key: "voice",
         label: "Voiceover style",

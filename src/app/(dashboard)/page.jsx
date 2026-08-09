@@ -40,6 +40,7 @@ import HomePromptSuggestions from "@/app/(components)/home/HomePromptSuggestions
 import {
   HOME_COMPOSER_TABS,
   TAB_BRAND,
+  TAB_WEB,
   buildBrandPrompt,
   placeholderForTab,
 } from "@/app/(components)/home/homeComposerTabs";
@@ -110,16 +111,31 @@ export default function Home() {
   };
 
   /**
-   * A starter prompt was clicked. It REPLACES whatever is in the box rather than
-   * adding to it — a chip is a fresh starting point, so picking a second one
-   * swaps the idea instead of stacking two unrelated prompts on top of each
-   * other. That includes the Active Brand tab's seeded details: a chip clicked
-   * there is the user choosing a different starting point.
+   * A starter prompt was clicked. What that does to the box depends on whether
+   * the tab has already put something there:
+   *
+   *   Ai Chat      → REPLACE. The box is empty and the chip is the whole brief,
+   *                  so picking a second one swaps the idea rather than stacking
+   *                  two unrelated prompts on top of each other.
+   *   Import Site  → APPEND, under the link the user pasted.
+   *   Brand Kit    → APPEND, under the seeded brand details.
+   *
+   * The last two are not a nicety. Those tabs exist to get something INTO the
+   * box — a URL, the brand's colours and fonts — and their chips are written as
+   * instructions about that content ("Make ads from this homepage", "Design an
+   * ad in this palette"). Replacing would delete the very thing the line refers
+   * to and leave a dangling "this", which is what made the chips read as
+   * unrelated to their tab. buildBrandPrompt's trailing blank line was written
+   * to leave room for this.
    *
    * @param {string} suggestion The chip's text.
    */
   const handleSuggestionPick = (suggestion) => {
-    composerRef.current?.setPrompt(suggestion);
+    if (composerTab === TAB_WEB) {
+      composerRef.current?.setPrompt(suggestion);
+      return;
+    }
+    composerRef.current?.appendPrompt(suggestion);
   };
 
   // First name only — "Hi Kingsley." reads better than the full account name.

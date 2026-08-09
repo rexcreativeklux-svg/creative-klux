@@ -66,10 +66,7 @@ import {
   useMicRecorder,
   useVoicePreview,
 } from "@/app/(components)/magic-studio/magicEngineHooks";
-import {
-  OptionPanelBody,
-  summarize,
-} from "@/app/(components)/magic-studio/magicPanelUI";
+import { OptionPanelBody } from "@/app/(components)/magic-studio/magicPanelUI";
 import useMagicGenerate from "@/app/(components)/magic-studio/useMagicGenerate";
 import { getMagicConfig } from "./magicStudioConfigs";
 import ToolbarChip from "./ToolbarChip";
@@ -513,7 +510,7 @@ export default function StudioComposer({
             onToggle={() => togglePanel("persona")}
             onClose={closePanel}
             label="Persona"
-            summary={values.personaName?.trim() || "Set up"}
+
             width={320}
           >
             {/* ⚠️ The suggestions, age bands and tones all come from the tool's
@@ -654,7 +651,7 @@ export default function StudioComposer({
             onToggle={() => togglePanel(option.key)}
             onClose={closePanel}
             label={option.label}
-            summary={summarize(option, values[option.key])}
+
             // The config declares how wide its panel needs to be — a grid of
             // style cards needs more room than a list of aspect ratios.
             width={option.width || 340}

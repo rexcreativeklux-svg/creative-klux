@@ -9,6 +9,15 @@
 // from the brand already seeded in the box. A single shared list would be wrong
 // on two tabs out of three.
 //
+// ⚠️ THE COPY AND THE PICK BEHAVIOUR ARE ONE DECISION, not two. Ai Chat's box is
+// empty, so its chips are self-contained briefs and picking one REPLACES. The
+// other two tabs have already put something in the box — a pasted URL, the
+// seeded brand block — so their chips are written as instructions ABOUT that
+// content ("…from this homepage", "…in this palette") and picking one APPENDS
+// beneath it. A chip that reads "Make ads from this homepage" is nonsense on its
+// own, and one that wipes the link the user just pasted is worse. See
+// handleSuggestionPick in (dashboard)/page.jsx — change one, change both.
+//
 // ⚠️ Every line is something THIS PRODUCT MAKES — an ad, a post, a poster, a
 // brand asset. The pools used to offer "Booking site for a barber shop" and
 // "Route app for a delivery driver", which described a website builder rather
@@ -45,54 +54,69 @@ export const SUGGESTIONS_VISIBLE = 5;
  * starts reading as an example.
  */
 const SUGGESTIONS_BY_TAB = {
-  // Ai Chat — nothing has been given to the app yet, so these are plain briefs:
-  // one creative, named by what it is and what it's for.
-  [TAB_WEB]: [
-    "Instagram post for a sale",
-    "Product ad for a new launch",
-    "Flyer for a weekend event",
-    "YouTube thumbnail for a video",
-    "Poster for a live show",
-    "Logo for a coffee brand",
-    "Facebook ad for a discount",
-    "Business card for my team",
-    "Story ad for a new product",
-    "Menu design for a cafe",
-  ],
-  // Import Site — the box is waiting for a LINK, so every line here says what to
-  // make FROM that site. They read as the half-sentence that follows the URL,
-  // which is also why none of them is a pretend link: a fake https:// in the box
-  // is something the user has to delete before they can paste their own.
+  // Ai Chat — the box is empty and the placeholder asks the user to DESCRIBE an
+  // idea, so every line is phrased as an instruction they could have typed into
+  // the chat themselves: a verb, then the thing to make. Bare noun phrases
+  // ("Instagram post for a sale") read as catalogue entries being picked off a
+  // shelf, which is the wrong mental model for a tab whose whole promise is that
+  // you can just ask.
   //
-  // ⚠️ Picking one REPLACES the box (see handleSuggestionPick on the home page),
-  // so a chip clicked after a link is pasted takes the link with it. That is the
-  // same rule on all three tabs; if it ever bites here, the fix is to append on
-  // this tab, not to soften the copy.
-  [TAB_MOBILE]: [
-    "Ads from my homepage",
-    "Social posts from my site",
-    "Banner in my site's colours",
-    "Brand kit from my website",
-    "Flyer that matches my site",
-    "Product ad from my shop page",
-    "Email header from my site",
-    "Stories in my site's style",
-    "Ad copy from my landing page",
-    "Deck cover from my website",
+  // Picking one REPLACES the box — see handleSuggestionPick on the home page.
+  // That is right here and only here: on this tab the chip IS the whole brief,
+  // so a second click swaps the idea rather than stacking two unrelated ones.
+  [TAB_WEB]: [
+    "Design a sale post for Instagram",
+    "Make a flyer for this weekend",
+    "Build a launch ad for a product",
+    "Design a thumbnail that pops",
+    "Make a poster for a live show",
+    "Draw up a logo for a coffee bar",
+    "Write a Facebook ad for 20% off",
+    "Design a business card for me",
+    "Build a story ad for a drop",
+    "Design a menu for a small cafe",
   ],
-  // Brand Kit — the brand's details are already seeded in the box, so these say
-  // what to make WITH them rather than restating the brand.
+  // Import Site — the box is waiting for a LINK, so these are written to sit
+  // UNDER one and point at it: "this" is the site the user just pasted. None of
+  // them is a pretend URL, because a fake https:// in the box is something the
+  // user has to delete before they can paste their own.
+  //
+  // ⚠️ Picking one APPENDS (see handleSuggestionPick) — it has to, or the chip
+  // would delete the link the tab exists to collect. The wording depends on that:
+  // "Make ads from this homepage" only means anything with the URL still above
+  // it. If the pick behaviour is ever changed back to replace, this copy has to
+  // change with it.
+  [TAB_MOBILE]: [
+    "Make ads from this homepage",
+    "Turn this into social posts",
+    "Build a banner in these colours",
+    "Pull a brand kit from this site",
+    "Design a flyer to match this",
+    "Make a product ad from this shop",
+    "Write an email header for this",
+    "Turn this into story templates",
+    "Write ad copy from this page",
+    "Design a deck cover from this",
+  ],
+  // Brand Kit — buildBrandPrompt has already written the brand's name, colours
+  // and fonts into the box, so these say what to MAKE with them and never
+  // restate them. "in this palette" is not vague here: the palette is listed
+  // directly above the line.
+  //
+  // ⚠️ Also APPENDS, for the same reason — the seeded block is the entire point
+  // of the tab. buildBrandPrompt's trailing blank line was written to leave room
+  // for exactly this.
   [TAB_BRAND]: [
-    "Launch campaign in my colours",
-    "Instagram carousel about us",
-    "One-page media kit for us",
-    "Product ad in my palette",
-    "Email headers matching my logo",
-    "Story templates in my fonts",
-    "Pitch deck cover for my brand",
-    "Poster for our next promotion",
-    "Banners for every channel",
-    "Hiring post that looks like us",
+    "Build a launch campaign for us",
+    "Design an Instagram carousel",
+    "Make a one-page media kit",
+    "Design an ad in this palette",
+    "Make email headers to match",
+    "Build story templates for us",
+    "Design a pitch deck cover",
+    "Make a poster for our promo",
+    "Build banners for every channel",
+    "Write a hiring post for us",
   ],
 };
 

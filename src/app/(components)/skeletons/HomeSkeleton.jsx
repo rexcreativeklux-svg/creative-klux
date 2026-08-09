@@ -30,8 +30,16 @@ const TAB_WIDTHS = [106, 92];
  * Starter-prompt chip widths, in px — five pills over two centred rows, sized
  * to the real copy in home/homeSuggestions.js so the row doesn't visibly
  * re-flow the moment the page loads.
+ *
+ * These track the FIRST FIVE of that file's Ai Chat pool, because that is the
+ * tab the composer opens on. Derived from the chip's own box: ~6.4px per
+ * character at 13px/500, plus 52px of chrome (the 16px dot, its 8px gap and
+ * 14px of padding each side). The three widest must still total under the
+ * composer's 768px with two 8px gaps, or the skeleton wraps 2/3 while the real
+ * row wraps 3/2 — which is the exact re-flow this constant exists to prevent.
+ * Re-derive when the Ai Chat copy changes.
  */
-const SUGGESTION_CHIP_WIDTHS = [212, 268, 206, 254, 236];
+const SUGGESTION_CHIP_WIDTHS = [256, 238, 250, 232, 238];
 
 /**
  * @param {object} props

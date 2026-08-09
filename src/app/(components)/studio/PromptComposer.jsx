@@ -269,10 +269,12 @@ export default function PromptComposer({
       },
       /**
        * Add to the prompt instead of replacing it — on its own line when there
-       * is already something there. Nothing calls this today (the home page's
-       * starter chips moved to setPrompt, which replaces); it stays because
-       * "add a line without disturbing what's there" is the other half of this
-       * handle's job and the next caller that needs it shouldn't rebuild it.
+       * is already something there.
+       *
+       * The home page's starter chips use this on the Import Site and Brand Kit
+       * tabs, where the box already holds something the chip refers to (a pasted
+       * URL, the seeded brand block) and setPrompt would destroy it. Ai Chat
+       * still uses setPrompt, because there the chip is the entire prompt.
        */
       appendPrompt(text) {
         const addition = String(text ?? "").trim();

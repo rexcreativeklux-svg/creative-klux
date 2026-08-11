@@ -107,8 +107,9 @@ const NO_AUTOFOCUS_QUERY = "(pointer: coarse), (max-width: 1023px)";
  *   inset  lives INSIDE a ComposerShell tray. No border and NO shadow in either
  *          state, because the tray around it already draws both — a second edge
  *          6px inside the first is what makes an assembly look like two things
- *          stacked instead of one object. Opaque, so the tray's translucent rim
- *          reads as a rim rather than as more of the same panel.
+ *          stacked instead of one object. OPAQUE, and deliberately the only
+ *          opaque surface in that assembly: the tray's translucent rim reads as
+ *          a rim precisely because the thing it surrounds is solid white.
  */
 const PANEL_VARIANTS = {
   solid: {
@@ -130,7 +131,10 @@ const PANEL_VARIANTS = {
   },
   inset: {
     // Radius = the tray's 21px minus its 6px padding, so the two curves are
-    // concentric. Change one and change the other.
+    // concentric. Change one and change the other — TRAY_SHAPE and TRAY_PAD in
+    // ComposerShell.jsx. All four corners: the tray's squared top-left is an
+    // OUTER-edge fix (a tab overhangs it), and this sits 6px inside that edge
+    // with rim on every side, so it has nothing to square off against.
     base: "rounded-[15px] bg-surface",
     focused: "",
     resting: "",

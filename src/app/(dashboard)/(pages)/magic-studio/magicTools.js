@@ -123,8 +123,12 @@ export const MAGIC_TOOLS = [
     label: "Text to Audio",
     short: "Audio",
     working: "Generating your audio…",
-    emptyHint: "Your audio appears here.",
-    backend: false,
+    // ⚠️ `backend: true` even though the audio is made in the BROWSER. This flag
+    // asks one question — "is there server history to fetch?" — and for this
+    // tool the answer is now yes: every run is recorded straight after it
+    // generates (recordTextToAudio in magicStudioConfigs). It is the one tool
+    // where where-it-runs and where-it-is-stored disagree.
+    backend: true,
     icon: Music,
   },
 ];

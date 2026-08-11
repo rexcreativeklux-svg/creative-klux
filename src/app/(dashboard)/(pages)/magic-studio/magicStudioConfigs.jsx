@@ -68,7 +68,11 @@ import {
   Share2,
 } from "lucide-react";
 
-import { generateMagicStudio, resolveMediaUrl } from "@/(lib)/magic-studio-api";
+import {
+  generateMagicStudio,
+  resolveMediaUrl,
+  saveTextToAudio,
+} from "@/(lib)/magic-studio-api";
 import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
 
 // Pexels CDN helper (free license, stable URLs) for rich option-card thumbnails.
@@ -337,6 +341,64 @@ function readableProviderError(raw) {
 }
 
 /**
+ * Put a Text to Audio run into the user's history.
+ *
+ * Text to Audio synthesises in the BROWSER, so unlike every other tool nothing
+ * reaches the server as a side effect of generating, and the run would otherwise
+ * vanish with the page. This uploads the audio we just made, immediately after
+ * it exists, and the backend stores that file.
+ *
+ * ⚠️ ITS OWN ENDPOINT — POST /magic-studio/text-to-audio, not /generate. There
+ * is nothing to generate: the audio exists, and this hands the finished file
+ * over to be kept. So what lands in history is the exact file the user heard,
+ * and no second synthesis is paid for.
+ *
+ * ⚠️ NEVER AWAITED, AND IT SWALLOWS ITS OWN FAILURES. The audio the user asked
+ * for is already made and playable at this point; the save is bookkeeping. If it
+ * is slow the result must not wait behind it, and if it fails — offline, an
+ * expired token — the user must still get their audio rather than an error about
+ * a save they never asked for. It is logged, not toasted.
+ *
+ * @param {string} text   The text that was spoken.
+ * @param {object} values The tool's option values (voice / speed / format / quality).
+ * @param {{blob: Blob, format: string, duration: number}} item The generated audio.
+ */
+function recordTextToAudio(text, values, item) {
+  if (!item?.blob) {
+    console.warn("⚠️ [magic-studio] no audio blob to record");
+    return;
+  }
+
+  const ext = item.format || values.format || "mp3";
+  const form = new FormData();
+  // ⚠️ REQUIRED, even on this tool's own route. It looks redundant next to a URL
+  // that already names the tool, and it isn't — the endpoint validates it, and
+  // dropping it answers "The tool field is required."
+  form.append("tool", "text_to_audio");
+  form.append("prompt", text);
+  // A File rather than a bare Blob: multipart needs a filename, and without one
+  // the server sees an unnamed part and the extension it stores is a guess.
+  form.append(
+    "audio",
+    new File([item.blob], `text-to-audio-${Date.now()}.${ext}`, {
+      type: item.blob.type || `audio/${ext}`,
+    }),
+  );
+  form.append("voice", values.voice);
+  form.append("speaking_pace", values.speed);
+  form.append("export_format", values.format);
+  form.append("quality", values.quality);
+
+  console.log(
+    `🗄️ [magic-studio] recording text_to_audio — ${(item.blob.size / 1024).toFixed(0)} kB ${ext}`,
+  );
+
+  // Quiet on failure — saveTextToAudio has already logged the detail, and the
+  // audio is in the user's hands either way.
+  saveTextToAudio(form).catch(() => {});
+}
+
+/**
  * Kick off an async video generation. POSTs the payload, then either returns a
  * finished result (fast path, if a URL already came back) or a pending
  * descriptor { pending, jobId } for the modal to poll on. Shared by both video
@@ -390,10 +452,9 @@ const RATIO_WIDE = {
  * and the persona generator have no equivalent: a transcript isn't for anything
  * in this sense, and the persona already carries its own framing.
  *
- * ⚠️ NOT IN ANY PAYLOAD YET. Each `generate` below builds an explicit,
- * whitelisted body, so `values.purpose` rides along and is simply not read —
- * deliberately, because posting a field the API hasn't declared is how you earn
- * a 422. Sending it is one line per config once the backend names the field.
+ * Sent to the backend as `purpose`, on all three. The VALUES are the contract —
+ * "ads" / "social" / "general" — so change a `value` here only alongside the
+ * backend, where a change to a `label` or `desc` is safe on its own.
  *
  * ONE constant rather than three copies: the three tools must offer the same
  * three purposes, or "Ads" would come to mean something different depending on
@@ -586,6 +647,20 @@ export const MAGIC_STUDIO_CONFIGS = {
     input: "prompt",
     resultType: "image",
     generateLabel: "Generate images",
+    // Offers the composer's "3x" chip, and `generate` sends the number as
+    // `variations` in the payload — ONE request, the backend fans out.
+    //
+    // ⚠️ `variations` IS THE FIELD NAME THIS APP GUESSED, following the
+    // snake_case of everything around it. Nothing here has confirmed it against
+    // the API, and this endpoint rejects undeclared fields outright ("The tool
+    // field is required" is the same validator). If a 422 appears on a tool the
+    // moment the chip goes above 1x, this key is the first thing to check —
+    // it is set the same way in all five backend configs.
+    //
+    // ⚠️ ON-DEVICE TOOLS MUST NOT SET THIS. Audio to Text and Text to Audio
+    // never reach the endpoint, and three runs of a deterministic local model
+    // return the same answer three times.
+    variations: true,
     // Backend `tool` enum for server-side generation history (matches the value
     // `generate` sends). Present only on backend tools — the on-device tools
     // (audio_to_text, text_to_audio) persist nothing and have no history.
@@ -640,6 +715,10 @@ export const MAGIC_STUDIO_CONFIGS = {
         tool: "text_to_image",
         visual_style: values.style,
         ratio: ratioString(values.ratio),
+        purpose: values.purpose,
+        // How many to make in one request — the composer's "3x". See the
+        // ⚠️ on `variations` above for the field-name caveat.
+        variations: values.variations,
         prompt: input.trim(),
       };
       const data = await generateMagicStudio(payload);
@@ -658,6 +737,15 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "video",
     generateLabel: "Generate videos",
     historyTool: "text_to_video",
+    // See the ⚠️ on text_to_image.
+    //
+    // ⚠️ THE ONE TO WATCH. A video is minutes of compute and real money per
+    // clip, so 4x here is four times a bill that is already the largest in the
+    // section. It is also the tool whose polling assumes ONE job: the response
+    // yields a single `jobId` (extractVideoJobId), so if the backend answers a
+    // multi-variation request with several jobs, only the first is followed and
+    // the rest land silently in history whenever they finish.
+    variations: true,
     sample: {
       before:
         "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400&q=80",
@@ -733,6 +821,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         visual_style: values.style,
         ratio: ratioString(values.ratio),
         duration: values.duration,
+        purpose: values.purpose,
+        variations: values.variations,
         prompt: input.trim(),
       };
       // Async on the backend → returns a finished result or a { pending, jobId }
@@ -751,6 +841,9 @@ export const MAGIC_STUDIO_CONFIGS = {
     input: "image",
     resultType: "image",
     generateLabel: "Generate variations",
+    // See the ⚠️ on text_to_image. Several takes on one source image is what
+    // this tool is FOR, so it is the clearest case for the chip.
+    variations: true,
     historyTool: "image_to_variations",
     sample: {
       before:
@@ -852,6 +945,7 @@ export const MAGIC_STUDIO_CONFIGS = {
       const payload = {
         tool: "image_to_variations",
         visual_style: values.style,
+        variations: values.variations,
         image_url: input,
       };
       const data = await generateMagicStudio(payload);
@@ -870,6 +964,9 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "video",
     generateLabel: "Generate video",
     historyTool: "script_to_voiceover",
+    // See the ⚠️ on text_to_image, and the cost/polling warning on
+    // text_to_video — this tool renders video too and shares both.
+    variations: true,
     sample: {
       before:
         "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=400&q=80",
@@ -1072,6 +1169,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         speaking_pace: values.pace,
         ratio: ratioString(values.ratio),
         export_format: values.format,
+        purpose: values.purpose,
+        variations: values.variations,
         prompt: input.trim(),
       };
       // Async on the backend → returns a finished result or a { pending, jobId }
@@ -1218,6 +1317,9 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "auto", // resolved from the chosen content type at generate time
     generateLabel: "Generate content",
     historyTool: "persona_generator",
+    // See the ⚠️ on text_to_image. Several drafts in one persona's voice is a
+    // natural ask — this tool writes copy, and the first take is rarely the one.
+    variations: true,
     sample: {
       before:
         "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80",
@@ -1345,6 +1447,7 @@ export const MAGIC_STUDIO_CONFIGS = {
         communication_tone: [personaTone],
         content_type: contentType,
         ratio: ratioString(ratio),
+        variations: values.variations,
       };
       const data = await generateMagicStudio(payload);
       // The chosen content type decides how the right canvas renders the result.
@@ -1372,8 +1475,13 @@ export const MAGIC_STUDIO_CONFIGS = {
     input: "text",
     resultType: "audio",
     generateLabel: "Generate audio",
-    onDevice: true, // modal shows the real-progress processing state
-    engine: "tts", // which on-device engine the modal wires into `generate`
+    onDevice: true, // synthesised in the browser — the result you hear is local
+    engine: "tts", // which on-device engine `generate` wires into
+    // ⚠️ BOTH on-device AND historied, which no other tool is. The audio is made
+    // locally, played back instantly, and then UPLOADED by recordTextToAudio —
+    // so past runs survive the page even though the generation never went
+    // through the server, and the stored file is the one the user actually heard.
+    historyTool: "text_to_audio",
     sample: {
       before:
         "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80",
@@ -1482,6 +1590,12 @@ export const MAGIC_STUDIO_CONFIGS = {
       // doesn't show a second "nothing came back" toast.
       if (!item)
         throw new Error("Speech generation failed — please try again.");
+
+      // Record it, so this run survives the page. Fired immediately after the
+      // audio exists, uploading THAT file, and deliberately not awaited — see
+      // recordTextToAudio.
+      recordTextToAudio(input.trim(), values, item);
+
       const voice = KOKORO_TTS.voices.find((v) => v.id === values.voice);
       return {
         resultType: "audio",

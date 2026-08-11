@@ -54,6 +54,15 @@ const MAX_PANEL_HEIGHT = 340;
  *   want to compare them. The chip names the setting; the open panel is where
  *   the current choice is marked, with a tick. Same reasoning as the model
  *   menu's fixed "Model" trigger.
+ * @param {React.ComponentType} [props.icon] Lucide component. WITH ONE, THE
+ *   CHIP GOES ICON-ONLY: `label` stops being drawn and becomes the tooltip and
+ *   the accessible name instead. Six settings at ~90px of text each overran the
+ *   composer on the tools that have the most of them, which is the whole reason
+ *   the row scrolls; at ~30px each they all fit and nothing has to scroll to be
+ *   reachable. The chevron goes too — an icon button that opens something is
+ *   already legible as one, and the caret was half the remaining width.
+ * @param {string} [props.badge] A short piece of text drawn INSTEAD of an icon
+ *   glyph — for the settings whose value is the only useful label ("3x").
  * @param {number} [props.width]      Panel width in px — the option's own
  *   `width` from the config, since a grid of style cards needs more room than a
  *   list of aspect ratios.
@@ -64,6 +73,8 @@ export default function ToolbarChip({
   onToggle,
   onClose,
   label,
+  icon: Icon,
+  badge,
   width = 340,
   children,
 }) {
@@ -142,6 +153,10 @@ export default function ToolbarChip({
     };
   }, [open, onClose]);
 
+  // Icon-only chips are square and get no caret; a text chip keeps the caret,
+  // which is the only thing marking a word in a row as something that opens.
+  const compact = !!Icon || !!badge;
+
   const panel = (
     <div
       ref={panelRef}
@@ -153,6 +168,16 @@ export default function ToolbarChip({
         visibility: placement.position ? "visible" : "hidden",
       }}
     >
+      {/* ⚠️ THE ONLY PLACE AN ICON CHIP'S SETTING IS NAMED IN WRITING. A
+          tooltip needs a hover and never appears on a touch screen, so without
+          this the panel of styles that just opened is a grid of pictures with
+          nothing saying which of the six controls produced it. `sticky` so it
+          survives the panel's own scroll on the long lists. */}
+      {compact && (
+        <p className="sticky top-0 z-10 border-b border-gray-100 bg-surface px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          {label}
+        </p>
+      )}
       {children}
     </div>
   );
@@ -164,17 +189,31 @@ export default function ToolbarChip({
         type="button"
         onClick={onToggle}
         aria-haspopup="true"
+        // The label is the accessible name once it stops being drawn — an
+        // icon-only button with no `aria-label` announces as "button".
+        aria-label={compact ? label : undefined}
         aria-expanded={open}
-        className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+        title={compact ? label : undefined}
+        className={`flex shrink-0 cursor-pointer items-center justify-center rounded-lg text-xs font-medium transition-colors ${
+          compact ? "h-8 min-w-8 px-1.5" : "gap-1.5 px-2.5 py-1.5"
+        } ${
           open
             ? "bg-gray-100 text-gray-900"
             : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
         }`}
       >
-        <span className="whitespace-nowrap">{label}</span>
-        <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
-        />
+        {badge ? (
+          <span className="whitespace-nowrap tabular-nums">{badge}</span>
+        ) : Icon ? (
+          <Icon className="h-4 w-4 shrink-0" />
+        ) : (
+          <>
+            <span className="whitespace-nowrap">{label}</span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+            />
+          </>
+        )}
       </button>
 
       {open && typeof document !== "undefined"

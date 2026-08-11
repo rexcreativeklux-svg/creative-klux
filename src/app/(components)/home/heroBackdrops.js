@@ -98,7 +98,7 @@ export const HERO_BACKDROP_SETTINGS = {
  * It exists for ONE reason: the composer's shell is a stack of TRANSLUCENT
  * layers, and the band behind it runs surface → page, which in light mode is
  * white → near-white. Translucent white over white is white, so the tabs, the
- * tray and the rim around the input all collapsed into one flat sheet. The
+ * tray and the milky rim around the input all collapsed into one flat sheet. The
  * assembly only separates into its three steps when there is a colour behind it
  * to be translucent AGAINST — this is that colour.
  *

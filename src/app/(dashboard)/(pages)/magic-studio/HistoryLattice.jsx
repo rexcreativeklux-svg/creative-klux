@@ -22,18 +22,19 @@
  * one, and the grid visibly thickens in the middle.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Copy,
   Download,
   FileText,
   Loader2,
   MoreHorizontal,
+  Pencil,
   Play,
-  Volume2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import AudioCard from "@/app/(components)/gallery/AudioCard";
 import Lightbox from "@/app/(components)/Lightbox";
 import ResultActionsMenu, {
   buildResultActions,
@@ -54,7 +55,14 @@ const formatElapsed = (seconds) =>
     : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
 /**
- * The in-flight cell.
+ * The in-flight cell — a soft breathing orb with YOUR OWN WORDS on it.
+ *
+ * ⚠️ THE PROMPT IS THE CONTENT, not a caption. Four runs in flight at once are
+ * four identical spinners over a generic "Generating…", and there is no way to
+ * tell which is the one you care about; showing what each was asked for makes
+ * the cell the thing itself rather than a placeholder standing in for it. The
+ * tool's own working label is the fallback for the inputs that have no
+ * words — a source image, an audio take.
  *
  * ⚠️ TWO KINDS OF WAIT, and the difference is why `progress` may be null. The
  * on-device engines report real percentages; a backend generation is a request
@@ -64,14 +72,16 @@ const formatElapsed = (seconds) =>
  *
  * The elapsed counter shows either way, and carries the wait on its own where
  * there is no percentage. It is the part that distinguishes "still working" from
- * "quietly died": a video legitimately runs for minutes, and a still spinner
- * alone would have people reloading the page on a job that was fine.
+ * "quietly died": a video legitimately runs for minutes, and a still tile alone
+ * would have people reloading the page on a job that was fine. The pulse on the
+ * orb does the same job the old spinner did — motion is what says "alive" — but
+ * without putting a loading widget in the middle of the canvas.
  *
  * The counter runs from mount, which is exactly the life of one run — the tile
  * appears when generating starts and is replaced by the result — so there is no
  * timer to reset and nothing to reconcile when a second run follows the first.
  */
-function GeneratingCell({ label, progress }) {
+function GeneratingCell({ label, prompt, progress, onDismiss, onEdit }) {
   const [seconds, setSeconds] = useState(0);
   const hasProgress = typeof progress === "number";
 
@@ -81,35 +91,76 @@ function GeneratingCell({ label, progress }) {
   }, []);
 
   return (
-    <div className="flex aspect-square flex-col items-center justify-center gap-3 border-b border-r border-gray-200 bg-gray-50 px-5 text-center">
-      <Loader2 className="h-7 w-7 animate-spin text-blue-500" />
-      <p className="text-xs font-medium leading-snug text-gray-600">{label}</p>
+    <div className="group relative flex aspect-square items-center justify-center overflow-hidden border-b border-r border-gray-200 bg-gray-50 px-6">
+      {/* The orb. A blurred white disc rather than a gradient stack — `blur-2xl`
+          on a solid circle gives the falloff for free, and one element means
+          nothing to keep in step when the tile is resized. `blur` renders
+          outside the box, hence `overflow-hidden` on the cell. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-1/2 h-3/5 w-3/5 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-white blur-2xl [animation-duration:2.6s]"
+      />
 
-      {hasProgress ? (
-        <div className="w-full max-w-36">
+      {/* aria-live so the wait is announced once, rather than the counter below
+          reading a new number out every second. */}
+      <p
+        aria-live="polite"
+        className="relative line-clamp-4 text-center text-[13px] leading-relaxed text-gray-600"
+      >
+        {prompt?.trim() || label}
+      </p>
+
+      {/* Take it off the canvas. The run is NOT cancelled — it is a request
+          already in flight, and the result still lands in history when it
+          arrives. This only says "stop showing me the wait". */}
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Hide this from the canvas"
+          title="Hide this — the result still lands when it's ready"
+          className="absolute left-2 top-2 cursor-pointer rounded-md p-1 text-gray-400 opacity-100 transition-colors hover:bg-gray-200/70 hover:text-gray-700 lg:opacity-0 lg:group-hover:opacity-100"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+
+      <p className="absolute bottom-2.5 left-3 text-[11px] tabular-nums text-gray-400">
+        {hasProgress ? `${progress}% · ${formatElapsed(seconds)}` : formatElapsed(seconds)}
+      </p>
+
+      {/* Puts the prompt back in the composer to be reworded and run again —
+          the normal loop when a wait is long enough that you've thought better
+          of what you asked for. */}
+      {onEdit && prompt?.trim() && (
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label="Edit this prompt"
+          title="Put this prompt back in the composer"
+          className="absolute bottom-2 right-2 cursor-pointer rounded-md p-1 text-gray-400 opacity-100 transition-colors hover:bg-gray-200/70 hover:text-gray-700 lg:opacity-0 lg:group-hover:opacity-100"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      )}
+
+      {/* A hairline on the cell's own bottom edge, only where there is a real
+          number behind it. Transitioning WIDTH, not transform: the bar has to
+          end exactly where the percentage says, and a scaled element rounds. */}
+      {hasProgress && (
+        <div
+          className="absolute inset-x-0 bottom-0 h-0.5 bg-gray-200"
+          role="progressbar"
+          aria-valuenow={progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={label}
+        >
           <div
-            className="h-1 w-full overflow-hidden rounded-full bg-gray-200"
-            role="progressbar"
-            aria-valuenow={progress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={label}
-          >
-            {/* Transitioning WIDTH, not transform: the bar has to end exactly
-                where the percentage says, and a scaled element rounds. */}
-            <div
-              className="h-full rounded-full bg-blue-500 transition-[width] duration-300 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="mt-1.5 text-[11px] tabular-nums text-gray-400">
-            {progress}% · {formatElapsed(seconds)}
-          </p>
+            className="h-full bg-blue-500 transition-[width] duration-300 ease-out"
+            style={{ width: `${progress}%` }}
+          />
         </div>
-      ) : (
-        <p className="text-[11px] tabular-nums text-gray-400">
-          {formatElapsed(seconds)}
-        </p>
       )}
     </div>
   );
@@ -135,16 +186,70 @@ function extFromUrl(url, type) {
 }
 
 /**
+ * An audio result — the real player, not a square thumbnail.
+ *
+ * ⚠️ AUDIO IS THE ONE RESULT WITH NO PICTURE OF ITSELF. Every other type can
+ * say what it is in a square: an image is its own thumbnail, a video has a
+ * poster, a transcript shows its first lines. A sound has nothing to show, so
+ * the tile has to BE the player — a waveform you can scrub, a clock, and a
+ * transport — which is a wide, short shape and not a square one. Hence the
+ * two-column span; see COLUMN_SPANS.
+ *
+ * ⚠️ THE ASSET MUST BE MEMOIZED. AudioCard decodes the audio into a waveform in
+ * an effect keyed on the whole `asset` object, so a fresh object literal per
+ * render re-fetches and re-decodes the file on every render — forever, since
+ * decoding sets state. Keyed on the primitives so the identity survives a
+ * history refresh that returns an equal item.
+ */
+function AudioTile({ item, index, onDownload, onOpenMenu }) {
+  const { url, blob, duration, format, voiceLabel, alt, prompt } = item;
+  const asset = useMemo(
+    () => ({
+      src: url,
+      blob,
+      duration,
+      format: format || extFromUrl(url, "audio"),
+      // "Heart · US female" where the run knew its voice; the words that were
+      // spoken otherwise, which is the next most useful way to tell two takes
+      // apart in a grid of them.
+      title: voiceLabel || alt || prompt || null,
+      alt: alt || prompt || null,
+    }),
+    [url, blob, duration, format, voiceLabel, alt, prompt],
+  );
+
+  return (
+    <AudioCard
+      asset={asset}
+      index={index}
+      fill
+      onDownload={onDownload}
+      onOpenMenu={onOpenMenu}
+    />
+  );
+}
+
+/**
  * @param {object} props
  * @param {Array} props.items      History, newest first.
  * @param {boolean} props.loading  Initial fetch in flight.
  * @param {boolean} [props.generating] A run is in flight — takes the first cell
  *   so the wait is visible where the result will land, rather than only as a
  *   spinner on the send button.
- * @param {string} [props.generatingLabel] Copy under that cell's spinner.
+ * @param {number} [props.generatingCount=1] How many cells that run will fill —
+ *   the composer's "3x". One tile per pending result rather than one for the
+ *   batch, so the canvas already shows the shape of what is coming.
+ * @param {string} [props.generatingLabel] The tool's working copy, shown on that
+ *   cell when the run had no words of its own to show (an image or audio input).
+ * @param {string} [props.generatingPrompt] What was actually asked for. This is
+ *   the cell's content when there is one — see the note on GeneratingCell.
  * @param {number|null} [props.generatingProgress] Whole percent, when the run
  *   can actually report one. Null draws the elapsed counter alone — see the
  *   note on GeneratingCell for why that isn't a bar at zero.
+ * @param {() => void} [props.onDismissGenerating] Take the in-flight cell off
+ *   the canvas. Does NOT cancel the run — the caller owns that distinction.
+ * @param {() => void} [props.onEditGenerating] Put `generatingPrompt` back in
+ *   the composer to be reworded.
  * @param {(id: string|number) => void} [props.onDelete]
  * @param {string|number|null} [props.removingId]
  * @param {string} [props.emptyHint] One quiet line dropped into the first cell
@@ -154,8 +259,12 @@ export default function HistoryLattice({
   items,
   loading,
   generating = false,
+  generatingCount = 1,
   generatingLabel = "Generating…",
+  generatingPrompt = null,
   generatingProgress = null,
+  onDismissGenerating,
+  onEditGenerating,
   onDelete,
   removingId = null,
   emptyHint,
@@ -220,110 +329,92 @@ export default function HistoryLattice({
     );
   };
 
-  // The generating cell occupies the slot the result will take, so the grid
-  // doesn't reshuffle under the pointer when the run lands — the placeholder is
-  // replaced in place rather than everything shifting one cell along.
-  const filled = items.length + (generating ? 1 : 0);
-  const cellCount = Math.max(
-    CELL_MULTIPLE,
-    Math.ceil(filled / CELL_MULTIPLE) * CELL_MULTIPLE,
-  );
-  const cells = Array.from({ length: cellCount }, (_, index) =>
-    generating ? (index === 0 ? null : items[index - 1]) : items[index],
-  );
+  // The generating cells occupy the slots the results will take, so the grid
+  // doesn't reshuffle under the pointer when the run lands — each placeholder
+  // is replaced in place rather than everything shifting along. One per pending
+  // result, so a 3x run reserves three.
+  const pending = generating ? Math.max(1, generatingCount) : 0;
+
+  // One cell per result, audio included — see CELL_MULTIPLE for why the total
+  // is padded to a multiple of 12.
+  const usedColumns = pending + items.length;
+  const emptyCount =
+    Math.max(
+      CELL_MULTIPLE,
+      Math.ceil(usedColumns / CELL_MULTIPLE) * CELL_MULTIPLE,
+    ) - usedColumns;
 
   return (
     <>
       <div className="grid grid-cols-2 border-l border-t border-gray-200 sm:grid-cols-3 lg:grid-cols-4">
-        {generating && (
+        {Array.from({ length: pending }, (_, index) => (
           <GeneratingCell
+            // Index-keyed on purpose: these are interchangeable placeholders
+            // for one batch, and the count only changes when the batch does.
+            key={`pending-${index}`}
             label={generatingLabel}
+            prompt={generatingPrompt}
             progress={generatingProgress}
+            onDismiss={onDismissGenerating}
+            onEdit={onEditGenerating}
           />
-        )}
+        ))}
 
-        {cells.map((item, index) => {
-          // The generating tile above already rendered cell 0.
-          if (generating && index === 0) return null;
-          // ── Empty cross-section ──
-          if (!item) {
-            return (
-              <div
-                key={`empty-${index}`}
-                className="aspect-square border-b border-r border-gray-200"
-                aria-hidden="true"
-              >
-                {/* The hint rides in the FIRST cell only, and only while the
-                    whole grid is empty — once there is any history the lattice
-                    is self-explanatory and a line of copy in the gaps would
-                    just be litter. */}
-                {index === 0 && items.length === 0 && !loading && emptyHint && (
-                  <div className="flex h-full items-center justify-center p-4">
-                    <p className="text-center text-[11px] leading-relaxed text-gray-400">
-                      {emptyHint}
-                    </p>
-                  </div>
-                )}
-                {index === 0 && loading && (
-                  <div className="flex h-full items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-gray-300" />
-                  </div>
-                )}
-              </div>
-            );
-          }
-
+        {items.map((item, index) => {
           const tool = toolById(item.tool);
           const isRemoving = removingId != null && item.id === removingId;
           const isMedia = item.type === "image" || item.type === "video";
           const menuOpen = menu?.item?.id === item.id;
+
+          // ⚠️ AUDIO LEAVES THE TILE ENTIRELY — it is not a square with a
+          // player crammed in, it is the player. Its own branch before the
+          // shared shell below, because almost nothing in that shell applies:
+          // no tile button (a <button> may not contain interactive content, and
+          // the transport would fight the tile's own click), no hover scrim, no
+          // corner ⋯ — the card has its own download and ⋯ along the bottom.
+          if (item.type === "audio") {
+            return (
+              <div
+                key={item.id ?? `${item.type}-${index}`}
+                // ONE SQUARE, like every other result. The card fills it rather
+                // than sitting in the middle of it, and drops controls as the
+                // square gets small — see the container queries in AudioCard's
+                // fill mode, which is what makes a full player survive a ~190px
+                // cell on a phone.
+                className="flex aspect-square min-w-0 border-b border-r border-gray-200 bg-gray-50 p-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <AudioTile
+                    item={item}
+                    index={index}
+                    onDownload={() => handleDownload(item)}
+                    onOpenMenu={(_asset, event) => openMenu(item, event)}
+                  />
+                </div>
+              </div>
+            );
+          }
 
           return (
             <div
               key={item.id ?? `${item.type}-${index}`}
               className="group relative aspect-square border-b border-r border-gray-200"
             >
-              {/* ⚠️ AUDIO IS NOT WRAPPED IN THE TILE BUTTON. A <button> may not
-                  contain interactive content — a player nested in one is invalid
-                  HTML, and its transport swallows or fights the tile's own click.
-                  So an audio result is its own cell: you can hear it here,
-                  before deciding whether it is worth downloading. */}
-              {item.type === "audio" ? (
-                <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-gray-50 p-4">
-                  <Volume2 className="h-6 w-6 shrink-0 text-gray-400" />
-                  <p className="line-clamp-3 text-center text-[11px] text-gray-500">
-                    {item.prompt || "Audio"}
-                  </p>
-                  <audio
-                    src={item.url || undefined}
-                    controls
-                    preload="metadata"
-                    // One thing playing at a time. Two tiles talking over each
-                    // other is nobody's intent, and the browser won't stop it.
-                    onPlay={(event) => {
-                      document.querySelectorAll("audio").forEach((player) => {
-                        if (player !== event.currentTarget) player.pause();
-                      });
-                    }}
-                    className="h-9 w-full"
-                  />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isMedia) openLightbox(item);
-                    // A transcript is the whole point of Audio to Text, and five
-                    // clamped lines in a square tile is not somewhere you can
-                    // read one — so a text tile opens into a reader.
-                    else if (item.type === "text" && item.content) setReading(item);
-                  }}
-                  className={`block h-full w-full overflow-hidden text-left ${
-                    isMedia || (item.type === "text" && item.content)
-                      ? "cursor-pointer"
-                      : "cursor-default"
-                  }`}
-                >
+              <button
+                type="button"
+                onClick={() => {
+                  if (isMedia) openLightbox(item);
+                  // A transcript is the whole point of Audio to Text, and five
+                  // clamped lines in a square tile is not somewhere you can
+                  // read one — so a text tile opens into a reader.
+                  else if (item.type === "text" && item.content) setReading(item);
+                }}
+                className={`block h-full w-full overflow-hidden text-left ${
+                  isMedia || (item.type === "text" && item.content)
+                    ? "cursor-pointer"
+                    : "cursor-default"
+                }`}
+              >
                 {item.type === "image" && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -352,21 +443,20 @@ export default function HistoryLattice({
                   </span>
                 )}
 
-                  {item.type === "text" && (
-                    <span className="flex h-full w-full flex-col gap-2 p-4">
-                      <FileText className="h-4 w-4 shrink-0 text-gray-400" />
-                      <span className="line-clamp-5 whitespace-pre-wrap text-[11px] leading-relaxed text-gray-600">
-                        {item.content}
-                      </span>
-                      {/* Says the tile is a preview, so a clamped transcript
-                          reads as "there is more" rather than as all there is. */}
-                      <span className="mt-auto text-[10px] font-medium text-blue-600">
-                        Read full text →
-                      </span>
+                {item.type === "text" && (
+                  <span className="flex h-full w-full flex-col gap-2 p-4">
+                    <FileText className="h-4 w-4 shrink-0 text-gray-400" />
+                    <span className="line-clamp-5 whitespace-pre-wrap text-[11px] leading-relaxed text-gray-600">
+                      {item.content}
                     </span>
-                  )}
-                </button>
-              )}
+                    {/* Says the tile is a preview, so a clamped transcript
+                        reads as "there is more" rather than as all there is. */}
+                    <span className="mt-auto text-[10px] font-medium text-blue-600">
+                      Read full text →
+                    </span>
+                  </span>
+                )}
+              </button>
 
               {/* Which tool made it — the whole point of a MERGED grid is that
                   the answer isn't implied by the page you're on. Media tiles get
@@ -417,6 +507,37 @@ export default function HistoryLattice({
             </div>
           );
         })}
+
+        {/* The bare lattice the results sit in. Drawn whether or not there is
+            anything to put in it — see the ⚠️ at the top of this file. */}
+        {Array.from({ length: emptyCount }, (_, index) => (
+          <div
+            key={`empty-${index}`}
+            className="aspect-square border-b border-r border-gray-200"
+            aria-hidden="true"
+          >
+            {/* The hint rides in the FIRST cell only, and only while the whole
+                grid is empty — once there is any result the lattice is
+                self-explanatory and a line of copy in the gaps would just be
+                litter. */}
+            {index === 0 &&
+              items.length === 0 &&
+              pending === 0 &&
+              !loading &&
+              emptyHint && (
+                <div className="flex h-full items-center justify-center p-4">
+                  <p className="text-center text-[11px] leading-relaxed text-gray-400">
+                    {emptyHint}
+                  </p>
+                </div>
+              )}
+            {index === 0 && loading && (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-gray-300" />
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
       {menu && (

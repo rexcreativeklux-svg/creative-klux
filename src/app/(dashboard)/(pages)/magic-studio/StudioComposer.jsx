@@ -38,12 +38,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
+  AudioLines,
+  Clock,
+  Drama,
+  FileText,
+  Gauge,
+  Gem,
   ImagePlus,
+  Languages,
+  LayoutGrid,
   Loader2,
   Mic,
+  Palette,
+  Ratio,
   Sparkles,
   Square,
+  Target,
   Upload,
+  User,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -67,12 +79,52 @@ import {
   useVoicePreview,
 } from "@/app/(components)/magic-studio/magicEngineHooks";
 import { OptionPanelBody } from "@/app/(components)/magic-studio/magicPanelUI";
-import useMagicGenerate from "@/app/(components)/magic-studio/useMagicGenerate";
+import useMagicGenerate, {
+  MAX_VARIATIONS,
+} from "@/app/(components)/magic-studio/useMagicGenerate";
 import { getMagicConfig } from "./magicStudioConfigs";
 import ToolbarChip from "./ToolbarChip";
 
 /** The `input` kinds that are typed into. The rest need a file, a take, or a form. */
 const TYPEABLE = new Set(["prompt", "script", "text"]);
+
+/**
+ * The glyph for each setting the configs declare, keyed by the option's own
+ * `key`. A config may override with its own `icon`.
+ *
+ * ⚠️ KEYED HERE RATHER THAN ON EVERY OPTION. The seven tools declare the same
+ * dozen settings between them — four of them have a `style`, three have a
+ * `ratio`, two have a `format` — and putting the icon on each declaration means
+ * the same setting can end up wearing three different glyphs across three
+ * tools, which is exactly the thing that makes an icon-only row unlearnable.
+ * One entry per setting, and every tool that has that setting gets the same
+ * picture for it.
+ *
+ * Anything missing falls back to a text chip, so a setting added to a config
+ * without a line here still works and still reads — it just doesn't shrink.
+ */
+const OPTION_ICONS = {
+  purpose: Target,
+  style: Palette,
+  ratio: Ratio,
+  duration: Clock,
+  voice: AudioLines,
+  tone: Drama,
+  pace: Gauge,
+  format: FileText,
+  language: Languages,
+  quality: Gem,
+  contentType: LayoutGrid,
+};
+
+/**
+ * How many to make at once — the "3x" of the composer, 1 to MAX_VARIATIONS.
+ *
+ * ⚠️ NOT OFFERED ON EVERY TOOL — a config opts in with `variations: true`, and
+ * the five backend tools do. The two on-device ones cannot: they never reach
+ * the endpoint that fans out, and they are deterministic besides, so three runs
+ * of the same audio return the same transcript three times.
+ */
 
 /** Audio files above this are refused before anything is read. Matches the modal. */
 const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
@@ -94,16 +146,21 @@ const pillClass = (active) =>
  * @param {(result: object|null) => void} props.onResult Session result from an
  *   ON-DEVICE tool. Those two persist nothing, so there is no history for the
  *   result to appear in and the page has to hold it instead.
- * @param {(status: {generating: boolean, progress: number|null}) => void} [props.onStatusChange]
- *   Lets the page draw the placeholder tile, and fill its bar. `progress` is a
- *   whole percent while an on-device engine reports one, and null otherwise —
- *   see the note where it is computed.
+ * @param {(status: {generating: boolean, progress: number|null, prompt: string}) => void} [props.onStatusChange]
+ *   Lets the page draw the placeholder tile, put the words on it, and fill its
+ *   bar. `progress` is a whole percent while an on-device engine reports one,
+ *   and null otherwise — see the note where it is computed.
+ * @param {{text: string, nonce: number}|null} [props.refill] A prompt pushed
+ *   back INTO the composer from outside — the in-flight tile's edit affordance.
+ *   Keyed by `nonce` rather than by the text so asking for the same words twice
+ *   still lands; see the effect that applies it.
  */
 export default function StudioComposer({
   tool,
   history,
   onResult,
   onStatusChange,
+  refill = null,
 }) {
   const { activeBrand, uploadMedia, token } = useAuth();
   const config = getMagicConfig(tool.id);
@@ -140,6 +197,19 @@ export default function StudioComposer({
 
   // ── The primary input, in whichever shape this tool takes ──
   const [text, setText] = useState("");
+  // What the LAST run was asked for and how many of it, kept after `text` is
+  // cleared on submit so the in-flight tiles can show it. Cleared input and
+  // displayed prompt are two different needs, and reading one state for both
+  // loses the tiles' words the instant the box empties. The count is frozen
+  // here for the same reason: changing the chip from 3x to 1x while three are
+  // in flight must not make two of their placeholders disappear.
+  const [lastRun, setLastRun] = useState({ prompt: "", count: 1 });
+
+  // How many to make in one go — the "3x" chip. Held here and merged into
+  // `values` at submit, like `model`, so the config's `generate` can put it in
+  // the payload; the backend is what fans out.
+  const [variations, setVariations] = useState(1);
+  const variationsEnabled = config?.variations === true;
   // { url, preview } — `url` is the hosted one the backend is sent, `preview`
   // is whatever renders fastest in the strip. No object URLs: every image now
   // arrives from the picker already hosted, or is uploaded on the way in.
@@ -232,8 +302,31 @@ export default function StudioComposer({
   // component"). An effect runs after this render commits, which is the only
   // legal moment to tell somebody else something changed.
   useEffect(() => {
-    onStatusChange?.({ generating, progress });
-  }, [generating, progress, onStatusChange]);
+    onStatusChange?.({
+      generating,
+      progress,
+      prompt: lastRun.prompt,
+      count: lastRun.count,
+    });
+  }, [generating, progress, lastRun, onStatusChange]);
+
+  // A prompt pushed back in from the in-flight tile's pencil.
+  //
+  // ⚠️ KEYED ON THE NONCE ALONE. Depending on the text would make this a no-op
+  // the second time you ask for the same words back — you would edit the box,
+  // click the pencil to restore what you started from, and nothing would
+  // happen. The nonce changes on every request, so every request lands.
+  //
+  // ⚠️ DURING RENDER, NOT IN AN EFFECT. This is React's own pattern for
+  // adjusting state when a prop changes: it re-renders immediately, before
+  // anything paints. In an effect the composer would paint once with the stale
+  // text and then again with the refilled text — a visible flash of the wrong
+  // words — which is what `react-hooks/set-state-in-effect` is warning about.
+  const [appliedRefill, setAppliedRefill] = useState(null);
+  if (refill?.nonce != null && refill.nonce !== appliedRefill) {
+    setAppliedRefill(refill.nonce);
+    setText(refill.text || "");
+  }
 
   // ── Input handlers ─────────────────────────────────────────────────────────
   /**
@@ -337,7 +430,23 @@ export default function StudioComposer({
     if (!ready) return;
     closePanel();
     console.log(`✨ [magic-studio] generating with "${tool.label}" (${model})`);
-    generate({ primaryInput, values: { ...values, model }, activeBrand });
+    // Captured BEFORE the box is cleared below. The tools with no words of
+    // their own — a source image, an audio take — report nothing and the tile
+    // falls back to the tool's working label.
+    const count = variationsEnabled ? variations : 1;
+    setLastRun({
+      prompt: typeable
+        ? text.trim()
+        : kind === "persona"
+          ? values.personaName?.trim() || ""
+          : "",
+      count,
+    });
+    generate({
+      primaryInput,
+      values: { ...values, model, variations: count },
+      activeBrand,
+    });
     // Typed input is cleared so the box is ready for the next idea; a picked
     // image or audio take is NOT — those are expensive to provide again, and
     // re-running the same source with different options is the normal loop.
@@ -357,7 +466,7 @@ export default function StudioComposer({
           toolbar rather than a separate step, so what you are working from stays
           in view while you set the options that act on it. */}
       {kind === "image" && image && (
-        <div className="flex items-center gap-3 border-b border-gray-100 px-3 pb-3 pt-3">
+        <div className="flex items-center gap-3 border-b border-gray-100 px-4 pb-3 pt-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={image.preview}
@@ -379,7 +488,7 @@ export default function StudioComposer({
       )}
 
       {kind === "audio" && audio && (
-        <div className="flex items-center gap-3 border-b border-gray-100 px-3 pb-3 pt-3">
+        <div className="flex items-center gap-3 border-b border-gray-100 px-4 pb-3 pt-3">
           <audio
             src={audioPreview || undefined}
             controls
@@ -396,19 +505,25 @@ export default function StudioComposer({
         </div>
       )}
 
+      {/* ⚠️ `rows` IS A FLOOR, NOT THE HEIGHT — `min-h` is what actually sets
+          it, because a 2000-character script (Text to Audio's cap) in a
+          three-row box is a peephole onto what you are about to generate. Four
+          rows of room to read back what you wrote before committing to it.
+          Still `resize-none`: the box floats over the canvas on the bottom
+          edge, and a drag handle here would grow it up over the results. */}
       {typeable ? (
         <textarea
-          rows={2}
+          rows={4}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={handleKeyDown}
           maxLength={inputConfig.maxLength}
           placeholder={inputConfig.placeholder || "Describe what you want…"}
           aria-label={inputConfig.label || `Input for ${tool.label}`}
-          className="w-full resize-none bg-transparent px-4 pt-4 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400"
+          className="min-h-24 w-full resize-none bg-transparent px-5 pt-5 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400"
         />
       ) : (
-        <p className="px-4 pt-4 text-sm text-gray-400">
+        <p className="min-h-24 px-5 pt-5 text-sm text-gray-400">
           {kind === "image" && !image && (inputConfig.helper || "Choose a source image to begin.")}
           {kind === "image" && image && "Set your options, then generate."}
           {kind === "audio" &&
@@ -423,7 +538,7 @@ export default function StudioComposer({
       )}
 
       {error && (
-        <p className="mx-3 mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+        <p className="mx-4 mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
           {error}
         </p>
       )}
@@ -439,22 +554,26 @@ export default function StudioComposer({
           A `flex-1` spacer used to push it right from INSIDE the scroller,
           which only works while the content fits; the scroll container itself
           is what claims the space now. */}
-      <div className="flex items-center gap-1 px-3 pb-3 pt-1">
+      <div className="flex items-center gap-1 px-4 pb-4 pt-1">
         <div className="hide-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-        {/* Source pickers, for the tools that need one. */}
+        {/* Source pickers, for the tools that need one. Icon-only like the
+            setting chips beside them — the strip above the toolbar already
+            shows what has been picked, so the button doesn't also have to say
+            so in words. */}
         {kind === "image" && (
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
             disabled={uploading}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 enabled:cursor-pointer"
+            aria-label={image ? "Replace source image" : "Choose a source image"}
+            title={image ? "Replace source image" : "Choose a source image"}
+            className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg px-1.5 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 enabled:cursor-pointer"
           >
             {uploading ? (
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
             ) : (
-              <ImagePlus className="h-3.5 w-3.5 shrink-0" />
+              <ImagePlus className="h-4 w-4 shrink-0" />
             )}
-            {image ? "Replace" : "Source image"}
           </button>
         )}
 
@@ -473,30 +592,35 @@ export default function StudioComposer({
             <button
               type="button"
               onClick={() => audioFileRef.current?.click()}
-              className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+              aria-label="Upload an audio file"
+              title="Upload an audio file"
+              className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg px-1.5 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             >
-              <Upload className="h-3.5 w-3.5 shrink-0" />
-              Upload
+              <Upload className="h-4 w-4 shrink-0" />
             </button>
+            {/* ⚠️ THE ONE CONTROL THAT KEEPS ITS WORDS, and only while running.
+                An icon alone cannot say how long you have been recording, and
+                that number is the whole feedback a mic take gives you — going
+                icon-only here would leave a red square and no idea whether it
+                has been going for four seconds or four minutes. */}
             <button
               type="button"
               onClick={() => (recorder.recording ? recorder.stop() : recorder.start())}
-              className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              aria-label={recorder.recording ? "Stop recording" : "Record from your mic"}
+              title={recorder.recording ? "Stop recording" : "Record from your mic"}
+              className={`flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors ${
                 recorder.recording
-                  ? "bg-red-50 text-red-600"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  ? "bg-red-50 px-2.5 text-red-600"
+                  : "min-w-8 px-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               }`}
             >
               {recorder.recording ? (
                 <>
                   <Square className="h-3.5 w-3.5 shrink-0 fill-current" />
-                  Stop {recorder.elapsed}s
+                  <span className="tabular-nums">{recorder.elapsed}s</span>
                 </>
               ) : (
-                <>
-                  <Mic className="h-3.5 w-3.5 shrink-0" />
-                  Record
-                </>
+                <Mic className="h-4 w-4 shrink-0" />
               )}
             </button>
           </>
@@ -510,7 +634,7 @@ export default function StudioComposer({
             onToggle={() => togglePanel("persona")}
             onClose={closePanel}
             label="Persona"
-
+            icon={User}
             width={320}
           >
             {/* ⚠️ The suggestions, age bands and tones all come from the tool's
@@ -651,7 +775,9 @@ export default function StudioComposer({
             onToggle={() => togglePanel(option.key)}
             onClose={closePanel}
             label={option.label}
-
+            // The config's own glyph first, then the shared one for that
+            // setting. Neither → a text chip, which still works.
+            icon={option.icon || OPTION_ICONS[option.key]}
             // The config declares how wide its panel needs to be — a grid of
             // style cards needs more room than a list of aspect ratios.
             width={option.width || 340}
@@ -668,26 +794,95 @@ export default function StudioComposer({
           </ToolbarChip>
         ))}
 
+        {/* How many to make at once. Its value IS its label — an icon here
+            would hide the one number you need to see before hitting send, and
+            "3x" is no wider than the glyph it replaces. */}
+        {variationsEnabled && (
+          <ToolbarChip
+            open={openPanel === "variations"}
+            onToggle={() => togglePanel("variations")}
+            onClose={closePanel}
+            label="Variations"
+            badge={`${variations}x`}
+            width={260}
+          >
+            {/* ⚠️ A SLIDER, NOT A LIST, AND THE RANGE IS WHY. Thirty options is
+                a menu you scroll to answer "how many" — a question you already
+                know the answer to before you open it. Dragging gets anywhere in
+                the range in one gesture.
+                ⚠️ IT DOES NOT CLOSE ON CHANGE. The old list closed the panel on
+                pick, which is right for a discrete choice and fatal for a drag:
+                `onChange` fires on every step, so the panel would vanish
+                mid-gesture on whatever number you happened to pass through
+                first. It closes on outside-click or Escape like everything
+                else, once you have settled on a number. */}
+            <div className="flex flex-col gap-2.5 px-3 pb-3 pt-2.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-semibold tabular-nums text-gray-900">
+                  {variations}x
+                </span>
+                <span className="min-w-0 truncate text-[11px] text-gray-400">
+                  {variations === 1
+                    ? "One at a time"
+                    : `${variations} from the same prompt`}
+                </span>
+              </div>
+
+              <input
+                type="range"
+                min={1}
+                // Straight from the clamp that guards the payload, so widening
+                // one can never leave the other behind.
+                max={MAX_VARIATIONS}
+                step={1}
+                value={variations}
+                onChange={(event) => setVariations(Number(event.target.value))}
+                aria-label="How many to generate at once"
+                className="w-full cursor-pointer accent-blue-600"
+              />
+
+              <div className="flex justify-between text-[10px] tabular-nums text-gray-400">
+                <span>1</span>
+                <span>{MAX_VARIATIONS}</span>
+              </div>
+            </div>
+          </ToolbarChip>
+        )}
+
         {/* Which model does the work. Last in the row, after the settings that
             describe WHAT is being made — this one is about how it gets made.
             ComposerDropdown rather than a ToolbarChip: it already renders the
             grouped Claude / GPT sections, and this is the same menu, the same
-            persisted choice, as the composer on the home page. */}
+            persisted choice, as the composer on the home page.
+
+            ⚠️ NOT SHOWN ON THE ON-DEVICE TOOLS. Audio to Text and Text to Audio
+            never reach a hosted model — they run Whisper and Kokoro in a Web
+            Worker on this machine, and the choice made here could not change
+            what does the work if it tried. Offering it there is a control that
+            claims to steer something it has no wire to, and picking "Opus 5"
+            before transcribing would reasonably read as a promise that Opus is
+            doing the transcribing.
+            The preference itself is untouched — it is app-wide and shared with
+            the home composer; this only stops drawing it where it is a lie. */}
         {/* shrink-0 wrapper: flex items shrink by default, and this row scrolls
             sideways — without it the model trigger squashes as options are
             added instead of the row simply getting longer. */}
-        <div className="shrink-0">
-          <ComposerDropdown
-            options={MODEL_OPTIONS}
-            groups={MODEL_GROUPS}
-            value={model}
-            onChange={setModel}
-            open={openPanel === "model"}
-            onOpenChange={(next) => (next ? togglePanel("model") : closePanel())}
-            ariaLabel="Choose a model"
-            triggerLabel="Model"
-          />
-        </div>
+        {!config?.onDevice && (
+          <div className="shrink-0">
+            <ComposerDropdown
+              options={MODEL_OPTIONS}
+              groups={MODEL_GROUPS}
+              value={model}
+              onChange={setModel}
+              open={openPanel === "model"}
+              onOpenChange={(next) =>
+                next ? togglePanel("model") : closePanel()
+              }
+              ariaLabel="Choose a model"
+              triggerLabel="Model"
+            />
+          </div>
+        )}
 
         </div>
 

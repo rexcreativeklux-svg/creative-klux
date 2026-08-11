@@ -103,8 +103,32 @@ export const formatClock = (seconds) => {
  * @param {number} props.index Position (for a fallback title).
  * @param {(asset: object) => void} props.onDownload
  * @param {(asset: object, e: React.MouseEvent) => void} props.onOpenMenu
+ * @param {boolean} [props.fill=false] Fit a box with a size of its own — a grid
+ *   cell — rather than taking the height the content wants. Two things change:
+ *   the card grows to its container with the WAVEFORM absorbing the slack, and
+ *   it becomes a `@container` whose controls drop out as it narrows.
+ *
+ *   ⚠️ THE SHEDDING IS NOT COSMETIC. A square cell in a four-column grid is
+ *   ~400px on a desktop and ~190px on a phone, and the full transport needs
+ *   ~310px — so at the small end the row does not merely look cramped, its
+ *   buttons overflow the card. Volume goes first (a slider is the least of it
+ *   when the system has one), then the skips; play, download and ⋯ always stay.
+ *
+ *   ⚠️ CONTAINER QUERIES, NOT BREAKPOINTS. The cell's width comes from the grid's
+ *   column count as much as the viewport — three columns at `sm` is a NARROWER
+ *   cell than two columns at `xs` — so a viewport breakpoint would hide controls
+ *   on wide cells and keep them on narrow ones. Only the card's own width knows.
+ *
+ *   Default false keeps the natural height and every control, which is what a
+ *   flowing list (the gallery) wants.
  */
-export default function AudioCard({ asset, index, onDownload, onOpenMenu }) {
+export default function AudioCard({
+  asset,
+  index,
+  onDownload,
+  onOpenMenu,
+  fill = false,
+}) {
   const audioRef = useRef(null);
   const waveRef = useRef(null);
 
@@ -236,7 +260,11 @@ export default function AudioCard({ asset, index, onDownload, onOpenMenu }) {
   const format = asset.format?.toUpperCase();
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-surface p-4 shadow-sm">
+    <div
+      className={`overflow-hidden rounded-2xl border border-gray-200 bg-surface shadow-sm ${
+        fill ? "@container flex h-full flex-col p-3 @min-[20rem]:p-4" : "p-4"
+      }`}
+    >
       <audio
         ref={audioRef}
         src={asset.src}
@@ -253,7 +281,13 @@ export default function AudioCard({ asset, index, onDownload, onOpenMenu }) {
       {/* Title + format */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+          {/* Decorative — it says "audio" on a card that is audibly audio. In a
+              small cell that is 40px the title needs more than the icon does. */}
+          <span
+            className={`w-8 h-8 rounded-lg bg-blue-100 text-blue-600 items-center justify-center shrink-0 ${
+              fill ? "hidden @min-[15rem]:flex" : "flex"
+            }`}
+          >
             <AudioLines className="w-4 h-4" />
           </span>
           <p
@@ -284,7 +318,12 @@ export default function AudioCard({ asset, index, onDownload, onOpenMenu }) {
         onPointerUp={onScrubEnd}
         onPointerCancel={onScrubEnd}
         onKeyDown={onWaveKeyDown}
-        className={`relative mt-3 flex h-14 items-center gap-px rounded-md touch-none select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${duration ? "cursor-pointer" : "cursor-default"}`}
+        // ⚠️ min-h SURVIVES THE STRETCH. `flex-1` in a short container can
+        // resolve to almost nothing, and a waveform two pixels tall is not a
+        // scrub target — the floor is the height it would have had anyway.
+        className={`relative mt-3 flex items-center gap-px rounded-md touch-none select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
+          fill ? "min-h-14 flex-1" : "h-14"
+        } ${duration ? "cursor-pointer" : "cursor-default"}`}
       >
         {displayBars.map((amp, i) => {
           const played = (i + 0.5) / displayBars.length <= fraction;
@@ -292,7 +331,14 @@ export default function AudioCard({ asset, index, onDownload, onOpenMenu }) {
             <span
               key={i}
               className={`flex-1 rounded-full transition-colors ${played ? "bg-blue-500" : "bg-blue-500/25"}`}
-              style={{ height: `${Math.max(2, amp * 44)}px` }}
+              // Percentages when filling, so the bars grow with the container
+              // instead of sitting as a 44px band in the middle of a tall card;
+              // fixed pixels otherwise, against a fixed-height track.
+              style={{
+                height: fill
+                  ? `${Math.max(3, amp * 100)}%`
+                  : `${Math.max(2, amp * 44)}px`,
+              }}
             />
           );
         })}
@@ -311,12 +357,18 @@ export default function AudioCard({ asset, index, onDownload, onOpenMenu }) {
         <span>{formatClock(duration)}</span>
       </div>
 
-      {/* Transport + volume + actions */}
+      {/* Transport + volume + actions.
+          In fill mode the `@min-[…]` gates are container queries on the card
+          itself — see the ⚠️ on the `fill` prop for what is dropped and why.
+          Outside fill mode every one of them resolves to "always shown", so the
+          gallery's card is exactly what it was. */}
       <div className="mt-3 flex items-center gap-1.5">
         <button
           onClick={() => seekBy(-10)}
           aria-label="Back 10 seconds"
-          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer"
+          className={`shrink-0 p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer ${
+            fill ? "hidden @min-[15rem]:block" : ""
+          }`}
         >
           <SkipBack className="w-4 h-4" />
         </button>
@@ -330,17 +382,24 @@ export default function AudioCard({ asset, index, onDownload, onOpenMenu }) {
         <button
           onClick={() => seekBy(10)}
           aria-label="Forward 10 seconds"
-          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer"
+          className={`shrink-0 p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer ${
+            fill ? "hidden @min-[15rem]:block" : ""
+          }`}
         >
           <SkipForward className="w-4 h-4" />
         </button>
 
-        {/* Volume */}
-        <div className="flex items-center gap-1.5 ml-1.5">
+        {/* Volume — the first thing to go. It is the control the operating
+            system already offers, so losing it costs the least. */}
+        <div
+          className={`items-center gap-1.5 ml-1.5 ${
+            fill ? "hidden @min-[20rem]:flex" : "flex"
+          }`}
+        >
           <button
             onClick={() => setMuted((m) => !m)}
             aria-label={muted ? "Unmute" : "Mute"}
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer"
+            className="shrink-0 p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer"
           >
             <VolumeIcon className="w-4 h-4" />
           </button>
@@ -356,7 +415,9 @@ export default function AudioCard({ asset, index, onDownload, onOpenMenu }) {
               setMuted(v === 0);
             }}
             aria-label="Volume"
-            className="w-16 sm:w-20 accent-blue-600 cursor-pointer"
+            className={`accent-blue-600 cursor-pointer ${
+              fill ? "w-14 @min-[26rem]:w-20" : "w-16 sm:w-20"
+            }`}
           />
         </div>
 
@@ -367,7 +428,9 @@ export default function AudioCard({ asset, index, onDownload, onOpenMenu }) {
             onClick={() => onDownload(asset)}
             title="Download"
             aria-label="Download"
-            className="shrink-0 p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
+            className={`shrink-0 rounded-xl border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer ${
+              fill ? "p-2 @min-[20rem]:p-2.5" : "p-2.5"
+            }`}
           >
             <Download className="w-4 h-4" />
           </button>
@@ -376,7 +439,9 @@ export default function AudioCard({ asset, index, onDownload, onOpenMenu }) {
           <button
             onClick={(e) => onOpenMenu(asset, e)}
             aria-label="Audio actions"
-            className="shrink-0 p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
+            className={`shrink-0 rounded-xl border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer ${
+              fill ? "p-2 @min-[20rem]:p-2.5" : "p-2.5"
+            }`}
           >
             <MoreHorizontal className="w-4 h-4" />
           </button>

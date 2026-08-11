@@ -238,13 +238,34 @@ export default function TemplateCard({ item, onOpenDetails, onItemMenu }) {
         // style={tileColor ? { backgroundColor: tileColor } : undefined}
       >
         {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt={item.title}
-            loading="lazy"
-            className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"
-          />
+          <>
+            {/* Backdrop: the SAME painted data URL, zoomed and blurred, so the
+                letterbox around a portrait template is filled with the design's
+                own colours instead of a flat plate. `src` is a data URL (or a
+                cached thumbnail), so painting it twice costs no extra fetch.
+                `scale-125` overshoots the frame by more than the blur radius at
+                every card width — that overshoot is what stops a soft rim from
+                showing along the edges. aria-hidden: it is the picture below. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              decoding="async"
+              className="pointer-events-none absolute inset-0 h-full w-full scale-125 select-none object-cover opacity-60 blur-lg"
+            />
+            {/* The design itself — `relative` so it paints ABOVE the absolutely
+                positioned backdrop, which would otherwise cover a static
+                sibling. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={item.title}
+              loading="lazy"
+              className="relative h-full w-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-[1.03]"
+            />
+          </>
         ) : failed ? (
           <div className="flex h-full w-full items-center justify-center">
             <ImageIcon className="h-5 w-5 text-gray-400" />

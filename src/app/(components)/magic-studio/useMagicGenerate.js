@@ -29,6 +29,22 @@ const VIDEO_POLL_INTERVAL_MS = 15000;
 const VIDEO_POLL_MAX_ATTEMPTS = 20; // 20 × 15s ≈ 5 minutes
 
 /**
+ * Ceiling on the composer's variations slider — the top of its 1–30 range, and
+ * the last word on what may reach the API.
+ *
+ * ⚠️ EXPORTED SO THE SLIDER AND THE CLAMP CANNOT DRIFT. The composer imports
+ * this for its `max`; hard-coding 30 in both is how a widened slider silently
+ * starts sending values this hook quietly cuts back down.
+ *
+ * ⚠️ IT IS THE BACKEND THAT FANS OUT — `values.variations` rides in the payload
+ * and one request comes back with that many assets. The clamp is still real
+ * money: 30 is thirty billed generations from one press of Enter, and on the
+ * video tools that is thirty renders. It is enforced here rather than trusted
+ * from the caller, because the slider is a UI affordance and not a guarantee.
+ */
+export const MAX_VARIATIONS = 30;
+
+/**
  * @param {object} args
  * @param {object} args.config       Active tool config (getMagicConfig).
  * @param {boolean} args.usesHistory Backend tool + logged in → results live in history.
@@ -125,9 +141,17 @@ export default function useMagicGenerate({
       beforeGenerate?.();
       setGenerating(true);
       try {
+        // ⚠️ CLAMPED ON THE WAY IN, not trusted from the caller. `variations`
+        // reaches the API from here, and the composer's own list of choices is
+        // a UI affordance rather than a guarantee about what arrives.
+        const requested = Number(values?.variations);
+        const variations = Number.isFinite(requested)
+          ? Math.max(1, Math.min(MAX_VARIATIONS, Math.floor(requested)))
+          : 1;
+
         const res = await config.generate({
           input: primaryInput,
-          values,
+          values: { ...values, variations },
           activeBrand,
           tts,
           stt,
@@ -156,7 +180,14 @@ export default function useMagicGenerate({
           // Backend tools persist the result — refresh history rather than
           // keeping a session-only list.
           await history?.refresh();
-          toast.success("Generated successfully!");
+          // ⚠️ COUNTED OFF THE RESPONSE, NOT OFF `variations`. Asking for four
+          // is not the same as getting four — the backend may cap, dedupe or
+          // partially fail — and a toast that reports the request rather than
+          // the result would claim four images on a canvas showing two.
+          const made = res?.assets?.length || 0;
+          toast.success(
+            made > 1 ? `${made} generated successfully!` : "Generated successfully!",
+          );
         } else {
           onResult(res);
           if (res?.assets?.length || res?.text) {

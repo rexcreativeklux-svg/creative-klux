@@ -56,40 +56,52 @@ export default function HomeSkeleton({ clearsHeader = true }) {
           starts on the sidebar's THEME hairline in both states. */}
       <section className="relative flex min-h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav)-4rem)] flex-col justify-center pt-[clamp(1.5rem,7vh,5rem)] lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))]">
         <div className="relative mx-auto w-full max-w-5xl px-5 pb-10 sm:px-8">
-          {/* Greeting — two lines, centred, at the heading's own height */}
+          {/* Greeting — centred, two bars at the two DIFFERENT heights the real
+              heading uses: "Hi <name>." at the h1's ~36px, then the subtitle
+              under it at roughly half that. Matching the heights is the whole
+              job here; a subtitle bar drawn at the h1's height leaves the hero
+              taller than the page it's standing in for. */}
           <div className="mb-7 flex flex-col items-center gap-3">
             <Skeleton className="h-8 w-40 rounded-lg sm:h-9" />
-            <Skeleton className="h-8 w-72 rounded-lg sm:h-9 sm:w-96" />
+            <Skeleton className="h-4 w-72 rounded-md sm:h-5 sm:w-96" />
           </div>
 
-          {/* Composer — ComposerShell's footprint, in the same three pieces:
-              the tab row, the tray, and the input card inside it. Every number
+          {/* Composer — ComposerShell's footprint, in the same three pieces: the
+              tab row, the milky tray, and the input inside it. Every number
               below is copied from the real shell (see ComposerShell.jsx) — get
-              one wrong and the whole assembly visibly resizes on load. */}
+              one wrong and the whole assembly visibly resizes on load. The
+              tray's 6px of padding is the easiest one to drop and the most
+              obvious when it's missing: it's the rim you see around the input. */}
           <div className="mx-auto w-full max-w-3xl">
-            {/* Tab row. Inset from the tray's left edge, tabs separated by a
-                gap, the first at full height (it's the selected one) and the
-                other two resting lower — exactly as the live strip draws it. */}
-            <div className="flex h-10 items-end gap-1 pl-4 sm:h-11 sm:gap-1.5">
+            {/* Tab row. SITTING ON the tray — no gap — and FLUSH with its left
+                edge, so the first tab covers the tray's square top-left corner
+                and the two share one left side. The first is at full height
+                (it's the selected one) and the other two rest 3px lower,
+                exactly as the live strip draws it. */}
+            <div className="flex h-10 items-end gap-1 sm:h-11 sm:gap-1.5">
               {/* `rounded` (the inline prop) rather than a class — it has to beat
-                  Skeleton's own default radius on the two bottom corners, which
+                  Skeleton's own default radius on the two BOTTOM corners, which
                   must stay square where the tab meets the tray. */}
               <Skeleton
                 rounded="15px 15px 0 0"
-                className="h-10 w-24 sm:h-11 sm:w-[148px]"
+                className="h-10 w-24 sm:h-11 sm:w-37"
               />
               {[0, 1].map((index) => (
                 <Skeleton
                   key={index}
                   tone="soft"
                   rounded="15px 15px 0 0"
-                  // Height = the row minus the 7px an unselected tab rests at.
-                  className="h-[33px] w-24 sm:h-[37px] sm:w-[148px]"
+                  // Height = the row minus the 3px an unselected tab rests at.
+                  className="h-9.25 w-24 sm:h-10.25 sm:w-37"
                 />
               ))}
             </div>
 
-            <div className="rounded-[21px] bg-gray-100 p-1.5">
+            {/* TRAY_SHAPE + TRAY_PAD — top-left square, the other three rounded,
+                6px of rim around the input — and the shell's resting shadow, so
+                the assembly doesn't gain its lift the moment the real one swaps
+                in. The shadow costs no layout; the padding very much does. */}
+            <div className="rounded-[21px] rounded-tl-none bg-gray-100 p-1.5 shadow-[0_2px_8px_-3px_rgba(16,24,40,0.10),0_24px_64px_-20px_rgba(16,24,40,0.35)]">
               <div className="rounded-[15px] bg-surface px-5 pb-3 pt-5">
                 {/* Prompt area (rows={3}) */}
                 <div className="flex flex-col gap-2.5">
@@ -119,7 +131,7 @@ export default function HomeSkeleton({ clearsHeader = true }) {
 
           {/* Starter prompts — the "Not sure where to start?" line and five
               chips over two centred rows, matching HomePromptSuggestions. */}
-          <div className="mx-auto mt-6 max-w-3xl sm:mt-7">
+          <div className="mx-auto mt-6 max-w-4xl sm:mt-7">
             <div className="flex justify-center">
               <Skeleton className="h-2.5 w-48" tone="soft" />
             </div>

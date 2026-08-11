@@ -12,6 +12,18 @@
 //   text_to_audio       → { type, style, speaking_tone, speaking_speed, export_format, audio_quality, prompt }
 //   persona_generator   → { type, name, age, occupation, communication_tone, content_type, ratio }
 //
+// Every one of those EXCEPT audio_to_text and text_to_audio also carries
+// `variations` — how many results to make in one request, 1–4, from the
+// composer's "3x" chip. The two exceptions never reach this endpoint to
+// generate: they run Whisper and Kokoro on-device (text_to_audio comes back
+// only to store what it made, via saveTextToAudio below).
+//
+// ⚠️ `variations` IS UNCONFIRMED AGAINST THE API. It was named to match the
+// snake_case of its neighbours; nothing has verified the backend declares it,
+// and this endpoint rejects fields it does not know. A 422 that appears only
+// once the chip goes above 1x is this field — see the ⚠️ on text_to_image in
+// magicStudioConfigs.jsx for the one place to change it.
+//
 // Auth (Bearer token) is attached by the axios interceptor. Uses the app's
 // shared axios instance so baseURL + auth are consistent with the rest of the app.
 // Mirrors src/(lib)/product-studio-api.js.
@@ -292,6 +304,42 @@ export async function generateMagicStudio(payload) {
     } else {
       toast.error(serverMsg || "AI generation failed. Please try again.");
     }
+    throw err;
+  }
+}
+
+/**
+ * Save a Text to Audio run to the user's history.
+ *
+ * ⚠️ ITS OWN ENDPOINT, NOT /magic-studio/generate. Text to Audio synthesises in
+ * the BROWSER, so there is nothing for a generate route to do — this one exists
+ * to store audio that already exists. Sending it to /generate instead answers
+ * "The audio field is required", and then 500s from inside that controller.
+ *
+ * @param {FormData} form The run: the audio file plus its settings.
+ * @returns {Promise<object>} The created generation record.
+ */
+export async function saveTextToAudio(form) {
+  console.log("📡 [magic-studio/text-to-audio] saving →", [...form.keys()]);
+  try {
+    const { data } = await api.post(
+      `${BASE_URL}/magic-studio/text-to-audio`,
+      form,
+      // Let the browser set the multipart boundary — naming a Content-Type
+      // here without one leaves the body unparseable.
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
+    console.log("✅ [magic-studio/text-to-audio] saved ←", data);
+    return data;
+  } catch (err) {
+    console.error("❌ [magic-studio/text-to-audio] failed:", {
+      status: err?.response?.status,
+      data: err?.response?.data,
+      message: err?.message,
+    });
+    // Rethrown rather than toasted: the only caller fires this after the audio
+    // is already in the user's hands, and an error about bookkeeping they never
+    // asked for would be noise.
     throw err;
   }
 }

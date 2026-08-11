@@ -64,7 +64,7 @@ export default function Home() {
   const composerRef = useRef(null);
   // Focus lives up here because the SHELL is what reacts to it: the assembly
   // lifts as one object when the user starts typing, instead of the input
-  // growing a shadow inside the tray that already surrounds it.
+  // growing a shadow of its own inside the tray that already surrounds it.
   const [composerFocused, setComposerFocused] = useState(false);
 
   /**
@@ -300,23 +300,27 @@ export default function Home() {
                 <span className="text-blue-600">.</span>
               </h1>
             )}
-            <h2 className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900">
-              What will you{" "}
-              <span className="bg-linear-to-r from-[#003dda] via-blue-300 to-blue-600 bg-clip-text text-transparent">
-                Create
-              </span>{" "}
-              next?
+            {/* Roughly half the greeting's size, so this reads as the line
+                UNDER "Hi <name>." rather than as a second heading competing with
+                it — at the greeting's own 40px it wrapped to two lines and took
+                over the hero. One line at every width from `sm` up.
+                `text-balance` is still here for the narrow end, where 54
+                characters do wrap: it evens the lines out instead of leaving two
+                words stranded on the second. */}
+            <h2 className="mt-2 text-balance text-[clamp(15px,1.5vw,19px)] font-medium leading-snug tracking-tight text-gray-600">
+              Build Scroll-stopping ads, social content, and designs.
             </h2>
           </header>
 
           {/* Composer — narrower and shorter than the studio's, so it reads as
               an invitation sitting in space rather than a form to fill in.
 
-              The tabs, the pale tray and the input are ONE object: the shell
-              draws the tray and the tab row, and the composer sits inside it on
-              the `inset` skin, which drops its own border and shadow so the tray
-              is the only frame. The translucent tray is what lets the hero's
-              backdrop through as the rim you see around the white card. */}
+              The tabs, the milky tray and the input are ONE object: the shell
+              draws the tray and the tab row that starts flush against its left
+              edge, and the composer sits inside it on the `inset` skin, which
+              drops its own border and shadow so the tray is the only frame. The
+              translucent tray is what lets the hero's backdrop through as the
+              rim you see around the white input. */}
           <div
             className="animate-hero-in mx-auto w-full max-w-3xl"
             style={{ animationDelay: "180ms" }}
@@ -348,16 +352,19 @@ export default function Home() {
             </ComposerShell>
           </div>
 
-          {/* Starter prompts — EXACTLY the composer's width (max-w-3xl on both),
-              so the row ends on the same two edges as the box above it instead
-              of spilling past them. That shared measure is what makes the five
-              chips read as balanced under the input rather than as a separate,
-              wider block. Third in the entrance stagger: greeting 60ms →
-              composer 180ms → these 300ms → quick starts 420ms. */}
+          {/* Starter prompts — WIDER than the composer (max-w-4xl against its
+              max-w-3xl), and that difference is the point. Pinned to the
+              composer's exact width the five chips could only break 1/2/2, which
+              reads as a list that ran out of room. Given ~128px of overhang on
+              each side they settle 3/2, centred, and the row reads as balanced
+              under the input rather than as a column trying to match it.
+              Still inside the hero's own max-w-5xl, so nothing reaches the page
+              edge. Third in the entrance stagger: greeting 60ms → composer 180ms
+              → these 300ms → quick starts 420ms. */}
           <HomePromptSuggestions
             tabId={composerTab}
             onPick={handleSuggestionPick}
-            className="animate-hero-in mx-auto mt-6 max-w-3xl sm:mt-7"
+            className="animate-hero-in mx-auto mt-6 max-w-4xl sm:mt-7"
             style={{ animationDelay: "300ms" }}
           />
         </div>

@@ -639,10 +639,14 @@ export default function TemplateDetailsModal({
               The grid pulls itself a hairline past its own box on two edges —
               `-mr-px` to swallow the right-most column's divider, `-mb-px` to
               swallow the last row's, which would otherwise land just above the
-              panel's rounded bottom edge. In the rail those overhangs spill
-              onto the page harmlessly; in here the dialog's scroller would
-              answer the 1px with a horizontal scrollbar, so the band clips
-              them with `overflow-hidden`.
+              panel's rounded bottom edge. ANY scroller above such a grid
+              answers that 1px with a horizontal scrollbar, so whoever hosts one
+              has to clip it — this band with `overflow-hidden`, the home rail
+              with `overflow-x-clip`. (The rail went without for a while on the
+              theory that the overhang spilled onto the page harmlessly. It does
+              not: the dashboard's scroll frame is `overflow-y-auto`, and CSS
+              resolves the other axis from `visible` to `auto`, so the whole
+              home page scrolled sideways by a hairline.)
 
               A card here paints itself lazily, exactly as it does in the rail:
               the band opens below the fold, and its previews render as the

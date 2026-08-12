@@ -76,6 +76,16 @@ const asColor = (value) =>
  * the last row's bottom rule when the grid ends flush against a panel edge
  * (which is what the details modal does).
  *
+ * ⚠️ A NEGATIVE MARGIN MAKES THIS BOX WIDER THAN ITS PARENT — used width is the
+ * containing block MINUS the margins, so -1px on the right puts the grid 1px
+ * past the right edge. THE CALLER MUST CLIP IT. Every scroller above an
+ * unclipped one of these answers that hairline with a horizontal scrollbar,
+ * and it does not have to be an obvious scroller: a box that only asks for
+ * `overflow-y-auto` still scrolls in x, because CSS resolves the other axis
+ * from `visible` to `auto`. That is exactly how the home page came to slide
+ * sideways. Both hosts clip today — TemplatesSection with `overflow-x-clip`,
+ * TemplateDetailsModal's band with `overflow-hidden`.
+ *
  * @param {object} props
  * @param {string} [props.columns]   Responsive column classes. Defaults to the
  *   rail's 1 → 2 → 3 → 4 ramp.

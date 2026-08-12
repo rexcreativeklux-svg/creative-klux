@@ -91,7 +91,9 @@ export default function Home() {
       }
       const details = buildBrandPrompt(activeBrand);
       if (!details) {
-        console.warn("⚠️ [home] no active brand details to seed the prompt with");
+        console.warn(
+          "⚠️ [home] no active brand details to seed the prompt with",
+        );
         toast.error(
           activeBrand
             ? "This brand has no details saved yet — add them under Brand."
@@ -151,7 +153,11 @@ export default function Home() {
   const handleSubmit = ({ prompt, model, mode, images }) => {
     // Images ride the URL as their own repeated `image` param — they are NOT
     // folded into the message, because the API takes a separate `images` array.
-    const params = new URLSearchParams({ creative: DEFAULT_CREATIVE, model, mode });
+    const params = new URLSearchParams({
+      creative: DEFAULT_CREATIVE,
+      model,
+      mode,
+    });
     if (prompt) params.set("initialMessage", prompt);
     images.forEach((url) => params.append("image", url));
 
@@ -194,7 +200,9 @@ export default function Home() {
       }
       return;
     }
-    console.warn(`⚠️ [home] "${item.title}" has no href — falling back to the studio`);
+    console.warn(
+      `⚠️ [home] "${item.title}" has no href — falling back to the studio`,
+    );
     const params = new URLSearchParams({
       creative: DEFAULT_CREATIVE,
       initialMessage: `Create something based on the "${item.title}" template`,
@@ -308,7 +316,7 @@ export default function Home() {
                 characters do wrap: it evens the lines out instead of leaving two
                 words stranded on the second. */}
             <h2 className="mt-2 text-balance text-[clamp(15px,1.5vw,19px)] font-medium leading-snug tracking-tight text-gray-600">
-              Build Scroll-stopping ads, social content, and designs.
+              Create Scroll-stopping ads, social content, and designs.
             </h2>
           </header>
 

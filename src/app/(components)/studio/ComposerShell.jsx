@@ -416,13 +416,19 @@ export default function ComposerShell({
           whole element — see that constant before touching it.
 
           NO BORDER — the selected tab would need the same border and the two
-          outlines that close would read as a seam. THE SHADOW IS THE EDGE, and
-          it is a big ambient one rather than a tight rim: this floats on a
-          photographic blue hero and has to be lifted off it on ALL FOUR sides.
-          `0 2px 16px -4px` at 10% was invisible against that backdrop — the
-          assembly read as a white shape cut out of the sky.
+          outlines that close would read as a seam. The assembly's edge is its
+          FILL against the hero, not an outline and not a permanent shadow.
 
-          TWO LAYERS in each state, and they do different jobs:
+          ⚠️ ONE SHADOW IN THE WHOLE ASSEMBLY, AND IT IS THE FOCUS ONE. Nothing
+          at rest: the shell sits flat in the hero and only lifts once the user
+          is actually in the box, so the lift MEANS something instead of being
+          the composer's resting state. (`inset` in PromptComposer.jsx draws no
+          shadow in either state for the same reason — the input must not grow
+          an edge 6px inside this one. If you ever put a resting shadow back
+          here, that is a second shadow in the object, which is the thing this
+          note exists to prevent.)
+
+          TWO LAYERS in the focused state, and they do different jobs:
             the tight one   a few px of contact shade, so the tray meets the hero
                             rather than hovering over it.
             the broad one   the ambient lift. Its blur is what reaches out to the
@@ -432,18 +438,19 @@ export default function ComposerShell({
           sits on this element's top edge, and the tray is z-40 — above the tabs
           — so anything the shadow throws UPWARD lands across the bottom of the
           strip and dirties the join. Spread pulls the whole shadow back in by
-          20px against a 24px y-offset, which leaves nothing above the top edge
+          22px against a 32px y-offset, which leaves nothing above the top edge
           while still clearing the sides. Raise the blur without raising the
           spread to match and a grey band appears under the tabs.
 
-          Still the ONLY shadow in the assembly, and it belongs here rather than
-          on the input, so the whole object lifts as one thing — soft at rest,
-          the deep blue lift once the user starts typing. */}
+          It belongs here rather than on the input, so the whole object lifts as
+          one thing. `transition-shadow` is what grows it in over 300ms rather
+          than snapping it on at focus — with no resting shadow to fade from,
+          that transition is now the only thing making the arrival soft. */}
       <div
         className={`relative z-40 transition-shadow duration-300 motion-reduce:transition-none ${TRAY_SHAPE} ${TRAY_PAD} ${SHELL_FILL} ${
           elevated
             ? "shadow-[0_4px_10px_-4px_rgba(0,61,218,0.14),0_32px_80px_-22px_rgba(0,61,218,0.45)]"
-            : "shadow-[0_2px_8px_-3px_rgba(16,24,40,0.10),0_24px_64px_-20px_rgba(16,24,40,0.35)]"
+            : "shadow-none"
         }`}
       >
         {children}

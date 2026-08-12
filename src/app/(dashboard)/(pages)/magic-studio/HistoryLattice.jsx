@@ -40,6 +40,7 @@ import ResultActionsMenu, {
   buildResultActions,
 } from "@/app/(components)/product-studio/ResultActionsMenu";
 import { downloadImageUrl } from "@/app/(components)/product-studio/saveToGallery";
+import PublishModal from "@/app/(components)/PublishModal";
 import { toolById } from "./magicTools";
 
 /** Width of ResultActionsMenu (its `w-52`), so the menu opens inside the cell. */
@@ -285,6 +286,10 @@ export default function HistoryLattice({
   emptyHint,
 }) {
   const [menu, setMenu] = useState(null); // { item, x, y }
+  // The result being published, or null. Held here rather than on the menu so
+  // the sheet survives the ⋯ closing under it — picking "Publish" dismisses the
+  // menu, and a modal keyed off menu state would go with it.
+  const [publishItem, setPublishItem] = useState(null);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   // A text result open for reading. Its own viewer rather than the Lightbox,
   // which handles media and has no notion of a wall of prose.
@@ -313,8 +318,20 @@ export default function HistoryLattice({
     }
   };
 
+  // Whether this result can go straight out to a platform. Two conditions, and
+  // both are needed: the TOOL has to be one of the five that make something
+  // publishable (see `publish` in magicTools), and THIS result has to actually
+  // be a picture or a clip with a hosted URL behind it — the persona generator
+  // is a publishing tool that returns text half the time, and a text tile has
+  // nothing to post.
+  const canPublish = (item) =>
+    !!toolById(item.tool)?.publish &&
+    !!item.url &&
+    (item.type === "image" || item.type === "video");
+
   const actionsFor = (item) =>
     buildResultActions({
+      onPublish: canPublish(item) ? () => setPublishItem(item) : undefined,
       onDownload: item.url ? () => handleDownload(item) : undefined,
       onCopyLink: item.url
         ? () => {
@@ -575,6 +592,30 @@ export default function HistoryLattice({
       )}
 
       {reading && <TextReader item={reading} onClose={() => setReading(null)} />}
+
+      {/* Publishing — the shared PublishModal, with the generation wrapped as a
+          minimal creative whose `image` is its hosted URL. The same shape
+          MagicHistoryGrid passes, so a result published from the lattice and one
+          published from the modal's grid go out identically.
+
+          `category: "all"` so the picker offers social platforms AND ad
+          accounts: what a Magic Studio result is for is decided by the person
+          who made it, not by the tool that made it. */}
+      {publishItem && (
+        <PublishModal
+          creative={{
+            id: publishItem.id,
+            name: toolById(publishItem.tool)?.label || "Magic Studio creation",
+            category: "all",
+            image: publishItem.url,
+            copy: {},
+          }}
+          onClose={() => setPublishItem(null)}
+          showToast={(message, type) =>
+            type === "error" ? toast.error(message) : toast.success(message)
+          }
+        />
+      )}
     </>
   );
 }

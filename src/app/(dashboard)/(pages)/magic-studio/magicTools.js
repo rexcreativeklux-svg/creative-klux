@@ -48,6 +48,14 @@ const CREATIVE_ID = "magic_studio";
  *   the default ("Everything you make with X lands here") would be wrong —
  *   which is the two tools that keep no history.
  * @property {boolean} backend Whether generations persist to server history.
+ * @property {boolean} [publish] Whether a result of this tool may be sent
+ *   straight to a platform from the lattice's ⋯ menu. The five tools that make
+ *   a picture or a clip can; the two audio tools cannot — PublishModal posts a
+ *   hosted media URL as a post or an ad, and there is no feed anywhere that
+ *   takes a transcript or a voice take as the thing being published. The flag
+ *   is per TOOL, not per item, because a result's own type isn't enough to
+ *   decide it: the persona generator returns text as readily as it returns an
+ *   image, and the ⋯ menu still gates on the item having a media URL.
  * @property {import("react").ElementType} icon
  *
  * ⚠️ NO USER-FACING COPY HERE MENTIONS WHERE THE WORK HAPPENS. Two of these
@@ -67,6 +75,7 @@ export const MAGIC_TOOLS = [
     short: "Image",
     working: "Painting your image…",
     backend: true,
+    publish: true,
     icon: FileImage,
   },
   {
@@ -78,6 +87,7 @@ export const MAGIC_TOOLS = [
     // silent three-minute wait is indistinguishable from a hang.
     working: "Rendering your video — this one takes a few minutes…",
     backend: true,
+    publish: true,
     icon: Video,
   },
   {
@@ -87,6 +97,7 @@ export const MAGIC_TOOLS = [
     short: "Variations",
     working: "Spinning up variations…",
     backend: true,
+    publish: true,
     icon: Layers,
   },
   {
@@ -96,6 +107,7 @@ export const MAGIC_TOOLS = [
     short: "Voiceover",
     working: "Recording the voiceover and cutting the video…",
     backend: true,
+    publish: true,
     icon: Mic,
   },
   {
@@ -105,6 +117,7 @@ export const MAGIC_TOOLS = [
     short: "Persona",
     working: "Writing in your persona's voice…",
     backend: true,
+    publish: true,
     icon: User,
   },
   {

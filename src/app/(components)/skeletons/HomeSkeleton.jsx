@@ -151,8 +151,12 @@ export default function HomeSkeleton({ clearsHeader = true }) {
 
       {/* ── Template rail ───────────────────────────────────────────────────
           Full-bleed, and its two hairlines (this border-t, and the grid's) are
-          the ones that continue the sidebar's across the window. */}
-      <section className="w-full border-t border-gray-200">
+          the ones that continue the sidebar's across the window.
+          overflow-x-clip for the same reason the real rail has it: the grid
+          below carries `-mr-px`, and without the clip that hairline reaches the
+          dashboard's scroll frame and draws a horizontal scrollbar — here it
+          would appear for as long as the skeleton is up. */}
+      <section className="w-full overflow-x-clip border-t border-gray-200">
         {/* Tab row — pinned to --ck-rail-row on desktop, as the real one is */}
         <div className="flex items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:h-(--ck-rail-row) lg:py-0">
           <div className="flex items-center gap-2.5">

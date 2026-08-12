@@ -277,12 +277,20 @@ function MagicToolScreen({ tool, user }) {
         </button>
       </div>
 
-      {/* The canvas. pb-56 is the composer's clearance — it floats over this
-          scroller, so without it the last row could never be scrolled out from
-          under the box. ⚠️ RAISED WITH THE COMPOSER'S HEIGHT: it was pb-44 for
-          the two-row input, and the taller box now eats more of the bottom. Any
-          further change to the composer's height needs this moved with it. */}
-      <div className="min-h-0 flex-1 overflow-y-auto pb-56">
+      {/* The canvas — and the composer, which lives INSIDE this scroller rather
+          than floating over it from the page. Two things come out of that:
+
+          • The composer measures against the same box the lattice does. The
+            scroller's scrollbar takes real width on Windows, so a strip spanning
+            the page is ~15px wider than the grid inside it — enough to put a
+            column-aligned composer a few pixels off every line it is supposed to
+            land on. Sharing the content box makes the alignment exact instead of
+            approximate.
+          • The clearance under the last row is the composer's own height, since
+            a sticky element still occupies its place at the end of the content.
+            This used to be a hand-tuned `pb-56` on the scroller that had to be
+            re-tuned by hand every time the box grew a row. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <HistoryLattice
           items={visible}
           // Only History is ever waiting on the network. The create canvas is
@@ -307,31 +315,41 @@ function MagicToolScreen({ tool, user }) {
                 `Everything you make with ${tool.short} lands here.`
           }
         />
-      </div>
 
-      {/* The prompt, floating over the history rather than sitting under it, so
-          the grid runs behind it. `pointer-events-none` on the positioner and
-          back on for the box — otherwise this full-width strip would swallow
-          clicks on every tile it crosses. */}
-      {/* z-20 so the composer is unambiguously above the lattice. Every tile is
-          a positioned element, and without a stacking order of its own the
-          composer would depend on DOM order alone to stay clickable. */}
-      {/* max-w-4xl, up from 2xl. The composer is the working control of the
-          screen and was sized like a search box — the options row on the tools
-          with five of them had to scroll before anything was even typed, and a
-          long prompt wrapped into a column half the canvas wide. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-6">
-        <div className="pointer-events-auto w-full max-w-4xl">
-          <StudioComposer
-            tool={tool}
-            history={history}
-            refill={refill}
-            onResult={handleResult}
-            onStatusChange={setStatus}
-          />
+        {/* The prompt, floating over the history rather than sitting under it,
+            so the grid runs behind it. `pointer-events-none` on the positioner
+            and back on for the box — otherwise this full-width strip would
+            swallow clicks on every tile it crosses. */}
+        {/* z-20 so the composer is unambiguously above the lattice. Every tile
+            is a positioned element, and without a stacking order of its own the
+            composer would depend on DOM order alone to stay clickable. */}
+        {/* pt-10 keeps the last row off the box once you reach the end of the
+            scroll — without it the lattice runs flush into the composer. */}
+        <div className="pointer-events-none sticky bottom-0 z-20 flex justify-center px-4 pt-10 pb-6 2xl:px-0">
+          {/* ⚠️ THE WIDTH IS A GRID SPAN, NOT A READING MEASURE. At `2xl` the
+              lattice is four columns, so half the canvas is exactly the middle
+              two: the box starts on the 25% rule and ends on the 75% one rather
+              than floating between them. `2xl:px-0` on the strip is part of
+              that — `w-1/2` is half the strip's CONTENT box, so leaving the
+              padding on would take 16px off each side and break the very
+              alignment this is for.
+
+              Below `2xl` it stays a centered max-w-4xl. Three columns have no
+              centered span that lands on a rule except the middle column alone,
+              which is too narrow to write in, and half of a smaller canvas runs
+              into the problem max-w-4xl was raised to fix: the options row on
+              the five-option tools scrolling before anything is typed. */}
+          <div className="pointer-events-auto w-full max-w-4xl 2xl:w-1/2 2xl:max-w-none">
+            <StudioComposer
+              tool={tool}
+              history={history}
+              refill={refill}
+              onResult={handleResult}
+              onStatusChange={setStatus}
+            />
+          </div>
         </div>
       </div>
-
     </div>
   );
 }

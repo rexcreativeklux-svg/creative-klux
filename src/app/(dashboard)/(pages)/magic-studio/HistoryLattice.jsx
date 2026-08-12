@@ -48,6 +48,19 @@ const MENU_WIDTH = 208;
 /** See the ⚠️ above — LCM of the 2 / 3 / 4 column counts. */
 const CELL_MULTIPLE = 12;
 
+/**
+ * The shape of one cell — WIDE, NOT SQUARE, so the canvas shows three row rules
+ * instead of two. At four columns a square cell is roughly as tall as half the
+ * viewport, which puts the second rule at the fold and every rule after it out
+ * of sight; the lattice then reads as a couple of big boxes rather than as a
+ * grid you are filling in.
+ *
+ * ⚠️ Every cell kind uses this — result, audio, generating, empty. The lattice
+ * only reads as a lattice while they all agree on one shape, so a cell that
+ * sets its own aspect would tear a row in half.
+ */
+const CELL_SHAPE = "aspect-3/2";
+
 /** Elapsed seconds as "8s" / "1:24" — minutes only once there are any. */
 const formatElapsed = (seconds) =>
   seconds < 60
@@ -91,7 +104,9 @@ function GeneratingCell({ label, prompt, progress, onDismiss, onEdit }) {
   }, []);
 
   return (
-    <div className="group relative flex aspect-square items-center justify-center overflow-hidden border-b border-r border-gray-200 bg-gray-50 px-6">
+    <div
+      className={`group relative flex ${CELL_SHAPE} items-center justify-center overflow-hidden border-b border-r border-gray-200 bg-gray-50 px-6`}
+    >
       {/* The orb. A blurred white disc rather than a gradient stack — `blur-2xl`
           on a solid circle gives the falloff for free, and one element means
           nothing to keep in step when the tile is resized. `blur` renders
@@ -376,12 +391,12 @@ export default function HistoryLattice({
             return (
               <div
                 key={item.id ?? `${item.type}-${index}`}
-                // ONE SQUARE, like every other result. The card fills it rather
+                // ONE CELL, like every other result. The card fills it rather
                 // than sitting in the middle of it, and drops controls as the
-                // square gets small — see the container queries in AudioCard's
+                // cell gets small — see the container queries in AudioCard's
                 // fill mode, which is what makes a full player survive a ~190px
                 // cell on a phone.
-                className="flex aspect-square min-w-0 border-b border-r border-gray-200 bg-gray-50 p-2"
+                className={`flex ${CELL_SHAPE} min-w-0 border-b border-r border-gray-200 bg-gray-50 p-2`}
               >
                 <div className="min-w-0 flex-1">
                   <AudioTile
@@ -398,7 +413,7 @@ export default function HistoryLattice({
           return (
             <div
               key={item.id ?? `${item.type}-${index}`}
-              className="group relative aspect-square border-b border-r border-gray-200"
+              className={`group relative ${CELL_SHAPE} border-b border-r border-gray-200`}
             >
               <button
                 type="button"
@@ -513,7 +528,7 @@ export default function HistoryLattice({
         {Array.from({ length: emptyCount }, (_, index) => (
           <div
             key={`empty-${index}`}
-            className="aspect-square border-b border-r border-gray-200"
+            className={`${CELL_SHAPE} border-b border-r border-gray-200`}
             aria-hidden="true"
           >
             {/* The hint rides in the FIRST cell only, and only while the whole

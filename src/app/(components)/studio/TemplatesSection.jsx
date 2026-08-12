@@ -394,7 +394,16 @@ export default function TemplatesSection({
   };
 
   return (
-    <section className="w-full border-t border-gray-200">
+    // ⚠️ overflow-x-clip is load-bearing, and it is not cosmetic. The card grid
+    // inside pulls itself a hairline past its own right edge (`-mr-px` in
+    // TemplateCard.jsx) to swallow the last column's divider. The dashboard's
+    // scroll frame is `overflow-y-auto` with overflow-x left at `visible`,
+    // which CSS resolves to `auto` — so that 1px reached it and the home page
+    // grew a horizontal scrollbar over its whole width. Clip, not hidden: this
+    // must not become a scroll container of its own, and the band's vertical
+    // overflow is nobody's business here. TemplateDetailsModal does the same
+    // thing for the same reason.
+    <section className="w-full overflow-x-clip border-t border-gray-200">
       {/* ── Tab row ───────────────────────────────────────────────────────
           On desktop this strip is pinned to --ck-rail-row (see globals.css) —
           the same height as the sidebar's THEME row. Together with the hero

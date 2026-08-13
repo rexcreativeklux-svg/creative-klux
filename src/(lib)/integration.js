@@ -2407,35 +2407,57 @@ export async function fetchLivePostsFromConnectedAccounts(
 // Delete / Update
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * DELETE a node on the Graph API. fetch() does not reject on 4xx and Graph
+ * reports failures in the body, so both have to be inspected — otherwise a
+ * refused delete looks identical to a successful one and the post gets dropped
+ * locally while it's still live on the platform.
+ */
+async function deleteMetaNode(nodeId, token) {
+  const res = await fetch(`${META_GRAPH_BASE}/${nodeId}?access_token=${token}`, {
+    method: "DELETE",
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (data.error) {
+    // Subcode 33 = the node isn't there (already deleted on the platform, most
+    // often by hand). Nothing left to delete, so let the local removal proceed —
+    // throwing here would strand the row with no way to clear it.
+    if (data.error.error_subcode === 33) return;
+    throw new Error(data.error.message);
+  }
+  if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
+}
+
+/**
+ * Whether a delete here also removes the post from the platform. Instagram has
+ * no delete API for published media, and the rest are publish-only integrations,
+ * so those are local-only removals — the confirm copy says so.
+ */
+export function platformSupportsDelete(platform) {
+  return platform === "facebook" || platform === "meta_ads";
+}
+
+/**
+ * Remove a post from the platform, then from local storage.
+ *
+ * Throws if the platform refuses the delete — the caller surfaces that and the
+ * post stays in the list, because it still exists on the platform. Platforms
+ * outside platformSupportsDelete() are removed locally only.
+ */
 export async function deletePostFromPlatform(post, integrations = []) {
   const accounts = buildAccountsMap(integrations);
 
-  if (post.platform === "facebook" && post.post_id) {
-    const token = post._page_access_token || accounts.facebook?.access_token;
+  // facebook int_token is the Page access token — the one a page post delete needs.
+  const token =
+    post.platform === "facebook"
+      ? post._page_access_token || accounts.facebook?.access_token
+      : post.platform === "meta_ads"
+        ? accounts.meta_ads?.access_token
+        : null;
 
-    if (token) {
-      try {
-        await fetch(
-          `${META_GRAPH_BASE}/${post.post_id}?access_token=${token}`,
-          {
-            method: "DELETE",
-          },
-        );
-      } catch {}
-    }
-  } else if (
-    post.platform === "meta_ads" &&
-    accounts.meta_ads?.access_token &&
-    post.post_id
-  ) {
-    try {
-      await fetch(
-        `${META_GRAPH_BASE}/${post.post_id}?access_token=${accounts.meta_ads.access_token}`,
-        {
-          method: "DELETE",
-        },
-      );
-    } catch {}
+  if (token && post.post_id) {
+    await deleteMetaNode(post.post_id, token);
   }
 
   deletePublishedPost(post.id);

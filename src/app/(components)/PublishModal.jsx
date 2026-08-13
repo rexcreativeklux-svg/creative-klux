@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   X,
@@ -221,13 +228,39 @@ const captionFromCopy = (copy = {}) =>
     ? `${copy.headline}${copy.tagline ? ` — ${copy.tagline}` : ""}${copy.body ? `\n\n${copy.body}` : ""}${copy.cta ? `\n\n${copy.cta}` : ""}`
     : copy.body || copy.tagline || "";
 
-// What actually gets published: UPPERCASE the headline (first paragraph) for real,
-// so Facebook receives capitalized text (CSS `uppercase` only affects the preview).
-const captionForPublish = (text = "") => {
+// Split a caption into its headline (the first paragraph) and the rest, and put
+// one back together. The "\n\n" boundary is the same one the caption editor
+// splits on, so the preview, the case control and the published text all agree
+// on where the headline ends.
+const splitHeadline = (text = "") => {
   const idx = text.indexOf("\n\n");
   return idx === -1
-    ? text.toUpperCase()
-    : text.slice(0, idx).toUpperCase() + text.slice(idx);
+    ? { headline: text, rest: "" }
+    : { headline: text.slice(0, idx), rest: text.slice(idx) };
+};
+
+// Take a headline out of capitals: all lower, then the first letter back up.
+// Used when the user turns capitals OFF on text that is itself all-caps — see
+// the ⚠️ on setHeadlineCaps for why that has to touch the string.
+const unshout = (text = "") =>
+  text
+    .toLowerCase()
+    .replace(/^(\s*)(\p{L})/u, (_, space, letter) => space + letter.toUpperCase());
+
+// Capitalise a caption's headline. Used to seed the composer, and again on the
+// way out as a belt-and-braces pass — the composer now keeps the capitals in the
+// caption itself (see EditableCaption), so by publish time this is normally a
+// no-op, and it stays because a platform receives characters, not a stylesheet,
+// and the one thing that must never happen is previewing one case and sending
+// another.
+//
+// `caps` is the user's own choice (the AA / Aa control under the preview), and
+// false means the headline goes out exactly as it stands. There is no equivalent
+// for the body: it is never transformed, in the preview or here.
+const captionForPublish = (text = "", caps = true) => {
+  if (!caps) return text;
+  const { headline, rest } = splitHeadline(text);
+  return headline.toUpperCase() + rest;
 };
 
 // ── Design visual ─────────────────────────────────────────────────────────────
@@ -360,6 +393,8 @@ const Avatar = ({ name, color, logo }) => {
 // Borderless, auto-growing textarea that blends into the post body.
 const AutoTextarea = ({ value, onChange, placeholder, className = "" }) => {
   const ref = useRef(null);
+  // Where the caret was when the last keystroke was handled — see the ⚠️ below.
+  const caret = useRef(null);
   const grow = () => {
     const el = ref.current;
     if (el) {
@@ -368,12 +403,35 @@ const AutoTextarea = ({ value, onChange, placeholder, className = "" }) => {
     }
   };
   useEffect(grow, [value]);
+
+  // ⚠️ THE CARET HAS TO BE PUT BACK when the value that comes back differs from
+  // what was typed. The headline capitalises as you type under "AA", so typing a
+  // lowercase letter into the MIDDLE of a word hands React a string the textarea
+  // doesn't already contain — React rewrites the whole value, and the browser
+  // drops the caret at the end. Editing the middle of a headline then jumps to
+  // the end on every letter. Restored in a layout effect so it happens before
+  // the frame is painted and the caret is never seen in the wrong place.
+  //
+  // Only while this field has focus, and only for the render that follows a
+  // keystroke — otherwise this would fight the user clicking somewhere else.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || caret.current == null) return;
+    const at = caret.current;
+    caret.current = null;
+    if (document.activeElement !== el) return;
+    // Clamped: an uppercase mapping can change a string's length (ß → SS).
+    const pos = Math.min(at, el.value.length);
+    el.setSelectionRange(pos, pos);
+  }, [value]);
+
   return (
     <textarea
       ref={ref}
       rows={1}
       value={value}
       onChange={(e) => {
+        caret.current = e.target.selectionStart;
         onChange?.(e.target.value);
         grow();
       }}
@@ -388,17 +446,39 @@ const AutoTextarea = ({ value, onChange, placeholder, className = "" }) => {
 // Caption editor — the preview IS the composer. The first paragraph (the headline,
 // up to the first blank line) renders BOLD; the rest is the body. Both editable;
 // they recombine into the single caption string with "\n\n" between them.
+//
+// ⚠️ `caps` CAPITALISES THE TEXT ITSELF — it is NOT a `text-transform` class.
+// That is deliberate, and it is the second attempt at this. Styling the headline
+// with `uppercase` looks identical but leaves the value in whatever case it was
+// typed, and the two then disagree: the control appears to do nothing whenever
+// the underlying text is already capitals, because CSS can only ADD capitals and
+// there is nothing left for it to add. Writing the case into the string means
+// what is on screen IS the caption — the toggle always visibly moves, and what
+// gets published is what was previewed.
+//
+// The BODY is never touched either way: the headline is the line doing the
+// shouting, and a whole post in capitals is a different thing entirely.
+//
+// ⚠️ THE WEIGHT, unlike the capitals, IS the preview's alone and cannot be
+// anything else. A platform caption is plain text — there is no bold to send, on
+// any of them — so `font-bold` marks which line is the headline while composing,
+// and the post itself goes out in one weight.
 const EditableCaption = ({
   value,
   onChange,
   placeholder,
+  caps = true,
   prefix = null,
   className = "",
 }) => {
-  const idx = value.indexOf("\n\n");
-  const headline = idx === -1 ? value : value.slice(0, idx);
-  const body = idx === -1 ? "" : value.slice(idx + 2);
-  const setHeadline = (h) => onChange?.(body ? `${h}\n\n${body}` : h);
+  const { headline, rest } = splitHeadline(value);
+  const body = rest.slice(2); // rest keeps the "\n\n" that separates them
+  // Typing under "AA" capitalises as it goes, so the field can't drift out of
+  // step with the control above it.
+  const setHeadline = (h) => {
+    const next = caps ? h.toUpperCase() : h;
+    onChange?.(body ? `${next}\n\n${body}` : next);
+  };
   const setBody = (b) => onChange?.(b ? `${headline}\n\n${b}` : headline);
   return (
     <div className={`px-3 text-sm text-gray-800 ${className}`}>
@@ -407,7 +487,7 @@ const EditableCaption = ({
         value={headline}
         onChange={setHeadline}
         placeholder={placeholder}
-        className="uppercase"
+        className="font-bold"
       />
       <AutoTextarea
         value={body}
@@ -424,6 +504,7 @@ const FacebookPreview = ({
   logo,
   caption,
   onCaptionChange,
+  caps,
   image,
   canvas,
   elements,
@@ -442,6 +523,7 @@ const FacebookPreview = ({
     <EditableCaption
       value={caption}
       onChange={onCaptionChange}
+      caps={caps}
       placeholder="What's on your mind?"
       className="pb-2"
     />
@@ -470,6 +552,7 @@ const InstagramPreview = ({
   logo,
   caption,
   onCaptionChange,
+  caps,
   image,
   canvas,
   elements,
@@ -495,6 +578,7 @@ const InstagramPreview = ({
     <EditableCaption
       value={caption}
       onChange={onCaptionChange}
+      caps={caps}
       placeholder="Write a caption…"
       className="py-2"
       prefix={
@@ -512,6 +596,7 @@ const GenericPreview = ({
   logo,
   caption,
   onCaptionChange,
+  caps,
   image,
   canvas,
   elements,
@@ -530,6 +615,7 @@ const GenericPreview = ({
       <EditableCaption
         value={caption}
         onChange={onCaptionChange}
+        caps={caps}
         placeholder="Write a caption…"
         className="pb-2"
       />
@@ -565,7 +651,44 @@ export default function PublishModal({
   const [view, setView] = useState("picker"); // "picker" | "compose"
   const [selected, setSelected] = useState(null); // platform id
   const [caption, setCaption] = useState("");
+  // Whether the headline goes out in CAPITALS.
+  //
+  // ⚠️ OFF BY DEFAULT, which is a change — this modal used to capitalise every
+  // headline with no way to stop it. Bold is what marks the headline out; the
+  // capitals were doing the same job twice, and they wrecked anything with its
+  // own capitalisation on the way past (a sentence, a product name, "iPhone").
+  // A caption is now published as it was written unless someone asks for caps.
+  const [capsHeadline, setCapsHeadline] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  // Switch the headline's case — REWRITING THE TEXT, both ways.
+  //
+  // ⚠️ THE OBVIOUS IMPLEMENTATION OF THIS CONTROL DOESN'T WORK, which is worth
+  // saying plainly because it looks like it does. Toggling a `uppercase` class
+  // on the field changes the pixels and not the string, so the moment the text
+  // itself is already capitals — typed with caps lock on, pasted from a headline,
+  // written that way by a generator — dropping the class changes NOTHING on
+  // screen. The control then reads as broken, because from the outside "the
+  // button does nothing" and "the button works but has nothing to do" are the
+  // same thing.
+  //
+  // So the case lives in the caption itself. "AA" capitalises the headline;
+  // "Aa" takes it back out of capitals; typing under "AA" capitalises as it goes
+  // (see EditableCaption). What is on screen is always the exact string that
+  // gets published.
+  //
+  // The one thing this cannot do is remember a capitalisation you can't see:
+  // "Nike Air Max" typed under "AA" is stored as "NIKE AIR MAX", so coming back
+  // to "Aa" gives "Nike air max". A headline that still has lowercase in it is
+  // left alone, so text written under "Aa" keeps its own casing untouched.
+  const setHeadlineCaps = (on) => {
+    setCapsHeadline(on);
+    setCaption((current) => {
+      const { headline, rest } = splitHeadline(current);
+      if (!headline.trim()) return current;
+      if (on) return headline.toUpperCase() + rest;
+      return (/\p{Ll}/u.test(headline) ? headline : unshout(headline)) + rest;
+    });
+  };
   const [busyAction, setBusyAction] = useState(null); // 'publish' | 'schedule' | null
   const [published, setPublished] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false); // schedule picker visible
@@ -586,7 +709,9 @@ export default function PublishModal({
     [creative],
   );
 
-  // Default caption from the creative's copy
+  // Default caption from the creative's copy — as written. The case control
+  // starts off, so seeded copy arrives in the case its author gave it, exactly
+  // like typed text does.
   useEffect(() => {
     setCaption(captionFromCopy(creative?.copy));
   }, [creative]);
@@ -682,7 +807,7 @@ export default function PublishModal({
       setPublishing(true);
       setBusyAction(scheduledUnix ? "schedule" : "publish");
       try {
-        const cap = captionForPublish(caption.trim());
+        const cap = captionForPublish(caption.trim(), capsHeadline);
 
         // Resolve a real, publishable image URL.
         // Canvas-based designs have no image_url — render them to a PNG, upload it,
@@ -976,6 +1101,7 @@ export default function PublishModal({
       integrations,
       creative,
       caption,
+      capsHeadline,
       onClose,
       showToast,
       uploadMedia,
@@ -1425,14 +1551,58 @@ export default function PublishModal({
                   logo={activeBrand?.logo || null}
                   caption={caption}
                   onCaptionChange={setCaption}
+                  caps={capsHeadline}
                   image={creative?.image || null}
                   canvas={creative?.canvas || null}
                   elements={creative?.elements || []}
                 />
               </div>
-              <p className="text-[11px] text-gray-400 text-right -mt-1">
-                Click the caption to edit · {caption.length} chars
-              </p>
+              {/* The headline's case, and the two hints about the caption, on
+                  one line under the preview.
+
+                  ⚠️ IT LIVES HERE RATHER THAN IN THE PREVIEW because the
+                  preview IS the post — a control floating inside it would be
+                  read as part of what gets published. Under the frame, next to
+                  "click the caption to edit", it reads as what it is: a setting
+                  for the thing above.
+
+                  The two states show their own effect — "AA" is drawn in caps,
+                  "Aa" as typed — so the choice needs no label to explain it. */}
+              <div className="-mt-1 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 shrink-0">
+                    Headline
+                  </span>
+                  <div
+                    role="group"
+                    aria-label="Headline capitalization"
+                    className="flex items-center rounded-lg border border-gray-200 p-0.5"
+                  >
+                    {[
+                      { on: true, label: "AA", title: "CAPITALS" },
+                      { on: false, label: "Aa", title: "As typed" },
+                    ].map((mode) => (
+                      <button
+                        key={mode.label}
+                        type="button"
+                        onClick={() => setHeadlineCaps(mode.on)}
+                        aria-pressed={capsHeadline === mode.on}
+                        title={mode.title}
+                        className={`cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-bold transition-colors ${
+                          capsHeadline === mode.on
+                            ? "bg-gray-900 text-white"
+                            : "text-gray-400 hover:text-gray-700"
+                        }`}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="min-w-0 truncate text-[11px] text-gray-400">
+                  Click the caption to edit · {caption.length} chars
+                </p>
+              </div>
 
               {/* Schedule picker (Facebook + YouTube) */}
               {showSchedule && (

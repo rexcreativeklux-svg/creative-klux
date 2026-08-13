@@ -27,28 +27,47 @@ import {
 import {
   getPublishedPosts,
   deletePostFromPlatform,
+  platformSupportsDelete,
   fetchLivePostsFromConnectedAccounts,
 } from "../../../../../(lib)/integration";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import Link from "next/link";
+import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import { CalendarSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
+// `label` is the abbreviation the dense calendar pills use; `name` is the full
+// one, for prose like the delete confirmation.
 const PLATFORM_META = {
-  facebook: { label: "FB", emoji: "🔵" },
-  instagram: { label: "IG", emoji: "📸" },
-  meta_ads: { label: "Meta", emoji: "📢" },
-  google_ads: { label: "G.Ads", emoji: "🔍" },
-  tiktok: { label: "TikTok", emoji: "🎵" },
-  tiktok_ads: { label: "TT.Ads", emoji: "🎯" },
-  linkedin: { label: "LI", emoji: "💼" },
-  twitter: { label: "X", emoji: "🐦" },
-  youtube: { label: "YT", emoji: "▶️" },
-  pinterest: { label: "PIN", emoji: "📌" },
-  pinterest_ads: { label: "PIN.Ads", emoji: "🎯" },
-  linkedin_ads: { label: "LI.Ads", emoji: "📊" },
-  snapchat_ads: { label: "Snap.Ads", emoji: "💥" },
+  facebook: { label: "FB", name: "Facebook", emoji: "🔵" },
+  instagram: { label: "IG", name: "Instagram", emoji: "📸" },
+  meta_ads: { label: "Meta", name: "Meta Ads", emoji: "📢" },
+  google_ads: { label: "G.Ads", name: "Google Ads", emoji: "🔍" },
+  tiktok: { label: "TikTok", name: "TikTok", emoji: "🎵" },
+  tiktok_ads: { label: "TT.Ads", name: "TikTok Ads", emoji: "🎯" },
+  linkedin: { label: "LI", name: "LinkedIn", emoji: "💼" },
+  twitter: { label: "X", name: "X", emoji: "🐦" },
+  youtube: { label: "YT", name: "YouTube", emoji: "▶️" },
+  pinterest: { label: "PIN", name: "Pinterest", emoji: "📌" },
+  pinterest_ads: { label: "PIN.Ads", name: "Pinterest Ads", emoji: "🎯" },
+  linkedin_ads: { label: "LI.Ads", name: "LinkedIn Ads", emoji: "📊" },
+  snapchat_ads: { label: "Snap.Ads", name: "Snapchat Ads", emoji: "💥" },
 };
+
+// Says what a delete actually does for this ad — Meta Ads creatives come down for
+// real, a platform without a delete API can only be dropped from the calendar.
+function deleteMessage(post) {
+  const title = post.project_title || "Untitled";
+  const name = PLATFORM_META[post.platform]?.name || post.platform;
+
+  if (!post.post_id)
+    return `“${title}” will be removed from your calendar. This can't be undone.`;
+
+  if (platformSupportsDelete(post.platform))
+    return `“${title}” will be deleted from ${name} and removed from your calendar. This can't be undone.`;
+
+  return `“${title}” will be removed from your calendar, but ${name} has no delete API — the ad stays live there.`;
+}
 
 const STATUS_BORDER = {
   published: "border-l-green-500",
@@ -111,6 +130,10 @@ export default function AdsContentCalendar() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [allPosts, setAllPosts] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
+
+  // The ad the trash icon armed — deleting is irreversible, so it waits on a confirm.
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Filters (mirror the Publishing page): status / platform / free-text search.
   const [statusFilter, setStatusFilter] = useState("all");
@@ -200,10 +223,20 @@ export default function AdsContentCalendar() {
     return result;
   }, [posts, statusFilter, platformFilter, search]);
 
-  const handleDelete = async (post) => {
-    await deletePostFromPlatform(post, integrations ?? []);
-    await fetchLive(); // re-fetch (keeps live posts; reload() would drop them)
-    toast.success("Ad removed");
+  const handleDelete = async () => {
+    const post = pendingDelete;
+    if (!post) return;
+    setDeleting(true);
+    try {
+      await deletePostFromPlatform(post, integrations ?? []);
+      await fetchLive(); // re-fetch (keeps live posts; reload() would drop them)
+      toast.success("Ad removed");
+    } catch {
+      toast.error("Failed to remove ad");
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
+    }
   };
 
   const monthStart = startOfMonth(currentMonth);
@@ -428,7 +461,7 @@ export default function AdsContentCalendar() {
                         <PostPill
                           key={post.id}
                           post={post}
-                          onDelete={() => handleDelete(post)}
+                          onDelete={() => setPendingDelete(post)}
                         />
                       ))}
                       {dayPosts.length > 3 && (
@@ -505,7 +538,7 @@ export default function AdsContentCalendar() {
                               )}
                             </div>
                             <button
-                              onClick={() => handleDelete(post)}
+                              onClick={() => setPendingDelete(post)}
                               className="text-red-300 hover:text-red-500 shrink-0 transition-colors"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -542,6 +575,17 @@ export default function AdsContentCalendar() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete this ad?"
+        message={pendingDelete ? deleteMessage(pendingDelete) : ""}
+        confirmLabel={deleting ? "Deleting…" : "Delete"}
+        variant="danger"
+        busy={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

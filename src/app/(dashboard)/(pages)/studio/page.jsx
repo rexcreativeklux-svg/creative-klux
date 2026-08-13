@@ -15,14 +15,11 @@ import {
 
 import ImageAdsForm from "./forms/ImageAdsForm.jsx";
 import VideoAdsForm from "./forms/VideoAdsForm";
-import PostsForm from "./forms/PostForm";
+import SocialImageForm from "./forms/SocialImageForm";
 import ReelsForm from "./forms/ReelsForm";
-import BannersForm from "./forms/BannersForm";
 import LogoForm from "./forms/LogoForm";
 import BusinessCardForm from "./forms/BusinessCardForm";
 import BannersPrintDigitalForm from "./forms/BannersPrintDigitalForm";
-import ThumbnailsForm from "./forms/ThumbnailsForm";
-import MemesTrendsForm from "./forms/MemesTrendForm";
 import TextToImageForm from "./forms/TextToImageForm";
 import TextToVideoForm from "./forms/TextToVideoForm";
 import ImageToVariationsForm from "./forms/ImageToVariationForm";
@@ -80,7 +77,20 @@ const StudioInner = () => {
     videoFormat: "MP4",
     postTone: "Casual",
     tone: "casual",
-    platforms: "instagram",
+    // Which kind of social image the Image tab is making — post / banner /
+    // thumbnail / meme. See KINDS in forms/social/socialSizes; it decides the
+    // size list, a couple of fields, and the sub-type the backend is sent.
+    socialKind: "post",
+    // ⚠️ AN ARRAY, AND IT HAS TO BE. This was the string "instagram", which
+    // crashed the Video tab: ReelsForm's toggleMulti does
+    // `current.includes(val) ? current.filter(…) : [...current, val]`, and on a
+    // string that is either a TypeError (no .filter — clicking Instagram
+    // Stories, whose value IS "instagram") or a spread into single characters
+    // (clicking any other chip → ["i","n","s","t",…,"tiktok"]).
+    //
+    // Nothing reads this as a default any more: SocialImageForm derives the
+    // platform from the selected size, and ReelsForm treats it as a list.
+    platforms: [],
     postSize: "1080x1080",
     cta: "Download Now",
   });
@@ -173,12 +183,11 @@ const StudioInner = () => {
       return <ImageAdsForm {...commonProps} />;
     }
 
+    // Two categories, and the four old image ones live inside SocialImageForm
+    // as a tag — see KINDS in forms/social/socialSizes.
     if (selectedCreative === "social_creative") {
-      if (selectedCategory === "reels") return <ReelsForm {...commonProps} />;
-      if (selectedCategory === "banners_covers") return <BannersForm {...commonProps} />;
-      if (selectedCategory === "thumbnails") return <ThumbnailsForm {...commonProps} />;
-      if (selectedCategory === "memes") return <MemesTrendsForm {...commonProps} />;
-      return <PostsForm {...commonProps} />;
+      if (selectedCategory === "video") return <ReelsForm {...commonProps} />;
+      return <SocialImageForm {...commonProps} />;
     }
 
     if (selectedCreative === "designer_creative") {

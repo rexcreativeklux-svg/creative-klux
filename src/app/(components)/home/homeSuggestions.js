@@ -29,7 +29,7 @@
 // picking at random — random would differ between the server render and the
 // client's, and React would tear the row down and rebuild it on hydration.
 
-import { TAB_BRAND, TAB_MOBILE, TAB_WEB } from "./homeComposerTabs";
+import { TAB_BRAND, TAB_IMPORT, TAB_WEB } from "./homeComposerTabs";
 
 /** How many chips are on screen at once. */
 export const SUGGESTIONS_VISIBLE = 5;
@@ -86,7 +86,7 @@ const SUGGESTIONS_BY_TAB = {
   // "Make ads from this homepage" only means anything with the URL still above
   // it. If the pick behaviour is ever changed back to replace, this copy has to
   // change with it.
-  [TAB_MOBILE]: [
+  [TAB_IMPORT]: [
     "Make ads from this homepage",
     "Turn this into social posts",
     "Build a banner in these colours",

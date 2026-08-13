@@ -324,6 +324,29 @@ export default function HistoryLattice({
   // be a picture or a clip with a hosted URL behind it — the persona generator
   // is a publishing tool that returns text half the time, and a text tile has
   // nothing to post.
+  // The item being published, in the shape PublishModal wants.
+  //
+  // ⚠️ MEMOIZED, AND IT IS NOT AN OPTIMIZATION. PublishModal seeds its caption
+  // from `creative` in an effect keyed on that prop, so an object literal built
+  // inline in the JSX — a new identity on every render of this lattice — re-runs
+  // that effect and WIPES whatever the user has typed into the post, mid-compose,
+  // the next time anything here re-renders. Keyed on the item so it changes when
+  // the result being published does, and not before.
+  const publishCreative = useMemo(
+    () =>
+      publishItem && {
+        id: publishItem.id,
+        name: toolById(publishItem.tool)?.label || "Magic Studio creation",
+        // "all" → the picker offers social platforms AND ad accounts: what a
+        // Magic Studio result is for is decided by the person who made it, not
+        // by the tool that made it.
+        category: "all",
+        image: publishItem.url,
+        copy: {},
+      },
+    [publishItem],
+  );
+
   const canPublish = (item) =>
     !!toolById(item.tool)?.publish &&
     !!item.url &&
@@ -594,22 +617,12 @@ export default function HistoryLattice({
       {reading && <TextReader item={reading} onClose={() => setReading(null)} />}
 
       {/* Publishing — the shared PublishModal, with the generation wrapped as a
-          minimal creative whose `image` is its hosted URL. The same shape
-          MagicHistoryGrid passes, so a result published from the lattice and one
-          published from the modal's grid go out identically.
-
-          `category: "all"` so the picker offers social platforms AND ad
-          accounts: what a Magic Studio result is for is decided by the person
-          who made it, not by the tool that made it. */}
+          minimal creative whose `image` is its hosted URL (see publishCreative).
+          The same shape MagicHistoryGrid passes, so a result published from the
+          lattice and one published from the modal's grid go out identically. */}
       {publishItem && (
         <PublishModal
-          creative={{
-            id: publishItem.id,
-            name: toolById(publishItem.tool)?.label || "Magic Studio creation",
-            category: "all",
-            image: publishItem.url,
-            copy: {},
-          }}
+          creative={publishCreative}
           onClose={() => setPublishItem(null)}
           showToast={(message, type) =>
             type === "error" ? toast.error(message) : toast.success(message)

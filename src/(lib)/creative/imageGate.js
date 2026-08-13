@@ -1,7 +1,7 @@
 // imageGate.js
 // ─────────────────────────────────────────────────────────────────────────────
 // Image-selection rule for involk-powered creative generation — "Create from
-// URL" and everything under Custom Creation (ImageAdsForm, PostForm,
+// URL" and everything under Custom Creation (ImageAdsForm, SocialImageForm,
 // VideoAdsForm). The user must pick between MIN_IMAGES and MAX_IMAGES images
 // (from gallery uploads or their own designs) before Generate unlocks.
 //

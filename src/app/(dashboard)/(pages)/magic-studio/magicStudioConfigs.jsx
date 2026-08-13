@@ -488,6 +488,58 @@ const PURPOSE_OPTION = {
   ],
 };
 
+/**
+ * The value meaning "no colour in particular" — the colour option's default.
+ *
+ * ⚠️ EXPORTED, AND THE PANEL AND THE PAYLOAD BOTH KEY OFF IT. The swatch grid
+ * draws this one as an empty slashed square, and `generate` OMITS the field
+ * entirely when it is still selected. Those two behaviours have to agree, so the
+ * sentinel is declared once here rather than written as a bare "auto" in both
+ * places.
+ */
+export const AUTO_COLOR = "auto";
+
+/**
+ * A colour to build the image around — shared by Text to Image and Image to
+ * Variations, the two tools that paint something from scratch enough for a
+ * colour to mean anything.
+ *
+ * ⚠️ SENT AS `color`, AND ONLY WHEN ONE IS ACTUALLY CHOSEN. This endpoint
+ * validates its payload and rejects fields it doesn't know — the same validator
+ * behind "The tool field is required" — so a new key is a real risk on tools
+ * that work today. Leaving it out while the option sits on its default means an
+ * untouched composer sends the byte-identical payload it sent before this
+ * existed, and only a deliberate colour pick can change that. If a 422 appears
+ * the moment somebody picks a swatch, this key is what to check with the API.
+ *
+ * ⚠️ THE PRESETS ARE A STARTING SET, NOT THE POINT. The colour anyone actually
+ * wants here is their own brand's, which no fixed palette can hold — the hex box
+ * in the panel is what covers that, and it writes the same value a swatch does.
+ */
+const COLOR_OPTION = {
+  key: "color",
+  label: "Colour",
+  panel: "colors",
+  width: 300,
+  default: AUTO_COLOR,
+  items: [
+    { value: AUTO_COLOR, label: "No preference" },
+    { value: "#2563eb", label: "Blue" },
+    { value: "#0ea5e9", label: "Sky" },
+    { value: "#059669", label: "Emerald" },
+    { value: "#f59e0b", label: "Amber" },
+    { value: "#ef4444", label: "Red" },
+    { value: "#ec4899", label: "Pink" },
+    { value: "#7c3aed", label: "Violet" },
+    { value: "#111827", label: "Near-black" },
+    { value: "#f8fafc", label: "Off-white" },
+  ],
+};
+
+/** The `color` field for a payload — absent unless a real colour was chosen. */
+const colorField = (value) =>
+  value && value !== AUTO_COLOR ? { color: value } : {};
+
 // ── Visual-style cards (shared between Text-to-Image / Text-to-Video) ─────────
 const IMAGE_STYLES = [
   {
@@ -700,6 +752,7 @@ export const MAGIC_STUDIO_CONFIGS = {
         default: "photorealistic",
         items: IMAGE_STYLES,
       },
+      COLOR_OPTION,
       {
         key: "ratio",
         label: "Aspect ratio",
@@ -719,6 +772,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         // How many to make in one request — the composer's "3x". See the
         // ⚠️ on `variations` above for the field-name caveat.
         variations: values.variations,
+        // Absent unless a colour was actually picked — see COLOR_OPTION.
+        ...colorField(values.color),
         prompt: input.trim(),
       };
       const data = await generateMagicStudio(payload);
@@ -938,6 +993,7 @@ export const MAGIC_STUDIO_CONFIGS = {
           },
         ],
       },
+      COLOR_OPTION,
     ],
     validate: ({ input }) =>
       input ? null : "Please pick a source image first.",
@@ -946,6 +1002,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         tool: "image_to_variations",
         visual_style: values.style,
         variations: values.variations,
+        // Absent unless a colour was actually picked — see COLOR_OPTION.
+        ...colorField(values.color),
         image_url: input,
       };
       const data = await generateMagicStudio(payload);

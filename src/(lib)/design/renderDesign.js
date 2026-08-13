@@ -661,3 +661,42 @@ export async function renderDesignToThumbnail(
     return null;
   }
 }
+
+/** Byte size of a data URL's payload (base64 encodes 3 bytes per 4 chars). */
+function dataUrlBytes(url) {
+  const comma = url.indexOf(",");
+  return comma === -1 ? 0 : Math.floor((url.length - comma - 1) * 0.75);
+}
+
+/**
+ * renderDesignToDataUrl — paints a { canvas, elements } design at its FULL
+ * canvas size (no downscale) and returns a base64 data URL, for saving
+ * alongside the design as its preview.
+ *
+ * JPEG by default, not PNG: renderDesignToCanvas always paints an opaque
+ * background, so there's no transparency to lose, and a full-size PNG of a
+ * photo-heavy design runs to several MB — which the save request has to carry
+ * inline. `maxBytes` caps that: if the first encode is over budget the quality
+ * steps down until it fits, so a 4000×4000 poster can't produce a request body
+ * the backend rejects. Dimensions are never reduced — only compression.
+ *
+ * Returns null on failure (tainted canvas, unloadable image) so a broken
+ * preview can never block the save that carries it.
+ */
+export async function renderDesignToDataUrl(
+  design,
+  { type = "image/jpeg", quality = 0.85, maxBytes = 2 * 1024 * 1024 } = {},
+) {
+  try {
+    const cnv = await renderDesignToCanvas(design);
+    let url = cnv.toDataURL(type, quality);
+    if (maxBytes && type === "image/jpeg") {
+      for (let q = quality - 0.15; dataUrlBytes(url) > maxBytes && q >= 0.4; q -= 0.15) {
+        url = cnv.toDataURL(type, q);
+      }
+    }
+    return url;
+  } catch {
+    return null;
+  }
+}

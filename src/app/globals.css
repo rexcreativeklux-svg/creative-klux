@@ -735,3 +735,52 @@
   [data-ck-loader] [data-ck-decor] { animation: none !important; }
   [data-ck-loader] [data-ck-ring]  { animation-duration: 3.6s !important; }
 }
+/* ── Magic Studio generating cell — the beam that orbits the tile ──────────────
+   A light that travels the tile's whole EDGE rather than a bar across the
+   bottom: along the bottom left→right, up the right side, back across the top
+   right→left, down the left side, repeat.
+
+   How it works: a conic gradient on a square LARGER than the tile, spun about
+   the tile's centre. The tile clips it (overflow-hidden), and a sibling inset by
+   the ring's thickness covers the middle — so all that shows is the bright arc
+   crossing whichever edge it currently points at. One element and one transform,
+   rather than four bars handing off to each other at the corners.
+
+   ⚠️ IT SPINS BACKWARDS (negative rotation) ON PURPOSE. A conic gradient starts
+   at 12 o'clock and runs clockwise, so a clockwise spin sends the beam
+   top→right→bottom→left. The path wanted here starts along the BOTTOM heading
+   right and goes up the right side, which on a clock face is 6→3→12→9 — the
+   anti-clockwise direction.
+
+   ⚠️ MAKES NO PROGRESS CLAIM. It orbits at a constant rate forever and looks
+   identical at second 2 and second 200. It says "working", nothing more — the
+   same rule the rest of this cell follows. */
+@keyframes ck-beam-orbit {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(-360deg); }
+}
+
+.ck-beam {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 190%;
+  aspect-ratio: 1;
+  /* One comet: opaque at its head, gone within ~90°, nothing for the rest of
+     the circle — so exactly one stretch of edge is lit at a time. */
+  background: conic-gradient(
+    from 0deg,
+    rgba(37, 99, 235, 0) 0deg,
+    rgba(37, 99, 235, 0) 268deg,
+    rgba(37, 99, 235, 0.55) 320deg,
+    #2563eb 352deg,
+    rgba(37, 99, 235, 0) 360deg
+  );
+  animation: ck-beam-orbit 2.6s linear infinite;
+}
+
+/* Hidden rather than frozen: a stopped comet is just a bright corner, which
+   reads as a rendering fault. The cell's static ring carries the state instead. */
+@media (prefers-reduced-motion: reduce) {
+  .ck-beam { display: none; }
+}

@@ -1,11 +1,47 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import Link from "next/link";
 import { Clock, Wand2, ArrowRight, Loader2 } from "lucide-react";
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
 // so these thumbnails match exactly what opens in the editor.
 import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
+
+/* ─── Card preview ─────────────────────────────────────────────────
+   Prefers the design's stored thumbnail — the editor writes one at full canvas
+   size on every save, so it IS the design, and showing it costs one cached
+   image instead of loading every font and proxying every photo to repaint the
+   whole thing off-screen. Four cards repainting at once was the slowest part of
+   this section. Repainting stays as the fallback for designs saved before
+   previews were stored, and for a stored URL that won't load. */
+function CardPreview({ design }) {
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const canRepaint = design.canvasData && design.elements?.length > 0;
+
+  if (design.thumbnail && !thumbFailed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={design.thumbnail}
+        alt={design.name}
+        loading="lazy"
+        decoding="async"
+        onError={() => setThumbFailed(true)}
+        // Cover: the preview fills the tile edge to edge with no letterbox.
+        // Designs are saved in every ratio, so an off-ratio one is cropped to
+        // the tile's 16:10 — a portrait shows its middle band. That's the
+        // deliberate trade for a full-bleed grid.
+        className="h-full w-full object-cover"
+      />
+    );
+  }
+
+  if (canRepaint) {
+    return <MiniCanvas canvasData={design.canvasData} elements={design.elements} />;
+  }
+
+  return <Wand2 className="w-6 h-6 text-gray-300" />;
+}
 
 /* ─── Mini DesignCanvas (shared renderer) ──────────────────────── */
 function MiniCanvas({ canvasData, elements }) {
@@ -78,6 +114,9 @@ function normalizeDesign(raw) {
     copy,
     canvasData,
     elements,
+    // The preview the editor stored on this design's last save — a picture of
+    // the whole design, so the card can show it instead of repainting.
+    thumbnail: raw.thumbnail || null,
   };
 }
 
@@ -143,7 +182,6 @@ export default function DashboardRecentProjects({ designs = [], isLoading = fals
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {normalized.map((design) => {
             const tc = TYPE_COLORS[design.type?.toLowerCase()] || DEFAULT_TYPE;
-            const hasCanvas = design.canvasData && design.elements?.length > 0;
 
             return (
               <Link
@@ -160,16 +198,7 @@ export default function DashboardRecentProjects({ designs = [], isLoading = fals
                     aspectRatio: "16/10",
                   }}
                 >
-                  {hasCanvas ? (
-                    <MiniCanvas
-                      canvasData={design.canvasData}
-                      elements={design.elements}
-                      maxW={160}
-                      maxH={100}
-                    />
-                  ) : (
-                    <Wand2 className="w-6 h-6 text-gray-300" />
-                  )}
+                  <CardPreview design={design} />
 
                   {/* Hover overlay */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-200" />

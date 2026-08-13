@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Sparkles, ArrowLeft, Tv2, Share2, Palette, Wand2,
-  CheckCircle2, ImageIcon,
+  CheckCircle2, ImageIcon, History,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import AiChatMessage from "@/app/(components)/studio/AiChatMessage";
@@ -18,6 +18,8 @@ import {
   normalizeDesignTemplate,
 } from "@/app/(components)/studio/designTemplates";
 import Toast from "@/app/(components)/Toast";
+import ChatHistoryPanel from "./ChatHistoryPanel";
+import { normalizeSessionMessages } from "@/app/(components)/studio/chatSessions";
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
 // so these previews match exactly what opens in the editor.
 import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
@@ -638,6 +640,8 @@ export default function AiCreativeChatPage() {
     activeBrandId,
     brandsLoading,
     fetchDesignTemplates,
+    fetchChatSessions,
+    fetchChatSession,
   } = useAuth();
 
   const creativeType = searchParams.get("creative") || "general";
@@ -689,6 +693,9 @@ export default function AiCreativeChatPage() {
   const [mobilePane, setMobilePane] = useState("chat");
 
   const initialMessage = searchParams.get("initialMessage") || "";
+  // A saved chat to reopen — written by the home rail's Chat History cards
+  // (templatesApi.chatSessionHref).
+  const sessionParam = searchParams.get("session") || "";
   // The model the composer picked, passed straight through to the API.
   const model = searchParams.get("model") || "";
 
@@ -706,6 +713,80 @@ export default function AiCreativeChatPage() {
     setToast((prev) => ({ ...prev, open: false }));
   };
 
+  /* ── Saved chats ──────────────────────────────────────────────────────────
+     Every message sent from here is persisted server-side (creativeAiChat's
+     `save_chat`). These two pieces of state are the read side of that: the
+     brand's session list, and whichever session is currently on screen.
+
+     NB: the chat POST carries no session id, so continuing an opened thread
+     still starts a fresh session on the backend. Until it accepts one, this is
+     history you can read back, not a conversation you can resume. */
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState("");
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [openingSessionId, setOpeningSessionId] = useState(null);
+
+  const loadSessions = useCallback(async () => {
+    if (!activeBrandId) {
+      setSessionsError("Select a brand to see its chats.");
+      return;
+    }
+    setSessionsLoading(true);
+    setSessionsError("");
+
+    const res = await fetchChatSessions(activeBrandId);
+    if (res?.ok) setSessions(res.items);
+    else setSessionsError(res?.message || "Something went wrong.");
+
+    setSessionsLoading(false);
+  }, [activeBrandId, fetchChatSessions]);
+
+  // Fetched on first open rather than on mount: most visits here are a new
+  // chat, and the list is 38 rows and growing for an established brand.
+  const toggleHistory = useCallback(() => {
+    const next = !historyOpen;
+    setHistoryOpen(next);
+    if (next && !sessions.length) loadSessions();
+  }, [historyOpen, sessions.length, loadSessions]);
+
+  /** Replace the transcript with a stored one. */
+  const handleOpenSession = useCallback(
+    async (sessionId) => {
+      setOpeningSessionId(sessionId);
+      const res = await fetchChatSession(sessionId);
+      setOpeningSessionId(null);
+
+      if (!res?.ok) {
+        showToast(res?.message || "Couldn't open that chat.", "error");
+        return false;
+      }
+
+      const thread = normalizeSessionMessages(res.messages);
+      if (!thread.length) {
+        // Nothing recognisable came back — surface the body once so the shape
+        // can be matched in chatSessions.js instead of failing silently.
+        console.warn("[chat] session has no readable messages — raw:", res.raw);
+        showToast("That chat has no messages to show.", "error");
+        return false;
+      }
+
+      setMessages(thread);
+      setActiveSessionId(sessionId);
+      setHistoryOpen(false);
+
+      // The stored thread carries no rendered designs, so the preview pane
+      // returns to idle rather than keeping the previous chat's results.
+      setPreviewResult(null);
+      setSelectedTemplate(null);
+      setSelectedDesigns([]);
+      if (!isDesktopSplit) setMobilePane("chat");
+      return true;
+    },
+    [fetchChatSession, isDesktopSplit],
+  );
+
   useEffect(() => {
     if (hasInitialized.current) return;
     // WAIT for the active brand before firing the opening send. `activeBrand`
@@ -718,6 +799,25 @@ export default function AiCreativeChatPage() {
     hasInitialized.current = true;
 
     setPreviewResult(null);
+
+    // Opened from the home rail's Chat History tab (or any `?session=` link):
+    // load that thread instead of greeting. A failure falls through to the
+    // greeting rather than leaving an empty window — handleOpenSession has
+    // already told the user why on the toast.
+    if (sessionParam) {
+      (async () => {
+        const opened = await handleOpenSession(sessionParam);
+        if (opened) return;
+        setMessages([
+          {
+            role: "assistant",
+            content: config.greeting,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      })();
+      return;
+    }
 
     // The prompt and its images arrive as separate URL params (see the home
     // page) and stay separate from here to the request body. Read inside the
@@ -745,7 +845,7 @@ export default function AiCreativeChatPage() {
         timestamp: new Date().toISOString(),
       },
     ]);
-  }, [creativeType, initialMessage, brandsLoading]);
+  }, [creativeType, initialMessage, sessionParam, brandsLoading]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -999,6 +1099,8 @@ export default function AiCreativeChatPage() {
             display: isDesktopSplit || mobilePane === "chat" ? "flex" : "none",
             flexDirection: "column",
             background: "var(--color-surface)",
+            // Anchors the history overlay, which insets itself below the header.
+            position: "relative",
           }}
         >
           {/* ── Header ── */}
@@ -1082,6 +1184,43 @@ export default function AiCreativeChatPage() {
               </p>
             </div>
 
+            {/* saved chats */}
+            <button
+              onClick={toggleHistory}
+              aria-label="Recent chats"
+              aria-pressed={historyOpen}
+              title="Recent chats"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                border: historyOpen
+                  ? `0.5px solid rgba(${colorRgb},0.35)`
+                  : "0.5px solid var(--color-gray-200)",
+                background: historyOpen
+                  ? `rgba(${colorRgb},0.12)`
+                  : "var(--color-gray-100)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: historyOpen ? color : "var(--color-gray-500)",
+                cursor: "pointer",
+                flexShrink: 0,
+                transition: "background 0.15s, color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = `rgba(${colorRgb},0.12)`;
+                e.currentTarget.style.color = color;
+              }}
+              onMouseLeave={(e) => {
+                if (historyOpen) return;
+                e.currentTarget.style.background = "var(--color-gray-100)";
+                e.currentTarget.style.color = "var(--color-gray-500)";
+              }}
+            >
+              <History style={{ width: 13, height: 13 }} />
+            </button>
+
             {/* status */}
             <div
               style={{
@@ -1144,6 +1283,20 @@ export default function AiCreativeChatPage() {
               config={config}
             />
           </div>
+
+          {/* ── Saved chats (overlays the messages, keeps the header) ── */}
+          <ChatHistoryPanel
+            open={historyOpen}
+            onClose={() => setHistoryOpen(false)}
+            sessions={sessions}
+            loading={sessionsLoading}
+            error={sessionsError}
+            activeSessionId={activeSessionId}
+            openingId={openingSessionId}
+            onSelect={handleOpenSession}
+            onRefresh={loadSessions}
+            accent={config}
+          />
         </div>
 
         {/* ── Drag handle ── (also the divider between the two panes)

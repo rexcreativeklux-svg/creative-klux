@@ -58,6 +58,152 @@ const WEBSITE_SCORES = [
   { key: "socialScore", label: "Social" },
 ];
 
+/* ─── ComparisonLoader ────────────────────────────────────────── */
+/**
+ * One side of the loader's pair.
+ *
+ * ⚠️ MODULE SCOPE, NOT NESTED IN ComparisonLoader. Declaring it inside would
+ * make it a brand-new component type on every render, and the loader re-renders
+ * once a SECOND off its timer — so the whole subtree would unmount and remount
+ * each tick, restarting the image load every time and flashing the preview.
+ */
+function LoaderSide({ mode, item, url, fallbackLabel }) {
+  return (
+    <div className="flex-1 min-w-0 flex flex-col items-center gap-2.5">
+      <div className="relative w-full aspect-4/3 rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+        {mode === "creatives" && item?.url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.url}
+            alt={item.label || fallbackLabel}
+            className="w-full h-full object-contain"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Globe className="w-7 h-7 text-gray-300" />
+          </div>
+        )}
+        {/* The sweep is the "still alive" signal the missing bar would have
+            given. Purely decorative, so it makes no claim about how far along
+            the run is. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-linear-to-r from-transparent via-white/60 to-transparent animate-pulse"
+        />
+      </div>
+      <p className="text-xs font-semibold text-gray-700 text-center line-clamp-2 w-full">
+        {(mode === "creatives" ? item?.label : url) || fallbackLabel}
+      </p>
+    </div>
+  );
+}
+
+
+/**
+ * The wait, with the two things being compared still on screen.
+ *
+ * ⚠️ NO PROGRESS BAR, DELIBERATELY. `runComparison` is one request — the client
+ * cannot see inside it, so any bar would be advancing on a guess, and a bar that
+ * guesses is worse than none: it makes a promise the run can't keep, and the
+ * last 10% always stalls. What IS true is the elapsed time, so that carries the
+ * wait instead. Same reasoning as the Magic Studio generating cell.
+ *
+ * ⚠️ THE DIMENSION ROW IS "WHAT IS BEING ASSESSED", NOT "WHAT IS DONE". It
+ * cycles through the real scoring keys this mode returns (CREATIVE_SCORES /
+ * WEBSITE_SCORES — the same list the results panel renders), highlighting one at
+ * a time. No ticks: a tick would claim a stage finished, and nothing here knows
+ * that. It says what the model is weighing, which is honest and is also the
+ * answer to "what is it actually doing".
+ *
+ * Keeping both creatives visible matters more than it looks — the run takes long
+ * enough to tab away from, and coming back to a bare spinner gives you no way to
+ * tell which comparison you left running.
+ *
+ * @param {object} props
+ * @param {string} props.mode  "creatives" | "websites".
+ * @param {{url?: string, label?: string}} props.creativeA
+ * @param {{url?: string, label?: string}} props.creativeB
+ * @param {string} props.urlA
+ * @param {string} props.urlB
+ */
+function ComparisonLoader({ mode, creativeA, creativeB, urlA, urlB }) {
+  const dimensions = mode === "creatives" ? CREATIVE_SCORES : WEBSITE_SCORES;
+  const [seconds, setSeconds] = useState(0);
+
+  // One timer drives both the clock and which dimension is lit, so they can't
+  // drift apart. Mounted for exactly the life of one run — the panel appears
+  // when the request starts and is replaced by the results — so there is no
+  // timer to reset and nothing to reconcile between runs.
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const activeDimension = dimensions[Math.floor(seconds / 2) % dimensions.length];
+  const elapsed =
+    seconds < 60
+      ? `${seconds}s`
+      : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
+  return (
+    <div className="flex justify-center py-14">
+      <div className="w-full max-w-xl bg-surface border border-gray-200 rounded-2xl p-6">
+        {/* The pair, still on screen */}
+        <div className="flex items-start gap-4 mb-6">
+          <LoaderSide
+            mode={mode}
+            item={creativeA}
+            url={urlA}
+            fallbackLabel="Creative A"
+          />
+          <div className="shrink-0 self-center w-10 h-10 rounded-full border-2 border-dashed border-indigo-200 flex items-center justify-center text-[10px] font-bold text-indigo-400 bg-surface">
+            VS
+          </div>
+          <LoaderSide
+            mode={mode}
+            item={creativeB}
+            url={urlB}
+            fallbackLabel="Creative B"
+          />
+        </div>
+
+        {/* What it is doing, and how long it has been doing it */}
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <Loader2 className="w-4 h-4 animate-spin text-indigo-500 shrink-0" />
+          {/* aria-live so the change of dimension is announced, rather than the
+              clock below reading a new number out every second. */}
+          <p aria-live="polite" className="text-sm font-semibold text-gray-700">
+            Scoring {activeDimension.label.toLowerCase()}…
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-1.5 mb-3">
+          {dimensions.map((d) => {
+            const active = d.key === activeDimension.key;
+            return (
+              <span
+                key={d.key}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                  active
+                    ? "bg-indigo-100 text-indigo-700"
+                    : "bg-gray-100 text-gray-400"
+                }`}
+              >
+                {d.label}
+              </span>
+            );
+          })}
+        </div>
+
+        <p className="text-[11px] text-gray-400 text-center tabular-nums">
+          {elapsed} elapsed · comparing both {mode === "creatives" ? "creatives" : "sites"} on{" "}
+          {dimensions.length} measures
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ─── helpers ─────────────────────────────────────────────────── */
 const scoreColor = (s) =>
   s >= 80 ? "#10b981" : s >= 60 ? "#2563eb" : s >= 40 ? "#f97316" : "#ef4444";
@@ -423,33 +569,19 @@ function CreativePickerCard({ design: c, selected, onSelect }) {
 }
 
 // ── CreativeUpload (updated with tabs) ────────────────────────────────────────
-function CreativeUpload({ label, value, onChange }) {
+function CreativeUpload({ label, value, onChange, designs, loadingDesigns }) {
   const fileRef = useRef();
   const [dragging, setDragging] = useState(false);
-  const [activeTab, setActiveTab] = useState("upload"); // "upload" | "projects"
-  const [designs, setDesigns] = useState([]);
-  const [loadingDesigns, setLoadingDesigns] = useState(false);
+  // ⚠️ OPENS ON "From Creatives". Comparing two of your OWN creatives is what
+  // this screen is for, so the work you already have is the first thing offered
+  // and uploading a file is the alternative — it used to be the other way round,
+  // which put your own creatives one click behind a file picker every time.
+  //
+  // The list is fetched by the page, not here — see the note on that effect.
+  // A load that hung off this tab's click handler would leave the default view
+  // permanently empty, since nobody has to click it any more.
+  const [activeTab, setActiveTab] = useState("projects"); // "upload" | "projects"
   const [selectedDesignId, setSelectedDesignId] = useState(null);
-
-  const { fetchDesigns } = useAuth();
-
-  // Load designs when "From projects" tab is first opened
-  const handleTabSwitch = async (tab) => {
-    setActiveTab(tab);
-    if (tab === "projects" && designs.length === 0) {
-      setLoadingDesigns(true);
-      const data = await fetchDesigns(20);
-      if (data) {
-        const arr = Array.isArray(data)
-          ? data
-          : Array.isArray(data.data)
-            ? data.data
-            : [];
-        setDesigns(arr.map(normalizeDesign));
-      }
-      setLoadingDesigns(false);
-    }
-  };
 
   const acceptFile = (f) => {
     if (!f) return;
@@ -539,19 +671,21 @@ function CreativeUpload({ label, value, onChange }) {
         />
       </div>
 
-      {/* Tab switcher */}
+      {/* Tab switcher — "From Creatives" leads, and it is also the tab this
+          panel opens on. The order and the default say the same thing: your own
+          work is the expected input here, and a file upload is the alternative. */}
       <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-4">
         <button
-          onClick={() => handleTabSwitch("upload")}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === "upload" ? "bg-surface text-gray-800 " : "text-gray-500 hover:text-gray-700"}`}
-        >
-          <Upload className="w-3 h-3" /> Upload image
-        </button>
-        <button
-          onClick={() => handleTabSwitch("projects")}
+          onClick={() => setActiveTab("projects")}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === "projects" ? "bg-surface text-gray-800 " : "text-gray-500 hover:text-gray-700"}`}
         >
           <LayoutGrid className="w-3 h-3" /> From Creatives
+        </button>
+        <button
+          onClick={() => setActiveTab("upload")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === "upload" ? "bg-surface text-gray-800 " : "text-gray-500 hover:text-gray-700"}`}
+        >
+          <Upload className="w-3 h-3" /> Upload image
         </button>
       </div>
 
@@ -842,7 +976,37 @@ function ResultsPanel({ result, onReset }) {
 
 /* ─── Main Page ───────────────────────────────────────────────── */
 export default function Comparison() {
-  const { runComparison } = useAuth();
+  const { runComparison, fetchDesigns } = useAuth();
+
+  // ── Your creatives, fetched once for BOTH panels ─────────────────────────
+  // ⚠️ IT LIVES UP HERE, not inside CreativeUpload, because there are two of
+  // those on screen and they want the identical list. Fetching per panel meant
+  // two identical requests — invisible while the list only loaded on click, and
+  // guaranteed on every page load now that "From Creatives" is the tab both
+  // panels open on.
+  const [designs, setDesigns] = useState([]);
+  // Starts true: the panels open on the creatives tab, so a load is always
+  // already on its way by the time they first paint. Flipping it here rather
+  // than inside the effect also keeps the effect free of a synchronous setState.
+  const [loadingDesigns, setLoadingDesigns] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const data = await fetchDesigns(20);
+      if (!alive) return;
+      const arr = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : [];
+      setDesigns(arr.map(normalizeDesign));
+      setLoadingDesigns(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [fetchDesigns]);
 
   const [mode, setMode] = useState("creatives");
   const [loading, setLoading] = useState(false);
@@ -958,7 +1122,11 @@ export default function Comparison() {
         </div>
 
         {/* ── Input Grid ── */}
-        {!result && (
+        {/* Hidden while the run is in flight: ComparisonLoader shows the same
+            two creatives, so leaving the pickers up would put each one on
+            screen twice — and invite edits to inputs the request has already
+            been sent with. */}
+        {!result && !loading && (
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] gap-4 items-stretch mb-6">
             {mode === "creatives" ? (
               <>
@@ -966,6 +1134,8 @@ export default function Comparison() {
                   label="Creative A"
                   value={creativeA}
                   onChange={setCreativeA}
+                  designs={designs}
+                  loadingDesigns={loadingDesigns}
                 />
                 <div className="flex items-center justify-center">
                   <div className="w-11 h-11 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 font-bold text-xs bg-surface ">
@@ -976,6 +1146,8 @@ export default function Comparison() {
                   label="Creative B"
                   value={creativeB}
                   onChange={setCreativeB}
+                  designs={designs}
+                  loadingDesigns={loadingDesigns}
                 />
               </>
             ) : (
@@ -1023,14 +1195,13 @@ export default function Comparison() {
 
         {/* ── Loading ── */}
         {loading && (
-          <div className="flex items-center justify-center py-24">
-            <div className="text-center">
-              <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mx-auto mb-4" />
-              <p className="text-gray-400 text-sm">
-                AI is analyzing and comparing…
-              </p>
-            </div>
-          </div>
+          <ComparisonLoader
+            mode={mode}
+            creativeA={creativeA}
+            creativeB={creativeB}
+            urlA={urlA}
+            urlB={urlB}
+          />
         )}
 
         {/* ── Results ── */}

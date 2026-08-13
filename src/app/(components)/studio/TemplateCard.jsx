@@ -126,21 +126,41 @@ export function TemplateCardSkeleton() {
 }
 
 /**
- * Paint a { canvas, elements } design into a small JPEG data URL, but only once
- * the element is within 300px of the viewport. Returns the ref to attach plus
- * the preview state, so a card below the fold stays free until it's scrolled to.
+ * Get a preview for a row, but only once the element is within 300px of the
+ * viewport. Returns the ref to attach plus the preview state, so a card below
+ * the fold stays free until it's scrolled to.
+ *
+ * TWO SOURCES, AND WHICH ONE IS RIGHT DEPENDS ON `kind`:
+ *
+ *   · A SAVED DESIGN's `thumbnail` is a true preview of the whole design — the
+ *     editor writes one at full canvas size on every save. Use it directly and
+ *     skip the repaint: no font loading, no per-image proxy round trip, and the
+ *     card fills from cache on a second visit.
+ *   · A TEMPLATE's `thumbnail` is NOT that. It is the URL of one photo used
+ *     INSIDE the layout (see templatesApi.js's header), so trusting it here
+ *     would put a bare stock photo on the card where the design should be.
+ *     Templates therefore still paint `canvas`/`elements` themselves.
+ *
+ * A stored preview that 404s or is CORS-blocked falls through to painting, so a
+ * dead CDN link costs a repaint rather than showing a broken tile.
  *
  * This works just as well inside the details modal's own scroller: an
  * IntersectionObserver clips against every scrolling ancestor, so a card in the
  * band below the dialog's fold paints when the reader scrolls down to it.
  *
- * @param {{canvas: object, elements: object[], thumbnail: string|null, title: string}} item
- * @returns {{ref: React.RefObject<HTMLDivElement>, src: string|null, failed: boolean}}
+ * @param {{kind: string, canvas: object, elements: object[], thumbnail: string|null, title: string}} item
+ * @returns {{ref: React.RefObject<HTMLDivElement>, src: string|null, failed: boolean, onSrcError: () => void}}
  */
 function useDesignPreview(item) {
   const ref = useRef(null);
   const [src, setSrc] = useState(null);
   const [failed, setFailed] = useState(false);
+  // Whether `src` is the row's stored URL rather than something painted here —
+  // it decides what an <img> load error means (repaint vs give up).
+  const storedRef = useRef(false);
+  // Lets the error handler re-run the effect's painter without re-running the
+  // whole effect (which would re-observe and re-decide the source).
+  const paintRef = useRef(null);
 
   useEffect(() => {
     const node = ref.current;
@@ -157,6 +177,7 @@ function useDesignPreview(item) {
         if (!alive) return;
 
         if (dataUrl) {
+          storedRef.current = false;
           setSrc(dataUrl);
           return;
         }
@@ -164,6 +185,9 @@ function useDesignPreview(item) {
         console.warn(
           `⚠️ [templates] couldn't paint "${item.title}" — falling back`,
         );
+        // Last resort, so mark it NOT stored: painting has already failed once,
+        // and treating a failure here as "repaint" would loop forever.
+        storedRef.current = false;
         if (item.thumbnail) setSrc(item.thumbnail);
         else setFailed(true);
       } catch (err) {
@@ -175,10 +199,20 @@ function useDesignPreview(item) {
         setFailed(true);
       }
     };
+    paintRef.current = paint;
 
-    // No IntersectionObserver (very old browser / SSR-ish edge): just paint.
-    if (typeof IntersectionObserver === "undefined") {
+    const show = () => {
+      if (item.kind === "design" && item.thumbnail) {
+        storedRef.current = true;
+        setSrc(item.thumbnail);
+        return;
+      }
       paint();
+    };
+
+    // No IntersectionObserver (very old browser / SSR-ish edge): just show.
+    if (typeof IntersectionObserver === "undefined") {
+      show();
       return () => {
         alive = false;
       };
@@ -187,8 +221,8 @@ function useDesignPreview(item) {
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return;
-        observer.disconnect(); // one paint per card, ever
-        paint();
+        observer.disconnect(); // one resolve per card, ever
+        show();
       },
       { rootMargin: "300px" },
     );
@@ -200,7 +234,19 @@ function useDesignPreview(item) {
     };
   }, [item]);
 
-  return { ref, src, failed };
+  /** The <img> wouldn't load: repaint if that was a stored URL, else give up. */
+  const onSrcError = () => {
+    if (!storedRef.current) {
+      setFailed(true);
+      return;
+    }
+    console.warn(`⚠️ [templates] stored preview failed for "${item.title}" — repainting`);
+    storedRef.current = false;
+    setSrc(null);
+    paintRef.current?.();
+  };
+
+  return { ref, src, failed, onSrcError };
 }
 
 /**
@@ -216,7 +262,7 @@ function useDesignPreview(item) {
  */
 export default function TemplateCard({ item, onOpenDetails, onItemMenu }) {
   const meta = formatMeta(item.meta);
-  const { ref, src, failed } = useDesignPreview(item);
+  const { ref, src, failed, onSrcError } = useDesignPreview(item);
   // The design's own background fills the letterbox around the contained
   // preview, so a portrait template reads as artwork rather than a crop.
   const tileColor = asColor(item.canvas?.background);
@@ -248,34 +294,20 @@ export default function TemplateCard({ item, onOpenDetails, onItemMenu }) {
         // style={tileColor ? { backgroundColor: tileColor } : undefined}
       >
         {src ? (
-          <>
-            {/* Backdrop: the SAME painted data URL, zoomed and blurred, so the
-                letterbox around a portrait template is filled with the design's
-                own colours instead of a flat plate. `src` is a data URL (or a
-                cached thumbnail), so painting it twice costs no extra fetch.
-                `scale-125` overshoots the frame by more than the blur radius at
-                every card width — that overshoot is what stops a soft rim from
-                showing along the edges. aria-hidden: it is the picture below. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={src}
-              alt=""
-              aria-hidden="true"
-              loading="lazy"
-              decoding="async"
-              className="pointer-events-none absolute inset-0 h-full w-full scale-125 select-none object-cover opacity-60 blur-lg"
-            />
-            {/* The design itself — `relative` so it paints ABOVE the absolutely
-                positioned backdrop, which would otherwise cover a static
-                sibling. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={src}
-              alt={item.title}
-              loading="lazy"
-              className="relative h-full w-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-[1.03]"
-            />
-          </>
+          // Full-bleed: the preview covers the whole tile, so an off-ratio
+          // design is cropped to 16:10 rather than sitting in a letterbox.
+          // There is deliberately no blurred backdrop behind it any more —
+          // `object-cover` leaves no gap for one to show through, so painting
+          // the image a second time would cost a paint nobody can see.
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={src}
+            alt={item.title}
+            loading="lazy"
+            decoding="async"
+            onError={onSrcError}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
         ) : failed ? (
           <div className="flex h-full w-full items-center justify-center">
             <ImageIcon className="h-5 w-5 text-gray-400" />

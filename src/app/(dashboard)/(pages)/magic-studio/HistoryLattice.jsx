@@ -41,6 +41,7 @@ import ResultActionsMenu, {
 } from "@/app/(components)/product-studio/ResultActionsMenu";
 import { downloadImageUrl } from "@/app/(components)/product-studio/saveToGallery";
 import PublishModal from "@/app/(components)/PublishModal";
+import GeneratingArt from "./GeneratingArt";
 import { toolById } from "./magicTools";
 
 /** Width of ResultActionsMenu (its `w-52`), so the menu opens inside the cell. */
@@ -62,6 +63,30 @@ const CELL_MULTIPLE = 12;
  */
 const CELL_SHAPE = "aspect-3/2";
 
+/**
+ * How much of the prompt an in-flight cell shows before "…".
+ *
+ * ⚠️ THE CLAMP ALONE ISN'T ENOUGH, which is why this exists as well as the
+ * `line-clamp-2` on the element. A clamp cuts at whatever character lands on the
+ * edge of line two, so a 400-word prompt still fills both lines edge to edge and
+ * the tile turns into a wall of text with a badge buried in it. Cutting the
+ * STRING keeps the plate small and the cell readable at a glance, which is the
+ * whole job of that plate. The clamp stays as the backstop for a prompt that is
+ * short in characters but long in lines.
+ */
+const PROMPT_CHARS = 64;
+
+/** First words of a prompt, cut on a word boundary, with "…" when trimmed. */
+const truncate = (text = "") => {
+  if (text.length <= PROMPT_CHARS) return text;
+  const cut = text.slice(0, PROMPT_CHARS);
+  // Back off to the last space so the cut doesn't land mid-word — unless that
+  // would throw away most of what we kept (one very long token), in which case
+  // a hard cut is the better of the two.
+  const space = cut.lastIndexOf(" ");
+  return `${(space > PROMPT_CHARS * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
+};
+
 /** Elapsed seconds as "8s" / "1:24" — minutes only once there are any. */
 const formatElapsed = (seconds) =>
   seconds < 60
@@ -69,7 +94,16 @@ const formatElapsed = (seconds) =>
     : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
 /**
- * The in-flight cell — a soft breathing orb with YOUR OWN WORDS on it.
+ * The in-flight cell — YOUR OWN WORDS over a backdrop shaped like the thing
+ * being made.
+ *
+ * ⚠️ THE BACKDROP IS PER RESULT TYPE (GeneratingArt) and carries NO progress.
+ * An image wash, a filmstrip, a waveform, writing lines — they say "alive, and
+ * this is the kind of thing coming", and they loop the same at second 2 as at
+ * second 200. Everything on this cell that makes a claim about how far along the
+ * run is — the elapsed clock, and the bar on the two engines that report a real
+ * percentage — is drawn HERE, over the art. Keeping the two apart is what stops
+ * a decorative animation from being read as a progress indicator.
  *
  * ⚠️ THE PROMPT IS THE CONTENT, not a caption. Four runs in flight at once are
  * four identical spinners over a generic "Generating…", and there is no way to
@@ -95,7 +129,7 @@ const formatElapsed = (seconds) =>
  * appears when generating starts and is replaced by the result — so there is no
  * timer to reset and nothing to reconcile when a second run follows the first.
  */
-function GeneratingCell({ label, prompt, progress, onDismiss, onEdit }) {
+function GeneratingCell({ label, prompt, progress, type, onDismiss, onEdit }) {
   const [seconds, setSeconds] = useState(0);
   const hasProgress = typeof progress === "number";
 
@@ -105,25 +139,51 @@ function GeneratingCell({ label, prompt, progress, onDismiss, onEdit }) {
   }, []);
 
   return (
+    // ⚠️ THIS CELL IS SUPPOSED TO SHOUT. It first shipped as a grey tile with
+    // grey art on a grey lattice and was genuinely easy to miss — you could
+    // start a run and not be able to tell that anything had happened. Every
+    // other cell in this grid is a finished result on white, so the working one
+    // takes the blue tint AND the inset ring: two signals, either of which reads
+    // at a glance from across the page.
     <div
-      className={`group relative flex ${CELL_SHAPE} items-center justify-center overflow-hidden border-b border-r border-gray-200 bg-gray-50 px-6`}
+      className={`group relative flex ${CELL_SHAPE} flex-col items-center justify-center gap-2.5 overflow-hidden border-b border-r border-gray-200 bg-blue-50/80 px-6 ring-2 ring-inset ring-blue-500/25`}
     >
-      {/* The orb. A blurred white disc rather than a gradient stack — `blur-2xl`
-          on a solid circle gives the falloff for free, and one element means
-          nothing to keep in step when the tile is resized. `blur` renders
-          outside the box, hence `overflow-hidden` on the cell. */}
+      {/* The beam that orbits the tile's edge — see `.ck-beam` in globals.css.
+          Drawn only where there is no real percentage: an on-device run gets the
+          true bar at the bottom instead, and two indicators for one run is one
+          too many. It sits under everything, with the inset plate below leaving
+          just the edge of it showing. */}
+      {!hasProgress && <span aria-hidden="true" className="ck-beam" />}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-1/2 h-3/5 w-3/5 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-white blur-2xl [animation-duration:2.6s]"
+        className="pointer-events-none absolute inset-[3px] bg-blue-50"
       />
 
+      {/* The backdrop for this kind of result. `blur` in some variants renders
+          outside the box, hence `overflow-hidden` on the cell. */}
+      <GeneratingArt type={type} />
+
+      {/* The badge that says outright what is happening — the art alone is
+          atmosphere, and atmosphere is exactly what someone scanning the page
+          skips over. */}
+      <span className="relative inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+        <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+        Generating
+      </span>
+
       {/* aria-live so the wait is announced once, rather than the counter below
-          reading a new number out every second. */}
+          reading a new number out every second.
+          Its own translucent plate rather than a scrim over the whole tile: a
+          full-cell wash mutes the art everywhere to fix legibility in one
+          place, which is what made the first version look flat.
+          `title` carries the untruncated prompt, so the words trimmed below are
+          still one hover away. */}
       <p
         aria-live="polite"
-        className="relative line-clamp-4 text-center text-[13px] leading-relaxed text-gray-600"
+        title={prompt?.trim() || label}
+        className="relative line-clamp-2 max-w-full rounded-lg bg-white/75 px-2 py-1 text-center text-[13px] font-medium leading-snug text-gray-800 backdrop-blur-[2px]"
       >
-        {prompt?.trim() || label}
+        {truncate(prompt?.trim() || label)}
       </p>
 
       {/* Take it off the canvas. The run is NOT cancelled — it is a request
@@ -160,12 +220,16 @@ function GeneratingCell({ label, prompt, progress, onDismiss, onEdit }) {
         </button>
       )}
 
-      {/* A hairline on the cell's own bottom edge, only where there is a real
-          number behind it. Transitioning WIDTH, not transform: the bar has to
-          end exactly where the percentage says, and a scaled element rounds. */}
+      {/* A true bar on the bottom edge, drawn ONLY where a real percentage
+          exists — the two on-device engines report one. Transitioning WIDTH,
+          not transform: the bar has to end exactly where the percentage says,
+          and a scaled element rounds.
+          Everything else gets the orbiting beam above instead, because a
+          backend generation reports nothing and a filling bar there would be
+          inventing a position. */}
       {hasProgress && (
         <div
-          className="absolute inset-x-0 bottom-0 h-0.5 bg-gray-200"
+          className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-blue-200/70"
           role="progressbar"
           aria-valuenow={progress}
           aria-valuemin={0}
@@ -173,7 +237,7 @@ function GeneratingCell({ label, prompt, progress, onDismiss, onEdit }) {
           aria-label={label}
         >
           <div
-            className="h-full bg-blue-500 transition-[width] duration-300 ease-out"
+            className="h-full bg-blue-600 transition-[width] duration-300 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -262,6 +326,11 @@ function AudioTile({ item, index, onDownload, onOpenMenu }) {
  * @param {number|null} [props.generatingProgress] Whole percent, when the run
  *   can actually report one. Null draws the elapsed counter alone — see the
  *   note on GeneratingCell for why that isn't a bar at zero.
+ * @param {"image"|"video"|"audio"|"text"} [props.generatingType] What this run
+ *   will produce, which decides the in-flight cell's backdrop (GeneratingArt).
+ *   Comes from the tool's config rather than being inferred here: the persona
+ *   generator makes any of the three depending on the content type picked, so
+ *   the lattice cannot work it out from the tool alone.
  * @param {() => void} [props.onDismissGenerating] Take the in-flight cell off
  *   the canvas. Does NOT cancel the run — the caller owns that distinction.
  * @param {() => void} [props.onEditGenerating] Put `generatingPrompt` back in
@@ -279,6 +348,7 @@ export default function HistoryLattice({
   generatingLabel = "Generating…",
   generatingPrompt = null,
   generatingProgress = null,
+  generatingType = "image",
   onDismissGenerating,
   onEditGenerating,
   onDelete,
@@ -410,6 +480,7 @@ export default function HistoryLattice({
             label={generatingLabel}
             prompt={generatingPrompt}
             progress={generatingProgress}
+            type={generatingType}
             onDismiss={onDismissGenerating}
             onEdit={onEditGenerating}
           />

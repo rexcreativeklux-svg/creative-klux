@@ -85,6 +85,10 @@ function MagicToolScreen({ tool, user }) {
     progress: null,
     prompt: "",
     count: 1,
+    // What the run in flight will produce, which decides how its placeholder
+    // cells are drawn. The composer resolves it — this tool's config knows,
+    // except on the persona generator where a dropdown decides.
+    resultType: "image",
   });
 
   // Which canvas is showing. Create by default: this is a working screen, and
@@ -301,6 +305,7 @@ function MagicToolScreen({ tool, user }) {
           generatingCount={status.count}
           generatingProgress={status.progress}
           generatingPrompt={status.prompt}
+          generatingType={status.resultType}
           generatingLabel={tool.working}
           onDismissGenerating={() => setWaitHidden(true)}
           onEditGenerating={() =>

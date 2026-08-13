@@ -201,11 +201,10 @@ export function normalizeImportedBrand(payload, url) {
 /**
  * The imported brand written out as the opening message to the assistant.
  *
- * Led by a line saying where this came from, because the assistant is reading a
- * message the user appears to have typed — without it the block is a bare list
- * of fields with no ask attached. `extras` is whatever the user typed alongside
- * the link; when there was nothing, the block still has to end in an
- * instruction, so it falls back to asking for designs.
+ * The details go over on their own — "Brand: …", "Industry: …" — with no
+ * lead-in sentence, so the message starts with the brand's name. `extras` is
+ * whatever the user typed alongside the link; when there was nothing, the block
+ * still has to end in an instruction, so it falls back to asking for designs.
  *
  * ⚠️ THIS DOES NOT MAKE THE REPLY A `create`. The assistant answers `chat` until
  * it has a platform and a size (see buildTemplateQuery in designTemplates.js),
@@ -234,14 +233,19 @@ export function buildImportedSitePrompt(brand, extras = "") {
     return "";
   }
 
-  const head = "Here's my brand, imported from my website:\n\n";
+  // No lead-in. The message opens on "Brand: <name>" and the details speak for
+  // themselves — where they came from was never something the assistant acts
+  // on, and that sentence became the saved session's title (the backend titles
+  // a session from its first user message), so every imported chat in the
+  // history list was called "Here's my brand, imported from my website:…"
+  // instead of naming the brand.
   const tail = `\n\n${extras.trim() || "Create designs for this brand."}`;
 
   // The API's `message` is capped (MAX_CHAT_MESSAGE) and this message skips the
   // composer's own maxLength — it goes into the URL and is sent verbatim by the
   // chat page. The ask is the part that has to survive, so the DETAILS give way
   // to it rather than the other way round.
-  const room = MAX_CHAT_MESSAGE - head.length - tail.length;
+  const room = MAX_CHAT_MESSAGE - tail.length;
   let body = renderRows(rows);
   if (body.length > room) {
     console.warn(
@@ -250,5 +254,5 @@ export function buildImportedSitePrompt(brand, extras = "") {
     body = body.slice(0, Math.max(0, room)).trimEnd();
   }
 
-  return `${head}${body}${tail}`.slice(0, MAX_CHAT_MESSAGE);
+  return `${body}${tail}`.slice(0, MAX_CHAT_MESSAGE);
 }

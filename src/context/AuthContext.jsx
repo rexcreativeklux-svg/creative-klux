@@ -13,7 +13,7 @@ import { throwClassifiedAuthError } from "@/utils/authErrors";
 import { clearImpersonating } from "@/utils/impersonation";
 import api from "@/app/api/axios";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
-import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
+import { renderDesignToDataUrl } from "@/(lib)/design/renderDesign";
 
 const AuthContext = createContext();
 
@@ -142,6 +142,11 @@ export function AuthProvider({ children }) {
   const API_FETCH_TUTORIAL_VIDEOS = `${BASE_URL}/tutorial-videos`;
   const API_AI_CHAT_URL = `${BASE_URL}/creatives/ai-creative`;
   const API_AI_REDESIGN_URL = `${BASE_URL}/creatives/ai-redesign`;
+  // Read side of the chat persistence `creativeAiChat` writes with save_chat.
+  // Singular "session" for the detail route, plural for the list — that's the
+  // backend's own spelling, not a typo.
+  const API_CHAT_SESSIONS_URL = `${BASE_URL}/creative/sessions`;
+  const API_CHAT_SESSION_URL = `${BASE_URL}/creative/session`;
   const SAVE_DESIGN_URL = `${BASE_URL}/creative-designs`;
   const FETCH_DESIGN_URL = `${BASE_URL}/creative-designs`;
   const API_INTEGRATIONS_URL = `${BASE_URL}/integrations`;
@@ -2269,6 +2274,155 @@ export function AuthProvider({ children }) {
     }
   };
 
+  /**
+   * List the brand's saved AI-chat sessions → GET /creative/sessions/{brandId}.
+   *
+   * This is the read side of `creativeAiChat`'s `save_chat` — every message it
+   * sends is persisted server-side, and this is how that history comes back.
+   *
+   * Answers `{ status: true, sessions: [...] }`, newest first, with rows shaped
+   * `{ session_id (uuid), title, status: 'open'|'complete', messages, started }`
+   * — `title` being the first user message verbatim, newlines and all (see
+   * formatSessionTitle). `raw` is returned untouched alongside the normalised
+   * `items`, which also tolerates a bare array or `{data: []}`.
+   *
+   * @param {number|string} [brandId] Defaults to the active brand.
+   * @returns {Promise<{ok: boolean, items: object[], raw?: unknown, message?: string}>}
+   */
+  const fetchChatSessions = useCallback(
+    async (brandId = activeBrandId) => {
+      if (!token) return { ok: false, items: [], message: "Not authenticated" };
+      if (!brandId) return { ok: false, items: [], message: "No brand selected" };
+
+      try {
+        const res = await authFetch(`${API_CHAT_SESSIONS_URL}/${brandId}`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          console.error("fetchChatSessions: invalid JSON response", text);
+          return { ok: false, items: [], message: "Invalid server response" };
+        }
+
+        if (!res.ok) {
+          console.error("fetchChatSessions failed:", data);
+          return {
+            ok: false,
+            items: [],
+            raw: data,
+            message: data?.message || `HTTP ${res.status}`,
+          };
+        }
+
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data?.sessions)
+              ? data.sessions
+              : [];
+
+        // The raw body, plus the exact field names on a row — the card is built
+        // from those five keys, so this is what to check when one goes blank.
+        console.log("📡 [chat sessions] raw:", data);
+        console.log(
+          `📡 [chat sessions] ${items.length} row(s), fields:`,
+          items[0] ? Object.keys(items[0]) : "(none)",
+          items[0] || "",
+        );
+        return { ok: true, items, raw: data };
+      } catch (err) {
+        console.error("fetchChatSessions error:", err);
+        return { ok: false, items: [], message: err.message || "Network error" };
+      }
+    },
+    [token, activeBrandId],
+  );
+
+  /**
+   * Fetch one saved chat thread → GET /creative/session/{sessionId}.
+   *
+   * Same caveat as above: `raw` is the untouched body, `messages` is a
+   * best-effort pick of the message array so a caller can rehydrate the chat
+   * without waiting on the contract being frozen.
+   *
+   * @param {number|string} sessionId Id from fetchChatSessions.
+   * @returns {Promise<{ok: boolean, messages: object[], raw?: unknown, message?: string}>}
+   */
+  const fetchChatSession = useCallback(
+    async (sessionId) => {
+      if (!token)
+        return { ok: false, messages: [], message: "Not authenticated" };
+      if (!sessionId)
+        return { ok: false, messages: [], message: "No session id" };
+
+      try {
+        const res = await authFetch(`${API_CHAT_SESSION_URL}/${sessionId}`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          console.error("fetchChatSession: invalid JSON response", text);
+          return { ok: false, messages: [], message: "Invalid server response" };
+        }
+
+        if (!res.ok) {
+          console.error("fetchChatSession failed:", data);
+          return {
+            ok: false,
+            messages: [],
+            raw: data,
+            message: data?.message || `HTTP ${res.status}`,
+          };
+        }
+
+        const messages = Array.isArray(data?.messages)
+          ? data.messages
+          : Array.isArray(data?.data?.messages)
+            ? data.data.messages
+            : Array.isArray(data?.data)
+              ? data.data
+              : Array.isArray(data)
+                ? data
+                : [];
+
+        // Still the unpinned half of the contract — this is the log that says
+        // whether normalizeSessionMessages is reading the right keys.
+        console.log("📡 [chat session] raw:", data);
+        console.log(
+          `📡 [chat session] ${messages.length} message(s), fields:`,
+          messages[0] ? Object.keys(messages[0]) : "(none)",
+          messages[0] || "",
+        );
+        return { ok: true, messages, raw: data };
+      } catch (err) {
+        console.error("fetchChatSession error:", err);
+        return {
+          ok: false,
+          messages: [],
+          message: err.message || "Network error",
+        };
+      }
+    },
+    [token],
+  );
+
   // Klux AI design assistant → POST /creatives/ai-redesign.
   // Sends the live design (canvas the same way we save it — a JSON-stringified
   // { canvas, elements }) plus the user's prompt. Returns the raw response so
@@ -2339,10 +2493,11 @@ export function AuthProvider({ children }) {
       // Derive a short type string — strip "_creative" suffix if present
       const typeShort = creativeType?.replace("_creative", "") || "ads";
 
-      // Build each design entry, rendering a base64 thumbnail so the backend can
-      // store a preview (the creatives list shows it without re-rendering the
-      // full canvas). NOTE: `thumbnail` is a base64 data URL — the backend column
-      // must be able to hold it (e.g. LONGTEXT), not a short URL field.
+      // Build each design entry with a base64 preview, painted at the design's
+      // true canvas size — the same thing the editor sends on every save, so a
+      // design looks identical in the lists whether it was created here or
+      // saved from the editor afterwards. The backend decodes the data URL,
+      // stores the image itself, and returns `thumbnail` as a CDN URL.
       // Normalize the canvas shape (string / nested) like the on-screen
       // DesignCanvas so involk + redesign variations both render.
       const creativedesigns = await Promise.all(
@@ -2362,7 +2517,7 @@ export function AuthProvider({ children }) {
               ? design.elements
               : [];
           const thumbnail = canvasSpec
-            ? await renderDesignToThumbnail({ canvas: canvasSpec, elements: els })
+            ? await renderDesignToDataUrl({ canvas: canvasSpec, elements: els })
             : null;
 
           return {
@@ -2662,7 +2817,12 @@ export function AuthProvider({ children }) {
       if (!token) return { ok: false, message: "Not authenticated" };
       if (!id) return { ok: false, message: "No design ID provided" };
 
-      // `updates` can include any subset of: { name, score, copy, canvas, type, sub_type }
+      // `updates` can include any subset of:
+      //   { name, score, copy, canvas, type, sub_type, thumbnail }
+      // `thumbnail` is a base64 data URL ("data:image/jpeg;base64,…"), the same
+      // shape saveDesign sends on create — the column must hold it (LONGTEXT),
+      // and the update validator must accept the field or the editor's preview
+      // silently never refreshes.
       try {
         const res = await authFetch(`${BASE_URL}/creative-designs/${id}`, {
           method: "PUT",
@@ -3458,6 +3618,8 @@ export function AuthProvider({ children }) {
         generateCustomCreative,
         createDesign,
         creativeAiChat,
+        fetchChatSessions,
+        fetchChatSession,
         aiRedesign,
         updateBrandById,
         handleDelete,

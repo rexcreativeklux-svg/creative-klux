@@ -6,14 +6,19 @@
 //   "recent" → the signed-in brand's own saved designs, via AuthContext's
 //              fetchDesigns(). Private, needs a token AND an active brand.
 //   "klux"   → the public Scraive template pool (the endpoint below).
-//   "chats"  → past AI-chat sessions. NO SOURCE YET — the backend has no
-//              endpoint for it, so the tab renders an empty state and nothing
-//              is fetched. See CHAT_HISTORY_STATE for where it plugs in.
+//   "chats"  → the brand's past AI-chat sessions, via AuthContext's
+//              fetchChatSessions() → GET /creative/sessions/{brandId}.
 //
-// Both are mapped onto the SAME normalized shape so TemplatesSection, the card
-// and the details modal never branch on where a row came from — except through
-// `kind` ("design" | "template"), which is what the modal uses to say "Open in
-// editor" instead of "Use this template".
+// The first two are mapped onto the SAME normalized shape so TemplatesSection,
+// the card and the details modal never branch on where a row came from — except
+// through `kind` ("design" | "template"), which is what the modal uses to say
+// "Open in editor" instead of "Use this template".
+//
+// A CHAT ROW IS THE ONE EXCEPTION, and it has to be. It carries no
+// `canvas`/`elements` — there is no artwork to paint and no details to model —
+// so normalizeChatSession() produces `kind: "chat"`, the rail renders it with
+// ChatCard instead of TemplateCard, and it opens the conversation directly
+// rather than a details modal.
 //
 // ── THE PUBLIC TEMPLATE ENDPOINT ────────────────────────────────────────────
 //   POST https://api.scraive.com/api/design-templates/public-template-fetch
@@ -50,11 +55,10 @@
 // holding `{ canvas, elements }`, and it has no `type_size` / `orientation` /
 // `pricing`, so normalizeDesign() derives those from the canvas instead.
 
+import { formatSessionTitle, parseSessionSummary } from "./chatSessions";
+
 /**
- * The rail's tabs. The first two have a real source behind them (see the
- * header); "chats" does NOT yet — the backend has no chat-history endpoint, so
- * that tab deliberately renders an empty state. See CHAT_HISTORY_STATE below
- * for where the fetch plugs in once the endpoint exists.
+ * The rail's tabs — one live source behind each (see the header).
  *
  * @type {{id: string, label: string}[]}
  */
@@ -69,25 +73,13 @@ export const TAB_RECENT = "recent";
 export const TAB_KLUX = "klux";
 export const TAB_CHATS = "chats";
 
-/**
- * The Chat History tab's stand-in slice.
- *
- * There is no endpoint for past AI-chat sessions yet, so this tab is wired up
- * end to end — tab button, empty panel, "Browse all" suppressed — around a
- * source that is permanently empty rather than being left out of the rail. That
- * way turning it on is a one-place change instead of a re-layout.
- *
- * ⚠️ WHEN THE ENDPOINT LANDS: a chat row is NOT a design. It has no
- * `canvas`/`elements`, so it cannot go through the painting TemplateCard the
- * other two tabs use — it needs its own card (title, last message, timestamp,
- * a link into /studio/ai-chat-page) and its own normalizer alongside
- * normalizeTemplate() / normalizeDesign(). Replace this constant with a
- * fetchChatHistory() written to the same never-rejects contract as
- * fetchRecentDesigns(), and give the rail a branch for `kind: "chat"`.
- *
- * @type {{status: "ok", items: object[]}}
- */
-export const CHAT_HISTORY_STATE = { status: "ok", items: [] };
+/** How many saved chats to show on the Chat History tab. */
+export const CHAT_DISPLAY_LIMIT = 12;
+
+/** Where a chat card sends the user — the chat page, opened on that thread. */
+export function chatSessionHref(sessionId) {
+  return `/studio/ai-chat-page?session=${encodeURIComponent(sessionId)}`;
+}
 
 /**
  * Query param that deep-links one template's details modal, e.g. `/?template=
@@ -375,6 +367,65 @@ export function normalizeDesign(raw, index = 0) {
 
     kind: "design",
     pricing: null, // your own design is neither "free" nor "premium"
+
+    // The untouched API row. The card contract deliberately carries only what a
+    // card and the details modal need, but a saved design ALSO opens Creative
+    // Studio's own details drawer on the rail — and that panel wants the full
+    // record (fav, score, copy, sub_type, created_at…). Keeping the row here
+    // lets the rail build one with the shared normalizeDesign() in
+    // (components)/creatives/DesignDetailsPanel.jsx instead of re-fetching it.
+    // Nothing else reads this field.
+    raw: row,
+  };
+}
+
+/**
+ * Map ONE saved chat session onto a card row.
+ *
+ * Deliberately NOT the template/design contract: a chat has no layout, so every
+ * field that contract exists to carry (canvas, elements, slug, format, pricing…)
+ * would be null. It gets the four things a chat card actually shows plus
+ * `kind: "chat"`, which is what routes it to ChatCard instead of TemplateCard.
+ *
+ * Rows are `{ session_id, title, status, messages, started }` — `title` being
+ * the first user message verbatim, newlines and all, hence formatSessionTitle().
+ *
+ * @param {Record<string, unknown>} raw
+ * @param {number} index Positional fallback for a missing id.
+ * @returns {object|null} null when the row has no id to open.
+ */
+export function normalizeChatSession(raw, index = 0) {
+  const row = raw && typeof raw === "object" ? raw : {};
+  const sessionId = pick(row, ["session_id", "id", "uuid"]);
+  if (!sessionId) return null;
+
+  const count = Number(pick(row, ["messages", "message_count"]) ?? 0);
+  const started = pick(row, ["started", "created_at", "started_at"]);
+  // Most titles are an imported brand block, and all of them read alike. The
+  // brand is the one part that tells two of them apart, so the card leads with
+  // it and keeps the rest as the supporting line.
+  const { brand, detail } = parseSessionSummary(row.title);
+
+  return {
+    id: String(sessionId),
+    sessionId: String(sessionId),
+    title: brand || formatSessionTitle(row.title),
+    brand,
+    detail,
+    // The count is the honest second line: every other field on the row is
+    // either the title again or the date already shown in the footer.
+    subtitle: count === 1 ? "1 message" : `${count} messages`,
+    meta: started,
+    messageCount: count,
+    // "complete" is the backend's marker for a session that produced designs.
+    complete: String(pick(row, ["status"]) ?? "").toLowerCase() === "complete",
+    href: chatSessionHref(sessionId),
+
+    createdAt: started,
+    // `updated` is the endpoint's own spelling (confirmed against a live row) —
+    // the others are tolerated in case it is ever renamed to a Laravel default.
+    updatedAt: pick(row, ["updated", "updated_at", "last_activity"]) ?? started,
+    kind: "chat",
   };
 }
 
@@ -392,6 +443,68 @@ const byNewest = (a, b) => {
   if (byDate) return byDate;
   return (Number(b.id) || 0) - (Number(a.id) || 0);
 };
+
+/**
+ * Load the brand's saved AI-chat sessions for the "Chat History" tab.
+ *
+ * Takes AuthContext's `fetchChatSessions` as an argument for the same reason
+ * fetchRecentDesigns() takes `fetchDesigns`: this module stays plain data-layer
+ * code with no React dependency.
+ *
+ * That function already handles its own failures and answers
+ * `{ ok, items, message }`, so there is no HTTP handling here — only the
+ * never-rejects contract the other two sources share.
+ *
+ * @param {object} opts
+ * @param {(brandId?: number|string) => Promise<{ok: boolean, items: object[],
+ *   message?: string}>} opts.fetchChatSessions
+ * @param {number|string} [opts.brandId] Defaults to the caller's active brand.
+ * @returns {Promise<{status: "ok"|"error", items: object[],
+ *                    message?: string, messageForDevs?: string}>}
+ */
+export async function fetchChatHistory({ fetchChatSessions, brandId } = {}) {
+  if (typeof fetchChatSessions !== "function") {
+    console.error("❌ [templates] fetchChatHistory called without fetchChatSessions()");
+    return {
+      status: "error",
+      items: [],
+      message: "We couldn't load your chats. Please try again.",
+      messageForDevs: "fetchChatSessions was not provided",
+    };
+  }
+
+  try {
+    console.log("📡 [templates] fetching saved chat sessions");
+    const result = await fetchChatSessions(brandId);
+
+    if (!result?.ok) {
+      return {
+        status: "error",
+        items: [],
+        message: "We couldn't load your chats. Please try again.",
+        messageForDevs: result?.message || "fetchChatSessions returned !ok",
+      };
+    }
+
+    // Sorted here rather than trusted from the endpoint, so the rail's order is
+    // the same rule the other two tabs follow.
+    const items = result.items.map(normalizeChatSession).filter(Boolean).sort(byNewest);
+    const dropped = result.items.length - items.length;
+    console.log(
+      `✅ [templates] loaded ${items.length} chat session(s)` +
+        (dropped > 0 ? ` (${dropped} skipped — no session id)` : ""),
+    );
+    return { status: "ok", items };
+  } catch (err) {
+    console.error("❌ [templates] chat history request threw:", err);
+    return {
+      status: "error",
+      items: [],
+      message: "Connection problem. Please check your network and try again.",
+      messageForDevs: err?.message || String(err),
+    };
+  }
+}
 
 // ── "More like this" ────────────────────────────────────────────────────────
 //

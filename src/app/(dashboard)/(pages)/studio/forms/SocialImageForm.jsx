@@ -857,27 +857,14 @@ const SocialImageForm = ({
               />
             </Field>
 
-            {/* ── The selected kind's own fields ── */}
-            {kind.tone && (
-              <ToneField formData={formData} field={field} Field={Field} />
-            )}
-            {kind.cta && (
-              <CtaField
-                formData={formData}
-                field={field}
-                Field={Field}
-                inputCls={inputCls}
-              />
-            )}
-            {kind.styles && (
-              <StyleField
-                formData={formData}
-                field={field}
-                Field={Field}
-                styles={kind.styles}
-              />
-            )}
-
+            {/* ⚠️ BRAND COLOUR SITS DIRECTLY UNDER THE DESCRIPTION, ABOVE the
+                kind's own fields, and the order matters. The kind-specific block
+                below is a different height for every kind — one chip row for a
+                post, two for a banner, none at all for a meme — so anything
+                placed after it lands somewhere different depending on which tag
+                is selected. Brand colour is on every kind, so it gets the fixed
+                position: switching tags now leaves it exactly where it was
+                instead of sliding up and down the form. */}
             <div className="grid grid-cols-2 gap-4">
               <Field label="Brand Color">
                 <div className="flex items-center gap-2">
@@ -949,6 +936,27 @@ const SocialImageForm = ({
                 </div>
               </Field>
             </div>
+
+            {/* ── The selected kind's own fields ── */}
+            {kind.tone && (
+              <ToneField formData={formData} field={field} Field={Field} />
+            )}
+            {kind.cta && (
+              <CtaField
+                formData={formData}
+                field={field}
+                Field={Field}
+                inputCls={inputCls}
+              />
+            )}
+            {kind.styles && (
+              <StyleField
+                formData={formData}
+                field={field}
+                Field={Field}
+                styles={kind.styles}
+              />
+            )}
           </div>
         )}
 

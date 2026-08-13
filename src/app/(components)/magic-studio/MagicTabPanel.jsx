@@ -819,9 +819,12 @@ export default function MagicTabPanel({
                         option={option}
                         value={values[option.key]}
                         voicePreview={voicePreview}
-                        onSelect={(val) => {
+                        onSelect={(val, opts) => {
                           setValue(option.key, val);
-                          closeOption();
+                          // See OptionPanelBody — a colour drag or a hex being
+                          // typed fires this continuously and must not collapse
+                          // the row it is being typed into.
+                          if (!opts?.keepOpen) closeOption();
                         }}
                       />
                     </div>

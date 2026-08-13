@@ -258,49 +258,6 @@ export default function Home() {
   };
 
   /**
-   * Open one of the user's own designs from the rail's Recent tab — fired by the
-   * details modal's "Open in editor" button, not by a card click.
-   *
-   * The editor ALWAYS opens in a new tab, the same way /creatives' hover "Edit"
-   * buttons do, so the home rail stays put behind it. `noopener,noreferrer`
-   * matches the `rel` those links carry — the new tab gets no `window.opener`
-   * handle back into this one. This runs synchronously inside the modal's click
-   * handler, so the popup blocker treats it as user-initiated; the router
-   * fallback below covers the case where a blocker still refuses.
-   *
-   * Klux templates do NOT come through here: the modal's button saves them into
-   * the user's designs (TemplatesSection.saveTemplate) and reports back through
-   * `onSaved` → handleTemplateSaved below.
-   * The chat-page fallback at the end only runs for a row that somehow arrived
-   * with no `href`, so the button can never be a no-op.
-   *
-   * @param {{title: string, href?: string|null, kind?: string}} item
-   */
-  const handleOpenDesign = (item) => {
-    if (item.href) {
-      console.log(
-        `🖼️ [home] opening ${item.kind || "item"} "${item.title}" → ${item.href} (new tab)`,
-      );
-      const tab = window.open(item.href, "_blank", "noopener,noreferrer");
-      if (!tab) {
-        console.warn(
-          `⚠️ [home] new tab blocked for "${item.title}" — navigating in place instead`,
-        );
-        router.push(item.href);
-      }
-      return;
-    }
-    console.warn(
-      `⚠️ [home] "${item.title}" has no href — falling back to the studio`,
-    );
-    const params = new URLSearchParams({
-      creative: DEFAULT_CREATIVE,
-      initialMessage: `Create something based on the "${item.title}" template`,
-    });
-    router.push(`/studio/ai-chat-page?${params.toString()}`);
-  };
-
-  /**
    * A Klux template was just copied into the brand's designs — send the user to
    * their library so the fresh copy is on screen instead of only being promised
    * by a toast.
@@ -321,12 +278,27 @@ export default function Home() {
   };
 
   /**
+   * A saved chat was clicked on the rail's Chat History tab → reopen that
+   * conversation. The row's href is `/studio/ai-chat-page?session=<id>`, which
+   * the chat page reads on mount and loads the thread from.
+   *
+   * Same tab, unlike a design: this is somewhere the user continues working,
+   * not a side trip, and Back returns them to the rail.
+   *
+   * @param {{title: string, href: string}} item A normalized chat row.
+   */
+  const handleOpenChat = (item) => {
+    console.log(`💬 [home] opening chat "${item.title}" → ${item.href}`);
+    router.push(item.href);
+  };
+
+  /**
    * "Browse all" — the rail says which tab is open, because the user's own
    * designs and the public template pool live on different routes.
    *
-   * The rail's third tab (Chat History) never reaches this: it has no route to
-   * browse to yet, so TemplatesSection hides the button on it entirely. Add the
-   * destination here at the same time as that tab gets its endpoint.
+   * The rail's third tab (Chat History) never reaches this: a chat card opens
+   * its own conversation and there is no index route listing them all, so
+   * TemplatesSection hides the button on that tab.
    *
    * @param {string} tabId One of TEMPLATE_TABS' ids.
    */
@@ -480,11 +452,15 @@ export default function Home() {
         /> */}
       </section>
 
-      {/* Template rails — full-bleed, deliberately outside the wrapper above */}
+      {/* Template rails — full-bleed, deliberately outside the wrapper above.
+          No design opener here any more: a card on the Recent tab opens
+          Creative Studio's own details drawer inside the rail (edit, publish,
+          download, delete), and the editor is reached from that panel's
+          "Edit with editor" / "Edit with Ai" buttons. */}
       <TemplatesSection
-        onSelect={handleOpenDesign}
         onSaved={handleTemplateSaved}
         onBrowseAll={handleBrowseAll}
+        onOpenChat={handleOpenChat}
       />
     </div>
   );

@@ -33,9 +33,23 @@ import {
   FileText,
   Captions,
 } from "lucide-react";
-import { languageDisplayLabel } from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
+import {
+  AUTO_COLOR,
+  languageDisplayLabel,
+} from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
 
-// ── Option chooser body (rich cards keyed by option.panel) ────────────────────
+/**
+ * ── Option chooser body (rich cards keyed by option.panel) ───────────────────
+ *
+ * @param {object} props
+ * @param {object} props.option  The config's option declaration.
+ * @param {*} props.value        Its current value.
+ * @param {(value: *, opts?: {keepOpen?: boolean}) => void} props.onSelect
+ *   Commit a value. `opts.keepOpen` asks a surface that closes on select to stay
+ *   open — it comes from the controls that fire continuously (a colour drag, a
+ *   hex being typed) rather than once. A surface that never closes can ignore it.
+ * @param {object} [props.voicePreview]
+ */
 export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
   const { panel, items } = option;
 
@@ -237,6 +251,89 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
     );
   }
 
+  // Colours: swatches plus a free hex box.
+  //
+  // ⚠️ THE FIRST ITEM IS "NO COLOUR IN PARTICULAR" AND IT IS THE DEFAULT. This
+  // panel steers what the model paints, so a preselected swatch would quietly
+  // tint every generation on a tool that has never done that — the option has to
+  // start as an opt-in. It renders as a slashed swatch rather than as a colour,
+  // so "none" can't be mistaken for a shade of grey.
+  //
+  // ⚠️ THE HEX BOX IS THE POINT, not a nicety. The presets are a starting set;
+  // the colour anyone actually wants here is their own brand's, which no fixed
+  // palette can contain. It writes the same `value` the swatches do, so nothing
+  // downstream has to know which of the two was used.
+  if (panel === "colors") {
+    const custom = value && value !== AUTO_COLOR && !items.some((i) => i.value === value);
+    return (
+      <div className="p-3">
+        <div className="flex flex-wrap gap-2">
+          {items.map((it) => {
+            const active = value === it.value;
+            const none = it.value === AUTO_COLOR;
+            return (
+              <button
+                key={it.value}
+                onClick={() => onSelect(it.value)}
+                title={it.label}
+                aria-label={it.label}
+                aria-pressed={active}
+                className={`relative h-8 w-8 rounded-lg border-2 transition-transform cursor-pointer hover:scale-110 ${active ? "border-gray-900 scale-110" : "border-gray-200"}`}
+                style={none ? undefined : { background: it.value }}
+              >
+                {none && (
+                  // A diagonal through an empty swatch — the standard "no fill".
+                  <span className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-md bg-surface">
+                    <span className="h-px w-9 -rotate-45 bg-gray-300" />
+                  </span>
+                )}
+                {active && !none && (
+                  <Check className="absolute inset-0 m-auto h-4 w-4 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <label className="mt-3 flex items-center gap-2">
+          <span className="text-[11px] font-medium text-gray-500">Custom</span>
+          {/* The native picker and the text box write the same value — one for
+              choosing, one for pasting a hex you already have. */}
+          {/* ⚠️ BOTH OF THESE PASS `keepOpen`, and without it the panel is
+              unusable. A surface that closes on select (the composer's drop-up
+              does) is right for a swatch — one click, one choice, done — but
+              these two fire onChange CONTINUOUSLY: the native picker on every
+              step of a drag, the text box on every keystroke. Closing on the
+              first of those shuts the panel before a colour has been picked. */}
+          <input
+            type="color"
+            value={custom ? value : "#2563eb"}
+            onChange={(event) => onSelect(event.target.value, { keepOpen: true })}
+            aria-label="Pick a custom colour"
+            className="h-8 w-8 shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-surface p-0.5"
+          />
+          <input
+            type="text"
+            value={custom ? value : ""}
+            onChange={(event) => {
+              const next = event.target.value.trim();
+              // Only commit a hex that is actually complete — onChange fires on
+              // every keystroke, and half-typed "#2b" would be sent as a colour.
+              if (/^#[0-9a-fA-F]{6}$/.test(next)) {
+                onSelect(next, { keepOpen: true });
+              } else if (next === "" || next === "#") {
+                onSelect(AUTO_COLOR, { keepOpen: true });
+              }
+            }}
+            placeholder="#2563EB"
+            maxLength={7}
+            className="w-24 rounded-lg border border-gray-200 px-2 py-1 font-mono text-xs text-gray-700 outline-none focus:border-blue-400"
+          />
+        </label>
+      </div>
+    );
+  }
+
   // Pills: compact chips (export format).
   if (panel === "pills") {
     return (
@@ -301,7 +398,14 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
 // Human-readable summary of the current value for an option row.
 export function summarize(option, value) {
   const found = option.items?.find((i) => i.value === value);
-  return found?.label || value;
+  if (found) return found.label;
+  // A colour typed into the hex box is a legitimate value with no item behind
+  // it — show it as the hex, uppercased, rather than falling through to a raw
+  // lowercase string beside a row of proper labels.
+  if (option.panel === "colors" && typeof value === "string") {
+    return value.toUpperCase();
+  }
+  return value;
 }
 
 // Per-engine processing flows: each on-device engine reports these stages, shown

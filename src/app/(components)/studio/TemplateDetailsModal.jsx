@@ -473,8 +473,16 @@ export default function TemplateDetailsModal({
         </button>
 
         {/* The dialog's scroller — it carries the top band and the card band
-            below it, and on mobile it is the only scroller there is. */}
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+            below it, and on mobile it is the only scroller there is.
+            `hide-scrollbar` takes the bar away without taking the scrolling
+            away: wheel, trackpad, touch and keyboard all still work, and the
+            "More like this" band peeking below the fold is what advertises
+            that there's more. Matches the details column, which already hides
+            its own bar. */}
+        <div
+          ref={scrollRef}
+          className="hide-scrollbar min-h-0 flex-1 overflow-y-auto"
+        >
           {/* ── Top band: preview + details ───────────────────────────────
               Height-bounded on desktop so the card band always peeks — see the
               note at the top of this file. Below `lg` it just stacks and

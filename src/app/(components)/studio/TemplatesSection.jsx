@@ -16,20 +16,19 @@
 //   ── full-width rule ─────────────────────────────────────────────
 //   │  card  │  card  │  card  │  card  │      ← columns divided by rules
 //
-// THREE TABS, TWO REAL SOURCES behind them (see templatesApi.js):
+// THREE TABS, THREE REAL SOURCES behind them (see templatesApi.js):
 //   "Templates"           → the public Scraive template pool, newest first
 //                           (default tab)
 //   "Recent Saved Designs"→ the active brand's saved designs (token + brand)
-//   "Chat History"        → NOTHING YET. The backend has no endpoint for past
-//                           chat sessions, so the tab is wired up around
-//                           CHAT_HISTORY_STATE (permanently empty) and shows an
-//                           empty panel. Nothing is fetched and "Browse all" is
-//                           hidden on it, since it has no destination either.
-// The two live sources each have their own state slice and their own effect,
-// and BOTH load on mount — the pool is one small public request, and
-// pre-loading it makes switching tabs instant instead of dropping the user onto
-// a skeleton. Rows from either arrive in the same normalized shape, so
-// everything below this point is source-agnostic apart from `item.kind`.
+//   "Chat History"        → the brand's saved chat sessions, via
+//                           fetchChatHistory. "Browse all" stays hidden on this
+//                           one — there is no chats route to send anyone to.
+// Each source has its own state slice and its own effect, and ALL load on
+// mount — the pool is one small public request, and pre-loading makes switching
+// tabs instant instead of dropping the user onto a skeleton. The first two
+// arrive in the same normalized shape; a chat row is the one that differs (no
+// layout to paint), and `item.kind` is the only place below this point that has
+// to know — it picks ChatCard over TemplateCard.
 //
 // The data arrives as full { canvas, elements } layouts, so each card PAINTS the
 // design with the shared renderDesignToCanvas() — the same renderer the editor
@@ -43,13 +42,25 @@
 // identical by construction. This file owns the tabs, the fetching and the
 // modal — the card owns how a row looks.
 //
-// A card does NOT open anything. Clicking one opens TemplateDetailsModal (its
-// footer chip grows into "View details" on hover to say so), and the modal's
-// primary button is the only action: a TEMPLATE is copied into the brand's
-// designs here in this component (saveTemplate → toast, then `onSaved` so the
-// page can move the user on), while a saved DESIGN is handed to the page through
-// `onSelect` to open in the editor.
-// That same modal is what a `?template=<slug>` share link reopens on load, over
+// A card does NOT open anything — clicking one opens its details (the footer
+// chip grows into "View details" on hover to say so). WHICH details depends on
+// what the row is, and the two are deliberately different surfaces:
+//
+//   TEMPLATE → TemplateDetailsModal, a centred dialog. It is a browsing screen:
+//              big preview, specs, share links, "More like this". Its primary
+//              button copies the template into the brand's designs here in this
+//              component (saveTemplate → toast, then `onSaved` so the page can
+//              move the user on).
+//   DESIGN   → <DesignDetailsDrawer>, the right-hand drawer from Creative
+//              Studio (/creatives) — the SAME panel, opened from a card there
+//              and from a card here, so a saved design looks and behaves
+//              identically wherever it's clicked. It is a working screen:
+//              edit, favourite, publish, schedule, download, delete. Those
+//              actions change the row, so the rail patches its own Recent slice
+//              from the drawer's `onUpdated` / `onDeleted` rather than
+//              refetching (see patchDesign / removeDesign).
+//
+// The modal is what a `?template=<slug>` share link reopens on load, over
 // whichever tab happens to be showing. It does NOT depend on the tab's random
 // draw containing that slug — see the "Share links" block below.
 //
@@ -67,19 +78,27 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+// Creative Studio's own details drawer, reused wholesale for a saved design —
+// see the "A card does NOT open anything" note above. `toDesignRecord` is the
+// panel's normalizer: it turns the untouched API row (kept on the card as
+// `raw`, see templatesApi.normalizeDesign) into the full record it renders.
+import DesignDetailsDrawer from "@/app/(components)/creatives/DesignDetailsDrawer";
+import { normalizeDesign as toDesignRecord } from "@/app/(components)/creatives/DesignDetailsPanel";
 import TemplateDetailsModal from "./TemplateDetailsModal";
 import TemplateCard, {
   GUTTER,
   TemplateCardGrid,
   TemplateCardSkeleton,
 } from "./TemplateCard";
+import ChatCard from "./ChatCard";
 import {
-  CHAT_HISTORY_STATE,
+  CHAT_DISPLAY_LIMIT,
   TAB_CHATS,
   TAB_KLUX,
   TAB_RECENT,
   TEMPLATE_DISPLAY_LIMIT,
   TEMPLATE_TABS,
+  fetchChatHistory,
   fetchPublicTemplates,
   fetchRecentDesigns,
   fetchTemplateBySlug,
@@ -104,37 +123,49 @@ function readShareLink() {
 
 /**
  * @param {object} props
- * @param {(item: object) => void} [props.onSelect]     Open a saved DESIGN —
- *   fired by the details modal's primary button on the Recent tab only.
- *   Templates never reach it; they are saved in place (see saveTemplate).
  * @param {(item: object) => void} [props.onItemMenu]   The card's "…" menu.
  * @param {(tabId: string) => void} [props.onBrowseAll] "Browse all", told which
  *   tab is open so the page can send designs and templates to different routes.
+ * @param {(item: object) => void} [props.onOpenChat]   A saved CHAT card was
+ *   clicked. The row carries `href` (the chat page, opened on that session).
  * @param {(item: object) => void} [props.onSaved]      A TEMPLATE was just
  *   copied into the brand's designs. The home page uses this to send the user to
  *   /creatives, where the new copy is waiting. Optional — see saveTemplate() for
  *   what happens without it.
  */
 export default function TemplatesSection({
-  onSelect,
   onItemMenu,
   onBrowseAll,
+  onOpenChat,
   onSaved,
 }) {
   // The brand's designs are per-brand and token-gated; the pool is neither.
   // saveDesign is what "Save to Designs" writes a copied template through.
-  const { fetchDesigns, saveDesign, activeBrandId, brandsLoading } = useAuth();
+  const {
+    fetchDesigns,
+    saveDesign,
+    activeBrandId,
+    brandsLoading,
+    fetchChatSessions,
+  } = useAuth();
 
   const [activeTab, setActiveTab] = useState(TEMPLATE_TABS[0].id);
   // One slice per source — see the header note on why both load up front.
   const [templates, setTemplates] = useState(LOADING_STATE);
   const [recent, setRecent] = useState(LOADING_STATE);
+  const [chats, setChats] = useState(LOADING_STATE);
   // Bumped per source by "Try again" so a retry re-runs only that one fetch.
   const [kluxReload, setKluxReload] = useState(0);
   const [recentReload, setRecentReload] = useState(0);
+  const [chatsReload, setChatsReload] = useState(0);
   // The open details modal: { item, previewSrc } — previewSrc is the card's own
   // painted preview, handed over so the modal opens with artwork already there.
+  // TEMPLATES ONLY; a saved design opens the drawer below instead.
   const [details, setDetails] = useState(null);
+  // The saved design open in Creative Studio's drawer, as the full record that
+  // panel renders (toDesignRecord(row.raw), not the card contract). null closes
+  // it — the drawer keeps the last one on screen through its exit animation.
+  const [designDetails, setDesignDetails] = useState(null);
   // `/?template=<slug>&name=…` — read ONCE, lazily, at mount. Straight off
   // window.location rather than useSearchParams() so this client-only nicety
   // can't drag the page into a Suspense boundary; the lazy initializer keeps it
@@ -178,6 +209,24 @@ export default function TemplatesSection({
       alive = false;
     };
   }, [activeBrandId, fetchDesigns, recentReload]);
+
+  // ── Chat history ─────────────────────────────────────────────────────────
+  // Same brand dependency as the designs above: the route is
+  // /creative/sessions/{brandId}, so there is nothing to ask for until one is
+  // resolved, and the slice stays in its loading state meanwhile.
+  useEffect(() => {
+    if (!activeBrandId) return;
+    let alive = true;
+
+    (async () => {
+      const next = await fetchChatHistory({ fetchChatSessions, brandId: activeBrandId });
+      if (alive) setChats(next);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [activeBrandId, fetchChatSessions, chatsReload]);
 
   // ── Share links ──────────────────────────────────────────────────────────
   // A shared link always points at a public template, so it opens over
@@ -229,28 +278,29 @@ export default function TemplatesSection({
   // state rather than an error the user can't act on.
   const recentState =
     !activeBrandId && !brandsLoading ? { status: "ok", items: [] } : recent;
-  // Chat history has no endpoint yet, so its slice is a constant "ok, nothing
-  // here" (templatesApi.CHAT_HISTORY_STATE). Reading it as a normal slice means
-  // the loading and error paths below need no special case — the empty panel is
-  // the only thing that knows this tab is a placeholder.
+  // Chats are per-brand too, so they get the same no-brand fallback.
+  const chatsState =
+    !activeBrandId && !brandsLoading ? { status: "ok", items: [] } : chats;
   const state =
     activeTab === TAB_KLUX
       ? templates
       : activeTab === TAB_CHATS
-        ? CHAT_HISTORY_STATE
+        ? chatsState
         : recentState;
-  const items = state.items.slice(0, TEMPLATE_DISPLAY_LIMIT);
+  const items = state.items.slice(
+    0,
+    activeTab === TAB_CHATS ? CHAT_DISPLAY_LIMIT : TEMPLATE_DISPLAY_LIMIT,
+  );
 
-  /**
-   * Reset the ACTIVE tab's slice and re-run only that fetch. Only ever called
-   * from the error panel, which the chats tab can't reach — its slice is a
-   * constant "ok".
-   */
+  /** Reset the ACTIVE tab's slice and re-run only that fetch. */
   const retryActiveTab = () => {
     console.log(`🔄 [templates] retrying "${activeTab}"`);
     if (activeTab === TAB_KLUX) {
       setTemplates(LOADING_STATE);
       setKluxReload((key) => key + 1);
+    } else if (activeTab === TAB_CHATS) {
+      setChats(LOADING_STATE);
+      setChatsReload((key) => key + 1);
     } else {
       setRecent(LOADING_STATE);
       setRecentReload((key) => key + 1);
@@ -264,22 +314,15 @@ export default function TemplatesSection({
   // ── The modal's "More like this" strip ───────────────────────────────────
   // Picked from rows that are already in hand — nothing extra is fetched, and
   // the pool takes no filters to ask for siblings with anyway (templatesApi
-  // header). The source follows the OPEN ITEM, not the active tab: a template
-  // pulls from the public pool and a saved design from the brand's own
-  // designs, so the strip never offers to open something of a different kind
-  // than the button above it acts on. A shared template resolved from a link
-  // gets one too, since the pool loads on mount either way.
-  //
-  // `recent.items` rather than `recentState.items`: the no-brand fallback is a
-  // fresh object literal each render, which would re-run this every time.
+  // header). Always the public pool, because only a TEMPLATE opens this modal
+  // now — a saved design goes to the drawer, which has no sibling strip. A
+  // shared template resolved from a link gets one too, since the pool loads on
+  // mount either way.
   const openItem = activeDetails?.item ?? null;
   const relatedItems = useMemo(() => {
     if (!openItem) return [];
-    return pickRelatedItems(
-      openItem,
-      openItem.kind === "design" ? recent.items : templates.items,
-    );
-  }, [openItem, recent.items, templates.items]);
+    return pickRelatedItems(openItem, templates.items);
+  }, [openItem, templates.items]);
 
   /** Forget the URL's template — and cancel its lookup if it's still running. */
   const clearShareLink = () => {
@@ -287,10 +330,26 @@ export default function TemplatesSection({
     setSharedItem(null);
   };
 
-  /** A card was clicked — show its details, never the template itself. */
+  /**
+   * A card was clicked — show its details, never the item itself. A saved
+   * design goes to Creative Studio's drawer and a template to the modal; see
+   * the note at the top of this file on why they are different surfaces.
+   *
+   * The drawer's panel wants the FULL design record, not the card contract, so
+   * the row's untouched API object (`raw`) is run back through the panel's own
+   * normalizer. A row that somehow arrived without one still opens — the card
+   * carries the layout itself, so the preview paints either way.
+   */
   const openDetails = (item, previewSrc) => {
-    console.log(`🖼️ [templates] opening details for "${item.title}"`);
     clearShareLink(); // a manual open supersedes the URL's template
+
+    if (item.kind === "design") {
+      console.log(`🖼️ [templates] opening "${item.title}" in the design drawer`);
+      setDesignDetails(toDesignRecord(item.raw || item));
+      return;
+    }
+
+    console.log(`🖼️ [templates] opening details for "${item.title}"`);
     setDetails({ item, previewSrc });
   };
 
@@ -298,6 +357,46 @@ export default function TemplatesSection({
   const closeDetails = () => {
     setDetails(null);
     clearShareLink();
+  };
+
+  /**
+   * The drawer changed the open design — a favourite flipped, a name or the
+   * copy block edited. Applied to the open record AND to the Recent slice
+   * behind it, so the card under the drawer is already right when it closes.
+   * Cheaper and steadier than refetching the tab, which would also reshuffle
+   * rows the user is looking at.
+   *
+   * The patch is in the PANEL's shape (`favorite`, `name`, `copy`, plus
+   * `title` for the card). Merging it into the card row is harmless — the card
+   * reads `title` — and merging it into `raw` keeps the record correct if the
+   * same row is reopened: normalizeDesign reads `fav ?? favorite`, so the
+   * boolean lands on its feet.
+   *
+   * @param {number|string} id
+   * @param {object} patch
+   */
+  const patchDesign = (id, patch) => {
+    const isRow = (row) => String(row.id) === String(id);
+
+    setDesignDetails((prev) => (prev && isRow(prev) ? { ...prev, ...patch } : prev));
+    setRecent((prev) => ({
+      ...prev,
+      items: prev.items.map((row) =>
+        isRow(row)
+          ? { ...row, ...patch, raw: row.raw ? { ...row.raw, ...patch } : row.raw }
+          : row,
+      ),
+    }));
+  };
+
+  /** The drawer deleted the open design — drop it from the rail as well. */
+  const removeDesign = (id) => {
+    console.log(`🗑️ [templates] dropping deleted design ${id} from the rail`);
+    setDesignDetails(null);
+    setRecent((prev) => ({
+      ...prev,
+      items: prev.items.filter((row) => String(row.id) !== String(id)),
+    }));
   };
 
   /**
@@ -371,19 +470,6 @@ export default function TemplatesSection({
     } finally {
       setSaving(false);
     }
-  };
-
-  /**
-   * The modal's primary button. A template is SAVED into the user's designs; a
-   * saved design is handed to the page, which opens it in the editor.
-   */
-  const handleUse = (item) => {
-    if (item.kind === "design") {
-      closeDetails();
-      onSelect?.(item);
-      return;
-    }
-    saveTemplate(item);
   };
 
   /** Switch source. Both are already loaded, so this is instant. */
@@ -485,18 +571,24 @@ export default function TemplatesSection({
           />
         ) : (
           <TemplateCardGrid>
-            {items.map((item) => (
-              <TemplateCard
-                key={item.id}
-                item={item}
-                onOpenDetails={openDetails}
-                onItemMenu={onItemMenu}
-              />
-            ))}
+            {items.map((item) =>
+              // A chat has no layout to paint and no details to model, so it
+              // gets its own card and opens the conversation directly.
+              item.kind === "chat" ? (
+                <ChatCard key={item.id} item={item} onOpen={onOpenChat} />
+              ) : (
+                <TemplateCard
+                  key={item.id}
+                  item={item}
+                  onOpenDetails={openDetails}
+                  onItemMenu={onItemMenu}
+                />
+              ),
+            )}
           </TemplateCardGrid>
         ))}
 
-      {/* Details modal — the only route from a card into the item itself */}
+      {/* Details modal — a TEMPLATE's route from a card into the item itself */}
       <TemplateDetailsModal
         item={openItem}
         previewSrc={activeDetails?.previewSrc ?? null}
@@ -505,8 +597,19 @@ export default function TemplatesSection({
         // Same handler a card click uses — a sibling tile simply re-points the
         // open modal at another row, carrying its painted preview across.
         onSelectRelated={openDetails}
-        onUse={handleUse}
+        // Only templates reach the modal, so the primary button has one job.
+        onUse={saveTemplate}
         onClose={closeDetails}
+      />
+
+      {/* Details drawer — a saved DESIGN's route, and the very panel Creative
+          Studio opens beside its own grid. It renders nothing while `design`
+          is null, so it costs the rail nothing on the other two tabs. */}
+      <DesignDetailsDrawer
+        design={designDetails}
+        onClose={() => setDesignDetails(null)}
+        onUpdated={patchDesign}
+        onDeleted={removeDesign}
       />
     </section>
   );
@@ -534,15 +637,13 @@ function SkeletonGrid() {
  * @param {() => void} props.onBrowseTemplates  Send the user to the Klux tab.
  */
 function EmptyPanel({ activeTab, onBrowseTemplates }) {
-  // No endpoint yet — say so plainly rather than implying the user has no
-  // chats. Swap this panel for the real grid when the source lands (see the
-  // CHAT_HISTORY_STATE note in templatesApi.js).
+  // A real (empty) source now — the brand genuinely has no saved chats.
   if (activeTab === TAB_CHATS) {
     return (
       <StatePanel
         icon={MessagesSquare}
-        title="Chat history is on the way"
-        body="Your past conversations with the assistant will show up here, ready to pick back up where you left off."
+        title="No saved chats yet"
+        body="Conversations you have with the assistant are saved here, ready to pick back up where you left off."
       />
     );
   }

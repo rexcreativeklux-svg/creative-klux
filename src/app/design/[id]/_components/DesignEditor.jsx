@@ -18,7 +18,12 @@ import EditorElement from "./EditorElement";
 import ImageCropOverlay from "./ImageCropOverlay";
 import ImageEraserOverlay from "./ImageEraserOverlay";
 import PreviewOverlay from "./PreviewOverlay";
-import { renderDesignToBlob, proxiedSrc, drawCover } from "@/(lib)/design/renderDesign";
+import {
+  renderDesignToBlob,
+  renderDesignToDataUrl,
+  proxiedSrc,
+  drawCover,
+} from "@/(lib)/design/renderDesign";
 import { isCropped } from "@/(lib)/design/imageCrop";
 import { SHAPES, aspectOf, isStraightLine, isBendableLine } from "@/(lib)/design/shapes";
 import { frameGeo } from "@/(lib)/design/frames";
@@ -47,7 +52,9 @@ const MAX_ZOOM = 4;
  *
  * Props:
  *   design    { id, name, canvas, elements }  — the design to edit
- *   onSave    async ({ name, canvas, elements }) => void   (optional; defaults to updateDesignById)
+ *   onSave    async ({ name, canvas, elements, thumbnail }) => void   (optional; defaults to updateDesignById)
+ *             `thumbnail` is a full-canvas-size JPEG data URL, or null if it
+ *             couldn't be rendered — hosts must tolerate the null.
  *   onBack    () => void
  *
  * Because it's fully driven by props, it can be mounted on the /design/[id]
@@ -1133,26 +1140,38 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   }, []);
 
   // ── Save & download ───────────────────────────────────────────────────
-  // `silent` suppresses the success toast — used by the 30s autosave so it
-  // doesn't spam the user; manual saves still confirm with a toast.
+  // `silent` suppresses the success toast — used by the autosave and the
+  // save-on-open so they don't spam the user; manual saves still confirm.
+  //
+  // Every save also carries a freshly rendered preview of the design, painted
+  // at the canvas's true dimensions (renderDesignToDataUrl downscales nothing,
+  // it only compresses), so the creatives list shows exactly what opens here
+  // instead of a stale or missing thumbnail. The render is best-effort: it
+  // returns null rather than throwing, and a null is simply omitted from the
+  // payload — a preview that couldn't be painted must never cost the user the
+  // canvas edits the same request is carrying.
   const doSave = async ({ silent = false } = {}) => {
     setSaving(true);
     try {
-      const payload = { name, canvas, elements };
+      const thumbnail = await renderDesignToDataUrl({ canvas, elements });
+      const payload = { name, canvas, elements, thumbnail };
       if (onSave) {
         await onSave(payload);
       } else {
         const res = await updateDesignById(design.id, {
           name,
           canvas: JSON.stringify({ canvas, elements }),
+          ...(thumbnail ? { thumbnail } : {}),
         });
         if (!res?.ok) throw new Error(res?.message || "Save failed");
       }
       markSaved();
       if (!silent) toast.success("Design saved");
     } catch (err) {
+      // Silent saves have no toast to carry the failure — the console is the
+      // only signal that an autosave or save-on-open didn't land.
+      console.error("Save failed:", err?.message || err);
       if (!silent) toast.error(err.message || "Could not save design");
-      else console.error("Autosave failed:", err);
     } finally {
       setSaving(false);
     }
@@ -1161,7 +1180,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   // Effective dirty state — unsaved canvas/element edits or a renamed title.
   const isDirty = dirty || name !== (design?.name || "Untitled design");
 
-  // Autosave every 30s when there are unsaved changes. A ref keeps the interval
+  // Autosave every 15s when there are unsaved changes. A ref keeps the interval
   // pointed at the latest save fn / dirty flag without resetting each render.
   const autosaveRef = useRef({});
   autosaveRef.current = { save: doSave, dirty: isDirty, saving };
@@ -1169,9 +1188,22 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     const id = setInterval(() => {
       const s = autosaveRef.current;
       if (s.dirty && !s.saving) s.save({ silent: true });
-    }, 30000);
+    }, 15000);
     return () => clearInterval(id);
   }, []);
+
+  // Save once when a design is opened, even with nothing edited yet. Designs
+  // created before saves carried a preview have no thumbnail at all, and a
+  // design only ever gets one by being saved — so opening it backfills the
+  // preview instead of leaving the creatives list blank until the first edit.
+  // Keyed on the design id so it fires once per design, not once per render.
+  const openedIdRef = useRef(null);
+  useEffect(() => {
+    if (!design?.id || openedIdRef.current === design.id) return;
+    openedIdRef.current = design.id;
+    const s = autosaveRef.current;
+    if (!s.saving) s.save({ silent: true });
+  }, [design?.id]);
 
   const doDownload = async () => {
     try {

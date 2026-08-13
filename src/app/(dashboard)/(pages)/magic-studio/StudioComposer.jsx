@@ -50,6 +50,7 @@ import {
   Loader2,
   Mic,
   Palette,
+  SwatchBook,
   Ratio,
   Sparkles,
   Square,
@@ -106,6 +107,10 @@ const TYPEABLE = new Set(["prompt", "script", "text"]);
 const OPTION_ICONS = {
   purpose: Target,
   style: Palette,
+  // Not Palette — that is `style`, and the two sit side by side on Text to
+  // Image. A swatch book reads as "pick a colour" where a second palette would
+  // just look like the style chip had been drawn twice.
+  color: SwatchBook,
   ratio: Ratio,
   duration: Clock,
   voice: AudioLines,
@@ -128,6 +133,29 @@ const OPTION_ICONS = {
 
 /** Audio files above this are refused before anything is read. Matches the modal. */
 const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
+
+/**
+ * What a run will produce — "image" | "video" | "audio" | "text".
+ *
+ * Every config states this outright EXCEPT the persona generator, which declares
+ * `resultType: "auto"` because it makes whichever of the three the Content type
+ * dropdown is set to. That is resolved here, from the same `values.contentType`
+ * its own `generate` reads, so the in-flight cells can't disagree with what
+ * actually comes back.
+ *
+ * Used only to pick the placeholder's backdrop, so an unknown type is harmless —
+ * GeneratingArt falls back to the neutral one.
+ *
+ * @param {object} config  The tool's entry in magicStudioConfigs.
+ * @param {object} values  The composer's current option values.
+ * @returns {string}
+ */
+const resolveResultType = (config, values) => {
+  if (config?.resultType !== "auto") return config?.resultType || "image";
+  if (values?.contentType === "text") return "text";
+  if (values?.contentType === "video") return "video";
+  return "image";
+};
 
 /** Shared styling for the small selectable pills in the persona panel. */
 const pillClass = (active) =>
@@ -203,7 +231,11 @@ export default function StudioComposer({
   // loses the tiles' words the instant the box empties. The count is frozen
   // here for the same reason: changing the chip from 3x to 1x while three are
   // in flight must not make two of their placeholders disappear.
-  const [lastRun, setLastRun] = useState({ prompt: "", count: 1 });
+  const [lastRun, setLastRun] = useState({
+    prompt: "",
+    count: 1,
+    resultType: "image",
+  });
 
   // How many to make in one go — the "3x" chip. Held here and merged into
   // `values` at submit, like `model`, so the config's `generate` can put it in
@@ -307,6 +339,7 @@ export default function StudioComposer({
       progress,
       prompt: lastRun.prompt,
       count: lastRun.count,
+      resultType: lastRun.resultType,
     });
   }, [generating, progress, lastRun, onStatusChange]);
 
@@ -441,6 +474,12 @@ export default function StudioComposer({
           ? values.personaName?.trim() || ""
           : "",
       count,
+      // What this run will produce, which is what the in-flight cells are drawn
+      // as. Frozen here with the prompt and the count, for the same reason: the
+      // persona generator's type follows a dropdown the user can keep changing
+      // while a run is in flight, and the tiles must go on showing what THIS
+      // run is making.
+      resultType: resolveResultType(config, values),
     });
     generate({
       primaryInput,
@@ -786,9 +825,12 @@ export default function StudioComposer({
               option={option}
               value={values[option.key]}
               voicePreview={voicePreview}
-              onSelect={(val) => {
+              onSelect={(val, opts) => {
                 setValue(option.key, val);
-                closePanel();
+                // `keepOpen` comes from controls that fire continuously — a
+                // colour drag, a hex being typed — where closing on the first
+                // change would shut the panel before anything was chosen.
+                if (!opts?.keepOpen) closePanel();
               }}
             />
           </ToolbarChip>

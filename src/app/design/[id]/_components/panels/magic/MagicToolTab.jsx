@@ -192,9 +192,11 @@ export default function MagicToolTab({ toolId, insert, editor }) {
     <OptionPanelBody
       option={option}
       value={values[option.key]}
-      onSelect={(val) => {
+      onSelect={(val, opts) => {
         setValue(option.key, val);
-        setOpenOption(null);
+        // See OptionPanelBody — a colour drag or a hex being typed fires this
+        // continuously and must not collapse the row it is being typed into.
+        if (!opts?.keepOpen) setOpenOption(null);
       }}
     />
   );

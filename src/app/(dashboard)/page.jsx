@@ -14,7 +14,13 @@
 // That single alignment is what makes the page read as drafted rather than
 // stacked, so if you change the hero's height, change it via that variable.
 //
-// Everything routes into /studio/ai-chat-page, which reads:
+// Everything routes into /studio/ai-chat-page. The Import Site tab takes one
+// detour first — it POSTs the pasted link to /brands/import and makes the brand
+// that comes back the opening message, so the assistant starts the conversation
+// already knowing the site (see importSiteThenLaunch). Every other tab hands the
+// typed prompt straight over.
+//
+// The chat page reads:
 //   creative        the pipeline — always "general" here; the assistant infers
 //                   ads / social / design intent from the prompt itself
 //   initialMessage  the typed or dictated prompt
@@ -40,25 +46,32 @@ import HomePromptSuggestions from "@/app/(components)/home/HomePromptSuggestions
 import {
   HOME_COMPOSER_TABS,
   TAB_BRAND,
+  TAB_IMPORT,
   TAB_WEB,
   buildBrandPrompt,
+  buildImportedSitePrompt,
+  normalizeImportedBrand,
   placeholderForTab,
+  splitPromptUrl,
 } from "@/app/(components)/home/homeComposerTabs";
+import { toImagePayload } from "@/app/(components)/studio/attachmentUrls";
 
 /** The chat page's own pipeline key — see CREATIVE_CONFIG in ai-chat-page. */
 const DEFAULT_CREATIVE = "general";
 
 export default function Home() {
   const router = useRouter();
-  const { user, activeBrand, brandsLoading } = useAuth();
+  const { user, activeBrand, brandsLoading, sendUrl } = useAuth();
 
   // ── The composer's tab strip ───────────────────────────────────────────────
-  // ⚠️ THE SELECTED TAB IS NOT PART OF THE SUBMIT PAYLOAD YET. It changes the
-  // placeholder, and on "Active Brand" it seeds the prompt with the brand's
-  // details — nothing more. handleSubmit below is untouched by it on purpose;
-  // where each tab's details belong in the request is a separate, deliberate
-  // step still to come.
+  // The tab is part of submit for ONE of the three: Import Site scrapes the
+  // pasted link before anything is sent (handleSubmit below). Ai Chat and Brand
+  // Kit still only change the placeholder and what's seeded into the box.
   const [composerTab, setComposerTab] = useState(HOME_COMPOSER_TABS[0].id);
+  // The Import Site round trip. The user is still looking at the hero while it
+  // runs — nothing has navigated yet — so the composer shows it on the send
+  // button and refuses a second submit until it's done.
+  const [importing, setImporting] = useState(false);
   // The composer owns its own text; this is the handle it exposes so the brand
   // tab can write into it and take that text back out again.
   const composerRef = useRef(null);
@@ -147,10 +160,12 @@ export default function Home() {
   }, [user?.name]);
 
   /**
-   * Send the composer's payload to the chat page.
+   * Send a payload to the chat page. The prompt becomes the opening message and
+   * the assistant answers it there — this page does no talking to the AI itself.
+   *
    * @param {{prompt: string, model: string, mode: string, images: string[]}} payload
    */
-  const handleSubmit = ({ prompt, model, mode, images }) => {
+  const launchChat = ({ prompt, model, mode, images }) => {
     // Images ride the URL as their own repeated `image` param — they are NOT
     // folded into the message, because the API takes a separate `images` array.
     const params = new URLSearchParams({
@@ -165,6 +180,81 @@ export default function Home() {
       `🚀 [home] launching chat — model="${model}", mode="${mode}", ${images.length} image(s) attached`,
     );
     router.push(`/studio/ai-chat-page?${params.toString()}`);
+  };
+
+  /**
+   * Import Site's submit: read the brand off the pasted link, THEN open the chat
+   * with what came back as the opening message.
+   *
+   *   1. the link out of whatever was typed (a chip may have added a line under it)
+   *   2. POST it to /brands/import — AuthContext's `sendUrl`
+   *   3. the brand it returns, written out as the message, with the site's own
+   *      images attached so the assistant has real material to design against
+   *
+   * The composer has ALREADY cleared itself by the time this runs (it clears on
+   * submit, synchronously), so every failure path puts the text back — otherwise
+   * a bad link or a dead site costs the user what they typed and there is
+   * nothing on screen to retry with.
+   *
+   * @param {{prompt: string, model: string, mode: string, images: string[]}} payload
+   */
+  const importSiteThenLaunch = async ({ prompt, model, mode, images }) => {
+    const { url, rest } = splitPromptUrl(prompt);
+
+    if (!url) {
+      console.warn(`⚠️ [home] no link found in "${prompt}"`);
+      toast.error("Paste a website link — e.g. yourbrand.com — to import from.");
+      composerRef.current?.setPrompt(prompt);
+      return;
+    }
+
+    setImporting(true);
+    try {
+      console.log(`🌐 [home] importing ${url}`);
+      const result = await sendUrl(url);
+
+      // sendUrl returns undefined when there's no session rather than a result.
+      if (!result?.ok) {
+        throw new Error(result?.message || "We couldn't read that site.");
+      }
+
+      const brand = normalizeImportedBrand(result.data, url);
+      const message = buildImportedSitePrompt(brand, rest);
+      if (!message) {
+        throw new Error(
+          "That site didn't give us any brand details to work from.",
+        );
+      }
+
+      // The user's own attachments lead — toImagePayload keeps the first 10, so
+      // if the site returned a wall of images the ones they picked still survive.
+      const withSiteImages = toImagePayload([...images, ...brand.images]);
+      console.log(
+        `✅ [home] imported "${brand.name || url}" — ${brand.images.length} site image(s) found, sending ${withSiteImages.length}`,
+      );
+
+      launchChat({ prompt: message, model, mode, images: withSiteImages });
+    } catch (err) {
+      console.error("❌ [home] import failed:", err);
+      toast.error(err.message || "Import failed. Please try again.");
+      composerRef.current?.setPrompt(prompt);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  /**
+   * The composer submitted. Import Site takes the long way round; the other two
+   * tabs go straight to the chat.
+   *
+   * @param {{prompt: string, model: string, mode: string, images: string[]}} payload
+   */
+  const handleSubmit = (payload) => {
+    if (composerTab === TAB_IMPORT) {
+      importSiteThenLaunch(payload);
+      return;
+    }
+    launchChat(payload);
   };
 
   /**
@@ -355,6 +445,7 @@ export default function Home() {
                 placeholder={placeholderForTab(composerTab)}
                 onFocusedChange={setComposerFocused}
                 showModePicker={false}
+                submitting={importing}
                 showHint={false}
               />
             </ComposerShell>

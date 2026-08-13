@@ -399,7 +399,7 @@ const ReelsForm = ({
     setStep((p) => p + 1);
   };
 
-  // ── Generate — mirrors VideoAdsForm/PostForm ──────────────────────────────
+  // ── Generate — mirrors VideoAdsForm / SocialImageForm ─────────────────────
   // 1) fetch Scraive templates  2) upload File media → real URLs
   // 3) send templates + brand_id  4) stream batches into onResult
   const handleGenerate = async () => {

@@ -158,6 +158,11 @@ const PANEL_VARIANTS = {
  * @param {boolean} [props.showModelPicker] Show the model menu. Hiding it does
  *   NOT drop the field from the payload — `model` still travels, at its default.
  * @param {boolean} [props.showModePicker]  Same for the Build/Plan menu.
+ * @param {boolean} [props.submitting] The PARENT is still handling the last
+ *   submit — send turns into a spinner and neither the button nor Enter can fire
+ *   again until it clears. For work the parent does before the user goes
+ *   anywhere: the home page's Import Site tab scrapes the pasted link and only
+ *   then navigates, which is a wait with nothing else on screen to show it.
  * @param {boolean} [props.showHint] Show the "Enter to send" line underneath.
  *   ⚠️ Turning it off removes the whole status row, dictation's "Recording…"
  *   included. The mic itself still turns into a red stop button and the
@@ -182,6 +187,7 @@ export default function PromptComposer({
   onFocusedChange,
   showModelPicker = true,
   showModePicker = true,
+  submitting = false,
   showHint = true,
   ref,
 }) {
@@ -334,7 +340,7 @@ export default function PromptComposer({
     textareaRef.current?.focus();
   }, [autoFocus]);
 
-  const busy = uploading || voice.transcribing;
+  const busy = uploading || voice.transcribing || submitting;
   // Text is REQUIRED — the API's `message` is `required|string`, so images alone
   // is not a sendable request. Attaching without typing leaves send disabled.
   const canSubmit = value.trim().length > 0 && !busy;
@@ -539,7 +545,11 @@ export default function PromptComposer({
                 : "bg-gray-100 text-gray-400 cursor-not-allowed"
             }`}
           >
-            <ArrowUp className="h-4 w-4" />
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowUp className="h-4 w-4" />
+            )}
           </button>
         </div>
 

@@ -34,10 +34,12 @@ import {
   publishToMetaAds,
   fetchLivePostsFromConnectedAccounts,
   deletePostFromPlatform,
+  platformSupportsDelete,
 } from "../../../../../(lib)/integration";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import EditPostModal from "./_components/EditPostModal";
+import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
 const BRAND = "#003dda";
@@ -59,6 +61,21 @@ function formatDate(iso) {
 }
 function isAfterNow(iso) {
   return iso && new Date() > new Date(iso);
+}
+
+// Says what a delete actually does for this post — Facebook posts come down for
+// real, a platform without a delete API can only be dropped from this list.
+function deleteMessage(post) {
+  const title = post.project_title || "Untitled";
+  const label = PLATFORM_META[post.platform]?.label || post.platform;
+
+  if (!post.post_id)
+    return `“${title}” will be removed from your publishing list. This can't be undone.`;
+
+  if (platformSupportsDelete(post.platform))
+    return `“${title}” will be deleted from ${label} and removed from your publishing list. This can't be undone.`;
+
+  return `“${title}” will be removed from your publishing list, but ${label} has no delete API — the post stays live there.`;
 }
 
 /* ─── Platform config ─── */
@@ -248,6 +265,9 @@ export default function SocialPublishing() {
   const [fetchingLive, setFetchingLive] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
   const [publishingNow, setPublishingNow] = useState(null);
+  // The post the trash icon armed — deleting is irreversible, so it waits on a confirm.
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -390,10 +410,20 @@ export default function SocialPublishing() {
     setPage(1);
   }, [statusFilter, platformFilter, search]);
 
-  const handleDelete = async (post) => {
-    await deletePostFromPlatform(post);
-    reload();
-    toast.success("Post removed");
+  const handleDelete = async () => {
+    const post = pendingDelete;
+    if (!post) return;
+    setDeleting(true);
+    try {
+      await deletePostFromPlatform(post, integrations);
+      reload();
+      toast.success("Post removed");
+    } catch {
+      toast.error("Failed to remove post");
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
+    }
   };
 
   const handlePublishNow = async (post) => {
@@ -862,7 +892,7 @@ export default function SocialPublishing() {
                           )}
                           <button
                             className="h-7 w-7 rounded-md flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            onClick={() => handleDelete(post)}
+                            onClick={() => setPendingDelete(post)}
                             title="Delete"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -941,6 +971,17 @@ export default function SocialPublishing() {
           onSaved={reload}
         />
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete this post?"
+        message={pendingDelete ? deleteMessage(pendingDelete) : ""}
+        confirmLabel={deleting ? "Deleting…" : "Delete"}
+        variant="danger"
+        busy={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

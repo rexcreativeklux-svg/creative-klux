@@ -1,5 +1,28 @@
 "use client";
-// forms/PostsForm.jsx
+// forms/SocialImageForm.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// The Social Creative "Image" tab — every social image, in one form.
+//
+// It replaces four near-identical forms (PostForm, BannersForm, ThumbnailsForm,
+// MemesTrendForm — ~4,600 lines between them) that shared this entire skeleton:
+// the same 3-step wizard, the same URL import, the same crop/pick/upload
+// pipeline, the same streaming generate. What actually differed between them was
+// a size list, a handful of fields, and the labels — so that is all that is
+// per-kind now. See KINDS in social/socialSizes.js.
+//
+// ⚠️ THE KIND IS A TAG, NOT A ROUTE. Which of the four you are making is chosen
+// INSIDE this form and changes nothing structural — the wizard, the images and
+// the generate call are the same either way. That matters for one thing in
+// particular: the backend must still be told it is making a channel cover rather
+// than a feed post, and it is, via `kind.subType` → create_sub_type. The
+// category the studio page hands down is now "image" for all four and is
+// deliberately NOT what gets sent.
+//
+// ⚠️ THERE IS NO TARGET PLATFORM FIELD, and its absence is the point. The size
+// presets are platform-named, so the form used to ask the same question twice
+// and let the two answers disagree — "Facebook Feed" tagged Instagram. The
+// platform now comes off the selected size (`size.platform`), and sizes that
+// name no platform send none rather than guessing.
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
@@ -13,7 +36,6 @@ import {
   Images,
   Scan,
   Type,
-  Hash,
 } from "lucide-react";
 import FullOverlayLoader from "@/app/(components)/loaders/full-overlay-loader";
 import { useAuth } from "@/context/AuthContext";
@@ -29,69 +51,21 @@ import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 
+import { KINDS, AUDIENCES, kindById, sizeByLabel } from "./social/socialSizes";
+import { ToneField, CtaField, StyleField } from "./social/KindFields";
+
 // ── constants ─────────────────────────────────────────────────────────────────
-const SIZE_OPTIONS = [
-  { value: "1200x627", label: "LinkedIn Horizontal" },
-  { value: "1080x1080", label: "LinkedIn Square" },
-  { value: "1080x1080", label: "Instagram Square" },
-  { value: "1080x1350", label: "Instagram Portrait" },
-  { value: "1080x1920", label: "Stories / Reels" },
-  { value: "1200x630", label: "Facebook Feed" },
-  { value: "1600x900", label: "Twitter / X Post" },
-  { value: "1000x1500", label: "Pinterest Pin" },
-];
-
-const CAMPAIGN_GOALS = [
-  "Brand Awareness",
-  "Engagement",
-  "Sales",
-  "Lead Generation",
-  "Website Traffic",
-];
-
-const AUDIENCES = [
-  { value: "B2B", label: "B2B", desc: "Business owners, startups, agencies" },
-  { value: "B2C", label: "B2C", desc: "End consumers, everyday users" },
-  { value: "Casual", label: "Casual", desc: "Broad social media audience" },
-  {
-    value: "Inspirational",
-    label: "Inspirational",
-    desc: "Entrepreneurs & creators",
-  },
-  { value: "Sales", label: "Sales", desc: "Hot leads, ad audiences" },
-];
-
-const FILE_FORMATS = ["PNG", "JPEG", "WEBP", "AVIF"];
-
-const TONES = [
-  { value: "professional", label: "Professional" },
-  { value: "casual", label: "Casual" },
-  { value: "humorous", label: "Humorous" },
-  { value: "inspirational", label: "Inspirational" },
-  { value: "urgent", label: "Urgent" },
-  { value: "educational", label: "Educational" },
-];
-
-const PLATFORMS = [
-  { value: "instagram", label: "Instagram" },
-  { value: "linkedin", label: "LinkedIn" },
-  { value: "facebook", label: "Facebook" },
-  { value: "twitter", label: "Twitter / X" },
-  { value: "tiktok", label: "TikTok" },
-  { value: "pinterest", label: "Pinterest" },
-];
-
 const BRAND_COLORS = ["#2563eb", "#0ea5e9", "#8b5cf6", "#ec4899", "#ef4444"];
 
 const STEPS = [
-  { id: 1, label: "Post Details", icon: Type },
+  { id: 1, label: "Details", icon: Type },
   { id: 2, label: "Size, Goals & Audience", icon: Scan },
   { id: 3, label: "Background Image", icon: Images },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PostsForm = ({
+const SocialImageForm = ({
   formData,
   setFormData,
   activeBrand,
@@ -100,7 +74,6 @@ const PostsForm = ({
   onResult,
   generateCustomCreative,
   creative,
-  categoryId,
   fetchDesignTemplates,
 }) => {
   const { uploadMedia, activeBrandId } = useAuth();
@@ -112,6 +85,11 @@ const PostsForm = ({
   );
   const [importingBrand, setImportingBrand] = useState(false);
   const [generating, setGenerating] = useState(false);
+
+  // Which of the four this is. Lives on formData rather than in local state so
+  // it survives the studio page remounting the form, and so the payload builder
+  // reads it from the same place as everything else.
+  const kind = kindById(formData.socialKind);
 
   // ── image state ──────────────────────────────────────────────────────────
   const [imageSrc, setImageSrc] = useState([]);
@@ -146,9 +124,8 @@ const PostsForm = ({
   }, [croppedImages]);
 
   // ── field helper ──────────────────────────────────────────────────────────
-  // Mirrors ImageAdsForm: color keys are kept bidirectionally in sync so that
-  // brandColor and primaryColor always reflect the same value regardless of
-  // which key the parent or payload consumer reads.
+  // Colour keys are kept bidirectionally in sync so brandColor and primaryColor
+  // always reflect the same value regardless of which key a consumer reads.
   const field = (key, value) => {
     if (
       key === "primaryColor" ||
@@ -160,8 +137,6 @@ const PostsForm = ({
     setFormData((prev) => ({
       ...prev,
       [key]: value,
-
-      // ✅ keep brandColor ↔ primaryColor in sync (mirrors ImageAdsForm pattern)
       ...(key === "primaryColor" && { brandColor: value }),
       ...(key === "brandColor" && { primaryColor: value }),
     }));
@@ -169,29 +144,52 @@ const PostsForm = ({
     setError("");
   };
 
-  // Select a size preset by its unique label. Values can repeat (LinkedIn Square
-  // and Instagram Square are both 1080x1080), so tracking only the value would
-  // highlight both and resolve the wrong Scraive category — we store the label.
+  // Select a size preset by its unique LABEL. Values repeat — LinkedIn Square
+  // and Instagram Square are both 1080x1080 — so tracking only the value would
+  // highlight both tiles and resolve the wrong template category.
   const selectSize = (s) => {
     setFormData((prev) => ({ ...prev, size: s.value, sizeLabel: s.label }));
     setError("");
   };
 
-  // The label of the currently selected size. Falls back to the first option
-  // matching the stored value (so exactly one is active before any click).
+  // The label of the currently selected size, resolved within the current kind.
   const activeSizeLabel =
-    formData.sizeLabel ||
-    SIZE_OPTIONS.find((s) => s.value === formData.size)?.label ||
+    kind.sizes.find((s) => s.label === formData.sizeLabel)?.label ||
+    kind.sizes.find((s) => s.value === formData.size)?.label ||
     "";
 
-  const togglePlatform = (val) => {
-    const current = formData.platforms || [];
-    field(
-      "platforms",
-      current.includes(val)
-        ? current.filter((v) => v !== val)
-        : [...current, val],
-    );
+  // The full selected size — where the platform and template category come from.
+  const activeSize = sizeByLabel(kind.id, activeSizeLabel);
+
+  /**
+   * Switch kind.
+   *
+   * ⚠️ EVERY KIND-SCOPED CHOICE HAS TO BE RE-RESOLVED HERE, not just the size.
+   * The four kinds offer genuinely different campaign goals, file formats and
+   * visual styles — a thumbnail chases "Subscriber Growth", a banner offers SVG,
+   * neither of which exists on the other. Carrying a stale value across meant
+   * the form showed nothing selected while formData still held the old answer,
+   * and that answer was what got generated. So anything the new kind doesn't
+   * offer falls back to its first option.
+   */
+  const selectKind = (next) => {
+    const size = next.sizes[0];
+    setFormData((prev) => ({
+      ...prev,
+      socialKind: next.id,
+      size: size.value,
+      sizeLabel: size.label,
+      campaignGoal: next.goals.includes(prev.campaignGoal)
+        ? prev.campaignGoal
+        : next.goals[0],
+      fileFormat: next.formats.includes(prev.fileFormat)
+        ? prev.fileFormat
+        : next.formats[0],
+      visualStyle: next.styles?.some((s) => s.value === prev.visualStyle)
+        ? prev.visualStyle
+        : next.styles?.[0]?.value || prev.visualStyle,
+    }));
+    setError("");
   };
 
   // ── URL import ────────────────────────────────────────────────────────────
@@ -206,7 +204,6 @@ const PostsForm = ({
         ...p,
         brandName: d.name || "",
         description: d.description || "",
-        // sync both color keys on import
         primaryColor: d.primary_color || "#2563eb",
         brandColor: d.primary_color || "#2563eb",
         secondaryColor: d.secondary_color || "#0ea5e9",
@@ -419,7 +416,23 @@ const PostsForm = ({
     } else {
       setShowCropper(false);
     }
-  }, [completedCrop, currentCropIndex, imageSrc.length, imageSrcMeta]);
+    // ⚠️ THE SETTERS BELONG IN HERE even though they are stable. The React
+    // Compiler infers them as dependencies and refuses to compile the whole
+    // component when the hand-written list disagrees ("existing memoization
+    // could not be preserved") — so leaving them out costs the file its
+    // optimization to save four identifiers. They never change identity, so
+    // listing them changes nothing about when this callback is rebuilt.
+  }, [
+    completedCrop,
+    currentCropIndex,
+    imageSrc.length,
+    imageSrcMeta,
+    setCroppedImages,
+    setCurrentCropIndex,
+    setCrop,
+    setCompletedCrop,
+    setShowCropper,
+  ]);
 
   // ── Skip crop ─────────────────────────────────────────────────────────────
   const handleSkipCrop = () => {
@@ -469,11 +482,13 @@ const PostsForm = ({
   const handleContinue = () => {
     if (step === 1 && !formData.brandName)
       return setError("Brand name is required.");
+    // Audience is only required where the kind actually asks for one —
+    // thumbnails never had that field.
     if (
       step === 2 &&
       (!formData.size ||
         !formData.campaignGoal ||
-        !formData.audience ||
+        (kind.audience && !formData.audience) ||
         !formData.fileFormat)
     )
       return setError("Please complete all fields before continuing.");
@@ -483,12 +498,12 @@ const PostsForm = ({
     setStep((p) => p + 1);
   };
 
-  // ── Generate — mirrors ImageAdsForm / create-from-url ────────────────────
+  // ── Generate ──────────────────────────────────────────────────────────────
   // 1) fetch Scraive templates  2) upload File images → real URLs
   // 3) send templates + brand_id  4) stream batches into onResult
   const handleGenerate = async () => {
     if (!formData.size) {
-      const msg = "Please select a post size.";
+      const msg = `Please select a ${kind.sizeLabel.toLowerCase()}.`;
       setError(msg);
       showToast(msg);
       return;
@@ -508,22 +523,20 @@ const PostsForm = ({
     setError("");
 
     try {
-      // Resolve the selected size's label (Scraive category). Prefer the stored
-      // label — value alone is ambiguous when two presets share dimensions.
-      const sizeLabel =
-        formData.sizeLabel ||
-        SIZE_OPTIONS.find((s) => s.value === formData.size)?.label ||
-        formData.size;
+      // The Scraive template category for the selected size. Usually the size's
+      // own label, but thumbnails carry their own (an Instagram thumbnail wants
+      // "Instagram Square" templates) — hence reading it off the catalog rather
+      // than deriving it from the label here.
+      const templateCategory = activeSize?.category || formData.size;
 
       // 1. FETCH DESIGN TEMPLATES FIRST (redesign engine only)
-      // Scraive templates are only needed by the "redesign" engine. Involk
-      // generates from scratch, so skip the fetch + gate entirely — otherwise an
-      // empty template list wrongly blocks Involk with "No templates found".
+      // Involk generates from scratch, so skip the fetch + gate entirely —
+      // otherwise an empty template list wrongly blocks it with "No templates".
       let selectedTemplates = [];
       if (CREATIVE_ENGINE === "redesign") {
         const templateRes = await fetchDesignTemplates({
           type: "image",
-          category: sizeLabel,
+          category: templateCategory,
           type_size: formData.size,
           design_type: "social",
         });
@@ -587,7 +600,12 @@ const PostsForm = ({
       // 3. BUILD PAYLOAD
       const payload = {
         creativeType: creative?.id, // "social_creative" → creative_type "social"
-        categoryType: categoryId, // "posts" → create_sub_type
+
+        // ⚠️ THE KIND'S SUB-TYPE, NOT THE TAB. The studio page's category is
+        // "image" for all four kinds now; sending that would tell the generator
+        // nothing and lose the cover/post/thumbnail/meme distinction it uses.
+        categoryType: kind.subType,
+
         brand_id: activeBrandId,
 
         brandName: formData.brandName || null,
@@ -599,16 +617,37 @@ const PostsForm = ({
         sourceUrl: brandUrl || null,
 
         size: formData.size,
+        // Which preset that size came from — "Facebook Cover" reads very
+        // differently from a bare "820x312". The banners form sent this; it now
+        // goes for every kind.
+        sizeLabel: activeSizeLabel || null,
         campaignGoal: formData.campaignGoal || null,
-        audience: formData.audience || null,
+        audience: kind.audience ? formData.audience || null : null,
         fileFormat: formData.fileFormat || null,
 
         caption: formData.caption || null,
         hashtags: formData.hashtags || [],
-        tone: formData.tone || null,
-        platforms: formData.platforms || [],
 
-        category: sizeLabel?.toLowerCase().replace(/\s+/g, "_"),
+        // ⚠️ DERIVED FROM THE SIZE — see the file header. An array of one (or of
+        // none) rather than a scalar, because that is the shape this field has
+        // always had and AdPreview / the publish flow read it as a list.
+        platforms: activeSize?.platform ? [activeSize.platform] : [],
+
+        // Only the fields the selected kind actually shows, so a thumbnail
+        // request doesn't carry an empty `cta` and a banner doesn't carry a tone
+        // nobody chose.
+        ...(kind.tone ? { tone: formData.tone || null } : {}),
+        ...(kind.cta ? { cta: formData.cta || null } : {}),
+
+        // The thumbnails form sent its platform under this key as well as being
+        // the thing that picked the size. Kept — `platforms` above is the new
+        // home for it, but quietly dropping a field the generator may key on is
+        // not what this merge is for.
+        ...(kind.id === "thumbnail"
+          ? { thumbnailPlatform: activeSize?.platform || null }
+          : {}),
+
+        category: templateCategory?.toLowerCase().replace(/\s+/g, "_"),
         type_size: formData.size,
         images: imageUrls,
         templates: selectedTemplates,
@@ -629,7 +668,7 @@ const PostsForm = ({
             type: "design",
             variations,
             assets,
-            // Involk has no templates — fall back to the returned variation count.
+            // Involk has no templates — fall back to the returned count.
             expectedCount: expectedCount || variations.length,
             done: false,
             reply: batch.data?.reply || "",
@@ -673,6 +712,11 @@ const PostsForm = ({
   const selectedCount = croppedImages.filter(Boolean).length;
   const canGenerate = meetsImageMinimum(selectedCount);
 
+  // Step 2's heading follows the kind — "& Audience" is a lie on thumbnails.
+  const stepTwoTitle = kind.audience
+    ? "Size, Goals & Audience"
+    : "Size, Goals & Format";
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
@@ -681,6 +725,7 @@ const PostsForm = ({
         <div className="flex items-center justify-between gap-2">
           {STEPS.map((s, idx) => {
             const Icon = s.icon;
+            const label = s.id === 1 ? `${kind.label} Details` : s.label;
             return (
               <React.Fragment key={s.id}>
                 <button
@@ -705,7 +750,7 @@ const PostsForm = ({
                   <span
                     className={`hidden sm:block text-xs font-medium truncate ${step >= s.id ? "text-gray-700" : "text-gray-300"}`}
                   >
-                    {s.label}
+                    {label}
                   </span>
                 </button>
                 {idx < STEPS.length - 1 && (
@@ -727,10 +772,36 @@ const PostsForm = ({
           </div>
         )}
 
-        {/* ═══ STEP 1 — Post Details ════════════════════════════════════════ */}
+        {/* ═══ STEP 1 — Details ═════════════════════════════════════════════ */}
         {step === 1 && (
           <div className="flex flex-col gap-5">
-            <SectionTitle>Post Details</SectionTitle>
+            {/* ── Kind tag ──
+                What used to be four tabs. It sits above the section title
+                rather than among the fields because it decides what the rest of
+                the form IS — the sizes below it, the extra fields, and the
+                sub-type the backend is told. */}
+            <div className="flex flex-col gap-2">
+              <SectionTitle>{kind.label} Details</SectionTitle>
+              <div className="flex flex-wrap gap-2">
+                {KINDS.map((k) => {
+                  const active = k.id === kind.id;
+                  return (
+                    <button
+                      key={k.id}
+                      onClick={() => selectKind(k)}
+                      aria-pressed={active}
+                      className={`px-3 py-1.5 rounded-md border-2 cursor-pointer text-xs font-semibold transition-all hover:scale-105 ${
+                        active
+                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          : "border-emerald-600/20 bg-surface text-emerald-700 hover:border-emerald-400"
+                      }`}
+                    >
+                      {k.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* URL import */}
             <div className="border border-emerald-100 rounded-xl p-4 bg-emerald-50/40">
@@ -766,103 +837,46 @@ const PostsForm = ({
               </div>
             </div>
 
-            <div className="">
-              <Field label="Brand Name / Project Name" required>
-                <input
-                  type="text"
-                  value={formData.brandName}
-                  onChange={(e) => field("brandName", e.target.value)}
-                  placeholder="Your Brand"
-                  className={inputCls}
-                />
-              </Field>
-              {/* <Field label="Project Name">
-                <input
-                  type="text" value={formData.projectName || ""}
-                  onChange={(e) => field("projectName", e.target.value)}
-                  placeholder="Campaign or project name"
-                  className={inputCls}
-                />
-              </Field> */}
-            </div>
+            <Field label="Brand Name / Project Name" required>
+              <input
+                type="text"
+                value={formData.brandName}
+                onChange={(e) => field("brandName", e.target.value)}
+                placeholder="Your Brand"
+                className={inputCls}
+              />
+            </Field>
 
-            <Field label="Post Description">
+            <Field label={kind.descLabel}>
               <textarea
                 value={formData.description}
                 onChange={(e) => field("description", e.target.value)}
-                placeholder="What is this post about? Describe the message, product, or story you want to tell…"
+                placeholder={kind.descPlaceholder}
                 rows={3}
                 className={`${inputCls} resize-none`}
               />
             </Field>
 
-            {/* <Field label="Caption">
-              <div className="relative">
-                <textarea
-                  value={formData.caption || ""}
-                  onChange={(e) => field("caption", e.target.value)}
-                  placeholder="Write your post caption here…"
-                  rows={2}
-                  maxLength={280}
-                  className={`${inputCls} resize-none pr-12`}
-                />
-                <span className="absolute bottom-2.5 right-3 text-xs text-gray-400">
-                  {280 - (formData.caption?.length || 0)}
-                </span>
-              </div>
-            </Field> */}
-
-            {/* <Field label="Hashtags">
-              <div className="relative">
-                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={(formData.hashtags || []).join(" ")}
-                  onChange={(e) => field("hashtags", e.target.value.split(" ").filter(Boolean))}
-                  placeholder="#SocialMedia #Brand #Marketing"
-                  className={`${inputCls} pl-9`}
-                />
-              </div>
-            </Field> */}
-
-            <Field label="Post Tone">
-              <div className="flex flex-wrap gap-2 py-1">
-                {TONES.map((t) => (
-                  <button
-                    key={t.value}
-                    onClick={() => field("tone", t.value)}
-                    className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
-                      formData.tone === t.value
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                        : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </Field>
-
-            <Field label="Target Platform">
-              <div className="flex flex-wrap gap-2 py-1">
-                {PLATFORMS.map((p) => {
-                  const active = (formData.platforms || []).includes(p.value);
-                  return (
-                    <button
-                      key={p.value}
-                      onClick={() => togglePlatform(p.value)}
-                      className={`px-3 py-1.5 rounded-md border cursor-pointer text-xs font-semibold transition-all ${
-                        active
-                          ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                          : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300"
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </Field>
+            {/* ── The selected kind's own fields ── */}
+            {kind.tone && (
+              <ToneField formData={formData} field={field} Field={Field} />
+            )}
+            {kind.cta && (
+              <CtaField
+                formData={formData}
+                field={field}
+                Field={Field}
+                inputCls={inputCls}
+              />
+            )}
+            {kind.styles && (
+              <StyleField
+                formData={formData}
+                field={field}
+                Field={Field}
+                styles={kind.styles}
+              />
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <Field label="Brand Color">
@@ -941,11 +955,11 @@ const PostsForm = ({
         {/* ═══ STEP 2 — Size, Goals & Audience ═════════════════════════════ */}
         {step === 2 && (
           <div className="flex flex-col gap-6">
-            <SectionTitle>Size, Goals & Audience</SectionTitle>
+            <SectionTitle>{stepTwoTitle}</SectionTitle>
 
-            <Field label="Post Size">
+            <Field label={kind.sizeLabel}>
               <div className="flex flex-wrap gap-2">
-                {SIZE_OPTIONS.map((s) => {
+                {kind.sizes.map((s) => {
                   const active = activeSizeLabel === s.label;
                   return (
                     <button
@@ -971,7 +985,7 @@ const PostsForm = ({
 
             <Field label="Campaign Goal">
               <div className="flex flex-wrap gap-2">
-                {CAMPAIGN_GOALS.map((g) => (
+                {kind.goals.map((g) => (
                   <button
                     key={g}
                     onClick={() => field("campaignGoal", g)}
@@ -987,32 +1001,36 @@ const PostsForm = ({
               </div>
             </Field>
 
-            <Field label="Audience">
-              <div className="flex flex-wrap gap-2">
-                {AUDIENCES.map((a) => (
-                  <button
-                    key={a.value}
-                    onClick={() => field("audience", a.value)}
-                    className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
-                      formData.audience === a.value
-                        ? "border-emerald-600 bg-emerald-50"
-                        : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    <p
-                      className={`text-xs font-semibold ${formData.audience === a.value ? "text-emerald-700" : "text-gray-700"}`}
+            {kind.audience && (
+              <Field label="Audience">
+                <div className="flex flex-wrap gap-2">
+                  {AUDIENCES.map((a) => (
+                    <button
+                      key={a.value}
+                      onClick={() => field("audience", a.value)}
+                      className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${
+                        formData.audience === a.value
+                          ? "border-emerald-600 bg-emerald-50"
+                          : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                      }`}
                     >
-                      {a.label}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{a.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </Field>
+                      <p
+                        className={`text-xs font-semibold ${formData.audience === a.value ? "text-emerald-700" : "text-gray-700"}`}
+                      >
+                        {a.label}
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {a.desc}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            )}
 
             <Field label="File Format">
               <div className="flex gap-2">
-                {FILE_FORMATS.map((f) => (
+                {kind.formats.map((f) => (
                   <button
                     key={f}
                     onClick={() => field("fileFormat", f)}
@@ -1165,9 +1183,7 @@ const PostsForm = ({
               onClick={handleGenerate}
               disabled={generating}
               aria-disabled={!canGenerate}
-              title={
-                !canGenerate ? imageGateMessage(selectedCount) : undefined
-              }
+              title={!canGenerate ? imageGateMessage(selectedCount) : undefined}
               className={`px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition disabled:opacity-60 ${
                 canGenerate
                   ? "cursor-pointer hover:bg-emerald-700 hover:scale-105"
@@ -1178,7 +1194,7 @@ const PostsForm = ({
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4" /> Generate Posts
+                  <Sparkles className="w-4 h-4" /> {kind.generateLabel}
                 </>
               )}
             </button>
@@ -1225,7 +1241,10 @@ const PostsForm = ({
 
       {generating && (
         <FullOverlayLoader
-          title="Generating your posts"
+          // "Generate Banners" → "Generating your banners". Taken off the
+          // button's own verb rather than the tag label, which pluralises badly
+          // ("banner / covers").
+          title={`Generating your ${kind.generateLabel.replace(/^Generate /, "").toLowerCase()}`}
           subtitle="Crafting copy, layout & visuals"
         />
       )}
@@ -1251,4 +1270,4 @@ const Field = ({ label, required, children }) => (
   </div>
 );
 
-export default PostsForm;
+export default SocialImageForm;

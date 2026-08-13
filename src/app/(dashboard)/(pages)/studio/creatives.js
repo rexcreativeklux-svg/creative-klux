@@ -35,12 +35,19 @@ export const CREATIVES = [
     inner: "Posts, reels, and stories for Instagram, TikTok, LinkedIn & more",
     icon: Share2,
     color: "#059669",       // emerald
+    // ⚠️ TWO CATEGORIES, NOT FIVE — and the missing three did not go away.
+    // Posts, Banners / Covers, Thumbnails and Memes / Trends all make an IMAGE
+    // and differed only in what the image is FOR, which is a detail, not the
+    // first question. They are one form now (SocialImageForm) and the old
+    // distinction is a tag row inside it — see KINDS in forms/social/socialSizes.
+    // Reels / Stories / Shorts is the one that makes a video, so it is Video.
+    //
+    // The backend still receives the ORIGINAL sub-types (posts, banners_covers,
+    // thumbnails, memes, reels); they come off that tag rather than off the
+    // category clicked here.
     categories: [
-      { id: "posts", label: "Posts" },
-      { id: "reels", label: "Reels / Stories / Shorts" },
-      { id: "banners_covers", label: "Banners / Covers" },
-      { id: "thumbnails", label: "Thumbnails" },
-      { id: "memes", label: "Memes / Trends" },
+      { id: "image", label: "Image" },
+      { id: "video", label: "Video" },
     ],
   },
   {

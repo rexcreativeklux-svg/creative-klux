@@ -27,25 +27,44 @@ import {
 import {
   getPublishedPosts,
   deletePostFromPlatform,
+  platformSupportsDelete,
   fetchLivePostsFromConnectedAccounts,
 } from "../../../../../(lib)/integration";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import Link from "next/link";
+import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import { CalendarSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
+// `label` is the abbreviation the dense calendar pills use; `name` is the full
+// one, for prose like the delete confirmation.
 const PLATFORM_META = {
-  facebook: { label: "FB", emoji: "🔵" },
-  instagram: { label: "IG", emoji: "📸" },
-  meta_ads: { label: "Meta", emoji: "📢" },
-  google_ads: { label: "G.Ads", emoji: "🔍" },
-  tiktok: { label: "TikTok", emoji: "🎵" },
-  tiktok_ads: { label: "TT.Ads", emoji: "🎯" },
-  linkedin: { label: "LI", emoji: "💼" },
-  twitter: { label: "X", emoji: "🐦" },
-  youtube: { label: "YT", emoji: "▶️" },
-  pinterest: { label: "PIN", emoji: "📌" },
+  facebook: { label: "FB", name: "Facebook", emoji: "🔵" },
+  instagram: { label: "IG", name: "Instagram", emoji: "📸" },
+  meta_ads: { label: "Meta", name: "Meta Ads", emoji: "📢" },
+  google_ads: { label: "G.Ads", name: "Google Ads", emoji: "🔍" },
+  tiktok: { label: "TikTok", name: "TikTok", emoji: "🎵" },
+  tiktok_ads: { label: "TT.Ads", name: "TikTok Ads", emoji: "🎯" },
+  linkedin: { label: "LI", name: "LinkedIn", emoji: "💼" },
+  twitter: { label: "X", name: "X", emoji: "🐦" },
+  youtube: { label: "YT", name: "YouTube", emoji: "▶️" },
+  pinterest: { label: "PIN", name: "Pinterest", emoji: "📌" },
 };
+
+// Says what a delete actually does for this post — Facebook posts come down for
+// real, a platform without a delete API can only be dropped from the calendar.
+function deleteMessage(post) {
+  const title = post.project_title || "Untitled";
+  const name = PLATFORM_META[post.platform]?.name || post.platform;
+
+  if (!post.post_id)
+    return `“${title}” will be removed from your calendar. This can't be undone.`;
+
+  if (platformSupportsDelete(post.platform))
+    return `“${title}” will be deleted from ${name} and removed from your calendar. This can't be undone.`;
+
+  return `“${title}” will be removed from your calendar, but ${name} has no delete API — the post stays live there.`;
+}
 
 const STATUS_BORDER = {
   published: "border-l-green-500",
@@ -102,10 +121,15 @@ export default function SocialContentCalendar() {
   const matchType = "social";
 
   const { fetchIntegrations, updateIntegration } = useAuth();
+  const [integrations, setIntegrations] = useState([]);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [allPosts, setAllPosts] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
+
+  // The post the trash icon armed — deleting is irreversible, so it waits on a confirm.
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Filters (mirror the Publishing page): status / platform / free-text search.
   const [statusFilter, setStatusFilter] = useState("all");
@@ -121,14 +145,13 @@ export default function SocialContentCalendar() {
 
   const fetchLive = useCallback(async () => {
     try {
-      const integrations = (await fetchIntegrations()) || [];
-      const livePosts = await fetchLivePostsFromConnectedAccounts(
-        integrations,
-        {
-          onTokenRotated: (id, rt) =>
-            updateIntegration(id, { refresh_token: rt }),
-        },
-      );
+      // Held in state as well — delete needs the tokens to remove the post from
+      // the platform, not just from localStorage.
+      const ints = (await fetchIntegrations()) || [];
+      setIntegrations(ints);
+      const livePosts = await fetchLivePostsFromConnectedAccounts(ints, {
+        onTokenRotated: (id, rt) => updateIntegration(id, { refresh_token: rt }),
+      });
 
       // Facebook is authoritative for status. Keep a local post ONLY when FB no longer
       // reports it, and never trust a local 'scheduled' — otherwise a stale local
@@ -200,10 +223,20 @@ export default function SocialContentCalendar() {
     return result;
   }, [posts, statusFilter, platformFilter, search]);
 
-  const handleDelete = async (post) => {
-    await deletePostFromPlatform(post);
-    await fetchLive(); // re-fetch (keeps live scheduled posts; reload() would drop them)
-    toast.success("Post removed");
+  const handleDelete = async () => {
+    const post = pendingDelete;
+    if (!post) return;
+    setDeleting(true);
+    try {
+      await deletePostFromPlatform(post, integrations);
+      await fetchLive(); // re-fetch (keeps live scheduled posts; reload() would drop them)
+      toast.success("Post removed");
+    } catch {
+      toast.error("Failed to remove post");
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
+    }
   };
 
   const monthStart = startOfMonth(currentMonth);
@@ -428,7 +461,7 @@ export default function SocialContentCalendar() {
                         <PostPill
                           key={post.id}
                           post={post}
-                          onDelete={() => handleDelete(post)}
+                          onDelete={() => setPendingDelete(post)}
                         />
                       ))}
                       {dayPosts.length > 3 && (
@@ -507,7 +540,7 @@ export default function SocialContentCalendar() {
                               )}
                             </div>
                             <button
-                              onClick={() => handleDelete(post)}
+                              onClick={() => setPendingDelete(post)}
                               className="text-red-300 hover:text-red-500 shrink-0 transition-colors"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -544,6 +577,17 @@ export default function SocialContentCalendar() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete this post?"
+        message={pendingDelete ? deleteMessage(pendingDelete) : ""}
+        confirmLabel={deleting ? "Deleting…" : "Delete"}
+        variant="danger"
+        busy={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

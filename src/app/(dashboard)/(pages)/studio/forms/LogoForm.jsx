@@ -328,7 +328,7 @@ const LogoForm = ({
     setStep((p) => p + 1);
   };
 
-  // ── Generate — mirrors PostForm.handleGenerate (socials) exactly ──────────
+  // ── Generate — mirrors SocialImageForm.handleGenerate exactly ────────────
   // Flow: fetch Scraive templates → POST /creatives/redesign in streamed
   // batches → preview + save. Identical contract to the working social/ads
   // forms; the only difference is design_type "designer".

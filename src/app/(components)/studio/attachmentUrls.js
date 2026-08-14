@@ -31,11 +31,30 @@ import { buildAcceptList } from "@/utils/helpers";
 export const CHAT_ATTACHMENT_CATEGORIES = ["image"];
 
 /**
+ * What the chat's "+" picker offers — the WHOLE gallery, matching what
+ * /gallery itself shows: images, videos, audio and documents.
+ *
+ * ⚠️ DELIBERATELY WIDER THAN THE API'S DOCUMENTED `images` ARRAY. Everything
+ * selected still travels in that one field, so a video reaches the backend in
+ * a slot named for images. That is the intended behaviour: the picker stops
+ * pretending the library is images-only, and the endpoint is the thing that
+ * decides what it can actually accept — a 422 naming the field is a better
+ * answer than a picker that silently hides half the user's media.
+ *
+ * Kept separate from CHAT_ATTACHMENT_CATEGORIES above, which the home
+ * composer (PromptComposer) still uses to stay images-only.
+ */
+export const CHAT_MEDIA_CATEGORIES = ["image", "video", "audio", "document"];
+
+/**
  * `accept` for the chat surfaces' file inputs — the image extensions the
  * BACKEND accepts, built from the same list every other upload path uses.
  * Not "image/*": that offers .svg/.heic/.tiff, which the API rejects.
  */
 export const CHAT_ATTACHMENT_ACCEPT = buildAcceptList(CHAT_ATTACHMENT_CATEGORIES);
+
+/** `accept` for the chat's own inputs — every category the gallery holds. */
+export const CHAT_MEDIA_ACCEPT = buildAcceptList(CHAT_MEDIA_CATEGORIES);
 
 /** API `images` cap (`max:10`). Enforced while attaching, not on send. */
 export const MAX_CHAT_IMAGES = 10;

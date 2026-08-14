@@ -97,6 +97,17 @@ export function AuthProvider({ children }) {
       const res = await fetch(url, {
         ...options,
         headers: {
+          // Say we want JSON, on EVERY call. Laravel only answers an auth
+          // failure with a JSON 401 when the request expectsJson(), which it
+          // decides from this header — without it the framework redirects to a
+          // login page instead. That 302 pointed at the FRONTEND origin, so
+          // fetch followed it cross-origin, the CORS check on the new target
+          // failed, and the whole thing surfaced as a bare "Failed to fetch"
+          // with no status to debug from. One header turns that back into a
+          // readable status and body.
+          //
+          // First in the object, so a caller passing its own Accept still wins.
+          Accept: "application/json",
           ...(options.headers || {}),
           Authorization: `Bearer ${token}`,
         },

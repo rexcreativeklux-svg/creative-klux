@@ -91,10 +91,6 @@ export default function Home() {
   // The composer owns its own text; this is the handle it exposes so the brand
   // tab can write into it and take that text back out again.
   const composerRef = useRef(null);
-  // Focus lives up here because the SHELL is what reacts to it: the assembly
-  // lifts as one object when the user starts typing, instead of the input
-  // growing a shadow of its own inside the tray that already surrounds it.
-  const [composerFocused, setComposerFocused] = useState(false);
 
   /**
    * Switch tabs, and do that tab's one job to the prompt box:
@@ -387,7 +383,7 @@ export default function Home() {
               the line under it stay one voice — see --font-manrope in
               globals.css. The rest of the app is still Inter. */}
           <header
-            className="animate-hero-in mb-7 text-center font-manrope"
+            className="animate-hero-in mb-8 text-center font-manrope sm:mb-14"
             style={{ animationDelay: "60ms" }}
           >
             {/* The name is optional but the greeting is not: an account still
@@ -420,8 +416,11 @@ export default function Home() {
               draws the tray and the tab row that starts flush against its left
               edge, and the composer sits inside it on the `inset` skin, which
               drops its own border and shadow so the tray is the only frame. The
-              translucent tray is what lets the hero's backdrop through as the
-              rim you see around the white input. */}
+              translucent tray is what lets the hero's fill through as the rim
+              you see around the white input.
+
+              The object is flat in every state — no shadow at rest, none on
+              focus. See the ⚠️ note on the tray in ComposerShell.jsx. */}
           <div
             className="animate-hero-in mx-auto w-full max-w-3xl"
             style={{ animationDelay: "180ms" }}
@@ -430,7 +429,6 @@ export default function Home() {
               tabs={HOME_COMPOSER_TABS}
               value={composerTab}
               onChange={handleTabChange}
-              elevated={composerFocused}
               ariaLabel="What you're creating"
             >
               {/* Four controls: pick a model, attach, dictate, send. The model
@@ -446,7 +444,6 @@ export default function Home() {
                 rows={4}
                 variant="inset"
                 placeholder={placeholderForTab(composerTab)}
-                onFocusedChange={setComposerFocused}
                 showModePicker={false}
                 submitting={importing}
                 showHint={false}

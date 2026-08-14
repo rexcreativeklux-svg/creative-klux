@@ -17,183 +17,171 @@ import { useState } from "react";
 import { Bot, Plus, Mic, ArrowUp } from "lucide-react";
 import PlatformChip from "./_components/PlatformChip";
 
+// ⚠️ ONE CATEGORY PER PRODUCT SURFACE, in sidebar order — Brand Kits, Social
+// Content, Ads Content, Ad Intelligence, Product Studio, Magic Studio. These
+// were Business / Productivity / Finance / Creative / Education / Home /
+// Travel, a generic assistant's taxonomy: Home and Travel had no honest
+// Creative Klux task to hold, and Finance offered to file the user's taxes.
+// A tab that promises work this product cannot do is worse than no tab.
+//
+// Renaming one means renaming its IDEAS key too — the lookup at `activeCategory`
+// is a bare string match with no id in between — and the default tab below.
 const CATEGORIES = [
-  "Business",
-  "Productivity",
-  "Finance",
-  "Creative",
-  "Education",
-  "Home",
-  "Travel",
+  "Brand",
+  "Social",
+  "Ads",
+  "Performance",
+  "Product",
+  "Studio",
 ];
 
 // Starter ideas per category. Keep each list a multiple of 3 so the desktop
 // grid's hairline dividers (gap-px over a gray backdrop) never show a bare
 // backdrop cell in the last row.
+//
+// ⚠️ EVERY CARD IS A STANDING TASK THIS PRODUCT COULD ACTUALLY RUN — check a
+// design against a brand kit, score an ad, batch a product shoot, publish to a
+// connected platform. This is the same rule the home composer's chips already
+// follow (see the note in (components)/home/homeSuggestions.js): a starter that
+// asks for something the app doesn't do is worse than one fewer starter. The
+// nouns come from the studios themselves — Product Studio's tools list, Magic
+// Studio's magicTools.js, Ad Intelligence's five analysers — so no card invents
+// a capability.
+//
+// ⚠️ `platforms` are ids from the integrations registry, so a chip only ever
+// shows somewhere the user can genuinely connect. An empty array is fine and
+// deliberate: a brand-kit audit or a background cleanup touches no platform,
+// and inventing a chip to balance the row would misdescribe the task.
+//
+// Cadence is the point of a Copilot card — each one opens with when it runs
+// ("Every Monday…", "When I upload…"), because a task with no trigger is a
+// prompt, and the user already has a box for those.
 const IDEAS = {
-  Business: [
+  Brand: [
     {
-      title: "Find new clients while I sleep",
-      platforms: ["linkedin", "gmail"],
+      title: "Keep everything on brand",
+      platforms: [],
       description:
-        "Every night, hunt for 10 new companies that fit my client profile, find the right contact, and draft an email I can send in the morning.",
+        "Every Friday, check the week's new designs against my brand kit and flag the ones that drift from my colors, fonts or logo.",
     },
     {
-      title: "Track my competitors",
-      platforms: ["tiktok", "linkedin"],
+      title: "Refresh my kit from my site",
+      platforms: [],
       description:
-        "Every Monday morning, check 3 competitors' websites, pricing, TikTok and LinkedIn for changes, and send me a brief.",
+        "Every month, re-import my website and show me what changed — new colors, a new logo, updated copy — before I approve it.",
     },
     {
-      title: "Capture leads automatically",
-      platforms: ["gmail", "sheets"],
+      title: "Kit out every new product",
+      platforms: ["instagram", "meta_ads"],
       description:
-        "Every morning, scan Gmail for new leads, log them in Google Sheets, and send intro replies.",
-    },
-    {
-      title: "Prepare me for tax season",
-      platforms: ["stripe", "sheets"],
-      description:
-        "Every quarter, pull my income and expenses into a Google Sheet organized for my accountant.",
-    },
-    {
-      title: "Track brand mentions daily",
-      platforms: ["tiktok"],
-      description:
-        "Every day, scan TikTok and the web for mentions of my company and summarize the sentiment.",
-    },
-    {
-      title: "Send me a weekly revenue summary",
-      platforms: ["stripe"],
-      description:
-        "Every Monday morning, pull last week's Stripe numbers vs the prior week and surface what changed.",
+        "When I add a product, build its launch set — post, story, ad and banner — in my brand's colors and fonts.",
     },
   ],
-  Productivity: [
+  Social: [
     {
-      title: "Plan my day each morning",
-      platforms: ["gmail"],
+      title: "Fill next week's calendar",
+      platforms: ["instagram", "tiktok"],
       description:
-        "Every morning, read my inbox and calendar, then send me a prioritized plan for the day.",
+        "Every Thursday, draft seven posts in my brand voice, size them per platform, and load them into next week's calendar.",
     },
     {
-      title: "Clean up my inbox weekly",
-      platforms: ["gmail"],
+      title: "Resize one design for everywhere",
+      platforms: ["instagram", "pinterest", "linkedin"],
       description:
-        "Every Friday, archive newsletters, flag what needs a reply, and summarize what I missed.",
+        "Whenever I save a design, produce it in every platform's size and queue the whole set for my review.",
     },
     {
-      title: "Summarize my meetings",
-      platforms: ["sheets"],
+      title: "Tell me what actually landed",
+      platforms: ["instagram", "facebook"],
       description:
-        "After each day, collect meeting notes into one doc with clear action items and owners.",
-    },
-  ],
-  Finance: [
-    {
-      title: "Watch my cash flow",
-      platforms: ["stripe", "sheets"],
-      description:
-        "Every week, compare income against spending and alert me when something looks off.",
-    },
-    {
-      title: "Chase unpaid invoices",
-      platforms: ["gmail", "stripe"],
-      description:
-        "Every Monday, find overdue invoices and draft polite follow-up emails ready to send.",
-    },
-    {
-      title: "Log expenses automatically",
-      platforms: ["sheets"],
-      description:
-        "Every day, pull new receipts from my inbox into a categorized expense sheet.",
+        "Every Monday, pull last week's reach and engagement per post and tell me which creative earned it.",
     },
   ],
-  Creative: [
+  Ads: [
     {
-      title: "Draft social posts weekly",
-      platforms: ["tiktok"],
+      title: "Never let creative go stale",
+      platforms: ["meta_ads", "google_ads"],
       description:
-        "Every Sunday, draft a week of post ideas based on my brand voice and current trends.",
+        "Every two weeks, build fresh variants for each running campaign and stage them ready to swap in.",
     },
     {
-      title: "Find trending content ideas",
-      platforms: ["tiktok"],
+      title: "Catch rejections before launch",
+      platforms: ["meta_ads", "tiktok_ads"],
       description:
-        "Every morning, scan TikTok trends in my niche and send me the top 5 with ready-made hooks.",
+        "Run every new ad through Ad Guard for policy issues and hold anything that would get knocked back.",
     },
     {
-      title: "Repurpose my best content",
-      platforms: ["linkedin"],
+      title: "Build my seasonal pushes early",
+      platforms: ["meta_ads", "pinterest_ads"],
       description:
-        "Each week, turn my top performing post into formats for every other platform.",
-    },
-  ],
-  Education: [
-    {
-      title: "Teach me something daily",
-      platforms: ["gmail"],
-      description:
-        "Every morning, send a 5-minute lesson on a topic I'm learning, with a quick quiz.",
-    },
-    {
-      title: "Summarize industry news",
-      platforms: ["gmail"],
-      description:
-        "Every day, digest the top stories in my field into a two-minute read.",
-    },
-    {
-      title: "Build my study plan",
-      platforms: ["sheets"],
-      description:
-        "Break my learning goal into a weekly plan and track my progress in a sheet.",
+        "A month before each sale, build the full ad set — every size, copy variant and headline — and schedule it.",
     },
   ],
-  Home: [
+  Performance: [
     {
-      title: "Plan my meals for the week",
-      platforms: ["sheets"],
+      title: "Score every ad before it runs",
+      platforms: ["meta_ads"],
       description:
-        "Every Saturday, plan 7 dinners with a grocery list sorted by aisle.",
+        "Score each new creative out of 100 and send me the priority fixes while there's still time to make them.",
     },
     {
-      title: "Track household bills",
-      platforms: ["sheets"],
+      title: "Watch what rivals are running",
+      platforms: ["tiktok", "meta_ads"],
       description:
-        "Log recurring bills, warn me before due dates, and flag price increases.",
+        "Every Monday, break down the ads my competitors are running and brief me on the angles they're testing.",
     },
     {
-      title: "Organize family events",
-      platforms: ["gmail"],
+      title: "Call my A/B tests for me",
+      platforms: ["meta_ads", "google_ads"],
       description:
-        "Watch my inbox for school and family events and add them to my calendar.",
+        "Compare my two running creatives head to head each week and say which to scale and which to cut.",
     },
   ],
-  Travel: [
+  Product: [
     {
-      title: "Watch flight prices",
-      platforms: ["gmail"],
+      title: "Clean up every product shot",
+      platforms: [],
       description:
-        "Track fares for trips I'm planning and email me when prices drop.",
+        "When I upload product photos, strip the backgrounds, straighten and beautify them, and file the set ready to use.",
     },
     {
-      title: "Build my itinerary",
-      platforms: ["sheets"],
+      title: "Stage my new arrivals in bulk",
+      platforms: ["instagram", "pinterest"],
       description:
-        "Turn my booked trips into a day-by-day itinerary with maps and times.",
+        "Run each week's new arrivals through batch staging so every product gets a lifestyle shot and a flat lay.",
     },
     {
-      title: "Pack like a pro",
-      platforms: ["gmail"],
+      title: "Put my clothing on a model",
+      platforms: ["instagram", "tiktok"],
       description:
-        "Before each trip, send a packing list based on the weather and trip length.",
+        "For every new apparel item, generate ghost-mannequin and virtual-model versions sized for my shop and socials.",
+    },
+  ],
+  Studio: [
+    {
+      title: "Turn my scripts into video",
+      platforms: ["youtube", "tiktok"],
+      description:
+        "Give me a finished voiceover video from each script I write, cut to length for YouTube and TikTok.",
+    },
+    {
+      title: "Spin variations off my best",
+      platforms: ["instagram"],
+      description:
+        "Take my top performing image each week and generate a set of variations to test against it.",
+    },
+    {
+      title: "Speak to each persona",
+      platforms: ["linkedin", "twitter"],
+      description:
+        "Regenerate my current campaign once per audience persona, with the copy and imagery rewritten for who they are.",
     },
   ],
 };
 
 export default function CopilotHome() {
   const [task, setTask] = useState("");
-  const [activeCategory, setActiveCategory] = useState("Business");
+  const [activeCategory, setActiveCategory] = useState("Brand");
   const ideas = IDEAS[activeCategory] ?? [];
 
   return (

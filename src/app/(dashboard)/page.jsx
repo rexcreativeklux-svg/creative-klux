@@ -35,7 +35,7 @@
 // the hero's flat #eef1f7 light fill, held in common with /copilot; dark mode
 // hands it straight back to bg-page.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -43,6 +43,10 @@ import ComposerShell from "@/app/(components)/studio/ComposerShell";
 import PromptComposer from "@/app/(components)/studio/PromptComposer";
 import TemplatesSection from "@/app/(components)/studio/TemplatesSection";
 import QuickStartCards from "@/app/(components)/home/QuickStartCards";
+import {
+  firstGreetingForHour,
+  randomGreetingForHour,
+} from "@/app/(components)/home/homeGreetings";
 import HomePromptSuggestions from "@/app/(components)/home/HomePromptSuggestions";
 import {
   HOME_COMPOSER_TABS,
@@ -60,20 +64,6 @@ import { toImagePayload } from "@/app/(components)/studio/attachmentUrls";
 /** The chat page's own pipeline key — see CREATIVE_CONFIG in ai-chat-page. */
 const DEFAULT_CREATIVE = "general";
 
-/**
- * The time-of-day greeting, from a 0–23 hour.
- *
- * The boundaries are the conversational ones rather than the astronomical
- * ones: afternoon starts at noon, evening at 5pm — which is when people start
- * saying it, and it keeps "good evening" off a screen at 5:30pm in summer.
- * There is deliberately no "good night" band; someone working at 2am is still
- * being greeted, not sent to bed.
- */
-function greetingForHour(hour) {
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-}
 
 export default function Home() {
   const router = useRouter();
@@ -165,26 +155,26 @@ export default function Home() {
     composerRef.current?.appendPrompt(suggestion);
   };
 
-  // First name only — "Good morning, Kingsley." reads better than the full
-  // account name.
-  const firstName = useMemo(() => {
-    const name = (user?.name || "").trim();
-    return name ? name.split(/\s+/)[0] : "";
-  }, [user?.name]);
-
-  // The greeting follows the USER'S clock, which only the browser knows — the
+  // The headline follows the USER'S clock, which only the browser knows — the
   // server renders in its own timezone and would hand someone eating breakfast
-  // a "Good evening". So first paint uses whatever hour the render happens in
-  // and the effect settles it on mount; `suppressHydrationWarning` on the <h1>
-  // is what keeps React quiet about that one-render difference.
+  // an "Evening shift, full focus." So first paint takes the band's FIRST line
+  // at whatever hour the render happens in (deterministic, so the server's HTML
+  // and the client's first render agree), and the effect settles both the hour
+  // and the random pick on mount. `suppressHydrationWarning` on the <h1> and its
+  // accent span is what keeps React quiet about that one-render difference.
+  //
+  // ⚠️ THE RANDOM PICK BELONGS IN THE EFFECT, NOT IN useState. Randomising the
+  // initial value would give the server one line and the client another on the
+  // very first render, which is a real mismatch rather than a suppressible one.
   //
   // Read on every mount rather than once at module scope, so a tab left open
-  // overnight still greets correctly on the next visit.
+  // overnight still greets correctly — and lands on a different line — on the
+  // next visit.
   const [greeting, setGreeting] = useState(() =>
-    greetingForHour(new Date().getHours()),
+    firstGreetingForHour(new Date().getHours()),
   );
   useEffect(() => {
-    setGreeting(greetingForHour(new Date().getHours()));
+    setGreeting(randomGreetingForHour(new Date().getHours()));
   }, []);
 
   /**
@@ -366,6 +356,11 @@ export default function Home() {
           The hero carries the flat #eef1f7 fill (the same value /copilot uses)
           rather than the wrapper, so the template rail below keeps sitting on
           bg-page. Dark mode falls back to the page token, as it does there.
+          This flat fill is the WHOLE hero background — there is no decorative
+          layer over it any more. It has now been both a nineteen-frame rotating
+          gradient (RotatingHeroBackdrop) and an animated mesh/grid/streams
+          backdrop (AiHeroBackdrop); both are gone, and the hero is the fill, the
+          type and the composer.
 
           pt-[clamp(...)] is what lowers the composer toward the optical centre:
           top padding moves the centred block down by half the padding, and
@@ -386,15 +381,32 @@ export default function Home() {
             className="animate-hero-in mb-8 text-center font-manrope sm:mb-14"
             style={{ animationDelay: "60ms" }}
           >
-            {/* The name is optional but the greeting is not: an account still
-                loading (or one with no name on it) gets "Good morning." rather
-                than a heading that pops in late and shifts the composer down. */}
+            {/* One line from the band for the current hour — the pool lives in
+                homeGreetings.js, which is also where the length ceiling and the
+                band boundaries are explained. No name in it any more: the
+                variety is what makes the hero feel addressed to someone, and a
+                name that arrives with the account made the heading pop in late
+                and shift the composer down.
+
+                ⚠️ BOTH LINES FOLLOW /copilot'S HEADING: gray-900 body with ONE
+                blue-600 phrase inside it, the way "Give your Copilot its first
+                task." blues only the word Copilot. The blue is a highlight on a
+                dark line, not the line's own colour — blue the whole heading and
+                it stops being emphasis. `accent` is that phrase, which is why
+                every line in the pool is stored pre-split.
+
+                suppressHydrationWarning on BOTH elements: the h1 covers its own
+                text nodes (`lead` and `tail`), the span covers `accent`. The
+                parent's flag does not reach into a child element's text. */}
             <h1
               suppressHydrationWarning
               className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900"
             >
-              {firstName ? `${greeting}, ${firstName}` : greeting}
-              <span className="text-blue-600">.</span>
+              {greeting.lead}{" "}
+              <span suppressHydrationWarning className="text-blue-600">
+                {greeting.accent}
+              </span>
+              {greeting.tail}
             </h1>
             {/* Roughly half the greeting's size, so this reads as the line
                 UNDER "Good <time>, <name>." rather than as a second heading
@@ -402,10 +414,17 @@ export default function Home() {
                 lines and took over the hero. One line at every width from `sm`
                 up. `text-balance` is still here for the narrow end, where these
                 62 characters do wrap: it evens the lines out instead of leaving
-                two words stranded on the second. */}
-            <h2 className="mt-2 text-balance text-[clamp(15px,1.5vw,19px)] font-medium leading-snug tracking-tight text-gray-600">
-              Turn any idea into scroll-stopping ads, social content, and
-              designs.
+                two words stranded on the second.
+
+                gray-900 like the greeting, not the gray-600 it used to be, so
+                both lines carry /copilot's text colour. SIZE AND WEIGHT are what
+                keep this subordinate now — half the greeting's size and medium
+                against its bold — which is the hierarchy that was doing the real
+                work anyway; the lighter grey was only ever reinforcing it. */}
+            <h2 className="mt-2 text-balance text-[clamp(15px,1.5vw,19px)] font-medium leading-snug tracking-tight text-gray-900">
+              Turn any idea into{" "}
+              <span className="text-blue-600">scroll-stopping</span> ads, social
+              content, and designs.
             </h2>
           </header>
 

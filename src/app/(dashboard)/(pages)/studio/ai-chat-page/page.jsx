@@ -152,11 +152,82 @@ function DesignCanvas({ variation }) {
   );
 }
 
-/** What the pane says it is doing, per stage of the create flow. */
-const STAGE_LABEL = {
-  templates: "Finding a matching template…",
-  designs: "Building your designs…",
+/* ─── stage narration ──────────────────────────────────────────
+   What the pane says it is doing, per stage of the create flow.
+
+   A LIST per stage, not one string. Each stage is a single opaque request —
+   the template fetch, then the redesign — and either can run long enough that
+   one frozen sentence starts reading as a hung process rather than a slow one.
+   Rotating the wording is what tells the reader time is still passing.
+
+   ⚠️ These are a narration of ONE request, not observed sub-steps: nothing
+   here is driven by progress reported from the server, because the endpoints
+   report none. So they describe what the stage is doing overall, in a plausible
+   order, and never claim a specific step has FINISHED — the StepTrail's ticks
+   are the only thing allowed to say that, and those are driven by real state.
+──────────────────────────────────────────────────────────────── */
+const STAGE_MESSAGES = {
+  templates: [
+    "Finding a matching template…",
+    "Matching your brand's category…",
+    "Checking sizes and formats…",
+    "Narrowing down the best layouts…",
+  ],
+  designs: [
+    "Creating your designs…",
+    "Working through your brand details…",
+    "Writing headlines and copy…",
+    "Laying out the artwork…",
+    "Applying your colours and logo…",
+  ],
 };
+
+/** How long each line holds before the next one takes over. */
+const STAGE_MESSAGE_MS = 2600;
+
+/**
+ * The current line for a stage, advancing on a timer and looping at the end.
+ *
+ * Called ONCE at the page level and passed down, deliberately: the chat's
+ * typing indicator, the banner and every shimmer tile all show this text, and
+ * per-component timers would drift apart within seconds and have the pane
+ * contradict itself.
+ *
+ * @param {string|null} stage - `createStage`; null when nothing is running.
+ * @returns {string|null} The line to show, or null when idle.
+ */
+function useStageMessage(stage) {
+  // The stage is stored ALONGSIDE the counter, rather than reset by an effect
+  // when the stage changes. A `setStep(0)` in an effect body would fire a
+  // second render pass on every stage change; carrying the stage in the state
+  // lets the reset be derived below, during the render that already knows.
+  const [rot, setRot] = useState({ stage: null, step: 0 });
+
+  useEffect(() => {
+    if (!stage) return undefined;
+    const lines = STAGE_MESSAGES[stage];
+    if (!lines || lines.length < 2) return undefined;
+
+    const id = setInterval(() => {
+      setRot((prev) =>
+        // A tick that arrives for a stage we've already left starts the new
+        // stage from its first line instead of inheriting the old count.
+        prev.stage === stage
+          ? { stage, step: (prev.step + 1) % lines.length }
+          : { stage, step: 0 },
+      );
+    }, STAGE_MESSAGE_MS);
+    return () => clearInterval(id);
+  }, [stage]);
+
+  if (!stage) return null;
+  const lines = STAGE_MESSAGES[stage];
+  if (!lines?.length) return "Working…";
+  // The derived reset: a stage that just changed reads step 0 immediately,
+  // with no intermediate render showing the previous stage's position.
+  const step = rot.stage === stage ? rot.step : 0;
+  return lines[step % lines.length];
+}
 
 /**
  * The create flow's steps, in order, as a tile can show them. Same keys as
@@ -235,7 +306,7 @@ function StepTrail({ stage, config }) {
    ::after — that composes with the tile's own background instead of owning it,
    and it self-disables under prefers-reduced-motion.
 ──────────────────────────────────────────────────────────────── */
-function DesignShimmer({ index, stage, config }) {
+function DesignShimmer({ index, stage, config, message }) {
   return (
     <div
       style={{
@@ -283,9 +354,15 @@ function DesignShimmer({ index, stage, config }) {
             textAlign: "center",
             color: "var(--color-gray-500)",
             textWrap: "balance",
+            // Each new line fades in rather than snapping, so a rotation that
+            // happens while you're reading registers as the text changing and
+            // not as a flicker. Keyed on the text so React remounts the span
+            // and replays the animation on every change.
+            animation: "ck-stage-fade 0.4s ease both",
           }}
+          key={message}
         >
-          {STAGE_LABEL[stage] || "Working…"}
+          {message || "Working…"}
         </span>
       </div>
       {/* The step trail replaces the usual two placeholder bars: the space
@@ -309,7 +386,7 @@ function DesignShimmer({ index, stage, config }) {
    place being watched. Pass `complete` and it settles into a green resting
    state instead of unmounting.
 ──────────────────────────────────────────────────────────────── */
-function StageBanner({ stage, config, done, total, complete = false }) {
+function StageBanner({ stage, config, done, total, complete = false, message }) {
   const { color, colorRgb } = config;
   // Green is the state colour used for "ready" throughout this pane (the
   // footer dot, the selected-card ring), so the finished banner borrows it
@@ -340,12 +417,22 @@ function StageBanner({ stage, config, done, total, complete = false }) {
           flexShrink: 0,
         }}
       />
-      <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-gray-700)" }}>
+      <span
+        // Same keyed fade as the shimmer's label — both are showing the very
+        // same string, so they must also change in the same way.
+        key={complete ? "done" : message}
+        style={{
+          fontSize: 12,
+          fontWeight: 500,
+          color: "var(--color-gray-700)",
+          animation: "ck-stage-fade 0.4s ease both",
+        }}
+      >
         {complete
           ? done > 0
             ? `Done — ${done} design${done === 1 ? "" : "s"} ready`
             : "Done"
-          : STAGE_LABEL[stage] || "Working…"}
+          : message || "Working…"}
       </span>
       {/* Only once designs start landing — "0 of 4" before anything exists
           reads as a stall rather than progress. Suppressed when complete: the
@@ -355,7 +442,20 @@ function StageBanner({ stage, config, done, total, complete = false }) {
           {done} of {total}
         </span>
       )}
-      <style>{`@keyframes ck-stage-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.25 } }`}</style>
+      <style>{`
+        @keyframes ck-stage-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.25 } }
+        @keyframes ck-stage-fade {
+          from { opacity: 0; transform: translateY(3px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        /* Text that moves is the one thing a reader can't look away from, so
+           both animations go still for anyone who asked for that. The wording
+           still rotates — only the motion stops. */
+        @media (prefers-reduced-motion: reduce) {
+          @keyframes ck-stage-pulse { 0%,100% { opacity: 1 } }
+          @keyframes ck-stage-fade { from { opacity: 1 } to { opacity: 1 } }
+        }
+      `}</style>
     </div>
   );
 }
@@ -501,6 +601,9 @@ function PreviewPanel({ result,
   saveDesign,
   activeBrandId, showToast,
   stage,
+  // The current rotating line, owned by the page so the chat's typing
+  // indicator and this pane are never a beat out of step with each other.
+  stageMessage,
   expectedCount,
   onPickTemplate,
   selectedTemplateId, }) {
@@ -534,7 +637,13 @@ function PreviewPanel({ result,
           overflow: "hidden",
         }}
       >
-        <StageBanner stage={stage} config={config} done={0} total={expectedCount} />
+        <StageBanner
+          stage={stage}
+          config={config}
+          message={stageMessage}
+          done={0}
+          total={expectedCount}
+        />
         <div
           style={{
             flex: 1,
@@ -547,7 +656,13 @@ function PreviewPanel({ result,
           }}
         >
           {Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => (
-            <DesignShimmer key={i} index={i} stage={stage} config={config} />
+            <DesignShimmer
+              key={i}
+              index={i}
+              stage={stage}
+              config={config}
+              message={stageMessage}
+            />
           ))}
         </div>
       </div>
@@ -599,6 +714,7 @@ function PreviewPanel({ result,
       <StageBanner
         stage={stage}
         config={config}
+        message={stageMessage}
         complete={!stage}
         done={variations.length}
         total={Math.max(expectedCount, variations.length)}
@@ -900,7 +1016,13 @@ function PreviewPanel({ result,
           Array.from({
             length: Math.max(0, expectedCount - variations.length),
           }).map((_, i) => (
-            <DesignShimmer key={`pending-${i}`} index={i} stage={stage} config={config} />
+            <DesignShimmer
+              key={`pending-${i}`}
+              index={i}
+              stage={stage}
+              config={config}
+              message={stageMessage}
+            />
           ))}
       </div>
 
@@ -987,6 +1109,10 @@ export default function AiCreativeChatPage() {
   const [expectedCount, setExpectedCount] = useState(0);
   // The template the user picked from the fetched set (null = none yet).
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  // The rotating stage line. Held HERE, at the one point above both the chat
+  // column and the preview pane, so every place that narrates the wait reads
+  // a single value and they can't drift into saying different things.
+  const stageMessage = useStageMessage(createStage);
   const messagesEndRef = useRef(null);
   const hasInitialized = useRef(false);
   const [selectedDesigns, setSelectedDesigns] = useState([]);
@@ -1435,7 +1561,7 @@ export default function AiCreativeChatPage() {
           console.error("❌ [chat] redesign failed:", result?.message);
           showToast(result?.message || "Couldn't build the design.", "error");
           postAssistantNote(
-            `I ran into a problem building the design${result?.message ? `: ${result.message}` : ""}. Ask me to try again and I'll rerun it.`,
+            `I ran into a problem creating the design${result?.message ? `: ${result.message}` : ""}. Ask me to try again and I'll rerun it.`,
           );
           return;
         }
@@ -1454,7 +1580,7 @@ export default function AiCreativeChatPage() {
         console.error("❌ [chat] redesign threw:", err);
         showToast("Couldn't build the design. Please try again.", "error");
         postAssistantNote(
-          "Something went wrong while building the design. Ask me to try again and I'll rerun it.",
+          "Something went wrong while creating the design. Ask me to try again and I'll rerun it.",
         );
       } finally {
         setCreateStage(null);
@@ -1853,9 +1979,9 @@ export default function AiCreativeChatPage() {
             {isLoading && (
               <AiChatTypingIndicator
                 config={config}
-                // The SAME source the preview banner reads, so the chat and the
-                // pane always name the same step.
-                label={STAGE_LABEL[createStage] || null}
+                // The SAME value the preview banner reads, so the chat and the
+                // pane always name the same step — and now rotate together.
+                label={stageMessage}
               />
             )}
             <div ref={messagesEndRef} />
@@ -1958,7 +2084,7 @@ export default function AiCreativeChatPage() {
               }}
             >
               {createStage
-                ? STAGE_LABEL[createStage]
+                ? stageMessage
                 : previewResult?.type === "templates"
                   ? `${previewResult.templates.length} templates`
                   : previewResult
@@ -1991,6 +2117,7 @@ export default function AiCreativeChatPage() {
               activeBrandId={activeBrandId}
               showToast={showToast}
               stage={createStage}
+              stageMessage={stageMessage}
               expectedCount={expectedCount}
               onPickTemplate={handlePickTemplate}
               selectedTemplateId={selectedTemplate?.id || null}

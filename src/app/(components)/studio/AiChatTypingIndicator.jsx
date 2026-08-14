@@ -3,7 +3,19 @@
 import React from "react";
 import { Sparkles } from "lucide-react";
 
-export default function AiChatTypingIndicator({ config }) {
+/**
+ * The assistant's "working on it" bubble.
+ *
+ * @param {object} props
+ * @param {object} props.config  The creative-type config (colour, etc).
+ * @param {string} [props.label] What it is working ON. Omit for an ordinary
+ *   wait — three bouncing dots say "composing a reply" perfectly well on their
+ *   own. Pass one for work that takes far longer than a reply does (fetching a
+ *   template, running a redesign): dots alone can't distinguish two seconds
+ *   from thirty, so a wait that outlasts the reader's patience needs to say
+ *   what it is doing or it reads as a hang.
+ */
+export default function AiChatTypingIndicator({ config, label }) {
   const color = config?.color || "#c084fc";
   const colorRgb = config?.colorRgb || "192,132,252";
 
@@ -71,6 +83,23 @@ export default function AiChatTypingIndicator({ config }) {
             }}
           />
         ))}
+
+        {/* aria-live so a screen reader is told the wait changed phase — the
+            bouncing dots announce nothing at all on their own. */}
+        {label && (
+          <span
+            aria-live="polite"
+            style={{
+              marginLeft: 4,
+              fontSize: 12.5,
+              fontWeight: 500,
+              color: "var(--color-gray-500)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {label}
+          </span>
+        )}
       </div>
 
       <style>{`

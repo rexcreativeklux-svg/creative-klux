@@ -27,11 +27,12 @@ function CardPreview({ design }) {
         loading="lazy"
         decoding="async"
         onError={() => setThumbFailed(true)}
-        // Cover: the preview fills the tile edge to edge with no letterbox.
-        // Designs are saved in every ratio, so an off-ratio one is cropped to
-        // the tile's 16:10 — a portrait shows its middle band. That's the
-        // deliberate trade for a full-bleed grid.
-        className="h-full w-full object-cover"
+        // Contained, not cover: the tile is 16:10 but designs are saved in every
+        // ratio, and cropping a 1080×1350 portrait to 16:10 cuts away most of
+        // it. The letterbox is filled by the design's own background colour,
+        // already set on the parent. (Full-bleed `object-cover` was tried across
+        // all three card surfaces and reverted on every one.)
+        className="h-full w-full object-contain"
       />
     );
   }

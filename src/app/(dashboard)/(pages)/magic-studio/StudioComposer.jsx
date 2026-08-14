@@ -225,12 +225,13 @@ export default function StudioComposer({
 
   // ── The primary input, in whichever shape this tool takes ──
   const [text, setText] = useState("");
-  // What the LAST run was asked for and how many of it, kept after `text` is
-  // cleared on submit so the in-flight tiles can show it. Cleared input and
-  // displayed prompt are two different needs, and reading one state for both
-  // loses the tiles' words the instant the box empties. The count is frozen
-  // here for the same reason: changing the chip from 3x to 1x while three are
-  // in flight must not make two of their placeholders disappear.
+  // What the LAST run was asked for and how many of it — frozen at submit so
+  // the in-flight tiles keep showing THAT run. The box no longer empties on
+  // send, but it is still live: keep typing while a generation is in flight and
+  // reading `text` for the tiles would rewrite the words under a run that was
+  // asked for something else. The count is frozen for the same reason —
+  // changing the chip from 3x to 1x mid-run must not make two placeholders
+  // disappear.
   const [lastRun, setLastRun] = useState({
     prompt: "",
     count: 1,
@@ -486,10 +487,12 @@ export default function StudioComposer({
       values: { ...values, model, variations: count },
       activeBrand,
     });
-    // Typed input is cleared so the box is ready for the next idea; a picked
-    // image or audio take is NOT — those are expensive to provide again, and
-    // re-running the same source with different options is the normal loop.
-    if (typeable) setText("");
+    // ⚠️ NOTHING IS CLEARED ON SUBMIT — not the typed prompt, not the picked
+    // image or audio take. Re-running the same input with a different style,
+    // ratio or model is the normal loop here, and a prompt you spent a minute
+    // wording is expensive to type again; emptying the box on send made the
+    // second attempt start from a blank line. The words stay put and are
+    // selected-over or edited for the next run.
   };
 
   const handleKeyDown = (event) => {

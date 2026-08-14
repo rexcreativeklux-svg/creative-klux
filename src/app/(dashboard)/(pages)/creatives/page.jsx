@@ -1238,15 +1238,16 @@ const GridView = ({
  * What fills a creative card's 16:9 preview frame.
  *
  * Designs are saved in every ratio — 1:1 and 4:5 social posts, 3:1 banners, the
- * odd 16:9 ad — but the frame is fixed, so something has to give. The artwork
- * COVERS the frame: it fills the card edge to edge, and an off-ratio design is
- * cropped to fit (a 4:5 portrait shows its middle band). The grid reads as a
- * wall of artwork with no grey and no letterboxing; the cost is that the edges
- * of a tall design aren't visible until it's opened.
+ * odd 16:9 ad — but the frame is fixed. This used to stretch the artwork to the
+ * card's WIDTH and let its height fall where it may, so anything taller than
+ * 16:9 had its top and bottom cropped off and anything wider sat in a band of
+ * grey. The artwork is CONTAINED here instead: the whole design is always
+ * visible, and the letterbox around it is filled with a blurred, zoomed copy of
+ * the same file — one network request, painted twice — so an off-ratio design
+ * reads as a tile in its own colours rather than art floating in grey.
  *
- * (An earlier version CONTAINED the artwork and filled the letterbox with a
- * blurred copy of the same file. If the cropping proves worse than the bars,
- * that's the version to go back to.)
+ * Full-bleed `object-cover` was tried here and reverted: cropping a 4:5 portrait
+ * to the 16:9 frame cut away too much of the design to be worth the tidier grid.
  *
  * Sources are tried in the order this page has always used — backend thumbnail,
  * then a canvas repaint, then any stored image URL — with one change: a source
@@ -1269,19 +1270,30 @@ const CardArtwork = ({ creative: c }) => {
   if (src) {
     const sourceKey = thumbSrc ? "thumbnail" : "image";
     return (
-      // Full-bleed: the artwork covers the whole frame. Designs are saved in
-      // every ratio and the frame is fixed, so an off-ratio design is cropped
-      // to it — a tall portrait shows its middle band. The blurred backdrop
-      // that used to fill the letterbox is gone with the letterbox itself:
-      // `object-cover` leaves no gap for it to show through.
-      <img
-        src={src}
-        alt={c.name}
-        loading="lazy"
-        decoding="async"
-        onError={() => setFailed((prev) => ({ ...prev, [sourceKey]: true }))}
-        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-      />
+      <>
+        {/* Backdrop. Same `src`, so it is served from cache, not fetched again.
+            `scale-125` overshoots the frame by more than the blur radius at
+            every card width — that overshoot is what stops a soft rim from
+            showing along the edges. aria-hidden: it is the picture below. */}
+        <img
+          src={src}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          decoding="async"
+          className="pointer-events-none absolute inset-0 h-full w-full scale-125 select-none object-cover opacity-60 blur-lg"
+        />
+        {/* The design itself — `relative` so it paints ABOVE the absolutely
+            positioned backdrop, which would otherwise cover a static sibling. */}
+        <img
+          src={src}
+          alt={c.name}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed((prev) => ({ ...prev, [sourceKey]: true }))}
+          className="relative h-full w-full object-contain drop-shadow-sm transition-transform duration-500 group-hover:scale-[1.04]"
+        />
+      </>
     );
   }
 

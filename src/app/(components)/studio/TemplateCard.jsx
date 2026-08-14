@@ -294,20 +294,39 @@ export default function TemplateCard({ item, onOpenDetails, onItemMenu }) {
         // style={tileColor ? { backgroundColor: tileColor } : undefined}
       >
         {src ? (
-          // Full-bleed: the preview covers the whole tile, so an off-ratio
-          // design is cropped to 16:10 rather than sitting in a letterbox.
-          // There is deliberately no blurred backdrop behind it any more —
-          // `object-cover` leaves no gap for one to show through, so painting
-          // the image a second time would cost a paint nobody can see.
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={src}
-            alt={item.title}
-            loading="lazy"
-            decoding="async"
-            onError={onSrcError}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          />
+          <>
+            {/* Backdrop: the SAME painted data URL, zoomed and blurred, so the
+                letterbox around a portrait template is filled with the design's
+                own colours instead of a flat plate. `src` is a data URL (or a
+                cached thumbnail), so painting it twice costs no extra fetch.
+                `scale-125` overshoots the frame by more than the blur radius at
+                every card width — that overshoot is what stops a soft rim from
+                showing along the edges. aria-hidden: it is the picture below.
+
+                Full-bleed `object-cover` was tried here and reverted: cropping a
+                1080×1350 portrait to the 16:10 tile cut away too much of the
+                design to be worth losing the letterbox. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              decoding="async"
+              className="pointer-events-none absolute inset-0 h-full w-full scale-125 select-none object-cover opacity-60 blur-lg"
+            />
+            {/* The design itself — `relative` so it paints ABOVE the absolutely
+                positioned backdrop, which would otherwise cover a static
+                sibling. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={item.title}
+              loading="lazy"
+              onError={onSrcError}
+              className="relative h-full w-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-[1.03]"
+            />
+          </>
         ) : failed ? (
           <div className="flex h-full w-full items-center justify-center">
             <ImageIcon className="h-5 w-5 text-gray-400" />

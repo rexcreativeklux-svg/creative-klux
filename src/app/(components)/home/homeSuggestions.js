@@ -22,7 +22,18 @@
 // brand asset. The pools used to offer "Booking site for a barber shop" and
 // "Route app for a delivery driver", which described a website builder rather
 // than Creative Klux; a chip that asks for something the app doesn't produce is
-// worse than no chip at all.
+// worse than no chip at all. The catalogue these are drawn from is CREATIVES in
+// (pages)/studio/creatives.js — ads, social, designer, Magic Studio — and the
+// platform names come from forms/social/socialSizes.js, so a chip never invents
+// a format the studios can't fulfil.
+//
+// ⚠️ NAME A PLATFORM WHENEVER THE LINE HAS ROOM. This is not flavour: the
+// assistant answers `chat` and keeps asking questions until it has BOTH a
+// platform and a size (buildTemplateQuery in studio/designTemplates.js bails
+// without them), so "Design a sale post for Instagram" lands a question closer
+// to a finished design than "Design a sale post" does. Size is the one thing
+// the chips leave out — it doesn't fit the character ceiling below, and it's
+// the question users can answer instantly when asked.
 //
 // Each pool is deliberately longer than the five that show at once. The shuffle
 // control walks a window through it (see nextSuggestions below) rather than
@@ -66,15 +77,15 @@ const SUGGESTIONS_BY_TAB = {
   // so a second click swaps the idea rather than stacking two unrelated ones.
   [TAB_WEB]: [
     "Design a sale post for Instagram",
-    "Make a flyer for this weekend",
-    "Build a launch ad for a product",
-    "Design a thumbnail that pops",
-    "Make a poster for a live show",
-    "Draw up a logo for a coffee bar",
-    "Write a Facebook ad for 20% off",
-    "Design a business card for me",
-    "Build a story ad for a drop",
-    "Design a menu for a small cafe",
+    "Make a TikTok ad for a product",
+    "Design a YouTube thumbnail",
+    "Make a Facebook ad for 20% off",
+    "Design a LinkedIn banner for us",
+    "Make an Instagram story ad",
+    "Design a logo for a coffee bar",
+    "Make a flyer for a weekend sale",
+    "Design a poster for a live show",
+    "Make a Pinterest pin for a drop",
   ],
   // Import Site — the box is waiting for a LINK, so these are written to sit
   // UNDER one and point at it: "this" is the site the user just pasted. None of
@@ -88,14 +99,14 @@ const SUGGESTIONS_BY_TAB = {
   // change with it.
   [TAB_IMPORT]: [
     "Make ads from this homepage",
-    "Turn this into social posts",
-    "Build a banner in these colours",
+    "Turn this into Instagram posts",
     "Pull a brand kit from this site",
+    "Make a Facebook ad from this",
     "Design a flyer to match this",
-    "Make a product ad from this shop",
-    "Write an email header for this",
     "Turn this into story templates",
-    "Write ad copy from this page",
+    "Make a LinkedIn banner from this",
+    "Design a poster in these colours",
+    "Make a product ad from this shop",
     "Design a deck cover from this",
   ],
   // Brand Kit — buildBrandPrompt has already written the brand's name, colours
@@ -107,16 +118,16 @@ const SUGGESTIONS_BY_TAB = {
   // of the tab. buildBrandPrompt's trailing blank line was written to leave room
   // for exactly this.
   [TAB_BRAND]: [
-    "Build a launch campaign for us",
-    "Design an Instagram carousel",
-    "Make a one-page media kit",
+    "Create a launch campaign for us",
+    "Design an Instagram post for us",
+    "Make a YouTube thumbnail for us",
     "Design an ad in this palette",
-    "Make email headers to match",
-    "Build story templates for us",
-    "Design a pitch deck cover",
+    "Make Instagram story templates",
+    "Design a LinkedIn cover for us",
+    "Make a pitch deck cover",
+    "Design business cards for us",
     "Make a poster for our promo",
-    "Build banners for every channel",
-    "Write a hiring post for us",
+    "Design a Facebook ad for us",
   ],
 };
 

@@ -140,7 +140,11 @@ function DesignCanvas({ variation }) {
       style={{
         width: "100%",
         height: "auto",
-        borderRadius: 10,
+        // Deliberately TIGHTER than the 5 of the card around it. The artwork is
+        // the thing being judged, and a corner curved to match the card's reads
+        // as the frame eating into the design. Its own 2 wins because the card
+        // no longer clips (no overflow:hidden there) — see the design card.
+        borderRadius: 2,
         boxShadow: "0 4px 24px rgba(0,0,0,0.10)",
         display: "block",
       }}
@@ -235,8 +239,9 @@ function DesignShimmer({ index, stage, config }) {
   return (
     <div
       style={{
-        borderRadius: 6,
-        overflow: "hidden",
+        borderRadius: 5,
+        // No overflow:hidden — it would clip the artwork block's corners to
+        // this 5 and override the 2 below. The block clips itself instead.
         background: "var(--color-surface)",
         border: "1px solid var(--color-gray-200)",
         // Staggered so four tiles pulse as a wave rather than one flat block.
@@ -256,6 +261,12 @@ function DesignShimmer({ index, stage, config }) {
         style={{
           aspectRatio: "1 / 1",
           background: "var(--color-gray-100)",
+          // Matches the finished artwork's 2 exactly, so the tile doesn't
+          // change shape at the moment the design lands. `overflow: hidden`
+          // is on the block itself to keep the ::after sweep inside it now
+          // that the tile above no longer clips.
+          borderRadius: 2,
+          overflow: "hidden",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -291,9 +302,20 @@ function DesignShimmer({ index, stage, config }) {
    The running commentary above the grid. A create takes long enough that a
    pane which only shimmers reads as stuck — this names the step, so the wait
    is legible rather than merely animated.
+
+   It does NOT disappear when the run finishes. The strip is where the reader
+   has been watching for the whole wait, so that is where "done" belongs; a
+   banner that vanished would leave the end of the run unannounced in the one
+   place being watched. Pass `complete` and it settles into a green resting
+   state instead of unmounting.
 ──────────────────────────────────────────────────────────────── */
-function StageBanner({ stage, config, done, total }) {
+function StageBanner({ stage, config, done, total, complete = false }) {
   const { color, colorRgb } = config;
+  // Green is the state colour used for "ready" throughout this pane (the
+  // footer dot, the selected-card ring), so the finished banner borrows it
+  // rather than staying in the brand colour it worked in.
+  const dot = complete ? "#22c55e" : color;
+
   return (
     <div
       style={{
@@ -302,7 +324,7 @@ function StageBanner({ stage, config, done, total }) {
         gap: 9,
         padding: "10px 12px",
         borderBottom: "1px solid var(--color-gray-200)",
-        background: `rgba(${colorRgb},0.04)`,
+        background: complete ? "rgba(34,197,94,0.06)" : `rgba(${colorRgb},0.04)`,
       }}
     >
       <span
@@ -310,17 +332,25 @@ function StageBanner({ stage, config, done, total }) {
           width: 8,
           height: 8,
           borderRadius: "50%",
-          background: color,
-          animation: "ck-stage-pulse 1.2s ease-in-out infinite",
+          background: dot,
+          // The pulse is what says "still working". It stops on completion —
+          // a banner that kept throbbing next to the word "ready" would keep
+          // the reader waiting for something that already happened.
+          animation: complete ? "none" : "ck-stage-pulse 1.2s ease-in-out infinite",
           flexShrink: 0,
         }}
       />
       <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-gray-700)" }}>
-        {STAGE_LABEL[stage] || "Working…"}
+        {complete
+          ? done > 0
+            ? `Done — ${done} design${done === 1 ? "" : "s"} ready`
+            : "Done"
+          : STAGE_LABEL[stage] || "Working…"}
       </span>
       {/* Only once designs start landing — "0 of 4" before anything exists
-          reads as a stall rather than progress. */}
-      {total > 0 && done > 0 && (
+          reads as a stall rather than progress. Suppressed when complete: the
+          label already carries the count, and "4 of 4" beside it is noise. */}
+      {!complete && total > 0 && done > 0 && (
         <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--color-gray-500)" }}>
           {done} of {total}
         </span>
@@ -344,7 +374,11 @@ function TemplatesPreview({ templates, time, config, onPick, selectedId }) {
         position: "absolute",
         inset: 16,
         background: "var(--color-surface)",
-        borderRadius: 14,
+        // The pane, its cards and its artwork step DOWN in curvature: 5 → 5 → 2.
+        // Keeping the pane at its old 14 made the cards inside look filed flat
+        // by comparison; matching the card's 5 lets the artwork's 2 be the one
+        // thing that stands out as sharper.
+        borderRadius: 5,
         // A black-alpha hairline disappears on a dark panel, so the divider
         // takes the palette's border token instead — see the .dark block in
         // globals.css. Same swap throughout this file.
@@ -490,7 +524,10 @@ function PreviewPanel({ result,
           position: "absolute",
           inset: 16,
           background: "var(--color-surface)",
-          borderRadius: 14,
+          // Same 5 as the loaded pane below — this is the SAME box, just
+          // earlier in its life, and a radius that changed when the designs
+          // landed would read as one panel replacing another.
+          borderRadius: 5,
           border: "0.5px solid var(--color-gray-200)",
           display: "flex",
           flexDirection: "column",
@@ -543,7 +580,11 @@ function PreviewPanel({ result,
         position: "absolute",
         inset: 16,
         background: "var(--color-surface)",
-        borderRadius: 14,
+        // The pane, its cards and its artwork step DOWN in curvature: 5 → 5 → 2.
+        // Keeping the pane at its old 14 made the cards inside look filed flat
+        // by comparison; matching the card's 5 lets the artwork's 2 be the one
+        // thing that stands out as sharper.
+        borderRadius: 5,
         border: "0.5px solid var(--color-gray-200)",
         display: "flex",
         flexDirection: "column",
@@ -551,16 +592,17 @@ function PreviewPanel({ result,
         animation: "ck-slide-in 0.35s cubic-bezier(0.34,1.56,0.64,1) both",
       }}
     >
-      {/* Still building — the banner keeps naming the step while the designs
-          that have landed are already on screen beside the pending tiles. */}
-      {stage && (
-        <StageBanner
-          stage={stage}
-          config={config}
-          done={variations.length}
-          total={Math.max(expectedCount, variations.length)}
-        />
-      )}
+      {/* The strip is permanent, not conditional. While `stage` is set it keeps
+          naming the step beside the designs that have already landed; when the
+          run ends it settles into "Done — N designs ready" in the same spot
+          rather than vanishing and leaving the finish unannounced. */}
+      <StageBanner
+        stage={stage}
+        config={config}
+        complete={!stage}
+        done={variations.length}
+        total={Math.max(expectedCount, variations.length)}
+      />
 
       {selectedDesigns?.length > 0 && (
         <div
@@ -707,12 +749,14 @@ function PreviewPanel({ result,
                     onClick={() => onToggleSelect(v)}
                     className="border border-gray-200"
                     style={{
-                      // Same 6 as DesignShimmer — the two sit side by side in
+                      // Same 5 as DesignShimmer — the two sit side by side in
                       // this grid while a batch is still landing, and a tile
                       // that changed shape as it filled would read as a swap
                       // rather than the same card resolving.
-                      borderRadius: 6,
-                      overflow: "hidden",
+                      borderRadius: 5,
+                      // No overflow:hidden: it would clip the canvas to this 5
+                      // and defeat the artwork's own tighter 2. Nothing inside
+                      // needs clipping — the copy below is padded text.
                       background: "var(--color-surface)",
                       // The selected green stays literal — it is a state colour,
                       // not a theme one, and reads on both backgrounds.
@@ -873,8 +917,11 @@ function PreviewPanel({ result,
           flexShrink: 0,
         }}
       >
+        {/* The count moved UP to the banner when that gained its done state —
+            saying "4 designs ready" twice on one pane read as a stutter. The
+            footer keeps the timing, which the banner has no room for. */}
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
-        {variations.length} designs ready · {time}
+        Generated in {time}
       </div>
 
       <style>{`

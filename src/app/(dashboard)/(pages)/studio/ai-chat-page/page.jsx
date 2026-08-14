@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   Sparkles, ArrowLeft, Tv2, Share2, Palette, Wand2,
   CheckCircle2, ImageIcon, History,
@@ -15,8 +15,10 @@ import PaneResizer, { useResizablePane } from "@/app/(components)/studio/PaneRes
 import { useBreakpoint } from "@/utils/useMediaQuery";
 import {
   buildTemplateQuery,
+  buildRedesignPayload,
   normalizeDesignTemplate,
 } from "@/app/(components)/studio/designTemplates";
+import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
 import Toast from "@/app/(components)/Toast";
 import ChatHistoryPanel from "./ChatHistoryPanel";
 import { normalizeSessionMessages } from "@/app/(components)/studio/chatSessions";
@@ -318,12 +320,21 @@ function PreviewPanel({ result,
   saveDesign,
   activeBrandId, showToast,
   templatesLoading,
+  designLoading,
   onPickTemplate,
   selectedTemplateId, }) {
   const { colorRgb, colorLight } = config;
 
+  // The two halves of the create flow, in order. Both are spinners, but they
+  // say different things because they take very different amounts of time —
+  // a template fetch is quick, a redesign is not, and a label that stopped
+  // changing would read as a hang.
   if (templatesLoading) {
     return <PreviewLoading config={config} label="Finding matching templates…" />;
+  }
+
+  if (designLoading) {
+    return <PreviewLoading config={config} label="Building your design…" />;
   }
 
   if (result?.type === "templates") {
@@ -633,6 +644,7 @@ function PreviewPanel({ result,
 export default function AiCreativeChatPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
   const {
     creativeAiChat,
     saveDesign,
@@ -640,6 +652,7 @@ export default function AiCreativeChatPage() {
     activeBrandId,
     brandsLoading,
     fetchDesignTemplates,
+    generateCustomCreative,
     fetchChatSessions,
     fetchChatSession,
   } = useAuth();
@@ -658,6 +671,9 @@ export default function AiCreativeChatPage() {
   // True while /design-templates/public-fetch is in flight, so the preview pane
   // can show a spinner instead of sitting on the idle state.
   const [templatesLoading, setTemplatesLoading] = useState(false);
+  // True while /creatives/redesign is turning the fetched template into the
+  // finished design — the second half of the create flow, and the slower one.
+  const [designLoading, setDesignLoading] = useState(false);
   // The template the user picked from the fetched set (null = none yet).
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const messagesEndRef = useRef(null);
@@ -750,6 +766,41 @@ export default function AiCreativeChatPage() {
     setHistoryOpen(next);
     if (next && !sessions.length) loadSessions();
   }, [historyOpen, sessions.length, loadSessions]);
+
+  /**
+   * Put the backend's session id in the URL the moment it names one.
+   *
+   * WITHOUT THIS A REFRESH LOSES THE THREAD. The conversation is saved
+   * server-side from the first exchange (`save_chat: "true"`), and this page can
+   * already reopen one through `?session=` — but nothing was writing that id
+   * down, so a reload still saw only `?initialMessage=…`, re-seeded from it, and
+   * re-sent the opening prompt into a brand new thread. Everything after the
+   * first message was stranded in a session nobody could name.
+   *
+   * The opening prompt and its images are dropped from the URL at the same
+   * time: they are in the thread now, and leaving them behind would re-send
+   * them on top of the restored history on every refresh.
+   *
+   * `replace`, not `push`, so this doesn't put a back-button step between the
+   * user and wherever they came from.
+   *
+   * @param {object} data The parsed chat response body.
+   */
+  const adoptSession = useCallback(
+    (data) => {
+      const id = data?.session_id;
+      if (!id || activeSessionId === id) return;
+
+      setActiveSessionId(id);
+
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("session", id);
+      params.delete("initialMessage");
+      params.delete("image");
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [activeSessionId, pathname, router, searchParams],
+  );
 
   /** Replace the transcript with a stored one. */
   const handleOpenSession = useCallback(
@@ -853,58 +904,165 @@ export default function AiCreativeChatPage() {
 
   /**
    * Inspect a chat reply and, when the assistant signals it has everything it
-   * needs (`type: "create"`), pull the matching design templates.
+   * needs (`type: "create"`), build the design end to end and show it.
    *
-   * Declared ahead of the send handlers because both call it. Failures surface
-   * on the toast and leave the preview pane untouched — a template miss must
-   * never break the conversation itself.
+   * THE WHOLE FLOW, with no clicks in the middle:
+   *   1. Scraive  → /design-templates/public-fetch for layouts matching the
+   *      platform + size the assistant settled on.
+   *   2. Redesign → /creatives/redesign turns those layouts into real designs
+   *      carrying the brand's copy, colours and images.
+   *   3. The finished variations land in the preview pane on the right.
+   *
+   * HOW MANY comes from the conversation: buildTemplateQuery reads the reply's
+   * `num_variations` into `num_template`, Scraive returns that many layouts, and
+   * redesign produces one design per layout — so "make me 3 versions" yields 3
+   * without the count being threaded separately.
+   *
+   * Declared ahead of the send handlers because both call it. Every failure
+   * surfaces on the toast and leaves the pane on its previous state: a design
+   * that couldn't be built must never break the conversation that asked for it.
    *
    * @param {object} data The parsed chat response body.
+   * @param {string[]} [images] Hosted image URLs attached to the user's message.
    */
-  const maybeFetchTemplates = useCallback(
-    async (data) => {
+  const maybeCreateDesign = useCallback(
+    async (data, images = []) => {
       if (data?.type !== "create") return;
 
       const query = buildTemplateQuery(data);
-      if (!query) return; // reply lacked a platform/size — already warned
+      if (!query) {
+        // buildTemplateQuery has logged the whole reply. Say something here
+        // too: this used to return in silence, so a create reply that couldn't
+        // be read looked exactly like one that was never sent — no request, no
+        // spinner, no error, just a preview pane that never changed.
+        showToast(
+          "The assistant didn't say which platform and size to use. Ask it to confirm those and try again.",
+          "error",
+        );
+        return;
+      }
 
-      console.log("🎨 [chat] create signal received, fetching templates:", query);
-      setTemplatesLoading(true);
+      if (!activeBrandId) {
+        console.error("❌ [chat] create blocked — no active brand");
+        showToast("Select a brand before generating a design.", "error");
+        return;
+      }
+
+      // Raw Scraive rows. The redesign endpoint wants the layout in the shape
+      // Scraive published it, so these are NOT run through
+      // normalizeDesignTemplate — that shape is only for painting a preview.
+      //
+      // Templates are fetched ONLY for the redesign engine, exactly as the
+      // studio forms do it: involk generates from scratch, and handing it an
+      // empty template list would block it with a "no templates" error for a
+      // step it never needed. Which engine runs is CREATIVE_ENGINE's call, not
+      // this page's — that one flag is the whole point of creativeEngine.js.
+      let rawTemplates = [];
+      if (CREATIVE_ENGINE === "redesign") {
+        console.log("🎨 [chat] create signal received, fetching templates:", query);
+        setTemplatesLoading(true);
+        try {
+          const res = await fetchDesignTemplates(query);
+
+          if (!res?.ok) {
+            console.error(
+              "❌ [chat] template fetch failed:",
+              res?.messageForDevs || res?.message,
+            );
+            showToast(res?.message || "Couldn't load design templates.", "error");
+            return;
+          }
+
+          rawTemplates = Array.isArray(res.data) ? res.data : [];
+
+          // Usable == has a layout we could paint. Checked with the normaliser
+          // even though the raw rows are what gets sent, because a row Scraive
+          // can't describe a layout for is one redesign can't build from either.
+          const usable = rawTemplates.filter((row) => normalizeDesignTemplate(row));
+          if (!usable.length) {
+            console.warn("⚠️ [chat] no usable templates for", query);
+            showToast(
+              `No templates found for ${query.category} at ${query.type_size}.`,
+              "error",
+            );
+            return;
+          }
+          rawTemplates = usable;
+          console.log(`✅ [chat] ${rawTemplates.length} template(s) ready`);
+        } catch (err) {
+          console.error("❌ [chat] template fetch threw:", err);
+          showToast("Couldn't load design templates. Please try again.", "error");
+          return;
+        } finally {
+          setTemplatesLoading(false);
+        }
+      }
+
+      // ── 2. Straight into redesign, no template-picking step ────────────────
+      const payload = buildRedesignPayload({
+        data,
+        query,
+        templates: rawTemplates,
+        brand: activeBrand,
+        brandId: activeBrandId,
+        creativeType,
+        images,
+      });
+
+      console.log("🚀 [chat] redesigning", rawTemplates.length, "template(s)");
+      setDesignLoading(true);
       try {
-        const res = await fetchDesignTemplates(query);
+        // Batches stream back (redesign chunks templates by 9). Each one is
+        // appended so a long set fills the pane as it arrives rather than
+        // sitting on the spinner until the last design lands.
+        const collected = [];
+        let painted = false;
 
-        if (!res?.ok) {
-          console.error(
-            "❌ [chat] template fetch failed:",
-            res?.messageForDevs || res?.message,
-          );
-          showToast(res?.message || "Couldn't load design templates.", "error");
+        // No `forceEngine` override: generateCustomCreative reads
+        // CREATIVE_ENGINE itself, so flipping that one line reroutes this page
+        // along with every form. Pinning it here would have quietly exempted
+        // the chat from the switch.
+        const result = await generateCustomCreative(payload, (batch) => {
+          if (!batch.ok || !batch.variations?.length) return;
+          collected.push(...batch.variations);
+          if (!painted) {
+            painted = true;
+            setDesignLoading(false); // first designs are in — drop the spinner
+          }
+          setPreviewResult({
+            type: "design",
+            variations: [...collected],
+            time: nowTime(),
+          });
+        });
+
+        if (!result?.ok) {
+          console.error("❌ [chat] redesign failed:", result?.message);
+          showToast(result?.message || "Couldn't build the design.", "error");
           return;
         }
 
-        const templates = (Array.isArray(res.data) ? res.data : [])
-          .map(normalizeDesignTemplate)
-          .filter(Boolean);
-
-        if (!templates.length) {
-          console.warn("⚠️ [chat] no usable templates for", query);
-          showToast(
-            `No templates found for ${query.category} at ${query.type_size}.`,
-            "error",
-          );
+        if (!collected.length) {
+          console.warn("⚠️ [chat] redesign returned no variations");
+          showToast("The design came back empty. Please try again.", "error");
           return;
         }
 
-        console.log(`✅ [chat] ${templates.length} template(s) ready`);
-        setPreviewResult({ type: "templates", templates, time: nowTime() });
+        console.log(`✅ [chat] ${collected.length} design(s) ready`);
       } catch (err) {
-        console.error("❌ [chat] template fetch threw:", err);
-        showToast("Couldn't load design templates. Please try again.", "error");
+        console.error("❌ [chat] redesign threw:", err);
+        showToast("Couldn't build the design. Please try again.", "error");
       } finally {
-        setTemplatesLoading(false);
+        setDesignLoading(false);
       }
     },
-    [fetchDesignTemplates],
+    [
+      fetchDesignTemplates,
+      generateCustomCreative,
+      activeBrand,
+      activeBrandId,
+      creativeType,
+    ],
   );
 
   const handleSend = useCallback(
@@ -943,6 +1101,10 @@ export default function AiCreativeChatPage() {
           },
         ]);
 
+        // Name the thread in the URL before anything slow runs, so a refresh
+        // mid-generation still comes back to this conversation.
+        adoptSession(result.data);
+
         const designType = result.data?.type;
         const designVars = result.data?.variations;
 
@@ -950,8 +1112,8 @@ export default function AiCreativeChatPage() {
           setPreviewResult({ type: "design", variations: designVars, time: nowTime() });
         }
 
-        // The assistant has everything it needs → pull matching templates.
-        await maybeFetchTemplates(result.data);
+        // The assistant has everything it needs → build the design.
+        await maybeCreateDesign(result.data, images);
       } catch {
         setMessages((prev) => [
           ...prev,
@@ -965,7 +1127,7 @@ export default function AiCreativeChatPage() {
         setIsLoading(false);
       }
     },
-    [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeFetchTemplates]
+    [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession]
   );
 
   const handleInitialSend = useCallback(async (content, images = []) => {
@@ -994,6 +1156,11 @@ export default function AiCreativeChatPage() {
         },
       ]);
 
+      // Name the thread in the URL before anything slow runs, so a refresh
+      // mid-generation still comes back to this conversation. Doing it here is
+      // what stops the opening prompt re-sending on every reload.
+      adoptSession(result.data);
+
       const designType = result.data?.type;
       const designVars = result.data?.variations;
 
@@ -1001,8 +1168,8 @@ export default function AiCreativeChatPage() {
         setPreviewResult({ type: "design", variations: designVars, time: nowTime() });
       }
 
-      // The assistant has everything it needs → pull matching templates.
-      await maybeFetchTemplates(result.data);
+      // The assistant has everything it needs → build the design.
+      await maybeCreateDesign(result.data, images);
 
     } catch {
       setMessages((prev) => [
@@ -1016,7 +1183,7 @@ export default function AiCreativeChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeFetchTemplates]);
+  }, [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession]);
 
   // Which template the user has picked from the fetched set.
   const handlePickTemplate = useCallback((template) => {
@@ -1263,7 +1430,23 @@ export default function AiCreativeChatPage() {
             {messages.map((msg, i) => (
               <AiChatMessage key={i} message={msg} config={config} />
             ))}
-            {isLoading && <AiChatTypingIndicator config={config} />}
+            {/* One indicator for the whole wait. `isLoading` is cleared in the
+                send handler's `finally`, which runs AFTER maybeCreateDesign
+                resolves, so the dots stay up through the template fetch and the
+                redesign rather than stopping when the reply text lands. The
+                label names whichever phase is running — see the component. */}
+            {isLoading && (
+              <AiChatTypingIndicator
+                config={config}
+                label={
+                  templatesLoading
+                    ? "Finding a template…"
+                    : designLoading
+                      ? "Building your design…"
+                      : null
+                }
+              />
+            )}
             <div ref={messagesEndRef} />
           </main>
 
@@ -1397,6 +1580,7 @@ export default function AiCreativeChatPage() {
               activeBrandId={activeBrandId}
               showToast={showToast}
               templatesLoading={templatesLoading}
+              designLoading={designLoading}
               onPickTemplate={handlePickTemplate}
               selectedTemplateId={selectedTemplate?.id || null}
             />

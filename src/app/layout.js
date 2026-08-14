@@ -18,7 +18,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Inter – variable font, super fast & beautiful */}
+        {/* Inter – variable font, super fast & beautiful.
+            Manrope rides along in the same request as the display face for the
+            home hero (`font-manrope`, see --font-manrope in globals.css) — one
+            stylesheet, so it costs no extra round trip. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
@@ -26,7 +29,7 @@ export default function RootLayout({ children }) {
           crossOrigin="anonymous"
         />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Manrope:wght@200..800&display=swap"
           rel="stylesheet"
         />
 

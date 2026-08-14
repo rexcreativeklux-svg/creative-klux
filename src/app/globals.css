@@ -13,6 +13,12 @@
    - surface: cards / panels (was bg-white)
    - page:    the main content area behind pages (was bg-[#f7f8fc]) */
 @theme {
+  /* The home hero's display face. Tailwind v4 turns a `--font-*` token into the
+     matching utility, so this one line is what `font-manrope` compiles from —
+     the family itself is loaded next to Inter in app/layout.js. Everything
+     outside the hero still inherits Inter from `html`/`body` below. */
+  --font-manrope: 'Manrope', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
   --color-surface: #ffffff;
   --color-page: #f7f8fc;
   /* Editor/preview canvas — only used via `dark:bg-canvas`, so light keeps its

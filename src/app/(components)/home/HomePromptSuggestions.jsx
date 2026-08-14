@@ -5,7 +5,10 @@
 // The starter prompts under the home composer:
 //
 //     Not sure where to start? Try these  ⤨
-//     ( ● Instagram post for a sale )  ( ● Poster for a live show )  …
+//     ( ● Create a sale post for Instagram )  ( ● Create a YouTube thumbnail )  …
+//
+// Every line in every pool opens with "Create" — see the ⚠️ note in
+// homeSuggestions.js before writing a new one.
 //
 // Clicking one writes it into the prompt box; the shuffle control swaps the five
 // on screen for the next five in that tab's pool. Both effects belong to the

@@ -27,11 +27,20 @@
 // platform names come from forms/social/socialSizes.js, so a chip never invents
 // a format the studios can't fulfil.
 //
+// ⚠️ EVERY LINE OPENS WITH THE VERB "Create", on all three tabs. The row is
+// read as a column of first words, not as ten separate sentences, and a mix of
+// Design/Make/Turn/Pull made the chips look like four different kinds of thing
+// when they are one: a brief for something to be made. One verb also matches
+// the product's own language ("Creative Studio", "Create") and leaves the rest
+// of the line for the part that actually differs — the format and the platform.
+// It is a real constraint on new copy: a line that will not start with "Create"
+// needs rewording, not an exception.
+//
 // ⚠️ NAME A PLATFORM WHENEVER THE LINE HAS ROOM. This is not flavour: the
 // assistant answers `chat` and keeps asking questions until it has BOTH a
 // platform and a size (buildTemplateQuery in studio/designTemplates.js bails
-// without them), so "Design a sale post for Instagram" lands a question closer
-// to a finished design than "Design a sale post" does. Size is the one thing
+// without them), so "Create a sale post for Instagram" lands a question closer
+// to a finished design than "Create a sale post" does. Size is the one thing
 // the chips leave out — it doesn't fit the character ceiling below, and it's
 // the question users can answer instantly when asked.
 //
@@ -76,16 +85,16 @@ const SUGGESTIONS_BY_TAB = {
   // That is right here and only here: on this tab the chip IS the whole brief,
   // so a second click swaps the idea rather than stacking two unrelated ones.
   [TAB_WEB]: [
-    "Design a sale post for Instagram",
-    "Make a TikTok ad for a product",
-    "Design a YouTube thumbnail",
-    "Make a Facebook ad for 20% off",
-    "Design a LinkedIn banner for us",
-    "Make an Instagram story ad",
-    "Design a logo for a coffee bar",
-    "Make a flyer for a weekend sale",
-    "Design a poster for a live show",
-    "Make a Pinterest pin for a drop",
+    "Create a sale post for Instagram",
+    "Create a TikTok ad for a product",
+    "Create a YouTube thumbnail",
+    "Create a Facebook ad for 20% off",
+    "Create a LinkedIn banner for us",
+    "Create an Instagram story ad",
+    "Create a logo for a coffee bar",
+    "Create a weekend sale flyer",
+    "Create a poster for a live show",
+    "Create a Pinterest product pin",
   ],
   // Import Site — the box is waiting for a LINK, so these are written to sit
   // UNDER one and point at it: "this" is the site the user just pasted. None of
@@ -97,17 +106,23 @@ const SUGGESTIONS_BY_TAB = {
   // "Make ads from this homepage" only means anything with the URL still above
   // it. If the pick behaviour is ever changed back to replace, this copy has to
   // change with it.
+  // ⚠️ "Create" first puts "this" at the END of most of these lines, where it
+  // used to open them ("Turn this into Instagram posts"). That still points at
+  // the pasted URL — the chip is appended UNDER it either way — but it means a
+  // line has to name what it makes before it says where from, which is also why
+  // "Create LinkedIn ads from this" replaced the banner wording: the banner
+  // version could not be said in this order inside the character ceiling.
   [TAB_IMPORT]: [
-    "Make ads from this homepage",
-    "Turn this into Instagram posts",
-    "Pull a brand kit from this site",
-    "Make a Facebook ad from this",
-    "Design a flyer to match this",
-    "Turn this into story templates",
-    "Make a LinkedIn banner from this",
-    "Design a poster in these colours",
-    "Make a product ad from this shop",
-    "Design a deck cover from this",
+    "Create ads from this homepage",
+    "Create Instagram posts from this",
+    "Create a brand kit from this",
+    "Create a Facebook ad from this",
+    "Create a flyer to match this",
+    "Create story templates from this",
+    "Create LinkedIn ads from this",
+    "Create a poster in these colours",
+    "Create a product ad from this",
+    "Create a deck cover from this",
   ],
   // Brand Kit — buildBrandPrompt has already written the brand's name, colours
   // and fonts into the box, so these say what to MAKE with them and never
@@ -119,15 +134,15 @@ const SUGGESTIONS_BY_TAB = {
   // for exactly this.
   [TAB_BRAND]: [
     "Create a launch campaign for us",
-    "Design an Instagram post for us",
-    "Make a YouTube thumbnail for us",
-    "Design an ad in this palette",
-    "Make Instagram story templates",
-    "Design a LinkedIn cover for us",
-    "Make a pitch deck cover",
-    "Design business cards for us",
-    "Make a poster for our promo",
-    "Design a Facebook ad for us",
+    "Create an Instagram post for us",
+    "Create a YouTube thumbnail",
+    "Create an ad in this palette",
+    "Create Instagram story templates",
+    "Create a LinkedIn cover for us",
+    "Create a pitch deck cover",
+    "Create business cards for us",
+    "Create a poster for our promo",
+    "Create a Facebook ad for us",
   ],
 };
 

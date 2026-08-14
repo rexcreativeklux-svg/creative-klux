@@ -39,8 +39,10 @@ export default function TemplatesPanel({ editor, designId }) {
     setLoading(true);
 
     // ── Your designs (authoritative, works now) ──
+    // fetchDesigns resolves to a paginator envelope ({ data, total, … }) or
+    // null — the rows live under .data.
     const raw = await fetchDesigns(30);
-    const normalized = (Array.isArray(raw) ? raw : [])
+    const normalized = (Array.isArray(raw?.data) ? raw.data : [])
       .map(normalizeTemplate)
       .filter(Boolean)
       .filter((d) => String(d.id) !== String(designId)); // exclude the one we're editing
@@ -242,7 +244,8 @@ function normalizeTemplate(raw) {
     name: raw.name || "Untitled",
     canvas,
     elements,
-    image: raw.image_url || null,
+    // Saves write the preview to `thumbnail`; older rows use `image_url`.
+    image: raw.thumbnail || raw.image_url || null,
   };
 }
 

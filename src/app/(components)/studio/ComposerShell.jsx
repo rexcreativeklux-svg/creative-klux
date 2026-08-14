@@ -240,9 +240,6 @@ const LABEL_RESTING = "translate-y-[1.5px] group-hover:translate-y-[0.5px]";
  * @param {string} props.value           Id of the selected tab.
  * @param {(id: string) => void} props.onChange  Fired only when a DIFFERENT tab
  *   is clicked, so a call site can treat every call as a real change.
- * @param {boolean} [props.elevated]     Lift the whole shell — the home page
- *   drives this from the composer's focus, so the assembly rises as one object
- *   instead of the input growing a shadow of its own.
  * @param {string} [props.ariaLabel]     Names the tablist for screen readers.
  * @param {string} [props.className]     Extra classes for the outer wrapper —
  *   width, alignment and entrance animation belong to the call site.
@@ -253,7 +250,6 @@ export default function ComposerShell({
   tabs,
   value,
   onChange,
-  elevated = false,
   ariaLabel = "Prompt mode",
   className = "",
   style,
@@ -419,40 +415,26 @@ export default function ComposerShell({
           outlines that close would read as a seam. The assembly's edge is its
           FILL against the hero, not an outline and not a permanent shadow.
 
-          ⚠️ ONE SHADOW IN THE WHOLE ASSEMBLY, AND IT IS THE FOCUS ONE. Nothing
-          at rest: the shell sits flat in the hero and only lifts once the user
-          is actually in the box, so the lift MEANS something instead of being
-          the composer's resting state. (`inset` in PromptComposer.jsx draws no
-          shadow in either state for the same reason — the input must not grow
-          an edge 6px inside this one. If you ever put a resting shadow back
-          here, that is a second shadow in the object, which is the thing this
-          note exists to prevent.)
+          ⚠️ NO SHADOW ANYWHERE IN THE ASSEMBLY, IN ANY STATE. There used to be
+          one on focus — two layers, a blue-tinted lift that grew in over 300ms —
+          back when the hero behind this was a blue gradient and the shell needed
+          to separate from it. The hero is a flat fill now, the shell already
+          reads against it, and the lift on focus was the only movement on an
+          otherwise still page. (`inset` in PromptComposer.jsx draws no shadow
+          either, and that rule stands: the input must not grow an edge 6px
+          inside this one. If a shadow ever comes back here, it belongs on THIS
+          element rather than the input, so the object lifts as one thing.)
 
-          TWO LAYERS in the focused state, and they do different jobs:
-            the tight one   a few px of contact shade, so the tray meets the hero
-                            rather than hovering over it.
-            the broad one   the ambient lift. Its blur is what reaches out to the
-                            sides; the y-offset is what puts most of it below.
-
-          ⚠️ The NEGATIVE SPREAD on the broad layer is load-bearing. The tab strip
-          sits on this element's top edge, and the tray is z-40 — above the tabs
-          — so anything the shadow throws UPWARD lands across the bottom of the
-          strip and dirties the join. Spread pulls the whole shadow back in by
-          22px against a 32px y-offset, which leaves nothing above the top edge
-          while still clearing the sides. Raise the blur without raising the
-          spread to match and a grey band appears under the tabs.
-
-          It belongs here rather than on the input, so the whole object lifts as
-          one thing. `transition-shadow` is what grows it in over 300ms rather
-          than snapping it on at focus — with no resting shadow to fade from,
-          that transition is now the only thing making the arrival soft. */}
-      <div
-        className={`relative z-40 transition-shadow duration-300 motion-reduce:transition-none ${TRAY_SHAPE} ${TRAY_PAD} ${SHELL_FILL} ${
-          elevated
-            ? "shadow-[0_4px_10px_-4px_rgba(0,61,218,0.14),0_32px_80px_-22px_rgba(0,61,218,0.45)]"
-            : "shadow-none"
-        }`}
-      >
+          ⚠️ If you do restore it, the negative spread was load-bearing. The tab
+          strip sits on this element's top edge and the tray is z-40 — above the
+          tabs — so anything thrown UPWARD lands across the bottom of the strip
+          and dirties the join. The old value pulled the shadow back in by 22px
+          against a 32px y-offset, leaving nothing above the top edge while
+          still clearing the sides:
+            shadow-[0_4px_10px_-4px_rgba(0,61,218,0.14),0_32px_80px_-22px_rgba(0,61,218,0.45)]
+          Raise the blur without raising the spread to match and a grey band
+          appears under the tabs. */}
+      <div className={`relative z-40 ${TRAY_SHAPE} ${TRAY_PAD} ${SHELL_FILL}`}>
         {children}
       </div>
     </div>

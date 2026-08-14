@@ -31,7 +31,9 @@
 //                   them back into the API's `images` array
 //
 // Colours come from the app's theme tokens (bg-page / bg-surface / gray-*), so
-// light and dark both follow the user's chosen theme with no per-mode overrides.
+// light and dark both follow the user's chosen theme. The single exception is
+// the hero's flat #eef1f7 light fill, held in common with /copilot; dark mode
+// hands it straight back to bg-page.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -40,7 +42,6 @@ import { useAuth } from "@/context/AuthContext";
 import ComposerShell from "@/app/(components)/studio/ComposerShell";
 import PromptComposer from "@/app/(components)/studio/PromptComposer";
 import TemplatesSection from "@/app/(components)/studio/TemplatesSection";
-import RotatingHeroBackdrop from "@/app/(components)/home/RotatingHeroBackdrop";
 import QuickStartCards from "@/app/(components)/home/QuickStartCards";
 import HomePromptSuggestions from "@/app/(components)/home/HomePromptSuggestions";
 import {
@@ -365,8 +366,10 @@ export default function Home() {
           and pushed the rail below the fold.
           Deliberately NOT overflow-hidden: the composer's Model and Build menus
           drop UPWARD, and clipping here would cut them off on short viewports.
-          RotatingHeroBackdrop clips itself instead, so its band and patterns
-          still can't bleed past the hero.
+
+          The hero carries the flat #eef1f7 fill (the same value /copilot uses)
+          rather than the wrapper, so the template rail below keeps sitting on
+          bg-page. Dark mode falls back to the page token, as it does there.
 
           pt-[clamp(...)] is what lowers the composer toward the optical centre:
           top padding moves the centred block down by half the padding, and
@@ -378,17 +381,7 @@ export default function Home() {
           quick-start cards, which keep their own height at the foot. That split
           is what puts the cards just above the rail without pinning them there —
           see the ⚠️ note in QuickStartCards.jsx. */}
-      <section className="relative flex min-h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav)-4rem)] flex-col pt-[clamp(1.5rem,7vh,5rem)] lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))]">
-        {/* Eighteen still band-and-pattern treatments — grids, graph paper,
-            contours, soft glows — all on the app's blue ramp, differing by form
-            rather than hue, cross-faded one into the next every five hours. It
-            paints its own band and clips itself, so the section needs neither a
-            background nor a z-index of its own. Speed, fade, intensity and the
-            on/off switch all live in HERO_BACKDROP_SETTINGS at the top of
-            heroBackdrops.js. To pin it to one look instead, swap in
-            `<HeroBackdrop backdrop="blueprint" />`. */}
-        <RotatingHeroBackdrop />
-
+      <section className="relative flex min-h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav)-4rem)] flex-col bg-[#eef1f7] pt-[clamp(1.5rem,7vh,5rem)] lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))] dark:bg-page">
         <div className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-5 pb-10 sm:px-8">
           {/* Greeting — `font-manrope` on the header, not on each line, so the greeting and
               the line under it stay one voice — see --font-manrope in

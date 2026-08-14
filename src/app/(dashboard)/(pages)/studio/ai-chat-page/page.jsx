@@ -653,6 +653,7 @@ export default function AiCreativeChatPage() {
     brandsLoading,
     fetchDesignTemplates,
     generateCustomCreative,
+    createChatSession,
     fetchChatSessions,
     fetchChatSession,
   } = useAuth();
@@ -786,9 +787,8 @@ export default function AiCreativeChatPage() {
    *
    * @param {object} data The parsed chat response body.
    */
-  const adoptSession = useCallback(
-    (data) => {
-      const id = data?.session_id;
+  const rememberSession = useCallback(
+    (id) => {
       if (!id || activeSessionId === id) return;
 
       setActiveSessionId(id);
@@ -801,6 +801,49 @@ export default function AiCreativeChatPage() {
     },
     [activeSessionId, pathname, router, searchParams],
   );
+
+  /** Same, but reading the id out of a chat reply. */
+  const adoptSession = useCallback(
+    (data) => rememberSession(data?.session_id),
+    [rememberSession],
+  );
+
+  /**
+   * Get the id for the thread this message belongs to, opening one first if
+   * there isn't one yet.
+   *
+   * Every send goes through here, so `session_id` is a real id on the FIRST
+   * request rather than null until the backend gets round to minting one. All
+   * three entry points (Ai Chat, Import Site, Brand) route into this page's
+   * send path, so they are all covered by this one call.
+   *
+   * A session held in a ref as well as state: two sends can be started before
+   * React has re-rendered with the new id, and the ref is what stops the second
+   * one opening a duplicate thread.
+   *
+   * Returns null if the session couldn't be created — the caller decides
+   * whether to go ahead without one.
+   */
+  const sessionIdRef = useRef(null);
+  useEffect(() => {
+    sessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
+
+  const ensureSession = useCallback(async () => {
+    if (sessionIdRef.current) return sessionIdRef.current;
+
+    const res = await createChatSession(activeBrandId);
+    if (!res?.ok || !res.sessionId) {
+      console.error("❌ [chat] couldn't open a session:", res?.message);
+      return null;
+    }
+
+    // Written to the ref immediately: the state update and the re-render that
+    // carries it are a tick away, and a fast second send must not race past it.
+    sessionIdRef.current = res.sessionId;
+    rememberSession(res.sessionId);
+    return res.sessionId;
+  }, [createChatSession, activeBrandId, rememberSession]);
 
   /** Replace the transcript with a stored one. */
   const handleOpenSession = useCallback(
@@ -1127,15 +1170,17 @@ export default function AiCreativeChatPage() {
       setIsLoading(true);
 
       try {
+        // Open the thread before saying anything into it, so this message
+        // carries a real session_id rather than null.
+        const sessionId = await ensureSession();
+
         const result = await creativeAiChat({
           message: content,
           brandId: activeBrandId,
           images,
           logo: activeBrand?.logo,
           model,
-          // Keeps this message in the thread it belongs to. Null only on the
-          // very first send, before the backend has named the session.
-          sessionId: activeSessionId,
+          sessionId,
         });
 
         const reply = result.ok
@@ -1178,22 +1223,24 @@ export default function AiCreativeChatPage() {
         setIsLoading(false);
       }
     },
-    [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession, activeSessionId]
+    [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession, ensureSession]
   );
 
   const handleInitialSend = useCallback(async (content, images = []) => {
     setIsLoading(true);
 
     try {
+      // The opening message of a brand-new thread — this is the call that
+      // actually creates the session the whole conversation then lives in.
+      const sessionId = await ensureSession();
+
       const result = await creativeAiChat({
         message: content,
         brandId: activeBrandId,
         images,
         logo: activeBrand?.logo,
         model,
-        // Usually null here — this is the opening message — but a resumed
-        // `?session=` thread already has one, so it is passed either way.
-        sessionId: activeSessionId,
+        sessionId,
       });
 
       const reply = result.ok
@@ -1237,7 +1284,7 @@ export default function AiCreativeChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession, activeSessionId]);
+  }, [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession, ensureSession]);
 
   // Which template the user has picked from the fetched set.
   const handlePickTemplate = useCallback((template) => {

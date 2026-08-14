@@ -141,6 +141,9 @@ export function AuthProvider({ children }) {
   const API_GALLERY_URL = `${BASE_URL}/gallery`;
   const API_FETCH_TUTORIAL_VIDEOS = `${BASE_URL}/tutorial-videos`;
   const API_AI_CHAT_URL = `${BASE_URL}/creatives/ai-creative`;
+  // NB: singular "creative" here, unlike the plural "creatives" above — that is
+  // the path as specified, not a typo to be tidied.
+  const API_AI_SESSION_URL = `${BASE_URL}/creative/session`;
   const API_AI_REDESIGN_URL = `${BASE_URL}/creatives/ai-redesign`;
   // Read side of the chat persistence `creativeAiChat` writes with save_chat.
   // Singular "session" for the detail route, plural for the list — that's the
@@ -2200,6 +2203,81 @@ export function AuthProvider({ children }) {
    * @param {string} [params.model]  The composer's model id, passed straight on.
    * @returns {Promise<{ok: boolean, reply?: string, data?: unknown, message?: string}>}
    */
+  /**
+   * Open a chat session and get its id → POST /creative/session.
+   *
+   * Called BEFORE the first message of a thread so `session_id` is a real id
+   * from the very first request, rather than null on message one and populated
+   * from message two. Every entry point that starts a conversation (Ai Chat,
+   * Import Site, Brand) funnels through the chat page's send path, so this runs
+   * in one place for all three.
+   *
+   * The id is read defensively across the shapes this could come back in —
+   * `session_id` / `id`, at the root or under `data`/`session` — because a
+   * session that succeeded but whose id we failed to find would silently start
+   * a fresh thread on every message.
+   *
+   * @param {string|number} brandId The active brand.
+   * @returns {Promise<{ok: boolean, sessionId?: string, message?: string}>}
+   */
+  const createChatSession = async (brandId) => {
+    if (!token) return { ok: false, message: "Not authenticated" };
+    if (!brandId) {
+      console.error("❌ createChatSession: no active brand — brand_id is required.");
+      return { ok: false, message: "Select a brand before starting a chat." };
+    }
+
+    try {
+      const res = await authFetch(API_AI_SESSION_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ brand_id: brandId }),
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("Invalid JSON from creative/session:", text);
+        return { ok: false, message: "Invalid server response" };
+      }
+
+      if (!res.ok) {
+        const firstError = data?.errors
+          ? Object.values(data.errors)[0]?.[0]
+          : null;
+        console.error("❌ createChatSession failed:", firstError || data?.message);
+        return {
+          ok: false,
+          message: firstError || data?.message || "Couldn't start the chat session",
+        };
+      }
+
+      const sessionId =
+        data?.session_id ??
+        data?.id ??
+        data?.data?.session_id ??
+        data?.data?.id ??
+        data?.session?.id ??
+        null;
+
+      if (!sessionId) {
+        console.error("❌ createChatSession: no id in response:", data);
+        return { ok: false, message: "The session came back without an id" };
+      }
+
+      console.log(`✅ [chat] session created: ${sessionId}`);
+      return { ok: true, sessionId: String(sessionId) };
+    } catch (err) {
+      console.error("createChatSession error:", err);
+      return { ok: false, message: err.message || "Network error" };
+    }
+  };
+
   const creativeAiChat = async ({
     message,
     brandId,
@@ -2244,12 +2322,16 @@ export function AuthProvider({ children }) {
           images: images.length ? images : null,
           logo: logo || null,
           model: model || null,
-          // Which conversation this message belongs to. Null on the FIRST
-          // message of a thread — the backend mints the id and returns it as
-          // `session_id`, and every message after that sends it back so the
-          // reply is appended to the existing thread instead of starting a new
-          // one. Callers get it from the previous response (see the chat page's
-          // adoptSession).
+          // Which conversation this message belongs to — sent on EVERY message.
+          // Null on the first one of a thread: the backend mints the id there
+          // and returns it as `session_id`, and every message after sends it
+          // back so the reply appends to the existing thread instead of forking
+          // a new one. Callers get it from the previous response (see the chat
+          // page's adoptSession).
+          //
+          // The key is always present, null included. Omitting it when absent
+          // was tried and reverted — it changed nothing, so the shape the
+          // backend sees stays predictable instead of varying by message.
           session_id: sessionId || null,
         }),
       });
@@ -3604,6 +3686,7 @@ export function AuthProvider({ children }) {
         setActiveBrand,
         switchingBrandId,
         fetchDesignTemplates,
+        createChatSession,
         runComparison,
         checkCompliance,
         saveIntegration,

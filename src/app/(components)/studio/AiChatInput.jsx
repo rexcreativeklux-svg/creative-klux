@@ -21,6 +21,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, Film, Loader2, Music, Paperclip, Plus, SendHorizontal, X } from "lucide-react";
 import VoiceMicButton from "./VoiceMicButton";
+import MediaPickerModal from "@/app/(components)/MediaPickerModal";
+import { useAuth } from "@/context/AuthContext";
 import useGalleryUpload from "./useGalleryUpload";
 import useVoiceInput, { describeVoiceState } from "./useVoiceInput";
 import {
@@ -51,19 +53,53 @@ export default function AiChatInput({
 }) {
   const [value, setValue] = useState("");
   const [focused, setFocused] = useState(false);
+  // The gallery picker behind the "+" button.
+  const [pickerOpen, setPickerOpen] = useState(false);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  const { myImages, activeBrand } = useAuth();
 
   const color = config?.color || "#7c3aed";
   const colorRgb = config?.colorRgb || "124,58,237";
 
   const voice = useVoiceInput({ onText: setValue });
   const voiceStatus = describeVoiceState(voice);
-  const { attachments, uploading, addFiles, removeAttachment, clearAttachments } =
-    useGalleryUpload({
-      allowedCategories: CHAT_ATTACHMENT_CATEGORIES,
-      maxFiles: MAX_CHAT_IMAGES,
-    });
+  const {
+    attachments,
+    uploading,
+    addFiles,
+    addHosted,
+    removeAttachment,
+    clearAttachments,
+  } = useGalleryUpload({
+    allowedCategories: CHAT_ATTACHMENT_CATEGORIES,
+    maxFiles: MAX_CHAT_IMAGES,
+  });
+
+  /**
+   * The picker confirmed. `images` is [{ src, large, file? }] and `media` is a
+   * flat list of URLs (Magic Studio picks).
+   *
+   * Two kinds come back and they take different routes: a LIBRARY or stock pick
+   * is already hosted, so its URL is attached directly; an UPLOAD tab pick is
+   * still a File on the user's disk and has to go through addFiles to become a
+   * gallery URL the chat API can carry. `large` wins over `src` where both
+   * exist — stock results put the full-size image there and the thumbnail in
+   * `src`, and the generator should get the big one.
+   */
+  const handlePickerApply = (images = [], media = []) => {
+    setPickerOpen(false);
+
+    const files = images.map((img) => img?.file).filter(Boolean);
+    if (files.length) addFiles(files);
+
+    const hosted = [
+      ...images.filter((img) => !img?.file).map((img) => img?.large || img?.src),
+      ...media,
+    ];
+    if (hosted.length) addHosted(hosted);
+  };
 
   // Auto-grow with the content, but never below the three-row resting height and
   // never past the ceiling (after which the textarea scrolls internally).
@@ -114,15 +150,21 @@ export default function AiChatInput({
           <div className="hide-scrollbar flex gap-1.5 overflow-x-auto border-b border-gray-100 px-2.5 pb-2 pt-2.5">
             {attachments.map((item) => {
               const Icon = CATEGORY_ICON[item.category] || Paperclip;
+              // Uploads preview from a local object URL; gallery picks have no
+              // object URL because they were never a File — the hosted image IS
+              // the preview. Without this fallback every picked image showed a
+              // generic paperclip instead of itself.
+              const thumb =
+                item.previewUrl || (item.category === "image" ? item.url : null);
               return (
                 <div
                   key={item.id}
                   className="relative flex w-36 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 py-1 pl-1 pr-6"
                 >
-                  {item.previewUrl ? (
+                  {thumb ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={item.previewUrl}
+                      src={thumb}
                       alt={item.name}
                       className="h-6 w-6 shrink-0 rounded object-cover"
                     />
@@ -156,14 +198,18 @@ export default function AiChatInput({
             padding: "9px 10px",
           }}
         >
-          {/* Attach — uploads to the gallery, same pipeline as AI Select.
-              Images only: the chat API carries an `images` array, nothing else. */}
+          {/* Attach — opens the gallery picker rather than a bare file dialog,
+              so an image already in the library can be reused instead of being
+              re-uploaded. The picker's Library tab has its own upload control,
+              so picking from disk is still one click away; the hidden <input>
+              below stays for drag-drop and paste. Images only: the chat API
+              carries an `images` array, nothing else. */}
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setPickerOpen(true)}
             disabled={uploading}
-            aria-label="Attach images from your device"
-            title={`Attach images (up to ${MAX_CHAT_IMAGES})`}
+            aria-label="Add images from your gallery"
+            title={`Add images (up to ${MAX_CHAT_IMAGES})`}
             className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
           >
             {uploading ? (
@@ -251,6 +297,23 @@ export default function AiChatInput({
             addFiles(e.target.files);
             e.target.value = ""; // let the same file be picked again
           }}
+        />
+
+        {/* Library only: Search is Pexels and Magic is the legacy generator,
+            and this button's job is "use something I already have". The cap is
+            what's LEFT of the chat's allowance, so the picker can't hand back
+            more than the composer is able to hold. */}
+        <MediaPickerModal
+          isOpen={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          onCancel={() => setPickerOpen(false)}
+          onApply={handlePickerApply}
+          initialTab="library"
+          tabs={["library"]}
+          allowedTypes={["image"]}
+          maxSelectable={Math.max(0, MAX_CHAT_IMAGES - attachments.length)}
+          myImages={myImages}
+          activeBrand={activeBrand}
         />
       </div>
 

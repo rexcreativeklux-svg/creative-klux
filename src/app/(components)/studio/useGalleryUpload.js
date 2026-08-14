@@ -301,6 +301,67 @@ export default function useGalleryUpload({
     [uploadMedia, allowedCategories, maxFiles],
   );
 
+  /**
+   * Attach images that are ALREADY hosted — gallery picks, stock results,
+   * anything that arrives as a URL rather than a File.
+   *
+   * These skip everything addFiles does: there is no type or size check because
+   * nothing is being uploaded (the gallery already accepted them), and no
+   * object URL to revoke because the hosted URL is its own preview. What they
+   * DO share is the `maxFiles` cap — the two paths add to one list, so the
+   * limit has to be enforced against what is already attached from either.
+   *
+   * @param {Array<string|{url?: string, src?: string, image_url?: string, name?: string, id?: string|number}>} items
+   */
+  const addHosted = useCallback(
+    (items) => {
+      const incoming = (Array.isArray(items) ? items : [items])
+        .map((item) => {
+          if (typeof item === "string") return { url: item, name: null, id: null };
+          const url = item?.url || item?.src || item?.image_url || item?.large;
+          return url
+            ? { url, name: item?.name || item?.image_name || null, id: item?.id ?? null }
+            : null;
+        })
+        .filter((item) => item && /^https?:/i.test(item.url));
+
+      if (!incoming.length) return;
+
+      setAttachments((prev) => {
+        const room = maxFiles ? Math.max(0, maxFiles - prev.length) : incoming.length;
+        // Same URL twice is a no-op: the picker can be reopened, and the chat
+        // API would carry the duplicate straight through to the generator.
+        const seen = new Set(prev.map((a) => a.url));
+        const fresh = incoming.filter((item) => !seen.has(item.url)).slice(0, room);
+
+        if (fresh.length < incoming.length) {
+          const dropped = incoming.length - fresh.length;
+          console.warn(
+            `⚠️ [composer-upload] ${dropped} pick(s) dropped — already attached or over the ${maxFiles} limit`,
+          );
+          toast.error(
+            room === 0
+              ? `You can attach up to ${maxFiles} images — remove one to add another.`
+              : `${dropped} image(s) weren't added — already attached or over the ${maxFiles} limit.`,
+          );
+        }
+
+        if (!fresh.length) return prev;
+        return [
+          ...prev,
+          ...fresh.map((item, i) => ({
+            id: item.id != null ? String(item.id) : `hosted-${Date.now()}-${i}`,
+            url: item.url,
+            name: item.name || "Image",
+            category: "image",
+            previewUrl: null, // the hosted URL IS the preview
+          })),
+        ];
+      });
+    },
+    [maxFiles],
+  );
+
   const removeAttachment = useCallback((id) => {
     setAttachments((prev) => {
       const target = prev.find((item) => item.id === id);
@@ -316,5 +377,12 @@ export default function useGalleryUpload({
     setAttachments([]);
   }, []);
 
-  return { attachments, uploading, addFiles, removeAttachment, clearAttachments };
+  return {
+    attachments,
+    uploading,
+    addFiles,
+    addHosted,
+    removeAttachment,
+    clearAttachments,
+  };
 }

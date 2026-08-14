@@ -57,12 +57,14 @@ export default function HomeSkeleton({ clearsHeader = true }) {
       <section className="relative flex min-h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav)-4rem)] flex-col justify-center pt-[clamp(1.5rem,7vh,5rem)] lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))]">
         <div className="relative mx-auto w-full max-w-5xl px-5 pb-10 sm:px-8">
           {/* Greeting — centred, two bars at the two DIFFERENT heights the real
-              heading uses: "Hi <name>." at the h1's ~36px, then the subtitle
-              under it at roughly half that. Matching the heights is the whole
-              job here; a subtitle bar drawn at the h1's height leaves the hero
-              taller than the page it's standing in for. */}
+              heading uses: "Good <time>, <name>." at the h1's ~36px, then the
+              subtitle under it at roughly half that. Matching the heights is
+              the whole job here; a subtitle bar drawn at the h1's height leaves
+              the hero taller than the page it's standing in for. The top bar's
+              width tracks the greeting, which is a good deal longer than the
+              old "Hi <name>." it replaced. */}
           <div className="mb-7 flex flex-col items-center gap-3">
-            <Skeleton className="h-8 w-40 rounded-lg sm:h-9" />
+            <Skeleton className="h-8 w-56 rounded-lg sm:h-9 sm:w-64" />
             <Skeleton className="h-4 w-72 rounded-md sm:h-5 sm:w-96" />
           </div>
 

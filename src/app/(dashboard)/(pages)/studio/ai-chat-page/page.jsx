@@ -903,6 +903,26 @@ export default function AiCreativeChatPage() {
   }, [messages, isLoading]);
 
   /**
+   * Say something in the thread as the assistant.
+   *
+   * A FAILED CREATE HAS TO LAND HERE, not only on a toast. By the time one of
+   * these fires the assistant has already said "Creating 4 Instagram posts…",
+   * so a toast that fades after a few seconds leaves a transcript promising
+   * work that never happened, a preview pane back on "Ready to generate", and
+   * nothing on screen explaining the gap. The message is the only account of it
+   * the user still has a minute later — and the only one that survives a
+   * refresh, since the thread is saved server-side.
+   *
+   * @param {string} content What went wrong, in the assistant's voice.
+   */
+  const postAssistantNote = useCallback((content) => {
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content, timestamp: new Date().toISOString() },
+    ]);
+  }, []);
+
+  /**
    * Inspect a chat reply and, when the assistant signals it has everything it
    * needs (`type: "create"`), build the design end to end and show it.
    *
@@ -939,12 +959,18 @@ export default function AiCreativeChatPage() {
           "The assistant didn't say which platform and size to use. Ask it to confirm those and try again.",
           "error",
         );
+        postAssistantNote(
+          "I'm missing the platform and size for this one. Tell me those (for example \"Instagram square 1080x1080\") and I'll build it.",
+        );
         return;
       }
 
       if (!activeBrandId) {
         console.error("❌ [chat] create blocked — no active brand");
         showToast("Select a brand before generating a design.", "error");
+        postAssistantNote(
+          "I need an active brand before I can build a design. Pick one from the brand switcher and ask me again.",
+        );
         return;
       }
 
@@ -970,6 +996,9 @@ export default function AiCreativeChatPage() {
               res?.messageForDevs || res?.message,
             );
             showToast(res?.message || "Couldn't load design templates.", "error");
+            postAssistantNote(
+              "I couldn't reach the template library just now, so I wasn't able to build this. Ask me to try again in a moment.",
+            );
             return;
           }
 
@@ -985,6 +1014,12 @@ export default function AiCreativeChatPage() {
               `No templates found for ${query.category} at ${query.type_size}.`,
               "error",
             );
+            // Names the exact combination that came back empty, and suggests
+            // the move that actually helps — the library is stocked per
+            // format, so a different size or platform usually does have one.
+            postAssistantNote(
+              `I couldn't find any ${query.category.replace(/_/g, " ")} templates at ${query.type_size}, so I wasn't able to build this one. Try a different size or platform and I'll have another go.`,
+            );
             return;
           }
           rawTemplates = usable;
@@ -992,6 +1027,9 @@ export default function AiCreativeChatPage() {
         } catch (err) {
           console.error("❌ [chat] template fetch threw:", err);
           showToast("Couldn't load design templates. Please try again.", "error");
+          postAssistantNote(
+            "Something went wrong reaching the template library, so I wasn't able to build this. Ask me to try again.",
+          );
           return;
         } finally {
           setTemplatesLoading(false);
@@ -1039,12 +1077,18 @@ export default function AiCreativeChatPage() {
         if (!result?.ok) {
           console.error("❌ [chat] redesign failed:", result?.message);
           showToast(result?.message || "Couldn't build the design.", "error");
+          postAssistantNote(
+            `I ran into a problem building the design${result?.message ? `: ${result.message}` : ""}. Ask me to try again and I'll rerun it.`,
+          );
           return;
         }
 
         if (!collected.length) {
           console.warn("⚠️ [chat] redesign returned no variations");
           showToast("The design came back empty. Please try again.", "error");
+          postAssistantNote(
+            "The design came back empty — nothing was generated. Ask me to try again and I'll rerun it.",
+          );
           return;
         }
 
@@ -1052,6 +1096,9 @@ export default function AiCreativeChatPage() {
       } catch (err) {
         console.error("❌ [chat] redesign threw:", err);
         showToast("Couldn't build the design. Please try again.", "error");
+        postAssistantNote(
+          "Something went wrong while building the design. Ask me to try again and I'll rerun it.",
+        );
       } finally {
         setDesignLoading(false);
       }
@@ -1062,6 +1109,7 @@ export default function AiCreativeChatPage() {
       activeBrand,
       activeBrandId,
       creativeType,
+      postAssistantNote,
     ],
   );
 
@@ -1085,6 +1133,9 @@ export default function AiCreativeChatPage() {
           images,
           logo: activeBrand?.logo,
           model,
+          // Keeps this message in the thread it belongs to. Null only on the
+          // very first send, before the backend has named the session.
+          sessionId: activeSessionId,
         });
 
         const reply = result.ok
@@ -1127,7 +1178,7 @@ export default function AiCreativeChatPage() {
         setIsLoading(false);
       }
     },
-    [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession]
+    [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession, activeSessionId]
   );
 
   const handleInitialSend = useCallback(async (content, images = []) => {
@@ -1140,6 +1191,9 @@ export default function AiCreativeChatPage() {
         images,
         logo: activeBrand?.logo,
         model,
+        // Usually null here — this is the opening message — but a resumed
+        // `?session=` thread already has one, so it is passed either way.
+        sessionId: activeSessionId,
       });
 
       const reply = result.ok
@@ -1183,7 +1237,7 @@ export default function AiCreativeChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession]);
+  }, [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession, activeSessionId]);
 
   // Which template the user has picked from the fetched set.
   const handlePickTemplate = useCallback((template) => {

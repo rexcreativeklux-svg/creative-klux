@@ -33,7 +33,7 @@
 // Colours come from the app's theme tokens (bg-page / bg-surface / gray-*), so
 // light and dark both follow the user's chosen theme with no per-mode overrides.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -58,6 +58,21 @@ import { toImagePayload } from "@/app/(components)/studio/attachmentUrls";
 
 /** The chat page's own pipeline key — see CREATIVE_CONFIG in ai-chat-page. */
 const DEFAULT_CREATIVE = "general";
+
+/**
+ * The time-of-day greeting, from a 0–23 hour.
+ *
+ * The boundaries are the conversational ones rather than the astronomical
+ * ones: afternoon starts at noon, evening at 5pm — which is when people start
+ * saying it, and it keeps "good evening" off a screen at 5:30pm in summer.
+ * There is deliberately no "good night" band; someone working at 2am is still
+ * being greeted, not sent to bed.
+ */
+function greetingForHour(hour) {
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 export default function Home() {
   const router = useRouter();
@@ -153,11 +168,27 @@ export default function Home() {
     composerRef.current?.appendPrompt(suggestion);
   };
 
-  // First name only — "Hi Kingsley." reads better than the full account name.
+  // First name only — "Good morning, Kingsley." reads better than the full
+  // account name.
   const firstName = useMemo(() => {
     const name = (user?.name || "").trim();
     return name ? name.split(/\s+/)[0] : "";
   }, [user?.name]);
+
+  // The greeting follows the USER'S clock, which only the browser knows — the
+  // server renders in its own timezone and would hand someone eating breakfast
+  // a "Good evening". So first paint uses whatever hour the render happens in
+  // and the effect settles it on mount; `suppressHydrationWarning` on the <h1>
+  // is what keeps React quiet about that one-render difference.
+  //
+  // Read on every mount rather than once at module scope, so a tab left open
+  // overnight still greets correctly on the next visit.
+  const [greeting, setGreeting] = useState(() =>
+    greetingForHour(new Date().getHours()),
+  );
+  useEffect(() => {
+    setGreeting(greetingForHour(new Date().getHours()));
+  }, []);
 
   /**
    * Send a payload to the chat page. The prompt becomes the opening message and
@@ -359,26 +390,33 @@ export default function Home() {
         <RotatingHeroBackdrop />
 
         <div className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-5 pb-10 sm:px-8">
-          {/* Greeting */}
+          {/* Greeting — `font-manrope` on the header, not on each line, so the greeting and
+              the line under it stay one voice — see --font-manrope in
+              globals.css. The rest of the app is still Inter. */}
           <header
-            className="animate-hero-in mb-7 text-center"
+            className="animate-hero-in mb-7 text-center font-manrope"
             style={{ animationDelay: "60ms" }}
           >
-            {firstName && (
-              <h1 className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900">
-                Hi {firstName}
-                <span className="text-blue-600">.</span>
-              </h1>
-            )}
+            {/* The name is optional but the greeting is not: an account still
+                loading (or one with no name on it) gets "Good morning." rather
+                than a heading that pops in late and shifts the composer down. */}
+            <h1
+              suppressHydrationWarning
+              className="text-[clamp(26px,3.4vw,40px)] font-bold leading-tight tracking-tight text-gray-900"
+            >
+              {firstName ? `${greeting}, ${firstName}` : greeting}
+              <span className="text-blue-600">.</span>
+            </h1>
             {/* Roughly half the greeting's size, so this reads as the line
-                UNDER "Hi <name>." rather than as a second heading competing with
-                it — at the greeting's own 40px it wrapped to two lines and took
-                over the hero. One line at every width from `sm` up.
-                `text-balance` is still here for the narrow end, where 54
-                characters do wrap: it evens the lines out instead of leaving two
-                words stranded on the second. */}
+                UNDER "Good <time>, <name>." rather than as a second heading
+                competing with it — at the greeting's own 40px it wrapped to two
+                lines and took over the hero. One line at every width from `sm`
+                up. `text-balance` is still here for the narrow end, where these
+                62 characters do wrap: it evens the lines out instead of leaving
+                two words stranded on the second. */}
             <h2 className="mt-2 text-balance text-[clamp(15px,1.5vw,19px)] font-medium leading-snug tracking-tight text-gray-600">
-              Create Scroll-stopping ads, social content, and designs.
+              Turn any idea into scroll-stopping ads, social content, and
+              designs.
             </h2>
           </header>
 

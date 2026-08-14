@@ -2206,6 +2206,7 @@ export function AuthProvider({ children }) {
     images = [],
     logo,
     model,
+    sessionId,
   }) => {
     if (!token) {
       console.error("No auth token found. User may not be logged in.");
@@ -2243,6 +2244,13 @@ export function AuthProvider({ children }) {
           images: images.length ? images : null,
           logo: logo || null,
           model: model || null,
+          // Which conversation this message belongs to. Null on the FIRST
+          // message of a thread — the backend mints the id and returns it as
+          // `session_id`, and every message after that sends it back so the
+          // reply is appended to the existing thread instead of starting a new
+          // one. Callers get it from the previous response (see the chat page's
+          // adoptSession).
+          session_id: sessionId || null,
         }),
       });
 

@@ -320,7 +320,15 @@ export default function useGalleryUpload({
           if (typeof item === "string") return { url: item, name: null, id: null };
           const url = item?.url || item?.src || item?.image_url || item?.large;
           return url
-            ? { url, name: item?.name || item?.image_name || null, id: item?.id ?? null }
+            ? {
+                url,
+                name: item?.name || item?.image_name || null,
+                id: item?.id ?? null,
+                // The gallery row's own type ("image" | "video" | "audio" |
+                // "document"). Carried through so the tile picks the right
+                // icon and doesn't try to paint a video as a thumbnail.
+                category: item?.category || item?.type || "image",
+              }
             : null;
         })
         .filter((item) => item && /^https?:/i.test(item.url));
@@ -352,9 +360,9 @@ export default function useGalleryUpload({
           ...fresh.map((item, i) => ({
             id: item.id != null ? String(item.id) : `hosted-${Date.now()}-${i}`,
             url: item.url,
-            name: item.name || "Image",
-            category: "image",
-            previewUrl: null, // the hosted URL IS the preview
+            name: item.name || "Attachment",
+            category: item.category,
+            previewUrl: null, // for an image the hosted URL IS the preview
           })),
         ];
       });

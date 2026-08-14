@@ -148,37 +148,184 @@ function DesignCanvas({ variation }) {
   );
 }
 
-/* ─── PreviewLoading ───────────────────────────────────────────
-   Shown while templates are being fetched, so the pane never falls back to the
-   idle state mid-request and look like nothing happened.
+/** What the pane says it is doing, per stage of the create flow. */
+const STAGE_LABEL = {
+  templates: "Finding a matching template…",
+  designs: "Building your designs…",
+};
+
+/**
+ * The create flow's steps, in order, as a tile can show them. Same keys as
+ * `createStage`, so the trail below and the banner above are driven by one
+ * value and cannot disagree about which step is running.
+ */
+const CREATE_STEPS = [
+  { key: "templates", label: "Template" },
+  { key: "designs", label: "Design" },
+];
+
+/* ─── StepTrail ────────────────────────────────────────────────
+   Template → Design, shown under each placeholder so a tile says where it is
+   rather than only that it is busy. A step that's finished keeps its tick, so
+   the trail reads as progress made, not just progress pending.
 ──────────────────────────────────────────────────────────────── */
-function PreviewLoading({ config, label }) {
+function StepTrail({ stage, config }) {
+  const current = CREATE_STEPS.findIndex((s) => s.key === stage);
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {CREATE_STEPS.map((step, i) => {
+        const done = current > i;
+        const active = current === i;
+        return (
+          <React.Fragment key={step.key}>
+            {i > 0 && (
+              <span
+                style={{
+                  flex: 1,
+                  height: 1,
+                  background: done ? config.color : "var(--color-gray-200)",
+                }}
+              />
+            )}
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 10,
+                fontWeight: active ? 600 : 500,
+                color: active
+                  ? config.color
+                  : done
+                    ? "var(--color-gray-500)"
+                    : "var(--color-gray-400)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: "50%",
+                  flexShrink: 0,
+                  background: done || active ? config.color : "var(--color-gray-300)",
+                  animation: active ? "ck-stage-pulse 1.2s ease-in-out infinite" : "none",
+                }}
+              />
+              {done ? `✓ ${step.label}` : step.label}
+            </span>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ─── DesignShimmer ────────────────────────────────────────────
+   One placeholder in the shape of a finished design card, so the grid holds
+   its layout from the first moment and each tile is REPLACED by real artwork
+   rather than the whole pane swapping out from under the reader.
+
+   Uses the shared `.shimmer-sweep` (globals.css), which paints its highlight on
+   ::after — that composes with the tile's own background instead of owning it,
+   and it self-disables under prefers-reduced-motion.
+──────────────────────────────────────────────────────────────── */
+function DesignShimmer({ index, stage, config }) {
+  return (
+    <div
+      style={{
+        borderRadius: 6,
+        overflow: "hidden",
+        background: "var(--color-surface)",
+        border: "1px solid var(--color-gray-200)",
+        // Staggered so four tiles pulse as a wave rather than one flat block.
+        animationDelay: `${index * 120}ms`,
+      }}
+    >
+      {/* The artwork block carries the stage in words. The tile is big and
+          otherwise blank for the length of a redesign, so this is the most
+          readable place to say what is happening — the trail underneath tells
+          you WHERE in the flow you are, this tells you what is being done.
+
+          `position: relative` + z-index on the text because .shimmer-sweep
+          paints its highlight on ::after, which renders above ordinary
+          children and would otherwise wash the label out on every pass. */}
+      <div
+        className="shimmer-sweep"
+        style={{
+          aspectRatio: "1 / 1",
+          background: "var(--color-gray-100)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 14,
+        }}
+      >
+        <span
+          style={{
+            position: "relative",
+            zIndex: 1,
+            fontSize: 11,
+            fontWeight: 500,
+            lineHeight: 1.45,
+            textAlign: "center",
+            color: "var(--color-gray-500)",
+            textWrap: "balance",
+          }}
+        >
+          {STAGE_LABEL[stage] || "Working…"}
+        </span>
+      </div>
+      {/* The step trail replaces the usual two placeholder bars: the space
+          under a tile is better spent saying what is happening to it than
+          miming a title that hasn't been written yet. */}
+      <div style={{ padding: "9px 10px" }}>
+        <StepTrail stage={stage} config={config} />
+      </div>
+    </div>
+  );
+}
+
+/* ─── StageBanner ──────────────────────────────────────────────
+   The running commentary above the grid. A create takes long enough that a
+   pane which only shimmers reads as stuck — this names the step, so the wait
+   is legible rather than merely animated.
+──────────────────────────────────────────────────────────────── */
+function StageBanner({ stage, config, done, total }) {
   const { color, colorRgb } = config;
   return (
     <div
       style={{
-        position: "absolute",
-        inset: 16,
         display: "flex",
-        flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
-        gap: 14,
+        gap: 9,
+        padding: "10px 12px",
+        borderBottom: "1px solid var(--color-gray-200)",
+        background: `rgba(${colorRgb},0.04)`,
       }}
     >
       <span
         style={{
-          width: 34,
-          height: 34,
+          width: 8,
+          height: 8,
           borderRadius: "50%",
-          border: `2.5px solid rgba(${colorRgb},0.18)`,
-          borderTopColor: color,
-          animation: "ck-spin 0.8s linear infinite",
-          display: "inline-block",
+          background: color,
+          animation: "ck-stage-pulse 1.2s ease-in-out infinite",
+          flexShrink: 0,
         }}
       />
-      <p style={{ fontSize: 12, color: "var(--color-gray-500)", margin: 0 }}>{label}</p>
-      <style>{`@keyframes ck-spin { to { transform: rotate(360deg); } }`}</style>
+      <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-gray-700)" }}>
+        {STAGE_LABEL[stage] || "Working…"}
+      </span>
+      {/* Only once designs start landing — "0 of 4" before anything exists
+          reads as a stall rather than progress. */}
+      {total > 0 && done > 0 && (
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--color-gray-500)" }}>
+          {done} of {total}
+        </span>
+      )}
+      <style>{`@keyframes ck-stage-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.25 } }`}</style>
     </div>
   );
 }
@@ -319,22 +466,55 @@ function PreviewPanel({ result,
   onToggleSelect,
   saveDesign,
   activeBrandId, showToast,
-  templatesLoading,
-  designLoading,
+  stage,
+  expectedCount,
   onPickTemplate,
   selectedTemplateId, }) {
   const { colorRgb, colorLight } = config;
+  // Owned here rather than by the page: the save belongs to this panel's
+  // toolbar, and nothing outside it needs to know the button is busy.
+  const [saving, setSaving] = useState(false);
 
-  // The two halves of the create flow, in order. Both are spinners, but they
-  // say different things because they take very different amounts of time —
-  // a template fetch is quick, a redesign is not, and a label that stopped
-  // changing would read as a hang.
-  if (templatesLoading) {
-    return <PreviewLoading config={config} label="Finding matching templates…" />;
-  }
+  // Designs already returned by this run, if any. During "designs" they arrive
+  // in batches, so this grows while the stage is still running.
+  const landed = result?.type === "design" ? result.variations || [] : [];
 
-  if (designLoading) {
-    return <PreviewLoading config={config} label="Building your design…" />;
+  // Nothing to show yet → a full grid of placeholders. Once the first design
+  // lands the branch below takes over and mixes real cards with the remaining
+  // shimmers, so a tile is REPLACED in place rather than the pane re-rendering
+  // from scratch.
+  if (stage && !landed.length) {
+    return (
+      <div
+        style={{
+          position: "absolute",
+          inset: 16,
+          background: "var(--color-surface)",
+          borderRadius: 14,
+          border: "0.5px solid var(--color-gray-200)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        <StageBanner stage={stage} config={config} done={0} total={expectedCount} />
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: 12,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: 10,
+            alignItems: "start",
+          }}
+        >
+          {Array.from({ length: Math.max(1, expectedCount) }).map((_, i) => (
+            <DesignShimmer key={i} index={i} stage={stage} config={config} />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (result?.type === "templates") {
@@ -371,6 +551,16 @@ function PreviewPanel({ result,
         animation: "ck-slide-in 0.35s cubic-bezier(0.34,1.56,0.64,1) both",
       }}
     >
+      {/* Still building — the banner keeps naming the step while the designs
+          that have landed are already on screen beside the pending tiles. */}
+      {stage && (
+        <StageBanner
+          stage={stage}
+          config={config}
+          done={variations.length}
+          total={Math.max(expectedCount, variations.length)}
+        />
+      )}
 
       {selectedDesigns?.length > 0 && (
         <div
@@ -388,18 +578,38 @@ function PreviewPanel({ result,
             animation: "slideDown 0.25s ease forwards",
           }}
         >
-          <button className="hover:scale-95"
+          {/* Saving is NOT instant — saveDesign paints a full-canvas thumbnail
+              for every selected design before it uploads anything, so a
+              four-design save is seconds of work with nothing else on screen to
+              show for it. The button owns that state: spinner while it runs,
+              and disabled so a second click can't start a duplicate save of the
+              same selection. */}
+          <button
+            className={saving ? "" : "hover:scale-95"}
+            disabled={saving}
             onClick={async () => {
-              // Persist the real creative type so cards show the correct Ads/Social/Design/Magic badge.
-              // saveDesign strips the "_creative" suffix; "general" has no category so default it to "ads".
-              const saveType = !creativeType || creativeType === "general" ? "ads" : creativeType;
-              const res = await saveDesign(activeBrandId, selectedDesigns, saveType);
+              if (saving) return;
+              setSaving(true);
+              try {
+                // Persist the real creative type so cards show the correct Ads/Social/Design/Magic badge.
+                // saveDesign strips the "_creative" suffix; "general" has no category so default it to "ads".
+                const saveType = !creativeType || creativeType === "general" ? "ads" : creativeType;
+                const res = await saveDesign(activeBrandId, selectedDesigns, saveType);
 
-              if (res?.ok) {
-                setSelectedDesigns([]);
-                showToast("Design(s) saved successfully", "success");
-              } else {
-                showToast(res?.message || "Failed to save designs", "error");
+                if (res?.ok) {
+                  setSelectedDesigns([]);
+                  showToast("Design(s) saved successfully", "success");
+                } else {
+                  showToast(res?.message || "Failed to save designs", "error");
+                }
+              } catch (err) {
+                // saveDesign resolves rather than throws, but a thumbnail
+                // render is browser work and can still blow up — without this
+                // the button would stay stuck on "Saving…" forever.
+                console.error("❌ [chat] save threw:", err);
+                showToast("Couldn't save the design(s). Please try again.", "error");
+              } finally {
+                setSaving(false);
               }
             }}
             style={{
@@ -410,23 +620,58 @@ function PreviewPanel({ result,
               borderRadius: 10,
               fontSize: 12,
               fontWeight: 600,
-              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: saving ? "not-allowed" : "pointer",
+              opacity: saving ? 0.75 : 1,
+              transition: "opacity 0.2s",
             }}
           >
-            Save {selectedDesigns.length} design
-            {selectedDesigns.length > 1 ? "s" : ""}
+            {saving && (
+              <span
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: "50%",
+                  border: "2px solid rgba(255,255,255,0.4)",
+                  borderTopColor: "#fff",
+                  animation: "ck-btn-spin 0.7s linear infinite",
+                  display: "inline-block",
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            {saving ? (
+              "Saving…"
+            ) : (
+              <>
+                Save {selectedDesigns.length} design
+                {selectedDesigns.length > 1 ? "s" : ""}
+              </>
+            )}
+            <style>{`@keyframes ck-btn-spin { to { transform: rotate(360deg); } }`}</style>
           </button>
 
-          <button className="hover:scale-95"
+          {/* Clear goes too: wiping the selection mid-save would leave the
+              request writing designs the user can no longer see selected.
+              `hover:scale-95` is dropped while saving — a button that still
+              springs under the cursor reads as clickable however it is
+              coloured, which is the one signal that matters here. */}
+          <button
+            className={saving ? "" : "hover:scale-95"}
+            disabled={saving}
             onClick={() => setSelectedDesigns([])}
             style={{
               background: "var(--color-gray-100)",
-              color: "var(--color-gray-900)",
+              color: saving ? "var(--color-gray-400)" : "var(--color-gray-900)",
               border: "1px solid var(--color-gray-200)",
               padding: "8px 10px",
               borderRadius: 10,
               fontSize: 12,
-              cursor: "pointer",
+              cursor: saving ? "not-allowed" : "pointer",
+              opacity: saving ? 0.55 : 1,
+              transition: "opacity 0.2s, color 0.2s",
             }}
           >
             Clear
@@ -462,7 +707,11 @@ function PreviewPanel({ result,
                     onClick={() => onToggleSelect(v)}
                     className="border border-gray-200"
                     style={{
-                      borderRadius: 12,
+                      // Same 6 as DesignShimmer — the two sit side by side in
+                      // this grid while a batch is still landing, and a tile
+                      // that changed shape as it filled would read as a swap
+                      // rather than the same card resolving.
+                      borderRadius: 6,
                       overflow: "hidden",
                       background: "var(--color-surface)",
                       // The selected green stays literal — it is a state colour,
@@ -598,6 +847,17 @@ function PreviewPanel({ result,
                   </div>
                 );
               })}
+
+        {/* The designs still in flight, holding their place in the same grid.
+            Each one is replaced by real artwork the moment its batch lands, so
+            the layout never jumps — the count is what's OUTSTANDING, not the
+            total. */}
+        {stage &&
+          Array.from({
+            length: Math.max(0, expectedCount - variations.length),
+          }).map((_, i) => (
+            <DesignShimmer key={`pending-${i}`} index={i} stage={stage} config={config} />
+          ))}
       </div>
 
       {/* ── footer ── */}
@@ -669,12 +929,15 @@ export default function AiCreativeChatPage() {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [previewResult, setPreviewResult] = useState(null);
-  // True while /design-templates/public-fetch is in flight, so the preview pane
-  // can show a spinner instead of sitting on the idle state.
-  const [templatesLoading, setTemplatesLoading] = useState(false);
-  // True while /creatives/redesign is turning the fetched template into the
-  // finished design — the second half of the create flow, and the slower one.
-  const [designLoading, setDesignLoading] = useState(false);
+  // Which half of the create flow is running: "templates" while Scraive is
+  // being queried, "designs" while redesign is building, null when idle. ONE
+  // value rather than a boolean per step, so the preview pane and the chat's
+  // typing indicator can never disagree about what is happening.
+  const [createStage, setCreateStage] = useState(null);
+  // How many designs are coming, so the pane can put down that many shimmer
+  // tiles and swap each one for the real thing as it lands. Comes from the
+  // conversation via buildTemplateQuery's num_template.
+  const [expectedCount, setExpectedCount] = useState(0);
   // The template the user picked from the fetched set (null = none yet).
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const messagesEndRef = useRef(null);
@@ -1029,7 +1292,9 @@ export default function AiCreativeChatPage() {
       let rawTemplates = [];
       if (CREATIVE_ENGINE === "redesign") {
         console.log("🎨 [chat] create signal received, fetching templates:", query);
-        setTemplatesLoading(true);
+        setCreateStage("templates");
+        // Put down one shimmer per design the conversation asked for.
+        setExpectedCount(query.num_template || 1);
         try {
           const res = await fetchDesignTemplates(query);
 
@@ -1042,6 +1307,7 @@ export default function AiCreativeChatPage() {
             postAssistantNote(
               "I couldn't reach the template library just now, so I wasn't able to build this. Ask me to try again in a moment.",
             );
+            setCreateStage(null); // take the shimmers away — nothing is coming
             return;
           }
 
@@ -1063,6 +1329,7 @@ export default function AiCreativeChatPage() {
             postAssistantNote(
               `I couldn't find any ${query.category.replace(/_/g, " ")} templates at ${query.type_size}, so I wasn't able to build this one. Try a different size or platform and I'll have another go.`,
             );
+            setCreateStage(null);
             return;
           }
           rawTemplates = usable;
@@ -1073,9 +1340,8 @@ export default function AiCreativeChatPage() {
           postAssistantNote(
             "Something went wrong reaching the template library, so I wasn't able to build this. Ask me to try again.",
           );
+          setCreateStage(null);
           return;
-        } finally {
-          setTemplatesLoading(false);
         }
       }
 
@@ -1091,7 +1357,7 @@ export default function AiCreativeChatPage() {
       });
 
       console.log("🚀 [chat] redesigning", rawTemplates.length, "template(s)");
-      setDesignLoading(true);
+      setCreateStage("designs");
       try {
         // Batches stream back (redesign chunks templates by 9). Each one is
         // appended so a long set fills the pane as it arrives rather than
@@ -1108,7 +1374,8 @@ export default function AiCreativeChatPage() {
           collected.push(...batch.variations);
           if (!painted) {
             painted = true;
-            setDesignLoading(false); // first designs are in — drop the spinner
+            // First designs are in. The stage stays "designs" so the tiles
+            // still waiting keep shimmering beside the ones that landed.
           }
           setPreviewResult({
             type: "design",
@@ -1143,7 +1410,7 @@ export default function AiCreativeChatPage() {
           "Something went wrong while building the design. Ask me to try again and I'll rerun it.",
         );
       } finally {
-        setDesignLoading(false);
+        setCreateStage(null);
       }
     },
     [
@@ -1539,13 +1806,9 @@ export default function AiCreativeChatPage() {
             {isLoading && (
               <AiChatTypingIndicator
                 config={config}
-                label={
-                  templatesLoading
-                    ? "Finding a template…"
-                    : designLoading
-                      ? "Building your design…"
-                      : null
-                }
+                // The SAME source the preview banner reads, so the chat and the
+                // pane always name the same step.
+                label={STAGE_LABEL[createStage] || null}
               />
             )}
             <div ref={messagesEndRef} />
@@ -1647,8 +1910,8 @@ export default function AiCreativeChatPage() {
                 transition: "all 0.3s",
               }}
             >
-              {templatesLoading
-                ? "Loading templates"
+              {createStage
+                ? STAGE_LABEL[createStage]
                 : previewResult?.type === "templates"
                   ? `${previewResult.templates.length} templates`
                   : previewResult
@@ -1680,8 +1943,8 @@ export default function AiCreativeChatPage() {
               saveDesign={saveDesign}
               activeBrandId={activeBrandId}
               showToast={showToast}
-              templatesLoading={templatesLoading}
-              designLoading={designLoading}
+              stage={createStage}
+              expectedCount={expectedCount}
               onPickTemplate={handlePickTemplate}
               selectedTemplateId={selectedTemplate?.id || null}
             />

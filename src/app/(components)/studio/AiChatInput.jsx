@@ -26,8 +26,8 @@ import { useAuth } from "@/context/AuthContext";
 import useGalleryUpload from "./useGalleryUpload";
 import useVoiceInput, { describeVoiceState } from "./useVoiceInput";
 import {
-  CHAT_ATTACHMENT_ACCEPT,
-  CHAT_ATTACHMENT_CATEGORIES,
+  CHAT_MEDIA_ACCEPT,
+  CHAT_MEDIA_CATEGORIES,
   MAX_CHAT_IMAGES,
   MAX_CHAT_MESSAGE,
   toImagePayload,
@@ -73,7 +73,7 @@ export default function AiChatInput({
     removeAttachment,
     clearAttachments,
   } = useGalleryUpload({
-    allowedCategories: CHAT_ATTACHMENT_CATEGORIES,
+    allowedCategories: CHAT_MEDIA_CATEGORIES,
     maxFiles: MAX_CHAT_IMAGES,
   });
 
@@ -291,7 +291,7 @@ export default function AiChatInput({
           ref={fileInputRef}
           type="file"
           multiple
-          accept={CHAT_ATTACHMENT_ACCEPT}
+          accept={CHAT_MEDIA_ACCEPT}
           className="hidden"
           onChange={(e) => {
             addFiles(e.target.files);
@@ -299,18 +299,30 @@ export default function AiChatInput({
           }}
         />
 
-        {/* Library only: Search is Pexels and Magic is the legacy generator,
-            and this button's job is "use something I already have". The cap is
-            what's LEFT of the chat's allowance, so the picker can't hand back
-            more than the composer is able to hold. */}
+        {/* The gallery, as the /gallery page presents it: your media plus a
+            stock search, and nothing else. Magic Studio is deliberately left
+            out — /gallery has no such tab, and generating a new image is a
+            different intent from attaching one you already have.
+
+            `allowedTypes` covers every category the gallery holds, so the
+            Videos / Audio / Docs tabs appear here exactly as they do on
+            /gallery. Whether the chat endpoint accepts a video is the
+            endpoint's call to make and to report — see CHAT_MEDIA_CATEGORIES.
+
+            `allowedTypes` stays images-only: the chat API's `images` array is
+            the only channel an attachment has, so a video or PDF would have
+            nowhere to go (see attachmentUrls.js).
+
+            The cap is what's LEFT of the chat's allowance, so the picker can't
+            hand back more than the composer is able to hold. */}
         <MediaPickerModal
           isOpen={pickerOpen}
           onClose={() => setPickerOpen(false)}
           onCancel={() => setPickerOpen(false)}
           onApply={handlePickerApply}
           initialTab="library"
-          tabs={["library"]}
-          allowedTypes={["image"]}
+          tabs={["library", "search"]}
+          allowedTypes={CHAT_MEDIA_CATEGORIES}
           maxSelectable={Math.max(0, MAX_CHAT_IMAGES - attachments.length)}
           myImages={myImages}
           activeBrand={activeBrand}

@@ -76,6 +76,24 @@ const IDEAS = {
       description:
         "When I add a product, build its launch set — post, story, ad and banner — in my brand's colors and fonts.",
     },
+    {
+      title: "Rebuild anything on the old logo",
+      platforms: [],
+      description:
+        "When I upload a new logo, find every design still carrying the old one and rebuild them for my review.",
+    },
+    {
+      title: "Hold copy that leaves my voice",
+      platforms: ["meta_ads", "linkedin"],
+      description:
+        "Before anything publishes, flag the copy that drifts from my brand voice and show me a rewrite beside it.",
+    },
+    {
+      title: "Set up each brand I add",
+      platforms: [],
+      description:
+        "When I create a brand, import its site, build the kit, and generate a starter set of designs to work from.",
+    },
   ],
   Social: [
     {
@@ -95,6 +113,24 @@ const IDEAS = {
       platforms: ["instagram", "facebook"],
       description:
         "Every Monday, pull last week's reach and engagement per post and tell me which creative earned it.",
+    },
+    {
+      title: "Draft my replies each morning",
+      platforms: ["instagram", "facebook"],
+      description:
+        "Every morning, draft replies to the comments on my posts and queue them for me to approve or edit.",
+    },
+    {
+      title: "Run my best post again",
+      platforms: ["instagram", "linkedin"],
+      description:
+        "Each month, find my top performer, refresh the creative so it doesn't repeat, and schedule it to run again.",
+    },
+    {
+      title: "Turn today's trends into posts",
+      platforms: ["tiktok"],
+      description:
+        "Every morning, scan the trends in my niche and turn the top five into post ideas with ready-made hooks.",
     },
   ],
   Ads: [
@@ -116,6 +152,24 @@ const IDEAS = {
       description:
         "A month before each sale, build the full ad set — every size, copy variant and headline — and schedule it.",
     },
+    {
+      title: "Test five headlines every time",
+      platforms: ["meta_ads", "google_ads"],
+      description:
+        "For each new ad, write five headline variants against the same creative and set them up as a test.",
+    },
+    {
+      title: "Tell me the moment one dips",
+      platforms: ["meta_ads"],
+      description:
+        "Watch my running ads daily and alert me as soon as a creative's performance starts falling off.",
+    },
+    {
+      title: "Adapt each campaign per market",
+      platforms: ["meta_ads", "snapchat_ads"],
+      description:
+        "Rebuild every campaign for each market I sell in, with the copy and imagery adapted rather than translated.",
+    },
   ],
   Performance: [
     {
@@ -135,6 +189,24 @@ const IDEAS = {
       platforms: ["meta_ads", "google_ads"],
       description:
         "Compare my two running creatives head to head each week and say which to scale and which to cut.",
+    },
+    {
+      title: "Audit my library each quarter",
+      platforms: [],
+      description:
+        "Every quarter, score everything I've made and show me the pattern behind the creatives that won.",
+    },
+    {
+      title: "Explain why an ad is failing",
+      platforms: ["meta_ads"],
+      description:
+        "When a creative drops below my benchmark, break down what's likely causing it and what to change first.",
+    },
+    {
+      title: "Track my share of voice",
+      platforms: ["instagram", "tiktok"],
+      description:
+        "Every month, compare how much my brand is showing up against my three closest competitors.",
     },
   ],
   Product: [
@@ -156,6 +228,24 @@ const IDEAS = {
       description:
         "For every new apparel item, generate ghost-mannequin and virtual-model versions sized for my shop and socials.",
     },
+    {
+      title: "Turn each product into video",
+      platforms: ["tiktok", "youtube"],
+      description:
+        "For every new product, build a short video from its photos and cut it to length for TikTok and YouTube.",
+    },
+    {
+      title: "Keep my catalog consistent",
+      platforms: [],
+      description:
+        "Check new product images against the ones already live and flag any whose framing or lighting breaks the set.",
+    },
+    {
+      title: "Restage my best sellers seasonally",
+      platforms: ["pinterest", "instagram"],
+      description:
+        "Ahead of each season, restage my top products in settings that match the time of year.",
+    },
   ],
   Studio: [
     {
@@ -176,9 +266,26 @@ const IDEAS = {
       description:
         "Regenerate my current campaign once per audience persona, with the copy and imagery rewritten for who they are.",
     },
+    {
+      title: "Voice my scripts in my tone",
+      platforms: [],
+      description:
+        "Turn each script I write into a voiceover in the voice I've chosen, ready to drop onto a video.",
+    },
+    {
+      title: "Repurpose every video I make",
+      platforms: ["linkedin", "twitter"],
+      description:
+        "After each video, pull the transcript and turn it into posts, captions and quote cards.",
+    },
+    {
+      title: "Generate a week of visuals",
+      platforms: ["instagram"],
+      description:
+        "Every Monday, generate a week's worth of images from my running prompts and file them for review.",
+    },
   ],
 };
-
 export default function CopilotHome() {
   const [task, setTask] = useState("");
   const [activeCategory, setActiveCategory] = useState("Brand");
@@ -188,8 +295,28 @@ export default function CopilotHome() {
     // No pb-nav: `main` in (dashboard)/layout.js reserves the mobile bottom
     // bar for every route, so repeating it here would only add dead space.
     <div className="min-h-full pt-header flex flex-col bg-[#eef1f7] dark:bg-page">
-      {/* ── Hero ────────────────────────────────────────────────── */}
-      <section className="flex flex-col items-center px-gutter pt-10 sm:pt-14 lg:pt-24 pb-12">
+      {/* ── Hero ──────────────────────────────────────────────────
+          ⚠️ THE HEIGHT IS MEASURED, NOT CHOSEN — the same trick the home page
+          uses. On desktop the hero is sized so that whatever follows it starts
+          exactly --ck-rail-top above the bottom of the window, which is where
+          the sidebar's THEME row begins. That makes the ideas section's top
+          rule continue the sidebar's THEME hairline straight across the screen
+          instead of cutting the window at an unrelated height.
+
+          Sizing it from the BOTTOM is the point: the rule has to land on the
+          sidebar's hairline, and only the viewport's bottom edge knows where
+          that is. Any fixed hero height would drift the moment the window
+          resized. See the --ck-rail-* block in globals.css.
+
+          ⚠️ `lg`, not `md` — one of the places that must agree on where the
+          sidebar appears. Below it there is no sidebar to line up with, so the
+          hero just takes its natural height and the section flows.
+
+          justify-center comes with the height: without it the content sits at
+          the top of a much taller box. pt-24 then nudges the centred group
+          down by half its value, the same way the home hero's pt-[clamp()]
+          does. */}
+      <section className="flex flex-col items-center px-gutter pt-10 sm:pt-14 lg:pt-24 pb-12 lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))] lg:justify-center">
         <h1 className="text-center text-3xl md:text-[44px] md:leading-[1.2] font-bold text-gray-900">
           Give your
           <br />
@@ -237,8 +364,14 @@ export default function CopilotHome() {
 
       {/* ── Starter ideas ───────────────────────────────────────── */}
       <section className="bg-surface border-t border-gray-200 flex-1 pb-20 md:pb-0">
-        {/* Category tabs */}
-        <div className="flex md:justify-center gap-6 overflow-x-auto hide-scrollbar px-4 py-3">
+        {/* Category tabs — pinned to --ck-rail-row on desktop, the height of the
+            sidebar's THEME row. With the hero above sized to --ck-rail-top, that
+            puts this strip's two rules (the section's border-t above, the card
+            grid's border-t below) on exactly the same screen lines as the two
+            rules bracketing THEME, so both hairlines run unbroken across the
+            window. Same construction as the home rail's tab row — change one and
+            check the other. Below `lg` it just flows. */}
+        <div className="flex items-center md:justify-center gap-6 overflow-x-auto hide-scrollbar px-4 py-3 lg:h-(--ck-rail-row) lg:py-0">
           {CATEGORIES.map((category) => {
             const active = activeCategory === category;
             return (

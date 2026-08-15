@@ -113,6 +113,20 @@ function extractItems(data) {
   if (!data) return [];
   const root = unwrapGeneration(data);
   if (Array.isArray(root)) return root;
+
+  // ⚠️ THE WHOLE BATCH BEFORE THE FIRST OF IT. A multi-variation image run is
+  // ONE record carrying every result — `meta.outputs: [{ key, url }]` on the
+  // record, mirrored as `urls: [...]` on the envelope beside it — while
+  // `url`/`s3_key` hold only the first. Reading those single fields first is
+  // what made a 4x run render one image and quietly drop three that had been
+  // generated and paid for.
+  const outputs = root?.meta?.outputs;
+  if (Array.isArray(outputs) && outputs.length > 0) return outputs;
+  // `urls` sits on the envelope, NOT inside `generation` — hence `data` here
+  // rather than the unwrapped `root`.
+  const urls = data?.urls || root?.urls;
+  if (Array.isArray(urls) && urls.length > 0) return urls;
+
   // Common container keys, in priority order.
   const container =
     root.assets ||
@@ -150,6 +164,8 @@ function itemUrl(item) {
     resolveMediaUrl(item.audio_url) ||
     resolveMediaUrl(item.image_url) ||
     resolveMediaUrl(item.s3_key) ||
+    // `key` is what an entry in `meta.outputs` calls its object key.
+    resolveMediaUrl(item.key) ||
     resolveMediaUrl(item.preview) ||
     null
   );
@@ -208,16 +224,23 @@ function normalizeMagicResponse(data, resultType) {
   return { assets, resultType };
 }
 
-// ── Async video jobs ─────────────────────────────────────────────────────────
-// Video tools (text_to_video, script_to_voiceover) are asynchronous on the
-// backend: the generate call returns a job id + "processing" status instead of a
-// finished URL, and the modal polls checkVideoGenerationStatus until it reports
+// ── Async generation jobs ────────────────────────────────────────────────────
+// A generation is a JOB, whatever it makes. The record is written when the
+// request arrives and filled in when the provider answers, so a response can
+// name a job that isn't finished — `{ generation: { id, status: "processing" } }`
+// — and the run is followed by polling checkGenerationStatus until it reports
 // "completed". These helpers keep the (field-name-tolerant) response handling in
-// one place so both video tools and the modal agree on the shape.
+// one place so every tool and every surface agree on the shape.
+//
+// ⚠️ NAMED FOR JOBS, NOT FOR VIDEO. They read the same three things off any
+// tool's response — which job, what state, what went wrong — and were called
+// getVideoStatus / normalizeVideoResult / extractVideoJobId back when only the
+// two video tools were asynchronous. The behaviour is unchanged; the names
+// stopped being true once the image tools started being followed the same way.
 
 // Statuses that mean the job is done / permanently failed. Anything else while a
 // job exists is treated as still "processing".
-const VIDEO_DONE_STATES = [
+const JOB_DONE_STATES = [
   "completed",
   "complete",
   "done",
@@ -226,7 +249,7 @@ const VIDEO_DONE_STATES = [
   "ready",
   "finished",
 ];
-const VIDEO_FAILED_STATES = [
+const JOB_FAILED_STATES = [
   "failed",
   "error",
   "errored",
@@ -239,7 +262,7 @@ const VIDEO_FAILED_STATES = [
  * returns the record wrapped as { generation: { id, status, … } }, so we unwrap
  * that first before falling back to the other common id field names.
  */
-export function extractVideoJobId(data) {
+export function extractGenerationId(data) {
   const root = unwrapGeneration(data);
   return (
     root?.id ??
@@ -254,29 +277,37 @@ export function extractVideoJobId(data) {
   );
 }
 
-/** Normalize a status/final response into the modal's render shape. */
-export function normalizeVideoResult(data) {
-  return normalizeMagicResponse(data, "video");
+/**
+ * Normalize a status/final response into the render shape, for whatever the tool
+ * makes.
+ *
+ * @param {object} data A status or generate response.
+ * @param {"image"|"video"|"audio"|"text"} [resultType="video"] What the tool
+ *   produces. ⚠️ REQUIRED IN PRACTICE for anything but video: the type ends up
+ *   on every asset, and the editor drops a result onto the canvas only when it
+ *   is `type: "image"` — so a polled image labelled "video" silently vanishes on
+ *   the surface that mattered most.
+ */
+export function normalizeStatusResult(data, resultType = "video") {
+  return normalizeMagicResponse(data, resultType);
 }
 
 /**
  * Classify a status response → "completed" | "processing" | "failed".
  * Trusts an explicit `status` field; otherwise infers from whether a usable
- * video URL is present yet.
+ * result URL is present yet.
  */
-export function getVideoStatus(data) {
+export function getGenerationStatus(data) {
   const root = unwrapGeneration(data);
   const s = String(root?.status ?? data?.data?.status ?? "")
     .toLowerCase()
     .trim();
   if (s) {
-    if (VIDEO_DONE_STATES.includes(s)) return "completed";
-    if (VIDEO_FAILED_STATES.includes(s)) return "failed";
+    if (JOB_DONE_STATES.includes(s)) return "completed";
+    if (JOB_FAILED_STATES.includes(s)) return "failed";
     return "processing";
   }
-  return normalizeMagicResponse(data, "video").assets.length > 0
-    ? "completed"
-    : "processing";
+  return extractItems(data).length > 0 ? "completed" : "processing";
 }
 
 /**
@@ -295,7 +326,7 @@ export function getVideoStatus(data) {
  * @param {object} data A video status/generate response.
  * @returns {string}
  */
-export function getVideoError(data) {
+export function getGenerationError(data) {
   const root = unwrapGeneration(data);
   const raw =
     root?.error ||
@@ -399,21 +430,45 @@ function recordTextToAudio(text, values, item) {
 }
 
 /**
- * Kick off an async video generation. POSTs the payload, then either returns a
- * finished result (fast path, if a URL already came back) or a pending
- * descriptor { pending, jobId } for the modal to poll on. Shared by both video
- * tools so the async contract lives in exactly one spot.
+ * Kick off a generation. POSTs the payload, then returns either a finished
+ * result (a URL came back with it) or a pending descriptor `{ pending, jobId }`
+ * for the caller to poll on.
+ *
+ * ⚠️ EVERY BACKEND TOOL GOES THROUGH HERE, not just the video pair. Whether a
+ * given run answers immediately or has to be waited on is the BACKEND'S choice,
+ * not the tool's: the same endpoint returns a finished record today and a
+ * "processing" one the moment that work moves onto a queue. A tool that assumed
+ * "my results arrive with the response" would break silently on that day —
+ * reporting success with an empty canvas — which is precisely how the image
+ * tools behaved before this.
+ *
+ * ⚠️ THE ID IS RETURNED EVEN WHEN THE RESULT IS. useMagicGenerate watches the
+ * run from the moment it starts, so by the time this resolves the poll may
+ * already have delivered — `generationId` is how the two are recognised as the
+ * same run instead of the result being shown twice.
+ *
+ * @param {object} payload Request body, already shaped for the backend.
+ * @param {"image"|"video"|"audio"|"text"} resultType What this tool produces.
+ * @returns {Promise<object>} A render shape, or `{ pending: true, jobId }`.
  */
-async function startVideoGeneration(payload) {
+async function startGeneration(payload, resultType) {
   const data = await generateMagicStudio(payload);
-  const immediate = normalizeMagicResponse(data, "video");
-  if (immediate.assets.length > 0) return immediate; // already finished
-  return {
-    resultType: "video",
-    pending: true,
-    jobId: extractVideoJobId(data),
-    raw: data,
-  };
+  const status = getGenerationStatus(data);
+
+  if (status === "failed") {
+    // The record's own reason where there is one — see getGenerationError.
+    throw new Error(
+      getGenerationError(data) || "Generation failed. Please try again.",
+    );
+  }
+
+  const immediate = normalizeMagicResponse(data, resultType);
+  const generationId = extractGenerationId(data);
+  if (status === "completed" && immediate.assets.length > 0) {
+    return { ...immediate, generationId, raw: data };
+  }
+
+  return { resultType, pending: true, jobId: generationId, raw: data };
 }
 
 // ── Shared aspect-ratio option set (rich cards render a scaled frame) ─────────
@@ -702,12 +757,14 @@ export const MAGIC_STUDIO_CONFIGS = {
     // Offers the composer's "3x" chip, and `generate` sends the number as
     // `variations` in the payload — ONE request, the backend fans out.
     //
-    // ⚠️ `variations` IS THE FIELD NAME THIS APP GUESSED, following the
-    // snake_case of everything around it. Nothing here has confirmed it against
-    // the API, and this endpoint rejects undeclared fields outright ("The tool
-    // field is required" is the same validator). If a 422 appears on a tool the
-    // moment the chip goes above 1x, this key is the first thing to check —
-    // it is set the same way in all five backend configs.
+    // ✅ CONFIRMED AGAINST THE API (probed 2026-08-15). The field is accepted
+    // and echoed back on the record as `meta.variations`, alongside
+    // `meta.requested_count` / `meta.completed_count`. This note used to warn
+    // that the name had only been guessed; it hasn't been a guess since.
+    //
+    // ⚠️ ALL N COME BACK IN ONE RECORD — `meta.outputs: [{ key, url }]`, with
+    // the record's own `url` holding just the first of them. Reading that single
+    // field is what made a 4x run show one image; see extractItems.
     //
     // ⚠️ ON-DEVICE TOOLS MUST NOT SET THIS. Audio to Text and Text to Audio
     // never reach the endpoint, and three runs of a deterministic local model
@@ -769,15 +826,15 @@ export const MAGIC_STUDIO_CONFIGS = {
         visual_style: values.style,
         ratio: ratioString(values.ratio),
         purpose: values.purpose,
-        // How many to make in one request — the composer's "3x". See the
-        // ⚠️ on `variations` above for the field-name caveat.
+        // How many to make in one request — the composer's "3x".
         variations: values.variations,
         // Absent unless a colour was actually picked — see COLOR_OPTION.
         ...colorField(values.color),
         prompt: input.trim(),
       };
-      const data = await generateMagicStudio(payload);
-      return normalizeMagicResponse(data, "image");
+      // May answer with the finished images or with a job to wait on — the
+      // backend decides, and startGeneration reports which. See its ⚠️.
+      return startGeneration(payload, "image");
     },
   },
 
@@ -881,8 +938,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         prompt: input.trim(),
       };
       // Async on the backend → returns a finished result or a { pending, jobId }
-      // descriptor the modal polls on.
-      return startVideoGeneration(payload);
+      // descriptor to poll on.
+      return startGeneration(payload, "video");
     },
   },
 
@@ -1006,8 +1063,11 @@ export const MAGIC_STUDIO_CONFIGS = {
         ...colorField(values.color),
         image_url: input,
       };
-      const data = await generateMagicStudio(payload);
-      return normalizeMagicResponse(data, "image");
+      // Several takes on one image is what this tool is FOR, so it is the one
+      // most likely to be waited on rather than answered outright — a 2x run
+      // measured at ~106s against the live API. startGeneration reports which of
+      // the two happened; useMagicGenerate keeps the wait on screen either way.
+      return startGeneration(payload, "image");
     },
   },
 
@@ -1232,8 +1292,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         prompt: input.trim(),
       };
       // Async on the backend → returns a finished result or a { pending, jobId }
-      // descriptor the modal polls on.
-      return startVideoGeneration(payload);
+      // descriptor to poll on.
+      return startGeneration(payload, "video");
     },
   },
 
@@ -1507,15 +1567,17 @@ export const MAGIC_STUDIO_CONFIGS = {
         ratio: ratioString(ratio),
         variations: values.variations,
       };
-      const data = await generateMagicStudio(payload);
-      // The chosen content type decides how the right canvas renders the result.
+      // The chosen content type decides how the canvas renders the result — and
+      // it has to be settled BEFORE the request, because a run that comes back
+      // as a job to wait on is normalized later, off the status response, with
+      // nothing left to say what was asked for.
       const resultType =
         contentType === "text"
           ? "text"
           : contentType === "video"
             ? "video"
             : "image";
-      return normalizeMagicResponse(data, resultType);
+      return startGeneration(payload, resultType);
     },
   },
 

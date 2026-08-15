@@ -399,6 +399,11 @@ export default function MagicTabPanel({
   }
 
   const ic = config.inputConfig || {};
+  // A run is showing its wait when this panel started one, OR when history came
+  // back with one still going — a generation outlives the surface that asked for
+  // it, so reopening the picker mid-generation should find the wait still there
+  // rather than an empty grid. See useMagicHistory's `pending`.
+  const waiting = generating || history.pending.length > 0;
   const wordCount = textInput.trim() ? textInput.trim().split(/\s+/).length : 0;
   const readTime = Math.max(5, Math.round(wordCount / 2.5));
   const resultType = config.resultType === "auto" ? "image" : config.resultType;
@@ -425,7 +430,7 @@ export default function MagicTabPanel({
                   ({history.items.length})
                 </span>
               )}
-              {generating && (
+              {waiting && (
                 <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
               )}
             </span>
@@ -435,7 +440,7 @@ export default function MagicTabPanel({
           </button>
           {historyOpen && (
             <div className="border-t border-gray-100 p-4 max-h-[46vh] overflow-y-auto">
-              {!generating && !history.loading && history.items.length === 0 ? (
+              {!waiting && !history.loading && history.items.length === 0 ? (
                 <p className="text-center text-xs text-gray-400 py-6">
                   Nothing generated yet — your results will appear here.
                 </p>
@@ -443,7 +448,7 @@ export default function MagicTabPanel({
                 <MagicHistoryGrid
                   items={history.items}
                   loading={history.loading}
-                  generating={generating}
+                  generating={waiting}
                   generatingLabel={`Generating your ${config.title.toLowerCase()}…`}
                   resultType={resultType}
                   onDelete={history.remove}

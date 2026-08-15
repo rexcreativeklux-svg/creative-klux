@@ -25,7 +25,9 @@
 // never heard of — the fallback puts them back on the default instead.
 
 import { useSyncExternalStore } from "react";
-import { Cpu, Sparkles } from "lucide-react";
+// The vendors' own marks rather than lucide stand-ins — see modelIcons.jsx for
+// why they're inline SVG components instead of files under /public.
+import { ClaudeIcon, OpenAIIcon } from "./modelIcons";
 
 /**
  * The model menu's sections, in the order they appear. Each option below carries
@@ -36,33 +38,33 @@ import { Cpu, Sparkles } from "lucide-react";
  * loose above the sections rather than disappearing.
  */
 export const MODEL_GROUPS = [
-  { id: "claude", label: "Claude", icon: Sparkles },
-  { id: "gpt", label: "GPT", icon: Cpu },
+  { id: "claude", label: "Claude", icon: ClaudeIcon },
+  { id: "gpt", label: "GPT", icon: OpenAIIcon },
 ];
 
 /** Model tiers. Labels are placeholders until the real line-up is decided. */
 export const MODEL_OPTIONS = [
   // --- CLAUDE MODELS ---
-  { id: "claude-sonnet-5", label: "Claude Sonnet 5", group: "claude", icon: Sparkles },
-  { id: "claude-opus-5", label: "Claude Opus 5", group: "claude", icon: Sparkles },
-  { id: "claude-opus-4-8", label: "Claude Opus 4.8", group: "claude", icon: Sparkles },
-  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", group: "claude", icon: Sparkles },
+  { id: "claude-sonnet-5", label: "Claude Sonnet 5", group: "claude", icon: ClaudeIcon },
+  { id: "claude-opus-5", label: "Claude Opus 5", group: "claude", icon: ClaudeIcon },
+  { id: "claude-opus-4-8", label: "Claude Opus 4.8", group: "claude", icon: ClaudeIcon },
+  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", group: "claude", icon: ClaudeIcon },
 
   // --- GPT MODELS ---
-  { id: "gpt-5.6-sol", label: "GPT-5.6 Sol", group: "gpt", icon: Cpu },
-  { id: "gpt-5.6-terra", label: "GPT-5.6 Terra", group: "gpt", icon: Cpu },
-  { id: "gpt-5.3-codex", label: "GPT-5.3 Codex", group: "gpt", icon: Cpu },
-  { id: "gpt-5.2-pro", label: "GPT-5.2 Pro", group: "gpt", icon: Cpu },
-  { id: "gpt-5.2", label: "GPT-5.2", group: "gpt", icon: Cpu },
-  { id: "gpt-5.1", label: "GPT-5.1", group: "gpt", icon: Cpu },
-  { id: "gpt-5-pro", label: "GPT-5 Pro", group: "gpt", icon: Cpu },
-  { id: "gpt-5", label: "GPT-5", group: "gpt", icon: Cpu },
-  { id: "gpt-5-mini", label: "GPT-5 Mini", group: "gpt", icon: Cpu },
-  { id: "gpt-5-nano", label: "GPT-5 Nano", group: "gpt", icon: Cpu },
-  { id: "gpt-4.1", label: "GPT-4.1", group: "gpt", icon: Cpu },
-  { id: "gpt-4.1-mini", label: "GPT-4.1 Mini", group: "gpt", icon: Cpu },
-  { id: "gpt-4o", label: "GPT-4o", group: "gpt", icon: Cpu },
-  { id: "gpt-4o-mini", label: "GPT-4o Mini", group: "gpt", icon: Cpu },
+  { id: "gpt-5.6-sol", label: "GPT-5.6 Sol", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-5.6-terra", label: "GPT-5.6 Terra", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-5.3-codex", label: "GPT-5.3 Codex", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-5.2-pro", label: "GPT-5.2 Pro", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-5.2", label: "GPT-5.2", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-5.1", label: "GPT-5.1", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-5-pro", label: "GPT-5 Pro", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-5", label: "GPT-5", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-5-mini", label: "GPT-5 Mini", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-5-nano", label: "GPT-5 Nano", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-4.1", label: "GPT-4.1", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-4.1-mini", label: "GPT-4.1 Mini", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-4o", label: "GPT-4o", group: "gpt", icon: OpenAIIcon },
+  { id: "gpt-4o-mini", label: "GPT-4o Mini", group: "gpt", icon: OpenAIIcon },
 ];
 
 /**

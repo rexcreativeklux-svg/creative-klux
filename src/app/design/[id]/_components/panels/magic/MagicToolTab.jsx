@@ -179,6 +179,11 @@ export default function MagicToolTab({ toolId, insert, editor }) {
   }
 
   const ic = config.inputConfig || {};
+  // Showing a wait for a run this panel started, OR one history says is still
+  // going — a generation outlives the panel that asked for it, so closing the
+  // sidebar or reloading the editor mid-run should find the wait still there.
+  // See useMagicHistory's `pending`.
+  const waiting = magic.generating || history.pending.length > 0;
   // The locked persona content type isn't a choice here, so it isn't a row.
   const optionRows = (config.options || []).filter(
     (o) => !(config.input === "persona" && o.key === "contentType"),
@@ -313,10 +318,10 @@ export default function MagicToolTab({ toolId, insert, editor }) {
               }`}
             >
               {v.label}
-              {v.id === "history" && magic.generating && (
+              {v.id === "history" && waiting && (
                 <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
               )}
-              {v.id === "history" && !magic.generating && history.items.length > 0 && (
+              {v.id === "history" && !waiting && history.items.length > 0 && (
                 <span className="text-[10px] font-medium text-gray-400">
                   ({history.items.length})
                 </span>
@@ -330,7 +335,7 @@ export default function MagicToolTab({ toolId, insert, editor }) {
         <MagicHistoryList
           items={history.items}
           loading={history.loading}
-          generating={magic.generating}
+          generating={waiting}
           removingId={history.removingId}
           onDelete={history.remove}
           onPick={(item) => pick(item.type, item.url)}

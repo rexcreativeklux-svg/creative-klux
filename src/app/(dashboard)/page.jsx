@@ -47,6 +47,10 @@ import {
   firstGreetingForHour,
   randomGreetingForHour,
 } from "@/app/(components)/home/homeGreetings";
+import {
+  FIRST_SUBHEADING,
+  randomSubheading,
+} from "@/app/(components)/home/homeSubheadings";
 import HomePromptSuggestions from "@/app/(components)/home/HomePromptSuggestions";
 import {
   HOME_COMPOSER_TABS,
@@ -170,11 +174,20 @@ export default function Home() {
   // Read on every mount rather than once at module scope, so a tab left open
   // overnight still greets correctly — and lands on a different line — on the
   // next visit.
+  //
+  // The line under it rotates the same way and for the same reasons, minus the
+  // clock — its pool is flat, because what the product makes doesn't depend on
+  // the hour (see the ⚠️ in homeSubheadings.js). Both picks are made in ONE
+  // effect so the two lines change together in a single commit; split across
+  // two effects they would still batch today, but the pairing would be an
+  // accident of React's scheduling rather than something this file states.
   const [greeting, setGreeting] = useState(() =>
     firstGreetingForHour(new Date().getHours()),
   );
+  const [subheading, setSubheading] = useState(FIRST_SUBHEADING);
   useEffect(() => {
     setGreeting(randomGreetingForHour(new Date().getHours()));
+    setSubheading(randomSubheading());
   }, []);
 
   /**
@@ -408,23 +421,36 @@ export default function Home() {
               </span>
               {greeting.tail}
             </h1>
-            {/* Roughly half the greeting's size, so this reads as the line
-                UNDER "Good <time>, <name>." rather than as a second heading
-                competing with it — at the greeting's own 40px it wrapped to two
-                lines and took over the hero. One line at every width from `sm`
-                up. `text-balance` is still here for the narrow end, where these
-                62 characters do wrap: it evens the lines out instead of leaving
-                two words stranded on the second.
+            {/* One line from homeSubheadings.js — a flat pool rather than the
+                headline's time bands, and the same lead/accent/tail split, so
+                this rotates per load alongside the line above it.
+
+                Roughly half the greeting's size, so this reads as the line UNDER
+                the headline rather than as a second heading competing with it —
+                at the greeting's own 40px it wrapped to two lines and took over
+                the hero. One line at every width from `sm` up. `text-balance` is
+                still here for the narrow end, where ~70 characters do wrap: it
+                evens the lines out instead of leaving two words stranded on the
+                second.
 
                 gray-900 like the greeting, not the gray-600 it used to be, so
                 both lines carry /copilot's text colour. SIZE AND WEIGHT are what
                 keep this subordinate now — half the greeting's size and medium
                 against its bold — which is the hierarchy that was doing the real
-                work anyway; the lighter grey was only ever reinforcing it. */}
-            <h2 className="mt-2 text-balance text-[clamp(15px,1.5vw,19px)] font-medium leading-snug tracking-tight text-gray-900">
-              Turn any idea into{" "}
-              <span className="text-blue-600">scroll-stopping</span> ads, social
-              content, and designs.
+                work anyway; the lighter grey was only ever reinforcing it.
+
+                suppressHydrationWarning on the h2 AND its span, for the same
+                reason as the h1: the parent's flag doesn't reach a child
+                element's text. */}
+            <h2
+              suppressHydrationWarning
+              className="mt-2 text-balance text-[clamp(15px,1.5vw,19px)] font-medium leading-snug tracking-tight text-gray-900"
+            >
+              {subheading.lead}{" "}
+              <span suppressHydrationWarning className="text-blue-600">
+                {subheading.accent}
+              </span>
+              {subheading.tail}
             </h2>
           </header>
 

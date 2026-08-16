@@ -18,6 +18,7 @@ import { resolveTextEffect } from "./textEffects";
 import { buildImageFilter } from "./imageAdjust";
 import { warpPerspective, hasPerspective } from "./perspective";
 import { isCropped } from "./imageCrop";
+import { flattenGroups } from "./groups";
 
 /**
  * renderDesignToBlob — paints a { canvas, elements } design to an offscreen
@@ -50,9 +51,15 @@ function loadImage(src) {
 }
 
 export async function renderDesignToCanvas({ canvas, elements }) {
+  // Groups are an editor construct: expand them into their children, in absolute
+  // coordinates, and the painter below never has to know they exist. Done first
+  // so the font scan sees text nested inside a group too — otherwise grouped
+  // text exported in the fallback face.
+  const flat = flattenGroups(elements || []);
+
   // Ensure any custom fonts used by text elements are loaded before painting —
   // canvas fillText silently falls back to a default if the font isn't ready.
-  const families = (elements || [])
+  const families = flat
     .filter((el) => (el.type === "text" || el.type === "table") && el.fontFamily)
     .map((el) => el.fontFamily);
   if (families.length) await waitForFonts(families);
@@ -78,7 +85,7 @@ export async function renderDesignToCanvas({ canvas, elements }) {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
-  for (const el of elements || []) {
+  for (const el of flat) {
     if (el.hidden) continue;
     ctx.save();
     ctx.globalAlpha = el.opacity ?? 1;

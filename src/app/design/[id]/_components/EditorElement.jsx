@@ -43,9 +43,17 @@ export default function EditorElement({
   element: el,
   zoom,
   selected,
+  // True while this element is one of SEVERAL selected. Its own chrome steps
+  // aside then: the action pill would be drawn once per selected element, and
+  // per-element resize handles would offer to resize one member of a selection
+  // that is being treated as a unit. The shared SelectionToolbar covers both.
+  multiSelected = false,
   editing,
-  onSelect,
+  onSelect, // (id, event) => void — the event carries the shift modifier
   onChange, // (patch, {record}) => void
+  onDragBegin, // (id) => void         — a drag gesture started on this element
+  onDragMove, // (id, {x, y}) => void  — live position, for dragging the others
+  onDragEnd, // (id, {x, y}) => void   — commits; falls back to onChange
   onStartEdit,
   onEndEdit,
   onCurveAddPoint,
@@ -57,6 +65,7 @@ export default function EditorElement({
   onRemove,
   onMoveLayer,
   onToggleLock,
+  onUngroup,
   onAskKlux,
   animateToken = 0,
   suppressChrome = false,
@@ -156,10 +165,28 @@ export default function EditorElement({
       size={{ width: el.width, height: el.height }}
       position={{ x: el.x, y: el.y }}
       disableDragging={editing || locked || suppressChrome}
-      enableResizing={selected && !editing && !noBox && !locked && !suppressChrome}
-      onDragStart={() => onSelect(el.id)}
-      onMouseDown={() => onSelect(el.id)}
-      onDragStop={(e, d) => onChange({ x: d.x, y: d.y }, { record: true })}
+      enableResizing={
+        selected && !multiSelected && !editing && !noBox && !locked && !suppressChrome
+      }
+      onDragStart={(e) => {
+        // A drag starts on mousedown, so this and onMouseDown below both fire
+        // for the same press and their order is react-rnd's business, not ours.
+        // Hence both conditions: an element already in the selection must not be
+        // re-selected (that would collapse a multi-selection the moment you
+        // moved it), and a modifier press belongs to onMouseDown's toggle alone
+        // — selecting here would undo it if this ran first. What's left is the
+        // case this exists for: a plain drag on touch, where there is no
+        // mousedown to have made the selection.
+        const additive = e?.shiftKey || e?.metaKey || e?.ctrlKey;
+        if (!selected && !additive) onSelect(el.id);
+        onDragBegin?.(el.id);
+      }}
+      onMouseDown={(e) => onSelect(el.id, e)}
+      onDrag={(e, d) => onDragMove?.(el.id, d)}
+      onDragStop={(e, d) => {
+        if (onDragEnd) onDragEnd(el.id, d);
+        else onChange({ x: d.x, y: d.y }, { record: true });
+      }}
       onResizeStop={(e, dir, ref, delta, pos) =>
         onChange(
           {
@@ -224,8 +251,10 @@ export default function EditorElement({
       </div>
 
       {/* Floating action pill below the element (lock / duplicate / delete /
-          layer order). Kept out of the rotated content so it stays upright. */}
-      {selected && !editing && !suppressChrome && (
+          layer order). Kept out of the rotated content so it stays upright.
+          Suppressed in a multi-selection — one pill for the whole selection is
+          drawn by the stage instead of one under every member. */}
+      {selected && !multiSelected && !editing && !suppressChrome && (
         <EditorElementMenu
           zoom={zoom}
           locked={locked}
@@ -233,10 +262,55 @@ export default function EditorElement({
           onRemove={() => onRemove?.(el.id)}
           onMoveLayer={(dir) => onMoveLayer?.(el.id, dir)}
           onToggleLock={() => onToggleLock?.(el.id)}
+          // Only a group has anything to ungroup — the button is absent for
+          // every other element rather than present and inert.
+          onUngroup={el.type === "group" ? () => onUngroup?.(el.id) : null}
           onAskKlux={onAskKlux}
         />
       )}
     </Rnd>
+  );
+}
+
+/**
+ * GroupInner — a group's members, laid out inside the group's box.
+ *
+ * Children carry coordinates RELATIVE to that box (see lib/design/groups.js),
+ * and the stage is already scaled, so their canvas units are this box's pixels
+ * 1:1 — no further conversion. Each child goes through the same renderInner as
+ * a top-level element, so a grouped chart / table / image looks identical to an
+ * ungrouped one; only the interactive parts are inert, because the group is
+ * what the user is manipulating.
+ */
+function GroupInner({ el, zoom }) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+      }}
+    >
+      {(el.children || [])
+        .filter((child) => !child.hidden)
+        .map((child) => (
+          <div
+            key={child.id}
+            style={{
+              position: "absolute",
+              left: child.x,
+              top: child.y,
+              width: child.width,
+              height: child.height,
+              opacity: child.opacity ?? 1,
+              transform: child.rotation ? `rotate(${child.rotation}deg)` : undefined,
+            }}
+          >
+            {renderInner(child, { zoom, selected: false, editing: false })}
+          </div>
+        ))}
+    </div>
   );
 }
 
@@ -255,6 +329,10 @@ function renderInner(
     onGridCellFill,
   },
 ) {
+  if (el.type === "group") {
+    return <GroupInner el={el} zoom={zoom} />;
+  }
+
   if (el.type === "frame") {
     return <FrameInner el={el} onFrameFill={onFrameFill} onChange={onChange} />;
   }

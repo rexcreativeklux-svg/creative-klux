@@ -11,6 +11,7 @@ import {
   SendToBack,
   ChevronUp,
   ChevronDown,
+  Ungroup,
 } from "lucide-react";
 
 /**
@@ -29,6 +30,8 @@ export default function EditorElementMenu({
   onRemove,
   onMoveLayer,
   onToggleLock,
+  // Only passed for a group element — see EditorElement.
+  onUngroup,
 }) {
   const [more, setMore] = useState(false);
 
@@ -61,6 +64,11 @@ export default function EditorElementMenu({
 
         {!locked && (
           <>
+            {onUngroup && (
+              <Btn title="Ungroup (Ctrl+Shift+G)" onClick={act(onUngroup)}>
+                <Ungroup className="h-4 w-4" />
+              </Btn>
+            )}
             <Btn title="Duplicate" onClick={act(onDuplicate)}>
               <Copy className="h-4 w-4" />
             </Btn>

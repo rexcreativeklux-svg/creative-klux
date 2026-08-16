@@ -14,10 +14,15 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  Group,
 } from "lucide-react";
 
 /** Human label + icon for a layer row. */
 function meta(el) {
+  if (el.type === "group") {
+    const n = el.children?.length || 0;
+    return { icon: Group, label: `Group of ${n}` };
+  }
   if (el.type === "text") {
     const t = (el.content || el.text || "Text").toString().trim();
     return { icon: Type, label: t.slice(0, 22) || "Text" };
@@ -36,8 +41,9 @@ function meta(el) {
 export default function LayersPanel({ editor }) {
   const {
     elements,
-    selectedId,
+    selectedIds,
     selectElement,
+    toggleSelection,
     updateElement,
     duplicateElement,
     removeElement,
@@ -59,11 +65,17 @@ export default function LayersPanel({ editor }) {
     <div className="p-2 flex flex-col gap-1">
       {rows.map((el) => {
         const { icon: Icon, label } = meta(el);
-        const on = el.id === selectedId;
+        const on = selectedIds.includes(el.id);
         return (
           <div
             key={el.id}
-            onClick={() => selectElement(el.id)}
+            // Shift/Cmd-click builds a multi-selection here too, so a stack of
+            // overlapping elements can be picked apart from the list.
+            onClick={(e) =>
+              e.shiftKey || e.metaKey || e.ctrlKey
+                ? toggleSelection(el.id)
+                : selectElement(el.id)
+            }
             className={`group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition border ${
               on
                 ? "bg-blue-50 border-blue-200"

@@ -15,6 +15,7 @@ import KluxLogoIcon from "./panels/klux/KluxLogoIcon";
 import EditorSidebar from "./EditorSidebar";
 import EditorContextBar from "./EditorContextBar";
 import EditorElement from "./EditorElement";
+import SelectionOverlay from "./SelectionOverlay";
 import ImageCropOverlay from "./ImageCropOverlay";
 import ImageEraserOverlay from "./ImageEraserOverlay";
 import PreviewOverlay from "./PreviewOverlay";
@@ -25,6 +26,7 @@ import {
   drawCover,
 } from "@/(lib)/design/renderDesign";
 import { isCropped } from "@/(lib)/design/imageCrop";
+import { boundsOf, isGroup } from "@/(lib)/design/groups";
 import { SHAPES, aspectOf, isStraightLine, isBendableLine } from "@/(lib)/design/shapes";
 import { frameGeo } from "@/(lib)/design/frames";
 import { makeGridCells } from "@/(lib)/design/grids";
@@ -67,16 +69,26 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     canvas,
     elements,
     selectedId,
+    selectedIds,
     selectedElement,
+    selectedElements,
     dirty,
     replaceToken,
     canUndo,
     canRedo,
     selectElement,
+    setSelection,
+    toggleSelection,
+    selectAll,
     updateElement,
+    updateElements,
     addElement,
     removeElement,
+    removeElements,
     duplicateElement,
+    duplicateElements,
+    groupElements,
+    ungroupElement,
     moveLayer,
     setBackground,
     undo,
@@ -590,6 +602,193 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     }
   };
 
+  // ── Selection ─────────────────────────────────────────────────────────
+  // Shift (or Cmd/Ctrl) extends the selection; a plain click replaces it —
+  // EXCEPT on an element that is already part of a multi-selection, which keeps
+  // the selection so the whole group of elements can be dragged from any of its
+  // members. That is the one rule that makes a marquee useful: without it, the
+  // press that starts the drag would collapse the sweep you just made.
+  const handleSelect = useCallback(
+    (id, e) => {
+      if (e && (e.shiftKey || e.metaKey || e.ctrlKey)) {
+        toggleSelection(id);
+        return;
+      }
+      if (selectedIds.length > 1 && selectedIds.includes(id)) return;
+      selectElement(id);
+    },
+    [selectedIds, toggleSelection, selectElement],
+  );
+
+  const multiSelected = selectedIds.length > 1;
+  const selectionBounds = multiSelected ? boundsOf(selectedElements) : null;
+  const groupSelected = !multiSelected && isGroup(selectedElement);
+
+  // ── Dragging a multi-selection ────────────────────────────────────────
+  // react-rnd moves the element under the pointer; the rest of the selection is
+  // moved by hand, by the same delta, from the positions they held when the
+  // gesture started. Measuring against that snapshot (rather than accumulating
+  // per-frame deltas) is what keeps the selection rigid — accumulated rounding
+  // would let members drift apart over a long drag.
+  const dragRef = useRef(null);
+
+  const handleDragBegin = useCallback(
+    (id) => {
+      dragRef.current = null;
+      if (!(selectedIds.length > 1 && selectedIds.includes(id))) return;
+      const origin = elements.find((el) => el.id === id);
+      if (!origin) return;
+      dragRef.current = {
+        id,
+        ox: origin.x,
+        oy: origin.y,
+        // History is recorded on the first MOVE, not here: react-rnd starts a
+        // drag on mousedown, so committing here would push an undo entry for
+        // every click on a selected element — undo would then walk back through
+        // a pile of steps that changed nothing.
+        committed: false,
+        others: selectedElements
+          .filter((el) => el.id !== id && !el.locked)
+          .map((el) => ({ id: el.id, x: el.x, y: el.y })),
+      };
+    },
+    [selectedIds, selectedElements, elements, commit],
+  );
+
+  const handleDragMove = useCallback(
+    (id, d) => {
+      const drag = dragRef.current;
+      if (!drag || drag.id !== id || !drag.others.length) return;
+      // ONE undo step for the whole gesture: taken before anything has moved,
+      // after which every frame records nothing.
+      if (!drag.committed) {
+        drag.committed = true;
+        commit();
+      }
+      const dx = d.x - drag.ox;
+      const dy = d.y - drag.oy;
+      updateElements(
+        drag.others.map((o) => ({ id: o.id, x: o.x + dx, y: o.y + dy })),
+        { record: false },
+      );
+    },
+    [updateElements, commit],
+  );
+
+  const handleDragEnd = useCallback(
+    (id, d) => {
+      const drag = dragRef.current;
+      dragRef.current = null;
+      // Plain single-element drag — history is recorded here, at the end, when
+      // the state being snapshotted is still the pre-drag one.
+      if (!drag || drag.id !== id) {
+        updateElement(id, { x: d.x, y: d.y }, { record: true });
+        return;
+      }
+      const dx = d.x - drag.ox;
+      const dy = d.y - drag.oy;
+      updateElements(
+        [
+          { id, x: d.x, y: d.y },
+          ...drag.others.map((o) => ({ id: o.id, x: o.x + dx, y: o.y + dy })),
+        ],
+        // `committed` is false when the gesture never actually moved (a click
+        // on a member of the selection): nothing to record, and nothing moved.
+        { record: !drag.committed && (dx !== 0 || dy !== 0) },
+      );
+    },
+    [updateElement, updateElements],
+  );
+
+  // ── Marquee (drag-to-select) ──────────────────────────────────────────
+  // Live rect in the ref, mirrored into state only so it can be drawn: the
+  // window listeners are then subscribed once per gesture instead of on every
+  // pointer move.
+  const marqueeRef = useRef(null);
+  const [marquee, setMarquee] = useState(null);
+
+  const startMarquee = (e) => {
+    const p = canvasPoint(e);
+    marqueeRef.current = {
+      x0: p.x,
+      y0: p.y,
+      x1: p.x,
+      y1: p.y,
+      // Shift-sweeping ADDS to what was already selected.
+      additive: e.shiftKey,
+      base: e.shiftKey ? selectedIds : [],
+    };
+    setMarquee({ ...marqueeRef.current });
+  };
+
+  useEffect(() => {
+    if (!marquee) return;
+
+    const move = (e) => {
+      const m = marqueeRef.current;
+      if (!m) return;
+      const rect = stageInnerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      m.x1 = (e.clientX - rect.left) / zoom;
+      m.y1 = (e.clientY - rect.top) / zoom;
+      setMarquee({ ...m });
+    };
+
+    const up = () => {
+      const m = marqueeRef.current;
+      marqueeRef.current = null;
+      setMarquee(null);
+      if (!m) return;
+
+      // A click is a zero-size sweep, and a box test would still "catch" any
+      // element whose bounds contain that point — the hollow middle of a ring,
+      // the corner of a rotated shape — so a click on blank canvas could select
+      // something it visibly missed. Below this threshold it was a click, and a
+      // click on blank canvas means deselect (already done on mousedown).
+      const w = Math.abs(m.x1 - m.x0);
+      const h = Math.abs(m.y1 - m.y0);
+      if (w < 3 && h < 3) return;
+
+      const box = {
+        x: Math.min(m.x0, m.x1),
+        y: Math.min(m.y0, m.y1),
+        w,
+        h,
+      };
+      const hits = elementsRef.current.filter((el) => {
+        if (el.hidden || el.locked) return false;
+        const ex = Number(el.x) || 0;
+        const ey = Number(el.y) || 0;
+        const ew = Number(el.width) || 0;
+        const eh = Number(el.height) || 0;
+        // Touch, not containment: sweeping across a row of elements should pick
+        // up the ones the box grazes, which is what the gesture looks like.
+        return !(
+          ex + ew < box.x ||
+          ex > box.x + box.w ||
+          ey + eh < box.y ||
+          ey > box.y + box.h
+        );
+      });
+
+      const ids = hits.map((el) => el.id);
+      if (m.additive) setSelection([...m.base, ...ids]);
+      else if (ids.length) setSelection(ids);
+    };
+
+    // On window, not the stage: a sweep normally runs off the artboard, and a
+    // gesture that ended outside it would otherwise never be committed.
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    // `marquee` is in the deps only as an on/off switch — the effect reads the
+    // live rect from the ref, so re-subscribing per frame isn't needed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!marquee, zoom, setSelection]);
+
   // ── Fit-to-screen zoom ────────────────────────────────────────────────
   const fitZoom = useCallback(() => {
     const wrap = stageWrapRef.current;
@@ -693,9 +892,35 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
         return;
       }
       if (typing) return;
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
+
+      const mod = e.metaKey || e.ctrlKey;
+      const key = typeof e.key === "string" ? e.key.toLowerCase() : "";
+
+      if (mod && key === "a") {
+        e.preventDefault(); // or the browser selects the whole page
+        selectAll();
+        return;
+      }
+      // Shift is the only thing separating group from ungroup, so read it off
+      // the modifier — Ctrl+Shift+G arrives as "G", not "g".
+      if (mod && key === "g") {
         e.preventDefault();
-        removeElement(selectedId);
+        if (e.shiftKey) {
+          const group = selectedElements.find(isGroup);
+          if (group) ungroupElement(group.id);
+        } else if (selectedIds.length > 1) {
+          groupElements(selectedIds);
+        }
+        return;
+      }
+      if (mod && key === "d") {
+        e.preventDefault(); // or Chrome opens "bookmark this page"
+        if (selectedIds.length) duplicateElements(selectedIds);
+        return;
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.length) {
+        e.preventDefault();
+        removeElements(selectedIds);
       }
       if (e.key === "Escape") {
         setEditingId(null);
@@ -708,10 +933,15 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [
     editingId,
-    selectedId,
+    selectedIds,
+    selectedElements,
     undo,
     redo,
-    removeElement,
+    removeElements,
+    duplicateElements,
+    groupElements,
+    ungroupElement,
+    selectAll,
     selectElement,
     croppingId,
     erasingId,
@@ -1326,13 +1556,15 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
           onPointerUp={onStagePointerUp}
           onPointerCancel={onStagePointerUp}
           onMouseDown={(e) => {
-            // click empty area → deselect.
+            // click empty area → deselect, and start a marquee from here so a
+            // sweep can begin on the pasteboard and run across the artboard.
             // ⚠️ Depends on the click landing on THIS node — do not wrap the
             // stage below in another element without moving this check with it.
             if (e.target === e.currentTarget) {
-              selectElement(null);
+              if (!e.shiftKey) selectElement(null);
               setEditingId(null);
               setActiveCell(null);
+              if (!isDrawTool && !addNodeMode) startMarquee(e);
             }
           }}
         >
@@ -1348,7 +1580,10 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
 
           {!croppingId && !erasingId && (
             <EditorContextBar
-              element={selectedElement}
+              // Formatting is per-element: with several selected there is no
+              // one element these controls belong to, and a group's own actions
+              // live on its pill. Both cases fall back to no bar.
+              element={multiSelected || groupSelected ? null : selectedElement}
               onChange={updateElement}
               addNodeMode={addNodeMode}
               onToggleAddNode={() => setAddNodeMode((v) => !v)}
@@ -1435,9 +1670,11 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
                 backgroundPosition: "center",
               }}
               onMouseDown={(e) => {
+                // Bare artboard: clear the selection and start a marquee.
                 if (e.target === e.currentTarget) {
-                  selectElement(null);
+                  if (!e.shiftKey) selectElement(null);
                   setEditingId(null);
+                  if (!isDrawTool && !addNodeMode) startMarquee(e);
                 }
               }}
             >
@@ -1448,9 +1685,14 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
                     key={el.id}
                     element={el}
                     zoom={zoom}
-                    selected={el.id === selectedId}
+                    selected={selectedIds.includes(el.id)}
+                    multiSelected={multiSelected}
                     editing={el.id === editingId}
-                    onSelect={selectElement}
+                    onSelect={handleSelect}
+                    onDragBegin={handleDragBegin}
+                    onDragMove={handleDragMove}
+                    onDragEnd={handleDragEnd}
+                    onUngroup={ungroupElement}
                     onChange={(patch, opts) =>
                       updateElement(el.id, patch, opts)
                     }
@@ -1476,6 +1718,49 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
                     suppressChrome={el.id === croppingId || el.id === erasingId}
                   />
                 ))}
+
+              {/* Multi-selection chrome — one dashed box and one action pill
+                  for the whole selection (the members' own pills stand down). */}
+              {multiSelected && !editingId && !croppingId && !erasingId && !isDrawTool && (
+                <SelectionOverlay
+                  bounds={selectionBounds}
+                  count={selectedElements.length}
+                  zoom={zoom}
+                  canvasWidth={canvas.width}
+                  canvasHeight={canvas.height}
+                  anyLocked={selectedElements.some((el) => el.locked)}
+                  allLocked={selectedElements.every((el) => el.locked)}
+                  onGroup={() => groupElements(selectedIds)}
+                  onDuplicate={() => duplicateElements(selectedIds)}
+                  onRemove={() => removeElements(selectedIds)}
+                  onToggleLock={() => {
+                    const lock = !selectedElements.some((el) => el.locked);
+                    updateElements(
+                      selectedIds.map((id) => ({ id, locked: lock })),
+                      { record: true },
+                    );
+                  }}
+                />
+              )}
+
+              {/* Marquee — the rubber band, in canvas units like everything
+                  else on the stage. Pointer-transparent so the sweep isn't
+                  interrupted by its own rectangle. */}
+              {marquee && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: Math.min(marquee.x0, marquee.x1),
+                    top: Math.min(marquee.y0, marquee.y1),
+                    width: Math.abs(marquee.x1 - marquee.x0),
+                    height: Math.abs(marquee.y1 - marquee.y0),
+                    border: `${1 / zoom}px solid #6366f1`,
+                    background: "rgba(99,102,241,0.10)",
+                    pointerEvents: "none",
+                    zIndex: 60,
+                  }}
+                />
+              )}
 
               {/* "Applied" flash — a brief blue pulse when a whole design is
                   swapped in (Klux AI / template apply). */}

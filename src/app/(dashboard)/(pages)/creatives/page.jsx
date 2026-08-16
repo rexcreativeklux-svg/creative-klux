@@ -755,7 +755,7 @@ export default function CreativesPage() {
           (<CreateMenu>) instead of stacking onto a row of their own — that row
           plus the eyebrow was most of what pushed the grid off a phone screen.
           The "LIBRARY" eyebrow is decorative, so it also waits for `sm`. */}
-      <div className="flex flex-row items-center justify-between gap-3 pb-2 shrink-0 sm:pb-4">
+      <div className="flex flex-row items-center justify-between gap-3 pb-2 shrink-0 sm:pb-7">
         <div className="min-w-0">
           <p className="hidden text-2xs font-semibold text-gray-400 uppercase tracking-widest sm:block">
             Library
@@ -824,8 +824,15 @@ export default function CreativesPage() {
 
           The tabs scroll horizontally rather than wrapping. Wrapped, "★
           Favorites" dropped onto a second row and cost the grid another ~40px
-          of height on exactly the screens that had none to spare. */}
-      <div className="py-2 flex flex-wrap items-center gap-2 shrink-0 sm:py-3 sm:gap-3 pb-2">
+          of height on exactly the screens that had none to spare.
+
+          Bottom padding ONLY, matching the header's: the space above this row
+          is the header's `pb`, so carrying a `py` here as well stacked the two
+          and left the search sitting nearer the grid than the title it belongs
+          under. One value on each block, and the rhythm is even — 28px on a
+          desktop, and kept at 8px on a phone, where two 28px bands would cost
+          the grid most of a card row. */}
+      <div className="pb-2 flex flex-wrap items-center gap-2 shrink-0 sm:pb-7 sm:gap-3">
         <div className="relative order-1 flex-1 min-w-0 sm:min-w-45 sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
           <input
@@ -1179,7 +1186,7 @@ const CreativesPageSkeleton = () => (
   <div className="flex flex-col h-full animate-pulse">
     {/* Header — one "+" on a phone, both CTAs from `sm`, matching <CreateMenu>
         and the button pair it stands in for. */}
-    <div className="flex items-center justify-between gap-3 pb-2 shrink-0 sm:pb-4">
+    <div className="flex items-center justify-between gap-3 pb-2 shrink-0 sm:pb-7">
       <div className="space-y-2">
         <div className="hidden h-2.5 w-16 bg-gray-100 rounded sm:block" />
         <div className="h-6 w-40 bg-gray-100 rounded" />
@@ -1190,8 +1197,10 @@ const CreativesPageSkeleton = () => (
         <div className="h-9 w-36 bg-gray-100 rounded-lg" />
       </div>
     </div>
-    {/* Toolbar — search + controls on one line, tabs on their own below `sm`. */}
-    <div className="py-2 flex flex-wrap items-center gap-2 shrink-0 sm:py-3 sm:gap-3">
+    {/* Toolbar — search + controls on one line, tabs on their own below `sm`.
+        Bottom padding only, like the real toolbar, so the search sits the same
+        distance under the title as the grid does under it. */}
+    <div className="pb-2 flex flex-wrap items-center gap-2 shrink-0 sm:pb-7 sm:gap-3">
       <div className="order-1 h-9 flex-1 min-w-0 bg-gray-100 rounded-md sm:min-w-45 sm:max-w-xs" />
       <div className="order-2 flex shrink-0 items-center gap-1.5 sm:order-3 sm:ml-auto sm:gap-2">
         <div className="h-9 w-9 bg-gray-100 rounded-xl" />
@@ -1200,8 +1209,8 @@ const CreativesPageSkeleton = () => (
       </div>
       <div className="order-3 h-9 w-full bg-gray-100 rounded-xl sm:order-2 sm:w-80" />
     </div>
-    {/* Grid */}
-    <div className="flex-1 pt-2">
+    {/* Grid — no top padding of its own; the toolbar's `pb` is the gap. */}
+    <div className="flex-1">
       <GridSkeleton count={8} />
     </div>
   </div>

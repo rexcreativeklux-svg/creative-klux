@@ -16,7 +16,7 @@ export default function Loading() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between gap-3 pb-2 sm:pb-4">
+      <div className="flex shrink-0 items-center justify-between gap-3 pb-2 sm:pb-7">
         <div className="flex flex-col gap-2">
           <Skeleton className="hidden h-2 w-14 sm:block" tone="soft" />
           <Skeleton className="h-5 w-40 rounded-md" />
@@ -31,7 +31,7 @@ export default function Loading() {
 
       {/* Filter / view toolbar — search + controls on one line, the scrolling
           filter tabs on their own line below `sm`. */}
-      <div className="flex flex-wrap items-center gap-2 pb-2 sm:gap-3 sm:pb-4">
+      <div className="flex flex-wrap items-center gap-2 pb-2 sm:gap-3 sm:pb-7">
         <Skeleton
           className="order-1 h-9 w-full min-w-0 flex-1 rounded-lg sm:max-w-xs"
           tone="soft"

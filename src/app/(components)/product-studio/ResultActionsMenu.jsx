@@ -14,6 +14,12 @@
  * relevant callbacks to {@link buildResultActions} (e.g. Magic Studio omits
  * "Change something"/"Other angles"; a video asset omits "Generate video"). The
  * order + icons live here so the menu is identical everywhere.
+ *
+ * `actions` is a plain array, so a surface with a menu of its own shape can
+ * build one instead of calling {@link buildResultActions} — the Copilot cards do
+ * (see copilot/_components/copilotActions.js). A `{ separator: true }` entry
+ * draws a divider rather than a row, which is what lets a longer menu group
+ * itself; the result menus above pass none and are unaffected.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -157,7 +163,15 @@ export default function ResultActionsMenu({ x, y, actions, onClose }) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {actions.map((item) => {
+        {actions.map((item, index) => {
+          if (item.separator)
+            return (
+              <div
+                key={`sep-${index}`}
+                role="separator"
+                className="my-1 border-t border-gray-200"
+              />
+            );
           const Icon = item.icon;
           return (
             <button

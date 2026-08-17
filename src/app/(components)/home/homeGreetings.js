@@ -1,7 +1,19 @@
 // app/(components)/home/homeGreetings.js
 // ─────────────────────────────────────────────────────────────────────────────
 // The home hero's headline. Six time bands, several lines each, one picked per
-// page load.
+// HOUR.
+//
+// ⚠️ ON THE CLOCK, NOT ON THE LOAD. This used to re-roll randomly on every
+// visit, which meant the headline flickered between personalities while someone
+// worked — reload twice to check a change and the hero has said three different
+// things. The pick is now derived from the hour, so it holds still for a working
+// session and moves on its own; /copilot's conversation hero rotates the same
+// way, off the same helper (see _data/copilotGreetings.js there).
+//
+// Being derived also makes it deterministic: the server and the client compute
+// the same line without an effect, and the only disagreement possible is an hour
+// boundary landing between the two renders — which is what the
+// suppressHydrationWarning at the call site covers.
 //
 // This replaced a fixed "Good morning / afternoon / evening, <first name>."
 // Three lines meant the hero said the same thing on nearly every visit, and the
@@ -28,6 +40,11 @@
 // ⚠️ NO LINE SENDS ANYONE TO BED. Someone opening this at 2am is working, and
 // the headline should read as company rather than concern. That rule is why the
 // late bands lean on night-owl pride rather than "still up?".
+
+import { windowIndex } from "./useRotatingIndex";
+
+/** One rotation window — how long a headline holds before the next one. */
+export const HOUR_MS = 3_600_000;
 
 /**
  * A headline.
@@ -128,25 +145,23 @@ export function greetingBandForHour(hour) {
 }
 
 /**
- * The band's first line. Deterministic, and that is the point: this is what
- * first paint uses, so the server's HTML and the client's first render agree.
- * Picking randomly here would mismatch on hydration.
+ * The line to show right now: the band for this hour, and the line that hour
+ * lands on within it.
  *
- * @param {number} hour
+ * The window comes from {@link windowIndex} — the app's one answer to "which
+ * slot is the clock on?", shared with the hero backdrop's rotation and
+ * /copilot's. Epoch milliseconds are UTC, so every reader is in the same window
+ * at the same moment; the BAND is still local, because which greeting is right
+ * depends on the reader's own clock.
+ *
+ * ⚠️ Call from a useState INITIALISER, not the render body — it reads the clock,
+ * so a render calling it directly would trip the purity rule and re-pick on
+ * every re-render.
+ *
+ * @param {Date} [date]  Injectable so this stays testable.
  * @returns {Greeting}
  */
-export function firstGreetingForHour(hour) {
-  return greetingBandForHour(hour).lines[0];
-}
-
-/**
- * A random line from the band. CLIENT-ONLY — call it from an effect, never
- * during render, for the reason above.
- *
- * @param {number} hour
- * @returns {Greeting}
- */
-export function randomGreetingForHour(hour) {
-  const { lines } = greetingBandForHour(hour);
-  return lines[Math.floor(Math.random() * lines.length)];
+export function greetingForNow(date = new Date()) {
+  const { lines } = greetingBandForHour(date.getHours());
+  return lines[windowIndex(lines.length, HOUR_MS, date.getTime())];
 }

@@ -17,7 +17,6 @@ import {
   LayoutGrid,
   Palette,
   Folder,
-  Star,
   Bot,
   Brain,
   Home,
@@ -31,6 +30,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import LogoutModal from "./LogoutModal";
 import ThemeSwitcher from "./ThemeSwitcher";
+import CopilotNavSections from "@/app/(dashboard)/(pages)/copilot/_components/CopilotNavSections";
 
 /**
  * Which app links get a permanent slot in the mobile bottom bar, in order.
@@ -117,8 +117,6 @@ const Sidebar = ({
   const [activeTab, setActiveTab] = useState(() =>
     pathname?.startsWith("/copilot") ? "copilot" : "apps",
   );
-  // Favorites disclosure on the Copilot tab (empty state until favorites exist).
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
   const bottomMenuRef = useRef(null);
   // (The mobile bottom bar used to own a second account popup and a ref for
   // its outside-click handling. Both are gone — the drawer behind "More"
@@ -188,6 +186,27 @@ const Sidebar = ({
 
   const isActive = (href) =>
     pathname === href || pathname?.startsWith(href + "/");
+
+  // ⚠️ Which nav item owns the current route — the LONGEST matching href, not
+  // every matching href.
+  //
+  // `isActive` alone is a prefix test, so a nested page lights its parent as
+  // well as itself: on /copilot/all both "All Copilots" AND "Home" (/copilot)
+  // came up blue, and the rail stopped telling the user where they were. The
+  // section routes still need the prefix test — /social-content/analytics has to
+  // keep "Social Content" lit, because that page's own nav is the SECONDARY
+  // sidebar, not this one.
+  //
+  // Longest-match settles both: an item stays active across its own sub-pages
+  // unless a more specific item in the same list also matches. Nothing to keep
+  // in sync — add /copilot/[id] later and it just works.
+  const activeHrefIn = (items) =>
+    items
+      .filter(({ href }) => isActive(href))
+      .reduce(
+        (best, item) => (item.href.length > (best?.length ?? -1) ? item.href : best),
+        null,
+      );
 
   // Follow navigation: landing on a /copilot route selects the Copilot tab,
   // navigating to any app page selects Apps. Manual tab flips (to just look)
@@ -304,8 +323,9 @@ const Sidebar = ({
   ];
 
   // ── Link item ──────────────────────────────────────────────────
-  const renderNavItem = ({ id, href, icon: Icon, label, badge }) => {
-    const active = isActive(href);
+  // `active` is decided by the LIST (see renderNavList), not by the item, so a
+  // parent route can hand the highlight to a more specific sibling.
+  const renderNavItem = ({ id, href, icon: Icon, label, badge }, active) => {
     return (
       <Link
         key={id}
@@ -339,6 +359,12 @@ const Sidebar = ({
         )}
       </Link>
     );
+  };
+
+  /** Render a nav list with exactly one item highlighted. */
+  const renderNavList = (items) => {
+    const activeHref = activeHrefIn(items);
+    return items.map((item) => renderNavItem(item, item.href === activeHref));
   };
 
   // ── Apps/Copilot tab switcher ──────────────────────────────────
@@ -419,30 +445,6 @@ const Sidebar = ({
             </Link>
           );
         })}
-      </div>
-    );
-
-  // ── Copilot tab: Favorites disclosure ──────────────────────────
-  // Mirrors the reference design — a muted "Favorites" row that expands to an
-  // empty state until favoriting exists.
-  const renderFavorites = () =>
-    isOpen && (
-      <div className="mt-2 pt-2 border-t border-gray-200">
-        <button
-          onClick={() => setFavoritesOpen((p) => !p)}
-          className="group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-medium cursor-pointer text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
-        >
-          <Star className="h-4.5 w-4.5 shrink-0 text-gray-500 group-hover:text-gray-900" />
-          <span className="flex-1 text-left truncate">Favorites</span>
-          <ChevronRight
-            className={`h-4 w-4 shrink-0 transition-transform duration-200 ${favoritesOpen ? "rotate-90" : ""}`}
-          />
-        </button>
-        {favoritesOpen && (
-          <p className="px-3 py-2 ml-4 text-xs text-gray-400">
-            No favorites yet
-          </p>
-        )}
       </div>
     );
 
@@ -538,11 +540,15 @@ const Sidebar = ({
           onScroll={hideTip}
         >
           {activeTab === "apps" ? (
-            appsItems.map(renderNavItem)
+            renderNavList(appsItems)
           ) : (
             <>
-              {copilotItems.map(renderNavItem)}
-              {renderFavorites()}
+              {renderNavList(copilotItems)}
+              {/* Favorites + Recents — colocated with the Copilot pages, since
+                  every reason they change is a Copilot reason. Expanded only:
+                  the collapsed rail has no room for a section label or a name,
+                  so it keeps the two links above and nothing else. */}
+              {isOpen && <CopilotNavSections onNavigate={onNavigate} />}
             </>
           )}
         </div>

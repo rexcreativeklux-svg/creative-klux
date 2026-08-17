@@ -26,6 +26,9 @@
 // sits one line deep from `sm` up; past ~70 it wraps on desktop too and the
 // hero's balance goes with it. Count `lead + accent + tail`.
 
+import { windowIndex } from "./useRotatingIndex";
+import { HOUR_MS } from "./homeGreetings";
+
 /**
  * A subheading.
  *
@@ -106,20 +109,19 @@ export const SUBHEADINGS = [
 ];
 
 /**
- * The line the server renders. Deterministic, and that is the point: first
- * paint has to match the client's first render or React throws the hero away
- * and rebuilds it on hydration. Mirrors firstGreetingForHour.
+ * The line to show right now — the hour picks it, exactly as it picks the
+ * headline above. See the ⚠️ at the top of homeGreetings.js for why this is on
+ * the clock rather than on the load.
  *
- * @type {Subheading}
- */
-export const FIRST_SUBHEADING = SUBHEADINGS[0];
-
-/**
- * A random line from the pool. CLIENT-ONLY — call it from an effect, never
- * during render, for the reason above.
+ * ⚠️ A DIFFERENT LENGTH from any one greeting band, which is worth keeping: pools
+ * of the same size would pair the same two lines every time and the hero's two
+ * rows would read as one rotating unit rather than two.
  *
+ * ⚠️ Call from a useState INITIALISER, not the render body — it reads the clock.
+ *
+ * @param {Date} [date]  Injectable so this stays testable.
  * @returns {Subheading}
  */
-export function randomSubheading() {
-  return SUBHEADINGS[Math.floor(Math.random() * SUBHEADINGS.length)];
+export function subheadingForNow(date = new Date()) {
+  return SUBHEADINGS[windowIndex(SUBHEADINGS.length, HOUR_MS, date.getTime())];
 }

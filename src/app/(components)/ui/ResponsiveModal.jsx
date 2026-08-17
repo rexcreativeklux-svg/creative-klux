@@ -105,6 +105,12 @@ const FLICK_VELOCITY = 0.5; // px per ms
  * @param {boolean}  [props.dismissible=true] false blocks Escape/backdrop/swipe
  *   and hides ✕ — for a modal that must not be abandoned mid-flight (an upload
  *   in progress, a payment). `onClose` is still yours to call directly.
+ * @param {boolean}  [props.hideHeader=false] Skip the built-in title/✕ bar for a
+ *   dialog that draws its own. Escape, the backdrop and the swipe still close
+ *   it, and `title` is still used as the dialog's accessible name — but the
+ *   caller MUST render a visible close control of its own. Used by the copilot
+ *   settings sheet, whose title bar sits over its right-hand pane so the nav
+ *   rail beside it can run the full height of the dialog.
  * @param {boolean}  [props.fullHeightSheet=false] Open the sheet at full height
  *   instead of hugging its content — for long lists and pickers.
  * @param {number}   [props.zIndex=100]     Stacking level. The app's layers run:
@@ -124,6 +130,7 @@ export default function ResponsiveModal({
   footer,
   size = "md",
   dismissible = true,
+  hideHeader = false,
   fullHeightSheet = false,
   zIndex = 100,
   className = "",
@@ -310,7 +317,10 @@ export default function ResponsiveModal({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={title ? titleId : undefined}
+        // With the header hidden there is no <h2> to point at, so the same
+        // `title` becomes the accessible name directly.
+        aria-labelledby={title && !hideHeader ? titleId : undefined}
+        aria-label={hideHeader && typeof title === "string" ? title : undefined}
         tabIndex={-1}
         style={dragY ? { transform: `translateY(${dragY}px)`, transition: "none" } : undefined}
         className={`
@@ -339,7 +349,7 @@ export default function ResponsiveModal({
         )}
 
         {/* Header */}
-        {(title || dismissible) && (
+        {!hideHeader && (title || dismissible) && (
           <div
             onPointerDown={isSheet ? onDragStart : undefined}
             onPointerMove={isSheet ? onDragMove : undefined}

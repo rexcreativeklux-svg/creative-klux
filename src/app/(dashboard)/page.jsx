@@ -35,7 +35,7 @@
 // the hero's flat #eef1f7 light fill, held in common with /copilot; dark mode
 // hands it straight back to bg-page.
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -43,14 +43,8 @@ import ComposerShell from "@/app/(components)/studio/ComposerShell";
 import PromptComposer from "@/app/(components)/studio/PromptComposer";
 import TemplatesSection from "@/app/(components)/studio/TemplatesSection";
 import QuickStartCards from "@/app/(components)/home/QuickStartCards";
-import {
-  firstGreetingForHour,
-  randomGreetingForHour,
-} from "@/app/(components)/home/homeGreetings";
-import {
-  FIRST_SUBHEADING,
-  randomSubheading,
-} from "@/app/(components)/home/homeSubheadings";
+import { greetingForNow } from "@/app/(components)/home/homeGreetings";
+import { subheadingForNow } from "@/app/(components)/home/homeSubheadings";
 import HomePromptSuggestions from "@/app/(components)/home/HomePromptSuggestions";
 import {
   HOME_COMPOSER_TABS,
@@ -159,36 +153,29 @@ export default function Home() {
     composerRef.current?.appendPrompt(suggestion);
   };
 
+  // ⚠️ BOTH LINES ROTATE ON THE HOUR, NOT ON THE LOAD. They used to re-roll
+  // randomly on every visit, which meant reloading twice to check a change made
+  // the hero say three different things. Deriving the pick from the clock holds
+  // the copy still for a working session and still moves it on its own — and
+  // /copilot's conversation hero now does the same, off the same windowIndex
+  // helper, so the two behave alike.
+  //
   // The headline follows the USER'S clock, which only the browser knows — the
   // server renders in its own timezone and would hand someone eating breakfast
-  // an "Evening shift, full focus." So first paint takes the band's FIRST line
-  // at whatever hour the render happens in (deterministic, so the server's HTML
-  // and the client's first render agree), and the effect settles both the hour
-  // and the random pick on mount. `suppressHydrationWarning` on the <h1> and its
-  // accent span is what keeps React quiet about that one-render difference.
+  // an "Evening shift, full focus." That is what `suppressHydrationWarning` on
+  // the <h1> and its accent span covers: the server's line is its own timezone's
+  // (and, on a prerendered response, its own hour's), and the client's first
+  // render replaces it. The pick itself is deterministic, so there is no second
+  // render and no effect — the mismatch is one line of text, not a rebuilt hero.
   //
-  // ⚠️ THE RANDOM PICK BELONGS IN THE EFFECT, NOT IN useState. Randomising the
-  // initial value would give the server one line and the client another on the
-  // very first render, which is a real mismatch rather than a suppressible one.
-  //
-  // Read on every mount rather than once at module scope, so a tab left open
-  // overnight still greets correctly — and lands on a different line — on the
-  // next visit.
-  //
-  // The line under it rotates the same way and for the same reasons, minus the
-  // clock — its pool is flat, because what the product makes doesn't depend on
-  // the hour (see the ⚠️ in homeSubheadings.js). Both picks are made in ONE
-  // effect so the two lines change together in a single commit; split across
-  // two effects they would still batch today, but the pairing would be an
-  // accident of React's scheduling rather than something this file states.
-  const [greeting, setGreeting] = useState(() =>
-    firstGreetingForHour(new Date().getHours()),
-  );
-  const [subheading, setSubheading] = useState(FIRST_SUBHEADING);
-  useEffect(() => {
-    setGreeting(randomGreetingForHour(new Date().getHours()));
-    setSubheading(randomSubheading());
-  }, []);
+  // ONE initialiser for both, so the two lines always change together, and read
+  // per mount rather than once at module scope, so a tab left open overnight
+  // greets correctly on the next visit.
+  const [hero] = useState(() => {
+    const now = new Date();
+    return { greeting: greetingForNow(now), subheading: subheadingForNow(now) };
+  });
+  const { greeting, subheading } = hero;
 
   /**
    * Send a payload to the chat page. The prompt becomes the opening message and

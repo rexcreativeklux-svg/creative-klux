@@ -33,12 +33,22 @@ const NO_PADDING_ROUTES = [
 // on hover, or held open when the header's collapse button pins it. The
 // secondary sidebar has its own collapse button in its panel footer, wired
 // through SecondarySidebarContext.
+//
+// ⚠️ An entry is a PREFIX STRING or a RegExp. A copilot's workspace lives at
+// /copilot/<id>, which no prefix can describe without also swallowing /copilot
+// and /copilot/all — the two catalog pages, which have no secondary sidebar and
+// must keep the primary rail. The lookahead is what excludes them.
 const SECONDARY_SIDEBAR_ROUTES = [
     "/ad-intelligence",
     "/social-content",
     "/ads-content",
     "/magic-studio",
+    /^\/copilot\/(?!all(?:\/|$))[^/]+/,
 ];
+
+/** Does `pathname` fall under a route entry (prefix string or RegExp)? */
+const matchesRoute = (pathname, route) =>
+    route instanceof RegExp ? route.test(pathname) : pathname.startsWith(route);
 
 // Routes that open with the sidebar collapsed. These are canvas-style screens
 // where the horizontal space is the point (the chat page runs a conversation and
@@ -112,13 +122,13 @@ export default function DashboardLayout({ children }) {
     const noPadding =
         pathname === "/" || // root renders the full-bleed home page
         [...NO_PADDING_ROUTES, ...SECONDARY_SIDEBAR_ROUTES].some(
-            route => pathname.startsWith(route),
+            route => matchesRoute(pathname, route),
         );
 
     // On a section route the primary sidebar stays collapsed in the flow and
     // expands only as an overlay (hover, or pinned via the header toggle).
     const isSectionRoute = SECONDARY_SIDEBAR_ROUTES.some(route =>
-        pathname.startsWith(route),
+        matchesRoute(pathname, route),
     );
 
     // Overlay pin: header toggle holds the primary sidebar's overlay open on

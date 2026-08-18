@@ -47,6 +47,7 @@ import { useAuth } from "@/context/AuthContext";
 import HistoryLattice from "../HistoryLattice";
 import StudioComposer from "../StudioComposer";
 import useMagicHistory from "../useMagicHistory";
+import { getMagicConfig } from "../magicStudioConfigs";
 import { toolBySlug } from "../magicTools";
 
 export default function MagicToolPage() {
@@ -120,7 +121,31 @@ function MagicToolScreen({ tool, user }) {
   const history = useMagicHistory(tool.backend ? tool.id : null, {
     enabled: tool.backend && !!user,
   });
-  const { items, loading, removingId, refresh, remove } = history;
+  const { items, pending, loading, removingId, refresh, remove } = history;
+
+  // ── Runs this page didn't start ────────────────────────────────────────────
+  // A generation outlives the tab that asked for it: the backend finishes the
+  // work whether or not anyone is watching, so reloading — or wandering off and
+  // coming back — finds it still going. `pending` is those runs, and they get
+  // the same in-flight tiles a run started here would, so the wait picks up
+  // where it was left rather than the page looking as though nothing happened.
+  //
+  // Deliberately NOT shown while this page is generating: that run is already
+  // drawn from `status`, and it is in `pending` too until the poll catches up —
+  // counting both would double every tile for a second or two.
+  const resumed = !status.generating && pending.length > 0;
+  const resumedCount = pending.reduce(
+    (total, item) => total + (item.requestedCount || 1),
+    0,
+  );
+  // What a resumed run is making. The record says so on the persona generator
+  // (`content_type`, the one tool where it isn't fixed); everywhere else it is a
+  // property of the tool.
+  const config = getMagicConfig(tool.id);
+  const resumedType =
+    pending[0]?.type ||
+    (config?.resultType === "auto" ? "image" : config?.resultType) ||
+    "image";
 
   // ── On-device results ──────────────────────────────────────────────────────
   // The two on-device tools generate into memory and never touch the server, so
@@ -301,15 +326,20 @@ function MagicToolScreen({ tool, user }) {
           // built from what has already arrived, so showing its spinner there
           // would put a loading state on a grid that has nothing to load.
           loading={!creating && loading}
-          generating={status.generating && !waitHidden}
-          generatingCount={status.count}
-          generatingProgress={status.progress}
-          generatingPrompt={status.prompt}
-          generatingType={status.resultType}
+          generating={(status.generating || resumed) && !waitHidden}
+          generatingCount={resumed ? resumedCount : status.count}
+          generatingProgress={resumed ? null : status.progress}
+          generatingPrompt={resumed ? pending[0]?.prompt || null : status.prompt}
+          generatingType={resumed ? resumedType : status.resultType}
           generatingLabel={tool.working}
           onDismissGenerating={() => setWaitHidden(true)}
           onEditGenerating={() =>
-            setRefill({ text: status.prompt, nonce: Date.now() })
+            setRefill({
+              // The same words the tile is showing — a resumed run's prompt
+              // comes off its record, not off a composer that never typed it.
+              text: (resumed ? pending[0]?.prompt : status.prompt) || "",
+              nonce: Date.now(),
+            })
           }
           onDelete={remove}
           removingId={removingId}

@@ -18,11 +18,17 @@
 // generate: they run Whisper and Kokoro on-device (text_to_audio comes back
 // only to store what it made, via saveTextToAudio below).
 //
-// ⚠️ `variations` IS UNCONFIRMED AGAINST THE API. It was named to match the
-// snake_case of its neighbours; nothing has verified the backend declares it,
-// and this endpoint rejects fields it does not know. A 422 that appears only
-// once the chip goes above 1x is this field — see the ⚠️ on text_to_image in
-// magicStudioConfigs.jsx for the one place to change it.
+// ✅ `variations` IS CONFIRMED AGAINST THE API (probed 2026-08-15) — accepted,
+// and echoed back on the record as `meta.variations` with `requested_count` /
+// `completed_count` beside it. Every result of that run lands in ONE record, as
+// `meta.outputs: [{ key, url }]`; the record's `url` is only the first of them.
+//
+// ⚠️ THE RESPONSE MAY NAME A JOB RATHER THAN A RESULT. `POST /generate` answers
+// with `{ generation, url, urls, queued }`, and `generation.status` is
+// "completed" only when the work is already done — otherwise it is "processing"
+// and the run has to be followed with checkGenerationStatus below. Which of the
+// two happens is the backend's choice, so no tool may assume it gets a finished
+// result back (see startGeneration in magicStudioConfigs.jsx).
 //
 // Auth (Bearer token) is attached by the axios interceptor. Uses the app's
 // shared axios instance so baseURL + auth are consistent with the rest of the app.
@@ -142,68 +148,169 @@ function inferHistoryType(item, url) {
 }
 
 /**
- * Normalize one raw Magic Studio history record into the shape the modal's
- * history grid consumes. Magic Studio tools produce different media types, so
- * each item carries its own inferred `type`; the generated output usually lives
- * in `s3_key`/`url` (or `video_url`), and text-only results (persona copy) carry
- * `content`.
+ * Statuses that mean the backend is still working on this record.
  *
- * @param {object} item Raw history record from POST /magic-studio/history.
- * @returns {{
- *   id: (string|number|null), type: string, url: (string|null),
- *   videoSrc: (string|null), thumbnail: (string|null), content: (string|null),
- *   prompt: (string|null), tool: (string|null), status: (string|null),
- *   createdAt: (string|null), raw: object,
- * }}
+ * ⚠️ A RECORD EXISTS BEFORE ITS RESULT DOES. The row is written when the request
+ * arrives and only filled in when the provider answers, so history genuinely
+ * contains runs that have not finished — including runs from a tab that was
+ * closed minutes ago, because the backend finishes them whether or not anyone is
+ * still watching (verified against the API). Recognising them is what lets the
+ * tool show a wait it did not start.
  */
-function normalizeMagicHistoryItem(item) {
-  if (!item || typeof item !== "object") {
-    return {
-      id: null,
-      type: "image",
-      url: null,
-      videoSrc: null,
-      thumbnail: null,
-      content: null,
-      prompt: null,
-      tool: null,
-      status: null,
-      createdAt: null,
-      raw: item,
-    };
+const PENDING_STATUSES = ["processing", "pending", "queued", "in_progress"];
+
+/**
+ * Every asset one record produced, newest-API-shape first.
+ *
+ * ⚠️ ONE RECORD CAN HOLD MANY IMAGES, and reading only `url` is why a 4x run
+ * used to show a single result. A multi-variation image generation is ONE row
+ * whose assets live in `meta.outputs: [{ key, url }]` (mirrored at the response
+ * envelope's top level as `urls: [...]`), with `url`/`s3_key` carrying nothing
+ * more than the first of them.
+ *
+ * Video is the other shape entirely — N separate rows sharing `meta.batch_id`,
+ * one per variation — which needs no help here: each row is already its own
+ * record and arrives as its own item.
+ *
+ * @param {object} record Raw history/status record.
+ * @returns {Array<{url: string, thumbnail: (string|null)}>}
+ */
+function recordAssets(record) {
+  const outputs = record?.meta?.outputs;
+  if (Array.isArray(outputs) && outputs.length > 0) {
+    return outputs
+      .map((output) => ({
+        url: resolveMediaUrl(output?.url) || resolveMediaUrl(output?.key),
+        thumbnail: resolveMediaUrl(output?.thumbnail) || null,
+      }))
+      .filter((asset) => asset.url);
   }
+
+  // Single-asset records (everything made before outputs existed, and video).
   const url =
-    resolveMediaUrl(item.url) ||
-    resolveMediaUrl(item.s3_key) ||
-    resolveMediaUrl(item.image_url) ||
-    resolveMediaUrl(item.video_url) ||
-    resolveMediaUrl(item.audio_url) ||
+    resolveMediaUrl(record?.url) ||
+    resolveMediaUrl(record?.s3_key) ||
+    resolveMediaUrl(record?.image_url) ||
+    resolveMediaUrl(record?.video_url) ||
+    resolveMediaUrl(record?.audio_url) ||
     null;
-  const type = inferHistoryType(item, url);
-  return {
-    id: item.id ?? item._id ?? null,
-    type,
-    url,
-    videoSrc: type === "video" ? url : null,
-    thumbnail:
-      resolveMediaUrl(item.thumbnail) ||
-      resolveMediaUrl(item.poster) ||
-      resolveMediaUrl(item.thumbnail_s3_key) ||
-      null,
-    content: item.content ?? item.text ?? null,
-    prompt: item.prompt ?? null,
-    tool: item.tool ?? null,
-    status: item.status ?? null,
-    createdAt: item.generated_at || item.created_at || null,
-    raw: item,
+  if (!url) return [];
+  return [
+    {
+      url,
+      thumbnail:
+        resolveMediaUrl(record?.thumbnail) ||
+        resolveMediaUrl(record?.poster) ||
+        resolveMediaUrl(record?.thumbnail_s3_key) ||
+        null,
+    },
+  ];
+}
+
+/**
+ * Turn one raw Magic Studio record into the items the grids consume — PLURAL,
+ * because a single record can carry a whole batch (see {@link recordAssets}).
+ *
+ * Returns:
+ *   • one item per generated asset, for a finished record
+ *   • one text item, for a record that only produced copy (persona text)
+ *   • one `pending` item, for a record still being worked on
+ *   • nothing at all, for a failed record or one that resolved to no result
+ *
+ * ⚠️ `id` IS `<generationId>:<index>`, NOT the record id. Two tiles from one
+ * record would otherwise share a React key and a selection identity. The record
+ * id is kept alongside as `generationId` — it is what DELETE and the status
+ * endpoint take, and useMagicHistory maps back to it when removing.
+ *
+ * @param {object} record Raw record from POST /magic-studio/history.
+ * @returns {Array<object>}
+ */
+function expandMagicHistoryRecord(record) {
+  if (!record || typeof record !== "object") return [];
+
+  const generationId = record.id ?? record._id ?? null;
+  const status = String(record.status || "").toLowerCase();
+  if (status === "failed") return [];
+
+  const base = {
+    generationId,
+    prompt: record.prompt ?? null,
+    tool: record.tool ?? null,
+    status: record.status ?? null,
+    createdAt: record.generated_at || record.created_at || null,
+    // When the run started, whatever it has done since — the age a stale check
+    // has to be made against. `createdAt` above prefers `generated_at` for
+    // display ordering, which is the moment it FINISHED.
+    startedAt: record.created_at || null,
+    // How many this run was asked for, so a resumed 4x batch can reserve four
+    // tiles rather than one. Absent on older records → falls back to 1.
+    requestedCount: Number(record?.meta?.requested_count) || null,
+    raw: record,
   };
+
+  if (PENDING_STATUSES.includes(status)) {
+    return [
+      {
+        ...base,
+        id: `${generationId}:pending`,
+        // A record in flight has no file to infer a type from. The persona
+        // generator records what it was asked for, which is the one tool where
+        // the answer isn't a property of the tool itself.
+        type: record?.meta?.content_type || null,
+        url: null,
+        videoSrc: null,
+        thumbnail: null,
+        content: null,
+        pending: true,
+      },
+    ];
+  }
+
+  const assets = recordAssets(record);
+  if (assets.length === 0) {
+    // No file — a text-only result (persona copy) still counts as a result.
+    const content = record.content ?? record.text ?? null;
+    if (!content) return [];
+    return [
+      {
+        ...base,
+        id: `${generationId}:0`,
+        type: "text",
+        url: null,
+        videoSrc: null,
+        thumbnail: null,
+        content,
+        pending: false,
+      },
+    ];
+  }
+
+  return assets.map((asset, index) => {
+    const type = inferHistoryType(record, asset.url);
+    return {
+      ...base,
+      id: `${generationId}:${index}`,
+      type,
+      url: asset.url,
+      videoSrc: type === "video" ? asset.url : null,
+      thumbnail: asset.thumbnail,
+      content: null,
+      pending: false,
+    };
+  });
 }
 
 /**
  * Fetch the generation history for one Magic Studio tool. The backend returns
  * `{ success, message, data: [...] }` newest-first (mirroring product-studio);
- * we keep that order and drop records that failed or resolved to nothing (no
- * media URL and no text content) so the grid only shows real results.
+ * we keep that order, fan each record out into one item per asset it produced,
+ * and drop records that failed or resolved to nothing.
+ *
+ * ⚠️ RUNS STILL IN FLIGHT COME BACK TOO, marked `pending`. They have no URL and
+ * must never reach a grid as if they were results — useMagicHistory splits them
+ * off into their own list, which is what every consumer should read. This
+ * function stays honest about what the server said; deciding how old is too old
+ * to keep waiting is the hook's job, not the transport's.
  *
  * Only backend tools have server-side history — the on-device tools
  * (audio_to_text, text_to_audio) never persist anything and don't call this.
@@ -219,9 +326,7 @@ export async function getMagicHistory(tool) {
     });
     console.log("✅ [magic-studio/history] response ←", data);
     const list = Array.isArray(data) ? data : data?.data || [];
-    return list
-      .map(normalizeMagicHistoryItem)
-      .filter((it) => (it.url || it.content) && it.status !== "failed");
+    return list.flatMap(expandMagicHistoryRecord);
   } catch (err) {
     const status = err?.response?.status;
     console.error("❌ [magic-studio/history] failed:", {
@@ -345,30 +450,46 @@ export async function saveTextToAudio(form) {
 }
 
 /**
- * Poll a Magic Studio video job's status. The job id comes from the initial
- * generate response — no request body is needed, the id is in the URL.
+ * Check on one generation. Works for every backend tool, not just video — the
+ * id is in the URL and no request body is needed.
  *
- * @param {string|number} id The generation/job id returned by generateMagicStudio.
- * @returns {Promise<object>} The status payload (e.g. { status, video_url? }).
+ * Probed 2026-08-15. The response is the record plus two conveniences:
+ *
+ *   { generation: { id, tool, status, meta, s3_key, url, error, … },
+ *     progress:   { completed: 2, requested: 4 },
+ *     urls:       ["https://…", "https://…"] }
+ *
+ * `urls` is the WHOLE set, where `generation.url` is only the first of them —
+ * which is the difference between a 4x run showing four results and showing one.
+ *
+ * ⚠️ TWO ROUTES, ONE HANDLER. `/magic-studio/{id}/status` answers identically
+ * and is what this used to call. The `/generations/` form is the one the backend
+ * documents, so it is the one used here; nothing needs to change if the shorter
+ * alias is ever retired.
+ *
+ * ⚠️ IT DOES NOT TOAST. This is called on a timer — a network blip twenty
+ * minutes into a batch would otherwise stack a red toast every ten seconds. The
+ * caller decides when a run has genuinely failed and says so once.
+ *
+ * @param {string|number} id The generation id.
+ * @returns {Promise<object>} The status payload.
  */
-export async function checkVideoGenerationStatus(id) {
-  console.log("📡 [magic-studio/status] checking video job:", id);
+export async function checkGenerationStatus(id) {
+  if (id == null) throw new Error("Missing generation id for status check.");
+  console.log("📡 [magic-studio/status] checking generation:", id);
 
   try {
-    const { data } = await api.get(`${BASE_URL}/magic-studio/${id}/status`);
+    const { data } = await api.get(
+      `${BASE_URL}/magic-studio/generations/${id}/status`,
+    );
     console.log("✅ [magic-studio/status] response ←", data);
     return data;
   } catch (err) {
-    const status = err?.response?.status;
-    const data = err?.response?.data;
     console.error("❌ [magic-studio/status] failed:", {
-      status,
-      data,
+      status: err?.response?.status,
+      data: err?.response?.data,
       message: err?.message,
     });
-
-    const serverMsg = data?.message || data?.error || err?.message || "";
-    toast.error(serverMsg || "Couldn't check video status. Please try again.");
     throw err;
   }
 }

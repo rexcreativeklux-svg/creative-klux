@@ -13,15 +13,25 @@
  * standard page token.
  */
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Bot } from "lucide-react";
 import PlatformChip from "./_components/PlatformChip";
 import CopilotComposer from "./_components/CopilotComposer";
 import { CATEGORIES, IDEAS } from "./_data/ideas";
 import { notifyPending } from "./_data/copilots";
 
-export default function CopilotHome() {
-  const [task, setTask] = useState("");
+function CopilotHome() {
+  const searchParams = useSearchParams();
+  // `?task=` — the sidebar's rotating ideas hand their description over this
+  // way, so one arrives already typed into the box instead of sending the user
+  // to find it again in the grid below. Same param, same meaning, as the one
+  // /copilot/[id] reads for a workflow's "Send to chat".
+  //
+  // Seed, not source: it is the composer's INITIAL value and the user edits
+  // freely from there. Reading it every render would fight their typing, and
+  // rewriting the URL on every keystroke is not what a draft is.
+  const [task, setTask] = useState(() => searchParams.get("task") ?? "");
   const [activeCategory, setActiveCategory] = useState("Brand");
   const ideas = IDEAS[activeCategory] ?? [];
 
@@ -128,5 +138,15 @@ export default function CopilotHome() {
         </p>
       </section>
     </div>
+  );
+}
+
+// useSearchParams() needs a Suspense boundary above it — without one, a route
+// that Next decides to prerender fails the build rather than at runtime.
+export default function CopilotHomePage() {
+  return (
+    <Suspense>
+      <CopilotHome />
+    </Suspense>
   );
 }

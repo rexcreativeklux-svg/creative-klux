@@ -508,8 +508,10 @@ const RATIO_WIDE = {
  * in this sense, and the persona already carries its own framing.
  *
  * Sent to the backend as `purpose`, on all three. The VALUES are the contract —
- * "ads" / "social" / "general" — so change a `value` here only alongside the
- * backend, where a change to a `label` or `desc` is safe on its own.
+ * "ad-design" / "social-design" / "image-design" — so change a `value` here only
+ * alongside the backend, where a change to a `label` or `desc` is safe on its
+ * own. The values are the backend's design-type names, which is why they read
+ * "…-design" rather than matching the labels the user sees.
  *
  * ONE constant rather than three copies: the three tools must offer the same
  * three purposes, or "Ads" would come to mean something different depending on
@@ -520,22 +522,22 @@ const PURPOSE_OPTION = {
   label: "Purpose",
   panel: "list",
   width: 300,
-  default: "general",
+  default: "image-design",
   items: [
     {
-      value: "ads",
+      value: "ad-design",
       label: "Ads",
       desc: "Built to sell — a clear offer and a reason to click",
       icon: Megaphone,
     },
     {
-      value: "social",
+      value: "social-design",
       label: "Social",
       desc: "Built for the feed — native, scrollable, shareable",
       icon: Share2,
     },
     {
-      value: "general",
+      value: "image-design",
       label: "General",
       desc: "No particular channel in mind",
       icon: Sparkles,

@@ -47,9 +47,12 @@ import {
 import { useSecondarySidebar } from "@/context/SecondarySidebarContext";
 import Drawer from "@/app/(components)/ui/Drawer";
 import CopilotAvatar from "../../_components/CopilotAvatar";
-import { notifyPending, newConversationId } from "../../_data/copilots";
+import { newConversationId } from "../../_data/copilots";
 import { CHANNELS } from "../../_data/channels";
 import CopilotSettingsModal from "./settings/CopilotSettingsModal";
+import InviteCreditsModal from "./InviteCreditsModal";
+import WhatsNewPanel from "./WhatsNewPanel";
+import FeedbackModal from "./FeedbackModal";
 
 /**
  * The copilot's own pages. ⚠️ Files, Memory and Data are deliberately absent —
@@ -66,12 +69,16 @@ const NAV_ITEMS = [
   // button; see the Customize row in panelBody.
 ];
 
-// Bottom-of-panel links. "Earn bonus credits" goes to billing, which is where
-// this app's credits and plan actually live; the changelog has no home yet.
+/**
+ * Bottom-of-panel items. All three open something over the workspace rather
+ * than navigating away — you are asking a question about the app, not leaving
+ * the copilot you were talking to — so each is just the name of what it opens
+ * and the row below renders them identically.
+ */
 const FOOTER_ITEMS = [
-  { label: "Earn bonus credits", icon: Gift, href: "/billing" },
-  { label: "What's new", icon: Sparkles, pending: "The changelog" },
-  { label: "Leave feedback", icon: MessageCircleMore, href: "/help" },
+  { label: "Earn bonus credits", icon: Gift, dialog: "invite" },
+  { label: "What's new", icon: Sparkles, dialog: "whatsnew" },
+  { label: "Leave feedback", icon: MessageCircleMore, dialog: "feedback" },
 ];
 
 export default function CopilotWorkspaceLayout({ copilot, children }) {
@@ -80,6 +87,11 @@ export default function CopilotWorkspaceLayout({ copilot, children }) {
   const { isOpen, toggle } = useSecondarySidebar();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [conversationsOpen, setConversationsOpen] = useState(true);
+  // Which footer item is open, and the rect of the row that opened it — one
+  // value rather than a flag each, so two of them can never be open at once as
+  // the footer grows, and the anchor travels with the thing that needs it
+  // (What's new is a popover; see WhatsNewPanel).
+  const [footerDialog, setFooterDialog] = useState(null); // { kind, anchor } | null
   // Where the settings sheet should open, or null for closed — one piece of
   // state for both "is it open" and "on what", so the two cannot disagree. A
   // fresh object per open is what re-seeds the sheet; see CopilotSettingsModal.
@@ -282,37 +294,34 @@ export default function CopilotWorkspaceLayout({ copilot, children }) {
 
       {/* ── Panel footer ────────────────────────────────────────── */}
       <div className={`shrink-0 border-t border-gray-200 py-2 ${expanded ? "px-3" : "px-2"}`}>
-        {FOOTER_ITEMS.map(({ label, icon: Icon, href, pending }) => {
-          const className = `group flex items-center gap-3 w-full rounded-xl px-3 py-2 text-[13px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150 cursor-pointer ${expanded ? "" : "justify-center px-0"}`;
-          const inner = (
-            <>
-              <Icon className="h-4 w-4 shrink-0" />
-              {expanded && <span className="flex-1 truncate text-left">{label}</span>}
-            </>
-          );
-          return href ? (
-            <Link
-              key={label}
-              href={href}
-              onClick={() => setDrawerOpen(false)}
-              onMouseEnter={(e) => showTip(e, label)}
-              onMouseLeave={hideTip}
-              className={className}
-            >
-              {inner}
-            </Link>
-          ) : (
-            <button
-              key={label}
-              onClick={() => notifyPending(pending)}
-              onMouseEnter={(e) => showTip(e, label)}
-              onMouseLeave={hideTip}
-              className={className}
-            >
-              {inner}
-            </button>
-          );
-        })}
+        {FOOTER_ITEMS.map(({ label, icon: Icon, dialog }) => (
+          <button
+            key={label}
+            onClick={(e) => {
+              // Snapshot the row's rect BEFORE anything closes — What's new
+              // hangs off it, and by the time state has settled the drawer this
+              // button lives in may be on its way out.
+              const rect = e.currentTarget.getBoundingClientRect();
+              // Close the mobile drawer first: these open over the page, and
+              // leaving the panel on top would put them behind the nav they
+              // were opened from.
+              setDrawerOpen(false);
+              hideTip();
+              setFooterDialog({
+                kind: dialog,
+                anchor: { right: rect.right, bottom: rect.bottom },
+              });
+            }}
+            onMouseEnter={(e) => showTip(e, label)}
+            onMouseLeave={hideTip}
+            className={`group flex items-center gap-3 w-full rounded-xl px-3 py-2 text-[13px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150 cursor-pointer ${expanded ? "" : "justify-center px-0"}`}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {expanded && (
+              <span className="flex-1 truncate text-left">{label}</span>
+            )}
+          </button>
+        ))}
       </div>
     </>
   );
@@ -412,6 +421,19 @@ export default function CopilotWorkspaceLayout({ copilot, children }) {
         initial={settings}
         copilot={copilot}
         onClose={() => setSettings(null)}
+      />
+      <InviteCreditsModal
+        isOpen={footerDialog?.kind === "invite"}
+        onClose={() => setFooterDialog(null)}
+      />
+      <WhatsNewPanel
+        isOpen={footerDialog?.kind === "whatsnew"}
+        anchor={footerDialog?.anchor}
+        onClose={() => setFooterDialog(null)}
+      />
+      <FeedbackModal
+        isOpen={footerDialog?.kind === "feedback"}
+        onClose={() => setFooterDialog(null)}
       />
     </div>
   );

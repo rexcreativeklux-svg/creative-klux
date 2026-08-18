@@ -55,9 +55,9 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 import { useMediaQuery } from "@/utils/useMediaQuery";
 import { useIsHydrated } from "@/utils/useIsHydrated";
+import ModalCloseButton from "./ModalCloseButton";
 
 /**
  * Desktop width cap. Static map rather than `max-w-${size}` because Tailwind
@@ -369,16 +369,7 @@ export default function ResponsiveModal({
               )}
             </div>
 
-            {dismissible && (
-              <button
-                type="button"
-                onClick={requestClose}
-                aria-label="Close"
-                className="ck-tap shrink-0 cursor-pointer rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            )}
+            {dismissible && <ModalCloseButton onClick={requestClose} />}
           </div>
         )}
 

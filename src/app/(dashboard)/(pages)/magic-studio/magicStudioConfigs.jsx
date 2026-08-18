@@ -824,7 +824,17 @@ export const MAGIC_STUDIO_CONFIGS = {
     validate: ({ input }) => (input?.trim() ? null : "Please enter a prompt."),
     generate: async ({ input, values }) => {
       const payload = {
-        tool: "text_to_image",
+        // ⚠️ `tool` IS THE PURPOSE, not the literal "text_to_image". The backend
+        // routes this generation by the design type the user picked, so the two
+        // fields carry the same value ("ad-design" / "social-design" /
+        // "image-design") and move together — see PURPOSE_OPTION.
+        //
+        // ⚠️ THIS NO LONGER MATCHES `historyTool` BELOW. That one still says
+        // "text_to_image" and is what getMagicHistory filters on, both for the
+        // History panel and for the post-generate watcher that finds the new
+        // record. They agree only if the backend keeps filing these under
+        // text_to_image regardless of what `tool` says here.
+        tool: values.purpose,
         visual_style: values.style,
         ratio: ratioString(values.ratio),
         purpose: values.purpose,

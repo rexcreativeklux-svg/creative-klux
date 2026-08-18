@@ -27,8 +27,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import ResultActionsMenu from "@/app/(components)/product-studio/ResultActionsMenu";
+import NavSection from "./NavSection";
 import CopilotAvatar from "./CopilotAvatar";
 import { buildCopilotActions } from "./copilotActions";
 import { useCopilots, RECENTS_LIMIT } from "../_data/copilots";
@@ -38,27 +39,6 @@ import { useCopilots, RECENTS_LIMIT } from "../_data/copilots";
 // same way the collapsed rail's account menu does — rather than being pinned
 // inside 224px and covering the nav it belongs to.
 const MENU_GAP = 8;
-
-/** A collapsible block: muted header row, body underneath. */
-function NavSection({ label, open, onToggle, children }) {
-  return (
-    <div className="mt-2 pt-2 border-t border-gray-200">
-      <button
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex items-center gap-2 w-full px-3 py-1.5 text-[12px] font-medium text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
-      >
-        <span className="flex-1 text-left truncate">{label}</span>
-        {/* Rotated rather than swapped for a ChevronRight, so the arrow turns
-            through the transition instead of popping to a different glyph. */}
-        <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${open ? "" : "-rotate-90"}`}
-        />
-      </button>
-      {open && children}
-    </div>
-  );
-}
 
 /** One copilot in the rail: avatar, name, and a ⋯ that appears on hover. */
 function NavRow({ copilot, onOpenMenu, menuOpen, onNavigate, active }) {

@@ -66,12 +66,31 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
               onClick={() => onSelect(it.value)}
               className={`flex flex-col rounded-2xl border-2 overflow-hidden text-left transition-colors cursor-pointer ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-blue-300 bg-surface"}`}
             >
+              {/* ⚠️ THE ICON PANEL IS THE GROUND, NOT A BRANCH. It is always
+                  rendered and the photo sits on top of it, so an item with no
+                  `img` AND an item whose `img` 404s land in the same designed
+                  state rather than one of them showing a broken-image glyph.
+                  These thumbnails are third-party URLs (Pexels) — the one thing
+                  they can be relied on to do eventually is stop resolving.
+                  `display:none` on error is what uncovers the panel; there is no
+                  state to keep, because a failed image never un-fails. */}
               <div className="relative w-full h-20 bg-gray-100">
+                <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-gray-100 to-gray-200">
+                  {Icon && (
+                    <Icon
+                      className={`h-7 w-7 ${active ? "text-blue-500" : "text-gray-400"}`}
+                      strokeWidth={1.5}
+                    />
+                  )}
+                </div>
                 {it.img && (
                   <img
                     src={it.img}
                     alt={it.label}
-                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                    className="absolute inset-0 h-full w-full object-cover"
                   />
                 )}
                 {active && (

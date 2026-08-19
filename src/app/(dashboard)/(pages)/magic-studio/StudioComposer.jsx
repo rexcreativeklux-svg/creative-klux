@@ -62,9 +62,7 @@ import {
 import { toast } from "sonner";
 
 import { useAuth } from "@/context/AuthContext";
-import { isHostedUrl, pickHostedUrl } from "@/(lib)/magic-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
-import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGallery";
 import ComposerDropdown from "@/app/(components)/studio/ComposerDropdown";
 // The app-wide model choice — the same one the home composer shows, persisted
 // across visits. See studio/composerModel.js.
@@ -190,11 +188,29 @@ export default function StudioComposer({
   onStatusChange,
   refill = null,
 }) {
-  const { activeBrand, uploadMedia, token } = useAuth();
+  // No `uploadMedia` here any more — a picked image is sent by its own URL and
+  // nothing is copied into the gallery on the way. The picker still uploads
+  // what the user drops on its own Upload tab; that is its business, not ours.
+  const { activeBrand, token } = useAuth();
   const config = getMagicConfig(tool.id);
   const inputConfig = config?.inputConfig || {};
   const kind = config?.input;
   const typeable = TYPEABLE.has(kind);
+  /**
+   * Tools that start from something other than words, but will still take some.
+   *
+   * ⚠️ NOT THE SAME BOX AS `typeable`'s, even though it is the same textarea and
+   * the same `text` state. On a prompt tool the words ARE the input and nothing
+   * runs without them; here they are an optional note riding alongside a picture
+   * or a form, they never gate `ready`, and they reach the payload as
+   * `description` rather than `prompt` — see descriptionField in the configs.
+   *
+   * ⚠️ OPT-IN PER TOOL rather than "every tool that isn't typeable". Audio to
+   * Text is the reason: it runs Whisper on this machine and never posts a
+   * payload at all, so a description box there would be somewhere to type that
+   * quietly discards what you wrote.
+   */
+  const describable = !typeable && config?.describable === true;
 
   // ── On-device engines. Idle until their tool runs; the same shared engines
   //    the modal and the media picker use, so a model already warmed by one
@@ -247,7 +263,6 @@ export default function StudioComposer({
   // is whatever renders fastest in the strip. No object URLs: every image now
   // arrives from the picker already hosted, or is uploaded on the way in.
   const [image, setImage] = useState(null);
-  const [uploading, setUploading] = useState(false);
   const [audio, setAudio] = useState(null); // File
   const [audioPreview, setAudioPreview] = useState(null); // object URL
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -367,38 +382,24 @@ export default function StudioComposer({
    * An image was chosen in the picker — from the user's library, from a Pexels
    * search, or freshly uploaded there.
    *
-   * ⚠️ THE BACKEND NEEDS A URL IT CAN READ, which is what splits these two
-   * cases. Library and upload results are already on our CDN and are used as
-   * they are. A Pexels result is a third party's URL, so it is pulled into the
-   * gallery first and the hosted copy is what gets sent — otherwise generation
-   * depends on a host we don't control still serving that file, and on it
-   * allowing our backend to fetch it.
+   * ⚠️ THE URL IS SENT AS THE PICKER HANDED IT OVER. A search result used to be
+   * copied into the user's gallery first and the hosted copy sent instead, so
+   * that generation never depended on a third party still serving the file.
+   * That cost a full download-and-upload before anything could start, and — the
+   * reason it's gone — it silted up the library with stock images nobody chose
+   * to keep: every browse-and-discard left a permanent copy behind.
+   *
+   * ⚠️ SO THE BACKEND HAS TO FETCH IT. It already does — `image_url` is a URL it
+   * downloads server-side, where CORS doesn't apply — but it is now fetching
+   * pexels.com rather than our own CDN. If variations start failing on searched
+   * images while library ones still work, this is the change that did it, and
+   * the fix is to re-host on the SERVER rather than to put the client-side
+   * upload back.
    */
-  const handlePickedImage = async (src) => {
+  const handlePickedImage = (src) => {
     if (!src) return;
-
-    if (isHostedUrl(src)) {
-      console.log("🖼️ [magic-studio] source image already hosted");
-      setImage({ url: src, preview: src });
-      return;
-    }
-
-    setUploading(true);
-    const id = toast.loading("Saving image to your gallery…");
-    try {
-      const hosted = pickHostedUrl(await saveUrlToGallery(src, uploadMedia));
-      if (!hosted) throw new Error("Saved, but no URL came back.");
-      // Preview from the ORIGINAL url: it is already in the browser's cache
-      // from the picker's own thumbnail, so the strip fills instantly instead
-      // of waiting on a fresh fetch of the copy.
-      setImage({ url: hosted, preview: src });
-      toast.success("Image ready", { id });
-    } catch (err) {
-      console.error("❌ [magic-studio] couldn't save the source image:", err);
-      toast.error(err?.message || "Couldn't use that image.", { id });
-    } finally {
-      setUploading(false);
-    }
+    console.log("🖼️ [magic-studio] source image:", src);
+    setImage({ url: src, preview: src });
   };
 
   // Audio to Text runs entirely on-device — this file is never uploaded.
@@ -452,7 +453,7 @@ export default function StudioComposer({
   // uploaded source, audio needs a take, persona needs at least a name. The
   // config's own validate runs inside generate() and reports anything finer.
   const ready = (() => {
-    if (generating || uploading) return false;
+    if (generating) return false;
     if (typeable) return text.trim().length > 0;
     if (kind === "image") return !!image?.url;
     if (kind === "audio") return !!audio;
@@ -464,16 +465,20 @@ export default function StudioComposer({
     if (!ready) return;
     closePanel();
     console.log(`✨ [magic-studio] generating with "${tool.label}" (${model})`);
-    // Captured BEFORE the box is cleared below. The tools with no words of
-    // their own — a source image, an audio take — report nothing and the tile
-    // falls back to the tool's working label.
+    // Frozen at submit, so the in-flight tiles keep showing THIS run while the
+    // box stays live. A tool with no words at all — an audio take — still
+    // reports nothing, and the tile falls back to the tool's working label.
     const count = variationsEnabled ? variations : 1;
+    const typed = text.trim();
     setLastRun({
+      // A described run has words of its own now, and they are the truest label
+      // for the tile — "warm studio grey background" says more about what is
+      // coming than the persona's name or an empty string does. The old
+      // fallbacks stay behind it for the runs where the box was left alone.
       prompt: typeable
-        ? text.trim()
-        : kind === "persona"
-          ? values.personaName?.trim() || ""
-          : "",
+        ? typed
+        : typed ||
+          (kind === "persona" ? values.personaName?.trim() || "" : ""),
       count,
       // What this run will produce, which is what the in-flight cells are drawn
       // as. Frozen here with the prompt and the count, for the same reason: the
@@ -484,7 +489,15 @@ export default function StudioComposer({
     });
     generate({
       primaryInput,
-      values: { ...values, model, variations: count },
+      values: {
+        ...values,
+        model,
+        variations: count,
+        // Only the describable tools carry one. On a typed tool these same
+        // words are the primary input and go up as `prompt` — sending them
+        // twice under two names would be the same brief, doubled.
+        ...(describable ? { description: typed } : {}),
+      },
       activeBrand,
     });
     // ⚠️ NOTHING IS CLEARED ON SUBMIT — not the typed prompt, not the picked
@@ -553,19 +566,43 @@ export default function StudioComposer({
           rows of room to read back what you wrote before committing to it.
           Still `resize-none`: the box floats over the canvas on the bottom
           edge, and a drag handle here would grow it up over the results. */}
-      {typeable ? (
+      {typeable || describable ? (
         <textarea
-          rows={4}
+          rows={typeable ? 4 : 3}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={handleKeyDown}
           maxLength={inputConfig.maxLength}
-          placeholder={inputConfig.placeholder || "Describe what you want…"}
-          aria-label={inputConfig.label || `Input for ${tool.label}`}
-          className="min-h-24 w-full resize-none bg-transparent px-5 pt-5 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400"
+          placeholder={
+            typeable
+              ? inputConfig.placeholder || "Describe what you want…"
+              : inputConfig.placeholder || "Add a description (optional)…"
+          }
+          aria-label={
+            typeable
+              ? inputConfig.label || `Input for ${tool.label}`
+              : `Optional description for ${tool.label}`
+          }
+          className={`w-full resize-none bg-transparent px-5 pt-5 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400 ${
+            typeable ? "min-h-24" : "min-h-16"
+          }`}
         />
-      ) : (
-        <p className="min-h-24 px-5 pt-5 text-sm text-gray-400">
+      ) : null}
+
+      {/* What this tool is still waiting for. ⚠️ IT SURVIVES THE DESCRIPTION
+          BOX rather than being replaced by it: the box is optional and says
+          nothing about whether a source image has been picked, so dropping this
+          line would leave the describable tools with a disabled submit button
+          and no explanation. It just shrinks to a footnote under the box
+          instead of being the whole empty area. */}
+      {!typeable && (
+        <p
+          className={
+            describable
+              ? "px-5 pb-1 pt-1 text-xs text-gray-400"
+              : "min-h-24 px-5 pt-5 text-sm text-gray-400"
+          }
+        >
           {kind === "image" && !image && (inputConfig.helper || "Choose a source image to begin.")}
           {kind === "image" && image && "Set your options, then generate."}
           {kind === "audio" &&
@@ -601,21 +638,20 @@ export default function StudioComposer({
         {/* Source pickers, for the tools that need one. Icon-only like the
             setting chips beside them — the strip above the toolbar already
             shows what has been picked, so the button doesn't also have to say
-            so in words. */}
+            so in words.
+            No busy state on this one: picking is instant now. The image the
+            picker hands back is used as-is rather than copied to the gallery
+            first, so there is nothing to wait on between Apply and the strip
+            filling. */}
         {kind === "image" && (
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            disabled={uploading}
             aria-label={image ? "Replace source image" : "Choose a source image"}
             title={image ? "Replace source image" : "Choose a source image"}
-            className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg px-1.5 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 enabled:cursor-pointer"
+            className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg px-1.5 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
           >
-            {uploading ? (
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-            ) : (
-              <ImagePlus className="h-4 w-4 shrink-0" />
-            )}
+            <ImagePlus className="h-4 w-4 shrink-0" />
           </button>
         )}
 

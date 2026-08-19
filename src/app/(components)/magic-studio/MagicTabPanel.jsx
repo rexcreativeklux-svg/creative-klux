@@ -104,6 +104,17 @@ export default function MagicTabPanel({
   const activeBrand = activeBrandProp || activeBrandCtx;
   const config = getMagicConfig(categoryId);
 
+  /**
+   * Tools that start from a picture or a form, but will still take a written
+   * note alongside it — declared per tool by `describable` in the configs, and
+   * sent as `description`. Reuses `textInput` below, which the typed branch owns
+   * and these tools were leaving empty. Mirrors StudioComposer; see the longer
+   * note there for why it is opt-in rather than "anything untyped".
+   */
+  const describable =
+    !["prompt", "script", "text"].includes(config?.input) &&
+    config?.describable === true;
+
   // ── On-device engines (idle until their tool runs; same shared engines the
   //    standalone modal uses). ──
   const tts = useTextToSpeech();
@@ -276,7 +287,14 @@ export default function MagicTabPanel({
 
   const handleGenerate = () => {
     if (usesHistory) setHistoryOpen(true); // reveal the result as it lands
-    generate({ primaryInput, values, activeBrand });
+    generate({
+      primaryInput,
+      // On a describable tool the box holds a note about the source, not the
+      // source itself — it rides in `values` and the config sends it as
+      // `description`. Typed tools already have these words as primaryInput.
+      values: describable ? { ...values, description: textInput.trim() } : values,
+      activeBrand,
+    });
   };
 
   const resetResult = () => {
@@ -789,6 +807,35 @@ export default function MagicTabPanel({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* The optional description, for the tools whose real input is a picture
+            or a form. Sits AFTER that input and before the options: it is a note
+            about the thing above it, and putting it first would read as the
+            primary field on a tool where it is the one part you can skip.
+            No "Inspire me" here — see the ⚠️ on persona_generator's inputConfig. */}
+        {describable && (
+          <div>
+            <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
+              Description{" "}
+              <span className="font-medium text-gray-400">(optional)</span>
+            </label>
+            <div className="relative">
+              <textarea
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder={ic.placeholder}
+                rows={3}
+                maxLength={ic.maxLength}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-2xl text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder:text-xs placeholder:text-gray-400"
+              />
+              {ic.maxLength && (
+                <span className="absolute bottom-3 right-3 text-[10px] text-gray-400">
+                  {textInput.length}/{ic.maxLength}
+                </span>
+              )}
+            </div>
           </div>
         )}
 

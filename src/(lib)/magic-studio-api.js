@@ -6,11 +6,16 @@
 //
 //   text_to_image       → { type, style, ratio, prompt }
 //   text_to_video       → { type, style, ratio, duration, prompt }
-//   image_variation     → { type, style, source_image }
+//   image_variation     → { type, style, source_image, description? }
 //   script_to_voiceover → { type, style, narration_tone, speaking_pace, ratio, export_format, prompt }
 //   audio_to_text       → { type, audio_file, language, transcript_format, transcript_quality }
 //   text_to_audio       → { type, style, speaking_tone, speaking_speed, export_format, audio_quality, prompt }
-//   persona_generator   → { type, name, age, occupation, communication_tone, content_type, ratio }
+//   persona_generator   → { type, name, age, occupation, communication_tone, content_type, ratio, description? }
+//
+// `description` is the OPTIONAL free-text note on the two tools whose real input
+// isn't words — a source image, or the persona's four fields. It is sent only
+// when something was actually typed, so an untouched composer posts what it
+// always did; see descriptionField in magicStudioConfigs.jsx.
 //
 // Every one of those EXCEPT audio_to_text and text_to_audio also carries
 // `variations` — how many results to make in one request, 1–4, from the

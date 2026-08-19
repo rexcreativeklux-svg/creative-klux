@@ -66,6 +66,12 @@ import {
   Venus,
   Megaphone,
   Share2,
+  Box,
+  Brush,
+  PenTool,
+  Blend,
+  Scissors,
+  Users,
 } from "lucide-react";
 
 import {
@@ -597,8 +603,64 @@ const COLOR_OPTION = {
 const colorField = (value) =>
   value && value !== AUTO_COLOR ? { color: value } : {};
 
-// ── Visual-style cards (shared between Text-to-Image / Text-to-Video) ─────────
-const IMAGE_STYLES = [
+/**
+ * The `description` field for a payload — absent unless something was written.
+ *
+ * ⚠️ THE TOOLS THAT DON'T READ WORDS STILL WANT THEM. Image to Variations starts
+ * from a picture and the Persona Generator from four form fields, so until now
+ * neither had anywhere to say "keep the product, warm the background up" or
+ * "this is for a Black Friday push" — the entire intent had to be squeezed into
+ * a style card. This is that missing sentence.
+ *
+ * ⚠️ IT IS OPTIONAL, AND OMITTED WHEN EMPTY — the same rule as COLOR_OPTION's,
+ * for the same reason. This endpoint rejects fields it doesn't declare, so
+ * sending `description: ""` on every run would put a live 422 on two tools that
+ * work today. Leaving it out while the box is untouched means those tools go on
+ * sending the byte-identical payload they sent before this existed, and only a
+ * description somebody actually wrote can change that.
+ *
+ * ⚠️ THE FIELD NAME IS THE PART TO CHECK FIRST if a 422 appears the moment
+ * anyone types in that box. Everything else here is confirmed against the API;
+ * this one is named for what it is rather than probed.
+ *
+ * A tool opts in by declaring `describable: true` — that flag is what puts the
+ * box on the composer, and this is what puts what was typed into the payload.
+ * The two go together: one without the other is either a box that goes nowhere
+ * or a field nobody can fill.
+ */
+const descriptionField = (value) => {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text ? { description: text } : {};
+};
+
+/**
+ * The nine styles the BACKEND knows by name.
+ *
+ * ⚠️ THE `value` IS THE WHOLE CONTRACT. Each of these keys is one the backend
+ * already holds a full style description for — "photorealistic" expands to
+ * "professional advertising photography, cinematic lighting, high end
+ * commercial look" on its side, and so on for the other eight. So the frontend
+ * sends the bare key and nothing else: writing our own version of that sentence
+ * here would give the same style two definitions that drift apart, and the
+ * user's would be the one that lost.
+ *
+ * ⚠️ THE HYPHENS ARE NOT A TYPO next to `oil_painting` below. These nine come
+ * from the backend's own list and are spelled the way it spells them; the
+ * underscored ones are older frontend values that predate it. Don't "tidy" one
+ * convention into the other — the string is what identifies the style.
+ *
+ * ⚠️ SHARED, NOT COPIED. Both style pickers spread this in — Text to Image /
+ * Text to Video, and Image to Variations, which otherwise keeps a set of its own
+ * in a different naming convention entirely. One list means a style the backend
+ * supports can't end up offered on one tool and missing on another.
+ *
+ * The thumbnails are Pexels photos chosen to DEMONSTRATE each style rather than
+ * to illustrate its name — "Lifestyle" is a candid shot of real people in
+ * daylight, not a picture of the word. Every id here was checked against the
+ * CDN; a dead one degrades to the icon-on-a-panel state rather than a broken
+ * image (see OptionPanelBody), so a photo disappearing is untidy, not broken.
+ */
+const CORE_STYLES = [
   {
     value: "photorealistic",
     label: "Photorealistic",
@@ -613,6 +675,74 @@ const IMAGE_STYLES = [
     icon: Film,
     img: px(2873486),
   },
+  {
+    value: "3d-render",
+    label: "3D Render",
+    desc: "Clean studio 3D",
+    icon: Box,
+    img: px(28918449),
+  },
+  {
+    value: "illustration",
+    label: "Illustration",
+    desc: "Editorial artwork",
+    icon: Brush,
+    img: px(19032025),
+  },
+  {
+    value: "flat-vector",
+    label: "Flat Vector",
+    desc: "Geometric & solid",
+    icon: PenTool,
+    img: px(12891180),
+  },
+  {
+    // ⚠️ `minimal`, AND IT USED TO BE `minimalist`. Same card, same place in the
+    // picker, one letter different on the wire — this is the spelling the
+    // backend documents, and keeping both would have put two cards reading
+    // "Minimal" and "Minimalist" side by side meaning the same thing.
+    value: "minimal",
+    label: "Minimal",
+    desc: "Clean & simple",
+    icon: Minus,
+    img: px(1103970),
+  },
+  {
+    value: "gradient",
+    label: "Gradient",
+    desc: "Soft light blooms",
+    icon: Blend,
+    img: px(7135007),
+  },
+  {
+    value: "collage",
+    label: "Collage",
+    desc: "Layered paper textures",
+    icon: Scissors,
+    img: px(36591281),
+  },
+  {
+    value: "lifestyle",
+    label: "Lifestyle",
+    desc: "Candid & natural",
+    icon: Users,
+    img: px(1616551),
+  },
+];
+
+// ── Visual-style cards (shared between Text-to-Image / Text-to-Video) ─────────
+/**
+ * The styles these pickers carried before the backend published its nine.
+ *
+ * Kept, not replaced: people have been choosing these for months and a style
+ * vanishing from the picker is a feature disappearing. `minimalist` is the only
+ * one that moved, and it moved INTO {@link CORE_STYLES} as `minimal` — the
+ * spelling the backend recognises — rather than out of the list.
+ *
+ * Named separately from IMAGE_STYLES so Text to Video can say which of them it
+ * offers by value; see its `style` option.
+ */
+const LEGACY_IMAGE_STYLES = [
   {
     value: "anime",
     label: "Anime",
@@ -656,13 +786,6 @@ const IMAGE_STYLES = [
     img: px(1616403),
   },
   {
-    value: "minimalist",
-    label: "Minimalist",
-    desc: "Clean & simple",
-    icon: Minus,
-    img: px(1103970),
-  },
-  {
     value: "vintage",
     label: "Vintage",
     desc: "Retro film look",
@@ -677,6 +800,9 @@ const IMAGE_STYLES = [
     img: px(1631677),
   },
 ];
+
+/** Every style Text to Image offers — the backend's nine, then the older ones. */
+const IMAGE_STYLES = [...CORE_STYLES, ...LEGACY_IMAGE_STYLES];
 
 // ── Text-to-Audio voice cards (real Kokoro-82M voices, from the AI engine) ───
 // The on-device model ships 28 English voices; the "voices" panel groups them
@@ -900,7 +1026,19 @@ export const MAGIC_STUDIO_CONFIGS = {
         panel: "cards",
         width: 380,
         default: "photorealistic",
-        items: IMAGE_STYLES.slice(0, 8),
+        // ⚠️ THIS WAS `IMAGE_STYLES.slice(0, 8)` — an index range standing in
+        // for "the eight that suit motion". It survived only as long as nothing
+        // was added to the front of that list; the moment the backend's nine
+        // went in ahead of it, the same expression silently pointed at a
+        // completely different eight and cut two of the nine off this tool.
+        // Named exclusions can't drift like that: vintage and neon are the two
+        // this picker leaves out, and they stay left out however the list grows.
+        items: [
+          ...CORE_STYLES,
+          ...LEGACY_IMAGE_STYLES.filter(
+            (style) => !["vintage", "neon"].includes(style.value),
+          ),
+        ],
       },
       {
         key: "duration",
@@ -968,6 +1106,10 @@ export const MAGIC_STUDIO_CONFIGS = {
     // See the ⚠️ on text_to_image. Several takes on one source image is what
     // this tool is FOR, so it is the clearest case for the chip.
     variations: true,
+    // Takes an optional description alongside the source image — see
+    // descriptionField. A style card can say "watercolour"; only words can say
+    // which parts of THIS picture to hold on to.
+    describable: true,
     historyTool: "image_to_variations",
     sample: {
       before:
@@ -981,6 +1123,12 @@ export const MAGIC_STUDIO_CONFIGS = {
     inputConfig: {
       label: "Source image",
       helper: "Choose an image from your library, the web, or upload one.",
+      // The optional description box (`describable` above). Shorter cap than a
+      // prompt tool's 500: this is a note ABOUT a picture that already exists,
+      // not the description of one that doesn't.
+      placeholder:
+        "Optional — what should change, and what should stay? e.g. keep the product exactly as it is, make the background a warm studio grey",
+      maxLength: 300,
     },
     options: [
       {
@@ -988,8 +1136,18 @@ export const MAGIC_STUDIO_CONFIGS = {
         label: "Visual style",
         panel: "cards",
         width: 380,
-        default: "Vintage Sepia",
+        // ⚠️ THE DEFAULT MOVED to a backend-named style. It was "Vintage Sepia",
+        // which is a strong look to put on every untouched run of a tool whose
+        // job is "give me this picture again, slightly different".
+        default: "photorealistic",
+        // ⚠️ TWO NAMING CONVENTIONS, DELIBERATELY. The nine come from the
+        // backend and are hyphenated; everything after them is this tool's own
+        // older title-case set, kept so no style anyone uses disappears. Its
+        // "Cinematic" and "Minimalist" are gone from the tail — not removed, but
+        // now served by CORE_STYLES' `cinematic` and `minimal`, which mean the
+        // same thing in the spelling the backend recognises.
         items: [
+          ...CORE_STYLES,
           {
             value: "Vintage Sepia",
             label: "Vintage Sepia",
@@ -1046,20 +1204,6 @@ export const MAGIC_STUDIO_CONFIGS = {
             icon: Shapes,
             img: px(1616403),
           },
-          {
-            value: "Cinematic",
-            label: "Cinematic",
-            desc: "Film-grade",
-            icon: Film,
-            img: px(2873486),
-          },
-          {
-            value: "Minimalist",
-            label: "Minimalist",
-            desc: "Clean & simple",
-            icon: Minus,
-            img: px(1103970),
-          },
         ],
       },
       COLOR_OPTION,
@@ -1073,6 +1217,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         variations: values.variations,
         // Absent unless a colour was actually picked — see COLOR_OPTION.
         ...colorField(values.color),
+        // Absent unless something was typed — see descriptionField.
+        ...descriptionField(values.description),
         image_url: input,
       };
       // Several takes on one image is what this tool is FOR, so it is the one
@@ -1450,6 +1596,10 @@ export const MAGIC_STUDIO_CONFIGS = {
     // See the ⚠️ on text_to_image. Several drafts in one persona's voice is a
     // natural ask — this tool writes copy, and the first take is rarely the one.
     variations: true,
+    // Takes an optional description alongside the four persona fields — see
+    // descriptionField. Who you are talking to is only half a brief; the four
+    // fields have no room for what you are talking to them ABOUT.
+    describable: true,
     sample: {
       before:
         "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80",
@@ -1460,6 +1610,15 @@ export const MAGIC_STUDIO_CONFIGS = {
         "Define who you're speaking to, and generate content shaped to fit them.",
     },
     inputConfig: {
+      // The optional description box (`describable` above).
+      //
+      // ⚠️ `inspire` BELOW IS NOT FOR THIS BOX. It holds worked PERSONAS —
+      // objects, not sentences — and it seeds the four fields. The composer's
+      // description box deliberately has no "inspire me" affordance for exactly
+      // that reason; wiring one up here would drop `[object Object]` into it.
+      placeholder:
+        "Optional — what is this content about? e.g. launching a free trial for our scheduling app",
+      maxLength: 300,
       inspire: [
         {
           name: "Amara Osei",
@@ -1578,6 +1737,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         content_type: contentType,
         ratio: ratioString(ratio),
         variations: values.variations,
+        // Absent unless something was typed — see descriptionField.
+        ...descriptionField(values.description),
       };
       // The chosen content type decides how the canvas renders the result — and
       // it has to be settled BEFORE the request, because a run that comes back

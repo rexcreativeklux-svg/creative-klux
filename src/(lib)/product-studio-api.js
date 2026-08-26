@@ -19,6 +19,17 @@ export const TOOL_ENUM = {
   beautifier: "product_beautifier",
   flatlay: "flat_lay",
   mannequin: "ghost_mannequin",
+
+  // ⚠️ UNCONFIRMED — the backend rejects this value today:
+  //   { "message": "Generation failed",
+  //     "error": "The selected tool is invalid. (and 1 more error)" }
+  // The five ids above are the whole enum we have evidence for, and video isn't
+  // one of them. Nothing in this repo records what the video tool is called
+  // server-side (docs/product-studio-payloads.md, cited in three comments,
+  // doesn't exist), so this is a placeholder. VideoGeneratorModal is the only
+  // caller — correct it here once the backend confirms the value, or drop it if
+  // /product-studio/generate doesn't handle video at all.
+  video: "video",
 };
 
 // Get the active brand id from local storage (if any) and include it in the request payload. This is used to apply the brand style to the generated product photo.
@@ -194,7 +205,17 @@ export async function generateProductPhoto(payload) {
       message: err?.message,
     });
 
-    const serverMsg = data?.message || data?.error || err?.message || "";
+    // Both halves, not the first one that exists: this API puts a generic
+    // headline in `message` ("Generation failed") and the reason that actually
+    // helps in `error` ("The selected tool is invalid"). Preferring `message`
+    // showed the user — and us — only the headline.
+    const serverMsg =
+      [data?.message, data?.error]
+        .filter(Boolean)
+        .filter((part, i, all) => all.indexOf(part) === i)
+        .join(" — ") ||
+      err?.message ||
+      "";
     if (status === 402 || /limit|credits?/i.test(serverMsg)) {
       toast.error(
         "Monthly AI credits limit reached. Please upgrade your plan to continue.",

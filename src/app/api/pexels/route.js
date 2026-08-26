@@ -41,10 +41,29 @@ export async function GET(request) {
     });
 
     if (!response.ok) {
-      // Fix: Proper template literal syntax
       const errorText = await response.text();
       console.error(`Pexels API error (${response.status}):`, errorText);
-      throw new Error(`Pexels API error: ${response.status}`);
+
+      // Pass the upstream status through instead of flattening everything to
+      // 500. A caller needs to tell "we're out of quota" (429, retry later)
+      // from "that query was malformed" (4xx, retrying won't help) — and
+      // Pexels reports the hourly window on every response, so forwarding it
+      // turns "it just failed" into a number you can act on.
+      return NextResponse.json(
+        {
+          error:
+            response.status === 429
+              ? "Pexels rate limit reached"
+              : "Pexels request failed",
+          status: response.status,
+          rateLimit: {
+            limit: response.headers.get("x-ratelimit-limit"),
+            remaining: response.headers.get("x-ratelimit-remaining"),
+            reset: response.headers.get("x-ratelimit-reset"),
+          },
+        },
+        { status: response.status },
+      );
     }
 
     const data = await response.json();

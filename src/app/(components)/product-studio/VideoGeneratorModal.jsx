@@ -1,59 +1,34 @@
 import { useState, useRef, useEffect } from "react";
-import { generateProductPhoto } from "@/(lib)/product-studio-api";
+import { generateProductPhoto, TOOL_ENUM } from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
-import { X, Upload, Loader2, ChevronDown, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import {
+  X,
+  Upload,
+  Loader2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  LayoutGrid,
+} from "lucide-react";
 import { toast } from "sonner";
+import Skeleton from "@/app/(components)/skeletons/Skeleton";
 import { px, VIDEO_SIZES } from "./constants";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import ToolModalMobileHeader from "./ToolModalMobileHeader";
 import SizeDropdown from "./SizeDropdown";
+import TemplateTile from "./TemplateTile";
+import TemplateBrowserModal from "./TemplateBrowserModal";
+import useTemplates from "./useTemplates";
 
 // Video accepts up to 4 input photos — different angles improve fidelity.
 // See docs/product-studio-payloads.md (video `image_urls`: 1–4).
 const MAX_IMAGES = 4;
 
-const TEMPLATE_CATEGORIES = [
-  "All",
-  "Dresses",
-  "Tops",
-  "Bottoms",
-  "Outerwear",
-  "Accessories",
-  "Footwear",
-  "Bags",
-  "Beauty",
-  "Food & Drink",
-  "Furniture",
-];
-
-const tpl = (id, category) => ({
-  id: `${category}-${id}`,
-  category,
-  img: px(id),
-});
-const TEMPLATES = [
-  tpl(6780091, "Dresses"),
-  tpl(5112737, "Dresses"),
-  tpl(6780038, "Tops"),
-  tpl(37741914, "Tops"),
-  tpl(6780036, "Bottoms"),
-  tpl(18516993, "Bottoms"),
-  tpl(37218533, "Outerwear"),
-  tpl(5421296, "Outerwear"),
-  tpl(7895502, "Accessories"),
-  tpl(7866490, "Accessories"),
-  tpl(27046150, "Footwear"),
-  tpl(9267592, "Footwear"),
-  tpl(17938771, "Bags"),
-  tpl(36385199, "Bags"),
-  tpl(8015790, "Beauty"),
-  tpl(8049841, "Beauty"),
-  tpl(4869290, "Food & Drink"),
-  tpl(12900864, "Food & Drink"),
-  tpl(35392792, "Furniture"),
-  tpl(6053887, "Furniture"),
-];
+// How many clips the shelf loads. Deliberately small — every one of them is a
+// video element, and the row is a preview, not the browser.
+const ROW_TEMPLATES = 12;
 
 const VID_BEFORE = px(30780459);
 const VID_AFTER = px(27204251);
@@ -143,6 +118,10 @@ export default function VideoGeneratorModal({
       : [],
   );
   const [selectedTemplate, setSelectedTemplate] = useState("none");
+  // A template picked in the "See all" browser isn't in the row's twelve clips,
+  // so it gets pinned to the front of the row — otherwise the browser closes and
+  // nothing on screen shows what was chosen.
+  const [pinnedTemplate, setPinnedTemplate] = useState(null);
   const [size, setSize] = useState("square");
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -152,10 +131,24 @@ export default function VideoGeneratorModal({
   // ToolModalMobileHeader. Ignored above it, where both are side by side.
   const [mobileView, setMobileView] = useState("setup");
   const [seeAllOpen, setSeeAllOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("All");
   const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
 
+  // The shelf of looping clips. Mixed across categories — see videoTemplates.js.
+  // Fetched at the default page size rather than at ROW_TEMPLATES so the row and
+  // the "See all" browser share one cache entry; the row just shows the front of
+  // it.
+  const { items: allTemplates, loading: rowLoading } = useTemplates({
+    kind: "videos",
+    category: "All",
+  });
+  const rowTemplates = allTemplates.slice(0, ROW_TEMPLATES);
+
   const sizeObj = VIDEO_SIZES.find((s) => s.id === size);
+
+  // Don't pin a duplicate: if the browser pick happens to be one of the clips
+  // already on the shelf, the shelf tile carries the selection.
+  const showPinned =
+    pinnedTemplate && !rowTemplates.some((t) => t.id === pinnedTemplate.id);
 
   const toggle = (key) => setOpenDropdown((p) => (p === key ? null : key));
   const closeAll = () => {
@@ -220,6 +213,13 @@ export default function VideoGeneratorModal({
     });
   };
 
+  // Only the id goes to the backend; the tile is kept so a pick made in the
+  // browser can be shown in the row.
+  const handleSelectTemplate = (template) => {
+    setSelectedTemplate(template.id);
+    setPinnedTemplate(template);
+  };
+
   // Drop one image from the set by id.
   const removeImage = (id) =>
     setUploadedImages((prev) => prev.filter((img) => img.id !== id));
@@ -272,7 +272,7 @@ export default function VideoGeneratorModal({
       // `image_urls` (1–4 photos) plus the video-only `template_id` and reduced
       // `size` set (see docs/product-studio-payloads.md).
       const payload = {
-        tool: "video",
+        tool: TOOL_ENUM.video, // ⚠️ rejected by the backend today — see TOOL_ENUM
         image_urls: imageUrls,
         template_id: selectedTemplate, // "none" for no template, else a template id
         size, // "square" | "portrait_9_16" | "landscape_16_9"
@@ -300,11 +300,6 @@ export default function VideoGeneratorModal({
       setGenerating(false);
     }
   };
-
-  const filteredTemplates =
-    activeCategory === "All"
-      ? TEMPLATES
-      : TEMPLATES.filter((t) => t.category === activeCategory);
 
   return (
     <div
@@ -411,7 +406,7 @@ export default function VideoGeneratorModal({
                 {/* No template tile */}
                 <button
                   onClick={() => setSelectedTemplate("none")}
-                  className={`shrink-0 w-24 h-32 rounded-xl overflow-hidden relative flex items-center justify-center text-white text-xs font-medium bg-linear-to-br from-gray-700 to-gray-900 border-2 transition-colors ${selectedTemplate === "none" ? "border-blue-500" : "border-transparent"}`}
+                  className={`shrink-0 w-24 h-32 rounded-xl overflow-hidden relative flex items-center justify-center text-white text-xs font-medium bg-linear-to-br from-gray-700 to-gray-900 border-2 transition-colors cursor-pointer ${selectedTemplate === "none" ? "border-blue-500" : "border-transparent"}`}
                 >
                   No template
                   {selectedTemplate === "none" && (
@@ -420,24 +415,44 @@ export default function VideoGeneratorModal({
                     </span>
                   )}
                 </button>
-                {TEMPLATES.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setSelectedTemplate(t.id)}
-                    className={`shrink-0 w-24 h-32 rounded-xl overflow-hidden relative border-2 transition-colors ${selectedTemplate === t.id ? "border-blue-500" : "border-transparent"}`}
-                  >
-                    <img
-                      src={t.img}
-                      alt={t.category}
-                      className="w-full h-full object-cover object-top"
-                    />
-                    {selectedTemplate === t.id && (
-                      <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
-                        <Check className="w-3 h-3 text-white" />
-                      </span>
-                    )}
-                  </button>
-                ))}
+
+                {/* A pick from "See all", pinned so the choice is visible here */}
+                {showPinned && (
+                  <TemplateTile
+                    template={pinnedTemplate}
+                    selected={selectedTemplate === pinnedTemplate.id}
+                    onSelect={handleSelectTemplate}
+                    className="shrink-0 w-24 h-32"
+                  />
+                )}
+
+                {rowLoading
+                  ? Array.from({ length: 6 }).map((_, i) => (
+                      <Skeleton
+                        key={i}
+                        tone="soft"
+                        shimmer
+                        className="shrink-0 w-24 h-32 rounded-xl"
+                      />
+                    ))
+                  : rowTemplates.map((t) => (
+                      <TemplateTile
+                        key={t.id}
+                        template={t}
+                        selected={selectedTemplate === t.id}
+                        onSelect={handleSelectTemplate}
+                        className="shrink-0 w-24 h-32"
+                      />
+                    ))}
+
+                {/* Last tile — the shelf's own way into the full browser */}
+                <button
+                  onClick={() => setSeeAllOpen(true)}
+                  aria-label="See all templates"
+                  className="shrink-0 w-24 h-32 rounded-xl bg-gray-100 hover:bg-gray-200 border-2 border-transparent flex items-center justify-center text-gray-500 transition-colors cursor-pointer"
+                >
+                  <LayoutGrid className="w-6 h-6" />
+                </button>
               </TemplateRow>
             </div>
 
@@ -585,65 +600,13 @@ export default function VideoGeneratorModal({
         />
       )}
 
-      {/* ── "See all" template browser ── */}
+      {/* ── "See all" template browser — stills, one tab per category ── */}
       {seeAllOpen && (
-        <div
-          className="fixed inset-0 z-215 flex items-center justify-center bg-black/30 p-6"
-          onClick={() => setSeeAllOpen(false)}
-        >
-          <div
-            className="bg-surface rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-6 pt-6 pb-4">
-              <h2 className="text-2xl font-bold text-gray-900">Template</h2>
-              <button
-                onClick={() => setSeeAllOpen(false)}
-                className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center hover:bg-gray-700 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            {/* Category tabs */}
-            <div className="flex items-center gap-2 px-6 pt-2 pb-4 overflow-x-auto hide-scrollbar">
-              {TEMPLATE_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeCategory === cat ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-900 hover:bg-gray-100"}`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-            {/* Grid */}
-            <div className="flex-1 min-h-0 px-6 pb-6 pt-1 overflow-y-auto">
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-                {filteredTemplates.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => {
-                      setSelectedTemplate(t.id);
-                      setSeeAllOpen(false);
-                    }}
-                    className={`aspect-3/4 rounded-xl overflow-hidden relative border-2 transition-colors ${selectedTemplate === t.id ? "border-blue-500" : "border-transparent hover:border-gray-200"}`}
-                  >
-                    <img
-                      src={t.img}
-                      alt={t.category}
-                      className="w-full h-full object-cover object-top"
-                    />
-                    {selectedTemplate === t.id && (
-                      <span className="absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
-                        <Check className="w-3 h-3 text-white" />
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <TemplateBrowserModal
+          selectedId={selectedTemplate}
+          onSelect={handleSelectTemplate}
+          onClose={() => setSeeAllOpen(false)}
+        />
       )}
 
       {/* ── Gallery media picker — pick ONE image (My Library / Search / Upload) ── */}

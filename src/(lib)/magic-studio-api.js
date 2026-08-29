@@ -273,8 +273,15 @@ function expandMagicHistoryRecord(record) {
 
   const assets = recordAssets(record);
   if (assets.length === 0) {
-    // No file — a text-only result (persona copy) still counts as a result.
-    const content = record.content ?? record.text ?? null;
+    // No file — a text-only result still counts as a result.
+    //
+    // ⚠️ `transcript` IS ITS OWN COLUMN, and missing it drops the record. A
+    // finished Audio to Text run has no file at all: `url` is "", `s3_key` is
+    // null, and the words live on `transcript` — so reading only content/text
+    // resolves null here and returns [], silently deleting every transcript
+    // from history while the tool itself looks like it worked.
+    const content =
+      record.content ?? record.text ?? record.transcript ?? null;
     if (!content) return [];
     return [
       {

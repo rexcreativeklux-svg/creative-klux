@@ -200,10 +200,15 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
     }
     return (
       <div className="p-2 pb-3">
-        <p className="px-2 pt-1 pb-2 text-[11px] leading-snug text-gray-400">
-          Tap <Play className="inline w-3 h-3 -mt-0.5" /> to hear a sample of each
-          voice before you pick.
-        </p>
+        {/* Only where there is something to tap. Hosted voices can only be
+            heard by billing a real generation, so they carry `preview: false`
+            and show no ▶ — an instruction to tap one would be a dead end. */}
+        {items.some((it) => it.preview !== false) && (
+          <p className="px-2 pt-1 pb-2 text-[11px] leading-snug text-gray-400">
+            Tap <Play className="inline w-3 h-3 -mt-0.5" /> to hear a sample of
+            each voice before you pick.
+          </p>
+        )}
         {groups.map((group) => (
           <div key={group.name}>
             <p className="px-2 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
@@ -241,7 +246,7 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
                         )}
                       </span>
                     </button>
-                    {voicePreview && (
+                    {voicePreview && it.preview !== false && (
                       <button
                         onClick={() => voicePreview.toggle(it)}
                         aria-label={

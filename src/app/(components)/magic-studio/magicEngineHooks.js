@@ -94,6 +94,12 @@ export function useVoicePreview(tts) {
     try {
       setLoadingId(id);
 
+      // ⚠️ THIS AUDITIONS KOKORO VOICES ONLY, and the picker is what enforces
+      // that: cards for hosted voices carry `preview: false` and render no ▶ at
+      // all, so nothing can reach here with an Aura name. Both steps below would
+      // be wrong for one — /voice-samples holds Kokoro's 28 clips, and Kokoro
+      // cannot say "asteria" any more than Aura-2 can say "af_heart".
+
       // 1) Pre-generated static sample — instant, no engine download. Probe it
       //    first; if it isn't there, synthesize.
       const staticUrl = `/voice-samples/${id}.mp3`;

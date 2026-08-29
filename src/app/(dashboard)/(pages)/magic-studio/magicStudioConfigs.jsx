@@ -344,22 +344,60 @@ export function getGenerationError(data) {
 }
 
 /**
- * Turn a provider's validation dump into one readable line.
+ * Provider failures that are about OUR account rather than the user's request.
+ *
+ * ⚠️ THESE MUST NEVER REACH THE USER VERBATIM. When the fal.ai balance runs out
+ * the provider answers with an instruction addressed to the account holder —
+ *
+ *   {"detail":"User is locked. Reason: Exhausted balance. Top up your balance
+ *   at fal.ai/dashboard/billing."}
+ *
+ * — which, shown in the composer, names our vendor, exposes our billing state,
+ * and tells a paying customer to go top up somebody else's account. It is also
+ * the one failure they can do nothing about, so detail buys them nothing.
+ *
+ * Matched against the WHOLE raw string rather than a parsed field: the wording
+ * and the shape both move between providers, and this only has to RECOGNISE the
+ * class of failure, not parse it.
+ */
+const PROVIDER_ACCOUNT_ERROR =
+  /exhausted balance|top up|user is locked|insufficient (?:funds|balance|credits?)|quota exceeded|out of credits?|billing/i;
+
+/** What we say instead — deliberately silent about whose problem it is. */
+const PROVIDER_ACCOUNT_MESSAGE =
+  "This tool is temporarily unavailable. Please try again shortly.";
+
+/**
+ * Turn a provider's error dump into one readable line.
  *
  *   fal.ai queue result error (fal-ai/kling-video): {"detail":[{"type":
  *   "literal_error","loc":["body","duration"],"msg":"Input should be '5' or
  *   '10'","input":"3", …}]}
  *     → duration: Input should be '5' or '10'
  *
+ *   fal.ai queue submit error (fal-ai/kling-video/v1.6/…): {"detail":"User is
+ *   locked. Reason: Exhausted balance. Top up your balance at …"}
+ *     → This tool is temporarily unavailable. Please try again shortly.
+ *
  * Best-effort by design: anything it doesn't recognise comes back untouched, so
  * a change in the provider's error shape costs detail, never the message. The
  * raw string is logged at the call site either way.
  */
 function readableProviderError(raw) {
+  // Tested before anything is parsed. An account lock is not a shape worth
+  // depending on recognising, and the answer is the same whatever shape it took.
+  if (PROVIDER_ACCOUNT_ERROR.test(raw)) return PROVIDER_ACCOUNT_MESSAGE;
+
   const start = raw.indexOf("{");
   if (start === -1) return raw;
   try {
     const detail = JSON.parse(raw.slice(start))?.detail;
+
+    // One provider-level sentence, rather than the per-field array below. Worth
+    // returning on its own: the prefix it arrives wrapped in names the vendor
+    // and an internal model id, neither of which means anything to the user.
+    if (typeof detail === "string" && detail.trim()) return detail.trim();
+
     if (!Array.isArray(detail) || detail.length === 0) return raw;
     const lines = detail
       .map((entry) => {

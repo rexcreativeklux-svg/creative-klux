@@ -317,8 +317,6 @@ export default function useMagicGenerate({
 
         await deliverWatch(outcome.value);
       } catch (e) {
-        // generateMagicStudio already surfaces a friendly toast; keep an
-        // in-panel banner for context and log for debugging.
         console.error(`❌ [magic-studio:${config.id}] generate failed:`, e);
         const msg =
           e?.response?.data?.message ||
@@ -326,6 +324,21 @@ export default function useMagicGenerate({
           e?.message ||
           "Generation failed. Please try again.";
         setError(msg);
+
+        // ⚠️ A RECORDED FAILURE IS NOT AN HTTP FAILURE, and only one of the two
+        // arrives already announced. generateMagicStudio toasts what the
+        // TRANSPORT rejects — 401, 402, 422 — but a run that answered 200 and
+        // then filed `status: "failed"` never passed through its catch, so for
+        // that path this is the only place the failure is announced at all. It
+        // is also the slowest path: on video the user may be minutes in and
+        // looking at another tab, with a line of small red text in the composer
+        // as the sole signal.
+        //
+        // `.response` is the discriminator — axios errors carry one, the
+        // `new Error(...)` thrown for a recorded failure (see startGeneration
+        // and deliverWatch) does not. Toasting unconditionally would double up
+        // on every transport error instead.
+        if (!e?.response) toast.error(msg);
       } finally {
         cancelWatch();
         setGenerating(false);

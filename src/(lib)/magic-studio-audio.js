@@ -1,33 +1,37 @@
-"use client";
-
 /**
  * magic-studio-audio.js
  * ─────────────────────────────────────────────────────────────────────────────
- * WHICH ENGINE MAKES THE AUDIO — and the single place to change your mind.
+ * WHICH ENGINE MAKES THE AUDIO, and the voices the picker offers.
  *
- * Magic Studio's two audio tools each have two possible engines behind them:
+ * ⚠️ NO "use client" HERE, DELIBERATELY. magicTools.js reads AUDIO_ENGINE at
+ * module scope, and magicTools.js is imported by the /magic-studio page — a
+ * SERVER component. Marking this file client-only makes that import fail at
+ * module evaluation with "Attempted to call usesBackend() from the server but
+ * usesBackend is on the client", and the whole section 500s before it renders.
  *
- *   text_to_audio   on-device  Kokoro-82M in a Web Worker   (src/(lib)/ai-engine)
- *                   ariziy     POST /v1/text-to-speech      (Deepgram Aura-2)
- *   audio_to_text   on-device  Whisper Base in a Web Worker (src/(lib)/ai-engine)
- *                   ariziy     POST /v1/speech-to-text
+ * It stays server-safe because everything below is data and pure functions:
+ * no fetch, no window, no AudioContext, no URL.createObjectURL. If any of those
+ * is ever needed here, it belongs in a separate client module rather than a
+ * directive on this one.
  *
- * ⚠️ REVERTING IS EDITING AUDIO_ENGINE BELOW, AND NOTHING ELSE. That is the
- * whole point of this file. The on-device paths are not deleted, not commented
- * out and not moved — they are still the same `tts.generate` / `stt.transcribe`
- * calls they always were, reached through the same argument shapes. Whichever
- * engine runs, the value that comes back matches the ON-DEVICE engine's
- * contract, so everything downstream — the asset the canvas renders, the SRT
- * export, recordTextToAudio's upload — cannot tell the difference and did not
- * have to change.
+ * Magic Studio's two audio tools each have two possible engines:
  *
- * ⚠️ THE BROWSER CANNOT CALL ARIZIY DIRECTLY. api.ariziy.com answers a preflight
- * from localhost:3000 with `400 Disallowed CORS origin` and no
- * Access-Control-Allow-Origin header, and its `vary: Origin` says there is an
- * allowlist we are not on. So both calls go through our own route handlers under
- * /api/ariziy/*, which is also what keeps ARIZIY_API_KEY server-side. Pointing
- * these at api.ariziy.com directly will fail in the browser even with a valid
- * key — the request never leaves.
+ *   text_to_audio   backend    POST /magic-studio/generate  { tool: "text_to_audio" }
+ *                   on-device  Kokoro-82M in a Web Worker   (src/(lib)/ai-engine)
+ *   audio_to_text   backend    POST /magic-studio/generate  { tool: "audio_to_text" }
+ *                   on-device  Whisper Base in a Web Worker (src/(lib)/ai-engine)
+ *
+ * ⚠️ REVERTING IS EDITING AUDIO_ENGINE BELOW, AND NOTHING ELSE. The on-device
+ * paths are not deleted, not commented out and not moved — they are still the
+ * same `tts.generate` / `stt.transcribe` calls they always were. Flip a value
+ * and the tool goes back to running in the browser.
+ *
+ * ⚠️ THE VOICES ARE THE BACKEND'S, NOT KOKORO'S. The backend synthesises through
+ * Deepgram Aura-2 (`@cf/deepgram/aura-2-en`) and takes ITS voice names —
+ * `voice: "thalia"` — which Kokoro has never heard of, and vice versa. So the
+ * picker's cards swap with the engine: whichever engine will do the run is the
+ * one whose voices you are choosing between. Anything else means clicking
+ * "Bella" and hearing Luna.
  */
 
 import { Mars, Venus } from "lucide-react";
@@ -39,48 +43,53 @@ import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Which engine each tool uses. `"ariziy"` | `"on-device"`.
+ * Which engine each tool uses. `"backend"` | `"on-device"`.
  *
- * Per tool rather than one global flag, because the two endpoints are not in the
- * same state: /v1/text-to-speech is healthy, and as of the last probe
- * /v1/speech-to-text returns a Cloudflare 502 for every audio file it accepts
- * (it validates the upload, then dies upstream in ~1.5s). Flipping
- * `audio_to_text` back to "on-device" is the one-word workaround if that is
- * still broken when you read this.
+ * Per tool rather than one global flag, so either can be moved back on its own
+ * — which has already been useful once, when the hosted transcriber was down
+ * and hosted speech was not.
  */
 export const AUDIO_ENGINE = {
-  text_to_audio: "ariziy",
-  audio_to_text: "ariziy",
+  text_to_audio: "backend",
+  audio_to_text: "backend",
 };
 
-/** @returns {boolean} Is this tool on the hosted engine? */
-export const usesAriziy = (toolId) => AUDIO_ENGINE[toolId] === "ariziy";
+/** @returns {boolean} Does this tool generate server-side? */
+export const usesBackend = (toolId) => AUDIO_ENGINE[toolId] === "backend";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VOICES
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Aura-2's own voices — what the picker shows when Ariziy is the engine.
+ * Aura-2's voices — what the picker shows when the backend is the engine.
  *
- * ⚠️ THE PICKER SWAPS WITH THE ENGINE, and this is why. The two models share no
- * vocabulary: Kokoro has a Bella, Aura-2 does not, and the first version of this
- * paired the cards by gender instead — so clicking "Bella" sent "luna". Gender
- * matching is not matching. A voice picker's whole job is that the thing you
- * clicked is the thing you hear, so when the engine changes, the cards change.
+ * ⚠️ THE NAMES CAME FROM THE API, NOT FROM DOCS. Posting an unknown voice makes
+ * Aura-2 answer with the whole enum:
  *
- * ⚠️ ALL 40 ARE US ENGLISH — the model is `@cf/deepgram/aura-2-en`, so unlike
- * Kokoro there are no British voices to offer and the cards group by gender
- * alone. The picker's grouping follows array order, so feminine voices are
- * listed first as one run, then masculine.
+ *   422 {"detail":"Unknown voice '…' for @cf/deepgram/aura-2-en.
+ *        Available: amalthea, andromeda, apollo, …"}
  *
- * ⚠️ GENDER IS NOT SOMETHING THE API RETURNS. The names come from the endpoint
- * itself (the 422 it answers to an unknown voice lists every one); the genders
- * are transcribed from Deepgram's own Aura-2 listing. If a card's icon ever
- * disagrees with what you hear, it is this table that is wrong — the name is
- * always right, because it came from the API.
+ * These 40 are that list, verbatim. If the backend ever reports an unknown
+ * voice for a card shown here, this table has drifted from that enum and the
+ * enum is right.
+ *
+ * ⚠️ ALL 40 ARE US ENGLISH — the model is the `-en` build, so unlike Kokoro
+ * there are no British voices to offer and the cards group by gender alone. The
+ * picker groups by array order, so the feminine voices are one contiguous run.
+ *
+ * ⚠️ GENDER IS NOT SOMETHING THE API RETURNS. Only the names are. The genders
+ * are transcribed from Deepgram's own Aura-2 listing, and are the one thing here
+ * that was never verified against the service. If a card's icon disagrees with
+ * what you hear, this column is wrong — the name is always right.
+ *
+ * ⚠️ `preview: false` — THESE CANNOT BE AUDITIONED. Kokoro's voices have static
+ * clips under /voice-samples and can be synthesised locally for free; an Aura
+ * voice can only be heard by asking the backend to generate, which bills a
+ * generation and files a history record for a sample nobody asked to keep. So
+ * the ▶ button is hidden for them rather than made expensive.
  */
-const ARIZIY_VOICES = [
+const AURA_VOICES = [
   // Feminine
   ["amalthea", "f"], ["andromeda", "f"], ["asteria", "f"], ["athena", "f"],
   ["aurora", "f"], ["callista", "f"], ["cora", "f"], ["cordelia", "f"],
@@ -96,7 +105,7 @@ const ARIZIY_VOICES = [
 ];
 
 /** Deepgram's flagship voices — the ★ badge, same as Kokoro's A/B grades. */
-const ARIZIY_TOP_VOICES = new Set([
+const AURA_TOP_VOICES = new Set([
   "asteria",
   "luna",
   "athena",
@@ -108,7 +117,7 @@ const ARIZIY_TOP_VOICES = new Set([
 ]);
 
 /** Voice cards for the "voices" panel, in the shape KOKORO_VOICE_ITEMS uses. */
-export const ARIZIY_VOICE_ITEMS = ARIZIY_VOICES.map(([id, g]) => {
+export const AURA_VOICE_ITEMS = AURA_VOICES.map(([id, g]) => {
   const gender = g === "f" ? "female" : "male";
   return {
     value: id,
@@ -117,21 +126,31 @@ export const ARIZIY_VOICE_ITEMS = ARIZIY_VOICES.map(([id, g]) => {
     icon: g === "f" ? Venus : Mars,
     gender,
     group: `US ${gender} voices`,
-    top: ARIZIY_TOP_VOICES.has(id),
+    top: AURA_TOP_VOICES.has(id),
+    preview: false, // see the warning above
   };
 });
+
+/** Aura-2's flagship female voice — what an unrecognised id falls back to. */
+const DEFAULT_AURA_VOICE = "asteria";
+
+/** Every Aura name, for telling one apart from a stale Kokoro id. */
+const AURA_VOICE_IDS = new Set(AURA_VOICES.map(([id]) => id));
 
 /**
  * Kokoro voice id → nearest Aura-2 voice, same gender.
  *
- * ⚠️ NO LONGER WHAT THE PICKER USES — it is a SAFETY NET. With the cards swapped
- * above, `values.voice` is already an Aura name and needs no translation. This
- * catches the one case that would otherwise send the wrong voice silently: a
- * composer still holding a Kokoro id from before the engine was switched, or a
- * `text_to_audio` default that didn't get swapped with it. Translating beats
- * falling through to asteria, which is what an unrecognised id does.
+ * ⚠️ A SAFETY NET, NOT THE PICKER'S PATH. With the cards swapped by
+ * {@link voiceItemsFor}, `values.voice` is already an Aura name and needs no
+ * translation. This catches the one case that would otherwise send a voice the
+ * backend rejects: a composer still holding a Kokoro id from before the engine
+ * was switched. Translating beats a 422, and beats silently falling through to
+ * asteria.
+ *
+ * Accent does not survive — Aura-2 here is US-only, so the four British female
+ * and four British male cards map to US voices.
  */
-const KOKORO_TO_ARIZIY_VOICE = {
+const KOKORO_TO_AURA_VOICE = {
   // US female
   af_heart: "asteria",
   af_bella: "luna",
@@ -166,266 +185,39 @@ const KOKORO_TO_ARIZIY_VOICE = {
   bm_daniel: "odysseus",
 };
 
-/** Aura-2's flagship female voice — what an unrecognised id falls back to. */
-const DEFAULT_ARIZIY_VOICE = "asteria";
-
-/** Every Aura-2 name, for telling one apart from a stale Kokoro id. */
-const ARIZIY_VOICE_IDS = new Set(ARIZIY_VOICES.map(([id]) => id));
-
 /**
- * The voice name to send upstream.
+ * The voice name to send to the backend.
  *
- * Passes an Aura name straight through — that is the normal path now that the
- * picker offers them. A Kokoro id only turns up if the composer is holding one
- * from before the switch, and gets translated rather than dropped.
+ * Passes an Aura name straight through — the normal path. A Kokoro id only
+ * turns up if the composer is holding one from before the switch, and gets
+ * translated rather than rejected upstream.
  */
-export function ariziyVoiceId(voiceId) {
-  if (ARIZIY_VOICE_IDS.has(voiceId)) return voiceId;
-  return KOKORO_TO_ARIZIY_VOICE[voiceId] || DEFAULT_ARIZIY_VOICE;
+export function backendVoiceId(voiceId) {
+  if (AURA_VOICE_IDS.has(voiceId)) return voiceId;
+  return KOKORO_TO_AURA_VOICE[voiceId] || DEFAULT_AURA_VOICE;
 }
 
 /** The voice cards this tool should show, for the engine that will run. */
 export const voiceItemsFor = (toolId, kokoroItems) =>
-  usesAriziy(toolId) ? ARIZIY_VOICE_ITEMS : kokoroItems;
+  usesBackend(toolId) ? AURA_VOICE_ITEMS : kokoroItems;
 
 /** The voice selected before anyone touches the picker. */
 export const defaultVoiceFor = (toolId, kokoroDefault) =>
-  usesAriziy(toolId) ? DEFAULT_ARIZIY_VOICE : kokoroDefault;
+  usesBackend(toolId) ? DEFAULT_AURA_VOICE : kokoroDefault;
 
 /**
- * What to call the voice that actually spoke, for the asset's caption.
+ * What to call the voice that spoke, for the asset's caption.
  *
- * Reads the ENGINE's own name for it. With the cards swapped this now agrees
- * with the card that was clicked — which is the point of the swap — but it is
- * still derived from the id that was SENT rather than the label that was shown,
- * so a translated stale id captions itself honestly instead of naming a voice
- * the user cannot hear.
+ * Derived from the id that was SENT rather than the label that was shown, so a
+ * translated stale id captions itself honestly instead of naming a voice the
+ * user cannot hear.
  */
 export function voiceLabelFor(toolId, voiceId) {
-  if (usesAriziy(toolId)) {
-    const name = ariziyVoiceId(voiceId);
+  if (usesBackend(toolId)) {
+    const name = backendVoiceId(voiceId);
     return `${name[0].toUpperCase()}${name.slice(1)} · US English`;
   }
   return (
     KOKORO_TTS.voices.find((v) => v.id === voiceId)?.label || "Kokoro voice"
   );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ARIZIY — TEXT TO SPEECH
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * How long an audio Blob plays, in seconds.
- *
- * Ariziy returns bare MP3 bytes with no metadata, where the on-device engine
- * hands back a duration it measured while rendering. The canvas shows that
- * number under the waveform, so it has to come from somewhere — decoding the
- * file is the only way to get it once the audio already exists.
- *
- * Resolves 0 rather than throwing: a missing duration is a cosmetic loss, and
- * failing the whole run over one would throw away audio the user can hear.
- */
-async function measureDuration(blob) {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return 0;
-    const ctx = new Ctx();
-    try {
-      const buffer = await ctx.decodeAudioData(await blob.arrayBuffer());
-      return buffer.duration;
-    } finally {
-      ctx.close?.();
-    }
-  } catch (err) {
-    console.warn("⚠️ [ariziy/tts] couldn't measure duration:", err?.message);
-    return 0;
-  }
-}
-
-/**
- * Synthesise speech through Ariziy.
- *
- * ⚠️ `format` AND `quality` ARE SENT BUT NOT YET HONOURED. Probing found Aura-2
- * silently ignores every field it does not know — format, quality, language,
- * pitch, sample_rate and bitrate all return 200 and change nothing — so today
- * the output is MP3 whatever the composer asked for. They are forwarded anyway,
- * deliberately: the backend is being asked to make them responsive, and sending
- * them now means that lands without a change here.
- *
- * ⚠️ SO THE RETURNED `format` IS WHAT CAME BACK, NOT WHAT WAS ASKED FOR. It has
- * to be: recordTextToAudio names the uploaded file from it, and trusting the
- * request would file MP3 bytes as `.wav` — a corrupt download that looks fine
- * until someone opens it.
- *
- * Matches {@link synthesizeSpeech}'s return shape so the caller is unchanged.
- *
- * @param {string} text
- * @param {{voice?: string, speed?: number, format?: string, quality?: string}} opts
- * @returns {Promise<{blob: Blob, url: string, duration: number, format: string}>}
- */
-export async function ariziySynthesize(
-  text,
-  { voice, speed = 1, format, quality } = {},
-) {
-  const body = {
-    text,
-    voice: ariziyVoiceId(voice),
-    speed,
-    ...(format ? { format } : {}),
-    ...(quality ? { quality } : {}),
-  };
-  console.log("📡 [ariziy/tts] request →", { ...body, text: `${text.slice(0, 60)}…` });
-
-  const res = await fetch("/api/ariziy/text-to-speech", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) throw new Error(await readRouteError(res, "Speech generation failed."));
-
-  const blob = await res.blob();
-  if (!blob.size) throw new Error("Speech generation returned an empty file.");
-
-  const duration = await measureDuration(blob);
-  console.log(
-    `✅ [ariziy/tts] ${(blob.size / 1024).toFixed(0)} kB · ${duration.toFixed(1)}s · ${body.voice}`,
-  );
-
-  // What the response actually IS, read off its own Content-Type rather than
-  // assumed — so the day Ariziy starts honouring `format`, a WAV is recognised
-  // as one here with no change. Falls back to mp3, which is all it sends today.
-  const contentType = res.headers.get("content-type") || "";
-  const returnedFormat = contentType.includes("wav")
-    ? "wav"
-    : contentType.includes("ogg")
-      ? "ogg"
-      : "mp3";
-  if (format && format !== returnedFormat) {
-    console.warn(
-      `⚠️ [ariziy/tts] asked for ${format}, got ${returnedFormat} — the endpoint ignores \`format\``,
-    );
-  }
-
-  return {
-    blob,
-    url: URL.createObjectURL(blob),
-    duration,
-    // What came back, not what was requested — see the warning above.
-    format: returnedFormat,
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ARIZIY — SPEECH TO TEXT
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Pull the transcript out of whatever shape the endpoint answers with.
- *
- * ⚠️ THIS IS WRITTEN BLIND. /v1/speech-to-text 502s on every audio file it
- * accepts, so its success shape has never been observed — only its failures
- * (422 for a missing `file`, 415 for a non-audio MIME). These are the four
- * shapes the common providers use; the first one that yields text wins, and an
- * unrecognised shape is logged in full so the fix is reading one console line
- * rather than probing the API again.
- */
-function extractTranscript(data) {
-  if (typeof data === "string") return data;
-  const candidates = [
-    data?.text,
-    data?.transcript,
-    data?.result?.text,
-    data?.data?.text,
-    data?.results?.channels?.[0]?.alternatives?.[0]?.transcript, // Deepgram
-  ];
-  const text = candidates.find((c) => typeof c === "string" && c.trim());
-  if (!text) {
-    console.warn(
-      "⚠️ [ariziy/stt] no transcript found in response — shape was:",
-      data,
-    );
-  }
-  return text || "";
-}
-
-/**
- * Transcribe audio through Ariziy.
- *
- * ⚠️ THE OPTIONS DO NOT SURVIVE, and this is the real cost of the switch. The
- * composer offers a language (including auto-detect) and four transcript formats
- * — plain, punctuated, paragraphs, timestamped — all of which the on-device
- * Whisper path implements. The hosted endpoint took none of them in probing, so
- * on this engine the format picker does nothing and there are no timed segments,
- * which means the SRT/VTT downloads have nothing to build from.
- *
- * They are still SENT, so that whichever of them the endpoint quietly supports
- * starts working the day it is fixed without a code change here.
- *
- * Matches {@link transcribeAudio}'s return shape so the caller is unchanged.
- *
- * @param {File|Blob} file
- * @param {{language?: string, format?: string, quality?: string}} opts
- */
-export async function ariziyTranscribe(file, { language, format, quality } = {}) {
-  const form = new FormData();
-  form.append("file", file, file.name || "audio.mp3");
-  if (language && language !== "auto") form.append("language", language);
-  if (format) form.append("format", format);
-  if (quality) form.append("quality", quality);
-
-  console.log(
-    `📡 [ariziy/stt] request → ${file.name || "audio"} · ${(file.size / 1024).toFixed(0)} kB`,
-  );
-
-  const res = await fetch("/api/ariziy/speech-to-text", {
-    method: "POST",
-    body: form,
-  });
-
-  if (!res.ok) throw new Error(await readRouteError(res, "Transcription failed."));
-
-  const data = await res.json();
-  const text = extractTranscript(data);
-  console.log(`✅ [ariziy/stt] ${text.length} chars`);
-
-  return {
-    text,
-    words: text ? text.trim().split(/\s+/).length : 0,
-    durationSec: Number(data?.duration) || 0,
-    language: data?.language || language || "en",
-    // Only true if the endpoint told us what it heard — never assumed, or the
-    // caption would claim a detection that never happened.
-    detected: Boolean(data?.language && language === "auto"),
-    // No timed segments from this engine, so the SRT/VTT exports stay empty
-    // rather than being handed invented timings.
-    segments: [],
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * The most useful sentence available for a failed route call.
- *
- * Our handlers forward Ariziy's own `detail` where there is one — a missing
- * field, an unknown voice, an unsupported audio type are all things the user or
- * the developer can act on, and flattening them to "request failed" throws that
- * away. Falls back to the status when the body is unreadable, which is exactly
- * the 502 case: Cloudflare answers `error code: 502` as plain text.
- */
-async function readRouteError(res, fallback) {
-  try {
-    const data = await res.json();
-    const detail = data?.error || data?.detail;
-    if (typeof detail === "string" && detail.trim()) return detail;
-    if (Array.isArray(detail) && detail[0]?.msg) {
-      const field = Array.isArray(detail[0].loc) ? detail[0].loc.at(-1) : null;
-      return field ? `${field}: ${detail[0].msg}` : detail[0].msg;
-    }
-  } catch {
-    // Body wasn't JSON — the status is all we have.
-  }
-  return `${fallback} (HTTP ${res.status})`;
 }

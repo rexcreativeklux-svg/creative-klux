@@ -81,10 +81,9 @@ import {
 } from "@/(lib)/magic-studio-api";
 import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
 import {
-  ariziySynthesize,
-  ariziyTranscribe,
+  backendVoiceId,
   defaultVoiceFor,
-  usesAriziy,
+  usesBackend,
   voiceItemsFor,
   voiceLabelFor,
 } from "@/(lib)/magic-studio-audio";
@@ -867,6 +866,76 @@ const KOKORO_VOICE_ITEMS = KOKORO_TTS.voices.map((v) => ({
 // UI speed value → the multiplier the speech engine actually applies.
 const SPEAKING_SPEED = { slow: 0.75, normal: 1, fast: 1.25 };
 
+/**
+ * Drop the option rows an engine cannot act on.
+ *
+ * ⚠️ A CONTROL THAT DOES NOTHING IS WORSE THAN A MISSING ONE. The backend's
+ * audio payloads take `voice` + `speaking_speed` for speech and `language` for
+ * transcription — nothing else. Leaving the export-format, quality and
+ * transcript-format cards on screen would let someone pick WAV, wait, and get an
+ * MP3, with no way to tell that the choice was never sent. They come straight
+ * back when the tool returns to its on-device engine, which does honour them.
+ *
+ * @param {Array} options The tool's full option list.
+ * @param {string[]} keys The option keys this engine actually sends.
+ * @returns {Array}
+ */
+const onlyOptions = (options, keys) =>
+  options.filter((option) => keys.includes(option.key));
+
+/** Extension → MIME, for the formats the audio picker accepts. */
+const AUDIO_MIME_BY_EXT = {
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  oga: "audio/ogg",
+  m4a: "audio/mp4",
+  mp4: "audio/mp4",
+  aac: "audio/aac",
+  flac: "audio/flac",
+  webm: "audio/webm",
+};
+
+/**
+ * A File the transcriber will accept, from one the browser handed us.
+ *
+ * ⚠️ THE MIME TYPE IS LOAD-BEARING, AND THE BROWSER DOES NOT ALWAYS SUPPLY ONE.
+ * A `File` whose `type` is empty is sent as `application/octet-stream`, which
+ * the transcriber rejects outright:
+ *
+ *   HTTP 415: Unsupported audio type: application/octet-stream
+ *
+ * That reads like a corrupt file and isn't — the bytes are fine, the header is
+ * missing. It happens whenever the OS can't map an extension, and it is the
+ * whole file that gets blamed.
+ *
+ * ⚠️ PARAMETERS ARE STRIPPED TOO. MediaRecorder reports
+ * `audio/webm;codecs=opus`, and a server matching its allowlist exactly will
+ * refuse that where it accepts `audio/webm`. The codec tells the transcriber
+ * nothing it cannot read from the file itself.
+ *
+ * Returns the original File untouched when its type is already a clean
+ * `audio/*` — the common case, and not worth a copy.
+ *
+ * @param {File} file
+ * @returns {File}
+ */
+function audioForUpload(file) {
+  const name = file.name || "audio.mp3";
+  // Drop any `;codecs=…` parameter before judging the type.
+  const declared = (file.type || "").split(";")[0].trim().toLowerCase();
+  if (declared.startsWith("audio/")) {
+    return declared === file.type ? file : new File([file], name, { type: declared });
+  }
+
+  const ext = name.split(".").pop()?.toLowerCase();
+  const type = AUDIO_MIME_BY_EXT[ext] || "audio/mpeg";
+  console.warn(
+    `⚠️ [magic-studio] audio arrived as "${file.type || "(none)"}" — sending as ${type} (from .${ext})`,
+  );
+  return new File([file], name, { type });
+}
+
 // ── Audio-to-Text languages (real Whisper-base codes, from the AI engine) ────
 // `auto` triggers a REAL detection pass in the STT worker (one decoder step on
 // the first 30 s — the detected language is then shown in the UI and forced for
@@ -1511,8 +1580,13 @@ export const MAGIC_STUDIO_CONFIGS = {
     input: "audio",
     resultType: "text",
     generateLabel: "Transcribe audio",
-    onDevice: true, // modal shows the real-progress processing state
+    // ⚠️ `onDevice` AND `historyTool` MUST AGREE WITH AUDIO_ENGINE, or the run
+    // is never watched: useMagicGenerate takes its no-polling path when
+    // `onDevice` is true OR `historyTool` is missing, and a backend job that
+    // answers "processing" would then be reported as returning nothing.
+    onDevice: !usesBackend("audio_to_text"),
     engine: "stt", // which on-device engine the modal wires into `generate`
+    historyTool: usesBackend("audio_to_text") ? "audio_to_text" : undefined,
     sample: {
       before:
         "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=400&q=80",
@@ -1529,7 +1603,10 @@ export const MAGIC_STUDIO_CONFIGS = {
       helper:
         "Pick from your gallery — or upload to it right there · MP3 · WAV · OGG · M4A · WEBM · up to 100 MB",
     },
-    options: [
+    // Backend transcription takes `language` and nothing else — the transcript
+    // format and quality rows are on-device features. See onlyOptions.
+    options: onlyOptions(
+      [
       {
         key: "language",
         label: "Language",
@@ -1593,28 +1670,44 @@ export const MAGIC_STUDIO_CONFIGS = {
           },
         ],
       },
-    ],
+      ],
+      usesBackend("audio_to_text")
+        ? ["language"]
+        : ["language", "format", "quality"],
+    ),
     validate: ({ input }) => (input ? null : "Please upload or record some audio."),
     generate: async ({ input, values, stt }) => {
-      // WHICH ENGINE — see AUDIO_ENGINE in (lib)/magic-studio-audio.js. Both
-      // paths resolve the same shape, so everything below this call is shared.
+      // ── Backend ────────────────────────────────────────────────────────────
+      // ⚠️ MULTIPART, AND THE FILE FIELD IS `audio` — not `file`, which is what
+      // the endpoint would ignore. `language` is omitted entirely for "auto" so
+      // the backend runs its own detection rather than being told to transcribe
+      // a language literally named "auto".
       //
-      // on-device: the modal's Whisper engine (useSpeechToText), reporting real
-      //   progress (decode → engine download → language detect → transcribe →
-      //   format) plus a live transcript preview while decoding. Nothing is
-      //   uploaded.
-      // ariziy:    the audio is uploaded through /api/ariziy/speech-to-text.
-      //   There is no progress to report — the modal falls back to its
-      //   indeterminate state — and no timed segments come back, so the
-      //   SRT/VTT exports are empty on this engine.
-      const opts = {
+      // ⚠️ NO TIMED SEGMENTS COME BACK, so the SRT/VTT downloads have nothing
+      // to build from on this path. Whisper produced them locally; if the
+      // backend starts returning them, wire them into `segments` below.
+      if (usesBackend("audio_to_text")) {
+        // ⚠️ audioForUpload, NOT the raw File — a picked file with no `type`
+        // goes up as application/octet-stream and comes back 415. See its note.
+        const file = audioForUpload(input);
+        const form = new FormData();
+        form.append("tool", "audio_to_text");
+        form.append("audio", file, file.name);
+        if (values.language && values.language !== "auto") {
+          form.append("language", values.language);
+        }
+        return startGeneration(form, "text");
+      }
+
+      // ── On-device ──────────────────────────────────────────────────────────
+      // The modal's Whisper engine (useSpeechToText), reporting real progress
+      // (decode → engine download → language detect → transcribe → format) plus
+      // a live transcript preview while decoding. Nothing is uploaded.
+      const result = await stt.transcribe(input, {
         language: values.language,
         format: values.format,
         quality: values.quality,
-      };
-      const result = usesAriziy("audio_to_text")
-        ? await ariziyTranscribe(input, opts)
-        : await stt.transcribe(input, opts);
+      });
       // The engine already toasted the failure — throw quietly so the modal
       // doesn't show a second "nothing came back" toast.
       if (!result) throw new Error("Transcription failed — please try again.");
@@ -1824,12 +1917,13 @@ export const MAGIC_STUDIO_CONFIGS = {
     input: "text",
     resultType: "audio",
     generateLabel: "Generate audio",
-    onDevice: true, // synthesised in the browser — the result you hear is local
+    // ⚠️ MUST AGREE WITH AUDIO_ENGINE — see the note on audio_to_text above.
+    // On the backend path this is a normal server job like any other tool's; on
+    // the on-device path it is the one tool that is BOTH on-device and historied,
+    // the audio being made locally and then uploaded by recordTextToAudio so the
+    // stored file is the one the user actually heard.
+    onDevice: !usesBackend("text_to_audio"),
     engine: "tts", // which on-device engine `generate` wires into
-    // ⚠️ BOTH on-device AND historied, which no other tool is. The audio is made
-    // locally, played back instantly, and then UPLOADED by recordTextToAudio —
-    // so past runs survive the page even though the generation never went
-    // through the server, and the stored file is the one the user actually heard.
     historyTool: "text_to_audio",
     sample: {
       before:
@@ -1852,7 +1946,10 @@ export const MAGIC_STUDIO_CONFIGS = {
         "Attention shoppers! For this weekend only, enjoy up to fifty percent off on all premium items storewide.",
       ],
     },
-    options: [
+    // Backend speech takes `voice` + `speaking_speed` only — the export-format
+    // and quality rows are on-device features. See onlyOptions.
+    options: onlyOptions(
+      [
       {
         key: "voice",
         label: "Voice",
@@ -1926,7 +2023,11 @@ export const MAGIC_STUDIO_CONFIGS = {
           },
         ],
       },
-    ],
+      ],
+      usesBackend("text_to_audio")
+        ? ["voice", "speed"]
+        : ["voice", "speed", "format", "quality"],
+    ),
     validate: ({ input }) => {
       if (!input?.trim()) return "Please enter some text to convert.";
       if (input.trim().length > 2000)
@@ -1934,35 +2035,43 @@ export const MAGIC_STUDIO_CONFIGS = {
       return null;
     },
     generate: async ({ input, values, tts }) => {
-      // WHICH ENGINE — see AUDIO_ENGINE in (lib)/magic-studio-audio.js. Both
-      // paths resolve { blob, url, duration, format }, so everything below this
-      // call — the upload, the asset, the player — is shared.
-      //
-      // on-device: Kokoro-82M in a Web Worker, honouring every option including
-      //   format and quality.
-      // ariziy:    /api/ariziy/text-to-speech. Every option is sent, but Aura-2
-      //   currently acts on voice + speed only and always answers MP3 —
-      //   `item.format` reports what actually came back, so a WAV request that
-      //   returns MP3 is filed as MP3 rather than a mislabelled download.
       const text = input.trim();
+      // The composer's slow|normal|fast → the float the API takes.
       const speed = SPEAKING_SPEED[values.speed] ?? 1;
-      const opts = {
+
+      // ── Backend ────────────────────────────────────────────────────────────
+      // ⚠️ FIELDS AT THE TOP LEVEL, NOT UNDER `options` — this tool's payload is
+      // flat, unlike the website tools'. And `voice` is an Aura-2 name, which is
+      // why the picker offers Aura's voices rather than Kokoro's.
+      if (usesBackend("text_to_audio")) {
+        return startGeneration(
+          {
+            tool: "text_to_audio",
+            prompt: text,
+            voice: backendVoiceId(values.voice),
+            speaking_speed: speed,
+          },
+          "audio",
+        );
+      }
+
+      // ── On-device ──────────────────────────────────────────────────────────
+      // Kokoro-82M in a Web Worker. The only path that honours `format` and
+      // `quality`; the backend takes neither.
+      const item = await tts.generate(text, {
         voice: values.voice,
         speed,
         format: values.format,
         quality: values.quality,
-      };
-      const item = usesAriziy("text_to_audio")
-        ? await ariziySynthesize(text, opts)
-        : await tts.generate(text, opts);
+      });
       // The engine already toasted the failure — throw quietly so the modal
       // doesn't show a second "nothing came back" toast.
       if (!item)
         throw new Error("Speech generation failed — please try again.");
 
-      // Record it, so this run survives the page. Fired immediately after the
-      // audio exists, uploading THAT file, and deliberately not awaited — see
-      // recordTextToAudio.
+      // Made in the browser, so nothing reached the server as a side effect of
+      // generating — this hands the finished file over to be kept. The backend
+      // path needs no equivalent: it made the audio and already has it.
       recordTextToAudio(text, values, item);
 
       return {
@@ -1976,8 +2085,6 @@ export const MAGIC_STUDIO_CONFIGS = {
             blob: item.blob,
             duration: item.duration,
             format: item.format,
-            // The voice that actually spoke, which is not always the card that
-            // was clicked — Aura-2 has its own names and no British accents.
             voiceLabel: voiceLabelFor("text_to_audio", values.voice),
             alt: text.slice(0, 80),
           },

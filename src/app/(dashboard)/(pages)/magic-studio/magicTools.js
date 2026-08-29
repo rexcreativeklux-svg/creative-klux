@@ -28,6 +28,7 @@ import {
   User,
   Video,
 } from "lucide-react";
+import { usesBackend } from "@/(lib)/magic-studio-audio";
 import { getCreativeById } from "../studio/creatives";
 
 /** The creative these categories belong to, in studio/creatives.js. */
@@ -127,7 +128,12 @@ export const MAGIC_TOOLS = [
     short: "Transcribe",
     working: "Transcribing your audio…",
     emptyHint: "Your transcript appears here.",
-    backend: false,
+    // ⚠️ FOLLOWS AUDIO_ENGINE in (lib)/magic-studio-audio.js. Transcription used
+    // to run entirely in the browser and persist nothing; on the backend engine
+    // it is a normal server job with a record, so it belongs in the landing
+    // grid's filter row. Flipping the engine back must flip this with it, or the
+    // grid offers a filter for a tool that has no history to show.
+    backend: usesBackend("audio_to_text"),
     icon: AudioLines,
   },
   {
@@ -136,11 +142,11 @@ export const MAGIC_TOOLS = [
     label: "Text to Audio",
     short: "Audio",
     working: "Generating your audio…",
-    // ⚠️ `backend: true` even though the audio is made in the BROWSER. This flag
-    // asks one question — "is there server history to fetch?" — and for this
-    // tool the answer is now yes: every run is recorded straight after it
-    // generates (recordTextToAudio in magicStudioConfigs). It is the one tool
-    // where where-it-runs and where-it-is-stored disagree.
+    // ⚠️ ALWAYS `true`, WHICHEVER ENGINE RUNS. This flag asks one question —
+    // "is there server history to fetch?" — and the answer is yes either way:
+    // the backend engine files its own record, and the on-device engine uploads
+    // what it made straight after (recordTextToAudio in magicStudioConfigs). It
+    // is the one tool where where-it-runs and where-it-is-stored can disagree.
     backend: true,
     icon: Music,
   },

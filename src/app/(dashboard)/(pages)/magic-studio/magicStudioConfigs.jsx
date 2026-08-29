@@ -80,6 +80,14 @@ import {
   saveTextToAudio,
 } from "@/(lib)/magic-studio-api";
 import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
+import {
+  ariziySynthesize,
+  ariziyTranscribe,
+  defaultVoiceFor,
+  usesAriziy,
+  voiceItemsFor,
+  voiceLabelFor,
+} from "@/(lib)/magic-studio-audio";
 
 // Pexels CDN helper (free license, stable URLs) for rich option-card thumbnails.
 const px = (id) =>
@@ -1588,15 +1596,25 @@ export const MAGIC_STUDIO_CONFIGS = {
     ],
     validate: ({ input }) => (input ? null : "Please upload or record some audio."),
     generate: async ({ input, values, stt }) => {
-      // Fully on-device — the modal passes its Whisper engine (useSpeechToText),
-      // which reports real progress (decode → engine download → language detect
-      // → transcribe → format) plus a live transcript preview while decoding.
-      // Nothing is uploaded.
-      const result = await stt.transcribe(input, {
+      // WHICH ENGINE — see AUDIO_ENGINE in (lib)/magic-studio-audio.js. Both
+      // paths resolve the same shape, so everything below this call is shared.
+      //
+      // on-device: the modal's Whisper engine (useSpeechToText), reporting real
+      //   progress (decode → engine download → language detect → transcribe →
+      //   format) plus a live transcript preview while decoding. Nothing is
+      //   uploaded.
+      // ariziy:    the audio is uploaded through /api/ariziy/speech-to-text.
+      //   There is no progress to report — the modal falls back to its
+      //   indeterminate state — and no timed segments come back, so the
+      //   SRT/VTT exports are empty on this engine.
+      const opts = {
         language: values.language,
         format: values.format,
         quality: values.quality,
-      });
+      };
+      const result = usesAriziy("audio_to_text")
+        ? await ariziyTranscribe(input, opts)
+        : await stt.transcribe(input, opts);
       // The engine already toasted the failure — throw quietly so the modal
       // doesn't show a second "nothing came back" toast.
       if (!result) throw new Error("Transcription failed — please try again.");
@@ -1840,8 +1858,13 @@ export const MAGIC_STUDIO_CONFIGS = {
         label: "Voice",
         panel: "voices",
         width: 360,
-        default: "af_heart", // best-graded Kokoro voice
-        items: KOKORO_VOICE_ITEMS,
+        // ⚠️ THE CARDS FOLLOW THE ENGINE — see AUDIO_ENGINE. Kokoro and Aura-2
+        // share no voice names, so a fixed set of cards would mean clicking
+        // "Bella" and hearing Aura-2's Luna. Both the list and the default swap
+        // together; swapping only one leaves the composer holding an id the
+        // other engine has never heard of.
+        default: defaultVoiceFor("text_to_audio", "af_heart"), // best-graded Kokoro voice
+        items: voiceItemsFor("text_to_audio", KOKORO_VOICE_ITEMS),
       },
       {
         key: "speed",
@@ -1911,12 +1934,27 @@ export const MAGIC_STUDIO_CONFIGS = {
       return null;
     },
     generate: async ({ input, values, tts }) => {
-      const item = await tts.generate(input.trim(), {
+      // WHICH ENGINE — see AUDIO_ENGINE in (lib)/magic-studio-audio.js. Both
+      // paths resolve { blob, url, duration, format }, so everything below this
+      // call — the upload, the asset, the player — is shared.
+      //
+      // on-device: Kokoro-82M in a Web Worker, honouring every option including
+      //   format and quality.
+      // ariziy:    /api/ariziy/text-to-speech. Every option is sent, but Aura-2
+      //   currently acts on voice + speed only and always answers MP3 —
+      //   `item.format` reports what actually came back, so a WAV request that
+      //   returns MP3 is filed as MP3 rather than a mislabelled download.
+      const text = input.trim();
+      const speed = SPEAKING_SPEED[values.speed] ?? 1;
+      const opts = {
         voice: values.voice,
-        speed: SPEAKING_SPEED[values.speed] ?? 1,
+        speed,
         format: values.format,
         quality: values.quality,
-      });
+      };
+      const item = usesAriziy("text_to_audio")
+        ? await ariziySynthesize(text, opts)
+        : await tts.generate(text, opts);
       // The engine already toasted the failure — throw quietly so the modal
       // doesn't show a second "nothing came back" toast.
       if (!item)
@@ -1925,9 +1963,8 @@ export const MAGIC_STUDIO_CONFIGS = {
       // Record it, so this run survives the page. Fired immediately after the
       // audio exists, uploading THAT file, and deliberately not awaited — see
       // recordTextToAudio.
-      recordTextToAudio(input.trim(), values, item);
+      recordTextToAudio(text, values, item);
 
-      const voice = KOKORO_TTS.voices.find((v) => v.id === values.voice);
       return {
         resultType: "audio",
         assets: [
@@ -1939,8 +1976,10 @@ export const MAGIC_STUDIO_CONFIGS = {
             blob: item.blob,
             duration: item.duration,
             format: item.format,
-            voiceLabel: voice?.label || "Kokoro voice",
-            alt: input.trim().slice(0, 80),
+            // The voice that actually spoke, which is not always the card that
+            // was clicked — Aura-2 has its own names and no British accents.
+            voiceLabel: voiceLabelFor("text_to_audio", values.voice),
+            alt: text.slice(0, 80),
           },
         ],
       };

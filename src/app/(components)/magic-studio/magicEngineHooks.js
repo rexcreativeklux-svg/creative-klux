@@ -19,6 +19,8 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { ariziySynthesize, usesAriziy } from "@/(lib)/magic-studio-audio";
+
 // Short line each voice "introduces itself" with when auditioned in the picker.
 const voicePreviewLine = (name) =>
   `Hi, I'm ${name}. This is how I sound. Let's make something great together.`;
@@ -94,32 +96,48 @@ export function useVoicePreview(tts) {
     try {
       setLoadingId(id);
 
+      // ⚠️ THE AUDITION MUST USE THE ENGINE THAT WILL DO THE REAL RUN. The
+      // /voice-samples clips are Kokoro's 28 voices, and Kokoro cannot say
+      // "asteria" any more than Aura-2 can say "af_heart" — so on Ariziy both
+      // the static clips and the on-device fallback are wrong, and previewing
+      // through them would either 404 or audition a voice you will never hear.
+      const onAriziy = usesAriziy("text_to_audio");
+
       // 1) Pre-generated static sample — instant, no engine download. Probe it
-      //    first; if it isn't there, synthesize.
-      const staticUrl = `/voice-samples/${id}.mp3`;
-      let hasStatic = false;
-      try {
-        const res = await fetch(staticUrl, { method: "HEAD" });
-        hasStatic = res.ok;
-      } catch {
-        hasStatic = false; // offline / blocked — fall through to synthesis
-      }
-      if (hasStatic) {
-        cacheRef.current.set(id, staticUrl);
-        audio.src = staticUrl;
-        await audio.play();
-        setPlayingId(id);
-        return;
+      //    first; if it isn't there, synthesize. Skipped entirely on Ariziy:
+      //    none of its voices have a clip, so the probe is a guaranteed 404.
+      if (!onAriziy) {
+        const staticUrl = `/voice-samples/${id}.mp3`;
+        let hasStatic = false;
+        try {
+          const res = await fetch(staticUrl, { method: "HEAD" });
+          hasStatic = res.ok;
+        } catch {
+          hasStatic = false; // offline / blocked — fall through to synthesis
+        }
+        if (hasStatic) {
+          cacheRef.current.set(id, staticUrl);
+          audio.src = staticUrl;
+          await audio.play();
+          setPlayingId(id);
+          return;
+        }
       }
 
-      // 2) Fallback: synthesize on-device (the first one downloads the engine;
-      //    the tts hook shows its own toast for that).
-      const item = await tts.generate(voicePreviewLine(voice.label), {
-        voice: id,
-        speed: 1,
-        format: "wav", // fastest — skip MP3 encoding for a throwaway sample
-        quality: "standard",
-      });
+      // 2) Synthesize the intro line with whichever engine is active — hosted
+      //    through the proxy, or on-device (the first on-device one downloads
+      //    the engine; the tts hook shows its own toast for that).
+      const item = onAriziy
+        ? await ariziySynthesize(voicePreviewLine(voice.label), {
+            voice: id,
+            speed: 1,
+          })
+        : await tts.generate(voicePreviewLine(voice.label), {
+            voice: id,
+            speed: 1,
+            format: "wav", // fastest — skip MP3 encoding for a throwaway sample
+            quality: "standard",
+          });
       if (!item) return; // failed/superseded — the engine already toasted
       cacheRef.current.set(id, item.url);
       audio.src = item.url;

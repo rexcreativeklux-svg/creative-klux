@@ -17,6 +17,7 @@ import {
   MoreVertical,
   Check,
   FileText,
+  ImageOff,
 } from "lucide-react";
 import AudioCard from "./AudioCard";
 import { classifyMediaType } from "./mediaTypes";
@@ -70,6 +71,8 @@ export default function MediaCard({
 }) {
   const type = classifyMediaType(item);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Set when the image 404s or is CORS-blocked — see the placeholder below.
+  const [failed, setFailed] = useState(false);
   const menuRef = useRef(null);
 
   // Close the menu on any outside click.
@@ -247,27 +250,33 @@ export default function MediaCard({
 
   // ── Image (default) ──
   return (
-    // <div
-    //                         key={menuId}
-    //                         className="relative group break-inside-avoid mb-3 cursor-pointer"
-    //                         onClick={() => toggleImage(url)}
-    //                       >
-    //                         <div className="relative overflow-hidden rounded-xl shadow-sm border border-gray-100"></div>
     <div
       onClick={onCardClick}
       className={`relative group rounded-2xl border border-gray-100 shadow-sm bg-gray-100 ${
         onCardClick ? "cursor-pointer" : ""
       }`}
     >
-      {/* <div className="aspect-square"> */}
-      <img
-        src={item.src}
-        alt={item.alt || "Image"}
-        loading="lazy"
-        className="rounded-2xl w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-        onError={(e) => (e.currentTarget.style.opacity = "0.3")}
-      />
-      {/* </div> */}
+      {/* A dead src used to just get `opacity: 0.3`, which left the <img> at its
+          broken-image intrinsic size — a few pixels tall. In the masonry that
+          reads as a blank column, i.e. an upload that looks like it was never
+          fetched. A square placeholder keeps the tile the size of a real photo,
+          keeps it selectable, and says plainly that the file didn't load. */}
+      {failed ? (
+        <div className="rounded-2xl w-full aspect-square flex flex-col items-center justify-center gap-1.5 text-gray-400">
+          <ImageOff className="w-6 h-6 shrink-0" />
+          <span className="text-[10px] px-2 text-center leading-tight line-clamp-2">
+            {item.filename || item.alt || "Image unavailable"}
+          </span>
+        </div>
+      ) : (
+        <img
+          src={item.src}
+          alt={item.alt || "Image"}
+          loading="lazy"
+          className="rounded-2xl w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={() => setFailed(true)}
+        />
+      )}
       {selectionRing}
       {selectControl}
       {menuControl}

@@ -19,6 +19,11 @@ export const TOOL_ENUM = {
   beautifier: "product_beautifier",
   flatlay: "flat_lay",
   mannequin: "ghost_mannequin",
+  // The three prompt-driven tools all run the SAME backend engine (`edit`), so
+  // they can't be told apart by `tool` alone — see TOOL_SAVE_ENUM below.
+  reshaping: "edit",
+  poster: "edit",
+  pod: "edit",
 
   // ⚠️ UNCONFIRMED — the backend rejects this value today:
   //   { "message": "Generation failed",
@@ -30,46 +35,29 @@ export const TOOL_ENUM = {
   // caller — correct it here once the backend confirms the value, or drop it if
   // /product-studio/generate doesn't handle video at all.
   video: "video",
-
-  // ── ⚠️ UNCONFIRMED — the three prompt-driven tools ────────────────────────
-  // Reshaping / Product Poster / AI POD (PromptToolModal + promptToolConfigs).
-  // The backend does NOT know these values yet, so both Generate and history
-  // answer 422 { "errors": { "tool": ["The selected tool is invalid."] } }.
-  // The UI is complete and starts working the moment the backend adds them —
-  // correcting the three strings below is the ONLY change needed here.
-  //
-  // How this was established (POST /product-studio/history validates `tool`
-  // against the same enum as /generate, costs nothing and spends no credits, so
-  // it is the cheap way to test a candidate value):
-  //   curl -s -X POST "$KLUX_API_BASE/product-studio/history" \
-  //     -H "Authorization: Bearer $KLUX_PROBE_TOKEN" \
-  //     -H 'Content-Type: application/json' -H 'Accept: application/json' \
-  //     -d '{"tool":"product_poster"}'
-  // 200 = the value is valid; 422 "The selected tool is invalid." = it is not.
-  // Probed 2026-09-03: the five confirmed ids returned 200 and every candidate
-  // below (plus product_scene, scene_generator, ecommerce_scene, ai_poster,
-  // poster, poster_generator, pod, ai_pod, print_on_demand, pod_generation,
-  // pattern_design, product_pattern) returned 422. Ask the backend for the real
-  // strings rather than guessing again — the naming below only follows the
-  // `product_*` convention of the confirmed ids.
-  reshaping: "edit",
-  poster: "edit",
-  pod: "edit",
 };
 
 /**
- * ⚠️ UNCONFIRMED — payload key for the optional SECOND image that Reshaping
- * (Scene Reference) and AI POD (Reference Pattern) can send.
+ * UI tool ids → the `tool_save` value sent alongside `tool` on generate.
  *
- * No endpoint in this app has ever sent a second image, so there is no
- * precedent to copy and nothing to probe against: /generate's validation only
- * reports what is REQUIRED (`tool` and `image_url`), and Laravel silently drops
- * unknown keys, so an accepted request is not evidence the key was read. It is
- * only ever added when the user actually attaches a reference, so an unread key
- * costs nothing meanwhile.
+ * Reshaping, Product Poster and AI POD all generate through the shared `edit`
+ * tool, so `tool` no longer identifies which one produced a result. `tool_save`
+ * is the value the generation is RECORDED under, which keeps each tool's
+ * history its own: without it all three would read back one merged list.
  *
- * Confirm the real name with the backend alongside the three tool enums above;
- * promptToolConfigs references this through each tool's `reference.payloadKey`.
+ * These are therefore also the values to pass to {@link getProductHistory} —
+ * the record is stored under `tool_save`, not under `edit`.
+ */
+export const TOOL_SAVE_ENUM = {
+  reshaping: "product_reshaping",
+  poster: "product_poster",
+  pod: "product_pod",
+};
+
+/**
+ * Payload key for the optional SECOND image that Reshaping (Scene Reference)
+ * and AI POD (Reference Pattern) send. Only present when the user actually
+ * attaches one; promptToolConfigs references it via `reference.payloadKey`.
  */
 export const REFERENCE_IMAGE_KEY = "reference_image_url";
 

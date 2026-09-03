@@ -18,14 +18,17 @@
  * by the prompt alone. `stockQuery` seeds that slot's media picker separately
  * from the product slot (see TOOL_REFERENCE_STOCK_QUERIES in constants.js).
  *
- * ⚠️ Both `tool` (the backend enum) and `reference.payloadKey` are UNCONFIRMED
- * — the backend has neither today. See the block in
- * `src/(lib)/product-studio-api.js` for what was probed and what to change when
- * they land.
+ * ── `tool` vs `toolSave` ───────────────────────────────────────────────────
+ * All three generate through the same backend engine, so all three send
+ * `tool: "edit"`. That alone would merge their histories into one list, so each
+ * also sends `tool_save` — the value the generation is recorded under, and
+ * therefore the value its history is read back with. Keep them distinct per
+ * tool; two tools sharing a `toolSave` would see each other's results.
  *
  * @typedef {object} PromptToolConfig
  * @property {string} toolId Routing id (page router, TOOL_LIST, tool switcher).
- * @property {string} tool Backend `tool` enum value.
+ * @property {string} tool Backend `tool` enum value sent on generate ("edit").
+ * @property {string} toolSave Value sent as `tool_save`, and the tool's history key.
  * @property {string} title Modal heading + mobile header title.
  * @property {string} subtitle One-line description under the mobile title.
  * @property {string} promptId DOM id of the prompt textarea ("Change something").
@@ -46,7 +49,11 @@
  * @property {{before: string, after: string, headline: string, subtext: string}} sample
  */
 
-import { TOOL_ENUM, REFERENCE_IMAGE_KEY } from "@/(lib)/product-studio-api";
+import {
+  TOOL_ENUM,
+  TOOL_SAVE_ENUM,
+  REFERENCE_IMAGE_KEY,
+} from "@/(lib)/product-studio-api";
 import { px, pxsq, TOOL_REFERENCE_STOCK_QUERIES } from "./constants";
 import {
   RESHAPING_TEMPLATES,
@@ -70,6 +77,7 @@ export const PROMPT_TOOLS = {
   reshaping: {
     toolId: "reshaping",
     tool: TOOL_ENUM.reshaping,
+    toolSave: TOOL_SAVE_ENUM.reshaping,
     title: "Reshaping",
     subtitle: "Your product, rebuilt into a real e-commerce scene.",
     promptId: "reshaping-prompt",
@@ -104,6 +112,7 @@ export const PROMPT_TOOLS = {
   poster: {
     toolId: "poster",
     tool: TOOL_ENUM.poster,
+    toolSave: TOOL_SAVE_ENUM.poster,
     title: "Product Poster",
     subtitle: "Your product, as a finished ad poster.",
     promptId: "product-poster-prompt",
@@ -138,6 +147,7 @@ export const PROMPT_TOOLS = {
   pod: {
     toolId: "pod",
     tool: TOOL_ENUM.pod,
+    toolSave: TOOL_SAVE_ENUM.pod,
     title: "AI POD",
     subtitle: "Your artwork, printed onto the product.",
     promptId: "ai-pod-prompt",

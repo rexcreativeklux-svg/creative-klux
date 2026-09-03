@@ -19,12 +19,10 @@
  * same optional extra input, resolved to a hosted URL the same way the product
  * image is and sent under the key the config names.
  *
- * ⚠️ The three backend `tool` values these configs use are NOT live yet — see
- * the UNCONFIRMED block in `src/(lib)/product-studio-api.js`. Until the backend
- * adds them, Generate returns "The selected tool is invalid" and history comes
- * back empty (the grid falls through to the sample empty state, which is the
- * correct display for "no generations yet"). Nothing here needs changing when
- * they land — only the enum values in that file.
+ * All three generate through the shared `edit` engine, so the request carries
+ * `tool: "edit"` plus a per-tool `tool_save` that the result is filed under —
+ * that second value is what keeps the three histories from merging, and it is
+ * the key this modal reads history back with.
  */
 
 import { useState, useRef } from "react";
@@ -121,7 +119,12 @@ export default function PromptToolModal({ config, onClose, onSwitchTool }) {
   // Past generations for this tool. History REPLACES a session-only results
   // list: after each successful generate we refresh it and the new item shows
   // up (newest first). Empty history → the modal shows its sample/empty state.
-  const history = useProductHistory(config.tool, { enabled: isLoggedIn });
+  //
+  // Keyed on `toolSave`, NOT `tool`: all three of these tools generate through
+  // the shared `edit` engine, so reading history by `tool` would hand every one
+  // of them the same merged list. `tool_save` is what the record is stored
+  // under, so it is what keeps each tool's history its own.
+  const history = useProductHistory(config.toolSave, { enabled: isLoggedIn });
 
   const sizeObj = SIZES.find((s) => s.id === size);
 
@@ -252,9 +255,15 @@ export default function PromptToolModal({ config, onClose, onSwitchTool }) {
         .join(" ");
 
       // Backend contract: POST /product-studio/generate — the same shape every
-      // other Product Studio modal sends, plus the optional reference key.
+      // other Product Studio modal sends, plus `tool_save` and the optional
+      // reference key.
+      //
+      // `tool` is the engine that runs (`edit`, shared by all three tools);
+      // `tool_save` is the tool the result is FILED under, which is what keeps
+      // the three histories separate. Dropping it would merge them.
       const payload = {
         tool: config.tool,
+        tool_save: config.toolSave,
         image_url: imageUrl, // single product image URL
         quality: QUALITY_ENUM[quality] || "standard",
         size, // aspect-ratio id

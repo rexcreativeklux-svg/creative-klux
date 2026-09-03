@@ -61,8 +61,12 @@ export default function PreviewOverlay({ canvas, elements, onClose, onDownload }
     setDownloading(false);
   };
 
+  // `bg-black`, not `bg-gray-950`: this lightbox is deliberately dark in BOTH
+  // themes (every control on it is `text-white` / `bg-white/10`), and the dark
+  // theme re-points `--color-gray-950` to near-white — which turned the whole
+  // overlay white and made its own chrome vanish. True black never flips.
   return (
-    <div className="fixed inset-0 z-60 flex flex-col bg-gray-950/95 backdrop-blur-sm">
+    <div className="fixed inset-0 z-60 flex flex-col bg-black/95 backdrop-blur-sm">
       {/* Top chrome */}
       <div className="h-14 shrink-0 flex items-center justify-between px-3">
         <button

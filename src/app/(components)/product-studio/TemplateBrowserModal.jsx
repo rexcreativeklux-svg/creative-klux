@@ -93,13 +93,21 @@ export default function TemplateBrowserModal({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center hover:bg-gray-700 transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-full bg-gray-900 text-surface flex items-center justify-center hover:bg-gray-700 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Category tabs */}
+        {/* Category tabs.
+
+            ⚠️ The active pill is `text-surface`, NOT `text-white`. The dark
+            theme re-points `--color-gray-900` to near-WHITE (it is the primary
+            TEXT colour there, see globals.css), so `bg-gray-900 text-white`
+            renders white-on-white and the active tab disappears. `text-surface`
+            flips with it — #ffffff in light, #1c1c20 in dark — so the pill stays
+            inverted in both themes. Same rule for every ink-coloured control in
+            this file. */}
         <div className="flex items-center gap-2 px-6 pt-2 pb-4 overflow-x-auto hide-scrollbar">
           {categories.map((cat) => (
             <button
@@ -107,7 +115,7 @@ export default function TemplateBrowserModal({
               onClick={() => setActiveCategory(cat)}
               className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors cursor-pointer ${
                 activeCategory === cat
-                  ? "bg-gray-900 text-white"
+                  ? "bg-gray-900 text-surface"
                   : "bg-gray-100 text-gray-900 hover:bg-gray-200"
               }`}
             >
@@ -152,7 +160,7 @@ export default function TemplateBrowserModal({
               {error && (
                 <button
                   onClick={retry}
-                  className="px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-full bg-gray-900 text-surface text-sm font-medium hover:bg-gray-700 transition-colors cursor-pointer"
                 >
                   Try again
                 </button>

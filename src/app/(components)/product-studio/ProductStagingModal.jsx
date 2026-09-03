@@ -44,7 +44,9 @@ const toTile = (t) => ({
   id: t.id,
   name: t.name,
   category: t.category,
-  poster: pxsq(t.pexelsId),
+  // `t.ext` is undefined for the JPEG majority, which lets pxsq's default
+  // apply; the PNG entries carry it explicitly (see stagingTemplates.js).
+  poster: pxsq(t.pexelsId, t.ext),
   src: null,
   alt: `${t.name} — ${t.category.toLowerCase()} scene template`,
 });
@@ -425,14 +427,21 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                 </span>
               </button>
 
-              {/* Prompt */}
+              {/* Prompt.
+
+                  `thin-scrollbar` (globals.css) replaces the chunky OS bar with
+                  a 6px arrow-free thumb once the text passes four rows. The bar
+                  can't just be hidden here: this box has `resize-none` and a
+                  fixed row count, so with no scrollbar a long prompt would
+                  scroll with no indication that there is anything above or
+                  below the four visible lines. */}
               <div className="rounded-2xl bg-gray-100 px-4 py-3">
                 <textarea
                   id="product-staging-prompt"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the image you want (optional)"
-                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed"
+                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed thin-scrollbar"
                   rows={4}
                 />
               </div>

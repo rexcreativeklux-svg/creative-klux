@@ -13,15 +13,28 @@
  * means anything if it describes the exact photo above it. A search result that
  * reshuffles every session would drift away from its own description.
  *
- * So every entry pins one reviewed photo by id. `pxsq(pexelsId)` builds the
- * thumbnail URL from it (see constants.js) — no fetch, no API quota, no
+ * So every entry pins one reviewed photo by id. `pxsq(pexelsId, ext)` builds
+ * the thumbnail URL from it (see constants.js) — no fetch, no API quota, no
  * loading state, and the picker renders identically offline. The prompt for
  * each was written against that specific photo.
  *
+ * ── ⚠️ `ext` — the trap that made five tiles render blank ───────────────────
+ * A Pexels hotlink URL ends in the photo's REAL file extension. Most are
+ * `.jpeg`, but a few are `.png`, and asking for the wrong one 404s — which an
+ * <img> reports nowhere, so the tile is simply an empty box with its name
+ * underneath. `ext` is therefore REQUIRED (as "png") on any entry whose photo
+ * is not a JPEG, and omitted otherwise.
+ *
  * ── Adding a template ───────────────────────────────────────────────────────
  * 1. Find a photo on Pexels and note its numeric id.
- * 2. Add an entry with a unique `id`, a `category` from STAGING_CATEGORIES,
- *    and a `prompt` that describes THAT photo's surface, light and mood.
+ * 2. Check its real extension — `GET https://api.pexels.com/v1/photos/<id>`
+ *    (Authorization: PEXELS_API_KEY) reports it as `src.original`. Load the
+ *    built URL in a browser before committing: it must show the photo, not a
+ *    404 and not a near-empty body (dead ids on this CDN can answer 200 with a
+ *    ~27-byte payload rather than failing outright).
+ * 3. Add an entry with a unique `id`, a `category` from STAGING_CATEGORIES, a
+ *    `prompt` that describes THAT photo's surface, light and mood, and `ext`
+ *    if the file is not a JPEG.
  * It appears in the row and the "See all" browser automatically.
  *
  * Photos are Pexels (free commercial license, no attribution required, stable
@@ -66,6 +79,7 @@ export const STAGING_TEMPLATES = [
     name: "Pastel Blocks",
     category: "Studio",
     pexelsId: 32032943,
+    ext: "png",
     prompt:
       "The product displayed among pastel blue and pink geometric blocks — cubes, a cone and a small yellow sphere — on a soft blue studio backdrop, even bright lighting with clean soft shadows, playful modern set-design look, editorial product photography, photorealistic.",
   },
@@ -172,6 +186,7 @@ export const STAGING_TEMPLATES = [
     name: "Lavender Marble",
     category: "Luxury",
     pexelsId: 27433872,
+    ext: "png",
     prompt:
       "The product on a cream marble surface surrounded by fresh lavender sprigs, dried chamomile and a small ceramic cup, soft natural window light, calm spa-like elegance in muted purple and ivory tones, lifestyle product photography, photorealistic.",
   },
@@ -262,6 +277,7 @@ export const STAGING_TEMPLATES = [
     name: "Zen Bonsai",
     category: "Nature",
     pexelsId: 33537353,
+    ext: "png",
     prompt:
       "The product on a clean white pedestal beside a small yellow-leaved bonsai in a dark ceramic pot, soft even studio light, calm balanced japandi styling with a pale neutral background, minimal product photography, photorealistic.",
   },
@@ -436,6 +452,7 @@ export const STAGING_TEMPLATES = [
     name: "Peach Pop",
     category: "Bold",
     pexelsId: 28893012,
+    ext: "png",
     prompt:
       "The product on a white ledge against a bright peach background, hard sunlight throwing a sharp colored shadow across the surface, punchy fresh summer color-blocking, vibrant product photography, photorealistic.",
   },
@@ -534,6 +551,7 @@ export const STAGING_TEMPLATES = [
     name: "Fresh Splash",
     category: "Fresh",
     pexelsId: 33579054,
+    ext: "png",
     prompt:
       "The product dropping into clear water against a clean white background, a crown of frozen splash and droplets bursting around it, ultra-crisp high-speed flash capture, energetic freshness, product photography, photorealistic.",
   },

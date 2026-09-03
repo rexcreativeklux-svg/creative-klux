@@ -608,7 +608,7 @@ export default function ImagePanel({
 
                     {/* Generating pill */}
                     {aiSh.generating && (
-                      <div className="mt-4 flex items-center justify-between px-4 py-3 rounded-xl bg-gray-900 text-white text-sm">
+                      <div className="mt-4 flex items-center justify-between px-4 py-3 rounded-xl bg-gray-900 text-surface text-sm">
                         <span className="flex items-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           Generating shadow…

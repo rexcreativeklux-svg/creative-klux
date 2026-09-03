@@ -303,9 +303,12 @@ export default function Sessions() {
       </div>
 
       <div className="flex gap-2">
+        {/* Opacity, not a gray hover: the base is TRUE black (which never flips
+            between themes), so a `hover:bg-gray-*` would turn near-white in dark
+            mode and swallow the white label. Fading works in both. */}
         <button
           onClick={logout}
-          className="flex items-center cursor-pointer transition duration-300 gap-2 bg-black hover:bg-gray-800 text-white px-3 py-2 rounded-lg"
+          className="flex items-center cursor-pointer transition duration-300 gap-2 bg-black hover:opacity-90 text-white px-3 py-2 rounded-lg"
         >
           <LogOutIcon className="w-4 h-4" /> Logout
         </button>

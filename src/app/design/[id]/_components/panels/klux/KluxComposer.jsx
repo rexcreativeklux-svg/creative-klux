@@ -51,7 +51,7 @@ export default function KluxComposer({
           <button
             onClick={onStop}
             title="Stop"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-900 text-white transition hover:bg-gray-700 cursor-pointer"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-900 text-surface transition hover:bg-gray-700 cursor-pointer"
           >
             <Square className="h-3.5 w-3.5 fill-current" />
           </button>

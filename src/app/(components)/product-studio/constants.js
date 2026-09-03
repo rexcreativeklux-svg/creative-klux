@@ -24,12 +24,26 @@ import {
 // Pexels (free license, stable URLs). `px` resizes by height only (no crop) so
 // full figures stay intact; `pxbg` is a cropped landscape thumb for swatches;
 // `pxsq` is a cropped square thumb for the staging template tiles.
-export const px = (id) =>
-  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=600`;
-export const pxbg = (id) =>
-  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=320&h=240&fit=crop`;
-export const pxsq = (id) =>
-  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop`;
+//
+// ⚠️ `ext` IS NOT DECORATION. A Pexels hotlink URL ends in the photo's REAL
+// file extension, and while the overwhelming majority are `.jpeg`, a minority
+// are `.png` — for those, the `.jpeg` URL 404s and the tile renders as a broken
+// image with no error anywhere to explain it (an <img> that 404s is silent).
+// These helpers used to hardcode `.jpeg`, which is exactly how five staging
+// templates shipped invisible.
+//
+// So: when you pin a new photo id, check what the API reports as its `src`
+// (`GET https://api.pexels.com/v1/photos/<id>` → `src.original`) and pass
+// `ext: "png"` if it is not a JPEG. Default stays "jpeg", so every existing
+// call site is unchanged.
+const pxUrl = (id, ext, params) =>
+  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.${ext}?auto=compress&cs=tinysrgb&${params}`;
+
+export const px = (id, ext = "jpeg") => pxUrl(id, ext, "h=600");
+export const pxbg = (id, ext = "jpeg") =>
+  pxUrl(id, ext, "w=320&h=240&fit=crop");
+export const pxsq = (id, ext = "jpeg") =>
+  pxUrl(id, ext, "w=400&h=400&fit=crop");
 
 // ── Header tool-switcher list (mirrors the product-studio page tools) ───────
 // `img` is a real thumbnail; ToolCard falls back to the colored `Icon` tile if

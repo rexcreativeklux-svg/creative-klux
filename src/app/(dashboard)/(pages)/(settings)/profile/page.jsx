@@ -329,7 +329,7 @@ export default function AccountSettings() {
           <button
             type="submit"
             disabled={savingProfile || avatarUploading || !profileDirty}
-            className="inline-flex items-center gap-2 text-sm bg-gray-800 cursor-pointer text-white px-4 py-2 rounded-lg hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 text-sm bg-gray-800 cursor-pointer text-surface px-4 py-2 rounded-lg hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {savingProfile && <Loader2 className="w-4 h-4 animate-spin" />}
             Save changes
@@ -381,7 +381,7 @@ export default function AccountSettings() {
           <button
             onClick={handlePasswordUpdate}
             disabled={updatingPassword}
-            className="inline-flex items-center gap-2 text-sm bg-gray-900 cursor-pointer text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 text-sm bg-gray-900 cursor-pointer text-surface px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {updatingPassword && <Loader2 className="w-4 h-4 animate-spin" />}
             Update password

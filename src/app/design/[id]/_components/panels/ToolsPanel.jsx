@@ -455,7 +455,7 @@ function ToolBtn({ icon: Icon, label, active, onClick }) {
 
 function Tooltip({ children }) {
   return (
-    <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1 rounded-lg bg-gray-900 text-white text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-60 shadow-lg">
+    <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1 rounded-lg bg-gray-900 text-surface text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-60 shadow-lg">
       {children}
     </span>
   );

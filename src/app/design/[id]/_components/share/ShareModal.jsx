@@ -359,7 +359,7 @@ export default function ShareModal({
           <button
             onClick={onSave}
             disabled={saving || !dirty}
-            className="w-full py-3 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 bg-gray-900 hover:bg-gray-800 text-surface font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saveContent}
           </button>

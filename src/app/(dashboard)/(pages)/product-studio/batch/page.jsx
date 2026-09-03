@@ -290,7 +290,10 @@ export default function BatchPage() {
               alt="t-shirt"
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gray-900/30 translate-y-full group-hover/tile:translate-y-0 transition-transform duration-300" />
+            {/* A scrim over a PHOTO, so it must darken in both themes —
+                `bg-gray-900` flips to near-white in dark and washed the tile
+                out on hover instead of shading it. */}
+            <div className="absolute inset-0 bg-black/30 translate-y-full group-hover/tile:translate-y-0 transition-transform duration-300" />
           </button>
         ))}
       </ScrollRow>
@@ -314,7 +317,10 @@ export default function BatchPage() {
             <span className="absolute top-2 right-2 w-6 h-6 bg-surface/90 rounded-md flex items-center justify-center shadow-sm z-10">
               <Sparkles className="w-3.5 h-3.5 text-blue-600" />
             </span>
-            <div className="absolute inset-0 bg-gray-900/30 translate-y-full group-hover/tile:translate-y-0 transition-transform duration-300" />
+            {/* A scrim over a PHOTO, so it must darken in both themes —
+                `bg-gray-900` flips to near-white in dark and washed the tile
+                out on hover instead of shading it. */}
+            <div className="absolute inset-0 bg-black/30 translate-y-full group-hover/tile:translate-y-0 transition-transform duration-300" />
           </button>
         ))}
       </ScrollRow>

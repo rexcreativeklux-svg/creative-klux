@@ -648,7 +648,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the image you want (optional)"
-                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed"
+                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed thin-scrollbar"
                   rows={4}
                 />
               </div>
@@ -982,7 +982,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                   value={modelDescription}
                   onChange={(e) => setModelDescription(e.target.value)}
                   placeholder="e.g. a woman in her thirties with long dark hair, wearing a white shirt and blue jeans, standing against a plain studio background"
-                  className="w-full h-32 text-sm text-gray-900 placeholder:text-gray-500 bg-gray-100 rounded-xl p-3 outline-none resize-none leading-relaxed focus:ring-2 focus:ring-blue-500"
+                  className="w-full h-32 text-sm text-gray-900 placeholder:text-gray-500 bg-gray-100 rounded-xl p-3 outline-none resize-none leading-relaxed focus:ring-2 focus:ring-blue-500 thin-scrollbar"
                 />
               </div>
             </div>

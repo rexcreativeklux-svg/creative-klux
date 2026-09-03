@@ -2170,7 +2170,7 @@ export default function BackgroundRemoverModal({
                       value={aiPrompt}
                       onChange={(e) => setAiPrompt(e.target.value)}
                       placeholder="e.g. luxury marble counter with soft studio lighting…"
-                      className="w-full text-xs border border-gray-200 rounded-xl p-2.5 outline-none resize-none focus:border-blue-400 bg-gray-100 cursor-text transition-colors"
+                      className="w-full text-xs border border-gray-200 rounded-xl p-2.5 outline-none resize-none focus:border-blue-400 bg-gray-100 cursor-text transition-colors thin-scrollbar"
                       rows={4}
                     />
                     <button
@@ -2481,13 +2481,13 @@ export default function BackgroundRemoverModal({
                   <div className="flex bg-surface rounded-full shadow border border-gray-200 overflow-hidden text-xs font-medium">
                     <button
                       onClick={() => setShowBefore(false)}
-                      className={`px-5 py-1.5 transition-colors cursor-pointer ${!showBefore ? "bg-gray-800 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+                      className={`px-5 py-1.5 transition-colors cursor-pointer ${!showBefore ? "bg-gray-800 text-surface" : "text-gray-500 hover:bg-gray-100"}`}
                     >
                       After
                     </button>
                     <button
                       onClick={() => setShowBefore(true)}
-                      className={`px-5 py-1.5 transition-colors cursor-pointer ${showBefore ? "bg-gray-800 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+                      className={`px-5 py-1.5 transition-colors cursor-pointer ${showBefore ? "bg-gray-800 text-surface" : "text-gray-500 hover:bg-gray-100"}`}
                     >
                       Before
                     </button>

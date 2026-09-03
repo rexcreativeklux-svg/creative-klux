@@ -905,7 +905,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                     onChange={(e) => setPrompt(e.target.value)}
                     placeholder="Describe the image you want (optional)"
                     disabled={busy}
-                    className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed disabled:opacity-50"
+                    className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed disabled:opacity-50 thin-scrollbar"
                     rows={4}
                   />
                 </div>

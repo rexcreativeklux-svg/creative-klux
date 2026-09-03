@@ -1,39 +1,49 @@
 "use client";
 
 /**
- * Shared shell for the on-device Product Studio tools (Beautifier, Ghost
- * Mannequin, Flat Lay). It keeps the exact look of the other product modals
+ * Shared shell for the Product Studio tools built on a local engine hook
+ * (Beautifier, Flat Lay). It keeps the exact look of the other product modals
  * (ProductToolModal header switcher + quality/size dropdowns, BackgroundRemover
- * bottom toolbar + zoom) and drives an on-device engine hook underneath.
+ * bottom toolbar + zoom) and drives one engine hook underneath.
  *
- * The whole modal revolves around ONE rule — the ACTIVE image:
- *   AI render (when open) → on-device result → source photo.
+ * ── WHICH ENGINE LEADS ──
+ * `config.backendFirst` (see onDeviceToolConfigs.jsx) decides, per tool:
+ *   • true (Beautifier) — BACKEND FIRST. The picked photo is uploaded and sent
+ *     to /product-studio/generate. The on-device engine is a rescue only, and
+ *     only for a call that never landed: no response (offline / DNS / timeout /
+ *     CORS) or a 5xx. Everything the server answered on purpose — 401, 402 out
+ *     of credits, 422, 429 — is a HARD error by product decision: the user is
+ *     told why and gets no free local render. See `runBackend` +
+ *     isTransientApiError.
+ *   • false (Flat Lay) — ON-DEVICE ONLY. Nothing is uploaded or charged, it
+ *     works for guests, and the backend is never called. Its result is the
+ *     interactive arrange surface, which a flat backend render cannot be.
+ *
+ * ── SETTINGS ARE REQUESTS, NOT LIVE ──
+ * Quality and Size are the settings the NEXT run will use. Changing either
+ * records it and flags the tool dirty ("hit Generate to apply") — it never
+ * re-processes on its own. On a backend-first tool that also means a dropdown
+ * click can't quietly spend a credit.
+ *
+ * ── THE ACTIVE IMAGE ──
+ * One rule everywhere: AI render (when open) → local result → source photo.
  * Whatever is on the canvas is what Download/Save export AND what the next
- * operation (either engine) takes as input, so the view is always truthful.
- *
- * Flow: pick an image from the gallery picker (My Library / Search / Upload,
- * single-select) → auto-process at the current size/quality → result. The two
- * engines chain freely off the active image:
- *   • "Generate photorealistic" sends the active image to the backend (the
- *     on-device result when one exists, the raw source right after a Cancel,
- *     or the previous AI render's hosted URL — no re-upload — for AI-on-AI
- *     refinement with a new prompt). Charging is server-side; the client only
- *     surfaces the 402/credits toast.
- *   • While the AI render is open, changing size/quality (or "Continue
- *     on-device") ADOPTS it: the render becomes the working source — a new
- *     source generation — and the on-device pipeline re-processes it.
- *   • "Back to preview" / "View AI render" flip between the AI render and the
- *     on-device result instantly (nothing is recomputed or re-fetched).
+ * Generate takes as input, so the view is always truthful. Generate reuses an
+ * open AI render's hosted URL as-is (no re-upload) for AI-on-AI refinement;
+ * "Back to preview" / "View AI render" flip between the render and the local
+ * result instantly, and "Continue on-device" ADOPTS the render as the working
+ * source (a new source generation) and re-processes it locally.
  *
  * Caching accuracy: on-device results are cached inside each tool hook keyed by
- * (source generation, quality) — see sourceCache.js. Switching back to an
- * already-processed quality is instant, but ONLY while the underlying image is
+ * (source generation, quality) — see sourceCache.js. Re-running an already-
+ * processed quality is instant, but ONLY while the underlying image is
  * unchanged: after adopting an AI render the same quality correctly re-runs,
  * because the pixels changed. Cached re-runs go "soft" (no skeleton flash).
  *
- * Cancel never discards the user's image: canceling a run restores the last
- * completed result (reverting size/quality to match it), or falls back to the
- * source photo in a ready state; canceling a Generate just drops the response.
+ * Cancel never discards the user's image: canceling a local run restores the
+ * last completed result (reverting size/quality to match it), or falls back to
+ * the source photo in a ready state; canceling a Generate drops the response —
+ * and a canceled Generate never falls back on-device.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -60,6 +70,7 @@ import { useAuth } from "@/context/AuthContext";
 import { QUALITY_RES } from "@/(lib)/ai-engine/hooks/toolParams";
 import {
   generateProductPhoto,
+  isTransientApiError,
   TOOL_ENUM,
   QUALITY_ENUM,
 } from "@/(lib)/product-studio-api";
@@ -184,6 +195,9 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     renderResult,
     renderExtra,
     hasZoom = true,
+    // Which engine leads — see the header note and onDeviceToolConfigs.jsx.
+    backendFirst = false,
+    generateLabel = backendFirst ? "Generate photorealistic" : "Generate",
     // API-only tools (e.g. Ghost Mannequin, for now): skip ALL on-device
     // processing — the user picks an image (nothing runs), then hits the footer
     // "Generate photorealistic" to produce a render via the backend. The
@@ -220,6 +234,9 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   const [generatedImage, setGeneratedImage] = useState(null); // hosted URL from Generate — the AI render view when set
   const [parkedAiUrl, setParkedAiUrl] = useState(null); // "Back to preview" parks the render here so "View AI render" can flip back instantly
   const [adopting, setAdopting] = useState(false); // fetching the AI render so on-device editing can continue from it
+  // Quality/size were changed after the last run — the result on screen no
+  // longer matches the selected settings, so prompt for an explicit Generate.
+  const [settingsDirty, setSettingsDirty] = useState(false);
   const [zoomPct, setZoomPct] = useState(100); // readout only — RZPP owns the transform
   const zoomRef = useRef(null); // react-zoom-pan-pinch instance
 
@@ -285,10 +302,13 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   // current result stays on screen and just swaps when ready (no skeleton
   // flash); a fresh combo shows the full processing state. Flat Lay never
   // caches (its interactive layers must be rebuilt), so it always runs hard.
-  const process = (file, nextSize, nextQuality) => {
+  // `announce: false` suppresses the "Processing your …" toast — used by the
+  // backend fallback, which has already said what it's doing.
+  const process = (file, nextSize, nextQuality, { announce = true } = {}) => {
     const sourceKey = sourceIdRef.current;
     const soft = !!tool.peekCached?.({ sourceKey, quality: nextQuality });
-    if (!soft) toast.info(`Processing your ${title.toLowerCase()}…`);
+    setSettingsDirty(false); // the result about to land matches the settings again
+    if (!soft && announce) toast.info(`Processing your ${title.toLowerCase()}…`);
     run(file, {
       sizeId: nextSize,
       quality: nextQuality,
@@ -306,6 +326,123 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     });
   };
 
+  /**
+   * BACKEND-FIRST run (only reached when `config.backendFirst`). Sends one image
+   * to /product-studio/generate and shows the render.
+   *
+   * The fallback contract is deliberately narrow: we drop to the on-device
+   * engine ONLY when the request never landed or the server faulted
+   * (isTransientApiError — no response, or 5xx). A deliberate rejection (401,
+   * 402 out of credits, 422, 429) is a hard error: generateProductPhoto has
+   * already explained it in a toast, and the user does NOT get a free local
+   * render instead. A canceled run never falls back either.
+   *
+   * @param {object} args
+   * @param {string|null} [args.imageUrl] Already-hosted URL — sent as-is (an
+   *   open AI render, so AI-on-AI refinement skips the upload round trip).
+   * @param {Blob|null} [args.blob] Pixels to upload when there's no imageUrl.
+   * @param {File|null} [args.fallbackFile] Source File for the on-device rescue.
+   * @param {string} args.nextSize
+   * @param {string} args.nextQuality
+   */
+  const runBackend = async ({
+    imageUrl = null,
+    blob = null,
+    fallbackFile = null,
+    nextSize,
+    nextQuality,
+  }) => {
+    if (!isLoggedIn) {
+      toast.error("Log in to generate a photorealistic render.");
+      return;
+    }
+    const runToken = (generateTokenRef.current += 1);
+    setGenerating(true);
+    setSettingsDirty(false);
+    setOpenDropdown(null);
+    try {
+      let url = imageUrl;
+      if (!url) {
+        if (!blob) throw new Error("Couldn't read the current image.");
+        const file = new File(
+          [blob],
+          `${config.filePrefix}-src-${Date.now()}.png`,
+          { type: blob.type || "image/png" },
+        );
+        const uploaded = await uploadMedia(file);
+        console.log(`🖼️ [${config.toolId}] upload response ←`, uploaded);
+        url =
+          uploaded?.url ||
+          uploaded?.image_url ||
+          uploaded?.file_url ||
+          uploaded?.data?.url;
+        if (!url) throw new Error("Couldn't get an image URL for generation.");
+      }
+      if (runToken !== generateTokenRef.current) return; // canceled mid-upload
+
+      const payload = {
+        tool: TOOL_ENUM[config.toolId],
+        image_url: url,
+        quality: QUALITY_ENUM[nextQuality] || "standard",
+        size: nextSize,
+        apply_brand_style: applyBrandStyle,
+        prompt: prompt || "",
+      };
+      // We handle transport faults ourselves below — don't let the client toast
+      // "generation failed" over a fallback that then succeeds.
+      const result = await generateProductPhoto(payload, {
+        suppressTransientToast: true,
+      });
+      console.log(`🎨 [${config.toolId}] generate result ←`, result);
+      if (runToken !== generateTokenRef.current) return; // canceled/superseded
+
+      const resultUrl = result?.url || result?.image_url || result?.data?.url;
+      if (resultUrl) {
+        await preloadImage(resultUrl); // decode first — the reveal is instant
+        if (runToken !== generateTokenRef.current) return;
+        setParkedAiUrl(null); // a fresh render supersedes any parked one
+        setGeneratedImage(resultUrl);
+        toast.success("Image generated!");
+      } else {
+        toast("Generated — check the console for the response shape.");
+      }
+    } catch (err) {
+      if (runToken !== generateTokenRef.current) return; // canceled — stay quiet
+      console.error(`❌ [${config.toolId}] generate failed:`, err);
+      if (isTransientApiError(err) && fallbackFile) {
+        console.warn(
+          `⚠️ [${config.toolId}] AI service unreachable — falling back to the on-device engine`,
+        );
+        toast.info(
+          "AI service unreachable — processing on your device instead.",
+        );
+        setGenerating(false);
+        process(fallbackFile, nextSize, nextQuality, { announce: false });
+        return;
+      }
+      // Deliberate rejection: generateProductPhoto already toasted the reason
+      // (credits, validation, auth). Nothing else to say, nothing to fall back to.
+    } finally {
+      if (runToken === generateTokenRef.current) setGenerating(false);
+    }
+  };
+
+  // The tool's PRIMARY pipeline for a working source — the one place that knows
+  // which engine leads, so every entry point (fresh pick, footer Generate) goes
+  // through the same decision.
+  const runPipeline = (file, nextSize, nextQuality) => {
+    if (backendFirst) {
+      runBackend({
+        blob: file,
+        fallbackFile: file,
+        nextSize,
+        nextQuality,
+      });
+      return;
+    }
+    process(file, nextSize, nextQuality);
+  };
+
   // Kick off processing for a freshly picked File (from either picker path).
   // A brand-new source = a new source generation: caches keyed to the old image
   // can never be served for it, and any AI render belongs to the previous chain.
@@ -313,6 +450,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     sourceIdRef.current += 1;
     generateTokenRef.current += 1; // a pending Generate targets the old image — drop it
     setGenerating(false);
+    setSettingsDirty(false);
     lastGoodRef.current = null;
     setSourceKind("upload");
     setGeneratedImage(null);
@@ -322,9 +460,10 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
       releaseUrl(prev);
       return previewUrl || URL.createObjectURL(file);
     });
-    // API-only tools don't auto-run on-device: the source just sits ready for
-    // the user to hit "Generate photorealistic" (backend).
-    if (!apiOnly) process(file, size, quality);
+    // Auto-run the tool's primary pipeline (backend-first or on-device — see
+    // runPipeline). API-only tools don't auto-run at all: the source just sits
+    // ready for the user to hit Generate.
+    if (!apiOnly) runPipeline(file, size, quality);
   };
 
   // Image comes from the gallery picker (My Library / Search / Upload) — ONE
@@ -412,38 +551,25 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     }
   };
 
-  // Quality/size change → re-process ASAP (soft-restored from cache when this
-  // source+quality already ran). While the AI render is open, changing a
-  // setting means "keep going from THIS image" — it adopts the render first.
+  // Quality/size are REQUESTED settings, not live ones: changing either only
+  // records it and flags the tool dirty — the user hits Generate to apply it.
+  // (Both used to re-process immediately, and to ADOPT an open AI render as the
+  // new source. That surprised people, and on a backend-first tool it would
+  // spend a credit per dropdown click. Adoption now has its own explicit
+  // "Continue on-device" chip on the render.)
   const changeQuality = (q) => {
     setOpenDropdown(null);
     if (locked) return; // controls are disabled then anyway
-    // API-only: just record the setting for the next backend Generate — never
-    // adopt the render on-device or re-run the local pipeline.
-    if (apiOnly) {
-      setQuality(q);
-      return;
-    }
-    if (generatedImage) {
-      adoptGenerated(size, q);
-      return;
-    }
+    if (q === quality) return;
     setQuality(q);
-    if (uploadedFile) process(uploadedFile, size, q);
+    if (activeKind) setSettingsDirty(true);
   };
   const changeSize = (s) => {
     setOpenDropdown(null);
     if (locked) return;
-    if (apiOnly) {
-      setSize(s);
-      return;
-    }
-    if (generatedImage) {
-      adoptGenerated(s, quality);
-      return;
-    }
+    if (s === size) return;
     setSize(s);
-    if (uploadedFile) process(uploadedFile, s, quality);
+    if (activeKind) setSettingsDirty(true);
   };
 
   // Park the AI render and show the on-device result (or source) again —
@@ -522,6 +648,7 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     setGeneratedImage(null);
     setParkedAiUrl(null);
     setSourceKind("upload");
+    setSettingsDirty(false);
     lastGoodRef.current = null;
     sourceIdRef.current += 1; // caches keyed to the cleared image are dead
   };
@@ -611,7 +738,12 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
     }
   };
 
-  // Generate (photoreal refinement) — the ACTIVE image is the input:
+  // The footer action — the ONE way anything gets (re)processed, so a changed
+  // quality/size is always applied by an explicit user click.
+  //
+  // On-device-only tools (Flat Lay): runs the local pipeline. Free, no login.
+  //
+  // Backend-first tools: the ACTIVE image is the input —
   //  • AI render open   → its hosted URL is sent directly (no re-upload round-
   //    trip) — AI-on-AI refinement, e.g. with a new prompt.
   //  • on-device result → uploaded to get a hosted URL, then generated from
@@ -620,73 +752,25 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
   //    uploaded and generated from — canceling on-device never blocks the API.
   // Cancellable: a bumped token makes the late response a no-op. Charging is
   // server-side; generateProductPhoto surfaces 402/credits errors as toasts.
-  const doGenerate = async () => {
+  const handleGenerate = () => {
     if (generating || busy) return;
     // Mirror the other modals' "no image" toast so a click with nothing to
     // work on gives clear feedback instead of doing nothing.
-    if (!activeKind) {
+    if (!activeKind || (!uploadedFile && activeKind !== "ai")) {
       toast.error("Please select a product image first");
       return;
     }
-    if (!isLoggedIn) {
-      toast.error("Log in to generate a photorealistic render.");
+    if (!backendFirst) {
+      process(uploadedFile, size, quality);
       return;
     }
-    const token = (generateTokenRef.current += 1);
-    setGenerating(true);
-    setOpenDropdown(null);
-    try {
-      let imageUrl;
-      if (activeKind === "ai") {
-        imageUrl = generatedImage; // already hosted by the backend — reuse as-is
-      } else {
-        const blob =
-          activeKind === "local" ? tool.getResultBlob?.() : uploadedFile;
-        if (!blob) throw new Error("Couldn't read the current image.");
-        const file = new File(
-          [blob],
-          `${config.filePrefix}-src-${Date.now()}.png`,
-          { type: blob.type || "image/png" },
-        );
-        const uploaded = await uploadMedia(file);
-        console.log(`🖼️ [${config.toolId}] upload response ←`, uploaded);
-        imageUrl =
-          uploaded?.url ||
-          uploaded?.image_url ||
-          uploaded?.file_url ||
-          uploaded?.data?.url;
-        if (!imageUrl)
-          throw new Error("Couldn't get an image URL for generation.");
-      }
-
-      const payload = {
-        tool: TOOL_ENUM[config.toolId],
-        image_url: imageUrl,
-        quality: QUALITY_ENUM[quality] || "standard",
-        size,
-        apply_brand_style: applyBrandStyle,
-        prompt: prompt || "",
-      };
-      const result = await generateProductPhoto(payload);
-      console.log(`🎨 [${config.toolId}] generate result ←`, result);
-      if (token !== generateTokenRef.current) return; // canceled/superseded — drop it
-
-      const resultUrl = result?.url || result?.image_url || result?.data?.url;
-      if (resultUrl) {
-        await preloadImage(resultUrl); // decode first — the reveal is instant
-        if (token !== generateTokenRef.current) return;
-        setParkedAiUrl(null); // a fresh render supersedes any parked one
-        setGeneratedImage(resultUrl);
-        toast.success("Image generated!");
-      } else {
-        toast("Generated — check the console for the response shape.");
-      }
-    } catch (err) {
-      // generateProductPhoto already toasts a friendly error; log for debugging.
-      console.error(`❌ [${config.toolId}] generate failed:`, err);
-    } finally {
-      if (token === generateTokenRef.current) setGenerating(false);
-    }
+    runBackend({
+      imageUrl: activeKind === "ai" ? generatedImage : null,
+      blob: activeKind === "local" ? tool.getResultBlob?.() : uploadedFile,
+      fallbackFile: uploadedFile,
+      nextSize: size,
+      nextQuality: quality,
+    });
   };
 
   // Unmount cleanup via a ref mirror — a [] cleanup closure would only ever see
@@ -878,44 +962,69 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
 
                 {renderExtra?.({ tool, busy: locked, quality, size })}
 
-                {/* Brand style — required payload field for Generate. */}
-                <button
-                  onClick={() => !locked && setApplyBrandStyle((p) => !p)}
-                  disabled={locked}
-                  className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="text-gray-900 font-medium">
-                    Apply brand style
-                  </span>
-                  <span
-                    className={
-                      applyBrandStyle
-                        ? "text-blue-600 font-semibold"
-                        : "text-gray-500"
-                    }
-                  >
-                    {applyBrandStyle ? "On" : "Off"}
-                  </span>
-                </button>
+                {/* Brand style + prompt are BACKEND payload fields, so they only
+                    exist for backend-first tools. An on-device-only tool (Flat
+                    Lay) never calls the API, and showing inputs that silently do
+                    nothing is worse than not showing them. */}
+                {backendFirst && (
+                  <>
+                    <button
+                      onClick={() => !locked && setApplyBrandStyle((p) => !p)}
+                      disabled={locked}
+                      className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="text-gray-900 font-medium">
+                        Apply brand style
+                      </span>
+                      <span
+                        className={
+                          applyBrandStyle
+                            ? "text-blue-600 font-semibold"
+                            : "text-gray-500"
+                        }
+                      >
+                        {applyBrandStyle ? "On" : "Off"}
+                      </span>
+                    </button>
 
-                {/* Prompt — always available (used by Generate). */}
-                <div className="rounded-2xl bg-gray-100 px-4 py-3">
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Describe the image you want (optional)"
-                    disabled={busy}
-                    className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed disabled:opacity-50 thin-scrollbar"
-                    rows={4}
-                  />
-                </div>
+                    {/* Prompt — sent with every backend Generate. */}
+                    <div className="rounded-2xl bg-gray-100 px-4 py-3">
+                      <textarea
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        placeholder="Describe the image you want (optional)"
+                        disabled={busy}
+                        className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed disabled:opacity-50 thin-scrollbar"
+                        rows={4}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
             {/* Pinned footer — Generate (when the tool supports it), or Cancel
               while ANY engine is working (on-device run, AI-render adoption,
-              or backend generate — the label shows which). */}
+              or backend generate — the label shows which). Quality/size changes
+              don't process on their own, so a dirty hint sits above the button. */}
             <div className="px-4 pt-3 pb-[calc(1.25rem+var(--ck-safe-b))] lg:pb-5 border-t border-gray-200 bg-surface">
+              <AnimatePresence initial={false}>
+                {settingsDirty && !locked && (
+                  <motion.p
+                    key="dirty"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="flex items-start gap-1.5 overflow-hidden text-[11px] font-medium leading-snug text-amber-600"
+                  >
+                    <Wand2 className="mt-px h-3 w-3 shrink-0" />
+                    <span className="pb-2">
+                      Settings changed — hit {generateLabel} to apply them.
+                    </span>
+                  </motion.p>
+                )}
+              </AnimatePresence>
               <AnimatePresence mode="wait" initial={false}>
                 {busy || generating ? (
                   <motion.button
@@ -945,10 +1054,15 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.18 }}
-                    onClick={doGenerate}
+                    onClick={handleGenerate}
                     className="w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
                   >
-                    <Sparkles className="w-4 h-4" /> Generate photorealistic
+                    {backendFirst ? (
+                      <Sparkles className="w-4 h-4" />
+                    ) : (
+                      <Wand2 className="w-4 h-4" />
+                    )}{" "}
+                    {generateLabel}
                   </motion.button>
                 )}
               </AnimatePresence>
@@ -1160,8 +1274,9 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                       >
                         Back to preview
                       </button>
-                      {/* Adopt the render as the working source and keep editing it
-                        on-device (same as changing size/quality while it's open).
+                      {/* Adopt the render as the working source and keep editing
+                        it on-device — the ONLY way adoption happens now that a
+                        size/quality change just records the setting.
                         Hidden for API-only tools — there's no on-device pipeline. */}
                       {!apiOnly && (
                         <button
@@ -1291,8 +1406,10 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
                         <Sparkles className="w-3 h-3" /> View AI render
                       </button>
                     )}
-                    {/* On-device processing entry point — hidden for API-only
-                      tools, which generate exclusively via the backend footer. */}
+                    {/* Explicit on-device run. On a backend-first tool this is
+                      the user's deliberate "skip the AI" escape hatch (it is
+                      never triggered automatically); hidden for API-only tools,
+                      which generate exclusively via the backend footer. */}
                     {!apiOnly && (
                       <button
                         onClick={() =>

@@ -182,12 +182,47 @@ export async function deleteProductHistoryItem(id) {
 }
 
 /**
+ * Did this request fail because it never actually landed (or because our own
+ * server faulted), rather than because the backend deliberately said no?
+ *
+ * This is the ONLY gate for the on-device fallback in the backend-first tools
+ * (see OnDeviceToolModal): a transport fault or a 5xx means "we couldn't ask",
+ * so processing locally is a legitimate rescue. Anything the server answered on
+ * purpose — 401 unauthenticated, 402 out of credits, 422 validation, 429 quota,
+ * 403/404 — is a HARD error by product decision: the user is told why, and we
+ * do NOT hand out a free on-device render instead.
+ *
+ * Handles both error shapes this app produces:
+ *   • axios errors — `err.response.status`, or `err.request` with no response
+ *   • classifyResult-shaped errors (e.g. AuthContext's uploadMedia) —
+ *     `err.status` plus `err.source === "network"`
+ *
+ * @param {unknown} err The caught error.
+ * @returns {boolean} True when the caller may fall back to on-device.
+ */
+export function isTransientApiError(err) {
+  // An explicit HTTP status always decides: only server faults are transient.
+  const status = err?.response?.status ?? err?.status;
+  if (typeof status === "number") return status >= 500;
+  // No status at all — the request never got a reply (offline, DNS, timeout,
+  // CORS). Our own thrown Errors have neither marker and are NOT transient.
+  return !!(err?.request || err?.source === "network");
+}
+
+/**
  * Call the Product Studio generate endpoint.
  *
  * @param {object} payload The request body (already shaped for the backend).
+ * @param {object} [options]
+ * @param {boolean} [options.suppressTransientToast=false] Skip the error toast
+ *   when {@link isTransientApiError} says the call never landed. Backend-first
+ *   callers set this because they recover from those themselves (on-device
+ *   fallback) and a "generation failed" toast on top of a successful fallback is
+ *   pure noise. The error is still logged and still thrown either way.
  * @returns {Promise<object>} The response data (e.g. { url, id, credits_used }).
  */
-export async function generateProductPhoto(payload) {
+export async function generateProductPhoto(payload, options = {}) {
+  const { suppressTransientToast = false } = options;
   console.log("📡 [product-studio/generate] request →", payload);
   try {
     const { data } = await api.post(
@@ -216,6 +251,11 @@ export async function generateProductPhoto(payload) {
         .join(" — ") ||
       err?.message ||
       "";
+
+    // The caller is about to rescue this itself — stay quiet and let it explain
+    // what it did instead (see `suppressTransientToast`).
+    if (suppressTransientToast && isTransientApiError(err)) throw err;
+
     if (status === 402 || /limit|credits?/i.test(serverMsg)) {
       toast.error(
         "Monthly AI credits limit reached. Please upgrade your plan to continue.",

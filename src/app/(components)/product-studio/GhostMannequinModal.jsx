@@ -8,7 +8,7 @@ import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
 import { X, Upload, Loader2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { px, QUALITY_RES, SIZES } from "./constants";
+import { px, QUALITY_RES, SIZES, stockQueryForTool } from "./constants";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import QualityDropdown from "./QualityDropdown";
 import SizeDropdown from "./SizeDropdown";
@@ -481,6 +481,9 @@ export default function GhostMannequinModal({ onClose, onSwitchTool }) {
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
         maxSelectable={1}
+        // Open Search on hung/laid-out garments — the only stock shots this
+        // tool can turn into a ghost mannequin.
+        defaultSearchQuery={stockQueryForTool("mannequin")}
       />
     </div>
   );

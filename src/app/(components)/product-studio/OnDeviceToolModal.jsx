@@ -76,7 +76,7 @@ import {
 } from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { stashPendingSave, takePendingSave } from "./pendingSave";
-import { SIZES, QUALITY_TIERS } from "./constants";
+import { SIZES, QUALITY_TIERS, stockQueryForTool } from "./constants";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import ToolModalMobileHeader from "./ToolModalMobileHeader";
 import QualityDropdown from "./QualityDropdown";
@@ -1552,6 +1552,9 @@ export default function OnDeviceToolModal({ config, onClose, onSwitchTool }) {
           onApply={handleApplyFromPicker}
           activeBrand={activeBrand}
           maxSelectable={1}
+          // Seeded per tool (beautifier / flat lay / …) so each on-device tool
+          // opens Search on shots it can actually process.
+          defaultSearchQuery={stockQueryForTool(config.toolId)}
         />
       </div>
     </MotionConfig>

@@ -18,6 +18,9 @@ import {
   ChevronRight,
   Layers,
   ShoppingBag,
+  Blend,
+  Megaphone,
+  Stamp,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import VirtualModelModal from "@/app/(components)/product-studio/VirtualModelModal";
@@ -31,6 +34,12 @@ import {
   ON_DEVICE_TOOLS,
   ON_DEVICE_TOOL_IDS,
 } from "@/app/(components)/product-studio/onDeviceToolConfigs";
+import PromptToolModal from "@/app/(components)/product-studio/PromptToolModal";
+import {
+  PROMPT_TOOLS,
+  PROMPT_TOOL_IDS,
+} from "@/app/(components)/product-studio/promptToolConfigs";
+import { stockQueryForTool } from "@/app/(components)/product-studio/constants";
 import {
   PresetStrip,
   PresetTile,
@@ -130,6 +139,25 @@ const tools = [
     Icon: Video,
     color: "bg-indigo-100 text-indigo-600",
   },
+  // Prompt-driven tools — all three share PromptToolModal (promptToolConfigs).
+  {
+    id: "reshaping",
+    label: "Reshaping",
+    Icon: Blend,
+    color: "bg-teal-100 text-teal-600",
+  },
+  {
+    id: "poster",
+    label: "Product Poster",
+    Icon: Megaphone,
+    color: "bg-orange-100 text-orange-600",
+  },
+  {
+    id: "pod",
+    label: "AI POD",
+    Icon: Stamp,
+    color: "bg-fuchsia-100 text-fuchsia-600",
+  },
   // {
   //     id: 'all',
   //     label: 'See all tools...',
@@ -149,6 +177,7 @@ export default function ProductPhotos() {
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
   const [mannequinOpen, setMannequinOpen] = useState(false); // API-only Ghost Mannequin modal
   const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/flatlay)
+  const [promptToolId, setPromptToolId] = useState(null); // shared prompt-tool modal (reshaping/poster/pod)
   const [showMorePresets, setShowMorePresets] = useState(false); // "Show more" — appends the rest of the preset rows
 
   // The "Edit a photo" flow opens the Photoroom-style Add images picker first;
@@ -192,6 +221,10 @@ export default function ProductPhotos() {
     }
     if (id === "all") {
       toast("All available tools are shown above.");
+      return;
+    }
+    if (PROMPT_TOOL_IDS.includes(id)) {
+      setPromptToolId(id);
       return;
     }
     if (ON_DEVICE_TOOL_IDS.includes(id)) {
@@ -284,6 +317,20 @@ export default function ProductPhotos() {
           }}
         />
       )}
+      {promptToolId && PROMPT_TOOLS[promptToolId] && (
+        <PromptToolModal
+          // Key by tool id so switching between the prompt tools remounts the
+          // modal fresh — otherwise the previous tool's uploaded images, prompt
+          // and preset selection would survive into the next one.
+          key={promptToolId}
+          config={PROMPT_TOOLS[promptToolId]}
+          onClose={() => setPromptToolId(null)}
+          onSwitchTool={(id, opts) => {
+            setPromptToolId(null);
+            openTool(id, opts);
+          }}
+        />
+      )}
       {videoOpen && (
         <VideoGeneratorModal
           initialImageUrl={videoInitialImage}
@@ -316,6 +363,9 @@ export default function ProductPhotos() {
         onCancel={() => setAddImagesOpen(false)}
         maxSelectable={1}
         initialTab="library"
+        // Opens on My Library, but seed Search too so switching tabs shows
+        // product photography rather than the generic brand fallback.
+        defaultSearchQuery={stockQueryForTool("start")}
         onApply={(images) => {
           setAddImagesOpen(false);
           const first = images?.[0];

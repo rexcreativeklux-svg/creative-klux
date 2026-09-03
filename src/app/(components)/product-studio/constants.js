@@ -18,6 +18,9 @@ import {
   Shirt,
   Layers,
   Video,
+  Blend,
+  Megaphone,
+  Stamp,
 } from "lucide-react";
 
 // ── CDN image helpers ──────────────────────────────────────────────────────
@@ -114,10 +117,82 @@ export const TOOL_LIST = [
     color: "bg-indigo-100 text-indigo-600",
     img: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=240&q=80",
   },
+  // The three prompt-driven tools (see PromptToolModal / promptToolConfigs).
+  // Their thumbnails come from `pxsq` rather than Unsplash simply because these
+  // ids were fetched and reviewed alongside the preset catalogs, so they are
+  // known-good; ToolCard still falls back to the colored Icon tile either way.
+  {
+    id: "reshaping",
+    name: "Reshaping",
+    Icon: Blend,
+    color: "bg-teal-100 text-teal-600",
+    img: pxsq(39281882),
+  },
+  {
+    id: "poster",
+    name: "Product Poster",
+    Icon: Megaphone,
+    color: "bg-orange-100 text-orange-600",
+    img: pxsq(20003244),
+  },
+  {
+    id: "pod",
+    name: "AI POD",
+    Icon: Stamp,
+    color: "bg-fuchsia-100 text-fuchsia-600",
+    img: pxsq(2157884),
+  },
 ];
 
 // Shown under "Recently used" in the tool switcher.
 export const RECENT_TOOL_IDS = ["virtual", "staging"];
+
+// ── Stock-photo search seed per tool ────────────────────────────────────────
+// Every Product Studio tool opens the SAME picker (MediaPickerModal), whose
+// Search tab is Pexels. Without a seed each tool showed the identical generic
+// brand-fallback results, most of which are useless as that tool's input (a
+// lifestyle crowd shot is not something you can ghost-mannequin).
+//
+// Each entry is the query that tool's picker opens on — phrased as the kind of
+// SOURCE image the tool needs, not what it produces. Keep them short: Pexels
+// matches keywords, and 2–3 words return far better sets than a sentence.
+// Keys are the routing tool ids used by `openTool` / TOOL_LIST / ON_DEVICE_TOOLS.
+export const TOOL_STOCK_QUERIES = {
+  start: "product photography",
+  bgremove: "product white background",
+  virtual: "clothing apparel product",
+  staging: "product still life",
+  mannequin: "shirt on hanger",
+  beautifier: "product studio shot",
+  flatlay: "flat lay objects",
+  video: "product showcase",
+  reshaping: "product packshot",
+  poster: "product bottle packaging",
+  // POD prints ONTO a blank item, so the useful source is an unprinted one.
+  pod: "blank t shirt mockup",
+};
+
+// ── Stock seeds for the SECOND (reference) image slot ───────────────────────
+// Reshaping and AI POD take an optional reference image alongside the product,
+// and it is a completely different kind of picture — a room, or a pattern. The
+// product seed above would fill that picker with packshots, which is exactly
+// what the reference is not. Keyed by tool id; tools with no reference slot
+// have no entry. See PromptToolModal's `pickerTarget`.
+export const TOOL_REFERENCE_STOCK_QUERIES = {
+  reshaping: "interior scene styling",
+  pod: "seamless pattern design",
+};
+
+/**
+ * The stock-photo query a tool's media picker should open on.
+ *
+ * @param {string} toolId one of the ids in {@link TOOL_STOCK_QUERIES}
+ * @returns {string} the tool's seed, or a neutral product-photo query for an
+ *   unknown id (never empty — an empty seed drops the picker back to the
+ *   generic brand fallback).
+ */
+export const stockQueryForTool = (toolId) =>
+  TOOL_STOCK_QUERIES[toolId] || "product photography";
 
 // ── Aspect-ratio sizes ──────────────────────────────────────────────────────
 // Full set for the image tools; VIDEO_SIZES is the reduced set the Video

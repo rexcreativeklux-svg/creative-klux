@@ -8,7 +8,7 @@ import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
 import { X, Plus, Upload, Loader2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { pxbg, QUALITY_RES, SIZES } from "./constants";
+import { pxbg, QUALITY_RES, SIZES, stockQueryForTool } from "./constants";
 import {
   VIRTUAL_MODELS,
   VIRTUAL_MODELS_BY_ID,
@@ -1020,6 +1020,9 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
         onCancel={() => setPickerOpen(false)}
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
+        // Open Search on garment/product shots — this tool dresses a model in
+        // whatever is picked, so generic brand imagery is useless here.
+        defaultSearchQuery={stockQueryForTool("virtual")}
       />
     </div>
   );

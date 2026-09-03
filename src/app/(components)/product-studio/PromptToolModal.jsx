@@ -1,19 +1,42 @@
+"use client";
+
+/**
+ * PromptToolModal — one shared modal for the prompt-driven Product Studio tools
+ * (Reshaping, Product Poster, AI POD).
+ *
+ * These three tools are the same flow end to end: pick a product image, pick a
+ * preset that seeds the prompt, optionally attach a second REFERENCE image,
+ * set Quality / Size / Brand style, hit Generate, watch the result land in the
+ * history grid. Only the copy, the preset catalog and the backend `tool` value
+ * differ — so those live in {@link ./promptToolConfigs} and this file owns the
+ * behaviour, exactly the way {@link ./OnDeviceToolModal} does for the on-device
+ * tools.
+ *
+ * Structurally it follows ProductStagingModal (sidebar + history grid + tool
+ * switcher + mobile Setup/Result split) and adds the one thing no existing
+ * Product Studio modal had: a SECOND image slot. Reshaping calls it a Scene
+ * Reference and AI POD calls it a Reference Pattern, but mechanically it is the
+ * same optional extra input, resolved to a hosted URL the same way the product
+ * image is and sent under the key the config names.
+ *
+ * ⚠️ The three backend `tool` values these configs use are NOT live yet — see
+ * the UNCONFIRMED block in `src/(lib)/product-studio-api.js`. Until the backend
+ * adds them, Generate returns "The selected tool is invalid" and history comes
+ * back empty (the grid falls through to the sample empty state, which is the
+ * correct display for "no generations yet"). Nothing here needs changing when
+ * they land — only the enum values in that file.
+ */
+
 import { useState, useRef } from "react";
 import {
   generateProductPhoto,
-  TOOL_ENUM,
   QUALITY_ENUM,
 } from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
 import { X, Upload, Loader2, ChevronDown, Check, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
-import { px, pxsq, QUALITY_RES, stockQueryForTool } from "./constants";
-import {
-  STAGING_TEMPLATES,
-  STAGING_CATEGORIES,
-  STAGING_TEMPLATES_BY_ID,
-} from "./stagingTemplates";
+import { pxsq, QUALITY_RES, SIZES, stockQueryForTool } from "./constants";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import QualityDropdown from "./QualityDropdown";
 import SizeDropdown from "./SizeDropdown";
@@ -24,104 +47,138 @@ import TemplateRow from "./TemplateRow";
 import TemplateBrowserModal from "./TemplateBrowserModal";
 import useProductHistory from "./useProductHistory";
 
-// Appended to the prompt when the user picks "Other angles" on a result.
-const ANGLE_INSTRUCTION =
-  "Show the product from a different camera angle and perspective, keeping the same product, scene, lighting and styling.";
-
-const STAGING_BEFORE = px(2479095);
-const STAGING_AFTER = px(13412090);
-
-// How many scenes the sidebar shelf shows before "See all". The catalog is far
-// bigger than a shelf; the row is a preview of it, not the browser.
+/**
+ * How many presets the sidebar shelf shows before "See all". The catalog is far
+ * bigger than a shelf; the row is a preview of it, not the browser.
+ */
 const ROW_TEMPLATES = 12;
 
 /**
- * Catalog entry → the tile shape TemplateTile renders (the same shape the video
- * templates normalise to). `src: null` is what makes it draw a still rather
- * than a <video>.
+ * Catalog entry → the tile shape TemplateTile renders. `src: null` is what makes
+ * it draw a still rather than a <video>; `t.ext` is undefined for the JPEG
+ * majority, which lets pxsq's default apply.
  */
 const toTile = (t) => ({
   id: t.id,
   name: t.name,
   category: t.category,
-  // `t.ext` is undefined for the JPEG majority, which lets pxsq's default
-  // apply; the PNG entries carry it explicitly (see stagingTemplates.js).
   poster: pxsq(t.pexelsId, t.ext),
   src: null,
-  alt: `${t.name} — ${t.category.toLowerCase()} scene template`,
+  alt: `${t.name} — ${t.category.toLowerCase()} template`,
 });
 
-const TEMPLATE_TILES = STAGING_TEMPLATES.map(toTile);
-
-
-export default function ProductStagingModal({ onClose, onSwitchTool }) {
+/**
+ * @param {object} props
+ * @param {import("./promptToolConfigs").PromptToolConfig} props.config
+ * @param {() => void} props.onClose
+ * @param {(id: string, opts?: object) => void} [props.onSwitchTool]
+ */
+export default function PromptToolModal({ config, onClose, onSwitchTool }) {
   const { activeBrand, uploadMedia, token } = useAuth();
   const isLoggedIn = !!token;
   const qualityRef = useRef(null);
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
 
-  const [uploadedImage, setUploadedImage] = useState(null);
-  const [uploadedFile, setUploadedFile] = useState(null);
-  const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // gallery/cloud URL of the picked image
-  // The selected staging template drives the prompt: its scene description
-  // seeds the prompt box (first template preselected) and re-seeding it on
-  // every pick (see selectTemplate). The user can still edit the prompt freely.
-  const [selectedTemplate, setSelectedTemplate] = useState(
-    STAGING_TEMPLATES[0].id,
-  );
+  const templateTiles = config.templates.map(toTile);
+  const firstTemplate = config.templates[0];
+
+  // ── Product image (required) ──
+  const [uploadedImage, setUploadedImage] = useState(null); // preview src
+  const [uploadedFile, setUploadedFile] = useState(null); // local File, if any
+  const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // hosted URL
+
+  // ── Reference image (optional; only rendered when the config declares it) ──
+  const [referenceImage, setReferenceImage] = useState(null);
+  const [referenceFile, setReferenceFile] = useState(null);
+  const [referenceFileUrl, setReferenceFileUrl] = useState(null);
+
+  // The selected preset drives the prompt: its description seeds the prompt box
+  // (first preset preselected) and re-seeds it on every pick. The user can still
+  // edit the prompt freely afterwards.
+  const [selectedTemplate, setSelectedTemplate] = useState(firstTemplate.id);
+  const [prompt, setPrompt] = useState(firstTemplate.prompt);
+
   const [quality, setQuality] = useState("Standard");
-  const [size, setSize] = useState("square");
+  const [size, setSize] = useState(config.defaultSize);
   const [applyBrandStyle, setApplyBrandStyle] = useState(true);
-  const [prompt, setPrompt] = useState(STAGING_TEMPLATES[0].prompt);
   const [generating, setGenerating] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [toolMenuOpen, setToolMenuOpen] = useState(false); // header tool switcher
   // Which half is on screen below `lg` ("setup" | "result") — see
   // ToolModalMobileHeader. Ignored above it, where both are side by side.
   const [mobileView, setMobileView] = useState("setup");
-  const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
-  const [seeAllOpen, setSeeAllOpen] = useState(false); // full template browser
-  // A scene picked in the "See all" browser usually isn't among the shelf's
-  // first twelve, so it gets pinned to the front of the row — otherwise the
-  // browser closes and nothing on screen shows what was chosen.
+  // Which slot the gallery picker is filling ("product" | "reference" | null).
+  // One picker serves both slots; this is what tells its onApply where to put
+  // the image, so a reference pick can never overwrite the product image.
+  const [pickerTarget, setPickerTarget] = useState(null);
+  const [seeAllOpen, setSeeAllOpen] = useState(false); // full preset browser
+  // A pick from the "See all" browser usually isn't among the shelf's first
+  // twelve, so it gets pinned to the front of the row — otherwise the browser
+  // closes and nothing on screen shows what was chosen.
   const [pinnedTemplate, setPinnedTemplate] = useState(null);
 
-  // Past generations for this tool. History REPLACES a session-only results list:
-  // after each successful generate we refresh it and the new item shows up
-  // (newest first). Empty history → the modal shows its sample/empty state.
-  const history = useProductHistory(TOOL_ENUM.staging, {
-    enabled: isLoggedIn,
-  });
+  // Past generations for this tool. History REPLACES a session-only results
+  // list: after each successful generate we refresh it and the new item shows
+  // up (newest first). Empty history → the modal shows its sample/empty state.
+  const history = useProductHistory(config.tool, { enabled: isLoggedIn });
+
+  const sizeObj = SIZES.find((s) => s.id === size);
 
   // Header tool switcher: clicking the current tool just closes; any other tool
   // tells the parent to swap modals (parent opens the right one + closes this).
   const handleToolClick = (id) => {
     setToolMenuOpen(false);
-    if (id === "staging") return; // already here
+    if (id === config.toolId) return; // already here
     onSwitchTool?.(id);
   };
 
-  // Image comes from the gallery picker (My Library / Search / Upload). We only
-  // use ONE image. A fresh desktop upload carries a File + a LOCAL blob: URL
-  // (not sendable to the backend), so we keep the File and leave the hosted URL
-  // null — it's uploaded on generate to get a real URL. A library/search pick
-  // already has a hosted URL we can send straight through.
+  // Images come from the gallery picker (My Library / Search / Upload), one at a
+  // time. A fresh desktop upload carries a File + a LOCAL blob: URL (not
+  // sendable to the backend), so we keep the File and leave the hosted URL null
+  // — it's uploaded on generate to get a real URL. A library/search pick already
+  // has a hosted URL we can send straight through.
   const handleApplyFromPicker = (images = []) => {
     const item = images[0];
-    if (!item) return;
+    const target = pickerTarget;
+    setPickerTarget(null);
+    if (!item || !target) return;
+
+    const isReference = target === "reference";
+    const setPreview = isReference ? setReferenceImage : setUploadedImage;
+    const setFile = isReference ? setReferenceFile : setUploadedFile;
+    const setUrl = isReference ? setReferenceFileUrl : setUploadedFileUrl;
+
     if (item.file instanceof File) {
-      setUploadedFile(item.file);
-      setUploadedImage(item.src || URL.createObjectURL(item.file));
-      setUploadedFileUrl(null); // resolve a hosted URL on generate
+      setFile(item.file);
+      setPreview(item.src || URL.createObjectURL(item.file));
+      setUrl(null); // resolve a hosted URL on generate
     } else {
       const url = item.large || item.src || null;
       if (!url) return;
-      setUploadedFile(null);
-      setUploadedImage(url);
-      setUploadedFileUrl(url); // already hosted
+      setFile(null);
+      setPreview(url);
+      setUrl(url); // already hosted
     }
-    setPickerOpen(false);
+  };
+
+  /**
+   * Resolve one slot to a hosted URL, uploading the local File if that's all we
+   * have. Returns null when the slot is empty.
+   */
+  const resolveHostedUrl = async (hostedUrl, file, label, onResolved) => {
+    if (hostedUrl) return hostedUrl;
+    if (!file) return null;
+    const uploaded = await uploadMedia(file);
+    console.log(`🖼️ [${config.toolId}] ${label} upload response ←`, uploaded);
+    const url =
+      uploaded?.url ||
+      uploaded?.image_url ||
+      uploaded?.file_url ||
+      uploaded?.data?.url ||
+      null;
+    onResolved(url);
+    return url;
   };
 
   // Options let result-menu actions regenerate off a specific result instead of
@@ -134,53 +191,84 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
       toast.error("Please select a product image first");
       return;
     }
-    const promptToSend = promptOverride != null ? promptOverride : prompt;
+    const basePrompt = promptOverride != null ? promptOverride : prompt;
     setGenerating(true);
     setOpenDropdown(null);
     // Mobile: hand the screen to the canvas so the in-flight tile is what the
     // user is looking at. No-op on desktop, where both halves are visible.
     setMobileView("result");
     try {
-      // Resolve the ONE image URL to send. An override (a past result) is used
-      // as-is; otherwise gallery picks already have a hosted URL, and a fresh
-      // local upload gets uploaded here to obtain one.
-      let imageUrl = imageUrlOverride || uploadedFileUrl;
-      if (!imageUrl && uploadedFile) {
-        const uploaded = await uploadMedia(uploadedFile);
-        console.log("🖼️ [staging] upload response ←", uploaded);
-        imageUrl =
-          uploaded?.url ||
-          uploaded?.image_url ||
-          uploaded?.file_url ||
-          uploaded?.data?.url;
-        setUploadedFileUrl(imageUrl || null);
-      }
+      // Resolve the product image. An override (a past result) is used as-is;
+      // otherwise gallery picks already have a hosted URL, and a fresh local
+      // upload gets uploaded here to obtain one.
+      const imageUrl =
+        imageUrlOverride ||
+        (await resolveHostedUrl(
+          uploadedFileUrl,
+          uploadedFile,
+          "product",
+          setUploadedFileUrl,
+        ));
       if (!imageUrl) {
         toast.error("Please select a product image");
         setGenerating(false);
         return;
       }
 
-      // The staging payload only carries the shared fields (see
-      // docs/product-studio-payloads.md) — scene context is NOT a separate
-      // field. It already lives inside `prompt`: the template picker seeds it
-      // with the scene description, and any user edits ride along on top.
+      // Resolve the optional reference image the same way. A reference that
+      // fails to upload is NOT fatal — it's an optional hint, so we warn and
+      // generate from the prompt alone rather than losing the whole request.
+      let referenceUrl = null;
+      if (config.reference && (referenceFileUrl || referenceFile)) {
+        try {
+          referenceUrl = await resolveHostedUrl(
+            referenceFileUrl,
+            referenceFile,
+            "reference",
+            setReferenceFileUrl,
+          );
+        } catch (err) {
+          console.error(`❌ [${config.toolId}] reference upload failed:`, err);
+          toast.warning(
+            `Couldn't upload the ${config.reference.label.toLowerCase()} — generating from your prompt only.`,
+          );
+        }
+      }
 
-      // Backend contract: POST /product-studio/generate (matches VirtualModelModal's shape).
+      // `promptSuffix` is appended at SEND time, not stored in the prompt box:
+      // it's a fixed instruction the tool always needs (AI POD's "print onto the
+      // product's real surface"), and showing it in the textarea would just be
+      // boilerplate the user has to scroll past and can accidentally delete.
+      //
+      // Skipped for a promptOverride, because the only caller that passes one
+      // is "Other angles" — and it builds its prompt from a PAST generation's
+      // stored prompt, which already had the suffix appended when it was sent.
+      // Appending again would repeat the instruction verbatim in one prompt.
+      const promptToSend = [
+        basePrompt?.trim(),
+        promptOverride == null ? config.promptSuffix : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      // Backend contract: POST /product-studio/generate — the same shape every
+      // other Product Studio modal sends, plus the optional reference key.
       const payload = {
-        tool: TOOL_ENUM.staging, // "product_staging"
-        image_url: imageUrl, // single image URL
+        tool: config.tool,
+        image_url: imageUrl, // single product image URL
         quality: QUALITY_ENUM[quality] || "standard",
         size, // aspect-ratio id
         apply_brand_style: applyBrandStyle,
-        prompt: promptToSend, // scene context + optional user refinement
-        // workspace_id omitted for now (confirm source with backend).
+        prompt: promptToSend,
       };
+      if (referenceUrl && config.reference) {
+        payload[config.reference.payloadKey] = referenceUrl;
+      }
 
       const result = await generateProductPhoto(payload);
 
       // Log the raw return so we can see its exact shape while consuming it.
-      console.log("🎨 [staging] generate result ←", result);
+      console.log(`🎨 [${config.toolId}] generate result ←`, result);
 
       const resultUrl = result?.url || result?.image_url || result?.data?.url;
       if (resultUrl) {
@@ -193,7 +281,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
       }
     } catch (err) {
       // generateProductPhoto already toasts a friendly error; log for debugging.
-      console.error("❌ [staging] generate failed:", err);
+      console.error(`❌ [${config.toolId}] generate failed:`, err);
     } finally {
       setGenerating(false);
     }
@@ -201,20 +289,18 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
 
   const toggle = (key) => setOpenDropdown((p) => (p === key ? null : key));
 
-  const rowTiles = TEMPLATE_TILES.slice(0, ROW_TEMPLATES);
-  // Don't pin a duplicate: if the browser pick happens to be one of the scenes
+  const rowTiles = templateTiles.slice(0, ROW_TEMPLATES);
+  // Don't pin a duplicate: if the browser pick happens to be one of the presets
   // already on the shelf, the shelf tile carries the selection.
   const showPinned =
     pinnedTemplate && !rowTiles.some((t) => t.id === pinnedTemplate.id);
 
-  // Picking a template REPLACES the prompt with that scene's description (the
-  // user may have typed refinements — those only survive as edits made AFTER
-  // the pick, never before it). `tile` is the tile shape TemplateTile hands
-  // back; the prompt lives on the catalog entry it came from.
+  // Picking a preset REPLACES the prompt with that preset's description (user
+  // refinements only survive as edits made AFTER the pick, never before it).
   const selectTemplate = (tile) => {
     setSelectedTemplate(tile.id);
     setPinnedTemplate(tile);
-    const entry = STAGING_TEMPLATES_BY_ID[tile.id];
+    const entry = config.templatesById[tile.id];
     if (entry) setPrompt(entry.prompt);
     setOpenDropdown(null);
   };
@@ -227,16 +313,15 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
   // ── Result menu actions (passed to the shared history grid) ──
   // Download / Copy link / Save to gallery live inside ProductHistoryGrid; these
   // are the modal-specific ones it can't own.
-  // "Change something": focus the prompt so the user can describe the edit.
   const handleChangeSomething = () =>
-    document.getElementById("product-staging-prompt")?.focus();
+    document.getElementById(config.promptId)?.focus();
   // "Other angles": regenerate a NEW angle of THIS result — send the result's
   // own output image back in, with its original prompt plus the angle
-  // instruction so the rest of the scene is preserved.
+  // instruction so the rest of the composition is preserved.
   const handleOtherAngles = (item) => {
     if (!item?.url) return;
     handleGenerate({
-      promptOverride: [(item.prompt || "").trim(), ANGLE_INSTRUCTION]
+      promptOverride: [(item.prompt || "").trim(), config.angleInstruction]
         .filter(Boolean)
         .join(" "),
       imageUrlOverride: item.url,
@@ -245,6 +330,32 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
   // "Generate video": hand this image to the Video Generator, preselected.
   const handleGenerateVideo = (url) =>
     onSwitchTool?.("video", { initialImageUrl: url });
+
+  /** Dashed upload button + its thumbnail, shared by both image slots. */
+  const renderImageSlot = ({ label, hint, preview, target, alt }) => (
+    <div className="px-4 pt-4">
+      {label && (
+        <div className="flex items-baseline justify-between mb-2">
+          <span className="font-semibold text-gray-900 text-sm">{label}</span>
+          {hint && <span className="text-xs text-gray-500">{hint}</span>}
+        </div>
+      )}
+      <button
+        onClick={() => setPickerTarget(target)}
+        className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
+      >
+        <Upload className="w-4 h-4" />
+        <span className="text-blue-600 font-semibold">Select from gallery</span>
+      </button>
+      {preview && (
+        <div className="pt-3">
+          <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500">
+            <img src={preview} alt={alt} className="w-full h-full object-cover" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div
@@ -258,8 +369,8 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
         {/* ── Mobile header — title switcher, ✕ and the Setup/Result switch.
             Pinned outside both scroll areas; hidden above `lg`. ── */}
         <ToolModalMobileHeader
-          title="Product Staging"
-          subtitle="Your product, placed in a real scene."
+          title={config.title}
+          subtitle={config.subtitle}
           onTitleClick={() => setToolMenuOpen((o) => !o)}
           switcherOpen={toolMenuOpen}
           view={mobileView}
@@ -282,46 +393,39 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                 onClick={() => setToolMenuOpen((o) => !o)}
                 className="flex items-center gap-2 font-bold text-2xl text-gray-900 hover:opacity-70 transition-opacity"
               >
-                Product Staging
+                {config.title}
                 <ChevronDown
                   className={`w-5 h-5 text-gray-500 transition-transform ${toolMenuOpen ? "rotate-180" : ""}`}
                 />
               </button>
             </div>
 
-            {/* Upload — opens the gallery picker (My Library / Search / Upload) */}
-            <div className="px-4 pt-4">
-              <button
-                onClick={() => setPickerOpen(true)}
-                className="w-full border border-dashed border-gray-200 rounded-2xl py-6 flex items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                <span className="text-blue-600 font-semibold">
-                  Select from gallery
-                </span>
-              </button>
-            </div>
+            {/* Product image — the required input */}
+            {renderImageSlot({
+              label: config.reference ? "Product Image" : null,
+              preview: uploadedImage,
+              target: "product",
+              alt: "product",
+            })}
 
-            {/* Uploaded thumb */}
-            {uploadedImage && (
-              <div className="px-4 pt-3">
-                <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500">
-                  <img
-                    src={uploadedImage}
-                    alt="product"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </div>
-            )}
+            {/* Reference image — optional, and only for the tools that take one
+                (Scene Reference / Reference Pattern). */}
+            {config.reference &&
+              renderImageSlot({
+                label: config.reference.label,
+                hint: "Optional",
+                preview: referenceImage,
+                target: "reference",
+                alt: config.reference.label.toLowerCase(),
+              })}
 
-
-            {/* Template — a shelf of scenes plus a way into the full browser,
-                mirroring the Video Generator. Picking one rewrites the prompt
-                below with that scene's description. */}
+            {/* Preset shelf plus a way into the full browser, mirroring Product
+                Staging. Picking one rewrites the prompt below. */}
             <div className="px-4 pt-5">
               <div className="flex items-center justify-between mb-3">
-                <span className="font-semibold text-gray-900">Template</span>
+                <span className="font-semibold text-gray-900">
+                  {config.templateLabel}
+                </span>
                 <button
                   onClick={() => setSeeAllOpen(true)}
                   className="text-sm text-gray-500 hover:text-gray-500 transition-colors cursor-pointer"
@@ -330,7 +434,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                 </button>
               </div>
               <TemplateRow>
-                {/* No template — send only what the user typed */}
+                {/* No preset — send only what the user typed */}
                 <button
                   onClick={() => {
                     setSelectedTemplate("none");
@@ -338,7 +442,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                   }}
                   className={`shrink-0 w-24 h-32 rounded-xl overflow-hidden relative flex items-center justify-center text-white text-xs font-medium bg-linear-to-br from-gray-700 to-gray-900 border-2 transition-colors cursor-pointer ${selectedTemplate === "none" ? "border-blue-500" : "border-transparent"}`}
                 >
-                  No template
+                  {config.noTemplateLabel}
                   {selectedTemplate === "none" && (
                     <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
                       <Check className="w-3 h-3 text-white" />
@@ -373,7 +477,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                 {/* Last tile — the shelf's own way into the full browser */}
                 <button
                   onClick={() => setSeeAllOpen(true)}
-                  aria-label="See all templates"
+                  aria-label={`See all ${config.templateLabel.toLowerCase()}s`}
                   className="shrink-0 w-24 h-32 rounded-xl bg-gray-100 hover:bg-gray-200 border-2 border-transparent flex items-center justify-center text-gray-500 transition-colors cursor-pointer"
                 >
                   <LayoutGrid className="w-6 h-6" />
@@ -405,7 +509,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                 className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gray-100 hover:bg-gray-100 text-sm transition-colors"
               >
                 <span className="text-gray-900 font-medium">Size</span>
-                {/* <span className="text-gray-500">{sizeObj?.name}</span> */}
+                <span className="text-gray-500">{sizeObj?.name}</span>
               </button>
 
               {/* Brand style */}
@@ -437,10 +541,10 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                   below the four visible lines. */}
               <div className="rounded-2xl bg-gray-100 px-4 py-3">
                 <textarea
-                  id="product-staging-prompt"
+                  id={config.promptId}
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Describe the image you want (optional)"
+                  placeholder={config.promptPlaceholder}
                   className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed thin-scrollbar"
                   rows={4}
                 />
@@ -454,16 +558,11 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
             <button
               onClick={() => handleGenerate()}
               disabled={generating}
-              className={`
-    w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white
-    transition-all flex items-center justify-center gap-2
-    disabled:opacity-60
-    ${
-      generating
-        ? "bg-gray-400"
-        : "bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
-    }
-  `}
+              className={`w-full py-3.5 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 ${
+                generating
+                  ? "bg-gray-400"
+                  : "bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+              }`}
             >
               {generating ? (
                 <>
@@ -496,7 +595,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
               <div className="flex items-center gap-1.5 xs:gap-3 mb-6 sm:mb-9">
                 <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
                   <img
-                    src={uploadedImage || STAGING_BEFORE}
+                    src={uploadedImage || config.sample.before}
                     alt="product"
                     className="w-full h-full object-cover"
                   />
@@ -525,17 +624,17 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
                 </svg>
                 <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
                   <img
-                    src={STAGING_AFTER}
+                    src={config.sample.after}
+                    alt="result"
                     className="w-full h-full object-cover"
                   />
                 </div>
               </div>
               <h3 className="text-gray-900 text-center text-base sm:text-lg font-semibold max-w-sm leading-snug">
-                Create stunning lifestyle images
+                {config.sample.headline}
               </h3>
               <p className="text-gray-500 text-center text-xs sm:text-sm mt-2 max-w-xs leading-relaxed">
-                Place your product into a realistic scene that tells a story and
-                shows it in action.
+                {config.sample.subtext}
               </p>
             </div>
           ) : (
@@ -543,12 +642,12 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
               items={history.items}
               loading={history.loading}
               generating={generating}
-              generatingLabel="Staging your product…"
+              generatingLabel={config.generatingLabel}
               onDelete={history.remove}
               removingId={history.removingId}
               uploadMedia={uploadMedia}
-              filePrefix="product-staged"
-              aspectClass="aspect-square"
+              filePrefix={config.filePrefix}
+              aspectClass={config.aspectClass}
               onChangeSomething={handleChangeSomething}
               onOtherAngles={handleOtherAngles}
               onGenerateVideo={handleGenerateVideo}
@@ -567,7 +666,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
           />
           <ToolSwitcherDropdown
             anchorRef={headerRef}
-            activeToolId="staging"
+            activeToolId={config.toolId}
             onSelect={handleToolClick}
             onClose={() => setToolMenuOpen(false)}
           />
@@ -607,12 +706,12 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
         />
       )}
 
-      {/* ── "See all" template browser — the full scene catalog by category ── */}
+      {/* ── "See all" preset browser — the full catalog by category ── */}
       {seeAllOpen && (
         <TemplateBrowserModal
-          title="Scene template"
-          categories={STAGING_CATEGORIES}
-          staticItems={TEMPLATE_TILES}
+          title={config.templateBrowserTitle}
+          categories={config.categories}
+          staticItems={templateTiles}
           tileClassName="aspect-square w-full"
           objectPosition="object-center"
           selectedId={selectedTemplate}
@@ -621,17 +720,23 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
         />
       )}
 
-      {/* Gallery media picker — pick ONE image (My Library / Search / Upload) */}
+      {/* Gallery media picker — pick ONE image (My Library / Search / Upload).
+          Shared by both slots; `pickerTarget` decides which one it fills, and
+          which stock-search seed its Search tab opens on: the product slot gets
+          this tool's own query, the reference slot the very different one its
+          config names (a room, or a pattern — never a packshot). */}
       <MediaPickerModal
-        isOpen={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        onCancel={() => setPickerOpen(false)}
+        isOpen={pickerTarget !== null}
+        onClose={() => setPickerTarget(null)}
+        onCancel={() => setPickerTarget(null)}
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
         maxSelectable={1}
-        // Open Search on clean product stills — the kind of shot a staging
-        // template can actually re-scene.
-        defaultSearchQuery={stockQueryForTool("staging")}
+        defaultSearchQuery={
+          pickerTarget === "reference" && config.reference
+            ? config.reference.stockQuery
+            : stockQueryForTool(config.toolId)
+        }
       />
     </div>
   );

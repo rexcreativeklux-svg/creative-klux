@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { X, Upload, Loader2, ChevronDown, Check, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
 import Skeleton from "@/app/(components)/skeletons/Skeleton";
-import { px, VIDEO_SIZES } from "./constants";
+import { px, VIDEO_SIZES, stockQueryForTool } from "./constants";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import ToolModalMobileHeader from "./ToolModalMobileHeader";
 import SizeDropdown from "./SizeDropdown";
@@ -560,6 +560,9 @@ export default function VideoGeneratorModal({
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
         maxSelectable={Math.max(1, MAX_IMAGES - uploadedImages.length)}
+        // Open Search on product showcase stills — the frames this tool
+        // animates into a clip.
+        defaultSearchQuery={stockQueryForTool("video")}
       />
     </div>
   );

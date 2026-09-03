@@ -69,6 +69,11 @@ const MAX_SELECT = 5;
  * showToast       (msg) => void   — optional; falls back to internal toast
  *
  * initialTab      "search" | "library" | "magic" | "upload"
+ * defaultSearchQuery string — seeds the Search tab so the stock photos a caller
+ *   lands on already match what that caller needs (e.g. the Ghost Mannequin tool
+ *   opens on "shirt on hanger" instead of the generic brand fallback). It is
+ *   pre-filled into the search box on open, so the user can see it and edit it;
+ *   clearing the box falls back to this term, then to the brand fallback.
  * allowedTypes    string[]  — which gallery media types the caller can SELECT in
  *   the Library tab: subset of ["image","video","audio","document"]. Defaults to
  *   ["image"] so existing callers behave exactly as before (image-only, single
@@ -90,6 +95,7 @@ export default function MediaPickerModal({
   onAddToBrand,
   showToast: externalToast,
   initialTab = "search",
+  defaultSearchQuery = "",
   maxSelectable = MAX_SELECT,
   allowedTypes = ["image",],
   tabs = null,
@@ -126,7 +132,7 @@ export default function MediaPickerModal({
   const [selectedMedia, setSelectedMedia] = useState([]); // magic
 
   // ── search tab ─────────────────────────────────────────────────────────────
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(defaultSearchQuery);
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchMenuOpen, setSearchMenuOpen] = useState(null);
@@ -210,10 +216,11 @@ export default function MediaPickerModal({
       setActiveTab(initialTab);
       setSelectedImages([]);
       setSelectedMedia([]);
-      setSearchQuery("");
+      // Re-seed rather than blank: each caller opens on its own stock topic.
+      setSearchQuery(defaultSearchQuery);
       setUploadedFiles([]);
     }
-  }, [isOpen, initialTab]);
+  }, [isOpen, initialTab, defaultSearchQuery]);
 
   // Library media is fetched by useGalleryMedia (gated to the Library tab).
 
@@ -222,6 +229,12 @@ export default function MediaPickerModal({
     postData?.brandName?.trim() ||
     activeBrand?.name?.trim() ||
     "premium marketing lifestyle";
+
+  // What an EMPTY search box searches for. The caller's own topic wins, so a
+  // product tool never falls back to generic brand imagery; callers that pass
+  // nothing keep the previous brand-based behavior exactly.
+  const emptySearchFallback =
+    defaultSearchQuery.trim() || `${brandFallback} marketing ad`;
 
   const doSearch = useCallback(
     async (query) => {
@@ -253,11 +266,11 @@ export default function MediaPickerModal({
   useEffect(() => {
     if (!isOpen || activeTabSafe !== "search") return;
     const t = setTimeout(
-      () => doSearch(searchQuery.trim() || `${brandFallback} marketing ad`),
+      () => doSearch(searchQuery.trim() || emptySearchFallback),
       600,
     );
     return () => clearTimeout(t);
-  }, [isOpen, activeTabSafe, searchQuery, brandFallback, doSearch]);
+  }, [isOpen, activeTabSafe, searchQuery, emptySearchFallback, doSearch]);
 
   if (!isOpen) return null;
 
@@ -509,7 +522,7 @@ export default function MediaPickerModal({
                   />
                   <button
                     onClick={() =>
-                      doSearch(searchQuery.trim() || brandFallback)
+                      doSearch(searchQuery.trim() || emptySearchFallback)
                     }
                     className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition cursor-pointer"
                   >

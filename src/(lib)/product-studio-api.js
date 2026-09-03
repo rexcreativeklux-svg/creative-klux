@@ -30,7 +30,48 @@ export const TOOL_ENUM = {
   // caller — correct it here once the backend confirms the value, or drop it if
   // /product-studio/generate doesn't handle video at all.
   video: "video",
+
+  // ── ⚠️ UNCONFIRMED — the three prompt-driven tools ────────────────────────
+  // Reshaping / Product Poster / AI POD (PromptToolModal + promptToolConfigs).
+  // The backend does NOT know these values yet, so both Generate and history
+  // answer 422 { "errors": { "tool": ["The selected tool is invalid."] } }.
+  // The UI is complete and starts working the moment the backend adds them —
+  // correcting the three strings below is the ONLY change needed here.
+  //
+  // How this was established (POST /product-studio/history validates `tool`
+  // against the same enum as /generate, costs nothing and spends no credits, so
+  // it is the cheap way to test a candidate value):
+  //   curl -s -X POST "$KLUX_API_BASE/product-studio/history" \
+  //     -H "Authorization: Bearer $KLUX_PROBE_TOKEN" \
+  //     -H 'Content-Type: application/json' -H 'Accept: application/json' \
+  //     -d '{"tool":"product_poster"}'
+  // 200 = the value is valid; 422 "The selected tool is invalid." = it is not.
+  // Probed 2026-09-03: the five confirmed ids returned 200 and every candidate
+  // below (plus product_scene, scene_generator, ecommerce_scene, ai_poster,
+  // poster, poster_generator, pod, ai_pod, print_on_demand, pod_generation,
+  // pattern_design, product_pattern) returned 422. Ask the backend for the real
+  // strings rather than guessing again — the naming below only follows the
+  // `product_*` convention of the confirmed ids.
+  reshaping: "product_reshaping",
+  poster: "product_poster",
+  pod: "product_pod",
 };
+
+/**
+ * ⚠️ UNCONFIRMED — payload key for the optional SECOND image that Reshaping
+ * (Scene Reference) and AI POD (Reference Pattern) can send.
+ *
+ * No endpoint in this app has ever sent a second image, so there is no
+ * precedent to copy and nothing to probe against: /generate's validation only
+ * reports what is REQUIRED (`tool` and `image_url`), and Laravel silently drops
+ * unknown keys, so an accepted request is not evidence the key was read. It is
+ * only ever added when the user actually attaches a reference, so an unread key
+ * costs nothing meanwhile.
+ *
+ * Confirm the real name with the backend alongside the three tool enums above;
+ * promptToolConfigs references this through each tool's `reference.payloadKey`.
+ */
+export const REFERENCE_IMAGE_KEY = "reference_image_url";
 
 // Get the active brand id from local storage (if any) and include it in the request payload. This is used to apply the brand style to the generated product photo.
 // export function getBrandIdFromLocalStorage() {

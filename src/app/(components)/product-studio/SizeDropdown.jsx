@@ -2,7 +2,7 @@
 
 /**
  * SizeDropdown — the aspect-ratio picker (proportional swatches) shared by the
- * Product Studio modals. Defaults to the full SIZES set; the Video Generator
+ * Product Studio modals. Defaults to the full SIZES set; Product Video
  * passes its reduced VIDEO_SIZES. The caller owns the open state + backdrop and
  * reacts to `onSelect`; pass `animated` for the OnDeviceToolModal variant.
  *

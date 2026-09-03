@@ -466,9 +466,9 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
       modelImageUrl: meta.model_image_url,
     });
   };
-  // "Generate video": hand this image to the Video Generator, preselected.
+  // "Generate video": hand this image to Product Video, preselected.
   const handleGenerateVideo = (url) =>
-    onSwitchTool?.("video", { initialImageUrl: url });
+    onSwitchTool?.("product_video", { initialImageUrl: url });
 
   return (
     <div

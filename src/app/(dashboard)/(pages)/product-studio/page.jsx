@@ -25,7 +25,7 @@ import {
 import { motion } from "framer-motion";
 import VirtualModelModal from "@/app/(components)/product-studio/VirtualModelModal";
 import ProductStagingModal from "@/app/(components)/product-studio/ProductStagingModal";
-import VideoGeneratorModal from "@/app/(components)/product-studio/VideoGeneratorModal";
+import ProductVideoModal from "@/app/(components)/product-studio/ProductVideoModal";
 import BackgroundRemoverModal from "@/app/(components)/product-studio/BackgroundRemoverModal";
 import GhostMannequinModal from "@/app/(components)/product-studio/GhostMannequinModal";
 import OnDeviceToolModal from "@/app/(components)/product-studio/OnDeviceToolModal";
@@ -133,12 +133,6 @@ const tools = [
     Icon: LayoutGrid,
     color: "bg-cyan-100 text-cyan-600",
   },
-  {
-    id: "video",
-    label: "Video Generator",
-    Icon: Video,
-    color: "bg-indigo-100 text-indigo-600",
-  },
   // Prompt-driven tools — all three share PromptToolModal (promptToolConfigs).
   {
     id: "reshaping",
@@ -158,6 +152,15 @@ const tools = [
     Icon: Stamp,
     color: "bg-fuchsia-100 text-fuchsia-600",
   },
+  // Product Video sits LAST on purpose — it is the only tool here that outputs
+  // motion, so it closes the grid instead of interrupting the photo tools. Keep
+  // it last in TOOL_LIST (the in-modal switcher) too, or the two disagree.
+  {
+    id: "product_video",
+    label: "Product Video",
+    Icon: Video,
+    color: "bg-indigo-100 text-indigo-600",
+  },
   // {
   //     id: 'all',
   //     label: 'See all tools...',
@@ -172,8 +175,8 @@ export default function ProductPhotos() {
   const router = useRouter();
   const [virtualModelOpen, setVirtualModelOpen] = useState(false);
   const [stagingOpen, setStagingOpen] = useState(false);
-  const [videoOpen, setVideoOpen] = useState(false);
-  const [videoInitialImage, setVideoInitialImage] = useState(null); // preselect (from a result's "Generate video")
+  const [productVideoOpen, setProductVideoOpen] = useState(false);
+  const [productVideoInitialImage, setProductVideoInitialImage] = useState(null); // preselect (from a result's "Generate video")
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
   const [mannequinOpen, setMannequinOpen] = useState(false); // API-only Ghost Mannequin modal
   const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/flatlay)
@@ -192,7 +195,7 @@ export default function ProductPhotos() {
 
   // Central tool router — used by the tool grid AND the in-modal tool switcher.
   // `opts.initialImageUrl` lets a result's "Generate video" preselect that image
-  // in the Video Generator (see VirtualModel/Staging result menus).
+  // in Product Video (see VirtualModel/Staging result menus).
   const openTool = (id, opts = {}) => {
     if (id === "virtual") {
       setVirtualModelOpen(true);
@@ -202,9 +205,9 @@ export default function ProductPhotos() {
       setStagingOpen(true);
       return;
     }
-    if (id === "video") {
-      setVideoInitialImage(opts.initialImageUrl || null);
-      setVideoOpen(true);
+    if (id === "product_video") {
+      setProductVideoInitialImage(opts.initialImageUrl || null);
+      setProductVideoOpen(true);
       return;
     }
     if (id === "bgremove") {
@@ -237,8 +240,11 @@ export default function ProductPhotos() {
   // Mount-time URL handlers (both strip their params once handled):
   //  • ?resume=<toolId> — re-opens an on-device tool after a login redirect so
   //    its stashed pending save can complete (OnDeviceToolModal + pendingSave.js).
-  //  • ?tool=video&image=<url> — opens the Video Generator with that image
+  //  • ?tool=product_video&image=<url> — opens Product Video with that image
   //    preselected, used by Magic Studio's cross-page "Generate video" action.
+  //    The tool's id was `video` before it was renamed, and that spelling is
+  //    still accepted: the param can arrive from a bookmark, a shared link or a
+  //    chat message written before the rename, and none of those get rewritten.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const resume = params.get("resume");
@@ -254,13 +260,13 @@ export default function ProductPhotos() {
       return () => cancelAnimationFrame(id);
     }
 
-    if (tool === "video") {
+    if (tool === "product_video" || tool === "video") {
       const id = requestAnimationFrame(() => {
         console.log(
-          `🎬 [product-studio] opening Video Generator${image ? " with a preselected image" : ""}`,
+          `🎬 [product-studio] opening Product Video${image ? " with a preselected image" : ""}${tool === "video" ? " (legacy ?tool=video link)" : ""}`,
         );
-        setVideoInitialImage(image || null);
-        setVideoOpen(true);
+        setProductVideoInitialImage(image || null);
+        setProductVideoOpen(true);
         router.replace("/product-studio", { scroll: false });
       });
       return () => cancelAnimationFrame(id);
@@ -331,16 +337,16 @@ export default function ProductPhotos() {
           }}
         />
       )}
-      {videoOpen && (
-        <VideoGeneratorModal
-          initialImageUrl={videoInitialImage}
+      {productVideoOpen && (
+        <ProductVideoModal
+          initialImageUrl={productVideoInitialImage}
           onClose={() => {
-            setVideoOpen(false);
-            setVideoInitialImage(null);
+            setProductVideoOpen(false);
+            setProductVideoInitialImage(null);
           }}
           onSwitchTool={(id, opts) => {
-            setVideoOpen(false);
-            setVideoInitialImage(null);
+            setProductVideoOpen(false);
+            setProductVideoInitialImage(null);
             openTool(id, opts);
           }}
         />

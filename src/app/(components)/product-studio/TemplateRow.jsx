@@ -6,9 +6,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 /**
  * Horizontal template shelf with hover arrows that hide at the ends.
  *
- * Shared by the Video Generator (clips) and Product Staging (scene photos) so
- * both shelves scroll, size and reveal their arrows identically — the tools
- * differ in what they put in the row, never in how the row behaves.
+ * Shared by Product Video (clips) and Product Staging (scene photos) so both
+ * shelves scroll, size and reveal their arrows identically — the tools differ
+ * in what they put in the row, never in how the row behaves.
  *
  * The arrows only appear on hover and only on the side there is more to see, so
  * a shelf that fits entirely on screen shows no chrome at all.

@@ -7,11 +7,12 @@
  * to place the product — and the user can edit it freely from there.
  *
  * ── Why the thumbnails are PINNED Pexels ids ────────────────────────────────
- * The Video Generator's shelf SEARCHES Pexels at runtime, which is right for it:
- * any clip that matches "elegant dress" is a fine motion template. Staging can't
- * work that way — each tile also carries a written prompt, and a prompt only
- * means anything if it describes the exact photo above it. A search result that
- * reshuffles every session would drift away from its own description.
+ * A tile carries a written prompt, and a prompt only means anything if it
+ * describes the exact photo above it. A live search result reshuffles every
+ * session, so the tile and its description would drift apart within a day.
+ * (Product Video's shelf used to search Pexels at runtime for exactly the
+ * reason staging could not — a template was only ever an id there. It pins its
+ * clips now too, for this same reason: see productVideoTemplates.js.)
  *
  * So every entry pins one reviewed photo by id. `pxsq(pexelsId, ext)` builds
  * the thumbnail URL from it (see constants.js) — no fetch, no API quota, no

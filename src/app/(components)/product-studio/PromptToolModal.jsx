@@ -336,9 +336,9 @@ export default function PromptToolModal({ config, onClose, onSwitchTool }) {
       imageUrlOverride: item.url,
     });
   };
-  // "Generate video": hand this image to the Video Generator, preselected.
+  // "Generate video": hand this image to Product Video, preselected.
   const handleGenerateVideo = (url) =>
-    onSwitchTool?.("video", { initialImageUrl: url });
+    onSwitchTool?.("product_video", { initialImageUrl: url });
 
   /** Dashed upload button + its thumbnail, shared by both image slots. */
   const renderImageSlot = ({ label, hint, preview, target, alt }) => (

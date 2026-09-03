@@ -1,6 +1,6 @@
 /**
  * Shared data for the Product Studio modals (Virtual Model, Product Staging,
- * Ghost Mannequin, Video Generator, and the on-device Beautifier / Flat Lay).
+ * Ghost Mannequin, Product Video, and the on-device Beautifier / Flat Lay).
  *
  * These arrays + helpers used to be copy-pasted into every modal; keeping the
  * single source here means a tool, size, or quality-tier change lands in one
@@ -110,13 +110,6 @@ export const TOOL_LIST = [
     color: "bg-purple-100 text-purple-600",
     img: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=240&q=80",
   },
-  {
-    id: "video",
-    name: "Video Generator",
-    Icon: Video,
-    color: "bg-indigo-100 text-indigo-600",
-    img: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=240&q=80",
-  },
   // The three prompt-driven tools (see PromptToolModal / promptToolConfigs).
   // Their thumbnails come from `pxsq` rather than Unsplash simply because these
   // ids were fetched and reviewed alongside the preset catalogs, so they are
@@ -142,6 +135,16 @@ export const TOOL_LIST = [
     color: "bg-fuchsia-100 text-fuchsia-600",
     img: pxsq(2157884),
   },
+  // Product Video is deliberately LAST in both this switcher and the tool grid
+  // on the Product Studio page — it is the only tool that outputs motion, so it
+  // reads as the end of the list rather than as one more photo tool.
+  {
+    id: "product_video",
+    name: "Product Video",
+    Icon: Video,
+    color: "bg-indigo-100 text-indigo-600",
+    img: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=240&q=80",
+  },
 ];
 
 // Shown under "Recently used" in the tool switcher.
@@ -165,7 +168,7 @@ export const TOOL_STOCK_QUERIES = {
   mannequin: "shirt on hanger",
   beautifier: "product studio shot",
   flatlay: "flat lay objects",
-  video: "product showcase",
+  product_video: "product showcase",
   reshaping: "product packshot",
   poster: "product bottle packaging",
   // POD prints ONTO a blank item, so the useful source is an unprinted one.
@@ -195,8 +198,8 @@ export const stockQueryForTool = (toolId) =>
   TOOL_STOCK_QUERIES[toolId] || "product photography";
 
 // ── Aspect-ratio sizes ──────────────────────────────────────────────────────
-// Full set for the image tools; VIDEO_SIZES is the reduced set the Video
-// Generator supports.
+// Full set for the image tools; VIDEO_SIZES is the reduced set Product Video
+// supports.
 export const SIZES = [
   { id: "original", name: "Original", w: 1, h: 1 },
   { id: "portrait_9_16", name: "Portrait (9:16)", w: 9, h: 16 },

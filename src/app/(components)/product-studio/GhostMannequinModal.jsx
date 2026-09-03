@@ -185,9 +185,9 @@ export default function GhostMannequinModal({ onClose, onSwitchTool }) {
       imageUrlOverride: item.url,
     });
   };
-  // "Generate video": hand this image to the Video Generator, preselected.
+  // "Generate video": hand this image to Product Video, preselected.
   const handleGenerateVideo = (url) =>
-    onSwitchTool?.("video", { initialImageUrl: url });
+    onSwitchTool?.("product_video", { initialImageUrl: url });
 
   return (
     <div

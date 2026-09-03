@@ -242,9 +242,9 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
       imageUrlOverride: item.url,
     });
   };
-  // "Generate video": hand this image to the Video Generator, preselected.
+  // "Generate video": hand this image to Product Video, preselected.
   const handleGenerateVideo = (url) =>
-    onSwitchTool?.("video", { initialImageUrl: url });
+    onSwitchTool?.("product_video", { initialImageUrl: url });
 
   return (
     <div
@@ -317,7 +317,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
 
 
             {/* Template — a shelf of scenes plus a way into the full browser,
-                mirroring the Video Generator. Picking one rewrites the prompt
+                mirroring Product Video. Picking one rewrites the prompt
                 below with that scene's description. */}
             <div className="px-4 pt-5">
               <div className="flex items-center justify-between mb-3">

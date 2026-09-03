@@ -14,12 +14,19 @@ const SKELETONS = 24;
 /**
  * The "See all" template browser — category tabs over a grid of templates.
  *
- * TWO SOURCES, ONE BROWSER. By default it SEARCHES Pexels for clips (the Video
- * Generator). Pass `staticItems` and it renders that catalog instead, filtering
- * by the active tab and never touching the network — that's Product Staging,
- * whose templates are pinned photos with prompts written to match them (see
- * stagingTemplates.js). Everything else — layout, tabs, selection, tile size —
- * is shared, so the two tools look and behave identically.
+ * ONE BROWSER, TWO CATALOGS. Both callers pass `staticItems` — a pinned catalog
+ * that it filters by the active tab without ever touching the network. Product
+ * Video passes clips (productVideoTemplates.js) and Product Staging passes
+ * photos (stagingTemplates.js); each tile carries a prompt written to match it,
+ * which is exactly why neither can be a live search any more. Everything else —
+ * layout, tabs, selection, tile size — is shared, so the two tools look and
+ * behave identically.
+ *
+ * ⚠️ The Pexels-search path (no `staticItems` → useTemplates → videoTemplates.js)
+ * is what Product Video used before its catalog existed, and NOTHING calls it
+ * today. It is kept only because it is the whole reason this component takes
+ * `categories`/`loading`/`retry` at all; delete it together with useTemplates.js
+ * and videoTemplates.js if no third caller wants a searched browser.
  *
  * PLAYBACK. A grid this dense would stutter if every tile decoded at once, so
  * TemplateTile only plays what is actually on screen: tiles below the fold
@@ -42,6 +49,10 @@ const SKELETONS = 24;
  *   of searching Pexels. Each needs `category` to be filterable.
  * @param {string} [props.tileClassName]  Tile sizing/aspect in the grid.
  * @param {string} [props.objectPosition] Crop anchor for still tiles.
+ * @param {string} [props.applyLabel]     Passed through to TemplateTile: when set,
+ *   hovering a tile dims it and offers this call-to-action. Opt-in, because it
+ *   only makes sense for a catalog whose tiles REWRITE the caller's prompt box
+ *   (Product Video) rather than merely marking a selection.
  */
 export default function TemplateBrowserModal({
   selectedId,
@@ -52,6 +63,7 @@ export default function TemplateBrowserModal({
   staticItems = null,
   tileClassName = "aspect-3/4 w-full",
   objectPosition,
+  applyLabel,
 }) {
   const [activeCategory, setActiveCategory] = useState("All");
   const isStatic = Array.isArray(staticItems);
@@ -81,7 +93,7 @@ export default function TemplateBrowserModal({
       className="fixed inset-0 z-215 flex items-center justify-center bg-black/30"
       onClick={onClose}
     >
-      {/* Same footprint as the Video Generator shell it opens from — the browser
+      {/* Same footprint as the tool shell it opens from — the browser
           reads as that panel expanding rather than as a second, smaller dialog,
           and the extra width goes straight into tile size. */}
       <div
@@ -148,6 +160,7 @@ export default function TemplateBrowserModal({
                     className={tileClassName}
                     objectPosition={objectPosition}
                     label={t.name}
+                    applyLabel={applyLabel}
                   />
                 ))}
           </div>

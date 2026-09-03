@@ -25,16 +25,10 @@ export const TOOL_ENUM = {
   poster: "edit",
   pod: "edit",
 
-  // ⚠️ UNCONFIRMED — the backend rejects this value today:
-  //   { "message": "Generation failed",
-  //     "error": "The selected tool is invalid. (and 1 more error)" }
-  // The five ids above are the whole enum we have evidence for, and video isn't
-  // one of them. Nothing in this repo records what the video tool is called
-  // server-side (docs/product-studio-payloads.md, cited in three comments,
-  // doesn't exist), so this is a placeholder. VideoGeneratorModal is the only
-  // caller — correct it here once the backend confirms the value, or drop it if
-  // /product-studio/generate doesn't handle video at all.
-  video: "video",
+  // Product Video generates motion rather than a still, but it posts to the same
+  // /product-studio/generate endpoint as everything else — only its payload
+  // differs (`image_urls` for 1-4 frames, and the reduced VIDEO_SIZES set).
+  product_video: "product_video",
 };
 
 /**

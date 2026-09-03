@@ -1,17 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { generateProductPhoto, TOOL_ENUM } from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
-import {
-  X,
-  Upload,
-  Loader2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Check,
-  LayoutGrid,
-} from "lucide-react";
+import { X, Upload, Loader2, ChevronDown, Check, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
 import Skeleton from "@/app/(components)/skeletons/Skeleton";
 import { px, VIDEO_SIZES } from "./constants";
@@ -19,6 +10,7 @@ import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import ToolModalMobileHeader from "./ToolModalMobileHeader";
 import SizeDropdown from "./SizeDropdown";
 import TemplateTile from "./TemplateTile";
+import TemplateRow from "./TemplateRow";
 import TemplateBrowserModal from "./TemplateBrowserModal";
 import useTemplates from "./useTemplates";
 
@@ -32,55 +24,6 @@ const ROW_TEMPLATES = 12;
 
 const VID_BEFORE = px(30780459);
 const VID_AFTER = px(27204251);
-
-// Horizontal template row with hover arrows that hide at the ends.
-function TemplateRow({ children }) {
-  const ref = useRef(null);
-  const [canLeft, setCanLeft] = useState(false);
-  const [canRight, setCanRight] = useState(false);
-  const update = () => {
-    const el = ref.current;
-    if (!el) return;
-    setCanLeft(el.scrollLeft > 4);
-    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
-  };
-  useEffect(() => {
-    update();
-    const el = ref.current;
-    if (!el) return;
-    el.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    return () => {
-      el.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-    };
-  }, []);
-  const scroll = (dir) =>
-    ref.current?.scrollBy({ left: dir * 200, behavior: "smooth" });
-  return (
-    <div className="relative group/row">
-      <div ref={ref} className="flex gap-2 overflow-x-auto hide-scrollbar">
-        {children}
-      </div>
-      {canLeft && (
-        <button
-          onClick={() => scroll(-1)}
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surface shadow-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 opacity-0 group-hover/row:opacity-100 transition-opacity cursor-pointer"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-      )}
-      {canRight && (
-        <button
-          onClick={() => scroll(1)}
-          className="absolute right-0 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surface shadow-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 opacity-0 group-hover/row:opacity-100 transition-opacity cursor-pointer"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      )}
-    </div>
-  );
-}
 
 /**
  * @param {object} props

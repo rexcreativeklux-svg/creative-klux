@@ -81,8 +81,10 @@ const tools = [
     color: "bg-blue-100 text-blue-600",
   },
   {
+    // Routing id stays `bgremove` (openTool, the batch page and the in-modal
+    // switcher all key off it); only the label is user-facing.
     id: "bgremove",
-    label: "Background Remover",
+    label: "Auto Design",
     Icon: Scissors,
     color: "bg-red-100 text-red-600",
   },

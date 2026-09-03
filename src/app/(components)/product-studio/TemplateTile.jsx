@@ -19,12 +19,20 @@ import { Check } from "lucide-react";
  * @param {boolean} props.selected
  * @param {(template: object) => void} props.onSelect
  * @param {string} [props.className] Sizing — the row and the grid size differently.
+ * @param {string} [props.objectPosition="object-top"] Crop anchor for stills.
+ *   Video-model tiles want the head kept (`object-top`); product SCENES want
+ *   the middle, where the styling actually is.
+ * @param {string} [props.label] Optional name shown on a gradient strip along
+ *   the bottom — a scene template is nothing without its name; a clip doesn't
+ *   need one, so callers that don't pass it get the bare tile as before.
  */
 export default function TemplateTile({
   template,
   selected,
   onSelect,
   className = "",
+  objectPosition = "object-top",
+  label,
 }) {
   const videoRef = useRef(null);
   const playable = Boolean(template.src);
@@ -75,8 +83,14 @@ export default function TemplateTile({
           src={template.poster}
           alt={template.alt || template.category || "template"}
           loading="lazy"
-          className="w-full h-full object-cover object-top"
+          className={`w-full h-full object-cover ${objectPosition}`}
         />
+      )}
+
+      {label && (
+        <span className="absolute inset-x-0 bottom-0 px-1.5 pb-1 pt-4 bg-linear-to-t from-black/70 to-transparent text-[10px] font-medium text-white text-center leading-tight truncate">
+          {label}
+        </span>
       )}
 
       {selected && (

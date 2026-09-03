@@ -6,15 +6,22 @@ import {
 } from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
-import { X, Upload, Loader2, ChevronDown } from "lucide-react";
+import { X, Upload, Loader2, ChevronDown, Check, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
-import { px, pxbg, QUALITY_RES } from "./constants";
-import { FloatingPanel } from "./FloatingPanels";
+import { px, pxsq, QUALITY_RES } from "./constants";
+import {
+  STAGING_TEMPLATES,
+  STAGING_CATEGORIES,
+  STAGING_TEMPLATES_BY_ID,
+} from "./stagingTemplates";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import QualityDropdown from "./QualityDropdown";
 import SizeDropdown from "./SizeDropdown";
 import ProductHistoryGrid from "./ProductHistoryGrid";
 import ToolModalMobileHeader from "./ToolModalMobileHeader";
+import TemplateTile from "./TemplateTile";
+import TemplateRow from "./TemplateRow";
+import TemplateBrowserModal from "./TemplateBrowserModal";
 import useProductHistory from "./useProductHistory";
 
 // Appended to the prompt when the user picks "Other angles" on a result.
@@ -24,64 +31,47 @@ const ANGLE_INSTRUCTION =
 const STAGING_BEFORE = px(2479095);
 const STAGING_AFTER = px(13412090);
 
-// Scenes that shape the staged lifestyle context. The staging payload only
-// carries the shared fields (see docs/product-studio-payloads.md), so the chosen
-// scene travels inside the `prompt` as context — never as a separate field.
-const SCENES = [
-  {
-    id: "lifestyle",
-    name: "Lifestyle",
-    desc: "Person using the product in real life",
-    img: pxbg(3184465),
-  },
-  {
-    id: "studio",
-    name: "Studio",
-    desc: "Clean white / grey studio",
-    img: pxbg(1029243),
-  },
-  {
-    id: "outdoor",
-    name: "Outdoor",
-    desc: "Natural outdoor setting",
-    img: pxbg(957024),
-  },
-  {
-    id: "kitchen",
-    name: "Kitchen",
-    desc: "On a wooden kitchen counter",
-    img: pxbg(1080696),
-  },
-  {
-    id: "editorial",
-    name: "Editorial",
-    desc: "Magazine-style fashion shoot",
-    img: pxbg(291762),
-  },
-  {
-    id: "social",
-    name: "Social Media",
-    desc: "Eye-catching, social-ready",
-    img: pxbg(1092644),
-  },
-];
+// How many scenes the sidebar shelf shows before "See all". The catalog is far
+// bigger than a shelf; the row is a preview of it, not the browser.
+const ROW_TEMPLATES = 12;
+
+/**
+ * Catalog entry → the tile shape TemplateTile renders (the same shape the video
+ * templates normalise to). `src: null` is what makes it draw a still rather
+ * than a <video>.
+ */
+const toTile = (t) => ({
+  id: t.id,
+  name: t.name,
+  category: t.category,
+  poster: pxsq(t.pexelsId),
+  src: null,
+  alt: `${t.name} — ${t.category.toLowerCase()} scene template`,
+});
+
+const TEMPLATE_TILES = STAGING_TEMPLATES.map(toTile);
+
 
 export default function ProductStagingModal({ onClose, onSwitchTool }) {
   const { activeBrand, uploadMedia, token } = useAuth();
   const isLoggedIn = !!token;
   const qualityRef = useRef(null);
   const sizeRef = useRef(null);
-  const sceneRef = useRef(null);
   const headerRef = useRef(null);
 
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // gallery/cloud URL of the picked image
-  const [selectedScene, setSelectedScene] = useState("lifestyle");
+  // The selected staging template drives the prompt: its scene description
+  // seeds the prompt box (first template preselected) and re-seeding it on
+  // every pick (see selectTemplate). The user can still edit the prompt freely.
+  const [selectedTemplate, setSelectedTemplate] = useState(
+    STAGING_TEMPLATES[0].id,
+  );
   const [quality, setQuality] = useState("Standard");
   const [size, setSize] = useState("square");
   const [applyBrandStyle, setApplyBrandStyle] = useState(true);
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(STAGING_TEMPLATES[0].prompt);
   const [generating, setGenerating] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [toolMenuOpen, setToolMenuOpen] = useState(false); // header tool switcher
@@ -89,6 +79,11 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
   // ToolModalMobileHeader. Ignored above it, where both are side by side.
   const [mobileView, setMobileView] = useState("setup");
   const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
+  const [seeAllOpen, setSeeAllOpen] = useState(false); // full template browser
+  // A scene picked in the "See all" browser usually isn't among the shelf's
+  // first twelve, so it gets pinned to the front of the row — otherwise the
+  // browser closes and nothing on screen shows what was chosen.
+  const [pinnedTemplate, setPinnedTemplate] = useState(null);
 
   // Past generations for this tool. History REPLACES a session-only results list:
   // after each successful generate we refresh it and the new item shows up
@@ -164,11 +159,10 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
         return;
       }
 
-      // Scene context is folded into the prompt (staging carries only the
-      // shared fields — see docs/product-studio-payloads.md).
-      // const sceneObj = SCENES.find(s => s.id === selectedScene);
-      // const sceneNote = sceneObj ? `Scene: ${sceneObj.name} — ${sceneObj.desc}.` : '';
-      // const finalPrompt = [sceneNote, prompt].filter(Boolean).join(' ').trim();
+      // The staging payload only carries the shared fields (see
+      // docs/product-studio-payloads.md) — scene context is NOT a separate
+      // field. It already lives inside `prompt`: the template picker seeds it
+      // with the scene description, and any user edits ride along on top.
 
       // Backend contract: POST /product-studio/generate (matches VirtualModelModal's shape).
       const payload = {
@@ -205,8 +199,23 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
 
   const toggle = (key) => setOpenDropdown((p) => (p === key ? null : key));
 
-  // const sceneObj = SCENES.find(s => s.id === selectedScene);
-  // const sizeObj = SIZES.find(s => s.id === size);
+  const rowTiles = TEMPLATE_TILES.slice(0, ROW_TEMPLATES);
+  // Don't pin a duplicate: if the browser pick happens to be one of the scenes
+  // already on the shelf, the shelf tile carries the selection.
+  const showPinned =
+    pinnedTemplate && !rowTiles.some((t) => t.id === pinnedTemplate.id);
+
+  // Picking a template REPLACES the prompt with that scene's description (the
+  // user may have typed refinements — those only survive as edits made AFTER
+  // the pick, never before it). `tile` is the tile shape TemplateTile hands
+  // back; the prompt lives on the catalog entry it came from.
+  const selectTemplate = (tile) => {
+    setSelectedTemplate(tile.id);
+    setPinnedTemplate(tile);
+    const entry = STAGING_TEMPLATES_BY_ID[tile.id];
+    if (entry) setPrompt(entry.prompt);
+    setOpenDropdown(null);
+  };
 
   const closeAll = () => {
     setOpenDropdown(null);
@@ -304,20 +313,71 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
               </div>
             )}
 
-            {/* Scene */}
-            {/* <div className="px-4 pt-4">
-                        <button
-                            ref={sceneRef}
-                            onClick={() => toggle('scene')}
-                            className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === 'scene' ? 'bg-blue-50 ring-2 ring-blue-500' : 'bg-gray-100/70 hover:bg-gray-100'}`}
-                        >
-                            <div className="w-full h-40 rounded-xl overflow-hidden mb-2.5 bg-surface">
-                                <img src={sceneObj?.img} alt={sceneObj?.name} className="w-full h-full object-cover" />
-                            </div>
-                            <span className="text-[11px] text-gray-500">Scene</span>
-                            <span className="text-sm font-semibold text-gray-900">{sceneObj?.name}</span>
-                        </button>
-                    </div> */}
+
+            {/* Template — a shelf of scenes plus a way into the full browser,
+                mirroring the Video Generator. Picking one rewrites the prompt
+                below with that scene's description. */}
+            <div className="px-4 pt-5">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-semibold text-gray-900">Template</span>
+                <button
+                  onClick={() => setSeeAllOpen(true)}
+                  className="text-sm text-gray-500 hover:text-gray-500 transition-colors cursor-pointer"
+                >
+                  See all
+                </button>
+              </div>
+              <TemplateRow>
+                {/* No template — send only what the user typed */}
+                <button
+                  onClick={() => {
+                    setSelectedTemplate("none");
+                    setPrompt("");
+                  }}
+                  className={`shrink-0 w-24 h-32 rounded-xl overflow-hidden relative flex items-center justify-center text-white text-xs font-medium bg-linear-to-br from-gray-700 to-gray-900 border-2 transition-colors cursor-pointer ${selectedTemplate === "none" ? "border-blue-500" : "border-transparent"}`}
+                >
+                  No template
+                  {selectedTemplate === "none" && (
+                    <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" />
+                    </span>
+                  )}
+                </button>
+
+                {/* A pick from "See all", pinned so the choice is visible here */}
+                {showPinned && (
+                  <TemplateTile
+                    template={pinnedTemplate}
+                    selected={selectedTemplate === pinnedTemplate.id}
+                    onSelect={selectTemplate}
+                    className="shrink-0 w-24 h-32"
+                    objectPosition="object-center"
+                    label={pinnedTemplate.name}
+                  />
+                )}
+
+                {rowTiles.map((t) => (
+                  <TemplateTile
+                    key={t.id}
+                    template={t}
+                    selected={selectedTemplate === t.id}
+                    onSelect={selectTemplate}
+                    className="shrink-0 w-24 h-32"
+                    objectPosition="object-center"
+                    label={t.name}
+                  />
+                ))}
+
+                {/* Last tile — the shelf's own way into the full browser */}
+                <button
+                  onClick={() => setSeeAllOpen(true)}
+                  aria-label="See all templates"
+                  className="shrink-0 w-24 h-32 rounded-xl bg-gray-100 hover:bg-gray-200 border-2 border-transparent flex items-center justify-center text-gray-500 transition-colors cursor-pointer"
+                >
+                  <LayoutGrid className="w-6 h-6" />
+                </button>
+              </TemplateRow>
+            </div>
 
             {/* Option rows — light gray cards (Photoroom style) */}
             <div className="px-4 pt-3 pb-3 space-y-2.5">
@@ -514,51 +574,6 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
         />
       )}
 
-      {openDropdown === "scene" && (
-        <FloatingPanel
-          anchorRef={sceneRef}
-          width={420}
-          title="Scene"
-          subtitle={SCENES.find((s) => s.id === selectedScene)?.name}
-          onClose={() => setOpenDropdown(null)}
-        >
-          <div className="grid grid-cols-3 gap-2.5 p-3">
-            {SCENES.map((s) => {
-              const active = selectedScene === s.id;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => {
-                    setSelectedScene(s.id);
-                    setOpenDropdown(null);
-                  }}
-                  className="flex flex-col items-center gap-1.5"
-                  title={s.desc}
-                >
-                  <div
-                    className={`w-full h-24 rounded-xl overflow-hidden relative border-2 transition-colors ${active ? "border-blue-500" : "border-transparent hover:border-gray-200"}`}
-                  >
-                    <img
-                      src={s.img}
-                      alt={s.name}
-                      className="w-full h-full object-cover"
-                    />
-                    {active && (
-                      <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
-                        <span className="text-white text-[8px]">✓</span>
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-gray-500 text-center leading-tight">
-                    {s.name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </FloatingPanel>
-      )}
-
       {openDropdown === "quality" && (
         <QualityDropdown
           anchorRef={qualityRef}
@@ -580,6 +595,20 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
             setOpenDropdown(null);
           }}
           onClose={() => setOpenDropdown(null)}
+        />
+      )}
+
+      {/* ── "See all" template browser — the full scene catalog by category ── */}
+      {seeAllOpen && (
+        <TemplateBrowserModal
+          title="Scene template"
+          categories={STAGING_CATEGORIES}
+          staticItems={TEMPLATE_TILES}
+          tileClassName="aspect-square w-full"
+          objectPosition="object-center"
+          selectedId={selectedTemplate}
+          onSelect={selectTemplate}
+          onClose={() => setSeeAllOpen(false)}
         />
       )}
 

@@ -22,11 +22,14 @@ import {
 
 // ── CDN image helpers ──────────────────────────────────────────────────────
 // Pexels (free license, stable URLs). `px` resizes by height only (no crop) so
-// full figures stay intact; `pxbg` is a cropped landscape thumb for swatches.
+// full figures stay intact; `pxbg` is a cropped landscape thumb for swatches;
+// `pxsq` is a cropped square thumb for the staging template tiles.
 export const px = (id) =>
   `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&h=600`;
 export const pxbg = (id) =>
   `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=320&h=240&fit=crop`;
+export const pxsq = (id) =>
+  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop`;
 
 // ── Header tool-switcher list (mirrors the product-studio page tools) ───────
 // `img` is a real thumbnail; ToolCard falls back to the colored `Icon` tile if
@@ -47,8 +50,10 @@ export const TOOL_LIST = [
     img: "https://images.unsplash.com/photo-1607082349566-187342175e2f?w=240&q=80",
   },
   {
+    // `bgremove` is the routing id everywhere (page router, batch, switcher) —
+    // only the user-facing label changed to "Auto Design".
     id: "bgremove",
-    name: "Background Remover",
+    name: "Auto Design",
     Icon: Scissors,
     color: "bg-red-100 text-red-600",
     img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=240&q=80",

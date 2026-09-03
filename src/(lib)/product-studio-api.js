@@ -52,9 +52,9 @@ export const TOOL_ENUM = {
   // pattern_design, product_pattern) returned 422. Ask the backend for the real
   // strings rather than guessing again — the naming below only follows the
   // `product_*` convention of the confirmed ids.
-  reshaping: "product_reshaping",
-  poster: "product_poster",
-  pod: "product_pod",
+  reshaping: "edit",
+  poster: "edit",
+  pod: "edit",
 };
 
 /**

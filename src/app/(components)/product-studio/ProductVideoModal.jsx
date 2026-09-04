@@ -1,5 +1,9 @@
-import { useState, useRef } from "react";
-import { generateProductPhoto, TOOL_ENUM } from "@/(lib)/product-studio-api";
+import { useCallback, useEffect, useState, useRef } from "react";
+import {
+  generateProductPhoto,
+  productResultUrl,
+  TOOL_ENUM,
+} from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
 import { X, Upload, Loader2, ChevronDown, Check, LayoutGrid } from "lucide-react";
@@ -18,6 +22,11 @@ import TemplateRow from "./TemplateRow";
 import TemplateBrowserModal from "./TemplateBrowserModal";
 import ProductHistoryGrid from "./ProductHistoryGrid";
 import useProductHistory from "./useProductHistory";
+import {
+  extractProductGenerationId,
+  latestProductGenerationId,
+  watchProductGeneration,
+} from "./watchProductGeneration";
 
 // Video accepts up to 4 input photos — different angles improve fidelity.
 // See docs/product-studio-payloads.md (video `image_urls`: 1–4).
@@ -137,6 +146,23 @@ export default function ProductVideoModal({
   // with one still going. Folding both into a single flag is what keeps a
   // resumed run from drawing a second loading tile beside the one we started.
   const waiting = generating || history.pending.length > 0;
+
+  // The status poll in flight, so it can be called off when the modal closes or
+  // when a new run starts. Closing the modal ends the WATCHING, not the render —
+  // the backend finishes it either way, and reopening the tool picks it back up
+  // through history's `pending` list.
+  const runRef = useRef({ cancelled: true, timer: null, wake: null });
+  const cancelWatch = useCallback(() => {
+    const run = runRef.current;
+    run.cancelled = true;
+    if (run.timer) clearTimeout(run.timer);
+    run.timer = null;
+    // Ends the current wait rather than leaving it pending — see
+    // watchProductGeneration.
+    run.wake?.();
+    run.wake = null;
+  }, []);
+  useEffect(() => cancelWatch, [cancelWatch]);
 
   const rowTiles = TEMPLATE_TILES.slice(0, ROW_TEMPLATES);
   const sizeObj = VIDEO_SIZES.find((s) => s.id === size);
@@ -283,28 +309,108 @@ export default function ProductVideoModal({
         prompt: prompt || "",
       };
 
-      const result = await generateProductPhoto(payload);
+      // ── Fire, and watch ────────────────────────────────────────────────────
+      // The id snapshot is taken BEFORE the request so the run can still be
+      // followed if its response never arrives — see watchProductGeneration.
+      const sinceId = await latestProductGenerationId(TOOL_ENUM.product_video);
+      const startedAt = Date.now();
 
-      // Log the raw return so we can see its exact shape while consuming it.
-      // Video is async on the backend — it may return a job id rather than a URL.
-      console.log("🎬 [product-video] generate result ←", result);
+      const request = generateProductPhoto(payload);
+      // The race below handles the rejection; this only keeps the browser from
+      // reporting it as unhandled in the window before that happens, and in the
+      // case where the watch wins and nobody reads the response at all.
+      request.catch(() => {});
 
-      // Either way the run is now a record, so history is the single source of
-      // truth for it — refresh and let the grid show the clip (finished) or its
-      // loading tile (still rendering, which the hook then polls to completion).
-      await history.refresh();
+      cancelWatch();
+      const run = { cancelled: false, timer: null, wake: null, jobId: null };
+      runRef.current = run;
 
-      const resultUrl = result?.url || result?.video_url || result?.data?.url;
-      if (resultUrl) {
-        toast.success("Video generated!");
-      } else {
-        toast("Your video is rendering — it'll appear here as soon as it's done.");
+      const watch = watchProductGeneration({
+        tool: TOOL_ENUM.product_video,
+        sinceId,
+        startedAt,
+        run,
+      });
+
+      // The response usually names the job — hand it straight to the watch so it
+      // can poll the status endpoint instead of sweeping history for the id.
+      request
+        .then((data) => {
+          const id = extractProductGenerationId(data);
+          if (id != null) run.jobId = id;
+        })
+        .catch(() => {});
+
+      const outcome = await Promise.race([
+        request.then((value) => ({ from: "request", value })),
+        watch.then((value) => ({ from: "watch", value })),
+      ]);
+
+      // The response beat the watch. Either the clip is already in it — in which
+      // case stop watching — or it only opened the job, and the watch we already
+      // have running is exactly what follows it.
+      if (outcome.from === "request") {
+        // Log the raw return so its exact shape stays visible while consuming it.
+        console.log("🎬 [product-video] generate result ←", outcome.value);
+        const immediate = productResultUrl(outcome.value);
+        if (immediate) {
+          cancelWatch();
+          await history.refresh();
+          toast.success("Video generated!");
+          return;
+        }
+        toast("Your video is rendering — this can take a few minutes…");
+        await deliverWatch(await watch);
+        return;
       }
+
+      await deliverWatch(outcome.value);
     } catch (err) {
-      // generateProductPhoto already toasts a friendly error; log for debugging.
+      // generateProductPhoto already toasts what the TRANSPORT rejected (401,
+      // 402, 422). A run that answered 200 and then RECORDED a failure never
+      // passed through its catch, so for that path this is the only place the
+      // failure is announced at all — `.response` is the discriminator, since
+      // the Error thrown by deliverWatch carries none.
       console.error("❌ [product-video] generate failed:", err);
+      if (!err?.response) {
+        toast.error(err?.message || "Video generation failed. Please try again.");
+      }
     } finally {
+      cancelWatch();
       setGenerating(false);
+    }
+
+    /** Turn a watch outcome into a shown result, or the right message. */
+    async function deliverWatch(outcome) {
+      if (outcome?.cancelled) return;
+
+      if (outcome?.timedOut) {
+        // Not an error, and deliberately not a red one: the render is still
+        // going and its result will be waiting in history. Saying "try again"
+        // here would charge someone twice for the same clip.
+        console.warn("⏳ [product-video] still running past the poll ceiling");
+        toast(
+          "This is taking longer than usual — it'll be in your history as soon as it's done.",
+        );
+        await history.refresh();
+        return;
+      }
+
+      if (outcome?.failed) {
+        // The record's own reason where there is one. "Please try again" is the
+        // wrong advice for a rejected input — the same request fails the same
+        // way forever — and the backend usually says which field was refused.
+        console.error(
+          `❌ [product-video] generation ${outcome.jobId} failed:`,
+          outcome.error,
+        );
+        throw new Error(
+          outcome.error || "Video generation failed. Please try again.",
+        );
+      }
+
+      await history.refresh();
+      toast.success("Your video is ready!");
     }
   };
 

@@ -1,5 +1,13 @@
 // API client for the Product Studio "Generate" (photoreal) endpoint.
 //
+// Three routes live here:
+//   POST /product-studio/generate                    start a run
+//   POST /product-studio/history                     what this tool has made
+//   GET  /product-studio/generations/{id}/status     how a run is getting on
+// The last one exists because a run is a JOB: Product Video renders for minutes
+// and its result arrives long after the request that started it. See the
+// "Async generation jobs" block below.
+//
 // Backend contract (POST /product-studio/generate) — send any of:
 //   tool, image, prompt, quality, size, apply_brand_style, workspace_id,
 //   model_name, pose
@@ -11,6 +19,7 @@
 
 import api from "@/app/api/axios";
 import { toast } from "sonner";
+import { readableProviderError } from "@/(lib)/providerErrors";
 
 /** UI tool ids → backend `tool` enum values. */
 export const TOOL_ENUM = {
@@ -268,6 +277,163 @@ export async function deleteProductHistoryItem(id) {
       message: err?.message,
     });
     toast.error(serverMsg || "Couldn't delete that item. Please try again.");
+    throw err;
+  }
+}
+
+// ── Async generation jobs ────────────────────────────────────────────────────
+// A generation is a JOB. The record is written when the request arrives and
+// filled in when the provider answers, so a response can name a job that is not
+// finished — `{ generation: { id, status: "processing" } }` — and the run is
+// followed by polling {@link checkProductGenerationStatus} until it reports
+// "completed". Product Video is the tool that made this necessary: a render runs
+// into minutes, where every other Product Studio tool answers with its picture.
+//
+// These readers are deliberately field-name-tolerant and mirror Magic Studio's
+// (magicStudioConfigs.jsx) — the two studios talk to the same backend and get
+// the same envelopes back, so a shape either one learns to read is a shape the
+// other will meet too.
+
+/**
+ * The backend wraps a single generation record as `{ generation: {...} }`.
+ * Unwrap that envelope so the readers below see the record's own fields.
+ */
+function unwrapGeneration(data) {
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    if (data.generation && typeof data.generation === "object") {
+      return data.generation;
+    }
+  }
+  return data;
+}
+
+/** Statuses that mean the job finished, or failed for good. */
+const JOB_DONE_STATES = [
+  "completed",
+  "complete",
+  "done",
+  "success",
+  "succeeded",
+  "ready",
+  "finished",
+];
+const JOB_FAILED_STATES = [
+  "failed",
+  "error",
+  "errored",
+  "cancelled",
+  "canceled",
+];
+
+/**
+ * Tolerantly pull the job id out of a generate (or status) response — the id the
+ * status endpoint takes in its URL.
+ *
+ * @param {object} data
+ * @returns {string|number|null}
+ */
+export function extractProductGenerationId(data) {
+  const root = unwrapGeneration(data);
+  return (
+    root?.id ??
+    root?.job_id ??
+    root?.jobId ??
+    root?.generation_id ??
+    root?.video_id ??
+    data?.data?.id ??
+    data?.data?.job_id ??
+    null
+  );
+}
+
+/**
+ * Classify a status response → "completed" | "processing" | "failed".
+ *
+ * Trusts an explicit `status`; with none, infers from whether a usable media URL
+ * has appeared yet — a record that has its file is done whatever it says.
+ *
+ * @param {object} data
+ * @returns {"completed"|"processing"|"failed"}
+ */
+export function getProductGenerationStatus(data) {
+  const root = unwrapGeneration(data);
+  const s = String(root?.status ?? data?.data?.status ?? "")
+    .toLowerCase()
+    .trim();
+  if (s) {
+    if (JOB_DONE_STATES.includes(s)) return "completed";
+    if (JOB_FAILED_STATES.includes(s)) return "failed";
+    return "processing";
+  }
+  return productResultUrl(data) ? "completed" : "processing";
+}
+
+/**
+ * The finished media URL on a generate/status response, or null while there
+ * isn't one. Resolves S3 object keys against the CDN, same as history does.
+ *
+ * @param {object} data
+ * @returns {string|null}
+ */
+export function productResultUrl(data) {
+  const root = unwrapGeneration(data);
+  if (!root || typeof root !== "object") return null;
+  return (
+    resolveMediaUrl(root.video_url) ||
+    resolveMediaUrl(root.url) ||
+    resolveMediaUrl(root.s3_key) ||
+    resolveMediaUrl(root.image_url) ||
+    // `urls` sits on the envelope beside `generation`, not inside it.
+    resolveMediaUrl(
+      Array.isArray(data?.urls) ? data.urls[0] : undefined,
+    ) ||
+    null
+  );
+}
+
+/**
+ * Why a job failed, as the backend recorded it — or "" if it didn't say.
+ *
+ * Run through {@link readableProviderError}, which both trims a provider dump
+ * down to the actionable line AND replaces the failures that are about our
+ * account with something that doesn't expose it. See that module.
+ *
+ * @param {object} data
+ * @returns {string}
+ */
+export function getProductGenerationError(data) {
+  const root = unwrapGeneration(data);
+  const raw =
+    root?.error || root?.error_message || root?.message || data?.data?.error || "";
+  return readableProviderError(raw);
+}
+
+/**
+ * Check on one generation.
+ *
+ * ⚠️ IT DOES NOT TOAST. This is called on a timer — a network blip two minutes
+ * into a render would otherwise stack a red toast every few seconds. The caller
+ * decides when a run has genuinely failed and says so once. (Same rule as Magic
+ * Studio's checkGenerationStatus, for the same reason.)
+ *
+ * @param {string|number} id The generation id.
+ * @returns {Promise<object>} The status payload.
+ */
+export async function checkProductGenerationStatus(id) {
+  if (id == null) throw new Error("Missing generation id for status check.");
+  console.log("📡 [product-studio/status] checking generation:", id);
+  try {
+    const { data } = await api.get(
+      `${BASE_URL}/product-studio/generations/${id}/status`,
+    );
+    console.log("✅ [product-studio/status] response ←", data);
+    return data;
+  } catch (err) {
+    console.error("❌ [product-studio/status] failed:", {
+      status: err?.response?.status,
+      data: err?.response?.data,
+      message: err?.message,
+    });
     throw err;
   }
 }

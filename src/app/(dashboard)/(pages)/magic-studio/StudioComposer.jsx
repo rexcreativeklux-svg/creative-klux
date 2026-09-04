@@ -135,6 +135,9 @@ const OPTION_ICONS = {
   quality: Gem,
   contentType: LayoutGrid,
   // The video tools' settings.
+  // `template` is Video Effects' catalog of ready-made looks — the wand, because
+  // it is the one control that writes the prompt and picks the picture for you.
+  template: WandSparkles,
   engine: Cpu,
   motion: Move3d,
   resolution: MonitorPlay,
@@ -1197,6 +1200,16 @@ export default function StudioComposer({
                 if (config?.promptFrom?.option === option.key) {
                   const seeded = config.promptFrom.resolve(val);
                   if (seeded) setText(seeded);
+                }
+                // ⚠️ AND ONE MAY SELECT THE SOURCE IMAGE. Video Effects is why:
+                // a template is a prompt AND the frame it was written for, so
+                // applying one has to set both or Generate runs those words
+                // against whatever unrelated picture was already there. Same
+                // rule as the prompt above — an empty resolve leaves the
+                // current image alone rather than clearing it.
+                if (config?.imageFrom?.option === option.key) {
+                  const seededImage = config.imageFrom.resolve(val);
+                  if (seededImage) handlePickedImage(seededImage);
                 }
                 // `keepOpen` comes from controls that fire continuously — a
                 // colour drag, a hex being typed — where closing on the first

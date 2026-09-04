@@ -62,6 +62,7 @@ import {
   transcriptFileName,
 } from "@/(lib)/ai-engine/tasks/transcriptExports";
 import { pickHostedUrl } from "@/(lib)/magic-studio-api";
+import { FILE_LIMITS } from "@/utils/helpers";
 import AudioCard, { formatClock } from "@/app/(components)/gallery/AudioCard";
 
 import { useVoicePreview, useMicRecorder } from "./magicEngineHooks";
@@ -165,6 +166,22 @@ export default function MagicTabPanel({
   const [audioInput, setAudioInput] = useState(null); // File
   const [audioMeta, setAudioMeta] = useState(null); // { previewUrl, duration }
   const [audioMode, setAudioMode] = useState("upload"); // "upload" | "record"
+  /**
+   * A SECOND media input, for the one tool that takes two: Digital Human's
+   * voice track — { url, objectUrl }.
+   *
+   * ⚠️ NOT `audioInput` ABOVE. That is a local File for Audio to Text, which
+   * transcribes it here and never hosts it. This one is uploaded to the gallery
+   * on the way in, because it rides into the payload as a hosted `audio_url`.
+   *
+   * ⚠️ A DEVICE UPLOAD RATHER THAN THE GALLERY PICKER the composer uses. This
+   * panel IS the picker — opening a second one on top of it would be a modal
+   * inside a modal. The file still lands in the gallery either way, so a track
+   * added here is pickable from the composer afterwards, and vice versa.
+   */
+  const [voiceTrack, setVoiceTrack] = useState(null);
+  const [uploadingVoice, setUploadingVoice] = useState(false);
+  const extraAudio = config?.extraInput?.kind === "audio";
 
   // Which option row is expanded — a single key so opening one closes the rest
   // (only one open at a time).
@@ -180,6 +197,7 @@ export default function MagicTabPanel({
 
   const imageFileRef = useRef(null);
   const audioFileRef = useRef(null);
+  const voiceFileRef = useRef(null);
 
   // Revoke object URLs on unmount (also fires on sub-tab switch — the panel is
   // remounted per category by the picker).
@@ -187,8 +205,9 @@ export default function MagicTabPanel({
     () => () => {
       if (imageInput?.objectUrl) URL.revokeObjectURL(imageInput.objectUrl);
       if (audioMeta?.previewUrl) URL.revokeObjectURL(audioMeta.previewUrl);
+      if (voiceTrack?.objectUrl) URL.revokeObjectURL(voiceTrack.objectUrl);
     },
-    [imageInput, audioMeta],
+    [imageInput, audioMeta, voiceTrack],
   );
 
   // The single "primary input" passed to generate/validate.
@@ -260,6 +279,44 @@ export default function MagicTabPanel({
     setImageInput(null);
   };
 
+  // Voice track (Digital Human): device pick, uploaded to the gallery so the
+  // backend has a URL it can fetch. Mirrors handleImageFile — same upload, same
+  // instant local preview, same failure handling.
+  const handleVoiceTrackFile = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("audio/")) {
+      toast.error("Please choose an audio file.");
+      return;
+    }
+    // The gallery's own ceiling for audio (FILE_LIMITS in utils/helpers.js — it
+    // mirrors the backend's rule), checked here so the user learns it before
+    // waiting on an upload that is going to be rejected.
+    if (file.size > FILE_LIMITS.audio) {
+      toast.error("Audio files must be under 10 MB.");
+      return;
+    }
+    const objectUrl = URL.createObjectURL(file);
+    setUploadingVoice(true);
+    const t = toast.loading("Uploading voice track…");
+    try {
+      const data = await uploadMedia(file);
+      const hosted = pickHostedUrl(data);
+      if (!hosted) throw new Error("Upload succeeded but no URL came back.");
+      setVoiceTrack({ url: hosted, objectUrl });
+      toast.success("Voice track ready", { id: t });
+    } catch (err) {
+      URL.revokeObjectURL(objectUrl);
+      console.error("❌ [magic-studio] voice track upload failed:", err);
+      toast.error(err?.message || "Couldn't upload that audio.", { id: t });
+    } finally {
+      setUploadingVoice(false);
+    }
+  };
+  const clearVoiceTrack = () => {
+    if (voiceTrack?.objectUrl) URL.revokeObjectURL(voiceTrack.objectUrl);
+    setVoiceTrack(null);
+  };
+
   // Audio (Audio to Text): device pick or mic. Runs on-device — nothing uploaded.
   const handleAudioFile = (file) => {
     if (!file) return;
@@ -308,7 +365,13 @@ export default function MagicTabPanel({
       // `description` is this surface's name for the secondary box, not the wire
       // name — each config's `generate` decides what to call it. Mirrors
       // StudioComposer; see the ⚠️ there.
-      values: promptable ? { ...values, description: textInput.trim() } : values,
+      values: {
+        ...values,
+        ...(promptable ? { description: textInput.trim() } : {}),
+        // The second media input, where a tool declares one. Same key the
+        // composer sends it under, so one `generate` reads both surfaces.
+        ...(extraAudio ? { audioUrl: voiceTrack?.url || null } : {}),
+      },
       activeBrand,
     });
   };
@@ -449,7 +512,11 @@ export default function MagicTabPanel({
     // A tool that requires its secondary box can't run without it. Without this
     // the button invites a run that validate() rejects a moment later — see
     // requiresPrompt above.
-    (requiresPrompt && !textInput.trim());
+    (requiresPrompt && !textInput.trim()) ||
+    // Same for a required SECOND media input — a portrait with no voice track
+    // is half a run.
+    uploadingVoice ||
+    (extraAudio && config.extraInput.required && !voiceTrack?.url);
 
   return (
     <div className="flex flex-col gap-4 mx-auto">
@@ -595,6 +662,71 @@ export default function MagicTabPanel({
                 </span>
                 <span className="text-[11px] text-gray-400 text-center px-4">
                   Choose an image from your device.
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* The second input, where a tool declares one — Digital Human's voice
+            track. It is what the portrait is lip-synced to, so it sits directly
+            under the portrait rather than among the options. */}
+        {extraAudio && (
+          <div>
+            <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
+              {config.extraInput.label}
+            </label>
+            <input
+              ref={voiceFileRef}
+              type="file"
+              accept="audio/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) handleVoiceTrackFile(file);
+              }}
+            />
+            {voiceTrack ? (
+              <div className="flex items-center gap-3 rounded-2xl border-2 border-blue-500 bg-surface px-3 py-2.5">
+                {/* The local file, not the hosted URL — it plays instantly and
+                    without a round trip, and it is the same bytes. */}
+                <audio
+                  src={voiceTrack.objectUrl || voiceTrack.url}
+                  controls
+                  preload="metadata"
+                  className="h-8 min-w-0 flex-1"
+                />
+                <button
+                  onClick={() => voiceFileRef.current?.click()}
+                  className="shrink-0 text-[11px] font-semibold text-gray-700 hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  Change
+                </button>
+                <button
+                  onClick={clearVoiceTrack}
+                  aria-label="Remove the voice track"
+                  className="shrink-0 text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => voiceFileRef.current?.click()}
+                disabled={uploadingVoice}
+                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-6 flex flex-col items-center justify-center gap-2 text-sm text-gray-500 hover:border-blue-400 hover:bg-blue-50/40 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {uploadingVoice ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                ) : (
+                  <Upload className="w-5 h-5" />
+                )}
+                <span className="text-blue-600 font-semibold">
+                  {uploadingVoice ? "Uploading…" : "Upload a voice track"}
+                </span>
+                <span className="text-[11px] text-gray-400 text-center px-4">
+                  {config.extraInput.emptyHint || config.extraInput.helper}
                 </span>
               </button>
             )}
@@ -905,6 +1037,22 @@ export default function MagicTabPanel({
                           if (config?.promptFrom?.option === option.key) {
                             const seeded = config.promptFrom.resolve(val);
                             if (seeded) setTextInput(seeded);
+                          }
+                          // …and one may select the source image with it — a
+                          // template is a prompt AND the frame it was written
+                          // for. Mirrors StudioComposer; see the ⚠️ there.
+                          // The URL is app-hosted (/public), so it needs no
+                          // upload and no object URL to clean up.
+                          if (config?.imageFrom?.option === option.key) {
+                            const seededImage = config.imageFrom.resolve(val);
+                            if (seededImage) {
+                              clearImage();
+                              setImageInput({
+                                url: seededImage,
+                                preview: seededImage,
+                                objectUrl: null,
+                              });
+                            }
                           }
                           // See OptionPanelBody — a colour drag or a hex being
                           // typed fires this continuously and must not collapse

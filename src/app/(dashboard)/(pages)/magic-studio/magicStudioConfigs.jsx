@@ -92,10 +92,12 @@ import {
   saveTextToAudio,
 } from "@/(lib)/magic-studio-api";
 import {
+  CATEGORY_ORDER as TEMPLATE_CATEGORY_ORDER,
   CUSTOM_EFFECT,
-  VIDEO_EFFECTS,
+  VIDEO_EFFECT_TEMPLATES,
+  effectImage,
   effectPrompt,
-} from "@/app/(components)/magic-studio/videoEffects";
+} from "@/app/(components)/magic-studio/videoEffectTemplates";
 import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
 import {
   backendVoiceId,
@@ -2612,40 +2614,62 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "video",
     generateLabel: "Apply effect",
     historyTool: "video_effects",
-    // ⚠️ REQUIRED, BUT RARELY TYPED. Picking any effect but "Write your own"
+    // ⚠️ REQUIRED, BUT RARELY TYPED. Applying any template but "Write your own"
     // fills the box for you (see promptFrom), so in practice this gate only
     // stops an empty run on the custom card. It still has to be a gate: the
-    // effect IS the prompt, and an empty one is a tool with nothing to do.
+    // template IS the prompt, and an empty one is a tool with nothing to do.
     requiresPrompt: true,
     /**
-     * Picking an effect writes its words into the composer's textarea.
+     * Applying a template writes its words into the composer's textarea.
      *
-     * ⚠️ THIS IS WHY THE EFFECT IS EDITABLE rather than a black box. The
+     * ⚠️ THIS IS WHY A TEMPLATE IS EDITABLE rather than a black box. The
      * catalogue's prompt lands in the box as a starting point and the user
      * changes whatever they like before generating — which also means what runs
      * is always exactly what they can see, with no hidden second half.
      */
     promptFrom: {
-      option: "effect",
+      option: "template",
       resolve: effectPrompt,
+    },
+    /**
+     * …and selects the still that prompt was written for.
+     *
+     * ⚠️ THE PAIR IS THE WHOLE POINT. A template's clip is what that prompt did
+     * to that exact frame; seeding only the words would leave a first-time user
+     * pressing Generate against someone else's brief and their own unrelated
+     * photo, and blaming the tool for the result. Selecting both means Generate
+     * reproduces what the card just showed them — and swapping in their own
+     * picture afterwards is one click.
+     *
+     * "Write your own" resolves to "" and leaves the current image alone; it
+     * must never clear a picture the user has already chosen.
+     */
+    imageFrom: {
+      option: "template",
+      resolve: effectImage,
     },
     inputConfig: {
       label: "Source image",
       helper: "Choose an image from your library, the web, or upload one.",
       placeholder:
-        "Pick an effect above to fill this in — or describe the motion yourself.",
+        "Use a template above to fill this in — or describe the motion yourself.",
       // Roomier than the other prompt tools': the catalogue's own prompts run to
       // ~450 characters, and this box has to hold one with room to edit it.
       maxLength: 800,
     },
     options: [
       {
-        key: "effect",
-        label: "Effect",
-        panel: "cards",
-        width: 380,
+        key: "template",
+        label: "Template",
+        panel: "templates",
+        // Three cards to a row, each showing a 16:9 clip — the width is what
+        // that costs. ToolbarChip clamps it to the viewport on small screens,
+        // where the grid drops to two columns on its own.
+        width: 720,
         default: CUSTOM_EFFECT,
-        items: VIDEO_EFFECTS,
+        items: VIDEO_EFFECT_TEMPLATES,
+        // Drives the headings inside the panel; the catalog owns the order.
+        categoryOrder: TEMPLATE_CATEGORY_ORDER,
       },
       VIDEO_DURATION_OPTION,
     ],
@@ -2659,11 +2683,11 @@ export const MAGIC_STUDIO_CONFIGS = {
       const payload = {
         tool: "video_effects",
         image_url: input,
-        // ⚠️ THE WORDS, NEVER AN EFFECT ID. The whole template travels inside
+        // ⚠️ THE WORDS, NEVER A TEMPLATE ID. The whole template travels inside
         // `prompt` — the convention Product Video settled on for the same
         // reason: an id means the server holds a second copy of every look, and
         // it stops describing what ran the moment anyone edits the box. See
-        // videoEffects.js.
+        // videoEffectTemplates.js.
         prompt: values.description.trim(),
         duration: values.duration,
       };

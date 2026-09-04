@@ -16,8 +16,14 @@
  *                                       placeholder and length cap
  *     input: "image"                    a source picture, uploaded to get a
  *                                       hosted URL the backend can read
+ *     input: "video"                    a source clip, picked from the gallery
+ *                                       (already hosted — nothing is read here)
  *     input: "audio"                    a file or a live mic take, kept local
  *     input: "persona"                  four fields, folded into a chip
+ *
+ * A tool that starts from a picture or a clip may ALSO take words, and the two
+ * flavours differ only in whether they gate the submit button: `describable` is
+ * an optional note, `requiresPrompt` is the real input. See both below.
  *
  * plus that tool's own options (style, size, quality, voice, language…) as chips
  * along the toolbar, each opening the SHARED OptionPanelBody — the same rich
@@ -40,8 +46,10 @@ import {
   ArrowUp,
   AudioLines,
   Clock,
+  Cpu,
   Drama,
   FileText,
+  FileVideo,
   Gauge,
   Gem,
   ImagePlus,
@@ -49,6 +57,9 @@ import {
   LayoutGrid,
   Loader2,
   Mic,
+  MonitorPlay,
+  Move3d,
+  PaintBucket,
   Palette,
   SwatchBook,
   Ratio,
@@ -57,6 +68,8 @@ import {
   Target,
   Upload,
   User,
+  Volume2,
+  WandSparkles,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -118,6 +131,15 @@ const OPTION_ICONS = {
   language: Languages,
   quality: Gem,
   contentType: LayoutGrid,
+  // The video tools' settings.
+  engine: Cpu,
+  motion: Move3d,
+  resolution: MonitorPlay,
+  sound: Volume2,
+  // A paint bucket rather than the colour chip's swatch book: this row REPLACES
+  // what is behind the subject, where `color` only tints what gets painted.
+  background: PaintBucket,
+  effect: WandSparkles,
 };
 
 /**
@@ -131,6 +153,62 @@ const OPTION_ICONS = {
 
 /** Audio files above this are refused before anything is read. Matches the modal. */
 const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
+
+/**
+ * What the browser can tell us about a picked video, or null.
+ *
+ * ⚠️ IT REPORTS, IT DOES NOT REFUSE. The obvious next step is to reject a source
+ * that is too long before the run rather than after it — and it is deliberately
+ * not done here, because there is no duration limit to test against: the only
+ * cap anything in this app actually knows is the gallery's 50 MB on the FILE
+ * (FILE_LIMITS in utils/helpers.js), which the picker has already enforced by
+ * the time a URL reaches us. Inventing a threshold would refuse clips that
+ * process fine. When a real limit exists, this is where the check goes — the
+ * numbers it needs are already here.
+ *
+ * ⚠️ IT NEVER REJECTS, EITHER. A CDN that doesn't send CORS headers, a codec the
+ * browser can't demux, a slow connection — all of them end with no metadata, and
+ * none of them is a reason to stop someone generating. The strip simply shows
+ * the clip without a duration.
+ *
+ * @param {string} url A hosted video URL.
+ * @returns {Promise<{duration: number, width: number, height: number}|null>}
+ */
+function probeVideo(url) {
+  return new Promise((resolve) => {
+    const el = document.createElement("video");
+    el.preload = "metadata";
+    // Belt and braces: a source that never fires either event would leave this
+    // promise pending forever, and the strip waiting on it.
+    const timer = setTimeout(() => {
+      console.warn("⚠️ [magic-studio] video metadata timed out");
+      resolve(null);
+    }, 8000);
+    const done = (value) => {
+      clearTimeout(timer);
+      el.removeAttribute("src");
+      resolve(value);
+    };
+    el.onloadedmetadata = () =>
+      done({
+        duration: el.duration,
+        width: el.videoWidth,
+        height: el.videoHeight,
+      });
+    el.onerror = () => {
+      console.warn("⚠️ [magic-studio] couldn't read video metadata");
+      done(null);
+    };
+    el.src = url;
+  });
+}
+
+/** Seconds → "1:04". Blank for anything unreadable, so the strip just omits it. */
+const formatDuration = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "";
+  const whole = Math.round(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+};
 
 /**
  * What a run will produce — "image" | "video" | "audio" | "text".
@@ -212,6 +290,30 @@ export default function StudioComposer({
    */
   const describable = !typeable && config?.describable === true;
 
+  /**
+   * Tools whose secondary box is the REAL input, not a note.
+   *
+   * ⚠️ THE DIFFERENCE FROM `describable` IS THE SUBMIT BUTTON. A described run
+   * works perfectly with the box left alone, so `describable` never touches
+   * `ready`. Digital Human's script and Video Effects' motion prompt are the
+   * opposite: without words there is nothing to generate. Left as a
+   * describable-style optional box, the button would invite a run that
+   * `validate()` then rejects — a failure the user could see coming and the UI
+   * chose not to show them.
+   *
+   * ⚠️ A SEPARATE FLAG RATHER THAN A WIDENED `describable`, because the payload
+   * keys off that one: at submit, `describable` is what sends the words as
+   * `description`. Two shipped tools depend on that meaning, so requiring text
+   * had to be a new question rather than a new value for the old one.
+   */
+  const requiresPrompt = !typeable && config?.requiresPrompt === true;
+
+  /**
+   * Whether this tool has a secondary text box at all, of either kind. What
+   * decides the textarea renders; `requiresPrompt` decides whether it gates.
+   */
+  const promptable = describable || requiresPrompt;
+
   // ── On-device engines. Idle until their tool runs; the same shared engines
   //    the modal and the media picker use, so a model already warmed by one
   //    surface is warm for this one too. ──
@@ -265,7 +367,27 @@ export default function StudioComposer({
   const [image, setImage] = useState(null);
   const [audio, setAudio] = useState(null); // File
   const [audioPreview, setAudioPreview] = useState(null); // object URL
-  const [pickerOpen, setPickerOpen] = useState(false);
+  /**
+   * The picked source video — { url, meta } where `meta` is what the browser
+   * could read off it ({ duration, width, height }) or null.
+   *
+   * ⚠️ ALWAYS A HOSTED URL, NEVER A `File`. The video tools send `video_url` for
+   * the backend to fetch server-side, and every video reaching this composer
+   * comes out of the gallery already hosted — the picker's own Library tab is
+   * what uploads one. That is why there is no size check, no object URL and no
+   * MIME fixer here the way there is for audio: nothing is read on this machine.
+   */
+  const [video, setVideo] = useState(null);
+  /**
+   * Which source the media picker is open for — null | "image" | "video".
+   *
+   * ⚠️ A TARGET, NOT A BOOLEAN. It used to be `pickerOpen` and `onApply` always
+   * called the image setter, which was fine while one kind of tool could open
+   * it. Two things now depend on which one asked: the `allowedTypes` the picker
+   * is given, and which setter the result goes to. A boolean here would open a
+   * video tool's picker onto the image library.
+   */
+  const [pickerTarget, setPickerTarget] = useState(null);
 
   // One key, so opening a chip's panel closes whichever was open. The model
   // menu shares it, which is why it can't be the odd one out with its own flag.
@@ -304,12 +426,14 @@ export default function StudioComposer({
         return text;
       case "image":
         return image?.url || null;
+      case "video":
+        return video?.url || null;
       case "audio":
         return audio;
       default:
         return null; // persona generates from values.* alone
     }
-  }, [kind, text, image, audio]);
+  }, [kind, text, image, video, audio]);
 
   const { generating, error, generate } = useMagicGenerate({
     config,
@@ -402,6 +526,31 @@ export default function StudioComposer({
     setImage({ url: src, preview: src });
   };
 
+  /**
+   * A video was chosen in the picker — always from the user's gallery, so it is
+   * already hosted and is used exactly as handed over (same rule as the image
+   * above, and the same reason: nothing is copied on the way in).
+   *
+   * The clip is usable the instant it is set; the metadata probe only fills in
+   * the duration and size shown in the strip, so it runs after rather than being
+   * awaited. A probe that fails or is still running leaves `meta` null and costs
+   * nothing but that one line of detail.
+   */
+  const handlePickedVideo = (src) => {
+    if (!src) return;
+    console.log("🎬 [magic-studio] source video:", src);
+    setVideo({ url: src, meta: null });
+    probeVideo(src).then((meta) => {
+      if (!meta) return;
+      console.log(
+        `🎬 [magic-studio] ${formatDuration(meta.duration)} · ${meta.width}×${meta.height}`,
+      );
+      // Keyed on the URL so a probe that resolves after the user has already
+      // picked a different clip can't write its numbers onto the new one.
+      setVideo((prev) => (prev?.url === src ? { ...prev, meta } : prev));
+    });
+  };
+
   // Audio to Text runs entirely on-device — this file is never uploaded.
   const handleAudioFile = (file) => {
     if (!file) return;
@@ -416,6 +565,7 @@ export default function StudioComposer({
   const recorder = useMicRecorder(handleAudioFile);
 
   const clearImage = () => setImage(null);
+  const clearVideo = () => setVideo(null);
 
   /**
    * Fill the persona from one of the config's worked examples.
@@ -455,7 +605,12 @@ export default function StudioComposer({
   const ready = (() => {
     if (generating) return false;
     if (typeable) return text.trim().length > 0;
+    // A tool that REQUIRES its secondary box needs both halves — the source and
+    // the words. Checked once here rather than per kind, so a future
+    // `requiresPrompt` tool on any input kind is gated the same way.
+    if (requiresPrompt && !text.trim()) return false;
     if (kind === "image") return !!image?.url;
+    if (kind === "video") return !!video?.url;
     if (kind === "audio") return !!audio;
     if (kind === "persona") return !!values.personaName?.trim();
     return true;
@@ -493,10 +648,17 @@ export default function StudioComposer({
         ...values,
         model,
         variations: count,
-        // Only the describable tools carry one. On a typed tool these same
-        // words are the primary input and go up as `prompt` — sending them
-        // twice under two names would be the same brief, doubled.
-        ...(describable ? { description: typed } : {}),
+        // ⚠️ `description` IS THE COMPOSER'S NAME FOR THIS BOX, NOT THE WIRE
+        // NAME. It is simply "whatever was typed in the secondary textarea";
+        // each config's `generate` decides what to call it on the way out —
+        // `description` for Image to Variations and the persona generator,
+        // `prompt` for Image to Video and Video Effects, `script` for Digital
+        // Human. Renaming it here would mean touching every one of them.
+        //
+        // On a typed tool these same words ARE the primary input and go up as
+        // `prompt` already — sending them twice under two names would be the
+        // same brief, doubled.
+        ...(promptable ? { description: typed } : {}),
       },
       activeBrand,
     });
@@ -542,6 +704,37 @@ export default function StudioComposer({
         </div>
       )}
 
+      {/* The picked clip. A real <video> rather than a thumbnail: the picker
+          hands back no poster for video, so an <img> here would be a broken
+          frame, and being able to scrub the source before spending minutes
+          rendering it is worth the element. `preload="metadata"` keeps that to
+          a header read rather than the whole file. */}
+      {kind === "video" && video && (
+        <div className="flex items-center gap-3 border-b border-gray-100 px-4 pb-3 pt-3">
+          <video
+            src={video.url}
+            controls
+            preload="metadata"
+            className="h-16 w-28 shrink-0 rounded-lg bg-black object-cover"
+          />
+          <span className="min-w-0 flex-1 truncate text-xs text-gray-500">
+            {/* Whatever the probe could read, and nothing invented when it
+                couldn't — see probeVideo. */}
+            {video.meta
+              ? `Source video · ${formatDuration(video.meta.duration)} · ${video.meta.width}×${video.meta.height}`
+              : "Source video ready"}
+          </span>
+          <button
+            type="button"
+            onClick={clearVideo}
+            aria-label="Remove source video"
+            className="shrink-0 cursor-pointer rounded p-1 text-gray-400 transition-colors hover:text-red-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {kind === "audio" && audio && (
         <div className="flex items-center gap-3 border-b border-gray-100 px-4 pb-3 pt-3">
           <audio
@@ -566,25 +759,27 @@ export default function StudioComposer({
           rows of room to read back what you wrote before committing to it.
           Still `resize-none`: the box floats over the canvas on the bottom
           edge, and a drag handle here would grow it up over the results. */}
-      {typeable || describable ? (
+      {typeable || promptable ? (
         <textarea
-          rows={typeable ? 4 : 3}
+          // A required box gets a typed tool's room, because that is what it is
+          // — the difference between a script and a footnote about a picture.
+          rows={typeable || requiresPrompt ? 4 : 3}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={handleKeyDown}
           maxLength={inputConfig.maxLength}
           placeholder={
-            typeable
+            typeable || requiresPrompt
               ? inputConfig.placeholder || "Describe what you want…"
               : inputConfig.placeholder || "Add a description (optional)…"
           }
           aria-label={
-            typeable
+            typeable || requiresPrompt
               ? inputConfig.label || `Input for ${tool.label}`
               : `Optional description for ${tool.label}`
           }
           className={`w-full resize-none bg-transparent px-5 pt-5 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400 ${
-            typeable ? "min-h-24" : "min-h-16"
+            typeable || requiresPrompt ? "min-h-24" : "min-h-16"
           }`}
         />
       ) : null}
@@ -598,13 +793,26 @@ export default function StudioComposer({
       {!typeable && (
         <p
           className={
-            describable
+            promptable
               ? "px-5 pb-1 pt-1 text-xs text-gray-400"
               : "min-h-24 px-5 pt-5 text-sm text-gray-400"
           }
         >
           {kind === "image" && !image && (inputConfig.helper || "Choose a source image to begin.")}
-          {kind === "image" && image && "Set your options, then generate."}
+          {/* ⚠️ ON A REQUIRED-PROMPT TOOL THE SOURCE IS ONLY HALF THE ANSWER, so
+              "set your options, then generate" would be wrong the moment the
+              picture lands and the box is still empty — the button stays
+              disabled and this line would be the only thing claiming otherwise.
+              It names the half that is missing instead. */}
+          {kind === "image" &&
+            image &&
+            (requiresPrompt && !text.trim()
+              ? "Now write what you want above."
+              : "Set your options, then generate.")}
+          {kind === "video" &&
+            !video &&
+            (inputConfig.helper || "Choose a source video to begin.")}
+          {kind === "video" && video && "Set your options, then generate."}
           {kind === "audio" &&
             (audio
               ? "Set your options, then transcribe."
@@ -646,12 +854,29 @@ export default function StudioComposer({
         {kind === "image" && (
           <button
             type="button"
-            onClick={() => setPickerOpen(true)}
+            onClick={() => setPickerTarget("image")}
             aria-label={image ? "Replace source image" : "Choose a source image"}
             title={image ? "Replace source image" : "Choose a source image"}
             className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg px-1.5 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
           >
             <ImagePlus className="h-4 w-4 shrink-0" />
+          </button>
+        )}
+
+        {/* Same affordance as the image picker beside it, pointed at the video
+            library. No device-upload button here on purpose: the picker's own
+            Library tab uploads into the gallery, which is where these clips have
+            to end up anyway to have a URL the backend can fetch. A second
+            upload path in the composer would be the same job done twice. */}
+        {kind === "video" && (
+          <button
+            type="button"
+            onClick={() => setPickerTarget("video")}
+            aria-label={video ? "Replace source video" : "Choose a source video"}
+            title={video ? "Replace source video" : "Choose a source video"}
+            className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg px-1.5 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            <FileVideo className="h-4 w-4 shrink-0" />
           </button>
         )}
 
@@ -866,6 +1091,20 @@ export default function StudioComposer({
               voicePreview={voicePreview}
               onSelect={(val, opts) => {
                 setValue(option.key, val);
+                // ⚠️ ONE OPTION MAY WRITE INTO THE PROMPT BOX. A config declares
+                // it with `promptFrom`, and Video Effects is why: an effect IS a
+                // written prompt, so picking one fills the box with its words
+                // and the user edits from there. That is what keeps the effect
+                // editable instead of a black box, and it means what runs is
+                // always exactly what is on screen.
+                //
+                // Only when there are words to seed — the "write your own" card
+                // resolves to "" and must LEAVE the box alone rather than wipe
+                // whatever was being typed in it.
+                if (config?.promptFrom?.option === option.key) {
+                  const seeded = config.promptFrom.resolve(val);
+                  if (seeded) setText(seeded);
+                }
                 // `keepOpen` comes from controls that fire continuously — a
                 // colour drag, a hex being typed — where closing on the first
                 // change would shut the panel before anything was chosen.
@@ -998,27 +1237,34 @@ export default function StudioComposer({
           Its Magic Studio tab is left out. You are already in Magic Studio, and
           offering the tools again inside the picker only invites the question of
           which one you are actually using. */}
-      {pickerOpen && (
+      {pickerTarget && (
         <MediaPickerModal
           isOpen
           initialTab="library"
-          tabs={["search", "library"]}
-          allowedTypes={["image"]}
+          // ⚠️ NO SEARCH TAB FOR VIDEO. That tab is a Pexels IMAGE search, so on
+          // a video tool it would offer results that can never be picked. The
+          // Library tab is also where a clip gets uploaded, which is the only
+          // route a video has into these tools.
+          tabs={pickerTarget === "video" ? ["library"] : ["search", "library"]}
+          allowedTypes={[pickerTarget]}
           maxSelectable={1}
           activeBrand={activeBrand}
-          onClose={() => setPickerOpen(false)}
-          onCancel={() => setPickerOpen(false)}
+          onClose={() => setPickerTarget(null)}
+          onCancel={() => setPickerTarget(null)}
           onApply={(images, media) => {
-            setPickerOpen(false);
+            const target = pickerTarget;
+            setPickerTarget(null);
             // The picker returns two buckets and hands back objects, not URLs —
-            // whichever produced the pick, all we want is the first `src`.
+            // images land in the first, video and audio in the second. Which
+            // one it came from doesn't matter; all we want is the first `src`.
             const picked = [...(images || []), ...(media || [])][0];
             const src = typeof picked === "string" ? picked : picked?.src;
             if (!src) {
-              console.warn("⚠️ [magic-studio] picker applied with no image");
+              console.warn(`⚠️ [magic-studio] picker applied with no ${target}`);
               return;
             }
-            handlePickedImage(src);
+            if (target === "video") handlePickedVideo(src);
+            else handlePickedImage(src);
           }}
         />
       )}

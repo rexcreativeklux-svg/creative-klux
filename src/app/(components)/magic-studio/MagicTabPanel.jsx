@@ -115,6 +115,19 @@ export default function MagicTabPanel({
     !["prompt", "script", "text"].includes(config?.input) &&
     config?.describable === true;
 
+  /**
+   * Tools whose secondary box is REQUIRED rather than a note — Digital Human's
+   * script, Video Effects' motion prompt. Mirrors StudioComposer; see the longer
+   * note there for why this is a separate flag rather than a widened
+   * `describable` (the payload keys off that one).
+   */
+  const requiresPrompt =
+    !["prompt", "script", "text"].includes(config?.input) &&
+    config?.requiresPrompt === true;
+
+  /** Either kind of secondary box — what decides the textarea renders. */
+  const promptable = describable || requiresPrompt;
+
   // ── On-device engines (idle until their tool runs; same shared engines the
   //    standalone modal uses). ──
   const tts = useTextToSpeech();
@@ -292,7 +305,10 @@ export default function MagicTabPanel({
       // On a describable tool the box holds a note about the source, not the
       // source itself — it rides in `values` and the config sends it as
       // `description`. Typed tools already have these words as primaryInput.
-      values: describable ? { ...values, description: textInput.trim() } : values,
+      // `description` is this surface's name for the secondary box, not the wire
+      // name — each config's `generate` decides what to call it. Mirrors
+      // StudioComposer; see the ⚠️ there.
+      values: promptable ? { ...values, description: textInput.trim() } : values,
       activeBrand,
     });
   };
@@ -429,7 +445,11 @@ export default function MagicTabPanel({
     generating ||
     uploadingImage ||
     Boolean(voicePreview.loadingId) ||
-    recorder.recording;
+    recorder.recording ||
+    // A tool that requires its secondary box can't run without it. Without this
+    // the button invites a run that validate() rejects a moment later — see
+    // requiresPrompt above.
+    (requiresPrompt && !textInput.trim());
 
   return (
     <div className="flex flex-col gap-4 mx-auto">
@@ -815,11 +835,16 @@ export default function MagicTabPanel({
             about the thing above it, and putting it first would read as the
             primary field on a tool where it is the one part you can skip.
             No "Inspire me" here — see the ⚠️ on persona_generator's inputConfig. */}
-        {describable && (
+        {promptable && (
           <div>
             <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
-              Description{" "}
-              <span className="font-medium text-gray-400">(optional)</span>
+              {/* A required box is the tool's real input, so it gets the tool's
+                  own word for it and no "(optional)" — that tag on a field the
+                  submit button waits for is the label contradicting the UI. */}
+              {requiresPrompt ? ic.label || "Prompt" : "Description"}{" "}
+              {!requiresPrompt && (
+                <span className="font-medium text-gray-400">(optional)</span>
+              )}
             </label>
             <div className="relative">
               <textarea
@@ -873,6 +898,14 @@ export default function MagicTabPanel({
                         voicePreview={voicePreview}
                         onSelect={(val, opts) => {
                           setValue(option.key, val);
+                          // An option that seeds the prompt box — declared by
+                          // the config as `promptFrom`. Mirrors StudioComposer;
+                          // see the ⚠️ there. Only when there are words to seed,
+                          // so a "write your own" card leaves the box alone.
+                          if (config?.promptFrom?.option === option.key) {
+                            const seeded = config.promptFrom.resolve(val);
+                            if (seeded) setTextInput(seeded);
+                          }
                           // See OptionPanelBody — a colour drag or a hex being
                           // typed fires this continuously and must not collapse
                           // the row it is being typed into.

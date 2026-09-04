@@ -24,6 +24,16 @@ export const MAGIC_SUBTABS = [
   { label: "Script to Voiceover to Video", id: "script_to_voiceover" },
   { label: "Audio to Text", id: "audio_to_text" },
   { label: "Persona-based Generator", id: "persona_generator" },
+  // ── The video tools ────────────────────────────────────────────────────────
+  // ⚠️ ONLY THE THREE THAT START FROM AN IMAGE. Video Background Remover and
+  // Video Enhancer both take a VIDEO as their source, and this panel has no
+  // video input — it renders one attach control per `config.input` and would
+  // show those two as a tool with options and nothing to run them on. They stay
+  // on their own routes, where the composer does have that input. Adding them
+  // here needs the video branch mirrored into MagicTabPanel first.
+  { label: "Image to Video", id: "image_to_video" },
+  { label: "Digital Human Video", id: "digital_human" },
+  { label: "Video Effects", id: "video_effects" },
 ];
 
 /** Resolve the config id for a sub-tab label (null when unknown). */

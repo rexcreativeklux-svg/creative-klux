@@ -53,6 +53,71 @@ import {
 export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
   const { panel, items } = option;
 
+  // A number picked off a continuous range (Duration).
+  //
+  // ⚠️ A SLIDER, NOT A LIST, AND THE RANGE IS WHY — the same reasoning the
+  // composer's variations control is built on. Thirty entries is a menu you
+  // scroll to answer "how long", a question you already know the answer to
+  // before you open it; dragging reaches any of them in one gesture.
+  //
+  // ⚠️ IT COMMITS WITH `keepOpen`, WHICH IS NOT OPTIONAL HERE. `onChange` fires
+  // on every step of a drag, and the surfaces that close on select would vanish
+  // mid-gesture on whatever number the thumb happened to pass through first.
+  //
+  // ⚠️ THE VALUE IS WRITTEN BACK AS A STRING. Every options value in these
+  // configs is a string and rides into the payload untouched (`duration:
+  // values.duration`), so a slider that started emitting numbers would silently
+  // change what goes on the wire for one option and no other.
+  if (panel === "slider") {
+    const min = Number(option.min ?? 1);
+    const max = Number(option.max ?? 10);
+    const step = Number(option.step ?? 1);
+    const unit = option.unit || "";
+    const raw = Number(value ?? option.default);
+    const current = Number.isFinite(raw) ? Math.min(max, Math.max(min, raw)) : min;
+    const hint = option.hint?.(current);
+
+    return (
+      <div className="flex flex-col gap-2.5 px-3 pb-3 pt-2.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-sm font-semibold tabular-nums text-gray-900">
+            {current}
+            {unit}
+          </span>
+          {hint && (
+            <span className="min-w-0 truncate text-[11px] text-gray-400">
+              {hint}
+            </span>
+          )}
+        </div>
+
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={current}
+          onChange={(event) =>
+            onSelect(String(Number(event.target.value)), { keepOpen: true })
+          }
+          aria-label={option.label}
+          className="w-full cursor-pointer accent-blue-600"
+        />
+
+        <div className="flex justify-between text-[10px] tabular-nums text-gray-400">
+          <span>
+            {min}
+            {unit}
+          </span>
+          <span>
+            {max}
+            {unit}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   // Image cards: thumbnail + label + description (Visual style).
   if (panel === "cards") {
     return (
@@ -423,6 +488,11 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
 export function summarize(option, value) {
   const found = option.items?.find((i) => i.value === value);
   if (found) return found.label;
+  // A slider has no items to look a label up in — its value IS the label, and
+  // the unit is what makes "7" read as a length rather than a count.
+  if (option.panel === "slider") {
+    return `${value ?? option.default ?? ""}${option.unit || ""}`;
+  }
   // A colour typed into the hex box is a legitimate value with no item behind
   // it — show it as the hex, uppercased, rather than falling through to a raw
   // lowercase string beside a row of proper labels.

@@ -90,7 +90,10 @@ import {
   useMicRecorder,
   useVoicePreview,
 } from "@/app/(components)/magic-studio/magicEngineHooks";
-import { OptionPanelBody } from "@/app/(components)/magic-studio/magicPanelUI";
+import {
+  OptionPanelBody,
+  summarize,
+} from "@/app/(components)/magic-studio/magicPanelUI";
 import useMagicGenerate, {
   MAX_VARIATIONS,
 } from "@/app/(components)/magic-studio/useMagicGenerate";
@@ -1081,6 +1084,18 @@ export default function StudioComposer({
             // The config's own glyph first, then the shared one for that
             // setting. Neither → a text chip, which still works.
             icon={option.icon || OPTION_ICONS[option.key]}
+            // ⚠️ SLIDERS WEAR THEIR VALUE; EVERYTHING ELSE WEARS ITS GLYPH. The
+            // chip deliberately doesn't show the current choice (see its ⚠️) —
+            // the open panel marks it with a tick. A continuous range has no
+            // tick to read: the only way to know a clip is set to 7s and not 5s
+            // would be to open the panel, on the one setting where the number
+            // is the whole point before you hit send. Same call the variations
+            // control makes with its "3x".
+            badge={
+              option.panel === "slider"
+                ? summarize(option, values[option.key])
+                : undefined
+            }
             // The config declares how wide its panel needs to be — a grid of
             // style cards needs more room than a list of aspect ratios.
             width={option.width || 340}

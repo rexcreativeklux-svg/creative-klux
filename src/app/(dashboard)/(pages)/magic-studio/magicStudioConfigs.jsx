@@ -1199,6 +1199,49 @@ const resolutionOption = (values, fallback) => ({
   items: values.map((value) => RESOLUTION_ITEMS[value]),
 });
 
+/**
+ * How long a generated clip runs, in seconds.
+ *
+ * ⚠️ ONE CONSTANT FOR ALL THREE VIDEO TOOLS, and the history is why. Text to
+ * Video, Image to Video and Video Effects each carried their own list, and they
+ * disagreed — 5/10 on two of them, 3/5/8/10 on the third — so the same setting
+ * offered different answers depending on which tool you opened it from. Sharing
+ * it means the accepted range is stated once and cannot drift again.
+ *
+ * ⚠️ THE RANGE IS THE PROVIDER'S, NOT A UI CHOICE. These lists were once
+ * narrowed to the literals '5' and '10' because the model behind them
+ * (fal-ai/kling-video) rejected everything else with "Input should be '5' or
+ * '10'" — a failure that only surfaced once the job had been queued and come
+ * back, so it read as "the tool is broken" rather than as an invalid option. The
+ * backend now accepts any whole number of seconds from 1 to 30, which is what
+ * this slider offers. If a model is ever swapped in behind `startGeneration`
+ * that narrows it again, change `min`/`max` HERE and all three tools follow.
+ *
+ * A slider rather than a list for the same reason the variations control is one:
+ * thirty entries is a menu you have to scroll to answer a question you already
+ * know the answer to. See the `slider` panel in OptionPanelBody.
+ */
+const VIDEO_DURATION_OPTION = {
+  key: "duration",
+  label: "Duration",
+  panel: "slider",
+  // Matches the variations panel, which is the control this one is modelled on.
+  width: 260,
+  min: 1,
+  max: 30,
+  step: 1,
+  unit: "s",
+  // A string, like every other option value here — it rides into the payload
+  // untouched, and the provider has always been given these as strings.
+  default: "5",
+  hint: (seconds) =>
+    seconds <= 5
+      ? "Quick to render"
+      : seconds <= 10
+        ? "Short form"
+        : "Longer clips take longer to render",
+};
+
 /** Whether the clip comes back with audio. */
 const SOUND_OPTION = {
   key: "sound",
@@ -1438,33 +1481,7 @@ export const MAGIC_STUDIO_CONFIGS = {
           ),
         ],
       },
-      {
-        key: "duration",
-        label: "Duration",
-        panel: "list",
-        width: 320,
-        // ⚠️ FIVE AND TEN ARE THE ONLY VALUES THE PROVIDER ACCEPTS. The video
-        // model behind this tool (fal-ai/kling-video) validates `duration`
-        // against the literals '5' and '10' and rejects the request outright
-        // otherwise:
-        //
-        //   Input should be '5' or '10'
-        //
-        // This list used to offer 1, 2, 3, 15 and 30 as well, and DEFAULT TO 3 —
-        // so five of the seven choices failed and the default was one of them.
-        // The failure only surfaces once the job has been queued and come back,
-        // which is why it read as "text to video is broken" rather than as an
-        // invalid option.
-        //
-        // Do not add durations here to widen the menu. The provider's contract
-        // is what decides this list; if a different model is swapped in behind
-        // `startVideoGeneration`, change these to match ITS accepted values.
-        default: "5",
-        items: [
-          { value: "5", label: "5 seconds", desc: "Short clip", icon: Clock },
-          { value: "10", label: "10 seconds", desc: "Short form", icon: Clock },
-        ],
-      },
+      VIDEO_DURATION_OPTION,
       {
         key: "ratio",
         label: "Aspect ratio",
@@ -2376,21 +2393,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     options: [
       ENGINE_OPTION,
       MOTION_OPTION,
-      {
-        key: "duration",
-        label: "Duration",
-        panel: "list",
-        width: 320,
-        // Matches text_to_video's pair deliberately — see the ⚠️ there. Both
-        // tools render through the same provider contract, and a duration this
-        // one offers that the other refuses would be a menu entry that fails
-        // only after the job has been queued and come back.
-        default: "5",
-        items: [
-          { value: "5", label: "5 seconds", desc: "Short clip", icon: Clock },
-          { value: "10", label: "10 seconds", desc: "Short form", icon: Clock },
-        ],
-      },
+      VIDEO_DURATION_OPTION,
       {
         key: "ratio",
         label: "Aspect ratio",
@@ -2634,19 +2637,7 @@ export const MAGIC_STUDIO_CONFIGS = {
         default: CUSTOM_EFFECT,
         items: VIDEO_EFFECTS,
       },
-      {
-        key: "duration",
-        label: "Duration",
-        panel: "list",
-        width: 320,
-        default: "5",
-        items: [
-          { value: "3", label: "3 seconds", desc: "Quick beat", icon: Clock },
-          { value: "5", label: "5 seconds", desc: "Recommended", icon: Clock },
-          { value: "8", label: "8 seconds", desc: "Room to breathe", icon: Clock },
-          { value: "10", label: "10 seconds", desc: "Short form", icon: Clock },
-        ],
-      },
+      VIDEO_DURATION_OPTION,
     ],
     validate: ({ input, values }) => {
       if (!input) return "Please pick a source image first.";

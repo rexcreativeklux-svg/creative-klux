@@ -371,6 +371,17 @@ export default function StudioComposer({
   const [audio, setAudio] = useState(null); // File
   const [audioPreview, setAudioPreview] = useState(null); // object URL
   /**
+   * A SECOND media input, for the one tool that takes two: Digital Human's
+   * voice track — { url, name }.
+   *
+   * ⚠️ NOT THE `audio` STATE ABOVE. That one holds a local File for Audio to
+   * Text, which posts the bytes and never hosts them. This is a hosted gallery
+   * URL that rides into the payload as `audio_url`, so the two cannot share a
+   * slot even though both are "the audio on this composer".
+   */
+  const [voiceTrack, setVoiceTrack] = useState(null);
+  const extraAudio = config?.extraInput?.kind === "audio";
+  /**
    * The picked source video — { url, meta } where `meta` is what the browser
    * could read off it ({ duration, width, height }) or null.
    *
@@ -612,6 +623,12 @@ export default function StudioComposer({
     // the words. Checked once here rather than per kind, so a future
     // `requiresPrompt` tool on any input kind is gated the same way.
     if (requiresPrompt && !text.trim()) return false;
+    // A tool with a REQUIRED second input needs that too, whatever its primary
+    // input is — Digital Human's portrait is only half a run without the voice
+    // track it lip-syncs to.
+    if (extraAudio && config.extraInput.required && !voiceTrack?.url) {
+      return false;
+    }
     if (kind === "image") return !!image?.url;
     if (kind === "video") return !!video?.url;
     if (kind === "audio") return !!audio;
@@ -651,6 +668,11 @@ export default function StudioComposer({
         ...values,
         model,
         variations: count,
+        // The second media input, where a tool declares one. Named for what it
+        // is rather than for the tool, so a future two-input tool reads it the
+        // same way; the config's `generate` decides what it is called on the
+        // wire (`audio_url` on Digital Human).
+        ...(extraAudio ? { audioUrl: voiceTrack?.url || null } : {}),
         // ⚠️ `description` IS THE COMPOSER'S NAME FOR THIS BOX, NOT THE WIRE
         // NAME. It is simply "whatever was typed in the secondary textarea";
         // each config's `generate` decides what to call it on the way out —
@@ -700,6 +722,29 @@ export default function StudioComposer({
             type="button"
             onClick={clearImage}
             aria-label="Remove source image"
+            className="shrink-0 cursor-pointer rounded p-1 text-gray-400 transition-colors hover:text-red-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* The picked voice track, on the one tool that takes a second input.
+          A real <audio controls> rather than a filename: what matters before
+          spending minutes on a render is that this is the RIGHT take, and the
+          only way to know that is to hear it. */}
+      {extraAudio && voiceTrack && (
+        <div className="flex items-center gap-3 border-b border-gray-100 px-4 pb-3 pt-3">
+          <audio
+            src={voiceTrack.url}
+            controls
+            preload="metadata"
+            className="h-8 min-w-0 flex-1"
+          />
+          <button
+            type="button"
+            onClick={() => setVoiceTrack(null)}
+            aria-label="Remove voice track"
             className="shrink-0 cursor-pointer rounded p-1 text-gray-400 transition-colors hover:text-red-600"
           >
             <X className="h-4 w-4" />
@@ -807,11 +852,16 @@ export default function StudioComposer({
               picture lands and the box is still empty — the button stays
               disabled and this line would be the only thing claiming otherwise.
               It names the half that is missing instead. */}
+          {/* A required SECOND input is the same problem again: the portrait is
+              in and the button is still disabled, so this has to name the voice
+              track rather than say everything is ready. */}
           {kind === "image" &&
             image &&
-            (requiresPrompt && !text.trim()
-              ? "Now write what you want above."
-              : "Set your options, then generate.")}
+            (extraAudio && config.extraInput.required && !voiceTrack
+              ? config.extraInput.helper || "Now add the voice track."
+              : requiresPrompt && !text.trim()
+                ? "Now write what you want above."
+                : "Set your options, then generate.")}
           {kind === "video" &&
             !video &&
             (inputConfig.helper || "Choose a source video to begin.")}
@@ -863,6 +913,34 @@ export default function StudioComposer({
             className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg px-1.5 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
           >
             <ImagePlus className="h-4 w-4 shrink-0" />
+          </button>
+        )}
+
+        {/* The second input, where a tool declares one — Digital Human's voice
+            track. Same affordance as the pickers beside it, pointed at the audio
+            library, and for the same reason as video: the picker's Library tab
+            is also where a file gets uploaded, so one control covers "pick one
+            I have" and "add a new one". Its Text to Audio card is how someone
+            with no recording at all gets one (see MediaPickerModal). */}
+        {extraAudio && (
+          <button
+            type="button"
+            onClick={() => setPickerTarget("audio")}
+            aria-label={
+              voiceTrack
+                ? "Replace the voice track"
+                : config.extraInput.label || "Choose a voice track"
+            }
+            title={
+              voiceTrack
+                ? "Replace the voice track"
+                : config.extraInput.helper || "Choose a voice track"
+            }
+            className={`flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg px-1.5 transition-colors hover:bg-gray-100 hover:text-gray-900 ${
+              voiceTrack ? "text-blue-600" : "text-gray-600"
+            }`}
+          >
+            <AudioLines className="h-4 w-4 shrink-0" />
           </button>
         )}
 
@@ -1256,11 +1334,13 @@ export default function StudioComposer({
         <MediaPickerModal
           isOpen
           initialTab="library"
-          // ⚠️ NO SEARCH TAB FOR VIDEO. That tab is a Pexels IMAGE search, so on
-          // a video tool it would offer results that can never be picked. The
-          // Library tab is also where a clip gets uploaded, which is the only
-          // route a video has into these tools.
-          tabs={pickerTarget === "video" ? ["library"] : ["search", "library"]}
+          // ⚠️ NO SEARCH TAB FOR VIDEO OR AUDIO. That tab is a Pexels IMAGE
+          // search, so on those it would offer results that can never be picked.
+          // The Library tab is also where a clip or a voice track gets uploaded,
+          // which is the only route either has into these tools.
+          tabs={
+            pickerTarget === "image" ? ["search", "library"] : ["library"]
+          }
           allowedTypes={[pickerTarget]}
           maxSelectable={1}
           activeBrand={activeBrand}
@@ -1279,7 +1359,12 @@ export default function StudioComposer({
               return;
             }
             if (target === "video") handlePickedVideo(src);
-            else handlePickedImage(src);
+            else if (target === "audio") {
+              setVoiceTrack({
+                url: src,
+                name: typeof picked === "string" ? "" : picked?.name || "",
+              });
+            } else handlePickedImage(src);
           }}
         />
       )}

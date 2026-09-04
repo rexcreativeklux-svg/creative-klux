@@ -2438,59 +2438,69 @@ export const MAGIC_STUDIO_CONFIGS = {
     resultType: "video",
     generateLabel: "Generate video",
     historyTool: "digital_human",
-    // ⚠️ REQUIRED, NOT OPTIONAL — this is the whole input. A portrait with no
-    // script is a photograph. `requiresPrompt` is what puts the words into the
-    // submit button's enabled test; without it the button would invite a run
-    // that validate() then rejects after the fact.
-    requiresPrompt: true,
+    // ⚠️ THE SPEECH IS AN UPLOADED RECORDING, NOT A TYPED SCRIPT. The portrait
+    // is lip-synced to a real voice track the user supplies, which is why this
+    // tool declares a SECOND, required input (see `extraInput`) — no other tool
+    // here takes two pieces of media.
+    //
+    // What that decides, downstream:
+    //   • no `voice` and no `language` option. Both described a synthesised
+    //     read that no longer happens: the recording carries its own voice and
+    //     its own language, and a picker claiming to change either would be a
+    //     control with no wire to anything. (The tool used to type a script and
+    //     have the backend speak it; that is what those two were for.)
+    //   • the prompt box is DESCRIBABLE, not required. It is direction for the
+    //     performance — "warm, smiling, slight nod" — never the words being
+    //     said, so a run with the box left alone is perfectly valid.
+    describable: true,
+    /**
+     * The second input: the voice track this portrait speaks.
+     *
+     * ⚠️ IT COMES FROM THE GALLERY, LIKE EVERY OTHER MEDIA INPUT HERE — picked
+     * (or uploaded) through the media picker and sent as a hosted `audio_url`,
+     * NOT posted as a file on the generate request. That keeps one convention
+     * for "media this run starts from" across the whole app, lets a voice track
+     * be reused across runs and retries without re-uploading, and means the
+     * user's own Text to Audio output is usable here the moment it is saved.
+     *
+     * The composer hands the chosen URL back on `values.audioUrl`.
+     */
+    extraInput: {
+      kind: "audio",
+      required: true,
+      label: "Voice track",
+      helper: "Pick the voice this portrait should speak from your gallery.",
+      // Shown where the user has no audio yet — Text to Audio makes one and
+      // saves it straight to the gallery, which is where this reads from.
+      emptyHint: "No voice track yet? Generate one with Text to Audio.",
+    },
     inputConfig: {
       label: "Portrait",
       helper: "Choose a portrait from your library, the web, or upload one.",
       placeholder:
-        "What should they say? Write the script here — it's spoken exactly as written.",
-      // Traced to the reference's own published counter on the sibling
-      // text-to-speech tool. A minute of speech is roughly 900 characters, so
-      // this is about 40 seconds — in line with the render times it quotes.
+        "Optional — how should they deliver it? e.g. warm and smiling, with a slight nod",
       maxLength: 600,
     },
-    options: [
-      {
-        key: "voice",
-        label: "Voice",
-        panel: "list",
-        width: 340,
-        // Shared with Script to Voiceover — see VOICE_ITEMS.
-        default: DEFAULT_VOICE,
-        items: VOICE_ITEMS,
-      },
-      {
-        key: "language",
-        label: "Language",
-        panel: "flags",
-        width: 340,
-        default: "en",
-        items: SPEAKING_LANGUAGES,
-      },
-      resolutionOption(["480p", "720p", "1080p"], "720p"),
-    ],
+    options: [resolutionOption(["480p", "720p", "1080p"], "720p")],
     validate: ({ input, values }) => {
       if (!input) return "Please pick a portrait first.";
-      if (!values.description?.trim())
-        return "Please write what they should say.";
+      if (!values.audioUrl) return "Please add the voice track to lip-sync to.";
       return null;
     },
     generate: async ({ input, values }) => {
       const payload = {
         tool: "digital_human",
         image_url: input,
-        // ⚠️ `script`, NOT `prompt`. These are words to be SPOKEN, not words
-        // describing something to draw — the distinction is the whole tool, and
-        // a backend routing on `prompt` would treat the script as a brief.
-        script: values.description.trim(),
-        voice: values.voice,
-        language: values.language,
+        // ⚠️ `audio_url`, matching `image_url` / `video_url` — one name for
+        // "hosted media this run starts from", whichever tool is asking.
+        audio_url: values.audioUrl,
         resolution: values.resolution,
       };
+      // Direction for the performance, and genuinely optional — omitted rather
+      // than sent empty, so the backend can tell "no direction given" from "an
+      // empty brief".
+      const direction = values.description?.trim();
+      if (direction) payload.prompt = direction;
       return startGeneration(payload, "video");
     },
   },

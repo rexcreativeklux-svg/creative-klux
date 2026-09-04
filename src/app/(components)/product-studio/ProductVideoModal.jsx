@@ -16,6 +16,8 @@ import SizeDropdown from "./SizeDropdown";
 import TemplateTile from "./TemplateTile";
 import TemplateRow from "./TemplateRow";
 import TemplateBrowserModal from "./TemplateBrowserModal";
+import ProductHistoryGrid from "./ProductHistoryGrid";
+import useProductHistory from "./useProductHistory";
 
 // Video accepts up to 4 input photos — different angles improve fidelity.
 // See docs/product-studio-payloads.md (video `image_urls`: 1–4).
@@ -74,7 +76,8 @@ export default function ProductVideoModal({
   onSwitchTool,
   initialImageUrl = null,
 }) {
-  const { activeBrand, uploadMedia } = useAuth();
+  const { activeBrand, uploadMedia, token } = useAuth();
+  const isLoggedIn = !!token;
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
 
@@ -117,6 +120,23 @@ export default function ProductVideoModal({
   const [mobileView, setMobileView] = useState("setup");
   const [seeAllOpen, setSeeAllOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
+
+  // Past renders for this tool. History REPLACES a session-only results list:
+  // after each successful generate we refresh it and the new clip shows up
+  // (newest first). Empty history → the modal shows its sample/empty state.
+  //
+  // ⚠️ IT ALSO CARRIES RUNS STILL GOING (`history.pending`), which matters more
+  // here than anywhere else in Product Studio: a video takes minutes, and the
+  // backend finishes it whether or not this modal is still open. Reopening the
+  // tool mid-render finds the wait again instead of an empty canvas.
+  const history = useProductHistory(TOOL_ENUM.product_video, {
+    enabled: isLoggedIn,
+  });
+
+  // A wait is on screen when THIS modal started one, or when history came back
+  // with one still going. Folding both into a single flag is what keeps a
+  // resumed run from drawing a second loading tile beside the one we started.
+  const waiting = generating || history.pending.length > 0;
 
   const rowTiles = TEMPLATE_TILES.slice(0, ROW_TEMPLATES);
   const sizeObj = VIDEO_SIZES.find((s) => s.id === size);
@@ -269,13 +289,16 @@ export default function ProductVideoModal({
       // Video is async on the backend — it may return a job id rather than a URL.
       console.log("🎬 [product-video] generate result ←", result);
 
+      // Either way the run is now a record, so history is the single source of
+      // truth for it — refresh and let the grid show the clip (finished) or its
+      // loading tile (still rendering, which the hook then polls to completion).
+      await history.refresh();
+
       const resultUrl = result?.url || result?.video_url || result?.data?.url;
       if (resultUrl) {
         toast.success("Video generated!");
-      } else if (result?.job_id) {
-        toast("Your video is processing — we'll notify you when it's ready.");
       } else {
-        toast("Requested — check the console for the response shape.");
+        toast("Your video is rendering — it'll appear here as soon as it's done.");
       }
     } catch (err) {
       // generateProductPhoto already toasts a friendly error; log for debugging.
@@ -506,54 +529,74 @@ export default function ProductVideoModal({
             <X className="w-4 h-4 text-gray-500" />
           </button>
 
-          <div className="flex-1 flex flex-col items-center justify-center px-2 sm:px-6">
-            {/* Two 44-wide cards + the arrow overflow a phone at their desktop
-                size, so they scale down rather than get clipped. */}
-            <div className="flex items-center gap-1.5 xs:gap-3 mb-6 sm:mb-9">
-              <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
-                <img
-                  src={VID_BEFORE}
-                  alt="before"
-                  className="w-full h-full object-cover"
-                />
+          {!waiting && !history.loading && history.items.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center px-2 sm:px-6">
+              {/* Two 44-wide cards + the arrow overflow a phone at their
+                  desktop size, so they scale down rather than get clipped. */}
+              <div className="flex items-center gap-1.5 xs:gap-3 mb-6 sm:mb-9">
+                <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
+                  <img
+                    src={VID_BEFORE}
+                    alt="before"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <svg
+                  width="72"
+                  height="60"
+                  viewBox="0 0 72 60"
+                  fill="none"
+                  className="w-10 xs:w-12 sm:w-18 h-auto text-blue-500 shrink-0 -mt-6"
+                >
+                  <path
+                    d="M6 44 C 24 8, 50 8, 62 32"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M62 32 L51 28 M62 32 L55 42"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
+                  <img
+                    src={VID_AFTER}
+                    alt="after"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
               </div>
-              <svg
-                width="72"
-                height="60"
-                viewBox="0 0 72 60"
-                fill="none"
-                className="w-10 xs:w-12 sm:w-18 h-auto text-blue-500 shrink-0 -mt-6"
-              >
-                <path
-                  d="M6 44 C 24 8, 50 8, 62 32"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M62 32 L51 28 M62 32 L55 42"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
-                <img
-                  src={VID_AFTER}
-                  alt="after"
-                  className="w-full h-full object-cover"
-                />
-              </div>
+              <h3 className="text-gray-900 text-center text-base sm:text-lg font-semibold max-w-sm leading-snug">
+                Turn your product into an ad
+              </h3>
+              <p className="text-gray-500 text-center text-xs sm:text-sm mt-2 max-w-xs leading-relaxed">
+                Pick a template to load its shot description into the prompt, or
+                describe the video you want yourself.
+              </p>
             </div>
-            <h3 className="text-gray-900 text-center text-base sm:text-lg font-semibold max-w-sm leading-snug">
-              Turn your product into an ad
-            </h3>
-            <p className="text-gray-500 text-center text-xs sm:text-sm mt-2 max-w-xs leading-relaxed">
-              Pick a template to load its shot description into the prompt, or
-              describe the video you want yourself.
-            </p>
-          </div>
+          ) : (
+            <ProductHistoryGrid
+              items={history.items}
+              loading={history.loading}
+              generating={waiting}
+              generatingLabel="Rendering your video…"
+              onDelete={history.remove}
+              removingId={history.removingId}
+              uploadMedia={uploadMedia}
+              filePrefix="product-video"
+              // The tool renders 16:9, 9:16 and 1:1 clips into one grid, so the
+              // loading tile takes the widest of them and the finished tiles
+              // size themselves off their own media (see ProductHistoryGrid).
+              aspectClass="aspect-video"
+              // Wider columns than the still tools: a product ad is watched, not
+              // scanned, and 150px tiles are too small to tell two clips apart.
+              gridClass="grid-fluid-[260px]"
+            />
+          )}
         </div>
       </div>
 

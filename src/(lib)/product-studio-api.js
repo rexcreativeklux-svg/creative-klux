@@ -99,16 +99,57 @@ function resolveMediaUrl(urlOrKey) {
   return `${CDN_BASE}/${urlOrKey.replace(/^\/+/, "")}`;
 }
 
+// File extensions we treat as video when inferring a history item's media type
+// — the backend doesn't tag it. Mirrors magic-studio-api's VIDEO_EXT.
+const VIDEO_EXT = /\.(mp4|webm|mov|mkv|m4v)(\?|#|$)/i;
+
+/**
+ * Statuses that mean the backend is still working on this record.
+ *
+ * ⚠️ A RECORD EXISTS BEFORE ITS RESULT DOES. The row is written when the request
+ * arrives and only filled in when the provider answers, so history genuinely
+ * contains runs that have not finished. That matters for Product Video, whose
+ * renders take long enough that a user routinely closes the modal mid-run:
+ * recognising these is what lets the tool show a wait it did not start.
+ */
+const PENDING_STATUSES = ["processing", "pending", "queued", "in_progress"];
+
+/**
+ * Infer a history item's render type ("image" | "video"). Trusts an explicit
+ * `type` when it's one we render, then the field the URL came from, then the
+ * tool that produced it (an S3 key can arrive with no extension at all), then
+ * the extension. Every other Product Studio tool outputs stills, so "image" is
+ * the right default.
+ *
+ * @param {object} item Raw history record.
+ * @param {string|null} url Resolved media URL.
+ * @returns {"image"|"video"}
+ */
+function inferHistoryType(item, url) {
+  const explicit = String(item.type || item.content_type || "").toLowerCase();
+  if (explicit === "image" || explicit === "video") return explicit;
+  if (item.video_url) return "video";
+  if (item.tool === TOOL_ENUM.product_video) return "video";
+  if (VIDEO_EXT.test(url || "")) return "video";
+  return "image";
+}
+
 /**
  * Normalize one raw history record (POST /product-studio/history response shape)
  * into what the UI consumes. The generated image lives in `s3_key` (with `url`
  * frequently empty), so we resolve the output from `url` first, then `s3_key`.
  *
+ * `type` / `videoSrc` / `thumbnail` are what let a result render as the medium
+ * it actually is: ProductHistoryGrid draws a `<video>` for a video item and the
+ * shared Lightbox plays it, where both fall back to an `<img>` without them.
+ *
  * @param {object} item Raw history record from the API.
  * @returns {{
  *   id: (string|number|null), url: (string|null), sourceUrl: (string|null),
- *   status: (string|null), prompt: (string|null), tool: (string|null),
- *   createdAt: (string|null), raw: object,
+ *   type: ("image"|"video"), videoSrc: (string|null), thumbnail: (string|null),
+ *   status: (string|null), pending: boolean, prompt: (string|null),
+ *   tool: (string|null), createdAt: (string|null), startedAt: (string|null),
+ *   raw: object,
  * }}
  */
 function normalizeHistoryItem(item) {
@@ -117,10 +158,15 @@ function normalizeHistoryItem(item) {
       id: null,
       url: null,
       sourceUrl: null,
+      type: "image",
+      videoSrc: null,
+      thumbnail: null,
       status: null,
+      pending: false,
       prompt: null,
       tool: null,
       createdAt: null,
+      startedAt: null,
       raw: item,
     };
   }
@@ -130,14 +176,28 @@ function normalizeHistoryItem(item) {
     resolveMediaUrl(item.image_url) ||
     resolveMediaUrl(item.video_url) ||
     null;
+  const status = item.status ?? null;
+  const type = inferHistoryType(item, url);
   return {
     id: item.id ?? item._id ?? null,
     url,
     sourceUrl: resolveMediaUrl(item.source_s3_key) || null,
-    status: item.status ?? null,
+    type,
+    videoSrc: type === "video" ? url : null,
+    thumbnail:
+      resolveMediaUrl(item.thumbnail) ||
+      resolveMediaUrl(item.poster) ||
+      resolveMediaUrl(item.thumbnail_s3_key) ||
+      null,
+    status,
+    pending: PENDING_STATUSES.includes(String(status || "").toLowerCase()),
     prompt: item.prompt ?? null,
     tool: item.tool ?? null,
     createdAt: item.generated_at || item.created_at || null,
+    // When the run STARTED, whatever it has done since — the age a staleness
+    // check has to be made against. `createdAt` above prefers `generated_at`
+    // for display ordering, which is the moment it FINISHED.
+    startedAt: item.created_at || null,
     raw: item,
   };
 }
@@ -145,9 +205,13 @@ function normalizeHistoryItem(item) {
 /**
  * Fetch the generation history for one tool. The backend returns
  * `{ success, message, data: [...] }` sorted newest-first; we keep that order
- * and surface only records that (a) didn't fail and (b) resolve to an image —
- * pending/failed rows without an output are dropped so the grid only shows real
- * results.
+ * and drop records that failed or resolved to nothing.
+ *
+ * ⚠️ RUNS STILL IN FLIGHT COME BACK TOO, marked `pending`. They have no URL and
+ * must never reach a grid as if they were results — {@link useProductHistory}
+ * splits them into their own list, which is what every consumer should read.
+ * This function stays honest about what the server said; deciding how old is too
+ * old to keep waiting is the hook's job, not the transport's.
  *
  * @param {string} tool Backend tool enum (e.g. "virtual_model", "ghost_mannequin").
  * @returns {Promise<Array>}
@@ -162,7 +226,11 @@ export async function getProductHistory(tool) {
     const list = Array.isArray(data) ? data : data?.data || [];
     return list
       .map(normalizeHistoryItem)
-      .filter((it) => it.url && it.status !== "failed");
+      .filter(
+        (it) =>
+          String(it.status || "").toLowerCase() !== "failed" &&
+          (it.url || it.pending),
+      );
   } catch (err) {
     const status = err?.response?.status;
     console.error("❌ [product-studio/history] failed:", {

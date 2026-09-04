@@ -25,7 +25,11 @@ import { useState } from "react";
 import { Loader2, MoreHorizontal, Play } from "lucide-react";
 import { toast } from "sonner";
 import ResultActionsMenu, { buildResultActions } from "./ResultActionsMenu";
-import { saveUrlToGallery, downloadImageUrl } from "./saveToGallery";
+import {
+  galleryFileMeta,
+  saveUrlToGallery,
+  downloadImageUrl,
+} from "./saveToGallery";
 import Lightbox from "@/app/(components)/Lightbox";
 
 /**
@@ -96,10 +100,20 @@ export default function ProductHistoryGrid({
     }
   };
 
-  const handleSaveToGallery = async (url) => {
+  const handleSaveToGallery = async (item) => {
     const t = toast.loading("Saving to gallery…");
     try {
-      await saveUrlToGallery(url, uploadMedia, { filePrefix });
+      // Type-aware, so a clip is saved as one — see galleryFileMeta.
+      const { ext, mime, category } = galleryFileMeta(
+        item.url,
+        isVideoItem(item) ? "video" : "image",
+      );
+      await saveUrlToGallery(item.url, uploadMedia, {
+        filePrefix,
+        ext,
+        mime,
+        category,
+      });
       toast.success("Saved to gallery", { id: t });
     } catch (err) {
       console.error(`❌ [${filePrefix}] history save to gallery failed:`, err);
@@ -212,9 +226,13 @@ export default function ProductHistoryGrid({
           actions={buildResultActions({
             // ── Still-only actions ──
             // A clip has no "other angle" to re-render and can't be handed to
-            // the video tool as a source frame, and Save to gallery uploads into
-            // the IMAGE library — offering any of them on a video would be three
-            // menu entries that quietly do the wrong thing.
+            // the video tool as a source frame — offering either on a video
+            // would be a menu entry that quietly does the wrong thing.
+            //
+            // Save to gallery is NOT one of them any more: it used to force an
+            // image MIME onto whatever it was given, which is why a clip was
+            // held back from it. galleryFileMeta derives the type now, so a
+            // video saves as a video.
             onChangeSomething: isVideoItem(imageMenu.item)
               ? undefined
               : onChangeSomething,
@@ -229,10 +247,8 @@ export default function ProductHistoryGrid({
               onGenerateVideo && !isVideoItem(imageMenu.item)
                 ? () => onGenerateVideo(imageMenu.item.url)
                 : undefined,
-            onSaveToGallery: isVideoItem(imageMenu.item)
-              ? undefined
-              : () => handleSaveToGallery(imageMenu.item.url),
             // ── Shared by both media types ──
+            onSaveToGallery: () => handleSaveToGallery(imageMenu.item),
             onDownload: () => handleDownload(imageMenu.item),
             onCopyLink: () => {
               navigator.clipboard.writeText(imageMenu.item.url);

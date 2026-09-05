@@ -21,7 +21,7 @@
  *   • TRANSCRIPT_DOWNLOADS — the TXT / SRT / VTT export menu items.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   Check,
@@ -208,6 +208,151 @@ function TemplatePanelBody({ option, value, onSelect }) {
 }
 
 /**
+ * The voices panel — a portrait, a name, and (where there is something to hear)
+ * a ▶ per voice, grouped by accent + gender.
+ *
+ * Split out of OptionPanelBody for the same reason TemplatePanelBody was: it
+ * owns an effect. The clips are probed once on open so the play buttons are
+ * drawn only for the voices that actually have one, and an effect cannot live
+ * inside a function that returns before reaching it.
+ *
+ * ⚠️ THE PORTRAIT SITS ON THE GENDER GLYPH, IT DOESN'T REPLACE IT. Same ground
+ * pattern as the style cards: the tinted icon tile is always rendered and the
+ * photo lays over it, so a voice with no `img` and a photo whose CDN link has
+ * died land in the same designed state instead of a broken-image frame. These
+ * are third-party URLs; the one thing they can be relied on to do eventually is
+ * stop resolving.
+ *
+ * ⚠️ THE FACES ARE ILLUSTRATIONS, NOT THE SPEAKER. See VOICE_FACES — nothing
+ * here claims a person recorded anything, which is why a card carries a name and
+ * a face and no biography.
+ */
+function VoicePanelBody({ option, value, onSelect, voicePreview }) {
+  // ⚠️ MEMOISED FOR THE EFFECT BELOW, not for speed. `option.items || []` builds
+  // a fresh array on any render where a config forgot its items, and that array
+  // is a dependency of the probe effect — forty HEAD requests per keystroke.
+  const items = useMemo(() => option.items || [], [option.items]);
+  const probe = voicePreview?.probe;
+
+  // Ask once which voices have a clip. `probe` is a stable useCallback and
+  // `items` comes from the config's module scope, so this runs on open and on a
+  // genuine change of voice list — not on every render of the panel.
+  useEffect(() => {
+    probe?.(items);
+  }, [probe, items]);
+
+  const groups = [];
+  for (const it of items) {
+    const last = groups[groups.length - 1];
+    if (last && last.name === it.group) last.items.push(it);
+    else groups.push({ name: it.group, items: [it] });
+  }
+
+  // Only where there is something to tap. Hosted voices are auditioned from
+  // pre-generated clips, so until those files exist there is no ▶ anywhere and
+  // an instruction to press one would be a dead end.
+  const anyPlayable = items.some((it) => voicePreview?.canPlay?.(it));
+
+  return (
+    <div className="p-2 pb-3">
+      {anyPlayable && (
+        <p className="px-2 pt-1 pb-2 text-[11px] leading-snug text-gray-400">
+          Tap <Play className="inline w-3 h-3 -mt-0.5" /> to hear a sample of
+          each voice before you pick.
+        </p>
+      )}
+      {groups.map((group) => (
+        <div key={group.name}>
+          <p className="px-2 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            {group.name}
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {group.items.map((it) => {
+              const active = value === it.value;
+              const Icon = it.icon;
+              const female = it.gender === "female";
+              const isLoading = voicePreview?.loadingId === it.value;
+              const isPlaying = voicePreview?.playingId === it.value;
+              const playable = voicePreview?.canPlay?.(it);
+              return (
+                <div
+                  key={it.value}
+                  className={`flex items-center rounded-xl border-2 transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-blue-300 bg-surface"}`}
+                >
+                  <button
+                    onClick={() => onSelect(it.value)}
+                    className="flex items-center gap-2 pl-2 pr-1 py-1.5 flex-1 min-w-0 text-left cursor-pointer"
+                  >
+                    <span
+                      className={`relative w-9 h-9 rounded-lg overflow-hidden shrink-0 ${female ? "bg-pink-100 text-pink-600" : "bg-sky-100 text-sky-600"}`}
+                    >
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        {Icon && <Icon className="w-3.5 h-3.5" />}
+                      </span>
+                      {it.img && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={it.img}
+                          // Decorative: the voice's name is right beside it, and
+                          // the photo is a stand-in rather than a person to name.
+                          alt=""
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      )}
+                      {isPlaying && (
+                        // A playing card says so on the portrait as well as on
+                        // the button — in a grid of twenty, the 12px icon two
+                        // columns over is not where the eye is.
+                        <span className="absolute inset-0 flex items-center justify-center bg-blue-600/60">
+                          <AudioLines className="w-4 h-4 text-white animate-pulse" />
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex-1 min-w-0 flex items-center gap-1">
+                      <span
+                        className={`text-xs font-semibold truncate ${active ? "text-blue-700" : "text-gray-900"}`}
+                      >
+                        {it.label}
+                      </span>
+                      {it.top && (
+                        <Star className="w-3 h-3 shrink-0 text-amber-400 fill-amber-400" />
+                      )}
+                    </span>
+                  </button>
+                  {playable && (
+                    <button
+                      onClick={() => voicePreview.toggle(it)}
+                      aria-label={
+                        isPlaying
+                          ? `Stop ${it.label} sample`
+                          : `Play ${it.label} sample`
+                      }
+                      className={`shrink-0 w-7 h-7 mr-1 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${isPlaying ? "bg-blue-600 text-white" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"}`}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : isPlaying ? (
+                        <Pause className="w-3 h-3" />
+                      ) : (
+                        <Play className="w-3 h-3" />
+                      )}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * ── Option chooser body (rich cards keyed by option.panel) ───────────────────
  *
  * @param {object} props
@@ -245,12 +390,18 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
     const raw = Number(value ?? option.default);
     const current = Number.isFinite(raw) ? Math.min(max, Math.max(min, raw)) : min;
     const hint = option.hint?.(current);
+    // ⚠️ ROUNDED TO THE STEP'S OWN PRECISION. A fractional step is where binary
+    // floating point shows through — 0.75 + 0.05 lands on 1.0500000000000003 —
+    // and this value is both drawn ("1.0500000000000003×") and sent. Whole steps
+    // are unaffected, so this costs the integer sliders nothing.
+    const decimals = (String(step).split(".")[1] || "").length;
+    const round = (n) => Number(n.toFixed(decimals));
 
     return (
       <div className="flex flex-col gap-2.5 px-3 pb-3 pt-2.5">
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-sm font-semibold tabular-nums text-gray-900">
-            {current}
+            {round(current)}
             {unit}
           </span>
           {hint && (
@@ -267,7 +418,9 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
           step={step}
           value={current}
           onChange={(event) =>
-            onSelect(String(Number(event.target.value)), { keepOpen: true })
+            onSelect(String(round(Number(event.target.value))), {
+              keepOpen: true,
+            })
           }
           aria-label={option.label}
           className="w-full cursor-pointer accent-blue-600"
@@ -444,88 +597,15 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
     );
   }
 
-  // Voices: rows grouped by accent + gender (Text to Audio's on-device voices).
+  // Voices: portrait rows grouped by accent + gender, with per-voice auditioning.
   if (panel === "voices") {
-    const groups = [];
-    for (const it of items) {
-      const last = groups[groups.length - 1];
-      if (last && last.name === it.group) last.items.push(it);
-      else groups.push({ name: it.group, items: [it] });
-    }
     return (
-      <div className="p-2 pb-3">
-        {/* Only where there is something to tap. Hosted voices can only be
-            heard by billing a real generation, so they carry `preview: false`
-            and show no ▶ — an instruction to tap one would be a dead end. */}
-        {items.some((it) => it.preview !== false) && (
-          <p className="px-2 pt-1 pb-2 text-[11px] leading-snug text-gray-400">
-            Tap <Play className="inline w-3 h-3 -mt-0.5" /> to hear a sample of
-            each voice before you pick.
-          </p>
-        )}
-        {groups.map((group) => (
-          <div key={group.name}>
-            <p className="px-2 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              {group.name}
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {group.items.map((it) => {
-                const active = value === it.value;
-                const Icon = it.icon;
-                const female = it.gender === "female";
-                const isLoading = voicePreview?.loadingId === it.value;
-                const isPlaying = voicePreview?.playingId === it.value;
-                return (
-                  <div
-                    key={it.value}
-                    className={`flex items-center rounded-xl border-2 transition-colors ${active ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-blue-300 bg-surface"}`}
-                  >
-                    <button
-                      onClick={() => onSelect(it.value)}
-                      className="flex items-center gap-2 pl-2.5 pr-1 py-2 flex-1 min-w-0 text-left cursor-pointer"
-                    >
-                      <span
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${female ? "bg-pink-100 text-pink-600" : "bg-sky-100 text-sky-600"}`}
-                      >
-                        {Icon && <Icon className="w-3.5 h-3.5" />}
-                      </span>
-                      <span className="flex-1 min-w-0 flex items-center gap-1">
-                        <span
-                          className={`text-xs font-semibold truncate ${active ? "text-blue-700" : "text-gray-900"}`}
-                        >
-                          {it.label}
-                        </span>
-                        {it.top && (
-                          <Star className="w-3 h-3 shrink-0 text-amber-400 fill-amber-400" />
-                        )}
-                      </span>
-                    </button>
-                    {voicePreview && it.preview !== false && (
-                      <button
-                        onClick={() => voicePreview.toggle(it)}
-                        aria-label={
-                          isPlaying
-                            ? `Stop ${it.label} sample`
-                            : `Play ${it.label} sample`
-                        }
-                        className={`shrink-0 w-7 h-7 mr-1 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${isPlaying ? "bg-blue-600 text-white" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"}`}
-                      >
-                        {isLoading ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : isPlaying ? (
-                          <Pause className="w-3 h-3" />
-                        ) : (
-                          <Play className="w-3 h-3" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+      <VoicePanelBody
+        option={option}
+        value={value}
+        onSelect={onSelect}
+        voicePreview={voicePreview}
+      />
     );
   }
 

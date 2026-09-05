@@ -16,26 +16,126 @@
  * models themselves was ever duplicated here.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  MAX_GENERATED_PREVIEWS,
+  PREVIEW_BY_GENERATING,
+} from "@/(lib)/magic-studio-audio";
+import {
+  checkGenerationStatus,
+  generateMagicStudio,
+  resolveMediaUrl,
+} from "@/(lib)/magic-studio-api";
+
 // Short line each voice "introduces itself" with when auditioned in the picker.
+//
+// ⚠️ THE SAME WORDS EVERYWHERE — the committed clips (generate-voice-samples.mjs
+// and generate-aura-samples.mjs both speak this), and the generated previews
+// below. Comparing two voices is only a fair comparison if they are saying the
+// same thing, and a sample that reads differently depending on how it was made
+// is one you cannot judge a voice by.
 const voicePreviewLine = (name) =>
   `Hi, I'm ${name}. This is how I sound. Let's make something great together.`;
+
+/** How long to follow a preview generation before giving up on it. */
+const PREVIEW_POLL_CEILING_MS = 90 * 1000;
+const PREVIEW_POLL_EVERY_MS = 2500;
+
+/** A playable URL out of a generate/status response, whichever field holds it. */
+function previewUrl(data) {
+  const root = data?.generation && typeof data.generation === "object"
+    ? data.generation
+    : data;
+  const candidate =
+    root?.url ||
+    root?.audio_url ||
+    root?.s3_key ||
+    root?.meta?.outputs?.[0]?.url ||
+    root?.meta?.outputs?.[0]?.key ||
+    (Array.isArray(data?.urls) ? data.urls[0] : null);
+  return resolveMediaUrl(typeof candidate === "string" ? candidate : null);
+}
+
+/** Terminal states, as the backend spells them. */
+const PREVIEW_DONE = ["completed", "complete", "done", "success", "succeeded", "ready", "finished"];
+const PREVIEW_FAILED = ["failed", "error", "errored", "cancelled", "canceled"];
+
+/**
+ * Have the backend speak one line in a hosted voice, and return the audio URL.
+ *
+ * ⚠️ THIS IS A REAL, BILLED GENERATION — the identical endpoint a user's own
+ * "Generate" press goes through, so it costs the same and files the same kind of
+ * history record. It exists because there is no other way to hear an Aura-2
+ * voice, and it is reached ONLY when PREVIEW_BY_GENERATING is on, the voice has
+ * no committed clip, and the session's cap has not been spent. All three gates
+ * are in `toggle` below.
+ *
+ * The response may carry the audio outright or name a job to wait on — the same
+ * two shapes every other tool handles (see startGeneration in the configs).
+ */
+async function generatePreview(voice) {
+  const started = await generateMagicStudio({
+    tool: "text_to_audio",
+    prompt: voicePreviewLine(voice.label),
+    voice: voice.value,
+    speaking_speed: 1,
+  });
+
+  const immediate = previewUrl(started);
+  if (immediate) return immediate;
+
+  const record = started?.generation || started;
+  const id = record?.id ?? started?.generation_id ?? started?.job_id;
+  if (id == null) throw new Error("No audio and no job id came back.");
+
+  const deadline = Date.now() + PREVIEW_POLL_CEILING_MS;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, PREVIEW_POLL_EVERY_MS));
+    const data = await checkGenerationStatus(id);
+    const status = String(
+      (data?.generation || data)?.status || "",
+    ).toLowerCase();
+    if (PREVIEW_FAILED.includes(status)) {
+      throw new Error((data?.generation || data)?.error || "Preview failed.");
+    }
+    const url = previewUrl(data);
+    if (url && (PREVIEW_DONE.includes(status) || !status)) return url;
+  }
+  throw new Error("The preview took too long.");
+}
 
 /**
  * Voice auditioning for the Text-to-Audio voice picker.
  *
- * Prefers a pre-generated static clip at /voice-samples/{id}.mp3 so a tap on ▶
- * plays instantly with no download; falls back to synthesizing the intro line
- * on-device with the SAME Kokoro engine used for real generations. Resolved
- * clips are cached in memory (per session) and play through one shared <audio>
- * element. Because there is a single speech worker, synthesis previews are
- * serialized (one at a time) and the caller stops previews before a real
- * generation — the worker is never asked to do two things at once.
+ * Prefers the pre-generated static clip the CARD names (`item.sample`) so a tap
+ * on ▶ plays instantly with no download; falls back to synthesizing the intro
+ * line on-device with the SAME Kokoro engine used for real generations, but only
+ * for the voices that declare `synth: true`. Resolved clips are cached in memory
+ * (per session) and play through one shared <audio> element. Because there is a
+ * single speech worker, synthesis previews are serialized (one at a time) and
+ * the caller stops previews before a real generation — the worker is never asked
+ * to do two things at once.
+ *
+ * ⚠️ THE CLIP PATH COMES FROM THE ITEM, NOT FROM A TEMPLATE HERE. It used to be
+ * `/voice-samples/${id}.mp3` hard-coded, which silently assumed every voice was
+ * one of Kokoro's 28. Hosted voices live under a different folder and cannot be
+ * synthesized at all, so the card is what says where its sample is and whether
+ * there is any engine that could stand in for a missing one.
+ *
+ * ⚠️ AND, AS A LAST RESORT, IT ASKS THE BACKEND TO SPEAK ONE — WHICH COSTS. That
+ * is the only way to hear a hosted voice that has no clip on disk yet, and it
+ * bills a generation and files a history record for a throwaway sample. It is
+ * therefore gated three ways: the voice must declare `generate`, the
+ * PREVIEW_BY_GENERATING switch must be on, and the session must not have spent
+ * its MAX_GENERATED_PREVIEWS. Order matters here — a committed clip is checked
+ * first every time, so a voice whose file has landed never reaches the paid path
+ * again, and dropping those files in is what makes this switch removable.
  *
  * @param {ReturnType<import("@/(lib)/ai-engine/hooks/useTextToSpeech").default>} tts
  * @returns {{ loadingId: string|null, playingId: string|null,
+ *   probe: (items: Array) => void, canPlay: (item: object) => boolean,
  *   toggle: (voice: {value: string, label: string}) => void, stop: () => void }}
  */
 export function useVoicePreview(tts) {
@@ -43,6 +143,90 @@ export function useVoicePreview(tts) {
   const cacheRef = useRef(new Map()); // voiceId → object URL of its sample clip
   const [loadingId, setLoadingId] = useState(null);
   const [playingId, setPlayingId] = useState(null);
+
+  // Which sample URLs answered a HEAD, as `{ [url]: boolean }`.
+  //
+  // ⚠️ MIRRORED IN A REF because two different questions are being asked of it.
+  // The ref is the DEDUPE ledger — it holds an in-flight marker the moment a
+  // probe starts, so re-running the effect (or a second picker mounting) can't
+  // fire the same forty requests again. The state is the RENDER copy, written
+  // once per batch, because a ref changing doesn't redraw the buttons it gates.
+  const probedRef = useRef(new Map());
+  const [samples, setSamples] = useState({});
+
+  // How many previews this session has PAID for — the cap in
+  // MAX_GENERATED_PREVIEWS. A ref rather than state: nothing on screen is drawn
+  // from it (see the ⚠️ in canPlay), and it must not be one render behind when
+  // the next tap tests it.
+  const generatedRef = useRef(0);
+
+  /**
+   * Ask, once, which of these voices actually have a clip on disk.
+   *
+   * ⚠️ HEAD, AND IN ONE BATCH. Forty tiny requests to our own static origin cost
+   * roughly nothing and mean the folder itself is the source of truth: adding
+   * `asteria.mp3` lights up Asteria's ▶ with no list to update alongside it and
+   * no manifest to drift. Unknown URLs only — a second call is free.
+   *
+   * ⚠️ STABLE IDENTITY (useCallback with no deps) because the picker calls this
+   * from an effect. A fresh function each render would re-run that effect on
+   * every keystroke elsewhere in the panel.
+   */
+  const probe = useCallback(async (items) => {
+    const urls = [
+      ...new Set((items || []).map((it) => it?.sample).filter(Boolean)),
+    ].filter((url) => !probedRef.current.has(url));
+    if (urls.length === 0) return;
+
+    // Claim them before awaiting anything — see the ⚠️ above.
+    urls.forEach((url) => probedRef.current.set(url, null));
+
+    const results = await Promise.all(
+      urls.map(async (url) => {
+        try {
+          const res = await fetch(url, { method: "HEAD" });
+          return [url, res.ok];
+        } catch {
+          return [url, false]; // offline / blocked — treat as absent
+        }
+      }),
+    );
+
+    results.forEach(([url, ok]) => probedRef.current.set(url, ok));
+    setSamples((prev) => {
+      const next = { ...prev };
+      results.forEach(([url, ok]) => {
+        next[url] = ok;
+      });
+      return next;
+    });
+  }, []);
+
+  /**
+   * Is there anything to hear for this voice yet?
+   *
+   * Three ways to answer yes, in the order they cost anything:
+   *   • a committed clip that answered the probe          free, instant
+   *   • an engine on this machine that can speak it       free, a few seconds
+   *   • the backend, when we are willing to pay for that  BILLED, a few seconds
+   *
+   * The last one is the switch (PREVIEW_BY_GENERATING) rather than the card's
+   * own `generate` flag, so turning the cost off hides exactly the buttons that
+   * would have spent money and leaves every free one in place.
+   *
+   * ⚠️ THE CAP IS NOT CHECKED HERE, DELIBERATELY. A ▶ that vanishes from ten
+   * cards mid-browse looks like a bug; pressing one after the cap is spent says
+   * so in words instead. See `toggle`.
+   */
+  const canPlay = useCallback(
+    (item) => {
+      if (!item) return false;
+      if (item.sample && samples[item.sample] === true) return true;
+      if (item.synth) return true;
+      return !!item.generate && PREVIEW_BY_GENERATING;
+    },
+    [samples],
+  );
 
   // One shared element, created on first use (inside a user gesture).
   const getAudio = () => {
@@ -94,21 +278,25 @@ export function useVoicePreview(tts) {
     try {
       setLoadingId(id);
 
-      // ⚠️ THIS AUDITIONS KOKORO VOICES ONLY, and the picker is what enforces
-      // that: cards for hosted voices carry `preview: false` and render no ▶ at
-      // all, so nothing can reach here with an Aura name. Both steps below would
-      // be wrong for one — /voice-samples holds Kokoro's 28 clips, and Kokoro
-      // cannot say "asteria" any more than Aura-2 can say "af_heart".
-
-      // 1) Pre-generated static sample — instant, no engine download. Probe it
-      //    first; if it isn't there, synthesize.
-      const staticUrl = `/voice-samples/${id}.mp3`;
+      // 1) The clip the card names — instant, no engine download. Its presence
+      //    is usually already known from the panel's probe; a card opened and
+      //    clicked faster than that resolves is checked here instead.
+      const staticUrl = voice.sample;
       let hasStatic = false;
-      try {
-        const res = await fetch(staticUrl, { method: "HEAD" });
-        hasStatic = res.ok;
-      } catch {
-        hasStatic = false; // offline / blocked — fall through to synthesis
+      if (staticUrl) {
+        const known = probedRef.current.get(staticUrl);
+        if (typeof known === "boolean") {
+          hasStatic = known;
+        } else {
+          try {
+            const res = await fetch(staticUrl, { method: "HEAD" });
+            hasStatic = res.ok;
+          } catch {
+            hasStatic = false; // offline / blocked
+          }
+          probedRef.current.set(staticUrl, hasStatic);
+          setSamples((prev) => ({ ...prev, [staticUrl]: hasStatic }));
+        }
       }
       if (hasStatic) {
         cacheRef.current.set(id, staticUrl);
@@ -118,8 +306,40 @@ export function useVoicePreview(tts) {
         return;
       }
 
-      // 2) Fallback: synthesize on-device (the first one downloads the engine;
-      //    the tts hook shows its own toast for that).
+      // 2) No clip on disk. A hosted voice has one route left, and it costs
+      //    money — so it is gated three ways before anything is spent.
+      if (!voice.synth) {
+        if (!voice.generate || !PREVIEW_BY_GENERATING) {
+          // The ▶ is already hidden in this case; this is the race where a clip
+          // 404s between the probe and the click, not a path anyone is shown.
+          toast("No sample for this voice yet.");
+          return;
+        }
+        if (generatedRef.current >= MAX_GENERATED_PREVIEWS) {
+          // ⚠️ SAID OUT LOUD, and it names the reason. A ▶ that silently does
+          // nothing reads as broken, and "previews are limited" without the why
+          // reads as arbitrary — this is real money, and the person tapping is
+          // the one paying it.
+          toast(
+            `That's ${MAX_GENERATED_PREVIEWS} voice previews this session — each one is a generation. Reload to hear more.`,
+          );
+          return;
+        }
+
+        generatedRef.current += 1;
+        console.log(
+          `💸 [magic-studio] generating a preview of "${voice.label}" (${generatedRef.current}/${MAX_GENERATED_PREVIEWS} this session)`,
+        );
+        const url = await generatePreview(voice);
+        cacheRef.current.set(id, url);
+        audio.src = url;
+        await audio.play();
+        setPlayingId(id);
+        return;
+      }
+
+      // 3) Synthesize on-device (the first one downloads the engine; the tts
+      //    hook shows its own toast for that).
       const item = await tts.generate(voicePreviewLine(voice.label), {
         voice: id,
         speed: 1,
@@ -142,7 +362,7 @@ export function useVoicePreview(tts) {
   // Stop playback if the panel unmounts (the tts hook revokes the URLs itself).
   useEffect(() => () => audioRef.current?.pause(), []);
 
-  return { loadingId, playingId, toggle, stop };
+  return { loadingId, playingId, probe, canPlay, toggle, stop };
 }
 
 // Auto-stop cap for mic recordings — matches the STT engine's duration cap so a

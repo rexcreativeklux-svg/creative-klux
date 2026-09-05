@@ -1088,11 +1088,11 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
 
     // On window, not the stage: a sweep normally runs off the artboard, and a
     // gesture that ended outside it would otherwise never be committed.
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
     return () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
     };
     // `marquee` is in the deps only as an on/off switch — the effect reads the
     // live rect from the ref, so re-subscribing per frame isn't needed.
@@ -1993,11 +1993,8 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
           className={`relative flex-1 flex items-center justify-center overflow-auto pb-nav [&>*]:m-auto lg:pb-0 ${
             panning ? "select-none" : ""
           }`}
-          onPointerDown={onStagePointerDown}
-          onPointerMove={onStagePointerMove}
-          onPointerUp={onStagePointerUp}
-          onPointerCancel={onStagePointerUp}
-          onMouseDown={(e) => {
+          onPointerDown={(e) => {
+            onStagePointerDown(e);
             // click empty area → deselect, and start a marquee from here so a
             // sweep can begin on the pasteboard and run across the artboard.
             // ⚠️ Depends on the click landing on THIS node — do not wrap the
@@ -2009,6 +2006,9 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
               if (!isDrawTool && !addNodeMode) startMarquee(e);
             }
           }}
+          onPointerMove={onStagePointerMove}
+          onPointerUp={onStagePointerUp}
+          onPointerCancel={onStagePointerUp}
         >
           {/* Static launchers pinned to the stage's top-right. */}
           <div className="absolute top-3 right-3 z-[9999] flex items-center gap-2">
@@ -2159,7 +2159,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
                 backgroundSize: "cover",
                 backgroundPosition: "center",
               }}
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 // Bare artboard: clear the selection and start a marquee.
                 if (e.target === e.currentTarget) {
                   if (!e.shiftKey) selectElement(null);

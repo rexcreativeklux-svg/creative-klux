@@ -10,7 +10,8 @@
     "start": "next start",
     "lint": "eslint .",
     "models": "node scripts/download-models.mjs",
-    "voice-samples": "node scripts/generate-voice-samples.mjs"
+    "voice-samples": "node scripts/generate-voice-samples.mjs",
+    "aura-samples": "node scripts/generate-aura-samples.mjs"
   },
   "repository": {
     "type": "git",

@@ -4,6 +4,11 @@ node_modules/
 .env
 notes.txt
 
+# A Bearer token pasted in for `npm run aura-samples` (see
+# scripts/generate-aura-samples.mjs). Short-lived and account-specific — it must
+# never be committed, and it is not config: nothing but that script reads it.
+.aura-token
+
 # AI engine assets — big binaries, fetched by `npm run models` (see
 # src/(lib)/ai-engine/README.md). Git-ignored; every dev/deploy runs the script.
 public/models/

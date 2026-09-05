@@ -63,6 +63,15 @@ const MAX_PANEL_HEIGHT = 340;
  *   already legible as one, and the caret was half the remaining width.
  * @param {string} [props.badge] A short piece of text drawn INSTEAD of an icon
  *   glyph — for the settings whose value is the only useful label ("3x").
+ * @param {boolean} [props.attention] This chip holds something REQUIRED that
+ *   hasn't been answered. Tints the trigger and puts a dot on its corner.
+ *
+ *   ⚠️ THE ONLY THING MARKING A REQUIRED SETTING IN A ROW OF ICONS. These chips
+ *   deliberately don't show their values (see above), which is fine for a
+ *   setting that has a sensible default and wrong for one with no default and no
+ *   way to proceed — a run blocked on it looks identical to a run that is ready.
+ *   The dot is what makes the difference visible before the send button is
+ *   pressed rather than after.
  * @param {number} [props.width]      Panel width in px — the option's own
  *   `width` from the config, since a grid of style cards needs more room than a
  *   list of aspect ratios.
@@ -75,6 +84,7 @@ export default function ToolbarChip({
   label,
   icon: Icon,
   badge,
+  attention = false,
   width = 340,
   children,
 }) {
@@ -201,17 +211,33 @@ export default function ToolbarChip({
         aria-haspopup="true"
         // The label is the accessible name once it stops being drawn — an
         // icon-only button with no `aria-label` announces as "button".
-        aria-label={compact ? label : undefined}
+        // The dot is a colour, so the state it marks is spelled out for anyone
+        // who can't see it — in the accessible name and the tooltip both.
+        aria-label={
+          compact ? (attention ? `${label} (required)` : label) : undefined
+        }
         aria-expanded={open}
-        title={compact ? label : undefined}
-        className={`flex shrink-0 cursor-pointer items-center justify-center rounded-lg text-xs font-medium transition-colors ${
+        title={attention ? `${label} — required` : compact ? label : undefined}
+        // `relative` unconditionally: the dot is positioned against this.
+        className={`relative flex shrink-0 cursor-pointer items-center justify-center rounded-lg text-xs font-medium transition-colors ${
           compact ? "h-8 min-w-8 px-1.5" : "gap-1.5 px-2.5 py-1.5"
         } ${
           open
             ? "bg-gray-100 text-gray-900"
-            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            : attention
+              ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
+              : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
         }`}
       >
+        {attention && (
+          <span
+            aria-hidden="true"
+            // `ring-surface` rather than a plain border: the dot overhangs the
+            // chip's corner and needs to read against the composer behind it as
+            // well as against the chip's own tint.
+            className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-surface"
+          />
+        )}
         {badge ? (
           <span className="whitespace-nowrap tabular-nums">{badge}</span>
         ) : Icon ? (

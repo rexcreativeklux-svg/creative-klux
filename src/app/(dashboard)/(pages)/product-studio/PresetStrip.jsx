@@ -14,12 +14,33 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
  * instantly. -mx/px keeps the strip bleeding to the screen edge so the last
  * tile is visibly cut rather than looking like the end of the list.
  */
-export function PresetStrip({ children, className = "" }) {
+/**
+ * @param {object} props
+ * @param {React.ReactNode} props.children
+ * @param {string} [props.className]
+ * @param {(overflowing: boolean) => void} [props.onOverflowChange] Told whether
+ *   the row is wider than its box — i.e. whether there is anything to scroll to
+ *   at all. The history shelves use it to drop their "See all" on a row that is
+ *   already showing everything, where the link would point at nothing new.
+ *
+ *   ⚠️ FIRED ONLY WHEN THE ANSWER CHANGES. `measure` runs on every scroll event,
+ *   and a callback on each of those would re-render the parent through a drag.
+ */
+export function PresetStrip({ children, className = "", onOverflowChange }) {
   const ref = useRef(null);
   // Which directions have anything left to scroll to. A chevron pointing at
   // nothing is worse than no chevron: it reads as "there is more" on a row
   // like Classics, where four tiles fit and there is not.
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
+
+  // The latest callback, without it becoming a dependency of `measure` — an
+  // inline arrow from the parent would otherwise rebuild the measurer (and tear
+  // down its listeners) on every render. Same pattern as useMicRecorder's.
+  const overflowCbRef = useRef(onOverflowChange);
+  useEffect(() => {
+    overflowCbRef.current = onOverflowChange;
+  }, [onOverflowChange]);
+  const wasOverflowingRef = useRef(null);
 
   const measure = useCallback(() => {
     const el = ref.current;
@@ -27,6 +48,12 @@ export function PresetStrip({ children, className = "" }) {
     const max = el.scrollWidth - el.clientWidth;
     // 4px slack: sub-pixel layout leaves scrollLeft a hair off either end.
     setCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
+
+    const overflowing = max > 4;
+    if (wasOverflowingRef.current !== overflowing) {
+      wasOverflowingRef.current = overflowing;
+      overflowCbRef.current?.(overflowing);
+    }
   }, []);
 
   useEffect(() => {

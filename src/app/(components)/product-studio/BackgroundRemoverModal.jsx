@@ -2242,7 +2242,10 @@ export default function BackgroundRemoverModal({
         </div>
 
         {/* ── Canvas area ── */}
-        <div className="flex-1 flex flex-col bg-[#e8e8e8] dark:bg-canvas relative overflow-hidden">
+        <div
+          className="flex-1 flex flex-col bg-[#e8e8e8] dark:bg-canvas relative overflow-hidden"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelected(false); }}
+        >
           <button
             onClick={onClose}
             className="absolute top-3 right-3 z-20 w-8 h-8 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-300 hover:text-red-500 shadow-sm cursor-pointer transition-all"
@@ -2272,7 +2275,10 @@ export default function BackgroundRemoverModal({
                   : "Upload an image to start"}
           </div>
 
-          <div className="flex-1 min-h-0 flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-auto">
+          <div
+            className="flex-1 min-h-0 flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-auto"
+            onClick={(e) => { if (e.target === e.currentTarget) setSelected(false); }}
+          >
             {removing ? (
               <div className="flex flex-col items-center gap-4 w-60">
                 <div className="w-20 h-20 rounded-2xl bg-surface shadow-lg flex items-center justify-center">

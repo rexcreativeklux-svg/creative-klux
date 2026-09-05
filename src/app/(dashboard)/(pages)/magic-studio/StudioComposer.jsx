@@ -28,10 +28,11 @@
  * plus that tool's own options (style, size, quality, voice, language…) as chips
  * along the toolbar, each opening the SHARED OptionPanelBody — the same rich
  * panel the modal shows, so a style card looks the same wherever you meet it —
- * plus, where the tool declares them, a Logo chip (type the brand mark, or pick
- * one out of the media picker) and the app-wide model menu at the end of the
- * row. Both are opt-in per tool: `logo: true` puts the first there, and
- * `model: false` takes the second away where the payload has no field for it.
+ * plus, where the tool declares them, a Brand chip (the brand's name, which such
+ * a tool requires, and optionally a logo picked out of the media picker) and the
+ * app-wide model menu at the end of the row. Both are opt-in per tool:
+ * `brand: true` puts the first there, and `model: false` takes the second away
+ * where the payload has no field for it.
  *
  * ⚠️ EVERY PANEL IN THIS TOOLBAR IS PORTALLED (see ToolbarChip, and
  * ComposerDropdown for the model menu). The row is `overflow-x-auto`, which
@@ -46,6 +47,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertCircle,
   ArrowUp,
   AudioLines,
   Clock,
@@ -420,21 +422,19 @@ export default function StudioComposer({
   /** What the picker may actually show for that target. */
   const pickerMedia = pickerTarget === "logo" ? "image" : pickerTarget;
 
-  // ── The logo, for the tools that offer one (config.logo) ───────────────────
-  // Either words to set as the mark, or a picture of one — never both, because
-  // the payload carries a single `logo` field and two answers to one question
-  // is a choice the backend would have to make on the user's behalf.
-  const logoEnabled = config?.logo === true;
-  const [logoMode, setLogoMode] = useState(null); // null | "text" | "image"
-  const [logoText, setLogoText] = useState("");
-  const [logoImage, setLogoImage] = useState(null); // hosted URL
-  /** What actually goes up as `logo` — "" while the chip is untouched. */
-  const logoValue =
-    logoMode === "text"
-      ? logoText.trim()
-      : logoMode === "image"
-        ? logoImage || ""
-        : "";
+  // ── The brand, for the tools that ask for one (config.brand) ───────────────
+  // ⚠️ TWO ANSWERS THAT NO LONGER COMPETE. This was once a single value — words
+  // OR a picture, whichever was given last — because the payload had one `logo`
+  // field to put them in. It has two now (`brand_name`, `brand_logo`), so the
+  // name and the mark are held separately and both ride on the same run.
+  //
+  // ⚠️ THE NAME IS REQUIRED, THE LOGO IS NOT. `ready` below refuses to send
+  // without a name, and the config's `validate` refuses again behind it.
+  const brandEnabled = config?.brand === true;
+  const [brandName, setBrandName] = useState("");
+  const [brandLogo, setBrandLogo] = useState(null); // hosted URL
+  /** What goes up as `brand_name` — "" until somebody types one. */
+  const brandNameValue = brandName.trim();
 
   // One key, so opening a chip's panel closes whichever was open. The model
   // menu shares it, which is why it can't be the odd one out with its own flag.
@@ -636,18 +636,13 @@ export default function StudioComposer({
    */
   const handlePickedLogo = (src) => {
     if (!src) return;
-    console.log("🔖 [magic-studio] logo image:", src);
-    setLogoImage(src);
-    setLogoMode("image");
+    console.log("🔖 [magic-studio] brand logo:", src);
+    setBrandLogo(src);
   };
 
-  /** Back to "no logo at all" — not back to the chooser, which is `setLogoMode(null)`
-   *  with the text and image already cleared. */
-  const clearLogo = () => {
-    setLogoMode(null);
-    setLogoText("");
-    setLogoImage(null);
-  };
+  /** Drop the mark alone. The brand NAME survives this — it is required, and a
+   *  run without a logo is a normal run. */
+  const clearLogo = () => setBrandLogo(null);
 
   /**
    * Fill the persona from one of the config's worked examples.
@@ -684,28 +679,89 @@ export default function StudioComposer({
   // What "ready" means is per-input: typed tools need text, image needs an
   // uploaded source, audio needs a take, persona needs at least a name. The
   // config's own validate runs inside generate() and reports anything finer.
-  const ready = (() => {
-    if (generating) return false;
-    if (typeable) return text.trim().length > 0;
-    // A tool that REQUIRES its secondary box needs both halves — the source and
-    // the words. Checked once here rather than per kind, so a future
-    // `requiresPrompt` tool on any input kind is gated the same way.
-    if (requiresPrompt && !text.trim()) return false;
-    // A tool with a REQUIRED second input needs that too, whatever its primary
-    // input is — Digital Human's portrait is only half a run without the voice
-    // track it lip-syncs to.
-    if (extraAudio && config.extraInput.required && !voiceTrack?.url) {
-      return false;
+  //
+  // ⚠️ THIS ANSWERS *WHY*, NOT JUST *WHETHER*. It used to return a bare boolean,
+  // and a dead send button is a dead end when the missing piece is folded inside
+  // a closed chip: a fully written prompt with no brand name looked complete and
+  // simply would not send, with nothing on screen saying so. The first unmet
+  // requirement is named here and shown in three places — the hint above the
+  // toolbar, the button's own tooltip, and a dot on the chip that holds it.
+  //
+  // Ordered as the composer is filled: the words first, then the source, then
+  // the brand, so the hint names the piece you'd naturally reach for next rather
+  // than the last one in the list.
+  const blocker = (() => {
+    if (generating) return null; // Not a missing input — the button is spinning.
+    if (typeable) {
+      if (!text.trim())
+        return { message: "Describe what you want to create." };
+    } else {
+      // A tool that REQUIRES its secondary box needs both halves — the source
+      // and the words. Checked once here rather than per kind, so a future
+      // `requiresPrompt` tool on any input kind is gated the same way.
+      if (requiresPrompt && !text.trim())
+        return { message: "Add a description to go with it." };
+      // A tool with a REQUIRED second input needs that too, whatever its primary
+      // input is — Digital Human's portrait is only half a run without the voice
+      // track it lip-syncs to.
+      if (extraAudio && config.extraInput.required && !voiceTrack?.url)
+        return { message: "Add the voice track to lip-sync to." };
+      if (kind === "image" && !image?.url)
+        return { message: "Choose a source image." };
+      if (kind === "video" && !video?.url)
+        return { message: "Choose a source video." };
+      if (kind === "audio" && !audio)
+        return { message: "Record a take or upload an audio file." };
+      if (kind === "persona" && !values.personaName?.trim())
+        return { message: "Give the persona a name." };
     }
-    if (kind === "image") return !!image?.url;
-    if (kind === "video") return !!video?.url;
-    if (kind === "audio") return !!audio;
-    if (kind === "persona") return !!values.personaName?.trim();
-    return true;
+    // A branded tool cannot run anonymously — `brand_name` is required on every
+    // request. Last, and the only one with a fix button: it is the one
+    // requirement whose control is hidden behind a chip, so telling someone what
+    // is missing without also opening the place to fix it sends them hunting
+    // along a row of icons.
+    if (brandEnabled && !brandNameValue)
+      return {
+        message: "A brand name is required.",
+        fixLabel: "Add one",
+        onFix: () => setOpenPanel("brand"),
+      };
+    return null;
   })();
+  const ready = !generating && !blocker;
+
+  /**
+   * Whether anything at all has been entered yet.
+   *
+   * ⚠️ WHAT KEEPS THE HINT FROM NAGGING. An untouched composer is missing
+   * everything by definition, and greeting someone with "Describe what you want
+   * to create." directly under a placeholder that says the same thing is noise
+   * that trains people to ignore the line — which is exactly where it needs to
+   * be read once they're half done. The hint appears only once a run is
+   * genuinely under way and something is still missing.
+   */
+  const touched =
+    !!text.trim() ||
+    !!image?.url ||
+    !!video?.url ||
+    !!audio ||
+    !!voiceTrack?.url ||
+    !!brandNameValue ||
+    !!brandLogo ||
+    !!values.personaName?.trim();
 
   const submit = () => {
-    if (!ready) return;
+    // ⚠️ A BLOCKED SUBMIT SAYS WHY INSTEAD OF DOING NOTHING. This is reached from
+    // the send button — which is `aria-disabled`, not `disabled`, precisely so
+    // the click still lands — and from Enter in the textarea. Both used to be
+    // silent no-ops, which is the worst possible answer to "is this thing
+    // broken?": it names the missing piece and opens the control that holds it.
+    if (blocker) {
+      toast.error(blocker.message);
+      blocker.onFix?.();
+      return;
+    }
+    if (!ready) return; // Generating — the run in flight is the answer.
     closePanel();
     // The model is only named on the tools that actually offer the menu — see
     // the `model: false` note in the configs. Naming it on a tool that doesn't
@@ -713,7 +769,9 @@ export default function StudioComposer({
     console.log(
       `✨ [magic-studio] generating with "${tool.label}"${
         modelEnabled ? ` (${model})` : ""
-      }${logoValue ? ` · logo: ${logoValue}` : ""}`,
+      }${brandNameValue ? ` · brand: ${brandNameValue}` : ""}${
+        brandLogo ? " · logo" : ""
+      }`,
     );
     // Frozen at submit, so the in-flight tiles keep showing THIS run while the
     // box stays live. A tool with no words at all — an audio take — still
@@ -759,10 +817,13 @@ export default function StudioComposer({
         // `prompt` already — sending them twice under two names would be the
         // same brief, doubled.
         ...(promptable ? { description: typed } : {}),
-        // Words or a picked image URL, whichever the Logo chip was answered
-        // with; "" while it is untouched, and the config's `logoField` drops it
-        // from the payload entirely in that case.
-        ...(logoEnabled ? { logo: logoValue } : {}),
+        // The two halves of the Brand chip, kept apart all the way to the wire:
+        // the typed name becomes `brand_name` (required) and the picked image
+        // URL becomes `brand_logo` (optional, dropped when null). See
+        // brandFields in the configs.
+        ...(brandEnabled
+          ? { brandName: brandNameValue, brandLogo: brandLogo || "" }
+          : {}),
       },
       activeBrand,
     });
@@ -808,18 +869,23 @@ export default function StudioComposer({
         </div>
       )}
 
-      {/* The chosen logo, in the same strip as a source image and for the same
-          reason: it rides on every run from here until it is cleared, and a
-          brand mark silently applied to a generation you thought was plain is
-          the kind of thing you only notice in the result. A picked mark shows
-          as itself; typed words show as the words. */}
-      {logoEnabled && logoValue && (
+      {/* The brand this run is for, in the same strip as a source image and for
+          the same reason: it rides on every run from here until it is changed,
+          and a brand silently applied to a generation you thought was plain is
+          the kind of thing you only notice in the result. The mark shows as
+          itself where one was picked, the name always shows as words — the two
+          are separate answers now, so the strip reports both.
+
+          ⚠️ ONLY THE LOGO HAS AN X. Clearing the name from here would leave the
+          composer in a state it refuses to send from, with the reason offscreen
+          in a closed chip; the name is edited where it is entered. */}
+      {brandEnabled && (brandNameValue || brandLogo) && (
         <div className="flex items-center gap-3 border-b border-gray-100 px-4 pb-3 pt-3">
-          {logoMode === "image" ? (
+          {brandLogo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={logoImage}
-              alt="Logo"
+              src={brandLogo}
+              alt="Brand logo"
               // `contain` on a light tile, not `cover` — a logo cropped to fill
               // a square is a logo with its edges cut off.
               className="h-12 w-12 shrink-0 rounded-lg border border-gray-100 bg-gray-50 object-contain p-1"
@@ -830,16 +896,19 @@ export default function StudioComposer({
             </span>
           )}
           <span className="min-w-0 flex-1 truncate text-xs text-gray-500">
-            {logoMode === "image" ? "Logo image ready" : `Logo: ${logoText.trim()}`}
+            {brandNameValue || "No brand name yet"}
+            {brandLogo ? " · logo ready" : ""}
           </span>
-          <button
-            type="button"
-            onClick={clearLogo}
-            aria-label="Remove logo"
-            className="shrink-0 cursor-pointer rounded p-1 text-gray-400 transition-colors hover:text-red-600"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          {brandLogo && (
+            <button
+              type="button"
+              onClick={clearLogo}
+              aria-label="Remove logo"
+              className="shrink-0 cursor-pointer rounded p-1 text-gray-400 transition-colors hover:text-red-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )}
 
@@ -1008,6 +1077,30 @@ export default function StudioComposer({
           A `flex-1` spacer used to push it right from INSIDE the scroller,
           which only works while the content fits; the scroll container itself
           is what claims the space now. */}
+      {/* Why the send button is dead. Sits directly above the toolbar, between
+          the box you just filled and the button that won't take it — the one
+          path your eye travels when nothing happens.
+          `aria-live` so it is announced when it changes rather than only found
+          by someone already tabbing through the row. */}
+      {blocker && touched && (
+        <div
+          aria-live="polite"
+          className="flex items-center gap-1.5 px-4 pt-1 text-[11px] text-amber-600"
+        >
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0">{blocker.message}</span>
+          {blocker.onFix && (
+            <button
+              type="button"
+              onClick={blocker.onFix}
+              className="shrink-0 cursor-pointer font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-800"
+            >
+              {blocker.fixLabel}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-1 px-4 pb-4 pt-1">
         <div className="hide-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {/* Source pickers, for the tools that need one. Icon-only like the
@@ -1331,124 +1424,75 @@ export default function StudioComposer({
           </ToolbarChip>
         ))}
 
-        {/* The brand mark to work into the result. ⚠️ TWO KINDS OF ANSWER
-            BEHIND ONE CHIP: type the name, or pick a picture of the logo. They
-            are asked for one at a time rather than as two fields — the payload
-            carries a single `logo`, so two filled boxes would be a question the
-            backend has to answer on the user's behalf. Picking one REPLACES the
-            other, and the chooser is what you come back to via Clear. */}
-        {logoEnabled && (
+        {/* Who this run is for. ⚠️ TWO FIELDS, ASKED TOGETHER AND SENT
+            SEPARATELY: the name is required and goes up as `brand_name`, the
+            logo is optional and goes up as `brand_logo`. They used to be an
+            either/or behind one string — picking a mark wiped the typed name —
+            which cost you the required half to answer the optional one. Both
+            are on screen at once now and neither replaces the other. */}
+        {brandEnabled && (
           <ToolbarChip
-            open={openPanel === "logo"}
-            onToggle={() => togglePanel("logo")}
+            open={openPanel === "brand"}
+            onToggle={() => togglePanel("brand")}
             onClose={closePanel}
-            label="Logo"
+            label="Brand"
             icon={Stamp}
+            // Marked from the first render, not once the run is blocked: the
+            // chip is where the one required setting on this tool lives, and
+            // pointing at it before the prompt is written is cheaper than
+            // explaining a dead button after it.
+            attention={!brandNameValue}
             width={300}
           >
             <div className="flex flex-col gap-2 p-3">
-              {logoMode === null && (
-                <>
-                  <p className="text-[11px] leading-relaxed text-gray-500">
-                    Add your brand mark — type it, or pick the image.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setLogoMode("text")}
-                    className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5 text-left transition-all hover:border-blue-400 hover:bg-blue-50/40"
-                  >
-                    <Type className="h-4 w-4 shrink-0 text-gray-500" />
-                    <span className="min-w-0">
-                      <span className="block text-xs font-semibold text-gray-900">
-                        Enter text
-                      </span>
-                      <span className="block text-[11px] text-gray-500">
-                        Set the brand name as the mark
-                      </span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // The picker is a modal and this panel is a portal that
-                      // closes on outside click — leaving it open would put a
-                      // floating panel over the modal until the first click
-                      // dismissed it.
-                      closePanel();
-                      setPickerTarget("logo");
-                    }}
-                    className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5 text-left transition-all hover:border-blue-400 hover:bg-blue-50/40"
-                  >
-                    <ImagePlus className="h-4 w-4 shrink-0 text-gray-500" />
-                    <span className="min-w-0">
-                      <span className="block text-xs font-semibold text-gray-900">
-                        Choose a logo
-                      </span>
-                      <span className="block text-[11px] text-gray-500">
-                        From your library, the web, or upload one
-                      </span>
-                    </span>
-                  </button>
-                </>
-              )}
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[11px] font-medium text-gray-500">
+                  Brand name
+                </span>
+                {/* Said in the panel as well as enforced on the button: a send
+                    button that is simply dead explains nothing. */}
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-red-500">
+                  Required
+                </span>
+              </div>
+              <input
+                // The name is the required half, so the caret lands there.
+                autoFocus
+                value={brandName}
+                onChange={(event) => setBrandName(event.target.value)}
+                // ⚠️ ENTER CLOSES THE PANEL, IT DOES NOT GENERATE. The
+                // composer's Enter-to-send lives on the textarea alone, and
+                // naming the brand is not the same gesture as committing to a
+                // paid run.
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    closePanel();
+                  }
+                }}
+                maxLength={60}
+                placeholder="e.g. Creative Klux"
+                className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-400"
+              />
 
-              {logoMode === "text" && (
-                <>
-                  <span className="text-[11px] font-medium text-gray-500">
-                    Logo text
-                  </span>
-                  <input
-                    // The panel opened for exactly one reason — to type this.
-                    autoFocus
-                    value={logoText}
-                    onChange={(event) => setLogoText(event.target.value)}
-                    // ⚠️ ENTER CLOSES THE PANEL, IT DOES NOT GENERATE. The
-                    // composer's Enter-to-send lives on the textarea alone, and
-                    // finishing a logo is not the same gesture as committing to
-                    // a paid run.
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        closePanel();
-                      }
-                    }}
-                    maxLength={60}
-                    placeholder="e.g. Creative Klux"
-                    className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-400"
-                  />
-                  <div className="flex items-center justify-between gap-2 pt-0.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closePanel();
-                        setPickerTarget("logo");
-                      }}
-                      className="cursor-pointer text-[11px] font-semibold text-blue-600 hover:underline"
-                    >
-                      Use an image instead
-                    </button>
-                    <button
-                      type="button"
-                      onClick={clearLogo}
-                      className="cursor-pointer text-[11px] font-semibold text-gray-400 hover:text-red-600"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </>
-              )}
+              <div className="mt-1 flex items-baseline justify-between gap-2 border-t border-gray-100 pt-2.5">
+                <span className="text-[11px] font-medium text-gray-500">
+                  Logo
+                </span>
+                <span className="text-[10px] text-gray-400">Optional</span>
+              </div>
 
-              {logoMode === "image" && (
+              {brandLogo ? (
                 <>
                   <div className="flex items-center gap-2.5 rounded-lg border border-gray-200 p-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={logoImage}
+                      src={brandLogo}
                       alt="Chosen logo"
                       className="h-10 w-10 shrink-0 rounded-md bg-gray-50 object-contain p-0.5"
                     />
                     <span className="min-w-0 flex-1 text-[11px] text-gray-500">
-                      This mark rides on every run until you clear it.
+                      This mark rides on every run until you remove it.
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2 pt-0.5">
@@ -1464,23 +1508,36 @@ export default function StudioComposer({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setLogoImage(null);
-                        setLogoMode("text");
-                      }}
-                      className="cursor-pointer text-[11px] font-semibold text-gray-500 hover:text-gray-900"
-                    >
-                      Type text instead
-                    </button>
-                    <button
-                      type="button"
                       onClick={clearLogo}
                       className="cursor-pointer text-[11px] font-semibold text-gray-400 hover:text-red-600"
                     >
-                      Clear
+                      Remove
                     </button>
                   </div>
                 </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // The picker is a modal and this panel is a portal that
+                    // closes on outside click — leaving it open would put a
+                    // floating panel over the modal until the first click
+                    // dismissed it.
+                    closePanel();
+                    setPickerTarget("logo");
+                  }}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5 text-left transition-all hover:border-blue-400 hover:bg-blue-50/40"
+                >
+                  <ImagePlus className="h-4 w-4 shrink-0 text-gray-500" />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-semibold text-gray-900">
+                      Choose a logo
+                    </span>
+                    <span className="block text-[11px] text-gray-500">
+                      From your library, the web, or upload one
+                    </span>
+                  </span>
+                </button>
               )}
             </div>
           </ToolbarChip>
@@ -1588,13 +1645,28 @@ export default function StudioComposer({
         <button
           type="button"
           onClick={submit}
-          disabled={!ready}
+          // ⚠️ `aria-disabled`, NOT `disabled`, AND THAT IS THE WHOLE POINT. A
+          // truly disabled button takes no click, so the one gesture someone
+          // makes when a button looks dead — pressing it — produced nothing at
+          // all. It still looks and announces as unavailable; pressing it now
+          // explains itself (see submit). `disabled` stays only while a run is
+          // in flight, where there is nothing to explain and a second click
+          // would start a second paid generation.
+          disabled={generating}
+          aria-disabled={!ready}
           aria-label={config?.generateLabel || `Create with ${tool.label}`}
-          title={config?.generateLabel || undefined}
-          className={`ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all ${
+          // ⚠️ THE REASON, NOT THE ACTION, WHILE IT IS DEAD. A tooltip reading
+          // "Generate images" over a button that refuses to generate images is
+          // the least useful thing it could say; hovering a disabled control is
+          // what people do when they want to know why.
+          title={blocker ? blocker.message : config?.generateLabel || undefined}
+          // Grey while it won't run, but `cursor-pointer` all the same — the
+          // click does something now (it explains), and `cursor-not-allowed`
+          // over a button that answers you is the pointer telling a lie.
+          className={`ml-1 flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-all ${
             ready
-              ? "cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
-              : "cursor-not-allowed bg-gray-100 text-gray-400"
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-gray-100 text-gray-400 hover:bg-gray-200"
           }`}
         >
           {generating ? (

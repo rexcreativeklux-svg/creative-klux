@@ -150,6 +150,55 @@ export const TOOL_LIST = [
 // Shown under "Recently used" in the tool switcher.
 export const RECENT_TOOL_IDS = ["virtual", "staging"];
 
+/**
+ * The tools whose past work the landing page shows a row for, and the backend
+ * enum each one's history is filed under.
+ *
+ * ⚠️ NOT EVERY TOOL IN TOOL_LIST IS HERE, and the absences are the interesting
+ * part:
+ *
+ *   Auto Design (`bgremove`)  removes the background with the LOCAL ai-engine
+ *                             and paints new ones through generateImage — it
+ *                             never posts to /product-studio/generate, so no
+ *                             record is ever written for it.
+ *   Batch                     opens that same modal over many files. Same story.
+ *   Edit with AI (`start`)    hands off to /edit_a_photo, which is the photo
+ *                             editor rather than a generation tool.
+ *
+ * A row for any of those would be a heading over a permanently empty strip. If
+ * one of them ever starts recording server-side, adding it here is the whole
+ * change — the row, the overlay and the loader are all driven off this list.
+ *
+ * ⚠️ THE `tool` VALUES ARE NOT ALL `TOOL_ENUM`. Reshaping, Poster and AI POD all
+ * generate through the shared `edit` engine, so their records are filed under
+ * `tool_save` instead — see TOOL_SAVE_ENUM. Passing "edit" here would read back
+ * one merged list for all three.
+ *
+ * Order follows TOOL_LIST, so the rows appear in the same order as the tool grid
+ * above them.
+ */
+export const HISTORY_TOOLS = [
+  { id: "virtual", tool: "virtual_model" },
+  { id: "staging", tool: "product_staging" },
+  { id: "beautifier", tool: "product_beautifier" },
+  { id: "flatlay", tool: "flat_lay" },
+  { id: "mannequin", tool: "ghost_mannequin" },
+  { id: "reshaping", tool: "product_reshaping" },
+  { id: "poster", tool: "product_poster" },
+  { id: "pod", tool: "product_pod" },
+  { id: "product_video", tool: "product_video" },
+].map((entry) => {
+  // Name / icon / colour come from TOOL_LIST rather than being restated, so a
+  // tool renamed there is renamed on its history row too.
+  const meta = TOOL_LIST.find((t) => t.id === entry.id) || {};
+  return {
+    ...entry,
+    name: meta.name || entry.id,
+    Icon: meta.Icon,
+    color: meta.color || "bg-gray-100 text-gray-600",
+  };
+});
+
 // ── Stock-photo search seed per tool ────────────────────────────────────────
 // Every Product Studio tool opens the SAME picker (MediaPickerModal), whose
 // Search tab is Pexels. Without a seed each tool showed the identical generic

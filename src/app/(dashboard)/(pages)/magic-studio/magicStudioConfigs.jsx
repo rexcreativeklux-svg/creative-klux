@@ -103,6 +103,7 @@ import {
   backendVoiceId,
   defaultVoiceFor,
   usesBackend,
+  voiceFace,
   voiceItemsFor,
   voiceLabelFor,
 } from "@/(lib)/magic-studio-audio";
@@ -486,7 +487,12 @@ function recordTextToAudio(text, values, item) {
     }),
   );
   form.append("voice", values.voice);
-  form.append("speaking_pace", values.speed);
+  // ⚠️ THE NAME, NOT THE NUMBER. `speaking_pace` is the word-valued field —
+  // the same one script_to_voiceover posts — and it has always been given
+  // "normal" rather than "1". The composer's control is a slider now, so the
+  // number is translated back here rather than changing what this endpoint has
+  // been receiving since it was written. See paceName.
+  form.append("speaking_pace", paceName(values.speed));
   form.append("export_format", values.format);
   form.append("quality", values.quality);
 
@@ -698,31 +704,36 @@ const descriptionField = (value) => {
 };
 
 /**
- * The `logo` field for a payload — the brand mark to work into the image.
+ * The `brand_name` / `brand_logo` pair for a payload — who the image is for, and
+ * optionally the mark to work into it.
  *
- * ⚠️ ONE FIELD FOR BOTH KINDS OF ANSWER. The composer lets you either TYPE the
- * logo ("Creative Klux") or PICK a picture of one, and both arrive here as a
- * single string: words, or the URL of the image that was chosen. A URL is
- * self-identifying — it starts with http — so the backend can tell them apart
- * without a second field, and a second field is exactly what this endpoint
- * rejects: it validates its payload and answers 422 for keys it doesn't declare
- * (the same validator behind "The tool field is required").
+ * ⚠️ TWO FIELDS, NOT ONE, AND THEY ANSWER DIFFERENT QUESTIONS. This used to be a
+ * single `logo` string carrying either words or a URL, with the backend told to
+ * tell them apart by the leading http. It doesn't have to guess any more: the
+ * words are the BRAND NAME and go up as `brand_name`, the picked picture is the
+ * LOGO and goes up as `brand_logo`. Both can be sent on the same run — naming
+ * your brand and handing over its mark is one intent, not two competing ones.
  *
- * ⚠️ OMITTED WHEN EMPTY, like {@link colorField} and {@link descriptionField}.
- * A run where nobody touched the Logo chip sends the byte-identical payload it
- * sent before this existed.
+ * ⚠️ `brand_name` IS REQUIRED AND `brand_logo` IS NOT. A run with no brand name
+ * is blocked before it reaches here (see the tool's `validate`), so the guard
+ * below is the belt to that braces rather than the rule itself; the logo is
+ * simply omitted when nobody picked one.
  *
- * ⚠️ A PICKED LOGO IS SENT BY ITS OWN URL. Nothing is copied into the gallery on
- * the way — same as the source image on Image to Variations — so the backend
- * fetches it server-side. If typed logos work and picked ones don't, that fetch
- * is the thing to check, not this.
+ * ⚠️ THE LOGO IS SENT BY ITS OWN URL, NEVER AS A FILE. Nothing is copied into the
+ * gallery on the way — same as the source image on Image to Variations — so the
+ * backend fetches it server-side. If a typed brand name works and a picked logo
+ * doesn't, that fetch is the thing to check, not this.
  *
- * A tool opts in by declaring `logo: true`, which is what puts the chip on the
- * composer; this is what puts the answer into the payload.
+ * A tool opts in by declaring `brand: true`, which is what puts the chip on the
+ * composer; this is what puts the answers into the payload.
  */
-const logoField = (value) => {
-  const logo = typeof value === "string" ? value.trim() : "";
-  return logo ? { logo } : {};
+const brandFields = (name, logo) => {
+  const brand_name = typeof name === "string" ? name.trim() : "";
+  const brand_logo = typeof logo === "string" ? logo.trim() : "";
+  return {
+    ...(brand_name ? { brand_name } : {}),
+    ...(brand_logo ? { brand_logo } : {}),
+  };
 };
 
 /**
@@ -962,20 +973,96 @@ const IMAGE_STYLES = [...CORE_STYLES, ...LEGACY_IMAGE_STYLES];
 
 // ── Text-to-Audio voice cards (real Kokoro-82M voices, from the AI engine) ───
 // The on-device model ships 28 English voices; the "voices" panel groups them
-// by accent + gender with a gender icon per row. `top` marks the best-graded
-// voices (A/B on the Kokoro voice card) with a ★ badge.
-const KOKORO_VOICE_ITEMS = KOKORO_TTS.voices.map((v) => ({
-  value: v.id,
-  label: v.name,
-  desc: `${v.accent} · ${v.gender}`,
-  icon: v.gender === "male" ? Mars : Venus,
-  gender: v.gender,
-  group: `${v.accent} ${v.gender} voices`,
-  top: /^[AB]/.test(v.grade),
-}));
+// by accent + gender, each card carrying a portrait over its gender glyph.
+// `top` marks the best-graded voices (A/B on the Kokoro voice card) with a ★.
+const KOKORO_VOICE_ITEMS = (() => {
+  // Faces are dealt per gender so each gender's list walks its own pool — see
+  // voiceFace. Kokoro's voices are ordered by accent, so this also keeps two
+  // neighbours in the same group off the same photo.
+  const seen = { female: 0, male: 0 };
+  return KOKORO_TTS.voices.map((v) => ({
+    value: v.id,
+    label: v.name,
+    desc: `${v.accent} · ${v.gender}`,
+    icon: v.gender === "male" ? Mars : Venus,
+    img: voiceFace(v.gender, seen[v.gender]++),
+    gender: v.gender,
+    group: `${v.accent} ${v.gender} voices`,
+    top: /^[AB]/.test(v.grade),
+    // The 28 clips already committed under /voice-samples. `synth: true` is what
+    // separates these from the hosted voices: this model runs on the user's own
+    // machine, so a missing clip costs a few seconds rather than a generation.
+    sample: `/voice-samples/${v.id}.mp3`,
+    synth: true,
+  }));
+})();
 
-// UI speed value → the multiplier the speech engine actually applies.
-const SPEAKING_SPEED = { slow: 0.75, normal: 1, fast: 1.25 };
+/**
+ * The words these two options used to be, and the multiplier each meant.
+ *
+ * ⚠️ KEPT AS A TRANSLATION TABLE, NOT AS THE CHOICES. Speaking speed is a
+ * SLIDER now on both tools — see the `speed` and `pace` options — so what the
+ * composer holds is a number as a string ("1.05"). This still resolves a stale
+ * word to its multiplier, which costs nothing and means a surface still holding
+ * "normal" from a session that started before the change carries on working
+ * rather than sending a speed of NaN.
+ */
+const SPEAKING_SPEED = { slow: 0.75, normal: 1, fast: 1.25, rapid: 1.5 };
+
+/**
+ * The multiplier to actually speak at, from whatever the option holds.
+ *
+ * Takes the slider's numeric string, a legacy word, or nothing at all, and
+ * always answers a usable positive number — 1 when it cannot tell, because a
+ * speed is the one field here where a wrong guess is audible and a missing one
+ * is fatal.
+ *
+ * @param {string|number} value
+ * @returns {number}
+ */
+const speakingSpeed = (value) => {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+  const named = SPEAKING_SPEED[value];
+  if (named) return named;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+};
+
+/**
+ * How a speed reads in words — the slider's hint line.
+ *
+ * The number is already on screen beside it; this says what the number MEANS, so
+ * the control is still answerable by someone who has never thought about 1.15×.
+ */
+/**
+ * The pace NAME to send for a slider position — "slow" | "normal" | "fast" |
+ * "rapid".
+ *
+ * ⚠️ SCRIPT TO VOICEOVER'S WIRE FORMAT NEVER CHANGED. `speaking_pace` has always
+ * carried one of these four words, and this endpoint rejects what it doesn't
+ * recognise — so making the control a slider is a UI change and only a UI
+ * change. The number chooses the word; the payload is byte-identical to the one
+ * the four cards produced.
+ *
+ * Passes a word straight through, for a surface still holding one.
+ */
+const paceName = (value) => {
+  if (typeof value === "string" && value in SPEAKING_SPEED) return value;
+  const n = speakingSpeed(value);
+  if (n < 0.9) return "slow";
+  if (n < 1.15) return "normal";
+  if (n < 1.4) return "fast";
+  return "rapid";
+};
+
+const speedWord = (n) => {
+  if (n < 0.9) return "Slower — contemplative";
+  if (n < 1.05) return "Normal — balanced";
+  if (n < 1.3) return "Faster — energetic";
+  return "Rapid — punchy";
+};
 
 /**
  * Drop the option rows an engine cannot act on.
@@ -1370,11 +1457,11 @@ export const MAGIC_STUDIO_CONFIGS = {
     // return the same answer three times.
     variations: true,
     /**
-     * Puts the Logo chip on the composer — type the brand's name, or pick a
-     * mark out of the media picker. What is chosen reaches the payload as
-     * `logo`; see {@link logoField}.
+     * Puts the Brand chip on the composer — the brand's name, which this tool
+     * REQUIRES, and optionally a logo picked out of the media picker. They reach
+     * the payload as `brand_name` and `brand_logo`; see {@link brandFields}.
      */
-    logo: true,
+    brand: true,
     /**
      * ⚠️ NO MODEL MENU ON THIS TOOL. Which model paints the image is the
      * backend's choice here — the payload it validates has no field for one, so
@@ -1433,7 +1520,17 @@ export const MAGIC_STUDIO_CONFIGS = {
         items: [RATIO_SQUARE, RATIO_LANDSCAPE, RATIO_PORTRAIT, RATIO_WIDE],
       },
     ],
-    validate: ({ input }) => (input?.trim() ? null : "Please enter a prompt."),
+    /**
+     * ⚠️ THE BRAND NAME IS AS REQUIRED AS THE PROMPT. The endpoint wants both on
+     * every run — the words describing the image AND who it is for — so a run
+     * with an untouched Brand chip is stopped here rather than being sent to
+     * earn a 422. The logo is the optional half of that chip and is not checked.
+     */
+    validate: ({ input, values }) => {
+      if (!input?.trim()) return "Please enter a prompt.";
+      if (!values?.brandName?.trim()) return "Please enter a brand name.";
+      return null;
+    },
     generate: async ({ input, values }) => {
       const payload = {
         // ⚠️ `tool` IS THE PURPOSE, not the literal "text_to_image". The backend
@@ -1454,8 +1551,10 @@ export const MAGIC_STUDIO_CONFIGS = {
         variations: values.variations,
         // Absent unless a colour was actually picked — see COLOR_OPTION.
         ...colorField(values.color),
-        // Absent unless a logo was typed or picked — see logoField.
-        ...logoField(values.logo),
+        // The brand this is for, and its mark where one was picked. `brand_name`
+        // is required and guaranteed present by `validate`; `brand_logo` is
+        // absent unless a logo was chosen — see brandFields.
+        ...brandFields(values.brandName, values.brandLogo),
         prompt: input.trim(),
       };
       // May answer with the finished images or with a job to wait on — the
@@ -1799,35 +1898,28 @@ export const MAGIC_STUDIO_CONFIGS = {
       {
         key: "pace",
         label: "Speaking pace",
-        panel: "list",
-        width: 320,
-        default: "normal",
-        items: [
-          {
-            value: "slow",
-            label: "Slow",
-            desc: "0.75× — contemplative",
-            icon: Gauge,
-          },
-          {
-            value: "normal",
-            label: "Normal",
-            desc: "1× — balanced",
-            icon: Gauge,
-          },
-          {
-            value: "fast",
-            label: "Fast",
-            desc: "1.25× — energetic",
-            icon: Gauge,
-          },
-          {
-            value: "rapid",
-            label: "Rapid",
-            desc: "1.5× — punchy",
-            icon: Gauge,
-          },
-        ],
+        panel: "slider",
+        width: 300,
+        /**
+         * ⚠️ THE STEP IS THE POINT HERE, and it is coarser than Text to Audio's
+         * on purpose. That tool sends a float and can honour any value in its
+         * range; this one sends a NAME — `speaking_pace: "normal"` — so the four
+         * stops are the four words the backend knows, and 0.25 is what makes the
+         * thumb land on exactly those. A finer step would let someone choose
+         * 1.1× and quietly send "normal", which is a control that lies about its
+         * own precision.
+         *
+         * It is still a slider rather than the four cards it was: one drag
+         * across the whole range beats reading four descriptions to answer "how
+         * fast", and {@link paceName} is what turns the number back into the
+         * word on the way out.
+         */
+        min: 0.75,
+        max: 1.5,
+        step: 0.25,
+        unit: "×",
+        default: "1",
+        hint: speedWord,
       },
       {
         key: "ratio",
@@ -1858,7 +1950,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         tool: "script_to_voiceover",
         visual_style: values.voice,
         narration_tone: values.tone,
-        speaking_pace: values.pace,
+        // The slider's number → the word this endpoint takes — see paceName.
+        speaking_pace: paceName(values.pace),
         ratio: ratioString(values.ratio),
         export_format: values.format,
         purpose: values.purpose,
@@ -2267,14 +2360,27 @@ export const MAGIC_STUDIO_CONFIGS = {
       {
         key: "speed",
         label: "Speaking speed",
-        panel: "list",
+        panel: "slider",
         width: 300,
-        default: "normal",
-        items: [
-          { value: "slow", label: "Slow", desc: "0.75× speed", icon: Gauge },
-          { value: "normal", label: "Normal", desc: "1.0× speed", icon: Gauge },
-          { value: "fast", label: "Fast", desc: "1.25× speed", icon: Gauge },
-        ],
+        /**
+         * ⚠️ THE RANGE IS WHAT THE BACKEND HAS BEEN SHOWN TO ACCEPT, NOT WHAT
+         * THE FIELD PROBABLY TAKES. Three values have ever been sent — 0.75, 1
+         * and 1.25, the old Slow/Normal/Fast cards — so those are the bounds
+         * this slider fills in between. Anything outside them is a guess that
+         * would only fail after a paid generation, which is exactly how the
+         * video duration list came to offer five durations the provider
+         * rejected (see text_to_video's `duration`).
+         *
+         * Widen it the moment the API's real bounds are confirmed — the step is
+         * already fine-grained, so 0.5–2.0 is a two-number edit here and nothing
+         * downstream cares.
+         */
+        min: 0.75,
+        max: 1.25,
+        step: 0.05,
+        unit: "×",
+        default: "1",
+        hint: speedWord,
       },
       {
         key: "format",
@@ -2337,8 +2443,8 @@ export const MAGIC_STUDIO_CONFIGS = {
     },
     generate: async ({ input, values, tts }) => {
       const text = input.trim();
-      // The composer's slow|normal|fast → the float the API takes.
-      const speed = SPEAKING_SPEED[values.speed] ?? 1;
+      // The slider's number (or a legacy word) → the float the API takes.
+      const speed = speakingSpeed(values.speed);
 
       // ── Backend ────────────────────────────────────────────────────────────
       // ⚠️ FIELDS AT THE TOP LEVEL, NOT UNDER `options` — this tool's payload is

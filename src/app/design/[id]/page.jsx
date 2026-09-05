@@ -26,10 +26,17 @@ async function toEditorDesign(raw) {
 
   let canvas = null;
   let elements = [];
+  // Notes ride inside the same JSON blob as the canvas and elements — they are
+  // part of the document, and that column is the only place the editor already
+  // has permission to write. No new field, no API change.
+  let notes = "";
   if (parsed && typeof parsed === "object") {
     if (parsed.canvas && Array.isArray(parsed.elements)) {
       canvas = parsed.canvas;
       elements = parsed.elements;
+    }
+    if (typeof parsed.notes === "string") {
+      notes = parsed.notes;
     } else if (parsed.width && parsed.height) {
       canvas = parsed;
     }
@@ -44,6 +51,7 @@ async function toEditorDesign(raw) {
       name: raw.name || "Untitled design",
       canvas,
       elements,
+      notes,
     };
   }
 
@@ -73,6 +81,7 @@ async function toEditorDesign(raw) {
     name: raw.name || "Untitled design",
     canvas: canvas || { width: 1080, height: 1080, background: "#ffffff" },
     elements,
+    notes,
   };
 }
 

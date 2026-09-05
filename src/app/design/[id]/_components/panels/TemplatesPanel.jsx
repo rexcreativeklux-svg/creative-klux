@@ -30,14 +30,19 @@ export default function TemplatesPanel({ editor, designId }) {
 
   const [mine, setMine] = useState([]);
   const [library, setLibrary] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Starts true: this panel fetches on mount, so `false` meant one frame of
+  // "no templates" before the spinner appeared. It also keeps `load` free of a
+  // synchronous setState, which is what let the mount effect below stay a plain
+  // call.
+  const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(null); // template awaiting confirmation
 
   const typeSize = `${Math.round(canvas.width)}x${Math.round(canvas.height)}`;
 
+  // Does NOT flip `loading` on: the mount case starts that way, and the refresh
+  // button turns it on itself. Keeping the flag out of here is what lets the
+  // mount effect call this directly instead of scheduling around a setState.
   const load = useCallback(async () => {
-    setLoading(true);
-
     // ── Your designs (authoritative, works now) ──
     // fetchDesigns resolves to a paginator envelope ({ data, total, … }) or
     // null — the rows live under .data.
@@ -71,8 +76,15 @@ export default function TemplatesPanel({ editor, designId }) {
   }, [fetchDesigns, fetchDesignTemplates, canvas.width, canvas.height, typeSize, designId]);
 
   useEffect(() => {
+    // one-shot on mount; refresh button re-runs.
+    //
+    // set-state-in-effect is disabled rather than satisfied: every setState in
+    // `load` sits behind an `await`, so none of them can run synchronously with
+    // this call — the rule flags any function that transitively sets state and
+    // cannot see that. The cost is that the compiler leaves this component
+    // un-memoized, which is fine for a panel that renders a list on open.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
-    // one-shot on mount; refresh button re-runs
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -100,7 +112,10 @@ export default function TemplatesPanel({ editor, designId }) {
           Your designs
         </p>
         <button
-          onClick={load}
+          onClick={() => {
+            setLoading(true);
+            load();
+          }}
           className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 cursor-pointer transition"
           title="Refresh"
         >

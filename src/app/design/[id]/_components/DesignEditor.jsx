@@ -15,7 +15,14 @@ import KluxLogoIcon from "./panels/klux/KluxLogoIcon";
 import EditorSidebar from "./EditorSidebar";
 import EditorContextBar from "./EditorContextBar";
 import EditorElement from "./EditorElement";
+import SelectionChrome from "./SelectionChrome";
+import useStageViewport from "./useStageViewport";
+import { Timer as TimerIcon, NotebookPen } from "lucide-react";
+import EditorTimer from "./timer/EditorTimer";
+import EditorNotes from "./notes/EditorNotes";
+import useUnsavedChangesGuard from "./useUnsavedChangesGuard";
 import SelectionOverlay from "./SelectionOverlay";
+import { EditorContextMenu } from "./EditorElementMenu";
 import ImageCropOverlay from "./ImageCropOverlay";
 import ImageEraserOverlay from "./ImageEraserOverlay";
 import PreviewOverlay from "./PreviewOverlay";
@@ -42,12 +49,34 @@ import {
 import { measureText } from "./textFit";
 import { TABLE_DEFAULTS, makeCells } from "@/(lib)/design/tableUtils";
 import { KEYFRAMES_CSS } from "@/(lib)/design/animations";
-import { useBreakpoint } from "@/utils/useMediaQuery";
+import { alignToPagePatch } from "@/(lib)/design/alignToPage";
+import {
+  decodeElements,
+  writeElementsToClipboard,
+} from "@/(lib)/design/elementClipboard";
+import { useBreakpoint, useIsTouch } from "@/utils/useMediaQuery";
 
 const DRAW_TOOLS = ["pen", "marker", "highlighter", "eraser"];
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
+
+// Arrow-key nudge: canvas units per press, and which way each key goes.
+const NUDGE_FINE = 1;
+const NUDGE_COARSE = 10;
+const NUDGE_KEYS = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
+/**
+ * How long after the last nudge the burst is considered over. Holding an arrow
+ * key repeats at ~30/s, and one undo entry per repeat would flush the entire
+ * history in two seconds — so a run of nudges collapses into one step, and this
+ * is how long a pause has to be to start a new one.
+ */
+const NUDGE_BURST_MS = 600;
 
 /**
  * DesignEditor — reusable, prop-driven Canva-style editor.
@@ -83,6 +112,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     updateElement,
     updateElements,
     addElement,
+    addElements,
     removeElement,
     removeElements,
     duplicateElement,
@@ -97,10 +127,42 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     markSaved,
   } = editor;
 
+  // Always-fresh view of elements for async callbacks (e.g. a grid cell's
+  // durable-URL swap after upload) that must merge into a nested array without
+  // clobbering edits made while the upload was in flight.
+  //
+  // Declared HERE, above every callback that reads it. It used to sit ~130 lines
+  // further down, which worked at runtime (closures don't care) but meant the
+  // first thing to capture the ref was a useCallback — after which it counts as
+  // a value handed to a hook, and writing to it is no longer allowed.
+  //
+  // Filled in from a layout effect, so nothing can be painted or clicked while
+  // it still holds the empty seed.
+  const elementsRef = useRef([]);
+  useLayoutEffect(() => {
+    elementsRef.current = elements;
+  }, [elements]);
+
+  // Same idea for the selection. Both of these exist so gesture handlers can see
+  // the latest elements WITHOUT listing them as dependencies: `elements` changes
+  // on every frame of a drag, so a handler that depends on it is a new function
+  // every frame — and a new function prop re-renders every element on the page,
+  // which is exactly what EditorElement's memo is there to prevent.
+  const selectedElementsRef = useRef([]);
+  const selectedIdsRef = useRef([]);
+  useLayoutEffect(() => {
+    selectedElementsRef.current = selectedElements;
+    selectedIdsRef.current = selectedIds;
+  }, [selectedElements, selectedIds]);
+
   const [name, setName] = useState(design?.name || "Untitled design");
   // Below `lg` the editor is a bottom-bar + sheet layout and the canvas is
   // fitted on mount rather than opening at a fixed 50% (see fitZoom below).
   const isCompactEditor = !useBreakpoint("lg");
+  // Fingers need bigger grips than a mouse pointer does. Asked as "is the
+  // primary input coarse?", not "is the window narrow?" — a half-width desktop
+  // window is still a mouse, and a wide tablet is still a finger.
+  const isTouch = useIsTouch();
   const [zoom, setZoom] = useState(0.5); // default zoom 50%
   const [editingId, setEditingId] = useState(null);
   // The cell the user last clicked inside a table: { id, r, c }. Drives which
@@ -108,21 +170,44 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   const [activeCell, setActiveCell] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showTimer, setShowTimer] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [notes, setNotes] = useState(design?.notes || "");
+  // The name and notes as of the last successful save — see isDirty below.
+  const [savedMeta, setSavedMeta] = useState({
+    name: design?.name || "Untitled design",
+    notes: design?.notes || "",
+  });
   const [addNodeMode, setAddNodeMode] = useState(false);
   // Brief "applied" flash on the stage when a whole design is swapped in
   // (template / Klux AI apply). Driven by the editor's replaceToken.
+  // Armed during render off the token rather than in an effect: an effect would
+  // paint one frame without the flash before starting it.
   const [applyFlash, setApplyFlash] = useState(false);
+  const [flashedToken, setFlashedToken] = useState(replaceToken);
+  if (flashedToken !== replaceToken) {
+    setFlashedToken(replaceToken);
+    if (replaceToken) setApplyFlash(true);
+  }
   useEffect(() => {
-    if (!replaceToken) return;
-    setApplyFlash(true);
+    if (!applyFlash) return;
     const id = setTimeout(() => setApplyFlash(false), 1400);
     return () => clearTimeout(id);
-  }, [replaceToken]);
+  }, [applyFlash]);
   // Which sidebar panel is open. Lifted here so canvas actions (e.g. "Ask Klux"
   // on the element menu) can open a panel; the sidebar is otherwise self-driven.
   // Seeded from `initialPanel` so an entry point (e.g. "Edit with Ai") can deep-
   // link straight into a panel like Klux AI; falls back to the templates panel.
   const [activePanel, setActivePanel] = useState(initialPanel || "templates");
+  // Which tab a multi-tab panel is showing. Lives here, not in the panel, so an
+  // action on the canvas ("Show layers" on the element pill) can move a panel
+  // that is ALREADY open — panel-local state would be seeded once, on mount, and
+  // that click would change nothing.
+  const [positionSection, setPositionSection] = useState("arrange");
+  const showLayers = useCallback(() => {
+    setPositionSection("layers");
+    setActivePanel("position");
+  }, []);
   // The "Edit with Ai" deep link auto-sends its redesign prompt the first time
   // the Klux panel mounts. The sidebar unmounts a panel when you switch rail
   // tabs, so "already sent" has to be remembered here — otherwise coming back
@@ -176,6 +261,38 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     setCroppingId(null);
     setErasingId(null);
   }, []);
+
+  // Selecting anything else leaves the tool.
+  //
+  // Crop and erase are modes ON one element, and while either is open the
+  // selection chrome and the context bar are both suppressed (see the
+  // `!croppingId && !erasingId` guards below) because the Done/Cancel bar has
+  // taken over. So without this, clicking a different element LOOKS like it
+  // did nothing: the click lands and the element really is selected, but it
+  // draws no outline and gets no toolbar, while the overlay stays armed over
+  // the element you left — the tool is still running, on something you are no
+  // longer looking at.
+  //
+  // Cancels rather than commits. The user clicked away instead of pressing
+  // Done, and silently baking an edit they never confirmed is the worse of the
+  // two mistakes; this matches Esc, which already discards.
+  //
+  // Derived here rather than in handleSelect, because losing the element is not
+  // only a click: deleting it, undoing back past it, or a marquee that sweeps up
+  // something else all have to end the tool too, and each is a separate call
+  // site that would have to remember to.
+  //
+  // Checked during render rather than in an effect. The tool is not a reaction
+  // to the selection changing, it is a fact ABOUT the current selection — and an
+  // effect would render one frame with the overlay still armed over an element
+  // that is no longer selected.
+  const activeToolId = croppingId || erasingId;
+  if (
+    activeToolId &&
+    !(selectedIds.length === 1 && selectedIds[0] === activeToolId)
+  ) {
+    cancelImageTool();
+  }
 
   // Crop overlay → box-normalized selection. Bake exactly the retained pixels
   // (reproducing the current on-screen view, then slicing the selection) into a
@@ -304,30 +421,24 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     ensureEditorFontsLoaded();
   }, []);
 
-  // Always-fresh view of elements for async callbacks (e.g. a grid cell's
-  // durable-URL swap after upload) that must merge into a nested array without
-  // clobbering edits made while the upload was in flight.
-  const elementsRef = useRef(elements);
-  useEffect(() => {
-    elementsRef.current = elements;
-  }, [elements]);
-
   // The Color/Effects/Animate/Position panels are contextual to the selected
   // element (their triggers live in the context bar). If the selection clears,
-  // drop back out of them.
-  useEffect(() => {
-    const contextual = [
-      "color",
-      "effects",
-      "animate",
-      "position",
-      "img-edit",
-    ];
-    if (contextual.includes(activePanel) && !selectedElement) {
-      setActivePanel(null);
-      setColorTarget(null);
-    }
-  }, [activePanel, selectedElement]);
+  // drop back out of them — EXCEPT Position on its Layers tab, which is a view
+  // of the whole page rather than of the selection, and is most useful for
+  // finding something you have just lost track of.
+  // During render, not in an effect: whether a contextual panel still has
+  // anything to act on is a fact about this render's selection, and an effect
+  // would show one frame of a panel pointing at nothing.
+  const CONTEXTUAL_PANELS = ["color", "effects", "animate", "position", "img-edit"];
+  const panelStays = activePanel === "position" && positionSection === "layers";
+  if (
+    CONTEXTUAL_PANELS.includes(activePanel) &&
+    !selectedElement &&
+    !panelStays
+  ) {
+    setActivePanel(null);
+    setColorTarget(null);
+  }
 
   // ── Freehand drawing ──────────────────────────────────────────────────
   const canvasPoint = (e) => {
@@ -502,10 +613,9 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
       ? selectedElement
       : null;
 
-  // Add-node mode only makes sense for a selected line/curve.
-  useEffect(() => {
-    if (!selLine && !selCurve) setAddNodeMode(false);
-  }, [selLine, selCurve]);
+  // Add-node mode only makes sense for a selected line/curve. Guarded on the
+  // mode already being on, so this is a no-op on every other render.
+  if (addNodeMode && !selLine && !selCurve) setAddNodeMode(false);
 
   const curveNodePos = (el, p) => ({
     x: el.x + (p.x / (el.vbW || el.width)) * el.width,
@@ -548,7 +658,9 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   };
 
   const addCurveNodeAt = (id, e) => {
-    const el = elements.find((x) => x.id === id);
+    // From the ref, so this stays one function across a drag — it is passed to
+    // every element, and a fresh one each frame would re-render all of them.
+    const el = elementsRef.current.find((x) => x.id === id);
     if (!el || el.type !== "curve") return;
     const vb = canvasToVb(el, canvasPoint(e));
     updateElement(id, { points: insertCurvePoint(el.points, vb.x, vb.y) });
@@ -624,6 +736,92 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   const selectionBounds = multiSelected ? boundsOf(selectedElements) : null;
   const groupSelected = !multiSelected && isGroup(selectedElement);
 
+  // ── Inside a group ────────────────────────────────────────────────────
+  // A group is ENTERED when it is selected, or when one of its members is: the
+  // first click takes the group, the next one reaches the member under the
+  // pointer, and from then on clicks stay inside so working across two members
+  // doesn't bounce back out to the whole group each time.
+  //
+  // `activeChild` is the member that is selected, and it is the reason the rest
+  // of the editor needs no changes: useDesignEditor resolves it to an ordinary
+  // element with absolute geometry (findAnyElement) and routes patches aimed at
+  // it back into its group (patchGroupChild), so the panels, the context bar and
+  // the selection chrome all work on it without knowing where it lives.
+  const activeChildId =
+    !multiSelected && selectedElement?.groupId ? selectedElement.id : null;
+  const enteredGroupId = selectedElement?.groupId || (groupSelected ? selectedElement.id : null);
+
+  // Escape steps OUT of a group before it clears the selection — the way back up
+  // one level, matching the click that took you down one.
+  const exitGroup = useCallback(() => {
+    if (!activeChildId) return false;
+    selectElement(enteredGroupId);
+    return true;
+  }, [activeChildId, enteredGroupId, selectElement]);
+
+  // ── Element clipboard ─────────────────────────────────────────────────
+  // The copy goes to the SYSTEM clipboard as JSON behind a magic key (see
+  // elementClipboard.js for why that, rather than a variable in here). This
+  // mirror is not a second clipboard: it is what lets the pill enable or grey
+  // out its Paste button without an async, permission-gated read of the real
+  // one, and what keeps Paste working if the write was refused.
+  const [copied, setCopied] = useState(null);
+
+  const copySelection = useCallback(() => {
+    if (!selectedElements.length) return;
+    // Snapshotted, not referenced: editing or deleting the original after a
+    // copy must not change what a later paste produces.
+    const snapshot = JSON.parse(JSON.stringify(selectedElements));
+    setCopied(snapshot);
+    writeElementsToClipboard(snapshot);
+  }, [selectedElements]);
+
+  const pasteCopied = useCallback(
+    (list = copied) => {
+      if (!list?.length) return;
+      // Offset so a paste lands beside its source rather than exactly on top of
+      // it, where it would look like nothing happened. Same step duplicate uses.
+      addElements(
+        list.map((el) => ({ ...el, x: (Number(el.x) || 0) + 24, y: (Number(el.y) || 0) + 24 })),
+      );
+    },
+    [copied, addElements],
+  );
+
+  // ── Pill actions ──────────────────────────────────────────────────────
+  const alignSelection = useCallback(
+    (kind) => {
+      const targets = selectedElements.filter((el) => !el.locked);
+      if (!targets.length) return;
+      // One undo step for the whole selection, and each element aligned on its
+      // own box — aligning four things left means four left edges at 0, not the
+      // union box moved.
+      updateElements(
+        targets.map((el) => ({
+          id: el.id,
+          ...alignToPagePatch(el, kind, canvas.width, canvas.height),
+        })),
+        { record: true },
+      );
+    },
+    [selectedElements, updateElements, canvas.width, canvas.height],
+  );
+
+  // Promote an image to the page background. The element is removed because it
+  // has BECOME the background — leaving it would stack a duplicate of the same
+  // picture on top of itself, and dragging that copy would look like the
+  // background had torn loose.
+  const setImageAsBackground = useCallback(
+    (id) => {
+      const el = elementsRef.current.find((e) => e.id === id);
+      if (!el || el.type !== "image" || !el.src) return;
+      setBackground(el.src);
+      removeElement(id);
+      toast("Set as background");
+    },
+    [setBackground, removeElement],
+  );
+
   // ── Dragging a multi-selection ────────────────────────────────────────
   // react-rnd moves the element under the pointer; the rest of the selection is
   // moved by hand, by the same delta, from the positions they held when the
@@ -631,73 +829,185 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   // per-frame deltas) is what keeps the selection rigid — accumulated rounding
   // would let members drift apart over a long drag.
   const dragRef = useRef(null);
+  // Which element react-rnd is currently moving, so the rest of the selection
+  // knows to follow it. Set once per gesture, not per frame.
+  const [draggingId, setDraggingId] = useState(null);
+  const chromeLayerRef = useRef(null);
+
+  /**
+   * Move the chrome and any co-dragged elements to match a drag in progress.
+   *
+   * react-rnd moves the dragged element's own DOM node and tells React nothing
+   * until the drop. That is what makes dragging cheap — and it is why the
+   * selection outline used to sit still and then snap into place when you let
+   * go: chrome lives in a sibling layer positioned from state, and state does
+   * not move during the gesture.
+   *
+   * So nothing here goes through state either. The chrome layer is translated
+   * directly, and the other members of a multi-selection are moved by two CSS
+   * variables on the stage — every co-dragged element reads the same pair, so
+   * one write moves all of them however many there are. The whole gesture
+   * therefore costs zero React renders, and the geometry lands in state once,
+   * on drop.
+   */
+  const paintDragShift = useCallback(
+    (dx, dy) => {
+      const chrome = chromeLayerRef.current;
+      // After the scale, so the offset is read in canvas units like everything
+      // else in this layer rather than in screen pixels.
+      if (chrome) {
+        chrome.style.transform = `scale(${zoom}) translate(${dx}px, ${dy}px)`;
+      }
+      const stage = stageInnerRef.current;
+      if (stage) {
+        stage.style.setProperty("--ck-drag-x", `${dx}px`);
+        stage.style.setProperty("--ck-drag-y", `${dy}px`);
+      }
+    },
+    [zoom],
+  );
+
+  const clearDragShift = useCallback(() => {
+    paintDragShift(0, 0);
+  }, [paintDragShift]);
 
   const handleDragBegin = useCallback(
     (id) => {
       dragRef.current = null;
-      if (!(selectedIds.length > 1 && selectedIds.includes(id))) return;
-      const origin = elements.find((el) => el.id === id);
+      // From the refs, not from `elements` / `selectedElements` — see the note
+      // where those refs are declared. This only runs on mousedown, well after
+      // the layout effect that fills them, so they are current.
+      const origin = elementsRef.current.find((el) => el.id === id);
       if (!origin) return;
+
+      // Every drag is tracked, not just one that starts inside a multi-
+      // selection: a single element's chrome has to follow it too, and the most
+      // common gesture of all is grabbing something that was not selected a
+      // moment ago. That element is NOT in the selection yet at mousedown —
+      // react-rnd starts the drag in the same tick as the click that selects it
+      // — so it correctly brings nothing else along.
+      const inSelection = selectedIdsRef.current.includes(id);
       dragRef.current = {
         id,
         ox: origin.x,
         oy: origin.y,
-        // History is recorded on the first MOVE, not here: react-rnd starts a
-        // drag on mousedown, so committing here would push an undo entry for
-        // every click on a selected element — undo would then walk back through
-        // a pile of steps that changed nothing.
-        committed: false,
-        others: selectedElements
-          .filter((el) => el.id !== id && !el.locked)
-          .map((el) => ({ id: el.id, x: el.x, y: el.y })),
+        moved: false,
+        others: inSelection
+          ? selectedElementsRef.current
+              .filter((el) => el.id !== id && !el.locked)
+              .map((el) => ({ id: el.id, x: el.x, y: el.y }))
+          : [],
       };
+      // Marks the co-dragged elements so they pick up the CSS variables. One
+      // render at the start of the gesture, none during it.
+      setDraggingId(id);
     },
-    [selectedIds, selectedElements, elements, commit],
+    // Nothing: every value it reads comes from a ref, so this is one function
+    // for the life of the editor and never re-renders the elements it is passed
+    // to. That is what makes the memo on EditorElement worth having.
+    [],
   );
+
+  // ── Right-click menu ──────────────────────────────────────────────────
+  // Viewport coordinates, straight off the event — see EditorContextMenu.
+  const [contextMenu, setContextMenu] = useState(null);
+  const openContextMenu = useCallback(
+    (id, e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Right-clicking something outside the current selection moves the
+      // selection to it first, the way a left click would. Right-clicking INSIDE
+      // a multi-selection leaves it alone, so "delete these five" still works.
+      if (id && !selectedIdsRef.current.includes(id)) selectElement(id);
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    },
+    [selectElement],
+  );
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  // ── Arrow-key nudge ───────────────────────────────────────────────────
+  // Moves the selection by exact amounts, which a drag cannot do — and is the
+  // only way to place something to the pixel without opening the Position panel
+  // and typing coordinates.
+  const nudgeRef = useRef({ timer: null });
+  const nudge = useCallback(
+    (dx, dy) => {
+      const targets = selectedElementsRef.current.filter((el) => !el.locked);
+      if (!targets.length) return;
+
+      // One undo step per BURST. The snapshot is taken on the first press of a
+      // run; every repeat after that records nothing, and the run ends once the
+      // key has been still for NUDGE_BURST_MS. Undo then walks back the whole
+      // movement, which is what the user thinks of as one action.
+      if (!nudgeRef.current.timer) commit();
+      clearTimeout(nudgeRef.current.timer);
+      nudgeRef.current.timer = setTimeout(() => {
+        nudgeRef.current.timer = null;
+      }, NUDGE_BURST_MS);
+
+      updateElements(
+        targets.map((el) => ({
+          id: el.id,
+          x: (Number(el.x) || 0) + dx,
+          y: (Number(el.y) || 0) + dy,
+        })),
+        { record: false },
+      );
+    },
+    [commit, updateElements],
+  );
+
+  // Shared by every element on the stage rather than rebuilt per element in the
+  // map below — see the memo note at the bottom of EditorElement. Each takes the
+  // element's id, and EditorElement binds it to itself.
+  const endEdit = useCallback(() => setEditingId(null), []);
+  const focusCell = useCallback((id, r, c) => setActiveCell({ id, r, c }), []);
 
   const handleDragMove = useCallback(
     (id, d) => {
       const drag = dragRef.current;
-      if (!drag || drag.id !== id || !drag.others.length) return;
-      // ONE undo step for the whole gesture: taken before anything has moved,
-      // after which every frame records nothing.
-      if (!drag.committed) {
-        drag.committed = true;
-        commit();
-      }
-      const dx = d.x - drag.ox;
-      const dy = d.y - drag.oy;
-      updateElements(
-        drag.others.map((o) => ({ id: o.id, x: o.x + dx, y: o.y + dy })),
-        { record: false },
-      );
+      if (!drag || drag.id !== id) return;
+      drag.moved = true;
+      paintDragShift(d.x - drag.ox, d.y - drag.oy);
     },
-    [updateElements, commit],
+    [paintDragShift],
   );
 
   const handleDragEnd = useCallback(
     (id, d) => {
       const drag = dragRef.current;
       dragRef.current = null;
-      // Plain single-element drag — history is recorded here, at the end, when
-      // the state being snapshotted is still the pre-drag one.
+      setDraggingId(null);
+      // Cleared BEFORE the state write: the transform and the new coordinates
+      // would otherwise both be applied for one frame and everything would jump
+      // by twice the distance it was dragged before settling back.
+      clearDragShift();
+
+      // Not one of ours (an unselected element, or the selection changed
+      // mid-gesture) — commit the one element react-rnd moved.
       if (!drag || drag.id !== id) {
         updateElement(id, { x: d.x, y: d.y }, { record: true });
         return;
       }
+
       const dx = d.x - drag.ox;
       const dy = d.y - drag.oy;
+      // A click that never moved: nothing to record and nothing to write.
+      // Recording it would push an undo entry that changes nothing.
+      if (!drag.moved || (dx === 0 && dy === 0)) return;
+
+      // ONE undo entry for the whole gesture, written here rather than on the
+      // first frame — by now nothing has touched state, so the snapshot taken
+      // is still the pre-drag one.
       updateElements(
         [
           { id, x: d.x, y: d.y },
           ...drag.others.map((o) => ({ id: o.id, x: o.x + dx, y: o.y + dy })),
         ],
-        // `committed` is false when the gesture never actually moved (a click
-        // on a member of the selection): nothing to record, and nothing moved.
-        { record: !drag.committed && (dx !== 0 || dy !== 0) },
+        { record: true },
       );
     },
-    [updateElement, updateElements],
+    [updateElement, updateElements, clearDragShift],
   );
 
   // ── Marquee (drag-to-select) ──────────────────────────────────────────
@@ -815,11 +1125,32 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     }
   }, [isCompactEditor, fitZoom]);
 
+  // Re-fit on resize only where fitting is the policy — below `lg`, where the
+  // canvas has to stay legible on a small screen and rotating the device really
+  // does need a new zoom.
+  //
+  // On desktop this used to refit too, which meant that dragging the window
+  // edge threw away whatever zoom you had picked. That was always wrong; with a
+  // wheel and shortcuts to set the zoom deliberately it would be worse.
   useLayoutEffect(() => {
+    if (!isCompactEditor) return;
     const onResize = () => fitZoom();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [fitZoom]);
+  }, [isCompactEditor, fitZoom]);
+
+  // Wheel-zoom toward the cursor, space / middle-mouse / alt drag to pan, and
+  // the Ctrl+0/1/+/− shortcuts. Suppressed while a text box has the caret so
+  // space types a space, and while a crop or erase overlay owns the stage.
+  const { panning } = useStageViewport({
+    wrapRef: stageWrapRef,
+    zoom,
+    setZoom,
+    fitZoom,
+    minZoom: MIN_ZOOM,
+    maxZoom: MAX_ZOOM,
+    disabled: !!editingId || !!croppingId || !!erasingId,
+  });
 
   // ── Pinch to zoom ─────────────────────────────────────────────────────────
   // Two-finger pinch on the stage viewport. Written with pointer events on the
@@ -901,6 +1232,16 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
         selectAll();
         return;
       }
+      // Nudge. Checked before the modifier shortcuts below because it is the
+      // only binding here that WANTS a bare Shift, and preventDefault matters:
+      // an arrow key would otherwise scroll the stage out from under you.
+      const step = NUDGE_KEYS[e.key];
+      if (step && !mod && selectedIds.length) {
+        e.preventDefault();
+        const distance = e.shiftKey ? NUDGE_COARSE : NUDGE_FINE;
+        nudge(step[0] * distance, step[1] * distance);
+        return;
+      }
       // Shift is the only thing separating group from ungroup, so read it off
       // the modifier — Ctrl+Shift+G arrives as "G", not "g".
       if (mod && key === "g") {
@@ -918,13 +1259,52 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
         if (selectedIds.length) duplicateElements(selectedIds);
         return;
       }
+      // Copy only. There is deliberately no Ctrl+V here: paste arrives as the
+      // browser's own `paste` event (handled below), which is the only way to
+      // see the system clipboard without an async permission-gated read — and
+      // binding both would paste twice.
+      if (mod && key === "c") {
+        if (selectedIds.length) copySelection();
+        return;
+      }
+      // Layer order. Bracket keys report as "[" / "]" whether or not Shift is
+      // down, so the direction comes from the key and the distance from Shift.
+      if (mod && (key === "[" || key === "]")) {
+        e.preventDefault();
+        if (!selectedIds.length) return;
+        const dir =
+          key === "]"
+            ? e.shiftKey
+              ? "front"
+              : "forward"
+            : e.shiftKey
+              ? "back"
+              : "backward";
+        selectedIds.forEach((id) => moveLayer(id, dir));
+        return;
+      }
+      // Lock. Alt+Shift+L rather than a bare modifier: Ctrl+L is the browser's
+      // address bar and not ours to take.
+      if (e.altKey && e.shiftKey && key === "l") {
+        e.preventDefault();
+        if (!selectedIds.length) return;
+        const lock = !selectedElements.some((el) => el.locked);
+        updateElements(
+          selectedIds.map((id) => ({ id, locked: lock })),
+          { record: true },
+        );
+        return;
+      }
       if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.length) {
         e.preventDefault();
         removeElements(selectedIds);
       }
       if (e.key === "Escape") {
         setEditingId(null);
-        selectElement(null);
+        // One level at a time: inside a group, Escape hands the selection back
+        // to the group rather than dropping it altogether, so a stray press
+        // doesn't cost you the thing you were working on.
+        if (!exitGroup()) selectElement(null);
         setAddNodeMode(false);
         setTool((t) => (t.type === "select" ? t : { ...t, type: "select" }));
       }
@@ -932,6 +1312,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [
+    nudge,
     editingId,
     selectedIds,
     selectedElements,
@@ -941,8 +1322,12 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     duplicateElements,
     groupElements,
     ungroupElement,
+    exitGroup,
     selectAll,
     selectElement,
+    copySelection,
+    moveLayer,
+    updateElements,
     croppingId,
     erasingId,
     commitImageTool,
@@ -1293,8 +1678,20 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
             }),
         });
         // Show the cutout instantly (undoable), then swap in the durable URL.
+        // `originalSrc` is kept so the Restore quick tool has something to put
+        // back — undo would also do it, but only until the next few edits push
+        // it off the stack, and "put the background back" is a decision people
+        // make much later than that.
         const localUrl = URL.createObjectURL(blob);
-        updateElement(id, { src: localUrl }, { record: true });
+        updateElement(
+          id,
+          {
+            src: localUrl,
+            backgroundRemoved: true,
+            originalSrc: target.originalSrc || target.src,
+          },
+          { record: true },
+        );
         toast.success("Background removed", { id: toastId });
         try {
           const file = new File([blob], "cutout.png", { type: "image/png" });
@@ -1317,9 +1714,11 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   // ── Clipboard paste (Ctrl/⌘+V) ────────────────────────────────────────
   // Paste an image or text straight onto the canvas. When editing a text box we
   // bail so the paste flows into it natively. A ref keeps the handler current
-  // without re-subscribing every render.
+  // without re-subscribing the window listener every render — but it is filled
+  // in from an effect, not during render: a render can be thrown away or run
+  // twice, and a ref written from one is not something React tracks.
   const pasteRef = useRef(null);
-  pasteRef.current = (e) => {
+  const onPasteEvent = (e) => {
     const t = e.target;
     if (
       editingId ||
@@ -1347,8 +1746,19 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
       return;
     }
 
-    // Text
+    // Elements copied from this editor (in this tab or another one). Checked
+    // before the text branch because that is exactly what this arrives AS —
+    // our JSON payload is `text/plain`, and without this it would paste as a
+    // wall of JSON in a text box.
     const text = cd.getData("text/plain");
+    const pastedElements = decodeElements(text);
+    if (pastedElements) {
+      e.preventDefault();
+      pasteCopied(pastedElements);
+      return;
+    }
+
+    // Text
     if (text && text.trim()) {
       e.preventDefault();
       const fontSize = 24;
@@ -1362,6 +1772,12 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
       insertText({ content: text, fontSize, width, height, textAlign: "left" });
     }
   };
+
+  // No dep array: the handler closes over editingId, canvas and the insert
+  // helpers, so it has to be refreshed after every render.
+  useEffect(() => {
+    pasteRef.current = onPasteEvent;
+  });
 
   useEffect(() => {
     const handler = (e) => pasteRef.current?.(e);
@@ -1384,18 +1800,19 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     setSaving(true);
     try {
       const thumbnail = await renderDesignToDataUrl({ canvas, elements });
-      const payload = { name, canvas, elements, thumbnail };
+      const payload = { name, canvas, elements, notes, thumbnail };
       if (onSave) {
         await onSave(payload);
       } else {
         const res = await updateDesignById(design.id, {
           name,
-          canvas: JSON.stringify({ canvas, elements }),
+          canvas: JSON.stringify({ canvas, elements, notes }),
           ...(thumbnail ? { thumbnail } : {}),
         });
         if (!res?.ok) throw new Error(res?.message || "Save failed");
       }
       markSaved();
+      setSavedMeta({ name, notes });
       if (!silent) toast.success("Design saved");
     } catch (err) {
       // Silent saves have no toast to carry the failure — the console is the
@@ -1408,12 +1825,30 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   };
 
   // Effective dirty state — unsaved canvas/element edits or a renamed title.
-  const isDirty = dirty || name !== (design?.name || "Untitled design");
+  // Compared against what was last SAVED, not against the design as it was
+  // loaded. `design` is a prop and never changes, so measuring against it meant
+  // that once you renamed the design it counted as dirty forever — the autosave
+  // re-fired every 15 seconds and the unsaved-changes guard would have caught
+  // you on the way out of an already-saved design.
+  const isDirty =
+    dirty || name !== savedMeta.name || notes !== savedMeta.notes;
+
+  // Warn before unsaved work is lost. The autosave below narrows the window to
+  // 15 seconds; it does not close it, and the edits worth keeping are the ones
+  // you just made.
+  const { dialog: unsavedDialog, guard: guardLeave } = useUnsavedChangesGuard({
+    isDirty,
+    onSave: () => doSave({ silent: true }),
+  });
 
   // Autosave every 15s when there are unsaved changes. A ref keeps the interval
-  // pointed at the latest save fn / dirty flag without resetting each render.
+  // pointed at the latest save fn / dirty flag without resetting each render —
+  // refreshed from an effect rather than during render, for the same reason as
+  // the paste handler above.
   const autosaveRef = useRef({});
-  autosaveRef.current = { save: doSave, dirty: isDirty, saving };
+  useEffect(() => {
+    autosaveRef.current = { save: doSave, dirty: isDirty, saving };
+  });
   useEffect(() => {
     const id = setInterval(() => {
       const s = autosaveRef.current;
@@ -1463,7 +1898,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
       <EditorTopBar
         name={name}
         onNameChange={setName}
-        onBack={onBack}
+        onBack={() => guardLeave(onBack)}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={undo}
@@ -1508,6 +1943,8 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
           kluxSeedRedesign={initialPanel === "klux" && !kluxSeedUsed}
           onKluxSeedUsed={markKluxSeedUsed}
           colorTarget={colorTarget}
+          positionSection={positionSection}
+          onPositionSection={setPositionSection}
           onPlayAnimation={playAnimations}
           imageActions={{
             onRemoveBg: removeImageBackground,
@@ -1540,17 +1977,22 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
           }}
         />
 
-        {/* Stage viewport.
-            Below `lg` it scrolls instead of clipping: once a pinch takes the
-            artboard past the viewport there has to be some way to reach its
-            edges, and native overflow scrolling gives that with momentum for
-            free. `[&>*]:m-auto` keeps the artboard centred while it still fits
-            and stops flexbox centring from making the top-left unreachable
-            once it does not — the classic overflow + justify-center trap.
-            pb-nav clears the icon rail, which is fixed to the bottom edge there. */}
+        {/* Stage viewport — a native scroll container at every size.
+            Once a zoom takes the artboard past the viewport there has to be
+            some way to reach its edges, and native overflow scrolling gives
+            that (with momentum on touch) for free. It used to clip at `lg`,
+            which meant zooming in on a desktop put the rest of the design
+            somewhere you simply could not get to.
+            `[&>*]:m-auto` keeps the artboard centred while it still fits and
+            stops flexbox centring from making the top-left unreachable once it
+            does not — the classic overflow + justify-center trap.
+            pb-nav clears the icon rail, which is fixed to the bottom edge below
+            `lg`. See useStageViewport for the wheel/pan/keyboard behaviour. */}
         <div
           ref={stageWrapRef}
-          className="relative flex-1 flex items-center justify-center overflow-auto pb-nav [&>*]:m-auto lg:overflow-hidden lg:pb-0"
+          className={`relative flex-1 flex items-center justify-center overflow-auto pb-nav [&>*]:m-auto lg:pb-0 ${
+            panning ? "select-none" : ""
+          }`}
           onPointerDown={onStagePointerDown}
           onPointerMove={onStagePointerMove}
           onPointerUp={onStagePointerUp}
@@ -1568,22 +2010,67 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
             }
           }}
         >
-          {/* Ask Klux — static launcher pinned to the stage's top-right. */}
-          <button
-            onClick={() => setActivePanel("klux")}
-            title="Ask Klux AI"
-            className="absolute top-3 right-3 z-[9999] flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-surface pl-2 pr-3 text-gray-700 shadow-lg transition hover:bg-blue-50 hover:text-[#155dfc] cursor-pointer"
-          >
-            <KluxLogoIcon className="h-4 w-4" />
-            <span className="text-xs font-semibold">Ask Klux</span>
-          </button>
+          {/* Static launchers pinned to the stage's top-right. */}
+          <div className="absolute top-3 right-3 z-[9999] flex items-center gap-2">
+            <button
+              onClick={() => setShowNotes((v) => !v)}
+              title={showNotes ? "Hide notes" : "Notes"}
+              className={`flex h-9 w-9 items-center justify-center rounded-lg border bg-surface shadow-lg transition cursor-pointer ${
+                showNotes
+                  ? "border-blue-400 text-[#155dfc]"
+                  : "border-gray-200 text-gray-700 hover:bg-blue-50 hover:text-[#155dfc]"
+              }`}
+            >
+              <NotebookPen className="h-4 w-4" />
+              {/* A dot rather than a count: the point is "there is something in
+                  here", and a note's length is not a number worth reading. */}
+              {!showNotes && notes.trim() && (
+                <span className="absolute -mt-4 ml-4 h-1.5 w-1.5 rounded-full bg-blue-600" />
+              )}
+            </button>
+            <button
+              onClick={() => setShowTimer((v) => !v)}
+              title={showTimer ? "Hide timer" : "Timer"}
+              className={`flex h-9 w-9 items-center justify-center rounded-lg border bg-surface shadow-lg transition cursor-pointer ${
+                showTimer
+                  ? "border-blue-400 text-[#155dfc]"
+                  : "border-gray-200 text-gray-700 hover:bg-blue-50 hover:text-[#155dfc]"
+              }`}
+            >
+              <TimerIcon className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setActivePanel("klux")}
+              title="Ask Klux AI"
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-surface pl-2 pr-3 text-gray-700 shadow-lg transition hover:bg-blue-50 hover:text-[#155dfc] cursor-pointer"
+            >
+              <KluxLogoIcon className="h-4 w-4" />
+              <span className="text-xs font-semibold">Ask Klux</span>
+            </button>
+          </div>
+
+          {/* Countdown. Mounted only while open, so closing it ends the run —
+              nothing else in the editor needs the time remaining. */}
+          {showTimer && <EditorTimer onClose={() => setShowTimer(false)} />}
+
+          {/* Notes. Bottom-LEFT, opposite the timer, so both can be open at
+              once without either covering the other. */}
+          {showNotes && (
+            <EditorNotes
+              value={notes}
+              onChange={setNotes}
+              onClose={() => setShowNotes(false)}
+            />
+          )}
 
           {!croppingId && !erasingId && (
             <EditorContextBar
-              // Formatting is per-element: with several selected there is no
-              // one element these controls belong to, and a group's own actions
-              // live on its pill. Both cases fall back to no bar.
-              element={multiSelected || groupSelected ? null : selectedElement}
+              // Formatting is per-element: with several selected there is no one
+              // element these controls belong to, so a multi-selection gets no
+              // bar. A GROUP does get one — the union of what its contents can be
+              // styled with (see EditorContextBar), because grouping things is
+              // how you say "treat these as one".
+              element={multiSelected ? null : selectedElement}
               onChange={updateElement}
               addNodeMode={addNodeMode}
               onToggleAddNode={() => setAddNodeMode((v) => !v)}
@@ -1596,6 +2083,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
               onOpenFontPanel={() => setActivePanel("font")}
               onOpenColorPanel={openColorPanel}
               onOpenEffectsPanel={() => setActivePanel("effects")}
+              onOpenShapeEffectsPanel={() => setActivePanel("shape-effects")}
               onOpenAnimatePanel={() => setActivePanel("animate")}
               onOpenPositionPanel={() => setActivePanel("position")}
               onOpenImageTool={(key) => setActivePanel(key)}
@@ -1648,9 +2136,11 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
             </div>
           )}
 
-          {/* Scaled stage */}
+          {/* Scaled stage. `position: relative` anchors the chrome layer that
+              sits over it — see the sibling below. */}
           <div
             style={{
+              position: "relative",
               width: canvas.width * zoom,
               height: canvas.height * zoom,
               flexShrink: 0,
@@ -1686,81 +2176,42 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
                     element={el}
                     zoom={zoom}
                     selected={selectedIds.includes(el.id)}
-                    multiSelected={multiSelected}
                     editing={el.id === editingId}
                     onSelect={handleSelect}
+                    onContextMenu={openContextMenu}
+                    coDragging={
+                      draggingId !== null &&
+                      draggingId !== el.id &&
+                      selectedIds.includes(el.id) &&
+                      !el.locked
+                    }
                     onDragBegin={handleDragBegin}
                     onDragMove={handleDragMove}
                     onDragEnd={handleDragEnd}
-                    onUngroup={ungroupElement}
-                    onChange={(patch, opts) =>
-                      updateElement(el.id, patch, opts)
-                    }
+                    onChange={updateElement}
                     onStartEdit={setEditingId}
-                    onEndEdit={() => setEditingId(null)}
+                    onEndEdit={endEdit}
                     onCurveAddPoint={addCurveNodeAt}
                     activeCell={
                       activeCell?.id === el.id ? activeCell : null
                     }
-                    onCellFocus={(r, c) =>
-                      setActiveCell({ id: el.id, r, c })
-                    }
+                    onCellFocus={focusCell}
                     onFrameFill={fillFrame}
                     onGridCellFill={fillGridCell}
-                    onDuplicate={duplicateElement}
-                    onRemove={removeElement}
-                    onMoveLayer={moveLayer}
-                    onToggleLock={(id) =>
-                      updateElement(id, { locked: !el.locked })
-                    }
-                    onAskKlux={() => setActivePanel("klux")}
                     animateToken={animateToken}
                     suppressChrome={el.id === croppingId || el.id === erasingId}
+                    entered={el.id === enteredGroupId}
+                    // Only the entered group needs this. Passing it to every
+                    // element would re-render the whole page each time the
+                    // active child changed inside one group.
+                    activeChildId={
+                      el.id === enteredGroupId ? activeChildId : null
+                    }
+                    onChildSelect={selectElement}
+                    onChildChange={updateElement}
+                    onChildGestureBegin={commit}
                   />
                 ))}
-
-              {/* Multi-selection chrome — one dashed box and one action pill
-                  for the whole selection (the members' own pills stand down). */}
-              {multiSelected && !editingId && !croppingId && !erasingId && !isDrawTool && (
-                <SelectionOverlay
-                  bounds={selectionBounds}
-                  count={selectedElements.length}
-                  zoom={zoom}
-                  canvasWidth={canvas.width}
-                  canvasHeight={canvas.height}
-                  anyLocked={selectedElements.some((el) => el.locked)}
-                  allLocked={selectedElements.every((el) => el.locked)}
-                  onGroup={() => groupElements(selectedIds)}
-                  onDuplicate={() => duplicateElements(selectedIds)}
-                  onRemove={() => removeElements(selectedIds)}
-                  onToggleLock={() => {
-                    const lock = !selectedElements.some((el) => el.locked);
-                    updateElements(
-                      selectedIds.map((id) => ({ id, locked: lock })),
-                      { record: true },
-                    );
-                  }}
-                />
-              )}
-
-              {/* Marquee — the rubber band, in canvas units like everything
-                  else on the stage. Pointer-transparent so the sweep isn't
-                  interrupted by its own rectangle. */}
-              {marquee && (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: Math.min(marquee.x0, marquee.x1),
-                    top: Math.min(marquee.y0, marquee.y1),
-                    width: Math.abs(marquee.x1 - marquee.x0),
-                    height: Math.abs(marquee.y1 - marquee.y0),
-                    border: `${1 / zoom}px solid #6366f1`,
-                    background: "rgba(99,102,241,0.10)",
-                    pointerEvents: "none",
-                    zIndex: 60,
-                  }}
-                />
-              )}
 
               {/* "Applied" flash — a brief blue pulse when a whole design is
                   swapped in (Klux AI / template apply). */}
@@ -1773,77 +2224,6 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
                     background:
                       "radial-gradient(ellipse at center, rgba(37,99,235,0.32), rgba(37,99,235,0.04) 72%)",
                   }}
-                />
-              )}
-
-              {/* Line endpoint handles — reshape a selected straight line */}
-              {selLine && !isDrawTool && (
-                <LineHandles
-                  el={selLine}
-                  zoom={zoom}
-                  endpoints={lineEndpoints(selLine)}
-                  onDown={onHandleDown}
-                  onMove={onHandleMove}
-                  onUp={onHandleUp}
-                  bend={
-                    canBend
-                      ? {
-                          point: bendPoint(selLine, lineEndpoints(selLine)),
-                          onDown: onBendDown,
-                          onMove: onBendMove,
-                          onUp: onBendUp,
-                        }
-                      : null
-                  }
-                />
-              )}
-
-              {/* Curve node handles — drag each point to reshape the spline */}
-              {selCurve && !isDrawTool && (
-                <CurveHandles
-                  el={selCurve}
-                  zoom={zoom}
-                  nodePos={(p) => curveNodePos(selCurve, p)}
-                  onNodeDown={onNodeDown}
-                  onNodeMove={onNodeMove}
-                  onNodeUp={onNodeUp}
-                  onNodeDoubleClick={removeCurveNode}
-                />
-              )}
-
-              {/* Image crop / erase overlays */}
-              {croppingId &&
-                (() => {
-                  const ce = elements.find((e) => e.id === croppingId);
-                  return ce ? (
-                    <ImageCropOverlay
-                      el={ce}
-                      zoom={zoom}
-                      commitRef={cropCommitRef}
-                      resetRef={cropResetRef}
-                      onApply={applyCrop}
-                    />
-                  ) : null;
-                })()}
-              {erasingId &&
-                (() => {
-                  const ee = elements.find((e) => e.id === erasingId);
-                  return ee ? (
-                    <ImageEraserOverlay
-                      el={ee}
-                      brushSize={brushSize}
-                      commitRef={eraseCommitRef}
-                      onApply={applyErase}
-                    />
-                  ) : null;
-                })()}
-
-              {/* Add-node overlay — click on the selected line/curve to drop a node */}
-              {addNodeMode && (selCurve || selLine) && !isDrawTool && (
-                <div
-                  className="absolute inset-0"
-                  style={{ zIndex: 47, cursor: "copy", touchAction: "none" }}
-                  onPointerDown={handleAddNodeClick}
                 />
               )}
 
@@ -1892,11 +2272,271 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
                 </div>
               )}
             </div>
+
+            {/* Chrome layer.
+                Carries the same zoom transform and origin as the stage so it
+                shares its coordinate system exactly — anything in here is
+                positioned in canvas units, the same as if it were a child —
+                but it never clips, which is the whole point of it being a
+                sibling rather than a child. The stage clips at the artboard
+                edge, which is what makes artwork crop there; when the selection
+                outline and handles lived inside that clip, scaling an element
+                past the edge took its handles with it and left nothing to
+                scale back from.
+                EVERY piece of editing chrome belongs here, not just the
+                single-selection frame: a multi-selection box, line and curve
+                nodes, crop and erase handles and the marquee all describe
+                geometry that can legitimately sit off the artboard, and each
+                one is unusable the moment it is clipped away.
+                Inert by default so clicks fall through to the artboard; each
+                grip re-enables pointer events for itself. */}
+            <div
+              ref={chromeLayerRef}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: canvas.width,
+                height: canvas.height,
+                transform: `scale(${zoom})`,
+                transformOrigin: "top left",
+                pointerEvents: "none",
+                zIndex: 44,
+              }}
+            >
+              {/* You are inside this group. Without it, a selected member looks
+                  exactly like a selected top-level element, and there is nothing
+                  on screen to explain why the next click doesn't leave — or that
+                  Escape has somewhere to go. */}
+              {activeChildId &&
+                (() => {
+                  const g = elements.find((el) => el.id === enteredGroupId);
+                  if (!g) return null;
+                  return (
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: g.x,
+                        top: g.y,
+                        width: g.width,
+                        height: g.height,
+                        transform: g.rotation ? `rotate(${g.rotation}deg)` : undefined,
+                        border: `${1 / zoom}px dashed #94a3b8`,
+                        pointerEvents: "none",
+                        zIndex: 38,
+                      }}
+                    />
+                  );
+                })()}
+
+              {selectedElement &&
+                !multiSelected &&
+                !editingId &&
+                !croppingId &&
+                !erasingId &&
+                !isDrawTool &&
+                !selLine &&
+                !selCurve && (
+                  <SelectionChrome
+                    el={selectedElement}
+                    stack={elements}
+                    zoom={zoom}
+                    coarse={isTouch}
+                    onChange={(patch, opts) =>
+                      updateElement(selectedElement.id, patch, opts)
+                    }
+                    onGestureBegin={commit}
+                    onDuplicate={duplicateElement}
+                    onRemove={removeElement}
+                    onMoveLayer={moveLayer}
+                    onToggleLock={(id) =>
+                      updateElement(id, { locked: !selectedElement.locked })
+                    }
+                    onUngroup={ungroupElement}
+                    canPaste={Boolean(copied?.length)}
+                    onCopy={copySelection}
+                    onPaste={() => pasteCopied()}
+                    onAlign={alignSelection}
+                    onSetAsBackground={() => setImageAsBackground(selectedElement.id)}
+                    onShowLayers={showLayers}
+                  />
+                )}
+
+              {/* Multi-selection chrome — one dashed box and one action pill
+                  for the whole selection (the members' own pills stand down). */}
+              {multiSelected && !editingId && !croppingId && !erasingId && !isDrawTool && (
+                <SelectionOverlay
+                  bounds={selectionBounds}
+                  elements={selectedElements}
+                  stack={elements}
+                  zoom={zoom}
+                  canPaste={Boolean(copied?.length)}
+                  onCopy={copySelection}
+                  onPaste={() => pasteCopied()}
+                  onGroup={() => groupElements(selectedIds)}
+                  onDuplicate={() => duplicateElements(selectedIds)}
+                  onRemove={() => removeElements(selectedIds)}
+                  onMoveLayer={(dir) => selectedIds.forEach((id) => moveLayer(id, dir))}
+                  onAlign={alignSelection}
+                  onShowLayers={showLayers}
+                  onToggleLock={() => {
+                    const lock = !selectedElements.some((el) => el.locked);
+                    updateElements(
+                      selectedIds.map((id) => ({ id, locked: lock })),
+                      { record: true },
+                    );
+                  }}
+                />
+              )}
+
+              {/* Line endpoint handles — reshape a selected straight line */}
+              {selLine && !isDrawTool && (
+                <LineHandles
+                  el={selLine}
+                  zoom={zoom}
+                  endpoints={lineEndpoints(selLine)}
+                  onDown={onHandleDown}
+                  onMove={onHandleMove}
+                  onUp={onHandleUp}
+                  bend={
+                    canBend
+                      ? {
+                          point: bendPoint(selLine, lineEndpoints(selLine)),
+                          onDown: onBendDown,
+                          onMove: onBendMove,
+                          onUp: onBendUp,
+                        }
+                      : null
+                  }
+                />
+              )}
+
+              {/* Curve node handles — drag each point to reshape the spline */}
+              {selCurve && !isDrawTool && (
+                <CurveHandles
+                  el={selCurve}
+                  zoom={zoom}
+                  nodePos={(p) => curveNodePos(selCurve, p)}
+                  onNodeDown={onNodeDown}
+                  onNodeMove={onNodeMove}
+                  onNodeUp={onNodeUp}
+                  onNodeDoubleClick={removeCurveNode}
+                />
+              )}
+
+              {/* Add-node overlay — click on the selected line/curve to drop a
+                  node. Stacked ABOVE the node handles on purpose: in this mode
+                  every click on the shape means "add", so the existing nodes
+                  must not intercept it. Sits in this layer with the handles it
+                  covers, since a layer below could not cover them at all. */}
+              {addNodeMode && (selCurve || selLine) && !isDrawTool && (
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    zIndex: 47,
+                    cursor: "copy",
+                    touchAction: "none",
+                    pointerEvents: "auto",
+                  }}
+                  onPointerDown={handleAddNodeClick}
+                />
+              )}
+
+              {/* Image crop / erase overlays. Both draw their own box in canvas
+                  units and dim only inside it, so neither depends on the
+                  artboard clip to stay tidy — and an image hanging off the edge
+                  keeps handles you can reach. */}
+              {croppingId &&
+                (() => {
+                  const ce = elements.find((e) => e.id === croppingId);
+                  return ce ? (
+                    <ImageCropOverlay
+                      el={ce}
+                      zoom={zoom}
+                      commitRef={cropCommitRef}
+                      resetRef={cropResetRef}
+                      onApply={applyCrop}
+                    />
+                  ) : null;
+                })()}
+              {erasingId &&
+                (() => {
+                  const ee = elements.find((e) => e.id === erasingId);
+                  return ee ? (
+                    <ImageEraserOverlay
+                      el={ee}
+                      brushSize={brushSize}
+                      commitRef={eraseCommitRef}
+                      onApply={applyErase}
+                    />
+                  ) : null;
+                })()}
+
+              {/* Marquee — the rubber band, in canvas units like everything
+                  else in this layer. A sweep may start on the pasteboard and
+                  run onto the artboard, so the band has to be drawable outside
+                  it. Pointer-transparent so the sweep isn't interrupted by its
+                  own rectangle. */}
+              {marquee && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: Math.min(marquee.x0, marquee.x1),
+                    top: Math.min(marquee.y0, marquee.y1),
+                    width: Math.abs(marquee.x1 - marquee.x0),
+                    height: Math.abs(marquee.y1 - marquee.y0),
+                    border: `${1 / zoom}px solid #6366f1`,
+                    background: "rgba(99,102,241,0.10)",
+                    pointerEvents: "none",
+                    zIndex: 60,
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Full-screen preview — clean render of the design, Esc to exit */}
+      {unsavedDialog}
+
+      {/* Right-click menu. Rendered at the editor's top level, not inside the
+          stage, because it is positioned in viewport coordinates and so must
+          not be scaled by the zoom or clipped by the artboard. It carries the
+          same actions as the pill's "…" menu — see EditorContextMenu. */}
+      {contextMenu && selectedElements.length > 0 && (
+        <EditorContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          elements={selectedElements}
+          stack={elements}
+          onClose={closeContextMenu}
+          canPaste={Boolean(copied?.length)}
+          onCopy={copySelection}
+          onPaste={() => pasteCopied()}
+          onDuplicate={() => duplicateElements(selectedIds)}
+          onRemove={() => removeElements(selectedIds)}
+          onMoveLayer={(dir) => selectedIds.forEach((id) => moveLayer(id, dir))}
+          onToggleLock={() => {
+            // Unlock-all if anything is locked, otherwise lock-all — the same
+            // rule the multi-select pill uses, so the two never disagree.
+            const lock = !selectedElements.some((el) => el.locked);
+            updateElements(
+              selectedIds.map((id) => ({ id, locked: lock })),
+              { record: true },
+            );
+          }}
+          onGroup={() => groupElements(selectedIds)}
+          onUngroup={() => {
+            const group = selectedElements.find(isGroup);
+            if (group) ungroupElement(group.id);
+          }}
+          onAlign={alignSelection}
+          onSetAsBackground={() => setImageAsBackground(selectedElement?.id)}
+          onShowLayers={showLayers}
+        />
+      )}
+
       {showPreview && (
         <PreviewOverlay
           canvas={canvas}

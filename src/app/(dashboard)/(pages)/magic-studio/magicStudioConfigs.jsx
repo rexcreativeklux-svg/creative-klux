@@ -698,6 +698,34 @@ const descriptionField = (value) => {
 };
 
 /**
+ * The `logo` field for a payload — the brand mark to work into the image.
+ *
+ * ⚠️ ONE FIELD FOR BOTH KINDS OF ANSWER. The composer lets you either TYPE the
+ * logo ("Creative Klux") or PICK a picture of one, and both arrive here as a
+ * single string: words, or the URL of the image that was chosen. A URL is
+ * self-identifying — it starts with http — so the backend can tell them apart
+ * without a second field, and a second field is exactly what this endpoint
+ * rejects: it validates its payload and answers 422 for keys it doesn't declare
+ * (the same validator behind "The tool field is required").
+ *
+ * ⚠️ OMITTED WHEN EMPTY, like {@link colorField} and {@link descriptionField}.
+ * A run where nobody touched the Logo chip sends the byte-identical payload it
+ * sent before this existed.
+ *
+ * ⚠️ A PICKED LOGO IS SENT BY ITS OWN URL. Nothing is copied into the gallery on
+ * the way — same as the source image on Image to Variations — so the backend
+ * fetches it server-side. If typed logos work and picked ones don't, that fetch
+ * is the thing to check, not this.
+ *
+ * A tool opts in by declaring `logo: true`, which is what puts the chip on the
+ * composer; this is what puts the answer into the payload.
+ */
+const logoField = (value) => {
+  const logo = typeof value === "string" ? value.trim() : "";
+  return logo ? { logo } : {};
+};
+
+/**
  * The `prompt` field for a payload — absent unless something was written.
  *
  * ⚠️ NOT THE SAME AS {@link descriptionField}, and the difference is the wire
@@ -1341,6 +1369,21 @@ export const MAGIC_STUDIO_CONFIGS = {
     // never reach the endpoint, and three runs of a deterministic local model
     // return the same answer three times.
     variations: true,
+    /**
+     * Puts the Logo chip on the composer — type the brand's name, or pick a
+     * mark out of the media picker. What is chosen reaches the payload as
+     * `logo`; see {@link logoField}.
+     */
+    logo: true,
+    /**
+     * ⚠️ NO MODEL MENU ON THIS TOOL. Which model paints the image is the
+     * backend's choice here — the payload it validates has no field for one, so
+     * the chip was a control with nothing on the other end of it: picking
+     * "Opus 5" before generating changed nothing and quietly implied it had.
+     * The preference itself is app-wide and untouched (the home composer still
+     * shows and stores it); this only stops drawing it where it is a lie.
+     */
+    model: false,
     // Backend `tool` enum for server-side generation history (matches the value
     // `generate` sends). Present only on backend tools — the on-device tools
     // (audio_to_text, text_to_audio) persist nothing and have no history.
@@ -1411,6 +1454,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         variations: values.variations,
         // Absent unless a colour was actually picked — see COLOR_OPTION.
         ...colorField(values.color),
+        // Absent unless a logo was typed or picked — see logoField.
+        ...logoField(values.logo),
         prompt: input.trim(),
       };
       // May answer with the finished images or with a job to wait on — the

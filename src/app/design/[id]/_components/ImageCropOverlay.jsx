@@ -94,6 +94,10 @@ export default function ImageCropOverlay({ el, zoom, commitRef, resetRef, onAppl
         width: el.width,
         height: el.height,
         zIndex: 48,
+        // Lives in the editor's chrome layer, which is inert by default so
+        // clicks fall through to the artboard. The crop box is the exception:
+        // it is the only thing you can interact with while cropping.
+        pointerEvents: "auto",
       }}
       onPointerMove={onMove}
       onPointerUp={onUp}

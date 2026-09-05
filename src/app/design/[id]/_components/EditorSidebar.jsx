@@ -30,6 +30,7 @@ import KluxLogoIcon from "./panels/klux/KluxLogoIcon";
 import FontPanel from "./panels/font/FontPanel";
 import ColorPanel from "./panels/color/ColorPanel";
 import EffectsPanel from "./panels/effects/EffectsPanel";
+import ShapeEffectsPanel from "./panels/effects/ShapeEffectsPanel";
 import AnimatePanel from "./panels/animate/AnimatePanel";
 import PositionPanel from "./panels/position/PositionPanel";
 import EditImagePanel from "./panels/image/EditImagePanel";
@@ -164,6 +165,14 @@ export default function EditorSidebar({ active: activeProp, onActiveChange, ...p
         <EffectsPanel editor={props.editor} onClose={() => setActive(null)} />
       )}
 
+      {/* Shape effects — the same button on a shape's toolbar. A separate route
+          rather than a mode of the one above: the two vocabularies barely
+          overlap, and a panel that swaps its whole contents by selection type is
+          two panels sharing a name. */}
+      {active === "shape-effects" && (
+        <ShapeEffectsPanel editor={props.editor} onClose={() => setActive(null)} />
+      )}
+
       {/* Animate — contextual panel; `onPlay` triggers an in-editor preview. */}
       {active === "animate" && (
         <AnimatePanel
@@ -173,9 +182,17 @@ export default function EditorSidebar({ active: activeProp, onActiveChange, ...p
         />
       )}
 
-      {/* Position — layer order, align-to-page, exact geometry. */}
+      {/* Position — Arrange (layer order, align-to-page, exact geometry) and
+          Layers (the whole stack). Which tab is open is driven from the editor
+          so the element pill's "Show layers" can reach the Layers tab of a
+          panel that is already open on Arrange. */}
       {active === "position" && (
-        <PositionPanel editor={props.editor} onClose={() => setActive(null)} />
+        <PositionPanel
+          editor={props.editor}
+          section={props.positionSection}
+          onSectionChange={props.onPositionSection}
+          onClose={() => setActive(null)}
+        />
       )}
 
       {/* Edit image — Adjust / Filters / Shadows panel. */}

@@ -117,6 +117,10 @@ export default function ImageEraserOverlay({ el, brushSize, commitRef, onApply }
         zIndex: 48,
         cursor: "crosshair",
         touchAction: "none",
+        // Lives in the editor's chrome layer, which is inert by default so
+        // clicks fall through to the artboard. The brush surface is the
+        // exception: it has to take every pointer move while erasing.
+        pointerEvents: "auto",
         transform: `scaleX(${el.flipH ? -1 : 1}) scaleY(${el.flipV ? -1 : 1})`,
         // Checkerboard shows through erased (transparent) pixels — so the user
         // sees exactly what they're removing, in real time.

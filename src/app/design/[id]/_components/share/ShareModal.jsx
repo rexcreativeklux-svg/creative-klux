@@ -28,6 +28,36 @@ import { getPopoverPosition, InstagramIcon } from "./shareOptions";
  * the real Save action (onSave/saving/dirty), plus a working Copy link and a
  * full Download modal. Cosmetic options mirror the reference.
  */
+/**
+ * The QR and Embed sub-views share this frame: a positioned card with a back
+ * arrow and a title.
+ *
+ * Declared at module scope, NOT inside ShareModal. A component defined during
+ * render is a brand-new type on every render, so React unmounts and remounts the
+ * whole subtree each time — which here meant the embed <textarea> lost focus and
+ * cursor position, and the card lost its scroll offset, on every keystroke or
+ * state change in the modal.
+ */
+function SubViewShell({ title, position, onBack, children }) {
+  return (
+    <div
+      className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-[400px] max-h-[85vh] overflow-y-auto z-[100]"
+      style={position}
+    >
+      <div className="sticky top-0 bg-white z-10 px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+        <button
+          onClick={onBack}
+          className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <h2 className="text-xl font-semibold">{title}</h2>
+      </div>
+      <div className="px-6 py-6">{children}</div>
+    </div>
+  );
+}
+
 export default function ShareModal({
   isOpen,
   onClose,
@@ -182,26 +212,15 @@ export default function ShareModal({
     </button>
   );
 
-  // ── Small sub-view shell (QR / Embed) ───────────────────────────────
-  const SubViewShell = ({ title, children }) => (
-    <div
-      className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-[400px] max-h-[85vh] overflow-y-auto z-[100]"
-      style={getPopoverPosition(buttonRef)}
-    >
-      <div className="sticky top-0 bg-white z-10 px-6 py-4 border-b border-gray-200 flex items-center gap-3">
-        <button onClick={() => setSubView(null)} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <h2 className="text-xl font-semibold">{title}</h2>
-      </div>
-      <div className="px-6 py-6">{children}</div>
-    </div>
-  );
 
   // ── QR Code view ────────────────────────────────────────────────────
   if (subView === "qr") {
     return (
-      <SubViewShell title="QR Code">
+      <SubViewShell
+        title="QR Code"
+        position={getPopoverPosition(buttonRef)}
+        onBack={() => setSubView(null)}
+      >
         <div className="flex flex-col items-center gap-4">
           <div className="w-[240px] h-[240px] flex items-center justify-center border border-gray-200 rounded-xl bg-white">
             {qrDataUrl ? (
@@ -230,7 +249,11 @@ export default function ShareModal({
   // ── Embed view ──────────────────────────────────────────────────────
   if (subView === "embed") {
     return (
-      <SubViewShell title="Embed">
+      <SubViewShell
+        title="Embed"
+        position={getPopoverPosition(buttonRef)}
+        onBack={() => setSubView(null)}
+      >
         <p className="text-sm text-gray-500 mb-3">Paste this code into your website to embed the design.</p>
         <textarea
           readOnly

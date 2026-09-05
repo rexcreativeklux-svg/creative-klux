@@ -222,3 +222,29 @@ export const aspectOf = (key) => {
   const vb = SHAPES[key]?.viewBox || [1, 1];
   return vb[0] / vb[1];
 };
+
+/**
+ * Outline styles a shape can wear, in each renderer's own dialect.
+ *
+ * Stored on the element as a NAME (`strokeDash: "dashed"`) rather than a dash
+ * array, because the three things that have to draw it do not speak the same
+ * language: a div wants a CSS `border-style`, an SVG wants a `stroke-dasharray`
+ * string, and the export canvas wants an array of numbers for `setLineDash`.
+ * A single stored number would have forced two of the three to guess.
+ *
+ * The dash lengths are multiples of the stroke width so a heavy outline gets
+ * proportionally longer dashes — a fixed 4px gap vanishes under a 20px stroke.
+ */
+export const DASH_PATTERNS = {
+  solid: { css: "solid", array: () => [] },
+  dashed: { css: "dashed", array: (w) => [Math.max(2, w * 3), Math.max(2, w * 2)] },
+  dotted: { css: "dotted", array: (w) => [Math.max(1, w), Math.max(2, w * 1.6)] },
+};
+
+/** The dash array for a stroke width, for canvas and SVG. Empty means solid. */
+export const dashArrayFor = (name, width) =>
+  (DASH_PATTERNS[name] || DASH_PATTERNS.solid).array(Number(width) || 1);
+
+/** The CSS border-style for a stored dash name. */
+export const dashCssFor = (name) =>
+  (DASH_PATTERNS[name] || DASH_PATTERNS.solid).css;

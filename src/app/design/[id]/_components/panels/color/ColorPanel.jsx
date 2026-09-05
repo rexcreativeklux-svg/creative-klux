@@ -4,6 +4,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { X, Pipette, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { GRADIENT_PRESETS } from "@/(lib)/design/gradient";
 
 /**
  * ColorPanel — Canva-style colour picker opened from the context toolbar's
@@ -83,9 +84,14 @@ export default function ColorPanel({ editor, target, onClose }) {
   const [hexInput, setHexInput] = useState(currentHex.slice(1));
 
   // Keep the hex field in step when the selection / target colour changes.
-  useEffect(() => {
+  // Compared during render rather than synced from an effect: the field would
+  // otherwise show the previous element's colour for one frame after you click
+  // a different one.
+  const [syncedHex, setSyncedHex] = useState(currentHex);
+  if (syncedHex !== currentHex) {
+    setSyncedHex(currentHex);
     setHexInput(currentHex.slice(1));
-  }, [currentHex]);
+  }
 
   const designColors = useMemo(
     () => collectDesignColors(editor?.elements, editor?.canvas?.background),
@@ -96,16 +102,28 @@ export default function ColorPanel({ editor, target, onClose }) {
     .map(toHex)
     .filter(Boolean);
 
-  const apply = (color) => {
-    const hex = toHex(color);
-    if (!hex) return;
+  // Which of the panel's targets can hold a gradient — see the Gradients
+  // section below for why an outline is excluded.
+  const GRADIENTABLE = ["fill", "color", "background"];
+  const canFillGradient = Boolean(
+    target?.keys?.length && target.keys.every((k) => GRADIENTABLE.includes(k)),
+  );
+
+  /** Write a raw value (hex or gradient string) to every key of the target. */
+  const applyValue = (value) => {
     if (!el || !target?.keys?.length) {
       toast.info("Select an element to change its colour.");
       return;
     }
     const patch = {};
-    for (const k of target.keys) patch[k] = hex;
+    for (const k of target.keys) patch[k] = value;
     editor.updateElement(el.id, patch, { record: true });
+  };
+
+  const apply = (color) => {
+    const hex = toHex(color);
+    if (!hex) return;
+    applyValue(hex);
   };
 
   const onHexChange = (raw) => {
@@ -218,6 +236,32 @@ export default function ColorPanel({ editor, target, onClose }) {
             onPick={apply}
           />
         </div>
+
+        {/* Gradients. Offered only where a gradient can actually be PAINTED:
+            a fill, a text colour, a note background. An outline or a table
+            border takes a single stroke colour, and a gradient written there
+            would be an invalid paint — the browser drops it and the outline
+            silently disappears, which is worse than not offering it. */}
+        {canFillGradient && (
+          <div className="flex flex-col gap-2.5">
+            <p className="text-xs font-semibold text-gray-500">Gradients</p>
+            <div className="grid grid-cols-6 gap-2">
+              {GRADIENT_PRESETS.map((g) => (
+                <button
+                  key={g}
+                  onClick={() => applyValue(g)}
+                  title="Gradient"
+                  style={{ backgroundImage: g }}
+                  className={`aspect-square rounded-lg border transition cursor-pointer hover:scale-105 ${
+                    current === g
+                      ? "border-blue-500 ring-2 ring-blue-200"
+                      : "border-gray-200"
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

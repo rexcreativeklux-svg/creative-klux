@@ -55,6 +55,20 @@ const nextConfig = {
       'node_modules/sharp/**',
     ],
   },
+  // React Compiler — memoize components and hooks automatically.
+  //
+  // We were already paying for this and collecting nothing: eslint-config-next
+  // ships the compiler's own rules, so `set-state-in-effect`, `refs during
+  // render` and `preserve-manual-memoization` have been failing lint here all
+  // along. Those are not style rules — they are the compiler telling us which
+  // code it cannot safely memoize. With the compiler off they were pure cost.
+  //
+  // It matters most in the design editor, where a drag re-renders every element
+  // on the page each frame. Note that the compiler SKIPS any component whose
+  // rules it can't satisfy rather than failing the build, so a file that still
+  // trips those lint errors silently gets no memoization — which is why they're
+  // worth fixing rather than muting.
+  reactCompiler: true,
   // Next 16 runs Turbopack by default. An empty config opts in explicitly and
   // silences the "webpack config with no turbopack config" error. The engine
   // imports only `onnxruntime-web` (a browser package) and loads the ORT WASM

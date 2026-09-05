@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import EditorCollaborators from "./collaborators/EditorCollaborators";
 import {
   ChevronLeft,
   Undo2,
@@ -116,6 +117,13 @@ export default function EditorTopBar({
         <IconBtn onClick={onZoomIn} title="Zoom in">
           <Plus className="w-4 h-4" />
         </IconBtn>
+      </div>
+
+      {/* Who else is on the team. Desktop only: below `lg` the bar is already
+          fighting for room, and a row of faces is the first thing that can go —
+          it informs, it doesn't let you do anything you can't do elsewhere. */}
+      <div className="hidden lg:flex">
+        <EditorCollaborators />
       </div>
 
       {/* Save — beside the zoom. Manual click confirms with a toast; the editor

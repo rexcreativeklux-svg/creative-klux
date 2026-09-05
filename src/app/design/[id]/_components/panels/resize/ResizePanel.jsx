@@ -102,9 +102,24 @@ export default function ResizePanel({ editor }) {
                         : "border-transparent hover:bg-gray-50"
                     }`}
                   >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-100 text-[11px] font-bold text-blue-600">
-                      {it.label[0]}
-                    </span>
+                    {/* The platform's mark, so the list is scanned by logo
+                        rather than read line by line — which is how anyone
+                        actually looks for "the LinkedIn one". Falls back to the
+                        letter badge, so a preset with no artwork still works. */}
+                    {it.icon ? (
+                      <img
+                        src={it.icon}
+                        alt=""
+                        width={28}
+                        height={28}
+                        loading="lazy"
+                        className="h-7 w-7 shrink-0 rounded-md object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-100 text-[11px] font-bold text-blue-600">
+                        {it.label[0]}
+                      </span>
+                    )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-medium text-gray-700">
                         {it.label}

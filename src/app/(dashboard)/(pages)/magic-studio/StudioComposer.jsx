@@ -28,7 +28,10 @@
  * plus that tool's own options (style, size, quality, voice, language…) as chips
  * along the toolbar, each opening the SHARED OptionPanelBody — the same rich
  * panel the modal shows, so a style card looks the same wherever you meet it —
- * and the app-wide model menu at the end of the row.
+ * plus, where the tool declares them, a Logo chip (type the brand mark, or pick
+ * one out of the media picker) and the app-wide model menu at the end of the
+ * row. Both are opt-in per tool: `logo: true` puts the first there, and
+ * `model: false` takes the second away where the payload has no field for it.
  *
  * ⚠️ EVERY PANEL IN THIS TOOLBAR IS PORTALLED (see ToolbarChip, and
  * ComposerDropdown for the model menu). The row is `overflow-x-auto`, which
@@ -65,7 +68,9 @@ import {
   Ratio,
   Sparkles,
   Square,
+  Stamp,
   Target,
+  Type,
   Upload,
   User,
   Volume2,
@@ -396,15 +401,40 @@ export default function StudioComposer({
    */
   const [video, setVideo] = useState(null);
   /**
-   * Which source the media picker is open for — null | "image" | "video".
+   * Which source the media picker is open for — null | "image" | "video" |
+   * "audio" | "logo".
    *
    * ⚠️ A TARGET, NOT A BOOLEAN. It used to be `pickerOpen` and `onApply` always
    * called the image setter, which was fine while one kind of tool could open
    * it. Two things now depend on which one asked: the `allowedTypes` the picker
    * is given, and which setter the result goes to. A boolean here would open a
    * video tool's picker onto the image library.
+   *
+   * ⚠️ "logo" IS THE ONE TARGET THAT ISN'T A MEDIA TYPE. It picks an image like
+   * "image" does and differs only in where the URL lands — which is why
+   * `pickerMedia` below translates it back before the picker is told what may be
+   * chosen. Passing the target straight through would ask the gallery for
+   * files of type "logo" and return nothing.
    */
   const [pickerTarget, setPickerTarget] = useState(null);
+  /** What the picker may actually show for that target. */
+  const pickerMedia = pickerTarget === "logo" ? "image" : pickerTarget;
+
+  // ── The logo, for the tools that offer one (config.logo) ───────────────────
+  // Either words to set as the mark, or a picture of one — never both, because
+  // the payload carries a single `logo` field and two answers to one question
+  // is a choice the backend would have to make on the user's behalf.
+  const logoEnabled = config?.logo === true;
+  const [logoMode, setLogoMode] = useState(null); // null | "text" | "image"
+  const [logoText, setLogoText] = useState("");
+  const [logoImage, setLogoImage] = useState(null); // hosted URL
+  /** What actually goes up as `logo` — "" while the chip is untouched. */
+  const logoValue =
+    logoMode === "text"
+      ? logoText.trim()
+      : logoMode === "image"
+        ? logoImage || ""
+        : "";
 
   // One key, so opening a chip's panel closes whichever was open. The model
   // menu shares it, which is why it can't be the odd one out with its own flag.
@@ -421,6 +451,18 @@ export default function StudioComposer({
   // Shared with the home composer rather than local: the model is a preference
   // about the user, not about the screen they happen to be on.
   const [model, setModel] = useComposerModel();
+  /**
+   * Whether this tool draws the model menu at all.
+   *
+   * ⚠️ TWO WAYS TO LOSE IT, AND THEY ARE DIFFERENT REASONS. The on-device tools
+   * can't be steered by it (Whisper and Kokoro run here, in a Web Worker), and a
+   * tool can also opt out with `model: false` when the backend picks the model
+   * itself and the payload has no field to carry a choice — which is Text to
+   * Image. Either way the preference itself is untouched: it is app-wide and
+   * shared with the home composer, and this only stops DRAWING a control that
+   * has nothing on the other end of it.
+   */
+  const modelEnabled = !config?.onDevice && config?.model !== false;
 
   const audioFileRef = useRef(null);
 
@@ -585,6 +627,29 @@ export default function StudioComposer({
   const clearVideo = () => setVideo(null);
 
   /**
+   * A logo image came back from the picker.
+   *
+   * Sent by the URL the picker handed over, exactly like the source image above
+   * — see the ⚠️ on handlePickedImage for why nothing is copied into the gallery
+   * on the way, and what to check if a searched logo fails where a library one
+   * works.
+   */
+  const handlePickedLogo = (src) => {
+    if (!src) return;
+    console.log("🔖 [magic-studio] logo image:", src);
+    setLogoImage(src);
+    setLogoMode("image");
+  };
+
+  /** Back to "no logo at all" — not back to the chooser, which is `setLogoMode(null)`
+   *  with the text and image already cleared. */
+  const clearLogo = () => {
+    setLogoMode(null);
+    setLogoText("");
+    setLogoImage(null);
+  };
+
+  /**
    * Fill the persona from one of the config's worked examples.
    *
    * The blank form is the hardest part of this tool — "who are you writing for"
@@ -642,7 +707,14 @@ export default function StudioComposer({
   const submit = () => {
     if (!ready) return;
     closePanel();
-    console.log(`✨ [magic-studio] generating with "${tool.label}" (${model})`);
+    // The model is only named on the tools that actually offer the menu — see
+    // the `model: false` note in the configs. Naming it on a tool that doesn't
+    // send one makes the log claim a choice that was never made.
+    console.log(
+      `✨ [magic-studio] generating with "${tool.label}"${
+        modelEnabled ? ` (${model})` : ""
+      }${logoValue ? ` · logo: ${logoValue}` : ""}`,
+    );
     // Frozen at submit, so the in-flight tiles keep showing THIS run while the
     // box stays live. A tool with no words at all — an audio take — still
     // reports nothing, and the tile falls back to the tool's working label.
@@ -687,6 +759,10 @@ export default function StudioComposer({
         // `prompt` already — sending them twice under two names would be the
         // same brief, doubled.
         ...(promptable ? { description: typed } : {}),
+        // Words or a picked image URL, whichever the Logo chip was answered
+        // with; "" while it is untouched, and the config's `logoField` drops it
+        // from the payload entirely in that case.
+        ...(logoEnabled ? { logo: logoValue } : {}),
       },
       activeBrand,
     });
@@ -725,6 +801,41 @@ export default function StudioComposer({
             type="button"
             onClick={clearImage}
             aria-label="Remove source image"
+            className="shrink-0 cursor-pointer rounded p-1 text-gray-400 transition-colors hover:text-red-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* The chosen logo, in the same strip as a source image and for the same
+          reason: it rides on every run from here until it is cleared, and a
+          brand mark silently applied to a generation you thought was plain is
+          the kind of thing you only notice in the result. A picked mark shows
+          as itself; typed words show as the words. */}
+      {logoEnabled && logoValue && (
+        <div className="flex items-center gap-3 border-b border-gray-100 px-4 pb-3 pt-3">
+          {logoMode === "image" ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoImage}
+              alt="Logo"
+              // `contain` on a light tile, not `cover` — a logo cropped to fill
+              // a square is a logo with its edges cut off.
+              className="h-12 w-12 shrink-0 rounded-lg border border-gray-100 bg-gray-50 object-contain p-1"
+            />
+          ) : (
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-gray-100 bg-gray-50 text-gray-400">
+              <Type className="h-5 w-5" />
+            </span>
+          )}
+          <span className="min-w-0 flex-1 truncate text-xs text-gray-500">
+            {logoMode === "image" ? "Logo image ready" : `Logo: ${logoText.trim()}`}
+          </span>
+          <button
+            type="button"
+            onClick={clearLogo}
+            aria-label="Remove logo"
             className="shrink-0 cursor-pointer rounded p-1 text-gray-400 transition-colors hover:text-red-600"
           >
             <X className="h-4 w-4" />
@@ -1220,6 +1331,161 @@ export default function StudioComposer({
           </ToolbarChip>
         ))}
 
+        {/* The brand mark to work into the result. ⚠️ TWO KINDS OF ANSWER
+            BEHIND ONE CHIP: type the name, or pick a picture of the logo. They
+            are asked for one at a time rather than as two fields — the payload
+            carries a single `logo`, so two filled boxes would be a question the
+            backend has to answer on the user's behalf. Picking one REPLACES the
+            other, and the chooser is what you come back to via Clear. */}
+        {logoEnabled && (
+          <ToolbarChip
+            open={openPanel === "logo"}
+            onToggle={() => togglePanel("logo")}
+            onClose={closePanel}
+            label="Logo"
+            icon={Stamp}
+            width={300}
+          >
+            <div className="flex flex-col gap-2 p-3">
+              {logoMode === null && (
+                <>
+                  <p className="text-[11px] leading-relaxed text-gray-500">
+                    Add your brand mark — type it, or pick the image.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setLogoMode("text")}
+                    className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5 text-left transition-all hover:border-blue-400 hover:bg-blue-50/40"
+                  >
+                    <Type className="h-4 w-4 shrink-0 text-gray-500" />
+                    <span className="min-w-0">
+                      <span className="block text-xs font-semibold text-gray-900">
+                        Enter text
+                      </span>
+                      <span className="block text-[11px] text-gray-500">
+                        Set the brand name as the mark
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // The picker is a modal and this panel is a portal that
+                      // closes on outside click — leaving it open would put a
+                      // floating panel over the modal until the first click
+                      // dismissed it.
+                      closePanel();
+                      setPickerTarget("logo");
+                    }}
+                    className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5 text-left transition-all hover:border-blue-400 hover:bg-blue-50/40"
+                  >
+                    <ImagePlus className="h-4 w-4 shrink-0 text-gray-500" />
+                    <span className="min-w-0">
+                      <span className="block text-xs font-semibold text-gray-900">
+                        Choose a logo
+                      </span>
+                      <span className="block text-[11px] text-gray-500">
+                        From your library, the web, or upload one
+                      </span>
+                    </span>
+                  </button>
+                </>
+              )}
+
+              {logoMode === "text" && (
+                <>
+                  <span className="text-[11px] font-medium text-gray-500">
+                    Logo text
+                  </span>
+                  <input
+                    // The panel opened for exactly one reason — to type this.
+                    autoFocus
+                    value={logoText}
+                    onChange={(event) => setLogoText(event.target.value)}
+                    // ⚠️ ENTER CLOSES THE PANEL, IT DOES NOT GENERATE. The
+                    // composer's Enter-to-send lives on the textarea alone, and
+                    // finishing a logo is not the same gesture as committing to
+                    // a paid run.
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        closePanel();
+                      }
+                    }}
+                    maxLength={60}
+                    placeholder="e.g. Creative Klux"
+                    className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-400"
+                  />
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closePanel();
+                        setPickerTarget("logo");
+                      }}
+                      className="cursor-pointer text-[11px] font-semibold text-blue-600 hover:underline"
+                    >
+                      Use an image instead
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearLogo}
+                      className="cursor-pointer text-[11px] font-semibold text-gray-400 hover:text-red-600"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {logoMode === "image" && (
+                <>
+                  <div className="flex items-center gap-2.5 rounded-lg border border-gray-200 p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={logoImage}
+                      alt="Chosen logo"
+                      className="h-10 w-10 shrink-0 rounded-md bg-gray-50 object-contain p-0.5"
+                    />
+                    <span className="min-w-0 flex-1 text-[11px] text-gray-500">
+                      This mark rides on every run until you clear it.
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closePanel();
+                        setPickerTarget("logo");
+                      }}
+                      className="cursor-pointer text-[11px] font-semibold text-blue-600 hover:underline"
+                    >
+                      Replace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLogoImage(null);
+                        setLogoMode("text");
+                      }}
+                      className="cursor-pointer text-[11px] font-semibold text-gray-500 hover:text-gray-900"
+                    >
+                      Type text instead
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearLogo}
+                      className="cursor-pointer text-[11px] font-semibold text-gray-400 hover:text-red-600"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </ToolbarChip>
+        )}
+
         {/* How many to make at once. Its value IS its label — an icon here
             would hide the one number you need to see before hitting send, and
             "3x" is no wider than the glyph it replaces. */}
@@ -1288,12 +1554,15 @@ export default function StudioComposer({
             claims to steer something it has no wire to, and picking "Opus 5"
             before transcribing would reasonably read as a promise that Opus is
             doing the transcribing.
+            A tool can also opt out with `model: false` — Text to Image does,
+            because the backend picks the model there and its payload has no
+            field to carry a choice. Both cases are `modelEnabled`.
             The preference itself is untouched — it is app-wide and shared with
             the home composer; this only stops drawing it where it is a lie. */}
         {/* shrink-0 wrapper: flex items shrink by default, and this row scrolls
             sideways — without it the model trigger squashes as options are
             added instead of the row simply getting longer. */}
-        {!config?.onDevice && (
+        {modelEnabled && (
           <div className="shrink-0">
             <ComposerDropdown
               options={MODEL_OPTIONS}
@@ -1351,15 +1620,16 @@ export default function StudioComposer({
           // search, so on those it would offer results that can never be picked.
           // The Library tab is also where a clip or a voice track gets uploaded,
           // which is the only route either has into these tools.
-          tabs={
-            pickerTarget === "image" ? ["search", "library"] : ["library"]
-          }
-          allowedTypes={[pickerTarget]}
+          tabs={pickerMedia === "image" ? ["search", "library"] : ["library"]}
+          allowedTypes={[pickerMedia]}
           maxSelectable={1}
           activeBrand={activeBrand}
           onClose={() => setPickerTarget(null)}
           onCancel={() => setPickerTarget(null)}
           onApply={(images, media) => {
+            // Read before it's cleared — the state update below is what closes
+            // the modal, and the handler still has to know which question was
+            // being answered.
             const target = pickerTarget;
             setPickerTarget(null);
             // The picker returns two buckets and hands back objects, not URLs —
@@ -1372,6 +1642,7 @@ export default function StudioComposer({
               return;
             }
             if (target === "video") handlePickedVideo(src);
+            else if (target === "logo") handlePickedLogo(src);
             else if (target === "audio") {
               setVoiceTrack({
                 url: src,

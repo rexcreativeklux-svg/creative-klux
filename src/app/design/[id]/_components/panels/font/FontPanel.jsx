@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { Search, UploadCloud, X } from "lucide-react";
 import { toast } from "sonner";
 import { EDITOR_FONTS } from "@/(lib)/design/fonts";
+import { readTextStyle, takesTextStyle } from "@/(lib)/design/groupStyling";
 import FontList from "../shared/FontList";
 import TextStylesTab from "./TextStylesTab";
 
@@ -28,7 +29,9 @@ export default function FontPanel({ editor, onClose }) {
   const [cat, setCat] = useState("all");
 
   const el = editor?.selectedElement;
-  const activeFamily = el?.fontFamily;
+  // For a group, the face its text is currently set in — so the list highlights
+  // the right row before anything has been changed.
+  const activeFamily = readTextStyle(el, "fontFamily");
 
   const fonts = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -40,10 +43,12 @@ export default function FontPanel({ editor, onClose }) {
   }, [query, cat]);
 
   const applyFont = (family) => {
-    if (!el || el.type !== "text") {
+    if (!takesTextStyle(el)) {
       toast.info("Select a text layer to change its font.");
       return;
     }
+    // A group takes the same patch: updateElement deals it out to every text
+    // member (see groupStyling), so one pick re-sets all the words in there.
     editor.updateElement(el.id, { fontFamily: family }, { record: true });
   };
 

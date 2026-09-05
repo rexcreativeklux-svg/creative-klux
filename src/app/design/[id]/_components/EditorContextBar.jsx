@@ -33,6 +33,8 @@ import {
   Eraser,
   Crop,
   Sparkles,
+  PenLine,
+  Droplet,
 } from "lucide-react";
 import { isLineShape } from "@/(lib)/design/shapes";
 import { addRow, addCol, removeRow, removeCol } from "@/(lib)/design/tableUtils";
@@ -40,6 +42,15 @@ import { gridCellRects, resizeGridCells } from "@/(lib)/design/grids";
 import { CHART_TYPES } from "@/(lib)/design/charts";
 import { EDITOR_FONTS } from "@/(lib)/design/fonts";
 import { radiusToNumber } from "@/(lib)/design/radius";
+import {
+  DEFAULT_TINT_STRENGTH,
+  isColourValue,
+} from "@/(lib)/design/imageTint";
+import {
+  groupHasType,
+  groupRadiusLimit,
+  readGroupStyle,
+} from "@/(lib)/design/groupStyling";
 
 const CHART_ICONS = {
   bar: BarChart3,
@@ -64,6 +75,7 @@ export default function EditorContextBar({
   onOpenFontPanel,
   onOpenColorPanel,
   onOpenEffectsPanel,
+  onOpenShapeEffectsPanel,
   onOpenAnimatePanel,
   onOpenPositionPanel,
   onOpenImageTool,
@@ -97,6 +109,12 @@ export default function EditorContextBar({
 
   const isBold =
     element.fontWeight === "bold" || Number(element.fontWeight) >= 600;
+
+  // A group's controls are decided by what is INSIDE it, not by the group.
+  const isGroupEl = element.type === "group";
+  const groupHasText = isGroupEl && groupHasType(element, "text");
+  const groupWeight = isGroupEl ? readGroupStyle(element, "fontWeight") : null;
+  const groupBold = groupWeight === "bold" || Number(groupWeight) >= 600;
 
   // Centred pill at `lg`, full-width strip below.
   // `max-w-[calc(100vw-340px)]` was reserving room for the editor's rail +
@@ -199,6 +217,18 @@ export default function EditorContextBar({
             title="Line color"
             onOpen={onOpenColorPanel}
           />
+          {/* Thickness. A straight line had no weight control at all — only
+              curves did — so the one shape whose entire appearance is its
+              stroke was the one you couldn't set the stroke on. */}
+          <Toggle
+            active={menu === "lineWeight"}
+            onClick={() =>
+              setMenu((m) => (m === "lineWeight" ? null : "lineWeight"))
+            }
+            title="Thickness"
+          >
+            <PenLine className="w-4 h-4" />
+          </Toggle>
           <DirectionControl
             rotation={element.rotation || 0}
             onSet={(deg) => patch({ rotation: deg })}
@@ -323,6 +353,28 @@ export default function EditorContextBar({
             keys={["fill"]}
             title="Fill"
             onOpen={onOpenColorPanel}
+          />
+          {/* Outline. Shapes have always STORED stroke/strokeWidth — the
+              renderer and the exporter both draw them — but nothing in the UI
+              could set them, so every shape was permanently borderless. */}
+          <ColorInput
+            value={element.stroke || "#111111"}
+            keys={["stroke"]}
+            title="Outline color"
+            onOpen={onOpenColorPanel}
+          />
+          <Toggle
+            active={menu === "outline"}
+            onClick={() => setMenu((m) => (m === "outline" ? null : "outline"))}
+            title="Outline weight & style"
+          >
+            <PenLine className="w-4 h-4" />
+          </Toggle>
+          <PanelButton
+            icon={Wand2}
+            label="Effects"
+            active={Boolean(element.shapeEffect && element.shapeEffect.type !== "none")}
+            onClick={onOpenShapeEffectsPanel}
           />
           {element.shape !== "circle" && element.shape !== "triangle" && (
             <label className="flex items-center gap-1 text-[11px] text-gray-500 px-1">
@@ -473,6 +525,24 @@ export default function EditorContextBar({
             onClick={() => onStartErase?.(element.id)}
           />
           <Divider />
+          {/* Colour. Fills the box behind the photo AND tints the photo —
+              see imageTint.js for why it is deliberately both. */}
+          <ColorInput
+            value={element.backgroundColor || "#6366f1"}
+            keys={["backgroundColor"]}
+            title="Color"
+            onOpen={onOpenColorPanel}
+          />
+          {/* The strength dial only means anything once a colour is on it. */}
+          {isColourValue(element.backgroundColor) && (
+            <Toggle
+              active={menu === "tint"}
+              onClick={() => setMenu((m) => (m === "tint" ? null : "tint"))}
+              title="Color strength"
+            >
+              <Droplet className="w-4 h-4" />
+            </Toggle>
+          )}
           <Toggle
             active={(element.objectFit || "cover") === "contain"}
             onClick={() =>
@@ -521,6 +591,127 @@ export default function EditorContextBar({
         </>
       )}
 
+        {/* ── A selected GROUP ────────────────────────────────────────────
+            The UNION of what its contents can be styled with, all on screen at
+            once — which is why it is the longest bar in the editor. One swatch
+            paints every photo, shape and word in there; the font controls appear
+            because there IS text in there, and act on the text.
+
+            Deliberately not a switcher between the per-type bars: grouping
+            things is how you say "treat these as one", so asking which of them
+            you meant before every change is asking the question the group
+            already answered. Reaching one member on its own is a different
+            gesture and already works — click again inside a selected group and
+            that member gets its own ordinary bar.
+
+            Nothing here knows how a type stores what it is given (a colour is
+            `fill` on a shape, `color` on text, `stroke` on a curve). The bar
+            writes one group-level patch and groupStyling deals it out. */}
+        {isGroupEl && (
+          <>
+            <ColorInput
+              value={readGroupStyle(element, "fill") || "#111111"}
+              keys={["fill"]}
+              title="Color"
+              onOpen={onOpenColorPanel}
+            />
+
+            {groupRadiusLimit(element) > 0 && (
+              <label className="flex items-center gap-1 text-[11px] text-gray-500 px-1">
+                Radius
+                <input
+                  type="range"
+                  min={0}
+                  // The group's own box would be far too generous a maximum —
+                  // half of a big group swallows a small swatch inside it whole.
+                  max={groupRadiusLimit(element)}
+                  value={readGroupStyle(element, "borderRadius") || 0}
+                  onChange={(e) => patch({ borderRadius: Number(e.target.value) })}
+                  className="w-16 cursor-pointer"
+                />
+              </label>
+            )}
+
+            {groupHasText && (
+              <>
+                <Divider />
+                <FontButton
+                  value={readGroupStyle(element, "fontFamily")}
+                  onClick={onOpenFontPanel}
+                />
+                {/* Every text box in the group is set to this size, rather than
+                    scaled by the ratio — the group's corner handles are the
+                    control that preserves relative sizes, and this is the one
+                    that makes them agree. */}
+                <SizeStepper
+                  value={readGroupStyle(element, "fontSize") || 40}
+                  onChange={(v) => patch({ fontSize: v })}
+                />
+                <Toggle
+                  active={groupBold}
+                  onClick={() => patch({ fontWeight: groupBold ? "normal" : "bold" })}
+                  title="Bold"
+                >
+                  <Bold className="w-4 h-4" />
+                </Toggle>
+                <Toggle
+                  active={readGroupStyle(element, "fontStyle") === "italic"}
+                  onClick={() =>
+                    patch({
+                      fontStyle:
+                        readGroupStyle(element, "fontStyle") === "italic"
+                          ? "normal"
+                          : "italic",
+                    })
+                  }
+                  title="Italic"
+                >
+                  <Italic className="w-4 h-4" />
+                </Toggle>
+                <Toggle
+                  active={!!readGroupStyle(element, "underline")}
+                  onClick={() =>
+                    patch({ underline: !readGroupStyle(element, "underline") })
+                  }
+                  title="Underline"
+                >
+                  <Underline className="w-4 h-4" />
+                </Toggle>
+                <div className="flex items-center">
+                  {[
+                    ["left", AlignLeft],
+                    ["center", AlignCenter],
+                    ["right", AlignRight],
+                  ].map(([al, Icon]) => (
+                    <Toggle
+                      key={al}
+                      active={(readGroupStyle(element, "textAlign") || "left") === al}
+                      onClick={() => patch({ textAlign: al })}
+                      title={`Align ${al}`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </Toggle>
+                  ))}
+                </div>
+                <Toggle
+                  active={menu === "spacing"}
+                  onClick={() => setMenu((m) => (m === "spacing" ? null : "spacing"))}
+                  title="Spacing"
+                >
+                  <MoveVertical className="w-4 h-4" />
+                </Toggle>
+                <Divider />
+                <PanelButton
+                  icon={Wand2}
+                  label="Effects"
+                  onClick={onOpenEffectsPanel}
+                />
+              </>
+            )}
+            <Divider />
+          </>
+        )}
+
         {/* Animate + Position — shared across element types */}
         <PanelButton
           icon={Play}
@@ -544,13 +735,60 @@ export default function EditorContextBar({
       </div>
 
       {/* Spacing popover — sibling of the scroll row so it isn't clipped by
-          overflow-x-auto. Text only. */}
-      {menu === "spacing" && element.type === "text" && (
+          overflow-x-auto. Text, or a group with text in it: the group reads its
+          members' current values and writes back through them. */}
+      {menu === "spacing" && (element.type === "text" || groupHasText) && (
         <SpacingPopover
-          letterSpacing={Number(element.letterSpacing) || 0}
-          lineHeight={element.lineHeight || 1.3}
+          letterSpacing={
+            Number(isGroupEl ? readGroupStyle(element, "letterSpacing") : element.letterSpacing) || 0
+          }
+          lineHeight={
+            (isGroupEl ? readGroupStyle(element, "lineHeight") : element.lineHeight) || 1.3
+          }
           onLetter={(v) => patch({ letterSpacing: v })}
           onLine={(v) => patch({ lineHeight: v })}
+        />
+      )}
+
+      {/* Straight-line thickness. `strokeWidth` is what the line renderers and
+          the exporter already read for a curve, so it needs no new property. */}
+      {menu === "lineWeight" && isLine && (
+        <SliderPopover
+          label="Thickness"
+          min={1}
+          max={40}
+          value={Number(element.strokeWidth) || 3}
+          onChange={(v) => patch({ strokeWidth: v })}
+        />
+      )}
+
+      {/* Colour strength. Images only, and only once a colour is set. */}
+      {menu === "tint" && element.type === "image" && (
+        <SliderPopover
+          label="Color strength"
+          min={0}
+          max={100}
+          value={Math.round(
+            (element.tintStrength ?? DEFAULT_TINT_STRENGTH) * 100,
+          )}
+          onChange={(v) => patch({ tintStrength: v / 100 })}
+        />
+      )}
+
+      {/* Outline weight & style. Shapes only. */}
+      {menu === "outline" && element.type === "shape" && (
+        <OutlinePopover
+          width={Number(element.strokeWidth) || 0}
+          dash={element.strokeDash || "solid"}
+          onWidth={(v) =>
+            patch({
+              strokeWidth: v,
+              // A width with no colour draws nothing, so the first nudge of the
+              // slider seeds one rather than silently doing nothing.
+              ...(v > 0 && !element.stroke ? { stroke: "#111111" } : {}),
+            })
+          }
+          onDash={(v) => patch({ strokeDash: v })}
         />
       )}
 
@@ -727,6 +965,83 @@ function Stepper({ label, value, onChange, min = 1, max = 12 }) {
 }
 
 /** Single "Corner rounding" slider dropped below the toolbar (image only). */
+/**
+ * Outline weight and style for a shape.
+ *
+ * The three styles write `strokeDash`, a name rather than a dash array, so the
+ * three renderers that have to draw it — a div's border, an SVG stroke and the
+ * export canvas — can each express it in their own terms instead of agreeing on
+ * one number. See DASH_PATTERNS in shapes.js.
+ */
+/** One labelled slider in a popover — the shape every single-knob control takes. */
+function SliderPopover({ label, min, max, value, onChange }) {
+  return (
+    <div className="absolute right-0 top-full z-[9999] mt-1 w-56 rounded-xl border border-gray-100 bg-surface p-3 shadow-2xl">
+      <label className="flex flex-col gap-1.5">
+        <span className="flex items-center justify-between text-xs font-medium text-gray-600">
+          {label}
+          <span className="tabular-nums text-gray-400">{value}</span>
+        </span>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="w-full cursor-pointer"
+        />
+      </label>
+    </div>
+  );
+}
+
+function OutlinePopover({ width, dash, onWidth, onDash }) {
+  return (
+    <div className="absolute right-0 top-full z-[9999] mt-1 w-56 rounded-xl border border-gray-100 bg-surface p-3 shadow-2xl flex flex-col gap-3">
+      <label className="flex flex-col gap-1.5">
+        <span className="flex items-center justify-between text-xs font-medium text-gray-600">
+          Weight
+          <span className="tabular-nums text-gray-400">{width}</span>
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={40}
+          value={width}
+          onChange={(e) => onWidth(Number(e.target.value))}
+          className="w-full cursor-pointer"
+        />
+      </label>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-gray-600">Style</span>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            ["solid", "Solid"],
+            ["dashed", "Dashed"],
+            ["dotted", "Dotted"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => onDash(id)}
+              title={label}
+              className={`h-9 rounded-lg border flex items-center justify-center px-2 transition cursor-pointer ${
+                dash === id
+                  ? "border-blue-500 ring-2 ring-blue-200"
+                  : "border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              <span
+                className="block w-full border-t-2 border-gray-700"
+                style={{ borderTopStyle: id }}
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RoundingPopover({ value, max, onChange }) {
   return (
     <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 rounded-2xl border border-gray-100 bg-surface p-4 shadow-2xl">

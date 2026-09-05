@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
-import { SHAPES, lineShaftPath } from "@/(lib)/design/shapes";
+import React, { useId } from "react";
+import { SHAPES, lineShaftPath, dashArrayFor } from "@/(lib)/design/shapes";
+import { parseGradient, svgLinearEndpoints } from "@/(lib)/design/gradient";
 
 /**
  * ShapeSVG — renders a library shape into a stretch-to-fill SVG.
@@ -13,12 +14,43 @@ export default function ShapeSVG({
   fill = "#6366f1",
   stroke = "transparent",
   strokeWidth = 0,
+  strokeDash,
   rx,
   bend, // curve amount (viewBox units) for bendable lines; undefined = use preview default
   fit = false, // true = keep aspect (picker previews); false = stretch to box (canvas)
   className,
   style,
 }) {
+  // SVG has no notion of a CSS gradient string: `fill="linear-gradient(…)"` is
+  // simply an invalid paint and the shape renders black. A gradient has to be
+  // declared as a <defs> element and referenced by id — and the id has to be
+  // unique across the document, or two shapes with different gradients would
+  // both pick up whichever was defined first. useId gives one per instance.
+  const gradientId = useId();
+  const spec = parseGradient(fill);
+  const paint = spec ? `url(#${gradientId})` : fill;
+  const defs = spec ? (
+    <defs>
+      {spec.kind === "radial" ? (
+        <radialGradient id={gradientId} cx="50%" cy="50%" r="50%">
+          {spec.stops.map((s, i) => (
+            <stop key={i} offset={s.offset} stopColor={s.color} />
+          ))}
+        </radialGradient>
+      ) : (
+        <linearGradient id={gradientId} {...svgLinearEndpoints(spec.angle)}>
+          {spec.stops.map((s, i) => (
+            <stop key={i} offset={s.offset} stopColor={s.color} />
+          ))}
+        </linearGradient>
+      )}
+    </defs>
+  ) : null;
+
+  // Empty string, not undefined: React omits the attribute for undefined, and
+  // an empty dasharray is how SVG spells "solid".
+  const dashPattern = dashArrayFor(strokeDash, strokeWidth).join(" ") || undefined;
+
   const def = SHAPES[shape];
   if (!def) return null;
 
@@ -35,15 +67,17 @@ export default function ShapeSVG({
   if (def.render === "rect") {
     return (
       <svg {...common}>
+        {defs}
         <rect
           x={1}
           y={1}
           width={vw - 2}
           height={vh - 2}
           rx={rx ?? def.rx ?? 0}
-          fill={fill}
+          fill={paint}
           stroke={stroke}
           strokeWidth={strokeWidth}
+          strokeDasharray={dashPattern}
         />
       </svg>
     );
@@ -52,14 +86,16 @@ export default function ShapeSVG({
   if (def.render === "ellipse") {
     return (
       <svg {...common}>
+        {defs}
         <ellipse
           cx={vw / 2}
           cy={vh / 2}
           rx={vw / 2 - 1}
           ry={vh / 2 - 1}
-          fill={fill}
+          fill={paint}
           stroke={stroke}
           strokeWidth={strokeWidth}
+          strokeDasharray={dashPattern}
         />
       </svg>
     );
@@ -68,11 +104,13 @@ export default function ShapeSVG({
   if (def.render === "triangle") {
     return (
       <svg {...common}>
+        {defs}
         <polygon
           points={`${vw / 2},2 ${vw - 2},${vh - 2} 2,${vh - 2}`}
-          fill={fill}
+          fill={paint}
           stroke={stroke}
           strokeWidth={strokeWidth}
+          strokeDasharray={dashPattern}
         />
       </svg>
     );
@@ -84,11 +122,12 @@ export default function ShapeSVG({
     const bendVal = bend == null ? def.previewBendVB || 0 : bend;
     return (
       <svg {...common} style={{ display: "block", overflow: "visible", ...style }}>
+        {defs}
         <path
           d={lineShaftPath(shape, bendVal)}
           fill="none"
           stroke={fill}
-          strokeWidth={def.strokeW || 3}
+          strokeWidth={strokeWidth || def.strokeW || 3}
           strokeDasharray={def.dash ? def.dash.join(" ") : undefined}
           strokeLinecap={def.cap || "butt"}
           strokeLinejoin="round"
@@ -100,7 +139,9 @@ export default function ShapeSVG({
   // default: filled path
   return (
     <svg {...common}>
-      <path d={def.path} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
+        {defs}
+      <path d={def.path} fill={paint} stroke={stroke} strokeWidth={strokeWidth}
+          strokeDasharray={dashPattern} />
     </svg>
   );
 }

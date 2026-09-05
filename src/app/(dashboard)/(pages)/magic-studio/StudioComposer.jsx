@@ -425,7 +425,7 @@ export default function StudioComposer({
   // ── The brand, for the tools that ask for one (config.brand) ───────────────
   // ⚠️ TWO ANSWERS THAT NO LONGER COMPETE. This was once a single value — words
   // OR a picture, whichever was given last — because the payload had one `logo`
-  // field to put them in. It has two now (`brand_name`, `brand_logo`), so the
+  // field to put them in. It has two now (`brand_name`, `logo_url`), so the
   // name and the mark are held separately and both ride on the same run.
   //
   // ⚠️ THE NAME IS REQUIRED, THE LOGO IS NOT. `ready` below refuses to send
@@ -819,7 +819,7 @@ export default function StudioComposer({
         ...(promptable ? { description: typed } : {}),
         // The two halves of the Brand chip, kept apart all the way to the wire:
         // the typed name becomes `brand_name` (required) and the picked image
-        // URL becomes `brand_logo` (optional, dropped when null). See
+        // URL becomes `logo_url` (optional, dropped when null). See
         // brandFields in the configs.
         ...(brandEnabled
           ? { brandName: brandNameValue, brandLogo: brandLogo || "" }
@@ -1426,7 +1426,7 @@ export default function StudioComposer({
 
         {/* Who this run is for. ⚠️ TWO FIELDS, ASKED TOGETHER AND SENT
             SEPARATELY: the name is required and goes up as `brand_name`, the
-            logo is optional and goes up as `brand_logo`. They used to be an
+            logo is optional and goes up as `logo_url`. They used to be an
             either/or behind one string — picking a mark wiped the typed name —
             which cost you the required half to answer the optional one. Both
             are on screen at once now and neither replaces the other. */}

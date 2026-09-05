@@ -704,35 +704,43 @@ const descriptionField = (value) => {
 };
 
 /**
- * The `brand_name` / `brand_logo` pair for a payload — who the image is for, and
+ * The `brand_name` / `logo_url` pair for a payload — who the image is for, and
  * optionally the mark to work into it.
  *
  * ⚠️ TWO FIELDS, NOT ONE, AND THEY ANSWER DIFFERENT QUESTIONS. This used to be a
  * single `logo` string carrying either words or a URL, with the backend told to
  * tell them apart by the leading http. It doesn't have to guess any more: the
  * words are the BRAND NAME and go up as `brand_name`, the picked picture is the
- * LOGO and goes up as `brand_logo`. Both can be sent on the same run — naming
- * your brand and handing over its mark is one intent, not two competing ones.
+ * LOGO and goes up as `logo_url`. Both can be sent on the same run — naming your
+ * brand and handing over its mark is one intent, not two competing ones.
  *
- * ⚠️ `brand_name` IS REQUIRED AND `brand_logo` IS NOT. A run with no brand name
- * is blocked before it reaches here (see the tool's `validate`), so the guard
- * below is the belt to that braces rather than the rule itself; the logo is
- * simply omitted when nobody picked one.
+ * ⚠️ THE MARK'S WIRE NAME IS `logo_url`, NOT `brand_logo`. It is the name the
+ * backend echoes on the record (`meta.logo_url`), and it is not symmetrical with
+ * `brand_name` — which is exactly why it gets written down here. Guessing the
+ * matching name is how the mark ends up silently ignored on a run that otherwise
+ * succeeds: an undeclared key is dropped, and nothing about the result says the
+ * logo went missing.
  *
- * ⚠️ THE LOGO IS SENT BY ITS OWN URL, NEVER AS A FILE. Nothing is copied into the
- * gallery on the way — same as the source image on Image to Variations — so the
- * backend fetches it server-side. If a typed brand name works and a picked logo
- * doesn't, that fetch is the thing to check, not this.
+ * ⚠️ `brand_name` IS REQUIRED AND `logo_url` IS NOT. A run with no brand name is
+ * blocked before it reaches here (see the tool's `validate`), so the guard below
+ * is the belt to that braces rather than the rule itself; the logo is simply
+ * omitted when nobody picked one.
+ *
+ * ⚠️ THE LOGO IS SENT BY ITS OWN URL, NEVER AS A FILE — the field is named for
+ * it. Nothing is copied into the gallery on the way — same as the source image
+ * on Image to Variations — so the backend fetches it server-side. If a typed
+ * brand name works and a picked logo doesn't, that fetch is the thing to check,
+ * not this.
  *
  * A tool opts in by declaring `brand: true`, which is what puts the chip on the
  * composer; this is what puts the answers into the payload.
  */
 const brandFields = (name, logo) => {
   const brand_name = typeof name === "string" ? name.trim() : "";
-  const brand_logo = typeof logo === "string" ? logo.trim() : "";
+  const logo_url = typeof logo === "string" ? logo.trim() : "";
   return {
     ...(brand_name ? { brand_name } : {}),
-    ...(brand_logo ? { brand_logo } : {}),
+    ...(logo_url ? { logo_url } : {}),
   };
 };
 
@@ -1459,7 +1467,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     /**
      * Puts the Brand chip on the composer — the brand's name, which this tool
      * REQUIRES, and optionally a logo picked out of the media picker. They reach
-     * the payload as `brand_name` and `brand_logo`; see {@link brandFields}.
+     * the payload as `brand_name` and `logo_url`; see {@link brandFields}.
      */
     brand: true,
     /**
@@ -1552,8 +1560,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         // Absent unless a colour was actually picked — see COLOR_OPTION.
         ...colorField(values.color),
         // The brand this is for, and its mark where one was picked. `brand_name`
-        // is required and guaranteed present by `validate`; `brand_logo` is
-        // absent unless a logo was chosen — see brandFields.
+        // is required and guaranteed present by `validate`; `logo_url` is absent
+        // unless a logo was chosen — see brandFields.
         ...brandFields(values.brandName, values.brandLogo),
         prompt: input.trim(),
       };

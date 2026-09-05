@@ -1,21 +1,26 @@
 // One-time setup for the self-hosted AI engine (run: `npm run models`).
 //
-// Downloads the ONNX model files into public/models/ and copies the ONNX
-// Runtime WASM/WebGPU runtime files into public/ort/. Both folders are
+// Downloads the ONNX/MediaPipe model files into public/models/, copies the
+// ONNX Runtime WASM/WebGPU runtime files into public/ort/, and the MediaPipe
+// vision WASM runtime into public/mediapipe/wasm/. All three folders are
 // git-ignored (models are big binaries), so every dev — and every deploy —
 // runs this once after `npm install`. No dependencies, Node 18+ only.
 //
 // Registry for the on-device tools: Product Studio image tools (Beautifier,
-// Flat Lay) and Magic Studio audio tools (Text to Speech, Audio to Text).
-// Only commercially-safe licenses:
-//   u2netp               4.6 MB  Apache-2.0   — bg cutout, fast tier (low-RAM devices)
-//   silueta              43 MB   MIT          — bg cutout, default tier (better edges)
-//   isnet-general-use    179 MB  Apache-2.0   — bg cutout, Premium tier (best edges;
-//                                               browser-gated to WebGPU + >4 GB RAM)
-//   realesr-general-x4v3 4.9 MB  BSD-3-Clause — 4x upscale/enhance (standard)
-//   realesrgan-x4plus    67 MB   BSD-3-Clause — 4x upscale HD tier (WebGPU only)
-//   kokoro (+28 voices)  93 MB   Apache-2.0   — text-to-speech (transformers.js, q8)
-//   whisper-base         77 MB   MIT          — speech-to-text (transformers.js, q8)
+// Flat Lay), the design editor's image tools (Sketchify, Face Cutout) and
+// Magic Studio audio tools (Text to Speech, Audio to Text). Only
+// commercially-safe licenses:
+//   u2netp                     4.6 MB  Apache-2.0   — bg cutout, fast tier (low-RAM devices)
+//   silueta                    43 MB   MIT          — bg cutout, default tier (better edges)
+//   isnet-general-use          179 MB  Apache-2.0   — bg cutout, Premium tier (best edges;
+//                                                     browser-gated to WebGPU + >4 GB RAM)
+//   realesr-general-x4v3       4.9 MB  BSD-3-Clause — 4x upscale/enhance (standard)
+//   realesrgan-x4plus          67 MB   BSD-3-Clause — 4x upscale HD tier (WebGPU only)
+//   informative-drawings       17 MB   MIT          — Sketchify's line-art styles
+//   blaze_face_short_range     0.2 MB  Apache-2.0   — Face Cutout: face detection
+//   selfie_multiclass_256x256  16 MB   Apache-2.0   — Face Cutout: hair/face/body segmentation
+//   kokoro (+28 voices)        93 MB   Apache-2.0   — text-to-speech (transformers.js, q8)
+//   whisper-base               77 MB   MIT          — speech-to-text (transformers.js, q8)
 
 import {
   createWriteStream,
@@ -36,6 +41,9 @@ const ORT_DIR = path.join(root, "public", "ort");
 // transformers.js (Whisper STT + Kokoro TTS) bundles its OWN onnxruntime-web,
 // whose .wasm files must match ITS version — copied to a separate /ort-hf/ folder.
 const ORT_HF_DIR = path.join(root, "public", "ort-hf");
+// @mediapipe/tasks-vision (Face Cutout) bundles its own WASM vision runtime,
+// unrelated to onnxruntime-web — copied to its own folder for the same reason.
+const MEDIAPIPE_WASM_DIR = path.join(root, "public", "mediapipe", "wasm");
 
 const MODELS = [
   // Background-removal cutout (U²-Net family). Hosted on the rembg project's
@@ -71,6 +79,29 @@ const MODELS = [
     file: "realesrgan-x4plus.onnx",
     bytes: 67132609,
     url: "https://huggingface.co/fernandotonon/QtMeshEditor-models/resolve/main/RealESRGAN_x4plus.onnx",
+  },
+  // informative-drawings line-art model (MIT, Caroline Chan) — the community
+  // ONNX export proven in-browser by josephrocca/image-to-line-art-js. Powers
+  // Sketchify's line-art styles.
+  {
+    file: "informative-drawings.onnx",
+    bytes: 17193338,
+    url: "https://huggingface.co/rocca/informative-drawings-line-art-onnx/resolve/main/model.onnx",
+  },
+  // MediaPipe face detection (Apache-2.0, Google's official model zoo) — locates
+  // the head for Face Cutout.
+  {
+    file: "blaze_face_short_range.tflite",
+    bytes: 229746,
+    url: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite",
+  },
+  // MediaPipe multiclass portrait segmentation (Apache-2.0) — separates hair /
+  // face-skin / body-skin / clothes / accessories, so Face Cutout can keep the
+  // HEAD and drop the body.
+  {
+    file: "selfie_multiclass_256x256.tflite",
+    bytes: 16371837,
+    url: "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite",
   },
   // Kokoro-82M text-to-speech (Apache-2.0, onnx-community's official ONNX
   // export). Laid out exactly how transformers.js resolves a local model id
@@ -301,6 +332,26 @@ function copyTransformersOrtRuntime() {
   );
 }
 
+// @mediapipe/tasks-vision bundles its own vision WASM runtime — copied into
+// public/mediapipe/wasm/ ("/mediapipe/wasm" is where the Face Cutout worker
+// points FilesetResolver.forVisionTasks), the same pattern as the onnxruntime
+// copies above.
+function copyMediapipeRuntime() {
+  const dist = path.join(root, "node_modules", "@mediapipe", "tasks-vision", "wasm");
+  if (!existsSync(dist)) {
+    throw new Error("@mediapipe/tasks-vision is not installed — run `npm install` first.");
+  }
+  const files = readdirSync(dist).filter((f) => /\.(wasm|js)$/.test(f));
+  if (files.length === 0) {
+    throw new Error("No wasm files in @mediapipe/tasks-vision/wasm — package layout changed?");
+  }
+  mkdirSync(MEDIAPIPE_WASM_DIR, { recursive: true });
+  for (const file of files) {
+    copyFileSync(path.join(dist, file), path.join(MEDIAPIPE_WASM_DIR, file));
+  }
+  console.log(`✅ MediaPipe runtime copied to public/mediapipe/wasm/ (${files.length} files)`);
+}
+
 // The Kokoro voice embeddings (0.5 MB each) ship inside the kokoro-js npm
 // package — copy the ones the Text to Speech tool offers into public/models/.
 function copyKokoroVoices() {
@@ -327,8 +378,10 @@ function copyKokoroVoices() {
 try {
   mkdirSync(MODELS_DIR, { recursive: true });
   mkdirSync(ORT_DIR, { recursive: true });
+  mkdirSync(MEDIAPIPE_WASM_DIR, { recursive: true });
   copyOrtRuntime();
   copyTransformersOrtRuntime();
+  copyMediapipeRuntime();
   for (const model of MODELS) await downloadModel(model);
   // ⚠️ This call was MISSING, and the script still exited 0 and printed
   // "assets ready" — so every dev and every deploy came up with

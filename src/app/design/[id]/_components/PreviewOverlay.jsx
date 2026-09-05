@@ -16,6 +16,8 @@ export default function PreviewOverlay({ canvas, elements, onClose, onDownload }
   const canvasRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
 
+  const rootRef = useRef(null);
+
   // Esc to exit; lock body scroll while open.
   useEffect(() => {
     const onKey = (e) => {
@@ -27,6 +29,41 @@ export default function PreviewOverlay({ canvas, elements, onClose, onDownload }
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  // Real fullscreen — REQUESTED, never required.
+  //
+  // Browsers only grant it from a user gesture and can refuse outright (an
+  // iframe without the permission, a policy, an already-fullscreen window). When
+  // that happens the overlay still covers the viewport, which is the part that
+  // matters, so the failure is swallowed rather than surfaced: there is nothing
+  // the user could do about it and nothing visibly wrong.
+  //
+  // Leaving fullscreen by any route — Esc, F11, the OS — closes the preview too,
+  // so the two can't disagree about whether it is open.
+  useEffect(() => {
+    const node = rootRef.current;
+    if (!node?.requestFullscreen) return undefined;
+
+    let opened = false;
+    node.requestFullscreen().then(
+      () => {
+        opened = true;
+      },
+      () => {},
+    );
+
+    const onChange = () => {
+      if (opened && !document.fullscreenElement) onClose?.();
+    };
+    document.addEventListener("fullscreenchange", onChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      // Only if we are still the fullscreen element: exiting someone else's
+      // fullscreen on the way out would be a surprising thing to do.
+      if (document.fullscreenElement === node) document.exitFullscreen?.();
     };
   }, [onClose]);
 
@@ -62,7 +99,10 @@ export default function PreviewOverlay({ canvas, elements, onClose, onDownload }
   };
 
   return (
-    <div className="fixed inset-0 z-60 flex flex-col bg-gray-950/95 backdrop-blur-sm">
+    <div
+      ref={rootRef}
+      className="fixed inset-0 z-60 flex flex-col bg-gray-950/95 backdrop-blur-sm"
+    >
       {/* Top chrome */}
       <div className="h-14 shrink-0 flex items-center justify-between px-3">
         <button

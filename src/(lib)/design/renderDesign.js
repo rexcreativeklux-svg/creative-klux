@@ -1,6 +1,6 @@
 "use client";
 
-import { SHAPES, PRIMITIVE_SHAPES, lineShaftPath } from "./shapes";
+import { SHAPES, PRIMITIVE_SHAPES, lineShaftPath, dashArrayFor } from "./shapes";
 import { waitForFonts } from "./fonts";
 import { pointsToPath } from "./drawUtils";
 import { curvePath } from "./curveUtils";
@@ -16,9 +16,32 @@ import {
 } from "./tableUtils";
 import { resolveTextEffect } from "./textEffects";
 import { buildImageFilter } from "./imageAdjust";
+import { fillStyleFor } from "./gradient";
+import { drawWithShapeEffect } from "./shapeEffects";
+
 import { warpPerspective, hasPerspective } from "./perspective";
 import { isCropped } from "./imageCrop";
+import { isColourValue, tintedImageCanvas } from "./imageTint";
+import { isClipped, windowed } from "./clip";
 import { flattenGroups } from "./groups";
+
+/**
+ * The two coordinate spaces a fill can be asked for.
+ *
+ * A CanvasGradient's coordinates are interpreted through whatever transform is
+ * live when it is USED, and this renderer is not consistent about that: library
+ * shapes translate to the element and scale to the viewBox before drawing, while
+ * primitives and text draw at absolute page coordinates. Handing absolute
+ * coordinates to a translated context slides the gradient off its own shape by
+ * exactly the element's position, so each caller says which space it is in.
+ */
+const boxOf = (el) => ({
+  x: el.x,
+  y: el.y,
+  width: el.width,
+  height: el.height,
+});
+const VB_BOX = (vw, vh) => ({ x: 0, y: 0, width: vw, height: vh });
 
 /**
  * renderDesignToBlob — paints a { canvas, elements } design to an offscreen
@@ -85,18 +108,52 @@ export async function renderDesignToCanvas({ canvas, elements }) {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
-  for (const el of flat) {
-    if (el.hidden) continue;
+  for (const source of flat) {
+    if (source.hidden) continue;
     ctx.save();
-    ctx.globalAlpha = el.opacity ?? 1;
+    ctx.globalAlpha = source.opacity ?? 1;
 
-    if (el.rotation) {
-      const rcx = el.x + (el.width || 0) / 2;
-      const rcy = el.y + (el.height || 0) / 2;
+    // A group that was cropped is gone by now: flattenGroups pushed its window
+    // down onto each descendant, because the group element itself does not
+    // survive to be painted. Nested groups leave more than one; successive
+    // clips intersect, which is exactly the nesting rule.
+    //
+    // These come BEFORE the element's own rotation, and the polygons arrive
+    // already rotated into canvas space, so there is no transform to undo
+    // between them — the child's own angle already has the group's baked in and
+    // must not be applied to the group's mask as well.
+    for (const poly of source.__clip || []) {
+      ctx.beginPath();
+      poly.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      ctx.closePath();
+      ctx.clip();
+    }
+
+    // Rotation is measured on the element's REAL box — the window is what the
+    // viewer sees turning, not the layout behind it.
+    if (source.rotation) {
+      const rcx = source.x + (source.width || 0) / 2;
+      const rcy = source.y + (source.height || 0) / 2;
       ctx.translate(rcx, rcy);
-      ctx.rotate((el.rotation * Math.PI) / 180);
+      ctx.rotate((source.rotation * Math.PI) / 180);
       ctx.translate(-rcx, -rcy);
     }
+
+    // A cropped element's box is a WINDOW onto contents laid out at their own
+    // size. Clip to the box, then draw everything below against the CONTENT
+    // box: every branch reads x/y/width/height off `el`, so this one
+    // substitution crops every element type without any of them knowing.
+    //
+    // Chrome that looks like it belongs to the box — a sticky note's paper, a
+    // text effect's background panel — is content too, and correctly travels
+    // with it: cropping a sticky note should slide the window over the note,
+    // not repaint the paper at the window's size.
+    if (isClipped(source.clip)) {
+      ctx.beginPath();
+      ctx.rect(source.x, source.y, source.width, source.height);
+      ctx.clip();
+    }
+    const el = windowed(source);
 
     if (el.type === "draw") {
       const [vw, vh] = [el.vbW || el.width, el.vbH || el.height];
@@ -135,53 +192,62 @@ export async function renderDesignToCanvas({ canvas, elements }) {
         // Honor curvature for bendable lines (el.bend → viewBox control offset).
         const bendVB = el.bend ? (24 * el.bend) / (el.height || 1) : 0;
         const p = new Path2D(lineShaftPath(el.shape, bendVB));
-        ctx.strokeStyle = el.fill || "#111111";
-        ctx.lineWidth = def.strokeW || 3;
+        ctx.strokeStyle = fillStyleFor(ctx, el.fill || "#111111", VB_BOX(vw, vh));
+        // The element's own weight wins; the shape def is only the default it
+        // was created with, so without this the toolbar's slider did nothing.
+        ctx.lineWidth = Number(el.strokeWidth) || def.strokeW || 3;
         ctx.lineCap = def.cap || "butt";
         ctx.lineJoin = "round";
         if (def.dash) ctx.setLineDash(def.dash);
         ctx.stroke(p);
       } else {
         const p = new Path2D(def.path);
-        ctx.fillStyle = el.fill || "#6366f1";
-        ctx.fill(p);
-        if (el.strokeWidth && el.stroke) {
-          ctx.strokeStyle = el.stroke;
-          ctx.lineWidth = el.strokeWidth;
-          ctx.stroke(p);
-        }
+        ctx.fillStyle = fillStyleFor(ctx, el.fill || "#6366f1", VB_BOX(vw, vh));
+        drawWithShapeEffect(ctx, el, () => {
+          ctx.fill(p);
+          if (el.strokeWidth && el.stroke) {
+            ctx.strokeStyle = el.stroke;
+            ctx.lineWidth = el.strokeWidth;
+            ctx.setLineDash(dashArrayFor(el.strokeDash, el.strokeWidth));
+            ctx.stroke(p);
+            ctx.setLineDash([]);
+          }
+        });
       }
       ctx.restore();
     } else if (el.type === "shape") {
-      ctx.fillStyle = el.fill || "transparent";
+      ctx.fillStyle = fillStyleFor(ctx, el.fill || "transparent", boxOf(el));
       ctx.strokeStyle = el.stroke || "transparent";
       ctx.lineWidth = el.strokeWidth || 0;
+      // Set once for the whole shape and cleared after — every pass of
+      // drawWithShapeEffect re-strokes the same path and must dash the same way.
+      ctx.setLineDash(dashArrayFor(el.strokeDash, el.strokeWidth));
 
+      // The path is built once and re-filled per shadow layer — see
+      // drawWithShapeEffect for why canvas needs a pass each.
+      const shapePath = new Path2D();
       if (el.shape === "circle") {
         const rx = (el.width || 0) / 2;
         const ry = (el.height || 0) / 2;
-        ctx.beginPath();
-        ctx.ellipse(el.x + rx, el.y + ry, rx, ry, 0, 0, Math.PI * 2);
-        ctx.fill();
-        if (el.strokeWidth) ctx.stroke();
+        shapePath.ellipse(el.x + rx, el.y + ry, rx, ry, 0, 0, Math.PI * 2);
       } else if (el.shape === "triangle") {
         const w = el.width || 0;
         const h = el.height || 0;
-        ctx.beginPath();
-        ctx.moveTo(el.x + w / 2, el.y);
-        ctx.lineTo(el.x + w, el.y + h);
-        ctx.lineTo(el.x, el.y + h);
-        ctx.closePath();
-        ctx.fill();
-        if (el.strokeWidth) ctx.stroke();
+        shapePath.moveTo(el.x + w / 2, el.y);
+        shapePath.lineTo(el.x + w, el.y + h);
+        shapePath.lineTo(el.x, el.y + h);
+        shapePath.closePath();
       } else {
         const r = el.borderRadius || 0;
-        ctx.beginPath();
-        if (r && ctx.roundRect) ctx.roundRect(el.x, el.y, el.width, el.height, r);
-        else ctx.rect(el.x, el.y, el.width, el.height);
-        ctx.fill();
-        if (el.strokeWidth) ctx.stroke();
+        if (r && shapePath.roundRect)
+          shapePath.roundRect(el.x, el.y, el.width, el.height, r);
+        else shapePath.rect(el.x, el.y, el.width, el.height);
       }
+      drawWithShapeEffect(ctx, el, () => {
+        ctx.fill(shapePath);
+        if (el.strokeWidth) ctx.stroke(shapePath);
+      });
+      ctx.setLineDash([]);
     }
 
     if (el.type === "text") {
@@ -245,7 +311,11 @@ export async function renderDesignToCanvas({ canvas, elements }) {
       // tracking into the next one. Set before measureText so wrapping accounts
       // for it. No-ops on browsers without ctx.letterSpacing.
       ctx.letterSpacing = el.letterSpacing ? `${el.letterSpacing}px` : "0px";
-      const fillColor = el.fill || el.color || "#111111";
+      const fillColor = fillStyleFor(
+        ctx,
+        el.fill || el.color || "#111111",
+        boxOf(el),
+      );
       const effect = resolveTextEffect(el);
       ctx.fillStyle = fillColor;
       ctx.textAlign = align;
@@ -452,33 +522,107 @@ export async function renderDesignToCanvas({ canvas, elements }) {
           ctx.scale(el.flipH ? -1 : 1, el.flipV ? -1 : 1);
           ctx.translate(-cx, -cy);
         }
-        if (hasPerspective(el)) {
-          // Perspective: keystone-warp the image (box aspect) and stretch onto
-          // the box — the same warp PerspectiveImage draws on screen.
-          const W = Math.max(1, Math.round(el.width));
-          const H = Math.max(1, Math.round(el.height));
-          const warped = warpPerspective(img, W, H, el.perspective.h || 0, el.perspective.v || 0);
-          ctx.drawImage(warped, el.x, el.y, el.width, el.height);
-        } else if (isCropped(el.crop)) {
-          // Crop: draw the natural sub-rectangle stretched onto the box.
-          const c = el.crop;
-          ctx.drawImage(
-            img,
-            c.x * img.width,
-            c.y * img.height,
-            c.w * img.width,
-            c.h * img.height,
-            el.x,
-            el.y,
-            el.width,
-            el.height,
-          );
-        } else if (el.objectFit === "contain") {
-          ctx.drawImage(img, el.x, el.y, el.width, el.height);
+        // The box fill, behind the picture — what shows through a `contain`
+        // fit's letterboxing and a cutout's removed background. Inside the
+        // rounded clip above, so it takes the same corners.
+        if (isColourValue(el.backgroundColor)) {
+          ctx.save();
+          ctx.filter = "none";
+          ctx.fillStyle = el.backgroundColor;
+          ctx.fillRect(el.x, el.y, el.width, el.height);
+          ctx.restore();
+        }
+
+        // Every branch below draws at ABSOLUTE page coordinates, which is what
+        // lets the same code paint either straight onto the page or into an
+        // offscreen canvas translated by -(x, y). That redirection is what makes
+        // an isolated tint possible without restating the four fit modes.
+        const paintImage = (target) => {
+          if (hasPerspective(el)) {
+            // Perspective: keystone-warp the image (box aspect) and stretch onto
+            // the box — the same warp PerspectiveImage draws on screen.
+            const W = Math.max(1, Math.round(el.width));
+            const H = Math.max(1, Math.round(el.height));
+            const warped = warpPerspective(img, W, H, el.perspective.h || 0, el.perspective.v || 0);
+            target.drawImage(warped, el.x, el.y, el.width, el.height);
+          } else if (isCropped(el.crop)) {
+            // Crop: draw the natural sub-rectangle stretched onto the box.
+            const c = el.crop;
+            target.drawImage(
+              img,
+              c.x * img.width,
+              c.y * img.height,
+              c.w * img.width,
+              c.h * img.height,
+              el.x,
+              el.y,
+              el.width,
+              el.height,
+            );
+          } else if (el.objectFit === "contain") {
+            drawContain(target, img, el.x, el.y, el.width, el.height);
+          } else {
+            drawCover(target, img, el.x, el.y, el.width, el.height);
+          }
+        };
+
+        const tinted = tintedImageCanvas(el, el.width, el.height, (octx) => {
+          // The Adjust filter belongs to the picture, so it has to come along —
+          // it is set on the page context, which the offscreen does not inherit.
+          octx.save();
+          octx.filter = buildImageFilter(el) || "none";
+          octx.translate(-el.x, -el.y);
+          paintImage(octx);
+          octx.restore();
+        });
+
+        if (tinted) {
+          // Already filtered on the way in; filtering again would double it.
+          ctx.filter = "none";
+          ctx.drawImage(tinted, el.x, el.y, el.width, el.height);
         } else {
-          drawCover(ctx, img, el.x, el.y, el.width, el.height);
+          paintImage(ctx);
         }
         ctx.restore();
+
+        // Border — stroked over the picture, inset into the same box, so it
+        // matches the DOM overlay in EditorElement exactly: turning one on
+        // never resizes the image. Outside the restore above so the Adjust
+        // filter doesn't tint the frame.
+        const bw = Number(el.borderWidth) || 0;
+        if (bw > 0) {
+          ctx.save();
+          ctx.filter = "none";
+          ctx.strokeStyle = el.borderColor || "#ffffff";
+          ctx.lineWidth = bw;
+          // Stroke down the middle of the border's width, so half lands inside
+          // the box edge and half over the image — the same pixels CSS paints
+          // for an inset `border` with `box-sizing: border-box`. The radius
+          // shrinks with the inset to keep the corners concentric.
+          const inset = bw / 2;
+          const ring = radiusCorners(el.borderRadius).map((c) =>
+            Math.max(0, c - inset),
+          );
+          ctx.beginPath();
+          if (ring.some((c) => c > 0) && ctx.roundRect) {
+            ctx.roundRect(
+              el.x + inset,
+              el.y + inset,
+              Math.max(0, el.width - bw),
+              Math.max(0, el.height - bw),
+              ring,
+            );
+          } else {
+            ctx.rect(
+              el.x + inset,
+              el.y + inset,
+              Math.max(0, el.width - bw),
+              Math.max(0, el.height - bw),
+            );
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
       } catch {
         /* skip broken image */
       }
@@ -634,6 +778,21 @@ export function drawCover(ctx, img, dx, dy, dw, dh) {
     sy = (img.height - sh) / 2;
   }
   ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+}
+
+/**
+ * Draw an image with object-fit: contain into the target box — the whole
+ * picture, letterboxed and centred.
+ *
+ * The counterpart of drawCover, and the reason the Fit/Fill quick tool can be
+ * trusted: `contain` used to stretch the image onto the box here, so an image
+ * that letterboxed on the stage came out distorted in the PNG.
+ */
+export function drawContain(ctx, img, dx, dy, dw, dh) {
+  const scale = Math.min(dw / img.width, dh / img.height);
+  const w = img.width * scale;
+  const h = img.height * scale;
+  ctx.drawImage(img, dx + (dw - w) / 2, dy + (dh - h) / 2, w, h);
 }
 
 export async function renderDesignToBlob(design, type = "image/png") {

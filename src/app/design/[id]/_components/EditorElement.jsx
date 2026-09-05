@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { Rnd } from "react-rnd";
 import { ImagePlus } from "lucide-react";
 import ShapeSVG from "./ShapeSVG";
-import { SHAPES, PRIMITIVE_SHAPES, isStraightLine } from "@/(lib)/design/shapes";
+import { SHAPES, PRIMITIVE_SHAPES, isStraightLine, dashCssFor } from "@/(lib)/design/shapes";
 import { frameGeo } from "@/(lib)/design/frames";
 import { gridCellRects, normFractions } from "@/(lib)/design/grids";
 import { chartSVGDataURL } from "@/(lib)/design/charts";
@@ -20,7 +20,11 @@ import { textEffectCss } from "@/(lib)/design/textEffects";
 import { animationStyle } from "@/(lib)/design/animations";
 import { buildImageFilter } from "@/(lib)/design/imageAdjust";
 import { isCropped } from "@/(lib)/design/imageCrop";
-import EditorElementMenu from "./EditorElementMenu";
+import { isColourValue, tintOverlayStyle } from "@/(lib)/design/imageTint";
+import { gradientTextStyle, isGradient } from "@/(lib)/design/gradient";
+import { shapeEffectCss } from "@/(lib)/design/shapeEffects";
+import { isClipped, windowed } from "@/(lib)/design/clip";
+import { childAsElement } from "@/(lib)/design/groups";
 import {
   normalizeCells,
   setCell,
@@ -30,27 +34,38 @@ import {
   addRow,
   addCol,
 } from "@/(lib)/design/tableUtils";
-import { useIsTouch } from "@/utils/useMediaQuery";
 
 /**
  * EditorElement — renders one design element inside the scaled stage and makes
- * it draggable/resizable (via react-rnd) and, for text, inline-editable.
+ * it draggable (via react-rnd) and, for text, inline-editable.
+ *
+ * It draws no chrome. The selection outline, the eight resize handles and the
+ * action pill belong to SelectionChrome, which lives in a layer the artboard
+ * does not clip — chrome drawn in here disappeared along with the element the
+ * moment it was scaled out past the canvas edge, taking with it the handles
+ * needed to scale it back.
  *
  * All geometry is in *canvas* coordinates; `zoom` (the stage scale) is passed to
- * Rnd so drag/resize deltas map 1:1 to canvas units.
+ * Rnd so drag deltas map 1:1 to canvas units.
  */
-export default function EditorElement({
+function EditorElement({
   element: el,
   zoom,
   selected,
-  // True while this element is one of SEVERAL selected. Its own chrome steps
-  // aside then: the action pill would be drawn once per selected element, and
-  // per-element resize handles would offer to resize one member of a selection
-  // that is being treated as a unit. The shared SelectionToolbar covers both.
-  multiSelected = false,
   editing,
   onSelect, // (id, event) => void — the event carries the shift modifier
-  onChange, // (patch, {record}) => void
+  onContextMenu, // (id, event) => void — right-click, opens the actions menu
+  // Both of these take the element's id FIRST, and are bound to this element
+  // just below. The parent renders one of these per element inside a .map(),
+  // so a callback that closed over `el` there would be a new function on every
+  // render of the stage — and a new function prop defeats the memo that stops
+  // untouched elements re-rendering while something else is dragged. Taking the
+  // id instead lets the parent pass one shared function for the whole page.
+  onChange: onChangeById, // (id, patch, {record}) => void
+  onCellFocus: onCellFocusById, // (id, r, c) => void
+  // True when ANOTHER member of this selection is being dragged: this element
+  // has to travel with it, and does so by transform rather than by re-rendering.
+  coDragging = false,
   onDragBegin, // (id) => void         — a drag gesture started on this element
   onDragMove, // (id, {x, y}) => void  — live position, for dragging the others
   onDragEnd, // (id, {x, y}) => void   — commits; falls back to onChange
@@ -58,20 +73,32 @@ export default function EditorElement({
   onEndEdit,
   onCurveAddPoint,
   activeCell,
-  onCellFocus,
   onFrameFill,
   onGridCellFill,
-  onDuplicate,
-  onRemove,
-  onMoveLayer,
-  onToggleLock,
-  onUngroup,
-  onAskKlux,
   animateToken = 0,
   suppressChrome = false,
+  // Group entry. `entered` is set only once the group itself is selected, which
+  // is what makes the second click reach a member rather than the first.
+  entered = false,
+  activeChildId = null,
+  onChildSelect, // (childId, event) => void
+  onChildChange, // (childId, patch, {record}) => void — ABSOLUTE geometry
+  onChildGestureBegin, // () => void — one history entry per child drag
 }) {
   const locked = !!el.locked;
   const textRef = useRef(null);
+
+  // Re-bound to this element, so everything below — including the frame, grid
+  // and table renderers this is threaded down to — keeps the plain
+  // `onChange(patch, opts)` / `onCellFocus(r, c)` shape it already expects.
+  const onChange = useCallback(
+    (patch, opts) => onChangeById?.(el.id, patch, opts),
+    [onChangeById, el.id],
+  );
+  const onCellFocus = useCallback(
+    (r, c) => onCellFocusById?.(el.id, r, c),
+    [onCellFocusById, el.id],
+  );
 
   // Focus the text box when entering edit mode.
   useEffect(() => {
@@ -106,10 +133,16 @@ export default function EditorElement({
         : typeof el.text === "string"
           ? el.text
           : "";
+    // Fit to the CONTENT box, not the visible one. A cropped note's box is a
+    // window (clip.js): measuring that instead would refit the type every time
+    // the window moved, which is the crop resizing its own contents — the one
+    // thing cropping must never do.
+    const boxW = el.clip?.contentW ?? el.width;
+    const boxH = el.clip?.contentH ?? el.height;
     const size = fitFontSize({
       text: value,
-      maxWidth: Math.max(1, el.width - pad * 2),
-      maxHeight: Math.max(1, el.height - pad * 2),
+      maxWidth: Math.max(1, boxW - pad * 2),
+      maxHeight: Math.max(1, boxH - pad * 2),
       fontFamily: el.fontFamily || "'DM Sans', sans-serif",
       fontWeight: el.fontWeight || "normal",
       fontStyle: el.fontStyle || "normal",
@@ -125,6 +158,10 @@ export default function EditorElement({
     el.text,
     el.width,
     el.height,
+    // The content box is what's measured, so a crop that changes only the
+    // window must not re-run this — but one that grows the contents must.
+    el.clip?.contentW,
+    el.clip?.contentH,
     el.padding,
     el.fontFamily,
     el.fontWeight,
@@ -135,11 +172,6 @@ export default function EditorElement({
   // so suppress the box outline and corner resizers — they'd fight the handles.
   const straightLine = el.type === "shape" && isStraightLine(el.shape);
   const noBox = straightLine || el.type === "curve";
-
-  const selectionStyle =
-    selected && !noBox && !suppressChrome
-      ? { outline: "2px solid #6366f1", outlineOffset: 0 }
-      : { outline: "1px dashed transparent" };
 
   const rotation = el.rotation || 0;
 
@@ -152,9 +184,6 @@ export default function EditorElement({
     el.animation.type !== "none" &&
     !editing;
   const animStyle = animated ? animationStyle(el.animation) : null;
-  // Finger vs. mouse — drives handle size, not screen width: a 900px desktop
-  // window is still a mouse, and a 1400px tablet is still a finger.
-  const coarsePointer = useIsTouch();
 
   return (
     <Rnd
@@ -165,9 +194,11 @@ export default function EditorElement({
       size={{ width: el.width, height: el.height }}
       position={{ x: el.x, y: el.y }}
       disableDragging={editing || locked || suppressChrome}
-      enableResizing={
-        selected && !multiSelected && !editing && !noBox && !locked && !suppressChrome
-      }
+      // Resizing is not react-rnd's any more. All eight handles are drawn by
+      // SelectionChrome, in a layer the artboard does not clip, so they stay
+      // reachable when an element is scaled out past the canvas edge. Cropping
+      // also has to own the box, which re-resizable will not allow mid-gesture.
+      enableResizing={false}
       onDragStart={(e) => {
         // A drag starts on mousedown, so this and onMouseDown below both fire
         // for the same press and their order is react-rnd's business, not ours.
@@ -182,22 +213,12 @@ export default function EditorElement({
         onDragBegin?.(el.id);
       }}
       onMouseDown={(e) => onSelect(el.id, e)}
+      onContextMenu={(e) => onContextMenu?.(el.id, e)}
       onDrag={(e, d) => onDragMove?.(el.id, d)}
       onDragStop={(e, d) => {
         if (onDragEnd) onDragEnd(el.id, d);
         else onChange({ x: d.x, y: d.y }, { record: true });
       }}
-      onResizeStop={(e, dir, ref, delta, pos) =>
-        onChange(
-          {
-            width: parseFloat(ref.style.width),
-            height: parseFloat(ref.style.height),
-            x: pos.x,
-            y: pos.y,
-          },
-          { record: true },
-        )
-      }
       style={{
         opacity: el.opacity ?? 1,
         // Stacking follows DOM/array order so bring-to-front / send-to-back work.
@@ -210,17 +231,29 @@ export default function EditorElement({
         // moves. Suppressed while editing text, where the browser's own
         // selection and caret dragging must keep working.
         touchAction: editing ? undefined : "none",
-        ...selectionStyle,
       }}
-      resizeHandleStyles={handleStyles(selected, zoom, coarsePointer)}
     >
       {/* Rotation lives on the inner content: react-rnd drives the outer node's
-          transform (translate) for positioning, so rotating it there is dropped. */}
+          transform (translate) for positioning, so rotating it there is dropped.
+          The drag offset rides here too, when this element is part of a
+          selection being dragged by ANOTHER of its members. The two variables
+          are written straight to the stage's style during the gesture, so every
+          co-dragged element follows from one write per frame and none of them
+          re-render — see paintDragShift in DesignEditor. Translate before
+          rotate, so a turned element still travels along the page's axes. */}
       <div
         style={{
           width: "100%",
           height: "100%",
-          transform: rotation ? `rotate(${rotation}deg)` : undefined,
+          transform:
+            [
+              coDragging
+                ? "translate(var(--ck-drag-x, 0px), var(--ck-drag-y, 0px))"
+                : null,
+              rotation ? `rotate(${rotation}deg)` : null,
+            ]
+              .filter(Boolean)
+              .join(" ") || undefined,
         }}
         onDoubleClick={(e) => {
           if (locked) return;
@@ -246,28 +279,15 @@ export default function EditorElement({
             onCellFocus,
             onFrameFill,
             onGridCellFill,
+            interactive: entered,
+            activeChildId,
+            onChildSelect,
+            onChildChange,
+            onChildGestureBegin,
           })}
         </div>
       </div>
 
-      {/* Floating action pill below the element (lock / duplicate / delete /
-          layer order). Kept out of the rotated content so it stays upright.
-          Suppressed in a multi-selection — one pill for the whole selection is
-          drawn by the stage instead of one under every member. */}
-      {selected && !multiSelected && !editing && !suppressChrome && (
-        <EditorElementMenu
-          zoom={zoom}
-          locked={locked}
-          onDuplicate={() => onDuplicate?.(el.id)}
-          onRemove={() => onRemove?.(el.id)}
-          onMoveLayer={(dir) => onMoveLayer?.(el.id, dir)}
-          onToggleLock={() => onToggleLock?.(el.id)}
-          // Only a group has anything to ungroup — the button is absent for
-          // every other element rather than present and inert.
-          onUngroup={el.type === "group" ? () => onUngroup?.(el.id) : null}
-          onAskKlux={onAskKlux}
-        />
-      )}
     </Rnd>
   );
 }
@@ -279,10 +299,80 @@ export default function EditorElement({
  * and the stage is already scaled, so their canvas units are this box's pixels
  * 1:1 — no further conversion. Each child goes through the same renderInner as
  * a top-level element, so a grouped chart / table / image looks identical to an
- * ungrouped one; only the interactive parts are inert, because the group is
- * what the user is manipulating.
+ * ungrouped one.
+ *
+ * ── Reaching inside ───────────────────────────────────────────────────────
+ *
+ * `interactive` turns the members from a picture into targets, and DesignEditor
+ * only sets it once the group ITSELF is selected. That is the Canva rule: the
+ * first click takes the group, the next one takes the thing under the pointer.
+ * Without it there is no way to restyle one member without breaking the group
+ * apart and putting it back together — and with it on by default, a group would
+ * never be selectable as one thing at all.
+ *
+ * A press on a member selects it and drags it here rather than through react-rnd:
+ * a child is not in the elements array, so it has no Rnd of its own to be moved
+ * by. The patches this emits are ABSOLUTE, like every other patch in the editor;
+ * patchGroupChild converts them back on the way into the group.
  */
-function GroupInner({ el, zoom }) {
+const stopEvent = (e) => e.stopPropagation();
+
+function GroupInner({
+  el,
+  zoom,
+  interactive,
+  activeChildId,
+  onChildSelect,
+  onChildChange,
+  onChildGestureBegin,
+}) {
+  const drag = useRef(null);
+
+  const begin = (child) => (e) => {
+    if (!interactive) return;
+    // The group's own Rnd is an ancestor: without this, the same press would
+    // start dragging the whole group as well as the member.
+    e.stopPropagation();
+    onChildSelect?.(child.id, e);
+    if (child.locked || e.button === 2) return;
+
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    drag.current = {
+      id: child.id,
+      sx: e.clientX,
+      sy: e.clientY,
+      // Where the member really is on the page, group rotation and all — the
+      // space its patches have to be written in.
+      snap: childAsElement(el, child),
+      committed: false,
+    };
+  };
+
+  const move = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    // Measured from where the gesture started against the snapshot taken then,
+    // never accumulated per frame: accumulation drifts, and makes the result
+    // depend on how many frames the browser happened to render.
+    const dx = (e.clientX - d.sx) / zoom;
+    const dy = (e.clientY - d.sy) / zoom;
+    if (!dx && !dy) return;
+
+    // History on the first MOVE, not on the press — otherwise every click on a
+    // member would push an undo entry that changed nothing.
+    if (!d.committed) {
+      d.committed = true;
+      onChildGestureBegin?.();
+    }
+    onChildChange?.(d.id, { x: d.snap.x + dx, y: d.snap.y + dy }, { record: false });
+  };
+
+  const end = (e) => {
+    if (!drag.current) return;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    drag.current = null;
+  };
+
   return (
     <div
       style={{
@@ -297,6 +387,15 @@ function GroupInner({ el, zoom }) {
         .map((child) => (
           <div
             key={child.id}
+            onPointerDown={interactive ? begin(child) : undefined}
+            // react-rnd drags from mouse/touch events, which are separate from
+            // the pointer events above — stopping only those would select the
+            // member and drag the whole group with it.
+            onMouseDown={interactive ? stopEvent : undefined}
+            onTouchStart={interactive ? stopEvent : undefined}
+            onPointerMove={interactive ? move : undefined}
+            onPointerUp={interactive ? end : undefined}
+            onPointerCancel={interactive ? end : undefined}
             style={{
               position: "absolute",
               left: child.x,
@@ -305,18 +404,28 @@ function GroupInner({ el, zoom }) {
               height: child.height,
               opacity: child.opacity ?? 1,
               transform: child.rotation ? `rotate(${child.rotation}deg)` : undefined,
+              pointerEvents: interactive ? "auto" : "none",
+              cursor: interactive && !child.locked ? "move" : undefined,
+              touchAction: interactive ? "none" : undefined,
             }}
           >
-            {renderInner(child, { zoom, selected: false, editing: false })}
+            {renderInner(child, {
+              zoom,
+              selected: child.id === activeChildId,
+              editing: false,
+              // One level only. A group nested inside this one is a single
+              // member here; entering IT would need its own first click, and
+              // there is nothing to select it with until there is.
+              interactive: false,
+            })}
           </div>
         ))}
     </div>
   );
 }
 
-function renderInner(
-  el,
-  {
+function renderInner(el, opts) {
+  const {
     editing,
     textRef,
     commitText,
@@ -327,10 +436,61 @@ function renderInner(
     onCellFocus,
     onFrameFill,
     onGridCellFill,
-  },
-) {
+    interactive,
+    activeChildId,
+    onChildSelect,
+    onChildChange,
+    onChildGestureBegin,
+  } = opts;
+
+  // A cropped element's box is a WINDOW onto contents laid out at their own
+  // size (see clip.js). Draw the window here and recurse once to draw the
+  // contents inside it, at their true size and offset — so every branch below
+  // crops correctly without any of them knowing that cropping exists. It is the
+  // exact counterpart of the substitution the PNG exporter makes.
+  //
+  // Suspended while editing: a caret belongs in text the user can see, and a
+  // contentEditable inside an offset, clipped box scrolls hidden content into
+  // view and fights the offset.
+  const win = editing ? null : el.clip;
+  if (isClipped(win)) {
+    return (
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            left: -(win.offsetX || 0),
+            top: -(win.offsetY || 0),
+            width: win.contentW,
+            height: win.contentH,
+          }}
+        >
+          {/* windowed() drops `clip`, so this recurses exactly once. */}
+          {renderInner(windowed(el), opts)}
+        </div>
+      </div>
+    );
+  }
+
   if (el.type === "group") {
-    return <GroupInner el={el} zoom={zoom} />;
+    return (
+      <GroupInner
+        el={el}
+        zoom={zoom}
+        interactive={interactive}
+        activeChildId={activeChildId}
+        onChildSelect={onChildSelect}
+        onChildChange={onChildChange}
+        onChildGestureBegin={onChildGestureBegin}
+      />
+    );
   }
 
   if (el.type === "frame") {
@@ -398,6 +558,10 @@ function renderInner(
       fontWeight: el.fontWeight || "normal",
       fontFamily: el.fontFamily || "'DM Sans', sans-serif",
       color: el.fill || el.color || "#111111",
+      // A gradient overrides `color` with a clipped background — see
+      // gradientTextStyle. Spread after `color` so it wins, and a no-op object
+      // when the fill is an ordinary colour.
+      ...(gradientTextStyle(el.fill || el.color) || {}),
       textAlign: el.textAlign || "left",
       lineHeight: el.lineHeight || 1.3,
       letterSpacing: el.letterSpacing || "normal",
@@ -484,18 +648,32 @@ function renderInner(
   }
 
   if (el.type === "shape") {
+    // Shadow / echo / glow, as a stack of drop-shadow filters. Wrapped around
+    // whichever renderer runs below rather than applied inside each one: a
+    // filter follows the alpha silhouette of everything it contains, so one
+    // wrapper gets the star-shaped shadow a star should cast without any of the
+    // renderers knowing about effects at all.
+    const effect = shapeEffectCss(el);
+    const withEffect = (node) =>
+      effect ? (
+        <div style={{ width: "100%", height: "100%", ...effect }}>{node}</div>
+      ) : (
+        node
+      );
+
     // Library shapes (polygons, stars, arrows, lines, …) render via SVG.
     if (!PRIMITIVE_SHAPES.has(el.shape) && SHAPES[el.shape]) {
       // Curvature: el.bend (canvas units, apex offset) → viewBox control offset.
       const bend = el.bend ? (24 * el.bend) / (el.height || 1) : 0;
-      return (
+      return withEffect(
         <ShapeSVG
           shape={el.shape}
           fill={el.fill || "#6366f1"}
           stroke={el.stroke || "transparent"}
           strokeWidth={el.strokeWidth || 0}
+          strokeDash={el.strokeDash}
           bend={bend}
-        />
+        />,
       );
     }
     // Primitives keep the lightweight div rendering (crisp, honors borderRadius).
@@ -505,15 +683,30 @@ function renderInner(
       background: el.fill || "transparent",
       border:
         el.strokeWidth && el.stroke
-          ? `${el.strokeWidth}px solid ${el.stroke}`
+          ? `${el.strokeWidth}px ${dashCssFor(el.strokeDash)} ${el.stroke}`
           : "none",
       boxSizing: "border-box",
     };
     if (el.shape === "circle") {
-      return <div style={{ ...common, borderRadius: "50%" }} />;
+      return withEffect(<div style={{ ...common, borderRadius: "50%" }} />);
     }
     if (el.shape === "triangle") {
-      return (
+      // Drawn with borders, and a border cannot take a gradient — so a gradient
+      // fill is clipped onto a plain box instead. Same result, and it keeps the
+      // cheap border trick for the ordinary case.
+      if (isGradient(el.fill)) {
+        return withEffect(
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              background: el.fill,
+              clipPath: "polygon(50% 0%, 100% 100%, 0% 100%)",
+            }}
+          />,
+        );
+      }
+      return withEffect(
         <div
           style={{
             width: 0,
@@ -522,10 +715,10 @@ function renderInner(
             borderRight: `${el.width / 2}px solid transparent`,
             borderBottom: `${el.height}px solid ${el.fill || "#000"}`,
           }}
-        />
+        />,
       );
     }
-    return <div style={{ ...common, borderRadius: el.borderRadius || 0 }} />;
+    return withEffect(<div style={{ ...common, borderRadius: el.borderRadius || 0 }} />);
   }
 
   if (el.type === "draw") {
@@ -575,10 +768,68 @@ function renderInner(
     const flip = `scaleX(${el.flipH ? -1 : 1}) scaleY(${el.flipV ? -1 : 1})`;
     const filter = buildImageFilter(el) || undefined;
 
+    // Border — painted OVER the picture, inset into the same box, rather than
+    // around it. Turning one on therefore never resizes the image or nudges
+    // anything beside it, and the PNG exporter can stroke the same rectangle in
+    // the same place (see the image branch of renderDesign). It sits outside the
+    // filter too, so a heavy Adjust doesn't tint the frame.
+    const borderWidth = Number(el.borderWidth) || 0;
+    const withBorder = (node) =>
+      borderWidth > 0 ? (
+        <div style={{ position: "relative", width: "100%", height: "100%" }}>
+          {node}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              border: `${borderWidth}px solid ${el.borderColor || "#ffffff"}`,
+              borderRadius: radiusToCss(el.borderRadius),
+              boxSizing: "border-box",
+              pointerEvents: "none",
+            }}
+          />
+        </div>
+      ) : (
+        node
+      );
+
+    // Colour. The box fill sits BEHIND the photo — that is what shows through a
+    // `contain` fit's letterboxing and through a cutout's removed background —
+    // and the overlay tints the photo itself. `isolation: isolate` confines the
+    // blend to this element: without it, `mix-blend-mode` reaches through to
+    // whatever is stacked underneath and tints that too.
+    const tintOverlay = tintOverlayStyle(el);
+    const boxFill = isColourValue(el.backgroundColor)
+      ? el.backgroundColor
+      : undefined;
+    const withTint = (node) =>
+      boxFill || tintOverlay ? (
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+            isolation: "isolate",
+            background: boxFill,
+            borderRadius: radiusToCss(el.borderRadius),
+            overflow: "hidden",
+          }}
+        >
+          {node}
+          {tintOverlay && <div style={tintOverlay} />}
+        </div>
+      ) : (
+        node
+      );
+
+    // Border outside the tint, so a heavy colour doesn't repaint the frame —
+    // the same reason it sits outside the Adjust filter.
+    const withChrome = (node) => withBorder(withTint(node));
+
     // Perspective warp — rendered through a <canvas> so the stage matches the
     // PNG export (CSS 3D can't be reproduced in the canvas export).
     if (hasPerspective(el)) {
-      return <PerspectiveImage el={el} filter={filter} flip={flip} />;
+      return withChrome(<PerspectiveImage el={el} filter={filter} flip={flip} />);
     }
     // Cache the image's natural size on the element so the crop tool has it
     // synchronously (no race with an async load → no distorted crops).
@@ -593,7 +844,7 @@ function renderInner(
     // lives on the clipping wrapper so it mirrors the visible region in place.
     if (isCropped(el.crop)) {
       const c = el.crop;
-      return (
+      return withChrome(
         <div
           style={{
             position: "relative",
@@ -622,11 +873,11 @@ function renderInner(
               pointerEvents: "none",
             }}
           />
-        </div>
+        </div>,
       );
     }
 
-    return (
+    return withChrome(
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={proxiedSrc(el.src)}
@@ -643,7 +894,7 @@ function renderInner(
           filter,
           pointerEvents: "none",
         }}
-      />
+      />,
     );
   }
 
@@ -1260,41 +1511,16 @@ function AddTrackButton({ orientation, onMouseDown }) {
 }
 
 /**
- * Corner resize handles.
+ * Memoized on purpose, and the reason every callback above takes an id.
  *
- * Two corrections over the flat 10px dot this used to return:
+ * The stage renders one of these per element. Dragging three elements replaces
+ * three entries in the elements array and leaves the rest untouched, but the map
+ * that builds them re-runs regardless — so without this, every element on the
+ * page re-rendered on every frame of the gesture, re-running its image filters,
+ * text fitting and SVG paths to produce exactly what was already on screen.
  *
- *   · divided by `zoom`, because these live INSIDE the stage's
- *     `transform: scale(zoom)` — at 50% a 10px handle drew as 5px on screen,
- *     and at fit-to-screen on a phone it could be under 3px. Same technique
- *     LineHandles in DesignEditor already uses.
- *   · larger on touch, where a mouse-sized dot is far below what a fingertip
- *     can reliably land on. `offset` pushes the hit area out past the visible
- *     dot so the corner is grabbable slightly outside the element too.
- *
- * @param {boolean} selected
- * @param {number}  zoom    Current stage scale.
- * @param {boolean} coarse  True when the primary input is a finger.
+ * React Compiler does not do this part: it memoizes values INSIDE a component,
+ * not the decision to re-render one. The props are all either stable functions
+ * or this element's own data, so the default shallow compare is enough.
  */
-function handleStyles(selected, zoom = 1, coarse = false) {
-  if (!selected) return {};
-  const size = (coarse ? 20 : 10) / zoom;
-  const border = 2 / zoom;
-  const offset = -size / 2;
-  const dot = {
-    width: size,
-    height: size,
-    background: "#fff",
-    border: `${border}px solid #6366f1`,
-    borderRadius: "50%",
-    // Centre each dot on its corner rather than letting it hang inside.
-    marginLeft: offset,
-    marginTop: offset,
-  };
-  return {
-    topLeft: dot,
-    topRight: dot,
-    bottomLeft: dot,
-    bottomRight: dot,
-  };
-}
+export default React.memo(EditorElement);

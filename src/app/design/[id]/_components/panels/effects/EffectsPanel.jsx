@@ -10,6 +10,7 @@ import {
   defaultEffectParams,
   textEffectCss,
 } from "@/(lib)/design/textEffects";
+import { readTextStyle, takesTextStyle } from "@/(lib)/design/groupStyling";
 
 /**
  * EffectsPanel — Canva-style text effects (Shadow, Lift, Hollow, Outline, Echo,
@@ -25,10 +26,13 @@ import {
  */
 export default function EffectsPanel({ editor, onClose }) {
   const el = editor?.selectedElement;
-  const effect = el?.textEffect || { type: "none" };
+  // Read through a group to the words inside it, so opening this on a group
+  // shows the effect its text is actually wearing.
+  const current = readTextStyle(el, "textEffect");
+  const effect = current || { type: "none" };
   const controls = EFFECT_CONTROLS[effect.type] || [];
   const hasColor = !!EFFECT_COLOR[effect.type];
-  const hasEffect = !!el?.textEffect && effect.type !== "none";
+  const hasEffect = !!current && effect.type !== "none";
 
   const pickEffect = (type) => {
     if (!el) return;
@@ -63,7 +67,9 @@ export default function EffectsPanel({ editor, onClose }) {
     if (el) editor.updateElement(el.id, { textEffect: null }, { record: true });
   };
 
-  const isTextSelected = el && el.type === "text";
+  // A group with text in it counts: the patches above go to the group and are
+  // dealt out to every text member (see groupStyling).
+  const isTextSelected = takesTextStyle(el);
 
   return (
     <section className="w-full h-[55dvh] shrink-0 bg-surface border-t border-gray-200 rounded-t-2xl shadow-2xl flex flex-col lg:w-75 lg:h-auto lg:rounded-none lg:shadow-none lg:border-t-0 lg:border-r">

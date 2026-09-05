@@ -89,6 +89,44 @@ export const UPSCALE_HD_MODEL = {
 };
 
 /**
+ * informative-drawings line-art model (Caroline Chan, MIT license — the
+ * commercially-safe sketch model; u2net_portrait is BANNED here, its training
+ * set is non-commercial). Fully convolutional: float32 RGB in [0,1],
+ * `input` [1,3,H,W] → `output` [1,1,H,W] line map in [0,1] (1 = paper,
+ * 0 = line). Powers Sketchify's line-art styles.
+ */
+export const SKETCH_MODEL = {
+  file: "informative-drawings.onnx",
+  sizeMB: 17.2,
+  license: "MIT",
+};
+
+/**
+ * MediaPipe portrait models (Apache-2.0, from Google's official model zoo).
+ * Tiny — a quarter MB each except the multiclass segmenter — so they're
+ * near-instant even on first load. Loaded as bytes through the same cached
+ * modelLoader, fed to tasks-vision via `baseOptions.modelAssetBuffer`.
+ */
+export const MEDIAPIPE_MODELS = {
+  // Face detection — bounding box + keypoints. Locates the head for Face Cutout.
+  faceDetector: {
+    file: "blaze_face_short_range.tflite",
+    sizeMB: 0.23,
+    license: "Apache-2.0",
+  },
+  // Multiclass portrait segmentation — separates hair / face-skin / body-skin /
+  // clothes / accessories, so Face Cutout can keep the HEAD and drop the body.
+  multiclassSegmenter: {
+    file: "selfie_multiclass_256x256.tflite",
+    sizeMB: 16.4,
+    license: "Apache-2.0",
+  },
+};
+
+/** Where the MediaPipe vision WASM runtime lives (copied into public/). */
+export const MEDIAPIPE_WASM_PATH = "/mediapipe/wasm";
+
+/**
  * Kokoro-82M text-to-speech (Apache-2.0), run through kokoro-js on
  * transformers.js. Fully self-hosted: the model id resolves against
  * `localModelPath` (→ /models/kokoro/…), transformers.js's own ONNX runtime

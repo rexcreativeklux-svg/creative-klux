@@ -52,6 +52,48 @@ export function SectionHeader({ title, expanded, onToggle, action }) {
   );
 }
 
+/**
+ * PresetTile — one preset previewed as an actual rendered image (a data URL
+ * from a real bake, e.g. usePreviewBakes), for a section whose looks aren't
+ * CSS-expressible so there's no filter string to preview with instead
+ * (Texture; Sketchify's styles once ported). Adjust/Filters preview with a CSS
+ * `filter` directly on `<img>` inline rather than through this — they have one
+ * to show.
+ *
+ * Props: { label, src, active, onClick }
+ */
+export function PresetTile({ label, src, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className={`flex flex-col items-center gap-1.5 p-1.5 rounded-lg border w-full cursor-pointer transition-colors ${
+        active ? "border-blue-500 ring-1 ring-blue-400" : "border-gray-200 hover:border-blue-400"
+      }`}
+    >
+      <span
+        className="relative flex items-center justify-center rounded-md w-full overflow-hidden bg-gray-100"
+        style={{ height: 56 }}
+      >
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt="" draggable={false} className="w-full h-full object-cover" />
+        ) : (
+          <span className="w-full h-full animate-pulse bg-gray-200" />
+        )}
+      </span>
+      <span
+        className={`text-[11px] font-medium truncate w-full text-center ${
+          active ? "text-blue-600" : "text-gray-600"
+        }`}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
 /** Horizontal, scrollable strip of preset tiles with left/right arrow
  *  affordances that appear only when there's more to scroll. */
 export function PresetStrip({ children }) {

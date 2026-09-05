@@ -9,6 +9,7 @@ notes.txt
 public/models/
 public/ort/
 public/ort-hf/
+public/mediapipe/
 
 # Claude Code local state (per-user, do not commit)
 .claude/

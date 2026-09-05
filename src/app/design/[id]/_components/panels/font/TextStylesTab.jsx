@@ -3,6 +3,7 @@
 import React from "react";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
+import { readTextStyle, takesTextStyle } from "@/(lib)/design/groupStyling";
 
 /**
  * TextStylesTab — the "Text styles" ladder in the Font panel. Each preset
@@ -50,7 +51,7 @@ export default function TextStylesTab({ editor }) {
   const el = editor?.selectedElement;
 
   const apply = (s) => {
-    if (!el || el.type !== "text") {
+    if (!takesTextStyle(el)) {
       toast.info("Select a text layer to apply a style.");
       return;
     }
@@ -66,15 +67,16 @@ export default function TextStylesTab({ editor }) {
     );
   };
 
-  // A style is "active" when size + bold-ness both match the selected element.
-  const activeId =
-    el?.type === "text"
-      ? TEXT_STYLES.find(
-          (s) =>
-            s.fontSize === el.fontSize &&
-            isBold(s.fontWeight) === isBold(el.fontWeight),
-        )?.id
-      : null;
+  // A style is "active" when size + bold-ness both match the selection — read
+  // through the group where there is one, so a group of headings shows the same
+  // row highlighted that one of those headings would.
+  const activeId = takesTextStyle(el)
+    ? TEXT_STYLES.find(
+        (s) =>
+          s.fontSize === readTextStyle(el, "fontSize") &&
+          isBold(s.fontWeight) === isBold(readTextStyle(el, "fontWeight")),
+      )?.id
+    : null;
 
   return (
     <div className="flex flex-col gap-2 p-3">

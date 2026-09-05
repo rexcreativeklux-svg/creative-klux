@@ -87,8 +87,8 @@ const TOOL_LIST = [
     img: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=240&q=80",
   },
   {
-    id: "video",
-    name: "Video Generator",
+    id: "product_video",
+    name: "Product Video",
     Icon: Video,
     color: "bg-indigo-100 text-indigo-600",
     img: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=240&q=80",
@@ -478,7 +478,7 @@ export default function ProductToolModal({ toolId, onClose, onSwitchTool }) {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the image you want (optional)"
-                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed"
+                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed thin-scrollbar"
                   rows={4}
                 />
               </div>

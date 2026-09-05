@@ -1,104 +1,96 @@
-import { useState, useRef, useEffect } from "react";
-import { generateProductPhoto, TOOL_ENUM } from "@/(lib)/product-studio-api";
+import { useCallback, useEffect, useState, useRef } from "react";
+import {
+  generateProductPhoto,
+  productResultUrl,
+  TOOL_ENUM,
+} from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
-import {
-  X,
-  Upload,
-  Loader2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Check,
-  LayoutGrid,
-} from "lucide-react";
+import { X, Upload, Loader2, ChevronDown, Check, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
-import Skeleton from "@/app/(components)/skeletons/Skeleton";
-import { px, VIDEO_SIZES } from "./constants";
+import { px, VIDEO_SIZES, stockQueryForTool } from "./constants";
+import {
+  PRODUCT_VIDEO_TEMPLATES,
+  PRODUCT_VIDEO_CATEGORIES,
+  PRODUCT_VIDEO_TEMPLATES_BY_ID,
+} from "./productVideoTemplates";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import ToolModalMobileHeader from "./ToolModalMobileHeader";
 import SizeDropdown from "./SizeDropdown";
 import TemplateTile from "./TemplateTile";
+import TemplateRow from "./TemplateRow";
 import TemplateBrowserModal from "./TemplateBrowserModal";
-import useTemplates from "./useTemplates";
+import ProductHistoryGrid from "./ProductHistoryGrid";
+import useProductHistory from "./useProductHistory";
+import {
+  extractProductGenerationId,
+  latestProductGenerationId,
+  watchProductGeneration,
+} from "./watchProductGeneration";
 
 // Video accepts up to 4 input photos — different angles improve fidelity.
 // See docs/product-studio-payloads.md (video `image_urls`: 1–4).
 const MAX_IMAGES = 4;
 
-// How many clips the shelf loads. Deliberately small — every one of them is a
-// video element, and the row is a preview, not the browser.
+// How many clips the shelf shows before "See all". The catalog is far bigger
+// than a shelf; the row is a preview of it, not the browser. Every one of these
+// is a <video> element, so the number is a real cost, not just a layout choice.
 const ROW_TEMPLATES = 12;
+
+// Shown on a template tile while hovering it. The wording matters: picking a
+// template REWRITES the prompt box, and the user should know that before they
+// click rather than after their typing disappears.
+const APPLY_LABEL = "Apply Template";
 
 const VID_BEFORE = px(30780459);
 const VID_AFTER = px(27204251);
 
-// Horizontal template row with hover arrows that hide at the ends.
-function TemplateRow({ children }) {
-  const ref = useRef(null);
-  const [canLeft, setCanLeft] = useState(false);
-  const [canRight, setCanRight] = useState(false);
-  const update = () => {
-    const el = ref.current;
-    if (!el) return;
-    setCanLeft(el.scrollLeft > 4);
-    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
-  };
-  useEffect(() => {
-    update();
-    const el = ref.current;
-    if (!el) return;
-    el.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    return () => {
-      el.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-    };
-  }, []);
-  const scroll = (dir) =>
-    ref.current?.scrollBy({ left: dir * 200, behavior: "smooth" });
-  return (
-    <div className="relative group/row">
-      <div ref={ref} className="flex gap-2 overflow-x-auto hide-scrollbar">
-        {children}
-      </div>
-      {canLeft && (
-        <button
-          onClick={() => scroll(-1)}
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surface shadow-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 opacity-0 group-hover/row:opacity-100 transition-opacity cursor-pointer"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-      )}
-      {canRight && (
-        <button
-          onClick={() => scroll(1)}
-          className="absolute right-0 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surface shadow-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 opacity-0 group-hover/row:opacity-100 transition-opacity cursor-pointer"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      )}
-    </div>
-  );
-}
+/**
+ * Catalog entry → the tile shape TemplateTile renders.
+ *
+ * `src` is the playable mp4, which is what makes TemplateTile draw a looping
+ * <video> instead of a still — a tool that makes motion should show motion in
+ * its picker. `poster` covers the tile until the clip has buffered.
+ */
+const toTile = (t) => ({
+  id: t.id,
+  name: t.name,
+  category: t.category,
+  poster: t.poster,
+  src: t.src,
+  alt: `${t.name} — ${t.category.toLowerCase()} product video template`,
+});
+
+const TEMPLATE_TILES = PRODUCT_VIDEO_TEMPLATES.map(toTile);
 
 /**
+ * Product Video — animates one to four product stills into a short ad clip.
+ *
+ * TEMPLATES ARE PROMPTS. The shelf used to be a live Pexels search: any clip
+ * matching "elegant dress" was a fine motion template because a template was
+ * only ever an id. It carries a written prompt now, and a prompt only means
+ * something if it describes the exact clip above it — so the catalog is pinned
+ * and reviewed (productVideoTemplates.js), exactly like Product Staging's
+ * scenes. Picking one REPLACES the prompt box with that clip's shot
+ * description, which the user is then free to edit.
+ *
  * @param {object} props
  * @param {() => void} props.onClose
  * @param {(id: string, opts?: object) => void} [props.onSwitchTool]
  * @param {string|null} [props.initialImageUrl] Preselect this hosted image (from a
  *   result's "Generate video") so the user can generate straight away.
  */
-export default function VideoGeneratorModal({
+export default function ProductVideoModal({
   onClose,
   onSwitchTool,
   initialImageUrl = null,
 }) {
-  const { activeBrand, uploadMedia } = useAuth();
+  const { activeBrand, uploadMedia, token } = useAuth();
+  const isLoggedIn = !!token;
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
 
-  // The Product Studio to animate. Each item:
+  // The product photos to animate. Each item:
   //   { id, preview, file, url }
   //   • preview — URL used for the <img> thumbnail (always present)
   //   • file    — the File for a fresh desktop upload (null for gallery/search picks)
@@ -117,10 +109,15 @@ export default function VideoGeneratorModal({
         ]
       : [],
   );
+  // Starts on "none" with an empty prompt rather than preselecting the first
+  // template (which is what Product Staging does). A staging generation is
+  // meaningless without a scene, so seeding one there is a favour; here the
+  // prompt is genuinely optional — "just animate my photo" is a valid request —
+  // and pre-filling it would silently commit every user to one specific look.
   const [selectedTemplate, setSelectedTemplate] = useState("none");
-  // A template picked in the "See all" browser isn't in the row's twelve clips,
-  // so it gets pinned to the front of the row — otherwise the browser closes and
-  // nothing on screen shows what was chosen.
+  // A template picked in the "See all" browser usually isn't among the shelf's
+  // first twelve, so it gets pinned to the front of the row — otherwise the
+  // browser closes and nothing on screen shows what was chosen.
   const [pinnedTemplate, setPinnedTemplate] = useState(null);
   const [size, setSize] = useState("square");
   const [prompt, setPrompt] = useState("");
@@ -133,22 +130,47 @@ export default function VideoGeneratorModal({
   const [seeAllOpen, setSeeAllOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
 
-  // The shelf of looping clips. Mixed across categories — see videoTemplates.js.
-  // Fetched at the default page size rather than at ROW_TEMPLATES so the row and
-  // the "See all" browser share one cache entry; the row just shows the front of
-  // it.
-  const { items: allTemplates, loading: rowLoading } = useTemplates({
-    kind: "videos",
-    category: "All",
+  // Past renders for this tool. History REPLACES a session-only results list:
+  // after each successful generate we refresh it and the new clip shows up
+  // (newest first). Empty history → the modal shows its sample/empty state.
+  //
+  // ⚠️ IT ALSO CARRIES RUNS STILL GOING (`history.pending`), which matters more
+  // here than anywhere else in Product Studio: a video takes minutes, and the
+  // backend finishes it whether or not this modal is still open. Reopening the
+  // tool mid-render finds the wait again instead of an empty canvas.
+  const history = useProductHistory(TOOL_ENUM.product_video, {
+    enabled: isLoggedIn,
   });
-  const rowTemplates = allTemplates.slice(0, ROW_TEMPLATES);
 
+  // A wait is on screen when THIS modal started one, or when history came back
+  // with one still going. Folding both into a single flag is what keeps a
+  // resumed run from drawing a second loading tile beside the one we started.
+  const waiting = generating || history.pending.length > 0;
+
+  // The status poll in flight, so it can be called off when the modal closes or
+  // when a new run starts. Closing the modal ends the WATCHING, not the render —
+  // the backend finishes it either way, and reopening the tool picks it back up
+  // through history's `pending` list.
+  const runRef = useRef({ cancelled: true, timer: null, wake: null });
+  const cancelWatch = useCallback(() => {
+    const run = runRef.current;
+    run.cancelled = true;
+    if (run.timer) clearTimeout(run.timer);
+    run.timer = null;
+    // Ends the current wait rather than leaving it pending — see
+    // watchProductGeneration.
+    run.wake?.();
+    run.wake = null;
+  }, []);
+  useEffect(() => cancelWatch, [cancelWatch]);
+
+  const rowTiles = TEMPLATE_TILES.slice(0, ROW_TEMPLATES);
   const sizeObj = VIDEO_SIZES.find((s) => s.id === size);
 
   // Don't pin a duplicate: if the browser pick happens to be one of the clips
   // already on the shelf, the shelf tile carries the selection.
   const showPinned =
-    pinnedTemplate && !rowTemplates.some((t) => t.id === pinnedTemplate.id);
+    pinnedTemplate && !rowTiles.some((t) => t.id === pinnedTemplate.id);
 
   const toggle = (key) => setOpenDropdown((p) => (p === key ? null : key));
   const closeAll = () => {
@@ -158,7 +180,7 @@ export default function VideoGeneratorModal({
 
   const handleToolClick = (id) => {
     setToolMenuOpen(false);
-    if (id === "video") return;
+    if (id === "product_video") return; // already here
     onSwitchTool?.(id);
   };
 
@@ -213,11 +235,16 @@ export default function VideoGeneratorModal({
     });
   };
 
-  // Only the id goes to the backend; the tile is kept so a pick made in the
-  // browser can be shown in the row.
-  const handleSelectTemplate = (template) => {
-    setSelectedTemplate(template.id);
-    setPinnedTemplate(template);
+  // Picking a template REPLACES the prompt with that clip's shot description
+  // (the user may have typed refinements — those only survive as edits made
+  // AFTER the pick, never before it). `tile` is the tile shape TemplateTile
+  // hands back; the prompt lives on the catalog entry it came from.
+  const selectTemplate = (tile) => {
+    setSelectedTemplate(tile.id);
+    setPinnedTemplate(tile);
+    const entry = PRODUCT_VIDEO_TEMPLATES_BY_ID[tile.id];
+    if (entry) setPrompt(entry.prompt);
+    setOpenDropdown(null);
   };
 
   // Drop one image from the set by id.
@@ -249,7 +276,7 @@ export default function VideoGeneratorModal({
         }
         if (!img.file) continue;
         const uploaded = await uploadMedia(img.file);
-        console.log("🖼️ [video] upload response ←", uploaded);
+        console.log("🖼️ [product-video] upload response ←", uploaded);
         const url =
           uploaded?.url ||
           uploaded?.image_url ||
@@ -269,35 +296,121 @@ export default function VideoGeneratorModal({
       }
 
       // Backend contract: POST /product-studio/generate (video). Video takes
-      // `image_urls` (1–4 photos) plus the video-only `template_id` and reduced
-      // `size` set (see docs/product-studio-payloads.md).
+      // `image_urls` (1–4 photos) plus the reduced `size` set.
+      //
+      // No `template_id`: the template is not a server-side thing any more. It
+      // used to be the id of whatever Pexels clip the old live search happened
+      // to return, which the backend could not have resolved to anything. The
+      // whole template now travels inside `prompt`.
       const payload = {
-        tool: TOOL_ENUM.video, // ⚠️ rejected by the backend today — see TOOL_ENUM
+        tool: TOOL_ENUM.product_video,
         image_urls: imageUrls,
-        template_id: selectedTemplate, // "none" for no template, else a template id
         size, // "square" | "portrait_9_16" | "landscape_16_9"
         prompt: prompt || "",
       };
 
-      const result = await generateProductPhoto(payload);
+      // ── Fire, and watch ────────────────────────────────────────────────────
+      // The id snapshot is taken BEFORE the request so the run can still be
+      // followed if its response never arrives — see watchProductGeneration.
+      const sinceId = await latestProductGenerationId(TOOL_ENUM.product_video);
+      const startedAt = Date.now();
 
-      // Log the raw return so we can see its exact shape while consuming it.
-      // Video is async on the backend — it may return a job id rather than a URL.
-      console.log("🎬 [video] generate result ←", result);
+      const request = generateProductPhoto(payload);
+      // The race below handles the rejection; this only keeps the browser from
+      // reporting it as unhandled in the window before that happens, and in the
+      // case where the watch wins and nobody reads the response at all.
+      request.catch(() => {});
 
-      const resultUrl = result?.url || result?.video_url || result?.data?.url;
-      if (resultUrl) {
-        toast.success("Video generated!");
-      } else if (result?.job_id) {
-        toast("Your video is processing — we'll notify you when it's ready.");
-      } else {
-        toast("Requested — check the console for the response shape.");
+      cancelWatch();
+      const run = { cancelled: false, timer: null, wake: null, jobId: null };
+      runRef.current = run;
+
+      const watch = watchProductGeneration({
+        tool: TOOL_ENUM.product_video,
+        sinceId,
+        startedAt,
+        run,
+      });
+
+      // The response usually names the job — hand it straight to the watch so it
+      // can poll the status endpoint instead of sweeping history for the id.
+      request
+        .then((data) => {
+          const id = extractProductGenerationId(data);
+          if (id != null) run.jobId = id;
+        })
+        .catch(() => {});
+
+      const outcome = await Promise.race([
+        request.then((value) => ({ from: "request", value })),
+        watch.then((value) => ({ from: "watch", value })),
+      ]);
+
+      // The response beat the watch. Either the clip is already in it — in which
+      // case stop watching — or it only opened the job, and the watch we already
+      // have running is exactly what follows it.
+      if (outcome.from === "request") {
+        // Log the raw return so its exact shape stays visible while consuming it.
+        console.log("🎬 [product-video] generate result ←", outcome.value);
+        const immediate = productResultUrl(outcome.value);
+        if (immediate) {
+          cancelWatch();
+          await history.refresh();
+          toast.success("Video generated!");
+          return;
+        }
+        toast("Your video is rendering — this can take a few minutes…");
+        await deliverWatch(await watch);
+        return;
       }
+
+      await deliverWatch(outcome.value);
     } catch (err) {
-      // generateProductPhoto already toasts a friendly error; log for debugging.
-      console.error("❌ [video] generate failed:", err);
+      // generateProductPhoto already toasts what the TRANSPORT rejected (401,
+      // 402, 422). A run that answered 200 and then RECORDED a failure never
+      // passed through its catch, so for that path this is the only place the
+      // failure is announced at all — `.response` is the discriminator, since
+      // the Error thrown by deliverWatch carries none.
+      console.error("❌ [product-video] generate failed:", err);
+      if (!err?.response) {
+        toast.error(err?.message || "Video generation failed. Please try again.");
+      }
     } finally {
+      cancelWatch();
       setGenerating(false);
+    }
+
+    /** Turn a watch outcome into a shown result, or the right message. */
+    async function deliverWatch(outcome) {
+      if (outcome?.cancelled) return;
+
+      if (outcome?.timedOut) {
+        // Not an error, and deliberately not a red one: the render is still
+        // going and its result will be waiting in history. Saying "try again"
+        // here would charge someone twice for the same clip.
+        console.warn("⏳ [product-video] still running past the poll ceiling");
+        toast(
+          "This is taking longer than usual — it'll be in your history as soon as it's done.",
+        );
+        await history.refresh();
+        return;
+      }
+
+      if (outcome?.failed) {
+        // The record's own reason where there is one. "Please try again" is the
+        // wrong advice for a rejected input — the same request fails the same
+        // way forever — and the backend usually says which field was refused.
+        console.error(
+          `❌ [product-video] generation ${outcome.jobId} failed:`,
+          outcome.error,
+        );
+        throw new Error(
+          outcome.error || "Video generation failed. Please try again.",
+        );
+      }
+
+      await history.refresh();
+      toast.success("Your video is ready!");
     }
   };
 
@@ -313,7 +426,7 @@ export default function VideoGeneratorModal({
         {/* ── Mobile header — title switcher, ✕ and the Setup/Result switch.
             Pinned outside both scroll areas; hidden above `lg`. ── */}
         <ToolModalMobileHeader
-          title="Video Generator"
+          title="Product Video"
           subtitle="Your product, brought to life with motion."
           onTitleClick={() => setToolMenuOpen((o) => !o)}
           switcherOpen={toolMenuOpen}
@@ -335,7 +448,7 @@ export default function VideoGeneratorModal({
                 onClick={() => setToolMenuOpen((o) => !o)}
                 className="flex items-center gap-2 font-bold text-2xl text-gray-900 hover:opacity-70 transition-opacity"
               >
-                Video Generator
+                Product Video
                 <ChevronDown
                   className={`w-5 h-5 text-gray-500 transition-transform ${toolMenuOpen ? "rotate-180" : ""}`}
                 />
@@ -356,7 +469,7 @@ export default function VideoGeneratorModal({
                 </span>
               </button>
               <p className="text-xs text-gray-500 leading-relaxed mt-2">
-                Pick up to {MAX_IMAGES} clear Product Studio — different angles
+                Pick up to {MAX_IMAGES} clear product photos — different angles
                 improve the video.
               </p>
             </div>
@@ -391,7 +504,9 @@ export default function VideoGeneratorModal({
               </div>
             )}
 
-            {/* Template */}
+            {/* Template — a shelf of looping ad clips plus a way into the full
+                browser. Picking one rewrites the prompt below with that clip's
+                shot description. */}
             <div className="px-4 pt-5">
               <div className="flex items-center justify-between mb-3">
                 <span className="font-semibold text-gray-900">Template</span>
@@ -403,9 +518,12 @@ export default function VideoGeneratorModal({
                 </button>
               </div>
               <TemplateRow>
-                {/* No template tile */}
+                {/* No template — send only what the user typed */}
                 <button
-                  onClick={() => setSelectedTemplate("none")}
+                  onClick={() => {
+                    setSelectedTemplate("none");
+                    setPrompt("");
+                  }}
                   className={`shrink-0 w-24 h-32 rounded-xl overflow-hidden relative flex items-center justify-center text-white text-xs font-medium bg-linear-to-br from-gray-700 to-gray-900 border-2 transition-colors cursor-pointer ${selectedTemplate === "none" ? "border-blue-500" : "border-transparent"}`}
                 >
                   No template
@@ -421,29 +539,26 @@ export default function VideoGeneratorModal({
                   <TemplateTile
                     template={pinnedTemplate}
                     selected={selectedTemplate === pinnedTemplate.id}
-                    onSelect={handleSelectTemplate}
+                    onSelect={selectTemplate}
                     className="shrink-0 w-24 h-32"
+                    objectPosition="object-center"
+                    label={pinnedTemplate.name}
+                    applyLabel={APPLY_LABEL}
                   />
                 )}
 
-                {rowLoading
-                  ? Array.from({ length: 6 }).map((_, i) => (
-                      <Skeleton
-                        key={i}
-                        tone="soft"
-                        shimmer
-                        className="shrink-0 w-24 h-32 rounded-xl"
-                      />
-                    ))
-                  : rowTemplates.map((t) => (
-                      <TemplateTile
-                        key={t.id}
-                        template={t}
-                        selected={selectedTemplate === t.id}
-                        onSelect={handleSelectTemplate}
-                        className="shrink-0 w-24 h-32"
-                      />
-                    ))}
+                {rowTiles.map((t) => (
+                  <TemplateTile
+                    key={t.id}
+                    template={t}
+                    selected={selectedTemplate === t.id}
+                    onSelect={selectTemplate}
+                    className="shrink-0 w-24 h-32"
+                    objectPosition="object-center"
+                    label={t.name}
+                    applyLabel={APPLY_LABEL}
+                  />
+                ))}
 
                 {/* Last tile — the shelf's own way into the full browser */}
                 <button
@@ -467,14 +582,20 @@ export default function VideoGeneratorModal({
                 <span className="text-gray-500">{sizeObj?.name}</span>
               </button>
 
-              {/* Prompt */}
+              {/* Prompt.
+
+                  `thin-scrollbar` (globals.css) replaces the chunky OS bar with
+                  a 6px arrow-free thumb once the text passes the visible rows —
+                  applying a template drops a full shot description in here, which
+                  is usually longer than the box. */}
               <div className="rounded-2xl bg-gray-100 px-4 py-3 mt-2.5">
                 <textarea
+                  id="product-video-prompt"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the video you want (optional)"
-                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed"
-                  rows={4}
+                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed thin-scrollbar"
+                  rows={5}
                 />
               </div>
             </div>
@@ -514,54 +635,74 @@ export default function VideoGeneratorModal({
             <X className="w-4 h-4 text-gray-500" />
           </button>
 
-          <div className="flex-1 flex flex-col items-center justify-center px-2 sm:px-6">
-            {/* Two 44-wide cards + the arrow overflow a phone at their desktop
-                size, so they scale down rather than get clipped. */}
-            <div className="flex items-center gap-1.5 xs:gap-3 mb-6 sm:mb-9">
-              <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
-                <img
-                  src={VID_BEFORE}
-                  alt="before"
-                  className="w-full h-full object-cover"
-                />
+          {!waiting && !history.loading && history.items.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center px-2 sm:px-6">
+              {/* Two 44-wide cards + the arrow overflow a phone at their
+                  desktop size, so they scale down rather than get clipped. */}
+              <div className="flex items-center gap-1.5 xs:gap-3 mb-6 sm:mb-9">
+                <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-lg -rotate-3">
+                  <img
+                    src={VID_BEFORE}
+                    alt="before"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <svg
+                  width="72"
+                  height="60"
+                  viewBox="0 0 72 60"
+                  fill="none"
+                  className="w-10 xs:w-12 sm:w-18 h-auto text-blue-500 shrink-0 -mt-6"
+                >
+                  <path
+                    d="M6 44 C 24 8, 50 8, 62 32"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M62 32 L51 28 M62 32 L55 42"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
+                  <img
+                    src={VID_AFTER}
+                    alt="after"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
               </div>
-              <svg
-                width="72"
-                height="60"
-                viewBox="0 0 72 60"
-                fill="none"
-                className="w-10 xs:w-12 sm:w-18 h-auto text-blue-500 shrink-0 -mt-6"
-              >
-                <path
-                  d="M6 44 C 24 8, 50 8, 62 32"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M62 32 L51 28 M62 32 L55 42"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <div className="w-28 h-36 xs:w-32 xs:h-42 sm:w-44 sm:h-56 bg-surface rounded-2xl shadow-lg overflow-hidden border border-gray-200 rotate-3">
-                <img
-                  src={VID_AFTER}
-                  alt="after"
-                  className="w-full h-full object-cover"
-                />
-              </div>
+              <h3 className="text-gray-900 text-center text-base sm:text-lg font-semibold max-w-sm leading-snug">
+                Turn your product into an ad
+              </h3>
+              <p className="text-gray-500 text-center text-xs sm:text-sm mt-2 max-w-xs leading-relaxed">
+                Pick a template to load its shot description into the prompt, or
+                describe the video you want yourself.
+              </p>
             </div>
-            <h3 className="text-gray-900 text-center text-base sm:text-lg font-semibold max-w-sm leading-snug">
-              Generate a video from a template
-            </h3>
-            <p className="text-gray-500 text-center text-xs sm:text-sm mt-2 max-w-xs leading-relaxed">
-              Bring your product to life with motion — pick a template or
-              describe the video you want.
-            </p>
-          </div>
+          ) : (
+            <ProductHistoryGrid
+              items={history.items}
+              loading={history.loading}
+              generating={waiting}
+              generatingLabel="Rendering your video…"
+              onDelete={history.remove}
+              removingId={history.removingId}
+              uploadMedia={uploadMedia}
+              filePrefix="product-video"
+              // The tool renders 16:9, 9:16 and 1:1 clips into one grid, so the
+              // loading tile takes the widest of them and the finished tiles
+              // size themselves off their own media (see ProductHistoryGrid).
+              aspectClass="aspect-video"
+              // Wider columns than the still tools: a product ad is watched, not
+              // scanned, and 150px tiles are too small to tell two clips apart.
+              gridClass="grid-fluid-[260px]"
+            />
+          )}
         </div>
       </div>
 
@@ -574,7 +715,7 @@ export default function VideoGeneratorModal({
           />
           <ToolSwitcherDropdown
             anchorRef={headerRef}
-            activeToolId="video"
+            activeToolId="product_video"
             onSelect={handleToolClick}
             onClose={() => setToolMenuOpen(false)}
           />
@@ -600,16 +741,21 @@ export default function VideoGeneratorModal({
         />
       )}
 
-      {/* ── "See all" template browser — stills, one tab per category ── */}
+      {/* ── "See all" template browser — the full clip catalog by category ── */}
       {seeAllOpen && (
         <TemplateBrowserModal
+          title="Video template"
+          categories={PRODUCT_VIDEO_CATEGORIES}
+          staticItems={TEMPLATE_TILES}
+          objectPosition="object-center"
+          applyLabel={APPLY_LABEL}
           selectedId={selectedTemplate}
-          onSelect={handleSelectTemplate}
+          onSelect={selectTemplate}
           onClose={() => setSeeAllOpen(false)}
         />
       )}
 
-      {/* ── Gallery media picker — pick ONE image (My Library / Search / Upload) ── */}
+      {/* ── Gallery media picker (My Library / Search / Upload) ── */}
       <MediaPickerModal
         isOpen={pickerOpen}
         onClose={() => setPickerOpen(false)}
@@ -617,6 +763,9 @@ export default function VideoGeneratorModal({
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
         maxSelectable={Math.max(1, MAX_IMAGES - uploadedImages.length)}
+        // Open Search on product showcase stills — the frames this tool
+        // animates into a clip.
+        defaultSearchQuery={stockQueryForTool("product_video")}
       />
     </div>
   );

@@ -2,7 +2,9 @@
 // Unified media picker — Search | Library | Magic Studio | Upload
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import {
+  AudioLines,
   FileSearch,
   FolderOpen,
   Sparkles,
@@ -48,6 +50,78 @@ const MAIN_TABS = [
 
 const MAX_SELECT = 5;
 
+// ── "You can make one" ───────────────────────────────────────────────────────
+// Audio is the one media type a user can't shoot on a phone or find on a stock
+// site: a tool that needs a voice track and finds an empty library is a dead
+// end unless it says where one comes from. Text to Audio makes one and saves it
+// straight to this gallery, so the answer is a tab away — this is what points at
+// it, from inside the view where the gap is discovered.
+
+/** The sub-tab this CTA opens, by its label in MAGIC_SUBTABS. */
+const TEXT_TO_AUDIO_LABEL = "Text to Audio";
+/** Where it lives on its own, for pickers that don't show the Magic tab. */
+const TEXT_TO_AUDIO_HREF = "/magic-studio/text-to-audio";
+
+/**
+ * Points someone with no voice track at the tool that makes one.
+ *
+ * ⚠️ IT PREFERS THE TAB IT IS ALREADY IN. This modal usually carries Magic
+ * Studio as a tab, and Text to Audio runs entirely in the browser — so the whole
+ * round trip (write words → generate → saved to gallery → pick it) happens
+ * without leaving the picker, and without losing whatever the caller had already
+ * set up behind it. Navigating away is the fallback for the callers that show a
+ * Library tab only.
+ *
+ * @param {object} props
+ * @param {"empty"|"tile"} props.variant An empty library gets the full pitch; a
+ *   library that already has takes gets a quiet card at the head of the grid.
+ * @param {(() => void)|null} props.onOpenHere Switch to the Magic tab, or null
+ *   when this picker has none.
+ */
+function TextToAudioCta({ variant, onOpenHere }) {
+  const copy =
+    variant === "empty"
+      ? "No audio in your library yet — write a script and Text to Audio will voice it, save it here, and it's ready to use."
+      : "Need a different take? Text to Audio writes one into your library.";
+
+  const action = onOpenHere ? (
+    <button
+      type="button"
+      onClick={onOpenHere}
+      className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700 cursor-pointer"
+    >
+      <Sparkles className="h-3.5 w-3.5" />
+      Generate audio
+    </button>
+  ) : (
+    <Link
+      href={TEXT_TO_AUDIO_HREF}
+      className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+    >
+      <Sparkles className="h-3.5 w-3.5" />
+      Generate audio
+    </Link>
+  );
+
+  if (variant === "empty") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <AudioLines className="h-12 w-12 text-gray-200" />
+        <p className="max-w-sm text-sm text-gray-500">{copy}</p>
+        {action}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-3">
+      <AudioLines className="h-5 w-5 shrink-0 text-blue-500" />
+      <p className="min-w-0 flex-1 text-xs leading-snug text-gray-500">{copy}</p>
+      {action}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -69,6 +143,11 @@ const MAX_SELECT = 5;
  * showToast       (msg) => void   — optional; falls back to internal toast
  *
  * initialTab      "search" | "library" | "magic" | "upload"
+ * defaultSearchQuery string — seeds the Search tab so the stock photos a caller
+ *   lands on already match what that caller needs (e.g. the Ghost Mannequin tool
+ *   opens on "shirt on hanger" instead of the generic brand fallback). It is
+ *   pre-filled into the search box on open, so the user can see it and edit it;
+ *   clearing the box falls back to this term, then to the brand fallback.
  * allowedTypes    string[]  — which gallery media types the caller can SELECT in
  *   the Library tab: subset of ["image","video","audio","document"]. Defaults to
  *   ["image"] so existing callers behave exactly as before (image-only, single
@@ -90,6 +169,7 @@ export default function MediaPickerModal({
   onAddToBrand,
   showToast: externalToast,
   initialTab = "search",
+  defaultSearchQuery = "",
   maxSelectable = MAX_SELECT,
   allowedTypes = ["image",],
   tabs = null,
@@ -121,12 +201,24 @@ export default function MediaPickerModal({
     : visibleTabs[0]?.id || "search";
   const isComingSoon = comingSoonTabs.some((t) => t.id === activeTabSafe);
 
+  // Open Text to Audio in THIS modal, when the caller shows the Magic tab —
+  // null when it doesn't, which is what makes the CTA fall back to a link out
+  // to the tool's own route. See TextToAudioCta.
+  const canOpenTextToAudioHere = visibleTabs.some((t) => t.id === "magic");
+  const openTextToAudioTab = canOpenTextToAudioHere
+    ? () => {
+        console.log("🎙️ [media-picker] opening Text to Audio from the library");
+        setActiveMagicTab(TEXT_TO_AUDIO_LABEL);
+        setActiveTab("magic");
+      }
+    : null;
+
   // ── selection ──────────────────────────────────────────────────────────────
   const [selectedImages, setSelectedImages] = useState([]); // search / library
   const [selectedMedia, setSelectedMedia] = useState([]); // magic
 
   // ── search tab ─────────────────────────────────────────────────────────────
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(defaultSearchQuery);
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchMenuOpen, setSearchMenuOpen] = useState(null);
@@ -210,10 +302,11 @@ export default function MediaPickerModal({
       setActiveTab(initialTab);
       setSelectedImages([]);
       setSelectedMedia([]);
-      setSearchQuery("");
+      // Re-seed rather than blank: each caller opens on its own stock topic.
+      setSearchQuery(defaultSearchQuery);
       setUploadedFiles([]);
     }
-  }, [isOpen, initialTab]);
+  }, [isOpen, initialTab, defaultSearchQuery]);
 
   // Library media is fetched by useGalleryMedia (gated to the Library tab).
 
@@ -222,6 +315,12 @@ export default function MediaPickerModal({
     postData?.brandName?.trim() ||
     activeBrand?.name?.trim() ||
     "premium marketing lifestyle";
+
+  // What an EMPTY search box searches for. The caller's own topic wins, so a
+  // product tool never falls back to generic brand imagery; callers that pass
+  // nothing keep the previous brand-based behavior exactly.
+  const emptySearchFallback =
+    defaultSearchQuery.trim() || `${brandFallback} marketing ad`;
 
   const doSearch = useCallback(
     async (query) => {
@@ -253,11 +352,11 @@ export default function MediaPickerModal({
   useEffect(() => {
     if (!isOpen || activeTabSafe !== "search") return;
     const t = setTimeout(
-      () => doSearch(searchQuery.trim() || `${brandFallback} marketing ad`),
+      () => doSearch(searchQuery.trim() || emptySearchFallback),
       600,
     );
     return () => clearTimeout(t);
-  }, [isOpen, activeTabSafe, searchQuery, brandFallback, doSearch]);
+  }, [isOpen, activeTabSafe, searchQuery, emptySearchFallback, doSearch]);
 
   if (!isOpen) return null;
 
@@ -509,7 +608,7 @@ export default function MediaPickerModal({
                   />
                   <button
                     onClick={() =>
-                      doSearch(searchQuery.trim() || brandFallback)
+                      doSearch(searchQuery.trim() || emptySearchFallback)
                     }
                     className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition cursor-pointer"
                   >
@@ -654,16 +753,25 @@ export default function MediaPickerModal({
                       <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                     </div>
                   ) : galleryItems.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-3">
-                      <FolderOpen className="w-12 h-12 text-gray-200" />
-                      <p className="text-sm">
-                        No{" "}
-                        {galleryType === "image"
-                          ? "images"
-                          : `${galleryType} files`}{" "}
-                        in your library yet.
-                      </p>
-                    </div>
+                    // Audio gets a way OUT of its empty state rather than a
+                    // statement of it — see TextToAudioCta.
+                    galleryType === "audio" ? (
+                      <TextToAudioCta
+                        variant="empty"
+                        onOpenHere={openTextToAudioTab}
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-3">
+                        <FolderOpen className="w-12 h-12 text-gray-200" />
+                        <p className="text-sm">
+                          No{" "}
+                          {galleryType === "image"
+                            ? "images"
+                            : `${galleryType} files`}{" "}
+                          in your library yet.
+                        </p>
+                      </div>
+                    )
                   ) : galleryType === "image" ? (
                     /* Images → JS column masonry with per-column skeletons. */
                     <>
@@ -691,6 +799,18 @@ export default function MediaPickerModal({
                   ) : (
                     /* Video / audio / doc → CSS grid; skeletons append at bottom. */
                     <>
+                      {/* A library that already has takes still gets the
+                          pointer, quietly, above the grid rather than as a cell
+                          in it — a card sitting among the tiles reads as one
+                          more thing to select. */}
+                      {galleryType === "audio" && (
+                        <div className="mb-3">
+                          <TextToAudioCta
+                            variant="tile"
+                            onOpenHere={openTextToAudioTab}
+                          />
+                        </div>
+                      )}
                       <div className={galleryGridClass(galleryType)}>
                         {galleryItems.map((item, i) => (
                           <MediaCard

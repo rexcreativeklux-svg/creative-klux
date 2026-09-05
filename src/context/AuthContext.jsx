@@ -1801,6 +1801,11 @@ export function AuthProvider({ children }) {
         const e = new Error(result.message);
         e.source = result.source;
         e.messageForDevs = result.messageForDevs;
+        // Additive: callers that must tell a transport fault apart from a
+        // deliberate rejection need the raw status (`source` alone can't — it
+        // reports 401 as "network"). Undefined when the request never landed.
+        // See isTransientApiError in (lib)/product-studio-api.js.
+        e.status = result.status;
         throw e;
       }
 

@@ -8,7 +8,7 @@ import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
 import { X, Upload, Loader2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { px, QUALITY_RES, SIZES } from "./constants";
+import { px, QUALITY_RES, SIZES, stockQueryForTool } from "./constants";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import QualityDropdown from "./QualityDropdown";
 import SizeDropdown from "./SizeDropdown";
@@ -185,9 +185,9 @@ export default function GhostMannequinModal({ onClose, onSwitchTool }) {
       imageUrlOverride: item.url,
     });
   };
-  // "Generate video": hand this image to the Video Generator, preselected.
+  // "Generate video": hand this image to Product Video, preselected.
   const handleGenerateVideo = (url) =>
-    onSwitchTool?.("video", { initialImageUrl: url });
+    onSwitchTool?.("product_video", { initialImageUrl: url });
 
   return (
     <div
@@ -311,7 +311,7 @@ export default function GhostMannequinModal({ onClose, onSwitchTool }) {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the image you want (optional)"
-                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed"
+                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed thin-scrollbar"
                   rows={4}
                 />
               </div>
@@ -481,6 +481,9 @@ export default function GhostMannequinModal({ onClose, onSwitchTool }) {
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
         maxSelectable={1}
+        // Open Search on hung/laid-out garments — the only stock shots this
+        // tool can turn into a ghost mannequin.
+        defaultSearchQuery={stockQueryForTool("mannequin")}
       />
     </div>
   );

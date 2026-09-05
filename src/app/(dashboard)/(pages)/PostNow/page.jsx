@@ -384,7 +384,7 @@ const PostNowPage = ({ prefilledData = null }) => {
       <div className="py-4">
         <div className="flex px-3 items-center space-x-3 mb-3">
           <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center">
-            <span className="text-white text-sm font-semibold">S</span>
+            <span className="text-surface text-sm font-semibold">S</span>
           </div>
           <div>
             <h3 className="font-semibold text-gray-900">{previewData.author}</h3>

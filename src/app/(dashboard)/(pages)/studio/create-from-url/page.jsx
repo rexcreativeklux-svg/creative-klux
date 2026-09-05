@@ -860,7 +860,7 @@ export default function CreateFromUrl() {
     return (
       <div className="min-h-full py-1">
         {localToast && (
-          <div className="fixed top-5 right-5 z-100 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in">
+          <div className="fixed top-5 right-5 z-100 bg-gray-900 text-surface text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in">
             {localToast}
           </div>
         )}
@@ -896,7 +896,7 @@ export default function CreateFromUrl() {
         />
       )}
       {localToast && (
-        <div className="fixed top-5 right-5 z-100 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
+        <div className="fixed top-5 right-5 z-100 bg-gray-900 text-surface text-sm px-4 py-2.5 rounded-xl shadow-lg">
           {localToast}
         </div>
       )}

@@ -84,8 +84,11 @@ export function Toggle({ checked, onChange, label }) {
         checked ? "bg-gray-900" : "bg-gray-200"
       }`}
     >
+      {/* The knob has to CONTRAST with the ink track, and "ink" is near-white in
+          dark mode (`--color-gray-900` is inverted there) — a white knob on an
+          ON track was invisible. `dark:bg-gray-100` keeps it dark against it. */}
       <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white dark:bg-gray-100 shadow transition-transform ${
           checked ? "translate-x-5.5" : "translate-x-0.5"
         }`}
       />

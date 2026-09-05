@@ -1,6 +1,6 @@
 // app/(dashboard)/(pages)/magic-studio/magicTools.js
 // ─────────────────────────────────────────────────────────────────────────────
-// The seven Magic Studio tools, as routes.
+// The Magic Studio tools, as routes.
 //
 // Four different surfaces need to agree on this list — the secondary sidebar's
 // nav, the landing page's history filter row, the composer's tool picker, and
@@ -21,12 +21,17 @@
 
 import {
   AudioLines,
+  Eraser,
   FileImage,
+  ImagePlay,
   Layers,
+  Maximize2,
   Mic,
   Music,
+  Speech,
   User,
   Video,
+  WandSparkles,
 } from "lucide-react";
 import { usesBackend } from "@/(lib)/magic-studio-audio";
 import { getCreativeById } from "../studio/creatives";
@@ -150,6 +155,67 @@ export const MAGIC_TOOLS = [
     backend: true,
     icon: Music,
   },
+
+  // ── The video tools ────────────────────────────────────────────────────────
+  // Every one of these renders a clip, so every one of them is minutes of
+  // compute per run — which is why none declares `variations` in its config.
+  {
+    id: "image_to_video",
+    slug: "image-to-video",
+    label: "Image to Video",
+    short: "Animate",
+    working: "Animating your image — this one takes a few minutes…",
+    backend: true,
+    publish: true,
+    icon: ImagePlay,
+  },
+  {
+    id: "digital_human",
+    slug: "digital-human",
+    label: "Digital Human Video",
+    short: "Avatar",
+    working: "Bringing your portrait to life — this one takes a few minutes…",
+    backend: true,
+    publish: true,
+    icon: Speech,
+  },
+  {
+    id: "video_background_remover",
+    slug: "video-background-remover",
+    label: "Video Background Remover",
+    short: "Cut out",
+    working: "Cutting the background out — this one takes a few minutes…",
+    emptyHint: "Your cut-out clips appear here.",
+    backend: true,
+    // ⚠️ THE ONE VIDEO TOOL THAT MAY NOT BE PUBLISHED. What this makes is an
+    // alpha MOV or a flat chroma-green MP4 — an intermediate asset for an
+    // editor, not something anyone means to put in a feed. Publishing it would
+    // put a green rectangle one click from a customer's audience. Everything
+    // else here produces a clip that is finished as it stands.
+    publish: false,
+    icon: Eraser,
+  },
+  {
+    id: "video_enhancer",
+    slug: "video-enhancer",
+    label: "Video Enhancer",
+    short: "Enhance",
+    working: "Enhancing your video — this one takes a few minutes…",
+    backend: true,
+    // An enhanced clip is just a better version of a postable one.
+    publish: true,
+    icon: Maximize2,
+  },
+  {
+    id: "video_effects",
+    slug: "video-effects",
+    label: "Video Effects",
+    short: "Effects",
+    working: "Applying the effect — this one takes a few minutes…",
+    backend: true,
+    publish: true,
+    icon: WandSparkles,
+  },
 ];
 
 /** The tools whose generations the landing grid can actually show. */
@@ -170,6 +236,16 @@ export const toolById = (id) => MAGIC_TOOLS.find((tool) => tool.id === id) || nu
 // category there and not here would leave a tool with no nav item and no route,
 // which is invisible until someone goes looking for it. Dev-only: it costs a
 // module-load loop that production has no use for.
+//
+// ⚠️ IT ONLY RUNS ONE WAY, AND THE FIVE VIDEO TOOLS ARE DELIBERATELY OUTSIDE IT.
+// This checks for categories in creatives.js with no route here; a tool listed
+// here and NOT there is silent, which is exactly what the video tools are. That
+// list feeds one consumer — /studio, the older per-category form flow — and a
+// category there with no form of its own renders a "Coming soon" card. These
+// tools are not coming soon; they are live at their own routes. Listing them
+// would advertise them as unavailable on the one page that can't run them, so
+// they are reachable through the Magic Studio sidebar and the Add Media picker
+// instead. Add them to creatives.js only alongside a real form in studio/forms.
 if (process.env.NODE_ENV !== "production") {
   const declared = new Set(MAGIC_TOOLS.map((tool) => tool.id));
   const missing = (getCreativeById(CREATIVE_ID)?.categories || [])

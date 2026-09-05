@@ -18,11 +18,14 @@ import {
   ChevronRight,
   Layers,
   ShoppingBag,
+  Blend,
+  Megaphone,
+  Stamp,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import VirtualModelModal from "@/app/(components)/product-studio/VirtualModelModal";
 import ProductStagingModal from "@/app/(components)/product-studio/ProductStagingModal";
-import VideoGeneratorModal from "@/app/(components)/product-studio/VideoGeneratorModal";
+import ProductVideoModal from "@/app/(components)/product-studio/ProductVideoModal";
 import BackgroundRemoverModal from "@/app/(components)/product-studio/BackgroundRemoverModal";
 import GhostMannequinModal from "@/app/(components)/product-studio/GhostMannequinModal";
 import OnDeviceToolModal from "@/app/(components)/product-studio/OnDeviceToolModal";
@@ -31,6 +34,12 @@ import {
   ON_DEVICE_TOOLS,
   ON_DEVICE_TOOL_IDS,
 } from "@/app/(components)/product-studio/onDeviceToolConfigs";
+import PromptToolModal from "@/app/(components)/product-studio/PromptToolModal";
+import {
+  PROMPT_TOOLS,
+  PROMPT_TOOL_IDS,
+} from "@/app/(components)/product-studio/promptToolConfigs";
+import { stockQueryForTool } from "@/app/(components)/product-studio/constants";
 import {
   PresetStrip,
   PresetTile,
@@ -81,8 +90,10 @@ const tools = [
     color: "bg-blue-100 text-blue-600",
   },
   {
+    // Routing id stays `bgremove` (openTool, the batch page and the in-modal
+    // switcher all key off it); only the label is user-facing.
     id: "bgremove",
-    label: "Background Remover",
+    label: "Auto Design",
     Icon: Scissors,
     color: "bg-red-100 text-red-600",
   },
@@ -122,9 +133,31 @@ const tools = [
     Icon: LayoutGrid,
     color: "bg-cyan-100 text-cyan-600",
   },
+  // Prompt-driven tools — all three share PromptToolModal (promptToolConfigs).
   {
-    id: "video",
-    label: "Video Generator",
+    id: "reshaping",
+    label: "Reshaping",
+    Icon: Blend,
+    color: "bg-teal-100 text-teal-600",
+  },
+  {
+    id: "poster",
+    label: "Product Poster",
+    Icon: Megaphone,
+    color: "bg-orange-100 text-orange-600",
+  },
+  {
+    id: "pod",
+    label: "AI POD",
+    Icon: Stamp,
+    color: "bg-fuchsia-100 text-fuchsia-600",
+  },
+  // Product Video sits LAST on purpose — it is the only tool here that outputs
+  // motion, so it closes the grid instead of interrupting the photo tools. Keep
+  // it last in TOOL_LIST (the in-modal switcher) too, or the two disagree.
+  {
+    id: "product_video",
+    label: "Product Video",
     Icon: Video,
     color: "bg-indigo-100 text-indigo-600",
   },
@@ -142,11 +175,12 @@ export default function ProductPhotos() {
   const router = useRouter();
   const [virtualModelOpen, setVirtualModelOpen] = useState(false);
   const [stagingOpen, setStagingOpen] = useState(false);
-  const [videoOpen, setVideoOpen] = useState(false);
-  const [videoInitialImage, setVideoInitialImage] = useState(null); // preselect (from a result's "Generate video")
+  const [productVideoOpen, setProductVideoOpen] = useState(false);
+  const [productVideoInitialImage, setProductVideoInitialImage] = useState(null); // preselect (from a result's "Generate video")
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
   const [mannequinOpen, setMannequinOpen] = useState(false); // API-only Ghost Mannequin modal
   const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/flatlay)
+  const [promptToolId, setPromptToolId] = useState(null); // shared prompt-tool modal (reshaping/poster/pod)
   const [showMorePresets, setShowMorePresets] = useState(false); // "Show more" — appends the rest of the preset rows
 
   // The "Edit a photo" flow opens the Photoroom-style Add images picker first;
@@ -161,7 +195,7 @@ export default function ProductPhotos() {
 
   // Central tool router — used by the tool grid AND the in-modal tool switcher.
   // `opts.initialImageUrl` lets a result's "Generate video" preselect that image
-  // in the Video Generator (see VirtualModel/Staging result menus).
+  // in Product Video (see VirtualModel/Staging result menus).
   const openTool = (id, opts = {}) => {
     if (id === "virtual") {
       setVirtualModelOpen(true);
@@ -171,9 +205,9 @@ export default function ProductPhotos() {
       setStagingOpen(true);
       return;
     }
-    if (id === "video") {
-      setVideoInitialImage(opts.initialImageUrl || null);
-      setVideoOpen(true);
+    if (id === "product_video") {
+      setProductVideoInitialImage(opts.initialImageUrl || null);
+      setProductVideoOpen(true);
       return;
     }
     if (id === "bgremove") {
@@ -192,6 +226,10 @@ export default function ProductPhotos() {
       toast("All available tools are shown above.");
       return;
     }
+    if (PROMPT_TOOL_IDS.includes(id)) {
+      setPromptToolId(id);
+      return;
+    }
     if (ON_DEVICE_TOOL_IDS.includes(id)) {
       setOnDeviceToolId(id);
       return;
@@ -202,8 +240,11 @@ export default function ProductPhotos() {
   // Mount-time URL handlers (both strip their params once handled):
   //  • ?resume=<toolId> — re-opens an on-device tool after a login redirect so
   //    its stashed pending save can complete (OnDeviceToolModal + pendingSave.js).
-  //  • ?tool=video&image=<url> — opens the Video Generator with that image
+  //  • ?tool=product_video&image=<url> — opens Product Video with that image
   //    preselected, used by Magic Studio's cross-page "Generate video" action.
+  //    The tool's id was `video` before it was renamed, and that spelling is
+  //    still accepted: the param can arrive from a bookmark, a shared link or a
+  //    chat message written before the rename, and none of those get rewritten.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const resume = params.get("resume");
@@ -219,13 +260,13 @@ export default function ProductPhotos() {
       return () => cancelAnimationFrame(id);
     }
 
-    if (tool === "video") {
+    if (tool === "product_video" || tool === "video") {
       const id = requestAnimationFrame(() => {
         console.log(
-          `🎬 [product-studio] opening Video Generator${image ? " with a preselected image" : ""}`,
+          `🎬 [product-studio] opening Product Video${image ? " with a preselected image" : ""}${tool === "video" ? " (legacy ?tool=video link)" : ""}`,
         );
-        setVideoInitialImage(image || null);
-        setVideoOpen(true);
+        setProductVideoInitialImage(image || null);
+        setProductVideoOpen(true);
         router.replace("/product-studio", { scroll: false });
       });
       return () => cancelAnimationFrame(id);
@@ -282,16 +323,30 @@ export default function ProductPhotos() {
           }}
         />
       )}
-      {videoOpen && (
-        <VideoGeneratorModal
-          initialImageUrl={videoInitialImage}
+      {promptToolId && PROMPT_TOOLS[promptToolId] && (
+        <PromptToolModal
+          // Key by tool id so switching between the prompt tools remounts the
+          // modal fresh — otherwise the previous tool's uploaded images, prompt
+          // and preset selection would survive into the next one.
+          key={promptToolId}
+          config={PROMPT_TOOLS[promptToolId]}
+          onClose={() => setPromptToolId(null)}
+          onSwitchTool={(id, opts) => {
+            setPromptToolId(null);
+            openTool(id, opts);
+          }}
+        />
+      )}
+      {productVideoOpen && (
+        <ProductVideoModal
+          initialImageUrl={productVideoInitialImage}
           onClose={() => {
-            setVideoOpen(false);
-            setVideoInitialImage(null);
+            setProductVideoOpen(false);
+            setProductVideoInitialImage(null);
           }}
           onSwitchTool={(id, opts) => {
-            setVideoOpen(false);
-            setVideoInitialImage(null);
+            setProductVideoOpen(false);
+            setProductVideoInitialImage(null);
             openTool(id, opts);
           }}
         />
@@ -314,6 +369,9 @@ export default function ProductPhotos() {
         onCancel={() => setAddImagesOpen(false)}
         maxSelectable={1}
         initialTab="library"
+        // Opens on My Library, but seed Search too so switching tabs shows
+        // product photography rather than the generic brand fallback.
+        defaultSearchQuery={stockQueryForTool("start")}
         onApply={(images) => {
           setAddImagesOpen(false);
           const first = images?.[0];

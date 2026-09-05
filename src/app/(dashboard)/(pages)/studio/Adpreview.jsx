@@ -669,7 +669,7 @@ const AdPreview = ({
                 <button
                   key={label}
                   onClick={fn}
-                  className={`px-3 py-2 text-xs font-medium rounded-lg flex items-center gap-1.5 transition ${dark ? "bg-gray-900 text-white hover:bg-gray-700" : "border border-gray-200 text-gray-700 hover:bg-gray-50"}`}
+                  className={`px-3 py-2 text-xs font-medium rounded-lg flex items-center gap-1.5 transition ${dark ? "bg-gray-900 text-surface hover:bg-gray-700" : "border border-gray-200 text-gray-700 hover:bg-gray-50"}`}
                 >
                   <Icon className="w-3.5 h-3.5" /> {label}
                 </button>

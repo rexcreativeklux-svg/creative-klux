@@ -25,6 +25,7 @@ import ResultActionsMenu, {
   buildResultActions,
 } from "@/app/(components)/product-studio/ResultActionsMenu";
 import {
+  galleryFileMeta,
   saveUrlToGallery,
   downloadImageUrl,
 } from "@/app/(components)/product-studio/saveToGallery";
@@ -115,9 +116,17 @@ export default function MagicHistoryGrid({
   const handleSaveToGallery = async (item) => {
     const t = toast.loading("Saving to gallery…");
     try {
-      const ext = extFromUrl(item.url, "png");
-      const mime = ext === "png" ? "image/png" : `image/${ext}`;
-      await saveUrlToGallery(item.url, uploadMedia, { filePrefix, ext, mime });
+      // ⚠️ DERIVED FROM THE ITEM'S TYPE, not assumed to be an image. This used
+      // to build `image/<ext>` for whatever it was handed, so saving a clip
+      // would have uploaded it as `image/mp4` — which is why the action was
+      // only ever offered on pictures. See galleryFileMeta.
+      const { ext, mime, category } = galleryFileMeta(item.url, item.type);
+      await saveUrlToGallery(item.url, uploadMedia, {
+        filePrefix,
+        ext,
+        mime,
+        category,
+      });
       toast.success("Saved to gallery", { id: t });
     } catch (err) {
       console.error(`❌ [${filePrefix}] history save to gallery failed:`, err);
@@ -148,17 +157,22 @@ export default function MagicHistoryGrid({
         onPublish: item.url ? () => setPublishItem(item) : undefined,
         onDownload: () => handleDownload(item),
         onCopyLink: item.url ? () => copyLink(item.url) : undefined,
+        // A clip belongs in the library as much as a picture does — it is how
+        // it becomes the source of the next run, or media in a post.
+        onSaveToGallery: item.url ? () => handleSaveToGallery(item) : undefined,
         onDelete: () => onDelete?.(item.id),
       });
     }
-    // image
+    // image (and audio, which shares everything here but "Generate video")
     return buildResultActions({
       onGenerateVideo:
-        onGenerateVideo && item.url ? () => onGenerateVideo(item.url) : undefined,
+        onGenerateVideo && item.url && item.type !== "audio"
+          ? () => onGenerateVideo(item.url)
+          : undefined,
       onPublish: item.url ? () => setPublishItem(item) : undefined,
       onDownload: () => handleDownload(item),
       onCopyLink: item.url ? () => copyLink(item.url) : undefined,
-      onSaveToGallery: () => handleSaveToGallery(item),
+      onSaveToGallery: item.url ? () => handleSaveToGallery(item) : undefined,
       onDelete: () => onDelete?.(item.id),
     });
   };

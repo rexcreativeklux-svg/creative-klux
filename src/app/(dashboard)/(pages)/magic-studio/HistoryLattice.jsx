@@ -39,7 +39,12 @@ import Lightbox from "@/app/(components)/Lightbox";
 import ResultActionsMenu, {
   buildResultActions,
 } from "@/app/(components)/product-studio/ResultActionsMenu";
-import { downloadImageUrl } from "@/app/(components)/product-studio/saveToGallery";
+import {
+  downloadImageUrl,
+  galleryFileMeta,
+  saveUrlToGallery,
+} from "@/app/(components)/product-studio/saveToGallery";
+import { useAuth } from "@/context/AuthContext";
 import PublishModal from "@/app/(components)/PublishModal";
 import GeneratingArt from "./GeneratingArt";
 import { toolById } from "./magicTools";
@@ -355,6 +360,11 @@ export default function HistoryLattice({
   removingId = null,
   emptyHint,
 }) {
+  // The gallery uploader, for Save to gallery. Read from context rather than
+  // taken as a prop: this lattice is rendered by the tool page AND is about to
+  // be one more surface offering the same action, and threading an uploader
+  // through every one of them is a prop that exists only to be passed on.
+  const { uploadMedia } = useAuth();
   const [menu, setMenu] = useState(null); // { item, x, y }
   // The result being published, or null. Held here rather than on the menu so
   // the sheet survives the ⋯ closing under it — picking "Publish" dismisses the
@@ -385,6 +395,33 @@ export default function HistoryLattice({
     } catch (err) {
       console.error("❌ [magic-studio] download failed:", err);
       toast.error(err?.message || "Couldn't download that result", { id });
+    }
+  };
+
+  /**
+   * Keep a result in the user's own library.
+   *
+   * ⚠️ A GENERATION IS NOT A LIBRARY ITEM until this runs. History is the tool's
+   * own record and it is deleted after 30 days; the gallery is where the user's
+   * media lives, and it is what every OTHER surface in the app picks from — so
+   * this is the step that makes a clip usable as the source of the next run, or
+   * as media in a post. Offered for anything with a file behind it, which is why
+   * it isn't gated on type the way Publish is.
+   */
+  const handleSaveToGallery = async (item) => {
+    const id = toast.loading("Saving to gallery…");
+    try {
+      const { ext, mime, category } = galleryFileMeta(item.url, item.type);
+      await saveUrlToGallery(item.url, uploadMedia, {
+        filePrefix: "magic",
+        ext,
+        mime,
+        category,
+      });
+      toast.success("Saved to gallery", { id });
+    } catch (err) {
+      console.error("❌ [magic-studio] save to gallery failed:", err);
+      toast.error(err?.message || "Couldn't save to gallery", { id });
     }
   };
 
@@ -438,6 +475,11 @@ export default function HistoryLattice({
             toast.success("Copied!");
           }
         : undefined,
+      // Every result with a file behind it — picture, clip or voice take. A
+      // transcript has nothing to upload, and a logged-out visitor has nowhere
+      // to put it.
+      onSaveToGallery:
+        item.url && uploadMedia ? () => handleSaveToGallery(item) : undefined,
       onDelete: onDelete ? () => onDelete(item.id) : undefined,
     });
 

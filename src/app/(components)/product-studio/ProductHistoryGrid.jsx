@@ -2,26 +2,59 @@
 
 /**
  * ProductHistoryGrid — renders a Product Studio tool's generation history in the
- * modal's right-content area (Virtual Model, Product Staging, Ghost Mannequin).
- * It replaces the old session-only results list: items come from
- * {@link useProductHistory} (newest first) and every generation refreshes them.
+ * modal's right-content area (Virtual Model, Product Staging, Ghost Mannequin,
+ * the prompt tools and Product Video). It replaces the old session-only results
+ * list: items come from {@link useProductHistory} (newest first) and every
+ * generation refreshes them.
  *
- * Each item gets the shared ⋯ {@link ResultActionsMenu}. Download / Copy link /
- * Save to gallery are handled here with the shared saveToGallery helpers so the
- * modals don't re-implement them; Delete + the optional regenerate actions are
- * passed in by the modal (they need modal state / the history refresh).
+ * ⚠️ IT RENDERS BY MEDIA TYPE, because one of these tools makes motion. A tile
+ * draws a `<video>` when its item is `type: "video"` (Product Video) and an
+ * `<img>` otherwise — reading an .mp4 into an `<img>` is a broken tile, not a
+ * result. The type comes off the normalizer (see product-studio-api's
+ * normalizeHistoryItem); the still tools never set it and are unaffected.
+ *
+ * Each item gets the shared ⋯ {@link ResultActionsMenu}, built for what its own
+ * type supports — a video has no "Other angles" and no Save to gallery (that
+ * uploads into the image library). Download / Copy link / Save to gallery are
+ * handled here with the shared saveToGallery helpers so the modals don't
+ * re-implement them; Delete + the optional regenerate actions are passed in by
+ * the modal (they need modal state / the history refresh).
  */
 
 import { useState } from "react";
-import { Loader2, MoreHorizontal } from "lucide-react";
+import { Loader2, MoreHorizontal, Play } from "lucide-react";
 import { toast } from "sonner";
 import ResultActionsMenu, { buildResultActions } from "./ResultActionsMenu";
-import { saveUrlToGallery, downloadImageUrl } from "./saveToGallery";
+import {
+  galleryFileMeta,
+  saveUrlToGallery,
+  downloadImageUrl,
+} from "./saveToGallery";
 import Lightbox from "@/app/(components)/Lightbox";
 
 /**
+ * Pull a file extension off a hosted URL (ignoring any query/hash), falling back
+ * to a type-appropriate default when the URL has none — so a video downloads as
+ * .mp4 instead of the image helper's .png default.
+ *
+ * @param {string} url
+ * @param {string} fallback
+ * @returns {string}
+ */
+function extFromUrl(url, fallback) {
+  const clean = String(url || "")
+    .split("?")[0]
+    .split("#")[0];
+  const m = clean.match(/\.([a-z0-9]{2,5})$/i);
+  return m ? m[1].toLowerCase() : fallback;
+}
+
+/** Does this history item render as a video? */
+const isVideoItem = (item) => item?.type === "video" || !!item?.videoSrc;
+
+/**
  * @param {object} props
- * @param {Array} props.items History items ({ id, url, ... }) from useProductHistory.
+ * @param {Array} props.items History items ({ id, url, type, ... }) from useProductHistory.
  * @param {boolean} props.loading Whether the initial history fetch is in flight.
  * @param {boolean} [props.generating] Show a leading "generating" tile.
  * @param {string} [props.generatingLabel] Copy under the generating spinner.
@@ -29,7 +62,10 @@ import Lightbox from "@/app/(components)/Lightbox";
  * @param {(string|number|null)} [props.removingId] Item currently being deleted.
  * @param {(file: File) => Promise<unknown>} props.uploadMedia Auth uploader (for Save to gallery).
  * @param {string} props.filePrefix File-name prefix for downloads / saves.
- * @param {string} [props.aspectClass="aspect-square"] Tile aspect ratio class.
+ * @param {string} [props.aspectClass="aspect-square"] Tile aspect ratio for IMAGE
+ *   items and the generating tile; video tiles are always 16:9.
+ * @param {string} [props.gridClass="grid-fluid-[150px]"] Column sizing — video
+ *   results need wider tiles than stills to stay watchable.
  * @param {() => void} [props.onChangeSomething] Optional "Change something" action.
  * @param {() => void} [props.onOtherAngles] Optional "Other angles" action.
  * @param {(url: string) => void} [props.onGenerateVideo] Optional "Generate video" action.
@@ -44,28 +80,40 @@ export default function ProductHistoryGrid({
   uploadMedia,
   filePrefix = "klux",
   aspectClass = "aspect-square",
+  gridClass = "grid-fluid-[150px]",
   onChangeSomething,
   onOtherAngles,
   onGenerateVideo,
 }) {
-  const [imageMenu, setImageMenu] = useState(null); // { id, url, x, y }
+  const [imageMenu, setImageMenu] = useState(null); // { item, x, y }
   const [lightboxIndex, setLightboxIndex] = useState(null); // index into items
 
-  const handleDownload = async (url) => {
+  const handleDownload = async (item) => {
     const t = toast.loading("Downloading…");
     try {
-      await downloadImageUrl(url, { filePrefix });
+      const ext = extFromUrl(item.url, isVideoItem(item) ? "mp4" : "png");
+      await downloadImageUrl(item.url, { filePrefix, ext });
       toast.success("Downloaded", { id: t });
     } catch (err) {
       console.error(`❌ [${filePrefix}] history download failed:`, err);
-      toast.error(err?.message || "Couldn't download the image", { id: t });
+      toast.error(err?.message || "Couldn't download that result", { id: t });
     }
   };
 
-  const handleSaveToGallery = async (url) => {
+  const handleSaveToGallery = async (item) => {
     const t = toast.loading("Saving to gallery…");
     try {
-      await saveUrlToGallery(url, uploadMedia, { filePrefix });
+      // Type-aware, so a clip is saved as one — see galleryFileMeta.
+      const { ext, mime, category } = galleryFileMeta(
+        item.url,
+        isVideoItem(item) ? "video" : "image",
+      );
+      await saveUrlToGallery(item.url, uploadMedia, {
+        filePrefix,
+        ext,
+        mime,
+        category,
+      });
       toast.success("Saved to gallery", { id: t });
     } catch (err) {
       console.error(`❌ [${filePrefix}] history save to gallery failed:`, err);
@@ -96,7 +144,7 @@ export default function ProductHistoryGrid({
           narrowed pane beside an open sidebar, so a fixed `grid-cols-4` was
           right in neither. 150px is the floor at which a product thumbnail is
           still identifiable. */}
-      <div className="grid grid-fluid-[150px] gap-3">
+      <div className={`grid ${gridClass} gap-3`}>
         {/* Leading generating tile — keeps the in-flight generation visible. */}
         {generating && (
           <div
@@ -111,17 +159,39 @@ export default function ProductHistoryGrid({
 
         {items.map((item, i) => {
           const isRemoving = removingId != null && item.id === removingId;
+          const isVideo = isVideoItem(item);
           return (
             <button
               key={item.id ?? item.url}
               onClick={() => setLightboxIndex(i)}
-              className={`relative rounded-xl overflow-hidden group ${aspectClass} bg-gray-100 cursor-pointer text-left`}
+              className={`relative rounded-xl overflow-hidden group ${isVideo ? "aspect-video bg-black" : `${aspectClass} bg-gray-100`} cursor-pointer text-left`}
             >
-              <img
-                src={item.url}
-                alt="generation"
-                className="w-full h-full object-cover"
-              />
+              {isVideo ? (
+                <>
+                  {/* Muted, metadata-only: the grid shows the clip's first
+                      frame, and it PLAYS in the lightbox. Autoplaying a wall of
+                      videos behind a modal is neither watchable nor cheap. */}
+                  <video
+                    src={item.videoSrc || item.url}
+                    poster={item.thumbnail || undefined}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="w-full h-full object-cover pointer-events-none"
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <span className="w-11 h-11 rounded-full bg-black/50 backdrop-blur flex items-center justify-center">
+                      <Play className="w-5 h-5 text-white fill-white ml-0.5" />
+                    </span>
+                  </span>
+                </>
+              ) : (
+                <img
+                  src={item.url}
+                  alt="generation"
+                  className="w-full h-full object-cover"
+                />
+              )}
               {isRemoving && (
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                   <Loader2 className="w-6 h-6 text-white animate-spin" />
@@ -154,22 +224,36 @@ export default function ProductHistoryGrid({
           y={imageMenu.y}
           onClose={() => setImageMenu(null)}
           actions={buildResultActions({
-            onChangeSomething,
+            // ── Still-only actions ──
+            // A clip has no "other angle" to re-render and can't be handed to
+            // the video tool as a source frame — offering either on a video
+            // would be a menu entry that quietly does the wrong thing.
+            //
+            // Save to gallery is NOT one of them any more: it used to force an
+            // image MIME onto whatever it was given, which is why a clip was
+            // held back from it. galleryFileMeta derives the type now, so a
+            // video saves as a video.
+            onChangeSomething: isVideoItem(imageMenu.item)
+              ? undefined
+              : onChangeSomething,
             // "Other angles" regenerates from THIS result: the modal reuses the
             // item's own output image + the model it was generated with (carried
             // in the history record), so the whole item is handed over.
-            onOtherAngles: onOtherAngles
-              ? () => onOtherAngles(imageMenu.item)
-              : undefined,
-            onGenerateVideo: onGenerateVideo
-              ? () => onGenerateVideo(imageMenu.item.url)
-              : undefined,
-            onDownload: () => handleDownload(imageMenu.item.url),
+            onOtherAngles:
+              onOtherAngles && !isVideoItem(imageMenu.item)
+                ? () => onOtherAngles(imageMenu.item)
+                : undefined,
+            onGenerateVideo:
+              onGenerateVideo && !isVideoItem(imageMenu.item)
+                ? () => onGenerateVideo(imageMenu.item.url)
+                : undefined,
+            // ── Shared by both media types ──
+            onSaveToGallery: () => handleSaveToGallery(imageMenu.item),
+            onDownload: () => handleDownload(imageMenu.item),
             onCopyLink: () => {
               navigator.clipboard.writeText(imageMenu.item.url);
               toast.success("Link copied!");
             },
-            onSaveToGallery: () => handleSaveToGallery(imageMenu.item.url),
             onDelete: () => onDelete?.(imageMenu.item.id),
           })}
         />
@@ -181,7 +265,7 @@ export default function ProductHistoryGrid({
           index={lightboxIndex}
           onIndexChange={setLightboxIndex}
           onClose={() => setLightboxIndex(null)}
-          onDownload={(item) => handleDownload(item.url)}
+          onDownload={handleDownload}
         />
       )}
     </div>

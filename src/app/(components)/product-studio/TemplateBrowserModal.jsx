@@ -12,12 +12,26 @@ import { TEMPLATE_CATEGORIES } from "./videoTemplates";
 const SKELETONS = 24;
 
 /**
- * The "See all" template browser — category tabs over a grid of Pexels CLIPS.
+ * The "See all" template browser — category tabs over a grid of templates.
+ *
+ * ONE BROWSER, TWO CATALOGS. Both callers pass `staticItems` — a pinned catalog
+ * that it filters by the active tab without ever touching the network. Product
+ * Video passes clips (productVideoTemplates.js) and Product Staging passes
+ * photos (stagingTemplates.js); each tile carries a prompt written to match it,
+ * which is exactly why neither can be a live search any more. Everything else —
+ * layout, tabs, selection, tile size — is shared, so the two tools look and
+ * behave identically.
+ *
+ * ⚠️ The Pexels-search path (no `staticItems` → useTemplates → videoTemplates.js)
+ * is what Product Video used before its catalog existed, and NOTHING calls it
+ * today. It is kept only because it is the whole reason this component takes
+ * `categories`/`loading`/`retry` at all; delete it together with useTemplates.js
+ * and videoTemplates.js if no third caller wants a searched browser.
  *
  * PLAYBACK. A grid this dense would stutter if every tile decoded at once, so
  * TemplateTile only plays what is actually on screen: tiles below the fold
  * never fetch a byte, and ones you scroll past pause. That's what makes a
- * scrolling wall of video affordable here.
+ * scrolling wall of video affordable here. Static photo tiles just lazy-load.
  *
  * Picking hands the template back and closes; the caller pins it into the row
  * so the choice is visible where it was made.
@@ -29,26 +43,57 @@ const SKELETONS = 24;
  * @param {string} props.selectedId       Currently selected template id.
  * @param {(template: object) => void} props.onSelect
  * @param {() => void} props.onClose
+ * @param {string} [props.title="Template"] Heading shown top-left.
+ * @param {string[]} [props.categories]   Tabs; defaults to the video categories.
+ * @param {Array} [props.staticItems]     Render these (filtered by tab) instead
+ *   of searching Pexels. Each needs `category` to be filterable.
+ * @param {string} [props.tileClassName]  Tile sizing/aspect in the grid.
+ * @param {string} [props.objectPosition] Crop anchor for still tiles.
+ * @param {string} [props.applyLabel]     Passed through to TemplateTile: when set,
+ *   hovering a tile dims it and offers this call-to-action. Opt-in, because it
+ *   only makes sense for a catalog whose tiles REWRITE the caller's prompt box
+ *   (Product Video) rather than merely marking a selection.
  */
 export default function TemplateBrowserModal({
   selectedId,
   onSelect,
   onClose,
+  title = "Template",
+  categories = TEMPLATE_CATEGORIES,
+  staticItems = null,
+  tileClassName = "aspect-3/4 w-full",
+  objectPosition,
+  applyLabel,
 }) {
   const [activeCategory, setActiveCategory] = useState("All");
+  const isStatic = Array.isArray(staticItems);
   // No perPage — the default is what the row uses too, so they share one cache
-  // entry instead of each blending "All" separately.
-  const { items, loading, error, retry } = useTemplates({
+  // entry instead of each blending "All" separately. Disabled entirely in
+  // static mode (hooks can't be called conditionally).
+  const fetched = useTemplates({
     kind: "videos",
     category: activeCategory,
+    enabled: !isStatic,
   });
+
+  const { items, loading, error, retry } = isStatic
+    ? {
+        items:
+          activeCategory === "All"
+            ? staticItems
+            : staticItems.filter((t) => t.category === activeCategory),
+        loading: false,
+        error: null,
+        retry: () => {},
+      }
+    : fetched;
 
   return (
     <div
       className="fixed inset-0 z-215 flex items-center justify-center bg-black/30"
       onClick={onClose}
     >
-      {/* Same footprint as the Video Generator shell it opens from — the browser
+      {/* Same footprint as the tool shell it opens from — the browser
           reads as that panel expanding rather than as a second, smaller dialog,
           and the extra width goes straight into tile size. */}
       <div
@@ -56,25 +101,33 @@ export default function TemplateBrowserModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 pt-6 pb-4">
-          <h2 className="text-2xl font-bold text-gray-900">Template</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center hover:bg-gray-700 transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-full bg-gray-900 text-surface flex items-center justify-center hover:bg-gray-700 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Category tabs */}
+        {/* Category tabs.
+
+            ⚠️ The active pill is `text-surface`, NOT `text-white`. The dark
+            theme re-points `--color-gray-900` to near-WHITE (it is the primary
+            TEXT colour there, see globals.css), so `bg-gray-900 text-white`
+            renders white-on-white and the active tab disappears. `text-surface`
+            flips with it — #ffffff in light, #1c1c20 in dark — so the pill stays
+            inverted in both themes. Same rule for every ink-coloured control in
+            this file. */}
         <div className="flex items-center gap-2 px-6 pt-2 pb-4 overflow-x-auto hide-scrollbar">
-          {TEMPLATE_CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
               className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors cursor-pointer ${
                 activeCategory === cat
-                  ? "bg-gray-900 text-white"
+                  ? "bg-gray-900 text-surface"
                   : "bg-gray-100 text-gray-900 hover:bg-gray-200"
               }`}
             >
@@ -92,7 +145,7 @@ export default function TemplateBrowserModal({
                     key={i}
                     tone="soft"
                     shimmer
-                    className="aspect-3/4 w-full rounded-xl"
+                    className={`${tileClassName} rounded-xl`}
                   />
                 ))
               : items.map((t) => (
@@ -104,7 +157,10 @@ export default function TemplateBrowserModal({
                       onSelect(tpl);
                       onClose();
                     }}
-                    className="aspect-3/4 w-full"
+                    className={tileClassName}
+                    objectPosition={objectPosition}
+                    label={t.name}
+                    applyLabel={applyLabel}
                   />
                 ))}
           </div>
@@ -117,7 +173,7 @@ export default function TemplateBrowserModal({
               {error && (
                 <button
                   onClick={retry}
-                  className="px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-full bg-gray-900 text-surface text-sm font-medium hover:bg-gray-700 transition-colors cursor-pointer"
                 >
                   Try again
                 </button>

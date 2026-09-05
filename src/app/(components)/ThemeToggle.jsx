@@ -8,10 +8,14 @@ export default function ThemeToggle() {
   const { theme, toggle } = useTheme();
   const isDark = theme === "dark";
 
+  // Hover: `dark:hover:bg-gray-200`, not `gray-800`. The dark palette is
+  // INVERTED, so `gray-800` resolves to near-white (#e6e6ea) and the hover
+  // flashed a bright block behind the icon. `gray-200` (#2a2a30) is the subtle
+  // raise above the surface that was intended.
   return (
     <button
       onClick={toggle}
-      className="relative p-2.5 cursor-pointer rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+      className="relative p-2.5 cursor-pointer rounded-xl hover:bg-gray-100 dark:hover:bg-gray-200 transition-colors"
       aria-label="Toggle dark mode"
     >
       <motion.div

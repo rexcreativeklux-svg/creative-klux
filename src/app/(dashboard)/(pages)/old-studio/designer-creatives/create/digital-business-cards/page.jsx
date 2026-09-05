@@ -1624,7 +1624,7 @@ const DigitalBusinessCardCreationPage = () => {
                         </button>
                         <button
                           onClick={handleCancelSelection}
-                          className="px-4 py-2 bg-gray-600 hover:bg-gray-800 text-white rounded-lg cursor-pointer"
+                          className="px-4 py-2 bg-gray-600 hover:bg-gray-800 text-surface rounded-lg cursor-pointer"
                           aria-label="Cancel Selection"
                         >
                           Cancel
@@ -1704,7 +1704,7 @@ const DigitalBusinessCardCreationPage = () => {
                       </button>
                       <button
                         onClick={handleCancelSelection}
-                        className="px-4 py-2 bg-gray-600 hover:bg-gray-800 text-white rounded-lg cursor-pointer"
+                        className="px-4 py-2 bg-gray-600 hover:bg-gray-800 text-surface rounded-lg cursor-pointer"
                         aria-label="Cancel Selection"
                       >
                         Cancel
@@ -1769,7 +1769,7 @@ const DigitalBusinessCardCreationPage = () => {
                       </button>
                       <button
                         onClick={handleCancelSelection}
-                        className="px-4 py-2 bg-gray-600 hover:bg-gray-800 text-white rounded-lg cursor-pointer"
+                        className="px-4 py-2 bg-gray-600 hover:bg-gray-800 text-surface rounded-lg cursor-pointer"
                         aria-label="Cancel Selection"
                       >
                         Cancel

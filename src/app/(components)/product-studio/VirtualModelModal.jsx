@@ -8,7 +8,13 @@ import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
 import { X, Plus, Upload, Loader2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { px, pxbg, QUALITY_RES, SIZES } from "./constants";
+import { pxbg, QUALITY_RES, SIZES, stockQueryForTool } from "./constants";
+import {
+  VIRTUAL_MODELS,
+  VIRTUAL_MODELS_BY_ID,
+  DEFAULT_MODEL_ID,
+  buildModelPrompt,
+} from "./virtualModels";
 import { FloatingPanel } from "./FloatingPanels";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import QualityDropdown from "./QualityDropdown";
@@ -25,155 +31,6 @@ const ANGLE_INSTRUCTION =
 const CLOTHING_IMG =
   "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1783763628-6a5212ac83271.webp";
 
-const MODELS = [
-  {
-    id: "avery",
-    name: "Avery",
-    emoji: "👩",
-    desc: "Woman, straight hair, jeans",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393304-6a5bae58eeb9b.webp",
-  },
-  {
-    id: "sam",
-    name: "Sam",
-    emoji: "👨",
-    desc: "Man, black tee, grey pants",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393320-6a5bae6846c5e.webp",
-  },
-  {
-    id: "taylor",
-    name: "Taylor",
-    emoji: "👨",
-    desc: "Man, white tee, khaki",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393316-6a5bae647e40b.webp",
-  },
-  {
-    id: "kendall",
-    name: "Kendall",
-    emoji: "👩",
-    desc: "Woman, white tee, jeans",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393312-6a5bae60ae9e2.webp",
-  },
-  {
-    id: "jordan",
-    name: "Jordan",
-    emoji: "👨",
-    desc: "Man, beige outfit",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393308-6a5bae5cc9d18.webp",
-  },
-  {
-    id: "casey",
-    name: "Casey",
-    emoji: "👩",
-    desc: "Woman, all white",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393301-6a5bae5522f20.webp",
-  },
-  {
-    id: "alex",
-    name: "Alex",
-    emoji: "👩",
-    desc: "Woman, beige set",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393297-6a5bae5159941.webp",
-  },
-  {
-    id: "maya",
-    name: "Maya",
-    emoji: "👩",
-    desc: "Woman, black outfit",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393293-6a5bae4d875f1.webp",
-  },
-  {
-    id: "reece",
-    name: "Reece",
-    emoji: "👨",
-    desc: "Man, casual jeans",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393289-6a5bae49bbbee.webp",
-  },
-  {
-    id: "lara",
-    name: "Lara",
-    emoji: "👩",
-    desc: "Woman, blue jeans",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393285-6a5bae45e6d62.webp",
-  },
-  {
-    id: "julia",
-    name: "Julia",
-    emoji: "👩",
-    desc: "Woman, light jeans",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784393282-6a5bae4233fc2.webp",
-  },
-  {
-    id: "morgan",
-    name: "Morgan",
-    emoji: "👩",
-    desc: "Woman, casual wear",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382690-6a5b84e293e52.webp",
-  },
-  {
-    id: "charlie",
-    name: "Charlie",
-    emoji: "👨",
-    desc: "Man, street style",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382658-6a5b84c237702.webp",
-  },
-  {
-    id: "riley",
-    name: "Riley",
-    emoji: "👩",
-    desc: "Woman, summer dress",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382699-6a5b84ebda28b.webp",
-  },
-  {
-    id: "parker",
-    name: "Parker",
-    emoji: "👨",
-    desc: "Man, denim jacket",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382669-6a5b84cdb7e7d.webp",
-  },
-  {
-    id: "finley",
-    name: "Finley",
-    emoji: "👩",
-    desc: "Woman, activewear",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382591-6a5b847fdbd4d.webp",
-  },
-  {
-    id: "skyler",
-    name: "Skyler",
-    emoji: "👨",
-    desc: "Man, smart casual",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382678-6a5b84d635bc6.webp",
-  },
-  {
-    id: "rowan",
-    name: "Rowan",
-    emoji: "👩",
-    desc: "Woman, oversized tee",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784380610-6a5b7cc2d1bac.webp",
-  },
-  {
-    id: "kai",
-    name: "Kai",
-    emoji: "👨",
-    desc: "Man, hoodie and shorts",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784382227-6a5b83133568b.webp",
-  },
-  {
-    id: "quinn",
-    name: "Quinn",
-    emoji: "👩",
-    desc: "Woman, classic blazer",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784380743-6a5b7d4777bda.webp",
-  },
-  {
-    id: "avery_two",
-    name: "Avery II",
-    emoji: "👨",
-    desc: "Man, monochrome set",
-    img: "https://d3r8chxzp8ea06.cloudfront.net/creativeklux/creativeklux-file-1784379783-6a5b7987058f2.webp",
-  },
-];
 
 // const POSES = [
 //   { id: "random", name: "Random", img: px(31046827) },
@@ -322,13 +179,18 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
 
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [selectedModel, setSelectedModel] = useState("morgan");
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL_ID);
   // const [selectedPose, setSelectedPose] = useState('3_4_turn');
   const [quality, setQuality] = useState("Standard");
   const [background, setBackground] = useState("concrete_studio");
   const [size, setSize] = useState("portrait_2_3");
   const [applyBrandStyle, setApplyBrandStyle] = useState(true);
-  const [prompt, setPrompt] = useState("");
+  // Seeded from the default model's description, exactly like the staging
+  // template picker seeds its scene: the box opens with a usable prompt the
+  // user can send as-is or edit. Every model pick rewrites it.
+  const [prompt, setPrompt] = useState(
+    VIRTUAL_MODELS_BY_ID[DEFAULT_MODEL_ID].prompt,
+  );
   const [generating, setGenerating] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // gallery/cloud URL of the picked image
@@ -337,6 +199,13 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
   const [pickerMode, setPickerMode] = useState("product");
   // values: "product" | "model"
   const [customModels, setCustomModels] = useState([]);
+  // A model the user picked but hasn't described yet: { img } while the
+  // "Describe your model" step is open. The backend has NO model registry —
+  // it only ever sees the reference image and the prompt we send — so an
+  // undescribed custom model would generate against a blank description.
+  // That's why the description is required rather than optional here.
+  const [pendingModel, setPendingModel] = useState(null);
+  const [modelDescription, setModelDescription] = useState("");
   // Which half is on screen below `lg` ("setup" | "result") — see
   // ToolModalMobileHeader. Ignored above it, where both are side by side.
   const [mobileView, setMobileView] = useState("setup");
@@ -400,24 +269,14 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
     // ----------------------------
     // ADDING A CUSTOM MODEL
     // ----------------------------
+    // The model isn't added yet — describing it is a required step, so the
+    // pick only opens the description form. Nothing lands in the roster (or
+    // gets selected) until that form is submitted.
     if (isAddingModel) {
-      const randomName =
-        RANDOM_MODEL_NAMES[
-          Math.floor(Math.random() * RANDOM_MODEL_NAMES.length)
-        ];
-
-      const customModel = {
-        id: `custom_${Date.now()}`,
-        name: randomName,
-        img: imageUrl,
-        desc: "Custom model",
-        emoji: "👤",
-      };
-
-      setCustomModels((prev) => [...prev, customModel]);
-      setSelectedModel(customModel.id);
-
+      setPendingModel({ img: imageUrl });
+      setModelDescription("");
       setPickerOpen(false);
+      setPickerMode("product");
       return;
     }
 
@@ -439,6 +298,47 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
     setPickerMode("product");
   };
 
+  // Minimum useful description. A couple of words ("a man") tells the generator
+  // almost nothing, so the form stays disabled until there's a real sentence.
+  const MIN_DESCRIPTION = 15;
+  const descriptionReady = modelDescription.trim().length >= MIN_DESCRIPTION;
+
+  /**
+   * Picking a model REPLACES the prompt with that model's description — same
+   * rule as the staging template picker. Any refinement the user typed survives
+   * only as edits made AFTER the pick.
+   */
+  const selectModel = (model) => {
+    setSelectedModel(model.id);
+    if (model.prompt) setPrompt(model.prompt);
+    setOpenDropdown(null);
+  };
+
+  /**
+   * Finish adding the user's own model: turn the typed description into the
+   * same prompt shape the built-in roster uses, add it, select it and seed the
+   * prompt box with it.
+   */
+  const confirmCustomModel = () => {
+    if (!pendingModel || !descriptionReady) return;
+    const description = modelDescription.trim();
+    const customModel = {
+      id: `custom_${Date.now()}`,
+      name: RANDOM_MODEL_NAMES[
+        Math.floor(Math.random() * RANDOM_MODEL_NAMES.length)
+      ],
+      img: pendingModel.img,
+      desc: description,
+      emoji: "👤",
+      isCustom: true,
+      prompt: buildModelPrompt(description),
+    };
+    setCustomModels((prev) => [...prev, customModel]);
+    selectModel(customModel);
+    setPendingModel(null);
+    setModelDescription("");
+  };
+
   // Options let result-menu actions regenerate off a specific result instead of
   // the sidebar's uploaded image:
   //   • promptOverride   — send this prompt instead of the sidebar's.
@@ -456,7 +356,15 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
       toast.error("Please select a product image first");
       return;
     }
-    const promptToSend = promptOverride != null ? promptOverride : prompt;
+    // The prompt box is seeded with the selected model's description, so
+    // normally it already carries it. If the user emptied the box, fall back to
+    // that description rather than sending nothing — the backend keeps no model
+    // registry, so an empty prompt means it has no idea who to render.
+    const selected = allModels.find((m) => m.id === selectedModel);
+    const promptToSend =
+      promptOverride != null
+        ? promptOverride
+        : prompt.trim() || selected?.prompt || "";
     setGenerating(true);
     setOpenDropdown(null);
     // Mobile: hand the screen to the canvas so the in-flight tile is what the
@@ -487,10 +395,10 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
       const payload = {
         tool: TOOL_ENUM.virtual_model, // "virtual_model"
         image_url: imageUrl, // single image URL
-        model_name: modelName || selectedModel, // model id, e.g. "jordan"
-        model_image_url:
-          modelImageUrl ||
-          allModels.find((model) => model.id === selectedModel)?.img,
+        model_name: modelName || selectedModel, // model id, e.g. "elena"
+        // The reference photo. For the built-in roster this is a Pexels CDN
+        // URL; for a user's own model it's whatever the gallery picker gave us.
+        model_image_url: modelImageUrl || selected?.img,
         //   pose: selectedPose, // pose id, e.g. "3_4_turn"
         quality: QUALITY_ENUM[quality] || "standard",
         size, // aspect-ratio id
@@ -523,10 +431,10 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
 
   const toggle = (key) => setOpenDropdown((p) => (p === key ? null : key));
 
-  const allModels = [...MODELS, ...customModels];
+  // Built-in roster first, then anything the user added this session.
+  const allModels = [...VIRTUAL_MODELS, ...customModels];
 
   const modelObj = allModels.find((m) => m.id === selectedModel);
-  // const modelObj = MODELS.find((m) => m.id === selectedModel);
   // const poseObj = POSES.find(p => p.id === selectedPose);
   const bgObj = BACKGROUNDS.find((b) => b.id === background);
   const sizeObj = SIZES.find((s) => s.id === size);
@@ -558,9 +466,9 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
       modelImageUrl: meta.model_image_url,
     });
   };
-  // "Generate video": hand this image to the Video Generator, preselected.
+  // "Generate video": hand this image to Product Video, preselected.
   const handleGenerateVideo = (url) =>
-    onSwitchTool?.("video", { initialImageUrl: url });
+    onSwitchTool?.("product_video", { initialImageUrl: url });
 
   return (
     <div
@@ -740,7 +648,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the image you want (optional)"
-                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed"
+                  className="w-full text-sm text-gray-500 placeholder:text-gray-500 bg-transparent outline-none resize-none leading-relaxed thin-scrollbar"
                   rows={4}
                 />
               </div>
@@ -892,13 +800,17 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
           subtitle={modelObj?.name}
           onClose={() => setOpenDropdown(null)}
         >
-          <div className="grid grid-cols-4 gap-2 p-3 max-h-[70vh]">
+          <p className="px-3 pt-3 text-[11px] text-gray-500">
+            Pick a model — their description replaces the prompt below.
+          </p>
+          <div className="grid grid-cols-4 gap-2 p-3 max-h-[70vh] overflow-y-auto">
             <button
               onClick={() => {
                 setPickerMode("model");
                 setPickerOpen(true);
                 setOpenDropdown(null);
               }}
+              title="Use your own model"
               className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-lg h-24 text-gray-500 hover:border-blue-400 transition-colors"
             >
               <Plus className="w-5 h-5" />
@@ -906,16 +818,15 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
             {allModels.map((m) => (
               <button
                 key={m.id}
-                onClick={() => {
-                  setSelectedModel(m.id);
-                  setOpenDropdown(null);
-                }}
+                onClick={() => selectModel(m)}
+                title={m.desc}
                 className={`flex flex-col items-center p-1.5 rounded-lg border-2 transition-colors ${selectedModel === m.id ? "border-blue-500" : "border-transparent hover:border-gray-200"}`}
               >
                 <div className="w-14 h-20 bg-gray-100 rounded-lg overflow-hidden relative mb-1">
                   <img
                     src={m.img}
                     alt={m.name}
+                    loading="lazy"
                     className="w-full h-full object-cover object-top"
                   />
                   {selectedModel === m.id && (
@@ -924,7 +835,9 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                     </div>
                   )}
                 </div>
-                <span className="text-[10px] text-gray-500">{m.name}</span>
+                <span className="text-[10px] text-gray-500 truncate max-w-full">
+                  {m.name}
+                </span>
               </button>
             ))}
           </div>
@@ -1024,6 +937,81 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
         />
       )}
 
+      {/* ── Describe your model — REQUIRED step after picking your own model ──
+          The reference photo alone doesn't tell the generator who this is, so
+          the model isn't added to the roster until this is filled in. ── */}
+      {pendingModel && (
+        <div
+          className="fixed inset-0 z-220 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setPendingModel(null)}
+        >
+          <div
+            className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between px-5 pt-5">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  Describe your model
+                </h3>
+                <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Your photo shows us the look — the description tells the AI who
+                  is wearing your product. Both get sent.
+                </p>
+              </div>
+              <button
+                onClick={() => setPendingModel(null)}
+                aria-label="Cancel"
+                className="shrink-0 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex gap-4 px-5 pt-4">
+              <div className="w-24 h-32 shrink-0 rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
+                <img
+                  src={pendingModel.img}
+                  alt="Your model"
+                  className="w-full h-full object-cover object-top"
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <textarea
+                  autoFocus
+                  value={modelDescription}
+                  onChange={(e) => setModelDescription(e.target.value)}
+                  placeholder="e.g. a woman in her thirties with long dark hair, wearing a white shirt and blue jeans, standing against a plain studio background"
+                  className="w-full h-32 text-sm text-gray-900 placeholder:text-gray-500 bg-gray-100 rounded-xl p-3 outline-none resize-none leading-relaxed focus:ring-2 focus:ring-blue-500 thin-scrollbar"
+                />
+              </div>
+            </div>
+
+            <p className="px-5 pt-2 text-[11px] text-gray-500">
+              {descriptionReady
+                ? "Looks good — you can edit this in the prompt box afterwards."
+                : `Describe their build, hair, outfit and pose (${modelDescription.trim().length}/${MIN_DESCRIPTION} characters).`}
+            </p>
+
+            <div className="flex gap-2 px-5 pt-4 pb-[calc(1.25rem+var(--ck-safe-b))] sm:pb-5">
+              <button
+                onClick={() => setPendingModel(null)}
+                className="flex-1 py-3 rounded-2xl text-sm font-semibold text-gray-900 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmCustomModel}
+                disabled={!descriptionReady}
+                className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Add model
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Gallery media picker — pick ONE image (My Library / Search / Upload) */}
       <MediaPickerModal
         maxSelectable={10}
@@ -1032,6 +1020,9 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
         onCancel={() => setPickerOpen(false)}
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
+        // Open Search on garment/product shots — this tool dresses a model in
+        // whatever is picked, so generic brand imagery is useless here.
+        defaultSearchQuery={stockQueryForTool("virtual")}
       />
     </div>
   );

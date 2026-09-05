@@ -39,6 +39,175 @@ import {
 } from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
 
 /**
+ * One template card: poster, hover-to-play clip, and the button that applies it.
+ *
+ * Split out of OptionPanelBody because it owns per-card state (which card is
+ * being hovered) and a ref to the <video> it has to start and rewind — neither
+ * of which belongs in a function that renders six other panel kinds.
+ *
+ * @param {object} props
+ * @param {object} props.template The catalog entry.
+ * @param {boolean} props.active Whether this is the applied template.
+ * @param {() => void} props.onApply
+ */
+function TemplateCard({ template, active, onApply }) {
+  const videoRef = useRef(null);
+  const Icon = template.icon;
+
+  // Play from the top on every hover, and stop on the way out — a clip left
+  // mid-way through reads as a stalled download the next time you pass over it.
+  const play = () => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.currentTime = 0;
+    // Autoplay can be refused (a data-saver setting, reduced-motion); the poster
+    // simply stays up, which is the same thing the card shows when idle.
+    el.play?.().catch(() => {});
+  };
+  const stop = () => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.pause?.();
+    el.currentTime = 0;
+  };
+
+  return (
+    <div
+      onMouseEnter={play}
+      onMouseLeave={stop}
+      className={`group relative flex flex-col overflow-hidden rounded-2xl border-2 bg-surface text-left transition-colors ${
+        active ? "border-blue-500" : "border-gray-200 hover:border-blue-300"
+      }`}
+    >
+      <div className="relative aspect-video w-full bg-gray-100">
+        {/* The icon ground sits under both, so a card with no media — the
+            "write your own" one — and a file that fails to load land in the
+            same designed state rather than on a broken-image glyph. */}
+        <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-gray-100 to-gray-200">
+          {Icon && (
+            <Icon
+              className={`h-7 w-7 ${active ? "text-blue-500" : "text-gray-400"}`}
+              strokeWidth={1.5}
+            />
+          )}
+        </div>
+        {template.image && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={template.image}
+            alt={template.label}
+            loading="lazy"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+        {template.video && (
+          <video
+            ref={videoRef}
+            src={template.video}
+            poster={template.image || undefined}
+            muted
+            loop
+            playsInline
+            preload="none"
+            className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity group-hover:opacity-100"
+          />
+        )}
+
+        {/* The apply button rides on the poster rather than under it: the card
+            is already a hover surface for the clip, and a second row of chrome
+            per card would halve how many fit in the panel. */}
+        <button
+          type="button"
+          onClick={onApply}
+          className="absolute inset-x-2 bottom-2 rounded-lg bg-blue-600/95 px-2 py-1.5 text-[11px] font-semibold text-white opacity-0 shadow transition-opacity hover:bg-blue-700 group-hover:opacity-100 focus-visible:opacity-100 cursor-pointer"
+        >
+          Use template
+        </button>
+
+        {active && (
+          <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 shadow">
+            <Check className="h-3 w-3 text-white" />
+          </span>
+        )}
+      </div>
+
+      <div className="px-2.5 py-2">
+        <span
+          className={`block text-xs font-bold ${active ? "text-blue-700" : "text-gray-900"}`}
+        >
+          {template.label}
+        </span>
+        {template.desc && (
+          <p className="mt-0.5 text-[10px] leading-snug text-gray-500">
+            {template.desc}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The templates panel — the cards, grouped under their category headings.
+ *
+ * ⚠️ THE HEADINGS ARE THE REASON THIS ISN'T THE `cards` PANEL. The catalog has
+ * carried a `category` on every entry since it was written, and the flat grid
+ * threw it away: five groups' worth of structure rendered as one undifferentiated
+ * wall. With sixteen entries and a wider panel, the grouping is what makes it
+ * browsable instead of scrollable.
+ */
+function TemplatePanelBody({ option, value, onSelect }) {
+  const items = option.items || [];
+  const order = option.categoryOrder || [];
+  // Anything with no category (the "write your own" card) leads, ungrouped.
+  const loose = items.filter((item) => !item.category);
+  const groups = order
+    .map((category) => ({
+      category,
+      items: items.filter((item) => item.category === category),
+    }))
+    .filter((group) => group.items.length > 0);
+
+  return (
+    <div className="p-3">
+      {loose.length > 0 && (
+        <div className="mb-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          {loose.map((item) => (
+            <TemplateCard
+              key={item.value}
+              template={item}
+              active={value === item.value}
+              onApply={() => onSelect(item.value)}
+            />
+          ))}
+        </div>
+      )}
+
+      {groups.map((group) => (
+        <div key={group.category} className="mb-3 last:mb-0">
+          <p className="mb-1.5 px-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            {group.category}
+          </p>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {group.items.map((item) => (
+              <TemplateCard
+                key={item.value}
+                template={item}
+                active={value === item.value}
+                onApply={() => onSelect(item.value)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * ── Option chooser body (rich cards keyed by option.panel) ───────────────────
  *
  * @param {object} props
@@ -52,6 +221,91 @@ import {
  */
 export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
   const { panel, items } = option;
+
+  // A number picked off a continuous range (Duration).
+  //
+  // ⚠️ A SLIDER, NOT A LIST, AND THE RANGE IS WHY — the same reasoning the
+  // composer's variations control is built on. Thirty entries is a menu you
+  // scroll to answer "how long", a question you already know the answer to
+  // before you open it; dragging reaches any of them in one gesture.
+  //
+  // ⚠️ IT COMMITS WITH `keepOpen`, WHICH IS NOT OPTIONAL HERE. `onChange` fires
+  // on every step of a drag, and the surfaces that close on select would vanish
+  // mid-gesture on whatever number the thumb happened to pass through first.
+  //
+  // ⚠️ THE VALUE IS WRITTEN BACK AS A STRING. Every options value in these
+  // configs is a string and rides into the payload untouched (`duration:
+  // values.duration`), so a slider that started emitting numbers would silently
+  // change what goes on the wire for one option and no other.
+  if (panel === "slider") {
+    const min = Number(option.min ?? 1);
+    const max = Number(option.max ?? 10);
+    const step = Number(option.step ?? 1);
+    const unit = option.unit || "";
+    const raw = Number(value ?? option.default);
+    const current = Number.isFinite(raw) ? Math.min(max, Math.max(min, raw)) : min;
+    const hint = option.hint?.(current);
+
+    return (
+      <div className="flex flex-col gap-2.5 px-3 pb-3 pt-2.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-sm font-semibold tabular-nums text-gray-900">
+            {current}
+            {unit}
+          </span>
+          {hint && (
+            <span className="min-w-0 truncate text-[11px] text-gray-400">
+              {hint}
+            </span>
+          )}
+        </div>
+
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={current}
+          onChange={(event) =>
+            onSelect(String(Number(event.target.value)), { keepOpen: true })
+          }
+          aria-label={option.label}
+          className="w-full cursor-pointer accent-blue-600"
+        />
+
+        <div className="flex justify-between text-[10px] tabular-nums text-gray-400">
+          <span>
+            {min}
+            {unit}
+          </span>
+          <span>
+            {max}
+            {unit}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Template cards: the source still, the clip it becomes, and the prompt that
+  // did it — three to a row.
+  //
+  // ⚠️ THE POSTER IS THE INPUT, NOT AN ILLUSTRATION. Every other picker in this
+  // app shows a picture OF a look; these show the exact frame the template was
+  // run on, and applying one selects it as the tool's source image. That is what
+  // makes the hover clip an honest promise rather than a mood board — press
+  // Generate straight after applying and you are asking for the thing you just
+  // watched.
+  //
+  // ⚠️ THE CLIP LOADS ON HOVER, NOT ON OPEN. Sixteen autoplaying <video>
+  // elements in a dropdown is tens of megabytes fetched to look at a grid, so
+  // `preload="none"` holds every one of them at zero bytes until a pointer
+  // actually lands on a card.
+  if (panel === "templates") {
+    return (
+      <TemplatePanelBody option={option} value={value} onSelect={onSelect} />
+    );
+  }
 
   // Image cards: thumbnail + label + description (Visual style).
   if (panel === "cards") {
@@ -423,6 +677,11 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
 export function summarize(option, value) {
   const found = option.items?.find((i) => i.value === value);
   if (found) return found.label;
+  // A slider has no items to look a label up in — its value IS the label, and
+  // the unit is what makes "7" read as a length rather than a count.
+  if (option.panel === "slider") {
+    return `${value ?? option.default ?? ""}${option.unit || ""}`;
+  }
   // A colour typed into the hex box is a legitimate value with no item behind
   // it — show it as the hex, uppercased, rather than falling through to a raw
   // lowercase string beside a row of proper labels.

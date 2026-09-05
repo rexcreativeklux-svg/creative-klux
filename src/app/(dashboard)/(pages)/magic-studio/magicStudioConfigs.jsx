@@ -72,6 +72,18 @@ import {
   Blend,
   Scissors,
   Users,
+  ImagePlay,
+  Speech,
+  Eraser,
+  Maximize2,
+  WandSparkles,
+  Waves,
+  Wind,
+  Frame,
+  MonitorPlay,
+  Expand,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 import {
@@ -79,6 +91,13 @@ import {
   resolveMediaUrl,
   saveTextToAudio,
 } from "@/(lib)/magic-studio-api";
+import {
+  CATEGORY_ORDER as TEMPLATE_CATEGORY_ORDER,
+  CUSTOM_EFFECT,
+  VIDEO_EFFECT_TEMPLATES,
+  effectImage,
+  effectPrompt,
+} from "@/app/(components)/magic-studio/videoEffectTemplates";
 import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
 import {
   backendVoiceId,
@@ -707,6 +726,70 @@ const logoField = (value) => {
 };
 
 /**
+ * The `prompt` field for a payload — absent unless something was written.
+ *
+ * ⚠️ NOT THE SAME AS {@link descriptionField}, and the difference is the wire
+ * name rather than the box. Both read the composer's textarea on a tool whose
+ * primary input is a picture; this one sends what was typed as `prompt` because
+ * on these tools the words describe the MOTION to create, not a note about a
+ * picture that already exists. Sending motion directions under `description`
+ * would file them as an aside on a tool where they are the direction.
+ *
+ * ⚠️ IT IS OPTIONAL, AND OMITTED WHEN EMPTY — the same rule as COLOR_OPTION's
+ * and descriptionField's, for the same reason: this endpoint rejects fields it
+ * doesn't declare, so an untouched composer must post the payload it always did.
+ * Image to Video is genuinely usable with no words at all — a still carries
+ * enough for a model to infer the movement — which is why this omits rather than
+ * sending an empty string.
+ */
+const promptField = (value) => {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text ? { prompt: text } : {};
+};
+
+/**
+ * The `sound` field for a payload — absent while the clip is silent.
+ *
+ * Silence is what a video tool has always produced here, so leaving the field
+ * out on the default keeps an untouched run byte-identical to the one before
+ * this option existed. Only a deliberate "With sound" says anything on the wire.
+ */
+const soundField = (value) => (value === "on" ? { sound: true } : {});
+
+/**
+ * What the background remover should put behind the subject.
+ *
+ * ⚠️ THE ONE PLACE {@link AUTO_COLOR} IS *NOT* AN OMISSION. Everywhere else the
+ * sentinel means "no preference, leave the field out" — here it means
+ * transparent, which is the entire product: a clip with a hole in it, for an
+ * editor to drop something behind. Omitting the field would ask for whatever the
+ * backend defaults to, which is the opposite of a deliberate choice. So this one
+ * always sends, and it sends the literal "transparent".
+ *
+ * The panel already draws AUTO_COLOR as an empty slashed swatch, which reads as
+ * "nothing" rather than as a shade — so the sentinel and the meaning line up
+ * with no new panel kind (see OptionPanelBody's `colors` branch).
+ */
+const backgroundValue = (value) =>
+  !value || value === AUTO_COLOR ? "transparent" : value;
+
+/**
+ * The container a background-removed clip has to come back in — DERIVED from the
+ * background, never chosen.
+ *
+ * Transparency needs an alpha-capable container and MP4 has none, so the two
+ * move together: a transparent result is MOV, and anything with a colour behind
+ * it is MP4. Offering a format picker beside the background would let someone
+ * ask for a transparent MP4 — a combination with no valid answer — and the
+ * failure would only surface after the render.
+ *
+ * Derived in one place rather than written into the payload at the call site, so
+ * the rule can't be applied differently on a second surface.
+ */
+const formatForBackground = (value) =>
+  backgroundValue(value) === "transparent" ? "mov" : "mp4";
+
+/**
  * The nine styles the BACKEND knows by name.
  *
  * ⚠️ THE `value` IS THE WHOLE CONTRACT. Each of these keys is one the backend
@@ -1011,6 +1094,251 @@ const FORMAT_LABELS = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Shared pieces for the video tools
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Which engine does the work — named for the OUTCOME, not for the provider.
+ *
+ * ⚠️ THE KEY IS `engine`, AND IT MUST NOT BE `model`. StudioComposer merges its
+ * own app-wide model preference into the values at submit — `{ ...values, model,
+ * variations }` — so an option keyed `model` is overwritten on the way out with
+ * no warning anywhere, and the picker would look like it worked. `engine` also
+ * reads better beside that preference: one is about this run, the other is about
+ * the user.
+ *
+ * ⚠️ NO PROVIDER NAMES, DELIBERATELY. The obvious version of this row is a list
+ * of the models behind it, and it is the wrong one twice over: the names date
+ * within weeks (the reference's own marketing page and its live workspace
+ * already disagree on which models it runs), and "which vendor" is not a
+ * question a user can answer — "how should this look" is. The mapping from these
+ * three to whatever is actually running lives on the backend, where swapping a
+ * model is a config change rather than a UI release.
+ */
+const ENGINE_OPTION = {
+  key: "engine",
+  label: "Motion engine",
+  panel: "list",
+  width: 320,
+  default: "fast",
+  items: [
+    {
+      value: "fast",
+      label: "Fast",
+      desc: "Quick, lively motion for the feed",
+      icon: Zap,
+    },
+    {
+      value: "cinematic",
+      label: "Cinematic",
+      desc: "High fidelity, steadier subject",
+      icon: Film,
+    },
+    {
+      value: "creative",
+      label: "Creative",
+      desc: "Looser and more inventive",
+      icon: Sparkles,
+    },
+  ],
+};
+
+/**
+ * How much movement to put in the clip.
+ *
+ * ⚠️ THREE NAMED STEPS RATHER THAN A SLIDER, and that is a constraint rather
+ * than a preference: there is no slider panel kind (see OptionPanelBody), and
+ * inventing a 0–100 scale would put a number on the wire that nothing on either
+ * side has agreed the meaning of. Named steps say what they do and map cleanly
+ * to whatever range the provider turns out to want.
+ */
+const MOTION_OPTION = {
+  key: "motion",
+  label: "Motion",
+  panel: "list",
+  width: 320,
+  default: "balanced",
+  items: [
+    {
+      value: "subtle",
+      label: "Subtle",
+      desc: "Small, believable movement",
+      icon: Waves,
+    },
+    {
+      value: "balanced",
+      label: "Balanced",
+      desc: "Recommended",
+      icon: Gauge,
+    },
+    {
+      value: "dynamic",
+      label: "Dynamic",
+      desc: "Bigger camera and subject motion",
+      icon: Wind,
+    },
+  ],
+};
+
+/** Every resolution any video tool offers, keyed by value. */
+const RESOLUTION_ITEMS = {
+  "480p": {
+    value: "480p",
+    label: "480p",
+    desc: "Fastest",
+    icon: Frame,
+  },
+  "720p": {
+    value: "720p",
+    label: "720p",
+    desc: "Recommended",
+    icon: MonitorPlay,
+  },
+  "1080p": {
+    value: "1080p",
+    label: "1080p",
+    desc: "Sharpest",
+    icon: Expand,
+  },
+  "2k": {
+    value: "2k",
+    label: "2K",
+    desc: "Maximum detail",
+    icon: Maximize2,
+  },
+};
+
+/**
+ * A resolution row for one tool.
+ *
+ * A FACTORY rather than a shared constant because the tools genuinely differ on
+ * both the range and the default — a generator tops out where an upscaler
+ * starts — while the CARDS must stay identical, or "1080p" would wear a
+ * different glyph and a different description depending on which tool you opened
+ * it from. Same reasoning as OPTION_ICONS being keyed centrally in the composer.
+ *
+ * @param {string[]} values Which resolutions this tool offers, in display order.
+ * @param {string} fallback The one selected on an untouched composer.
+ */
+const resolutionOption = (values, fallback) => ({
+  key: "resolution",
+  label: "Resolution",
+  panel: "list",
+  width: 320,
+  default: fallback,
+  items: values.map((value) => RESOLUTION_ITEMS[value]),
+});
+
+/**
+ * How long a generated clip runs, in seconds.
+ *
+ * ⚠️ ONE CONSTANT FOR ALL THREE VIDEO TOOLS, and the history is why. Text to
+ * Video, Image to Video and Video Effects each carried their own list, and they
+ * disagreed — 5/10 on two of them, 3/5/8/10 on the third — so the same setting
+ * offered different answers depending on which tool you opened it from. Sharing
+ * it means the accepted range is stated once and cannot drift again.
+ *
+ * ⚠️ THE RANGE IS THE PROVIDER'S, NOT A UI CHOICE. These lists were once
+ * narrowed to the literals '5' and '10' because the model behind them
+ * (fal-ai/kling-video) rejected everything else with "Input should be '5' or
+ * '10'" — a failure that only surfaced once the job had been queued and come
+ * back, so it read as "the tool is broken" rather than as an invalid option. The
+ * backend now accepts any whole number of seconds from 1 to 30, which is what
+ * this slider offers. If a model is ever swapped in behind `startGeneration`
+ * that narrows it again, change `min`/`max` HERE and all three tools follow.
+ *
+ * A slider rather than a list for the same reason the variations control is one:
+ * thirty entries is a menu you have to scroll to answer a question you already
+ * know the answer to. See the `slider` panel in OptionPanelBody.
+ */
+const VIDEO_DURATION_OPTION = {
+  key: "duration",
+  label: "Duration",
+  panel: "slider",
+  // Matches the variations panel, which is the control this one is modelled on.
+  width: 260,
+  min: 1,
+  max: 30,
+  step: 1,
+  unit: "s",
+  // A string, like every other option value here — it rides into the payload
+  // untouched, and the provider has always been given these as strings.
+  default: "5",
+  hint: (seconds) =>
+    seconds <= 5
+      ? "Quick to render"
+      : seconds <= 10
+        ? "Short form"
+        : "Longer clips take longer to render",
+};
+
+/** Whether the clip comes back with audio. */
+const SOUND_OPTION = {
+  key: "sound",
+  label: "Sound",
+  panel: "list",
+  width: 300,
+  default: "off",
+  items: [
+    {
+      value: "off",
+      label: "Silent",
+      desc: "Video only",
+      icon: VolumeX,
+    },
+    {
+      value: "on",
+      label: "With sound",
+      desc: "Generate matching audio",
+      icon: Volume2,
+    },
+  ],
+};
+
+/**
+ * The narration voices, shared by Script to Voiceover and Digital Human.
+ *
+ * ⚠️ SHARED ITEMS, PER-TOOL ROW. The VALUES are a contract with the backend and
+ * must be identical everywhere — "Warm female" cannot mean two different voices
+ * depending on which tool you picked it in — but the row's label differs by
+ * tool ("Voiceover style" over a script, "Voice" over an avatar), so each config
+ * declares its own row around this one list. Same split CORE_STYLES already
+ * uses.
+ */
+const VOICE_ITEMS = [
+  { value: "male_deep", label: "Deep male", desc: "Rich & authoritative", icon: Mic },
+  { value: "male_neutral", label: "Neutral male", desc: "Clear & professional", icon: User },
+  { value: "female_warm", label: "Warm female", desc: "Friendly & engaging", icon: Heart },
+  { value: "female_pro", label: "Pro female", desc: "Polished & confident", icon: Mic },
+  { value: "energetic", label: "Energetic", desc: "Upbeat & exciting", icon: Zap },
+  { value: "calm", label: "Calm & soothing", desc: "Relaxed & meditative", icon: Leaf },
+  { value: "dramatic", label: "Dramatic", desc: "Powerful & intense", icon: Flame },
+  { value: "neutral_ai", label: "Neutral AI", desc: "Clean synthetic voice", icon: Cpu },
+];
+
+/** The voice an untouched composer starts on. */
+const DEFAULT_VOICE = "neutral_ai";
+
+/**
+ * The languages the digital human speaks.
+ *
+ * Eight, in the order the reference publishes them. Deliberately NOT
+ * TRANSCRIBE_LANGUAGES: that list is Whisper's, it leads with "Auto Detect" —
+ * which is meaningless when you are the one supplying the script — and the two
+ * would drift the moment either engine's support changed.
+ */
+const SPEAKING_LANGUAGES = [
+  { value: "en", label: "English", flag: "🇺🇸" },
+  { value: "zh", label: "Chinese", flag: "🇨🇳" },
+  { value: "es", label: "Spanish", flag: "🇪🇸" },
+  { value: "pt", label: "Portuguese", flag: "🇧🇷" },
+  { value: "fr", label: "French", flag: "🇫🇷" },
+  { value: "de", label: "German", flag: "🇩🇪" },
+  { value: "ja", label: "Japanese", flag: "🇯🇵" },
+  { value: "ko", label: "Korean", flag: "🇰🇷" },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Per-category configs
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1200,33 +1528,7 @@ export const MAGIC_STUDIO_CONFIGS = {
           ),
         ],
       },
-      {
-        key: "duration",
-        label: "Duration",
-        panel: "list",
-        width: 320,
-        // ⚠️ FIVE AND TEN ARE THE ONLY VALUES THE PROVIDER ACCEPTS. The video
-        // model behind this tool (fal-ai/kling-video) validates `duration`
-        // against the literals '5' and '10' and rejects the request outright
-        // otherwise:
-        //
-        //   Input should be '5' or '10'
-        //
-        // This list used to offer 1, 2, 3, 15 and 30 as well, and DEFAULT TO 3 —
-        // so five of the seven choices failed and the default was one of them.
-        // The failure only surfaces once the job has been queued and come back,
-        // which is why it read as "text to video is broken" rather than as an
-        // invalid option.
-        //
-        // Do not add durations here to widen the menu. The provider's contract
-        // is what decides this list; if a different model is swapped in behind
-        // `startVideoGeneration`, change these to match ITS accepted values.
-        default: "5",
-        items: [
-          { value: "5", label: "5 seconds", desc: "Short clip", icon: Clock },
-          { value: "10", label: "10 seconds", desc: "Short form", icon: Clock },
-        ],
-      },
+      VIDEO_DURATION_OPTION,
       {
         key: "ratio",
         label: "Aspect ratio",
@@ -1431,57 +1733,11 @@ export const MAGIC_STUDIO_CONFIGS = {
         label: "Voiceover style",
         panel: "list",
         width: 340,
-        default: "neutral_ai",
-        items: [
-          {
-            value: "male_deep",
-            label: "Deep male",
-            desc: "Rich & authoritative",
-            icon: Mic,
-          },
-          {
-            value: "male_neutral",
-            label: "Neutral male",
-            desc: "Clear & professional",
-            icon: User,
-          },
-          {
-            value: "female_warm",
-            label: "Warm female",
-            desc: "Friendly & engaging",
-            icon: Heart,
-          },
-          {
-            value: "female_pro",
-            label: "Pro female",
-            desc: "Polished & confident",
-            icon: Mic,
-          },
-          {
-            value: "energetic",
-            label: "Energetic",
-            desc: "Upbeat & exciting",
-            icon: Zap,
-          },
-          {
-            value: "calm",
-            label: "Calm & soothing",
-            desc: "Relaxed & meditative",
-            icon: Leaf,
-          },
-          {
-            value: "dramatic",
-            label: "Dramatic",
-            desc: "Powerful & intense",
-            icon: Flame,
-          },
-          {
-            value: "neutral_ai",
-            label: "Neutral AI",
-            desc: "Clean synthetic voice",
-            icon: Cpu,
-          },
-        ],
+        // Shared with Digital Human — see VOICE_ITEMS. The list moved out of
+        // this row rather than being copied into the second tool, so a voice
+        // added here can't end up offered on one tool and missing on the other.
+        default: DEFAULT_VOICE,
+        items: VOICE_ITEMS,
       },
       {
         key: "tone",
@@ -2135,6 +2391,352 @@ export const MAGIC_STUDIO_CONFIGS = {
           },
         ],
       };
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // The video tools
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Five tools that either make a clip from a still or act on a clip you already
+  // have. They follow the same contract as everything above — options as data, a
+  // whitelisted payload, startGeneration + polling — and add two flags the older
+  // tools had no use for:
+  //
+  //   requiresPrompt  the composer's secondary textarea is MANDATORY, not a
+  //                   note. It joins the submit button's enabled test rather
+  //                   than only being caught by validate() after the run fires.
+  //   promptFrom      picking this option WRITES its words into that textarea.
+  //
+  // ⚠️ NO `sample` BLOCK ON ANY OF THESE. The older configs carry one; nothing
+  // reads it any more (it fed the deleted MagicStudioModal), so adding ten more
+  // image URLs that never render would be noise. The live empty-state copy is
+  // `emptyHint` on the MAGIC_TOOLS entry.
+
+  // ── IMAGE → VIDEO ──────────────────────────────────────────────────────────
+  image_to_video: {
+    id: "image_to_video",
+    title: "Image to Video",
+    subtitle: "Bring a still image to life as a short clip.",
+    Icon: ImagePlay,
+    color: "bg-violet-100 text-violet-600",
+    input: "image",
+    resultType: "video",
+    generateLabel: "Generate video",
+    historyTool: "image_to_video",
+    // Words alongside the picture, and genuinely optional — a still already
+    // carries enough for a model to infer plausible movement. See promptField.
+    describable: true,
+    // ⚠️ NO `variations`. See the ⚠️ on text_to_video: a video is minutes of
+    // compute and real money per clip, and the poll follows ONE job — a
+    // multi-variation request would leave every clip after the first to land
+    // silently in history whenever it finished.
+    inputConfig: {
+      label: "Source image",
+      helper: "Choose an image from your library, the web, or upload one.",
+      placeholder:
+        "Optional — describe the motion. e.g. the camera pushes in slowly while steam rises and the light shifts across the surface",
+      maxLength: 500,
+    },
+    options: [
+      ENGINE_OPTION,
+      MOTION_OPTION,
+      VIDEO_DURATION_OPTION,
+      {
+        key: "ratio",
+        label: "Aspect ratio",
+        panel: "ratios",
+        width: 380,
+        default: "landscape",
+        items: [RATIO_SQUARE, RATIO_LANDSCAPE, RATIO_PORTRAIT],
+      },
+      resolutionOption(["480p", "720p", "1080p"], "720p"),
+      SOUND_OPTION,
+    ],
+    validate: ({ input }) =>
+      input ? null : "Please pick a source image first.",
+    generate: async ({ input, values }) => {
+      const payload = {
+        tool: "image_to_video",
+        // The same field name image_to_variations uses for a hosted source
+        // image, so the backend has one convention for "the picture this run
+        // starts from" rather than one per tool.
+        image_url: input,
+        engine: values.engine,
+        motion: values.motion,
+        duration: values.duration,
+        ratio: ratioString(values.ratio),
+        resolution: values.resolution,
+        // Both absent while untouched — see promptField / soundField.
+        ...promptField(values.description),
+        ...soundField(values.sound),
+      };
+      return startGeneration(payload, "video");
+    },
+  },
+
+  // ── DIGITAL HUMAN ──────────────────────────────────────────────────────────
+  digital_human: {
+    id: "digital_human",
+    title: "Digital Human Video",
+    subtitle: "Make a portrait speak your script.",
+    Icon: Speech,
+    color: "bg-teal-100 text-teal-600",
+    input: "image",
+    resultType: "video",
+    generateLabel: "Generate video",
+    historyTool: "digital_human",
+    // ⚠️ THE SPEECH IS AN UPLOADED RECORDING, NOT A TYPED SCRIPT. The portrait
+    // is lip-synced to a real voice track the user supplies, which is why this
+    // tool declares a SECOND, required input (see `extraInput`) — no other tool
+    // here takes two pieces of media.
+    //
+    // What that decides, downstream:
+    //   • no `voice` and no `language` option. Both described a synthesised
+    //     read that no longer happens: the recording carries its own voice and
+    //     its own language, and a picker claiming to change either would be a
+    //     control with no wire to anything. (The tool used to type a script and
+    //     have the backend speak it; that is what those two were for.)
+    //   • the prompt box is DESCRIBABLE, not required. It is direction for the
+    //     performance — "warm, smiling, slight nod" — never the words being
+    //     said, so a run with the box left alone is perfectly valid.
+    describable: true,
+    /**
+     * The second input: the voice track this portrait speaks.
+     *
+     * ⚠️ IT COMES FROM THE GALLERY, LIKE EVERY OTHER MEDIA INPUT HERE — picked
+     * (or uploaded) through the media picker and sent as a hosted `audio_url`,
+     * NOT posted as a file on the generate request. That keeps one convention
+     * for "media this run starts from" across the whole app, lets a voice track
+     * be reused across runs and retries without re-uploading, and means the
+     * user's own Text to Audio output is usable here the moment it is saved.
+     *
+     * The composer hands the chosen URL back on `values.audioUrl`.
+     */
+    extraInput: {
+      kind: "audio",
+      required: true,
+      label: "Voice track",
+      helper: "Pick the voice this portrait should speak from your gallery.",
+      // Shown where the user has no audio yet — Text to Audio makes one and
+      // saves it straight to the gallery, which is where this reads from.
+      emptyHint: "No voice track yet? Generate one with Text to Audio.",
+    },
+    inputConfig: {
+      label: "Portrait",
+      helper: "Choose a portrait from your library, the web, or upload one.",
+      placeholder:
+        "Optional — how should they deliver it? e.g. warm and smiling, with a slight nod",
+      maxLength: 600,
+    },
+    options: [resolutionOption(["480p", "720p", "1080p"], "720p")],
+    validate: ({ input, values }) => {
+      if (!input) return "Please pick a portrait first.";
+      if (!values.audioUrl) return "Please add the voice track to lip-sync to.";
+      return null;
+    },
+    generate: async ({ input, values }) => {
+      const payload = {
+        tool: "digital_human",
+        image_url: input,
+        // ⚠️ `audio_url`, matching `image_url` / `video_url` — one name for
+        // "hosted media this run starts from", whichever tool is asking.
+        audio_url: values.audioUrl,
+        resolution: values.resolution,
+      };
+      // Direction for the performance, and genuinely optional — omitted rather
+      // than sent empty, so the backend can tell "no direction given" from "an
+      // empty brief".
+      const direction = values.description?.trim();
+      if (direction) payload.prompt = direction;
+      return startGeneration(payload, "video");
+    },
+  },
+
+  // ── VIDEO BACKGROUND REMOVER ───────────────────────────────────────────────
+  video_background_remover: {
+    id: "video_background_remover",
+    title: "Video Background Remover",
+    subtitle: "Cut the background out of a clip — no green screen needed.",
+    Icon: Eraser,
+    color: "bg-rose-100 text-rose-600",
+    input: "video",
+    resultType: "video",
+    generateLabel: "Remove background",
+    historyTool: "video_background_remover",
+    inputConfig: {
+      label: "Source video",
+      // ⚠️ THE CAP IS STATED BECAUSE IT IS LOW. 50 MB is the gallery's own limit
+      // for video (FILE_LIMITS in utils/helpers.js — it mirrors the backend's
+      // rule), and it is roughly 40 seconds of 1080p. Someone who has to trim a
+      // clip should learn that here rather than from a rejected upload.
+      helper:
+        "Pick a video from your gallery — or upload to it right there · MP4 · MOV · WEBM · MKV · M4V · AVI · up to 50 MB",
+    },
+    options: [
+      {
+        key: "background",
+        label: "Background",
+        panel: "colors",
+        width: 300,
+        // Transparent. The panel draws AUTO_COLOR as an empty slashed swatch,
+        // which is exactly what "no background" should look like — see
+        // backgroundValue for why this sentinel is sent rather than omitted.
+        default: AUTO_COLOR,
+        items: [
+          { value: AUTO_COLOR, label: "Transparent" },
+          // The two chroma keys come first among the real colours: they are the
+          // reason a flat MP4 is useful at all to an editor that can only key,
+          // which is the case the reference calls out by name.
+          { value: "#00b140", label: "Green screen" },
+          { value: "#0047bb", label: "Blue screen" },
+          { value: "#ffffff", label: "White" },
+          { value: "#111827", label: "Near-black" },
+          { value: "#f8fafc", label: "Off-white" },
+          { value: "#2563eb", label: "Blue" },
+          { value: "#ef4444", label: "Red" },
+        ],
+      },
+    ],
+    validate: ({ input }) =>
+      input ? null : "Please pick a video to work on.",
+    generate: async ({ input, values }) => {
+      const payload = {
+        tool: "video_background_remover",
+        video_url: input,
+        background: backgroundValue(values.background),
+        // Derived from the background rather than chosen — alpha needs a
+        // container MP4 doesn't have. See formatForBackground.
+        format: formatForBackground(values.background),
+      };
+      return startGeneration(payload, "video");
+    },
+  },
+
+  // ── VIDEO ENHANCER ─────────────────────────────────────────────────────────
+  video_enhancer: {
+    id: "video_enhancer",
+    title: "Video Enhancer",
+    subtitle: "Upscale and clean up a clip.",
+    Icon: Maximize2,
+    color: "bg-orange-100 text-orange-600",
+    input: "video",
+    resultType: "video",
+    generateLabel: "Enhance video",
+    historyTool: "video_enhancer",
+    inputConfig: {
+      label: "Source video",
+      helper:
+        "Pick a video from your gallery — or upload to it right there · MP4 · MOV · WEBM · MKV · M4V · AVI · up to 50 MB",
+    },
+    // ⚠️ ONE OPTION, AND THE SHORT LIST IS THE POINT. Denoising, sharpening,
+    // deinterlacing, frame-rate interpolation and stabilisation all happen here
+    // — they are simply not choices. The reference advertises every one of them
+    // in prose and exposes a resolution toggle and nothing else, because the
+    // model decides what a given clip needs. Adding toggles for them would put
+    // five controls on screen that the engine does not read, which is the exact
+    // thing onlyOptions() exists further up this file to prevent.
+    options: [resolutionOption(["1080p", "2k"], "1080p")],
+    validate: ({ input }) =>
+      input ? null : "Please pick a video to enhance.",
+    generate: async ({ input, values }) => {
+      const payload = {
+        tool: "video_enhancer",
+        video_url: input,
+        resolution: values.resolution,
+      };
+      return startGeneration(payload, "video");
+    },
+  },
+
+  // ── VIDEO EFFECTS ──────────────────────────────────────────────────────────
+  video_effects: {
+    id: "video_effects",
+    title: "Video Effects",
+    subtitle: "Apply a ready-made motion effect to an image.",
+    Icon: WandSparkles,
+    color: "bg-fuchsia-100 text-fuchsia-600",
+    input: "image",
+    resultType: "video",
+    generateLabel: "Apply effect",
+    historyTool: "video_effects",
+    // ⚠️ REQUIRED, BUT RARELY TYPED. Applying any template but "Write your own"
+    // fills the box for you (see promptFrom), so in practice this gate only
+    // stops an empty run on the custom card. It still has to be a gate: the
+    // template IS the prompt, and an empty one is a tool with nothing to do.
+    requiresPrompt: true,
+    /**
+     * Applying a template writes its words into the composer's textarea.
+     *
+     * ⚠️ THIS IS WHY A TEMPLATE IS EDITABLE rather than a black box. The
+     * catalogue's prompt lands in the box as a starting point and the user
+     * changes whatever they like before generating — which also means what runs
+     * is always exactly what they can see, with no hidden second half.
+     */
+    promptFrom: {
+      option: "template",
+      resolve: effectPrompt,
+    },
+    /**
+     * …and selects the still that prompt was written for.
+     *
+     * ⚠️ THE PAIR IS THE WHOLE POINT. A template's clip is what that prompt did
+     * to that exact frame; seeding only the words would leave a first-time user
+     * pressing Generate against someone else's brief and their own unrelated
+     * photo, and blaming the tool for the result. Selecting both means Generate
+     * reproduces what the card just showed them — and swapping in their own
+     * picture afterwards is one click.
+     *
+     * "Write your own" resolves to "" and leaves the current image alone; it
+     * must never clear a picture the user has already chosen.
+     */
+    imageFrom: {
+      option: "template",
+      resolve: effectImage,
+    },
+    inputConfig: {
+      label: "Source image",
+      helper: "Choose an image from your library, the web, or upload one.",
+      placeholder:
+        "Use a template above to fill this in — or describe the motion yourself.",
+      // Roomier than the other prompt tools': the catalogue's own prompts run to
+      // ~450 characters, and this box has to hold one with room to edit it.
+      maxLength: 800,
+    },
+    options: [
+      {
+        key: "template",
+        label: "Template",
+        panel: "templates",
+        // Three cards to a row, each showing a 16:9 clip — the width is what
+        // that costs. ToolbarChip clamps it to the viewport on small screens,
+        // where the grid drops to two columns on its own.
+        width: 720,
+        default: CUSTOM_EFFECT,
+        items: VIDEO_EFFECT_TEMPLATES,
+        // Drives the headings inside the panel; the catalog owns the order.
+        categoryOrder: TEMPLATE_CATEGORY_ORDER,
+      },
+      VIDEO_DURATION_OPTION,
+    ],
+    validate: ({ input, values }) => {
+      if (!input) return "Please pick a source image first.";
+      if (!values.description?.trim())
+        return "Pick an effect, or describe the motion you want.";
+      return null;
+    },
+    generate: async ({ input, values }) => {
+      const payload = {
+        tool: "video_effects",
+        image_url: input,
+        // ⚠️ THE WORDS, NEVER A TEMPLATE ID. The whole template travels inside
+        // `prompt` — the convention Product Video settled on for the same
+        // reason: an id means the server holds a second copy of every look, and
+        // it stops describing what ran the moment anyone edits the box. See
+        // videoEffectTemplates.js.
+        prompt: values.description.trim(),
+        duration: values.duration,
+      };
+      return startGeneration(payload, "video");
     },
   },
 };

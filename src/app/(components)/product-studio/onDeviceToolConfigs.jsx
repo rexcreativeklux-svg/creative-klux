@@ -6,6 +6,17 @@
  * the engine hook that does the work, and (optionally) custom result/extra
  * renderers. The modal owns the whole flow (upload, size/quality, skeleton,
  * action bar, cancel, toasts, animations).
+ *
+ * `backendFirst` picks which engine LEADS — the one knob that decides a tool's
+ * whole character:
+ *   • true  → Generate calls /product-studio/generate and only touches the
+ *     on-device engine if that call never landed (offline/timeout/5xx). Costs a
+ *     credit and needs a login. See OnDeviceToolModal's `runBackend`.
+ *   • false → the tool is on-device ONLY: nothing is uploaded, nothing is
+ *     charged, and it works for guests. The backend is not involved at all.
+ *
+ * Flipping the flag is the whole migration: the modal reads it for the footer
+ * action, the prompt/brand-style fields (backend-only inputs) and the fallback.
  */
 
 import useProductBeautifier from "@/(lib)/ai-engine/hooks/useProductBeautifier";
@@ -24,7 +35,11 @@ export const ON_DEVICE_TOOLS = {
     useTool: useProductBeautifier,
     defaultSize: "square",
     defaultQuality: "High",
-    hasGenerate: true, // refine the on-device result to photoreal on the backend
+    hasGenerate: true,
+    // Backend leads: the picked photo goes to `product_beautifier` and the
+    // on-device engine is the safety net for an unreachable/faulting API.
+    backendFirst: true,
+    generateLabel: "Generate photorealistic",
     sample: {
       before: px(4856500),
       after: px(33245825),
@@ -47,7 +62,15 @@ export const ON_DEVICE_TOOLS = {
     useTool: useFlatLay,
     defaultSize: "square",
     defaultQuality: "High",
-    hasGenerate: true, // refine the arranged flat lay to photoreal on the backend
+    hasGenerate: true,
+    // On-device ONLY — deliberately not backend-first. This tool's product IS
+    // the interactive arrange surface below: `grabObjects` splits the cutout
+    // into individually draggable items and the swatch row re-flattens them
+    // live. A backend render is a single flat image, so leading with it would
+    // leave FlatLayArrange with nothing to drag and the swatches inert. Footer
+    // "Generate" therefore runs the local pipeline.
+    backendFirst: false,
+    generateLabel: "Generate flat lay",
     // Item drags and the context menu must never pan the zoom surface.
     zoomExcluded: ["flatlay-item", "flatlay-menu"],
     sample: {

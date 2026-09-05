@@ -97,15 +97,22 @@ export default function ToolbarChip({
     const spaceAbove =
       rect.top - PANEL_GAP - APP_HEADER_HEIGHT - VIEWPORT_MARGIN;
 
+    // ⚠️ THE WIDTH IS A REQUEST, NOT A GUARANTEE. A panel wide enough for three
+    // 16:9 template cards is wider than a phone, and clamping only the LEFT edge
+    // would pin it at the margin and let it run off the right instead. Narrow it
+    // to what there is room for and let its own grid reflow inside.
+    const panelWidth = Math.min(width, window.innerWidth - VIEWPORT_MARGIN * 2);
+
     // Hug the chip's left edge, then nudge back inside the viewport — a chip
     // near the right of a scrolled toolbar would otherwise push the panel off.
     const left = Math.max(
       VIEWPORT_MARGIN,
-      Math.min(rect.left, window.innerWidth - width - VIEWPORT_MARGIN),
+      Math.min(rect.left, window.innerWidth - panelWidth - VIEWPORT_MARGIN),
     );
 
     setPlacement({
       maxHeight: Math.min(MAX_PANEL_HEIGHT, Math.max(spaceAbove, 0)),
+      width: panelWidth,
       // Anchored by `bottom`, so the panel's own height never has to be known
       // before it can be placed.
       position: { left, bottom: window.innerHeight - rect.top + PANEL_GAP },
@@ -163,7 +170,10 @@ export default function ToolbarChip({
       className="thin-scrollbar fixed z-9999 overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-surface shadow-xl"
       style={{
         ...placement.position,
-        width,
+        // The measured width, which is the requested one capped to the viewport
+        // — see measure(). Falls back to the request before the first measure,
+        // while the panel is still hidden anyway.
+        width: placement.width ?? width,
         maxHeight: placement.maxHeight,
         visibility: placement.position ? "visible" : "hidden",
       }}

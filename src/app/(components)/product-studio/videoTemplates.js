@@ -1,4 +1,14 @@
 /**
+ * ⚠️ NO LONGER USED BY ANY TOOL — kept, not wired.
+ *
+ * This was Product Video's template source back when a template was only an id
+ * and a live Pexels search could fill the shelf. Templates carry a written
+ * prompt now, so they have to be pinned and reviewed: see
+ * productVideoTemplates.js. The only thing still importing this file is
+ * TemplateBrowserModal's dormant search path (via useTemplates.js), which
+ * nothing calls. Delete all three together if no future tool wants a searched
+ * template browser.
+ *
  * Template sources for the Video Generator modal — Pexels-backed, no hardcoded
  * asset ids.
  *

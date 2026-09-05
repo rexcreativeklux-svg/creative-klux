@@ -1590,7 +1590,7 @@ export default function PublishModal({
                         title={mode.title}
                         className={`cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-bold transition-colors ${
                           capsHeadline === mode.on
-                            ? "bg-gray-900 text-white"
+                            ? "bg-gray-900 text-surface"
                             : "text-gray-400 hover:text-gray-700"
                         }`}
                       >

@@ -10,10 +10,15 @@
  * two lists drifting apart, and each idea already carries exactly what a card
  * needs (a cadence in its first clause, and the platforms it touches).
  *
- * "Send to chat" loads the workflow into the composer rather than firing it.
- * With no backend there is nothing to fire — and even once there is, a standing
- * job that starts running because someone clicked a card on a browse screen is
- * not a thing this product should do. The user reads it, edits it, sends it.
+ * ⚠️ "Send to chat" SENDS — the workflow arrives in the thread as a message the
+ * user has already asked, not as text waiting in the composer for a second
+ * click. The button says "send", so it sends; leaving it drafted made the label
+ * a lie and asked the user to confirm a thing they had just clicked.
+ *
+ * Sending is not RUNNING. The message asks the copilot to set the workflow up;
+ * the copilot answers. Nothing on a browse screen starts a standing job — the
+ * `?send=` handoff (see ../page.jsx) puts a question in a thread, which is
+ * exactly what typing it into the box would have done.
  */
 
 import { useState } from "react";
@@ -41,12 +46,13 @@ export default function CopilotWorkflows() {
 
   const workflows = (IDEAS[copilot.category] ?? []).slice(0, SHOWN);
 
-  // Hands the workflow to the conversation as a DRAFT (see ../page.jsx). The
-  // fresh `?c=` opens it in a new conversation rather than dropping the text
-  // into whatever thread happened to be open.
+  // ⚠️ `send=`, not `task=` — the two params are the difference between a
+  // message and a draft (see ../page.jsx). The fresh `?c=` opens it in a new
+  // conversation rather than posting into whatever thread happened to be open,
+  // which also means the sent message cannot land in the middle of one.
   const sendToChat = (workflow) =>
     router.push(
-      `/copilot/${copilot.id}?c=${newConversationId()}&task=${encodeURIComponent(workflow.description)}`,
+      `/copilot/${copilot.id}?c=${newConversationId()}&send=${encodeURIComponent(workflow.description)}`,
     );
 
   return (

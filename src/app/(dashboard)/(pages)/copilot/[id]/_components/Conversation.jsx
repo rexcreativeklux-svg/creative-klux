@@ -27,9 +27,13 @@
  *
  * @param {Object} props
  * @param {Object} props.copilot  Whose conversation this is.
- * @param {string} [props.initialDraft]  Text the composer opens with — a
- *   workflow's "Send to chat" hands its description over this way. It is a
- *   DRAFT, not a sent message: the user gets to read and edit it first.
+ * @param {string} [props.initialDraft]  Text the composer opens with, unsent —
+ *   Plugins' "Activate skill" hands `/slug ` over this way, because the user
+ *   still has to say what to run it on.
+ * @param {string} [props.initialMessage]  Text that has ALREADY been sent —
+ *   Workflows' "Send to chat" hands its description over this way, and the
+ *   thread opens with it asked and answered. See ../page.jsx for which handoff
+ *   belongs to which button.
  */
 
 import { useState } from "react";
@@ -54,9 +58,44 @@ const firstName = (user) => {
   return first ? first.charAt(0).toUpperCase() + first.slice(1) : "";
 };
 
-export default function Conversation({ copilot, initialDraft = "" }) {
+/**
+ * The pair one send produces: what was asked, and the answer under it.
+ *
+ * ⚠️ Shared by the composer's send AND by a workflow arriving pre-sent, so a
+ * message the user never typed is built exactly like one they did — same ids,
+ * same shape, same reply. Seeding the thread with a hand-rolled message object
+ * instead would be a second definition of "a message" to keep in step.
+ *
+ * @param {string} text
+ * @param {number} index  How many messages precede it — ids only need to be
+ *   unique within the thread, and this is remounted per conversation.
+ */
+const exchange = (text, index) => {
+  const at = new Date();
+  return [
+    { id: `u-${index}`, role: "user", text, at },
+    {
+      id: `a-${index}`,
+      role: "assistant",
+      at,
+      text: "I'm not connected to my backend yet, so I can't run that. Once Copilot is live, this is where I'd pick it up and report back.",
+    },
+  ];
+};
+
+export default function Conversation({
+  copilot,
+  initialDraft = "",
+  initialMessage = "",
+}) {
   const { user } = useAuth();
-  const [messages, setMessages] = useState([]);
+  // ⚠️ Seeded in the INITIALISER, not an effect. The thread has to render in
+  // its started state on the first paint — an effect would flash the empty
+  // hero ("Hey Rex, …") for a frame before replacing it, which reads as the
+  // screen changing its mind about what it is.
+  const [messages, setMessages] = useState(() =>
+    initialMessage ? exchange(initialMessage, 0) : [],
+  );
   const [draft, setDraft] = useState(initialDraft);
   const [showChips, setShowChips] = useState(true);
   const started = messages.length > 0;
@@ -73,18 +112,7 @@ export default function Conversation({ copilot, initialDraft = "" }) {
   const { opener, subheading } = hero;
 
   const send = () => {
-    const text = draft.trim();
-    const at = new Date();
-    setMessages((prev) => [
-      ...prev,
-      { id: `u-${prev.length}`, role: "user", text, at },
-      {
-        id: `a-${prev.length}`,
-        role: "assistant",
-        at,
-        text: "I'm not connected to my backend yet, so I can't run that. Once Copilot is live, this is where I'd pick it up and report back.",
-      },
-    ]);
+    setMessages((prev) => [...prev, ...exchange(draft.trim(), prev.length)]);
     setDraft("");
   };
 

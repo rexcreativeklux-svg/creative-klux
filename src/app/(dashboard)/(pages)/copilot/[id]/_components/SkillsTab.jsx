@@ -10,11 +10,11 @@
  * ⚠️ THE CATALOG IS CREATIVE KLUX'S OWN — see the ⚠️ at the top of
  * _data/skills.js. Every slug is work the studios actually do.
  *
- * ⚠️ ACTIVATING A SKILL OPENS IT IN THE CHAT, drafted, not sent — the composer
- * gets `/slug ` and the user says what to run it on. That is the same handoff
- * Workflows' "Send to chat" uses, and the reason it is a draft rather than a
- * send is the same: a skill fired from a browse screen would run against
- * nothing.
+ * ⚠️ ACTIVATING A SKILL OPENS IT IN THE CHAT, drafted, NOT sent — the composer
+ * gets `/slug ` and the user says what to run it on. This is deliberately not
+ * what Workflows' "Send to chat" does (that one sends): `/remove-background` on
+ * its own names no image, so sending it would ask the copilot to work on
+ * nothing. A workflow's description is a whole request already.
  *
  * @param {Object} props
  * @param {Object} props.copilot        Used to open the pills on ITS kind of work.

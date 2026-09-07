@@ -16,7 +16,9 @@
  * @param {Object} props
  * @param {Object} props.workflow  An entry from _data/ideas.
  * @param {string} props.category  Which IDEAS key it came from.
- * @param {(workflow: Object) => void} props.onSend  "Send to chat".
+ * @param {(workflow: Object) => void} props.onSend  "Send to chat" — and it
+ *   does send: the description lands in a new thread as an asked message, not
+ *   as text sitting in the composer. See ../workflows/page.jsx.
  */
 
 import { MessageSquare } from "lucide-react";

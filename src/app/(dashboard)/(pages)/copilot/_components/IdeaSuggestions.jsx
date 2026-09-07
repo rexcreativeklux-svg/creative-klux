@@ -92,9 +92,9 @@ export default function IdeaSuggestions({ onNavigate }) {
                   <Icon className="h-3 w-3 text-white" />
                 </span>
               )}
-              {/* Clamped, not truncated: these are sentences, and a single
-                  ellipsised line loses which idea it is. Two lines fit the
-                  longest title in the catalog at this width. */}
+              {/* Clamped rather than truncated: titles are short noun phrases,
+                  so most sit on one line here, and the ones that don't keep
+                  their last word instead of ending in an ellipsis. */}
               <span className="min-w-0 flex-1 line-clamp-2 text-[13px] font-medium leading-snug">
                 {title}
               </span>

@@ -32,10 +32,18 @@ function CopilotConversation() {
     <Conversation
       key={searchParams.get("c") ?? "new"}
       copilot={copilot}
-      // `?task=` — a workflow's "Send to chat" loads its description into the
-      // composer. It rides the URL rather than component state because the two
-      // screens do not share one: Workflows navigates here.
+      // ⚠️ TWO PARAMS, TWO INTENTIONS. Both ride the URL rather than component
+      // state because the screens that set them do not share one — Workflows
+      // and Plugins navigate here — but they are not interchangeable:
+      //
+      //   ?task=  a DRAFT. Plugins' "Activate skill" uses it: the composer
+      //           opens holding `/slug ` and the user says what to run it on,
+      //           so sending it as-is would ask for work on nothing.
+      //   ?send=  a MESSAGE, already asked. Workflows' "Send to chat" uses it:
+      //           the description is a whole request on its own, and a button
+      //           that says send should not need a second click to send.
       initialDraft={searchParams.get("task") ?? ""}
+      initialMessage={searchParams.get("send") ?? ""}
     />
   );
 }

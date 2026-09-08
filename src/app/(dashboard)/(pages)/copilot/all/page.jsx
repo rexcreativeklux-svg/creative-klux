@@ -18,6 +18,7 @@
  */
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   FolderPlus,
@@ -27,15 +28,47 @@ import {
   LayoutGrid,
   List,
   Star,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import CopilotCard from "../_components/CopilotCard";
-import { useCopilots, notifyPending } from "../_data/copilots";
+import {
+  useCopilotsState,
+  refreshCopilots,
+  notifyPending,
+  addCopilot,
+  reportFailure,
+} from "../_data/copilots";
 
 export default function AllCopilots() {
-  const copilots = useCopilots();
+  const router = useRouter();
+  const { items: copilots, loading, error } = useCopilotsState();
   const [query, setQuery] = useState("");
   const [view, setView] = useState("grid");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  /**
+   * Make one on the server, then open it.
+   *
+   * ⚠️ NO FORM FIRST. The server names it; the user renames it from the settings
+   * sheet once it exists and they know what it is for. Asking for a name up
+   * front is a form standing between someone and an empty copilot.
+   *
+   * Guarded against a second click, because two clicks on a slow create make two
+   * copilots and only one of them gets opened.
+   */
+  const handleCreate = async () => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const copilot = await addCopilot();
+      router.push(`/copilot/${copilot.id}`);
+    } catch (err) {
+      reportFailure(err, "Couldn't create a copilot");
+      setCreating(false); // give the button back; on success we navigate away
+    }
+  };
 
   const term = query.trim().toLowerCase();
   const visible = copilots.filter(
@@ -74,11 +107,16 @@ export default function AllCopilots() {
               New folder
             </button>
             <button
-              onClick={() => notifyPending("Creating a copilot")}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-gray-900 text-sm font-medium text-surface hover:bg-gray-800 transition-colors cursor-pointer"
+              onClick={handleCreate}
+              disabled={creating}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-gray-900 text-sm font-medium text-surface hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Plus className="h-4 w-4" />
-              Create copilot
+              {creating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              {creating ? "Creating…" : "Create copilot"}
             </button>
           </div>
         </div>
@@ -145,8 +183,40 @@ export default function AllCopilots() {
           </div>
         </div>
 
-        {/* ── Copilots ────────────────────────────────────────── */}
-        {visible.length > 0 ? (
+        {/* ── Copilots ──────────────────────────────────────────
+            ⚠️ FOUR STATES, and they are not interchangeable: still loading,
+            the request failed, nothing matches the filter, and genuinely no
+            copilots. The last two used to be the only ones — with a fetched
+            catalog, showing "No copilots yet" during the round trip invites the
+            user to create a duplicate of something they already have, and
+            showing it after a failure hides a broken backend behind an
+            empty-state illustration. */}
+        {loading ? (
+          <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-surface px-4 py-24 text-center">
+            <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+            <p className="mt-3 text-xs text-gray-500">Loading your copilots…</p>
+          </div>
+        ) : error ? (
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-10 text-center">
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-red-100">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+            </div>
+            <p className="mt-4 text-sm font-bold text-gray-900">
+              Couldn&apos;t load your copilots
+            </p>
+            {/* The server's exact words, in mono. While the backend is being
+                brought up this sentence is the thing worth screenshotting. */}
+            <p className="mx-auto mt-2 max-w-2xl font-mono text-[11px] leading-relaxed text-red-900 wrap-break-word">
+              {error}
+            </p>
+            <button
+              onClick={() => refreshCopilots()}
+              className="mt-4 rounded-lg bg-gray-900 px-3.5 py-2 text-sm font-medium text-surface transition-colors hover:bg-gray-800 cursor-pointer"
+            >
+              Try again
+            </button>
+          </div>
+        ) : visible.length > 0 ? (
           view === "grid" ? (
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {visible.map((copilot) => (

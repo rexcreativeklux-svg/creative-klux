@@ -20,10 +20,21 @@
  * navigation like any other and the browser's back button returns to the thread
  * that was open. Nothing in here has to know the button exists.
  *
- * ⚠️ THERE IS NO API YET. Sending posts what the user wrote and answers that the
- * backend is not connected — it does NOT mime a working assistant with canned
- * replies. A demo that answers convincingly teaches the user their copilot is
- * running work it is not.
+ * ⚠️ SENDING NOW CALLS THE REAL ENDPOINT (`POST copilot/chat`, see
+ * _data/copilotApi). It previously answered with a hardcoded "I'm not connected
+ * to my backend yet" and made no request at all, which meant a failure was
+ * invisible — nothing in the Network tab, nothing to send to the backend dev.
+ *
+ * ⚠️ THE BACKEND IS HALF-DEPLOYED, so today that call fails: the routes were
+ * registered but `CopilotController` was never uploaded, and the endpoint
+ * answers 500. That failure is now SHOWN, in the server's own words, because
+ * while the deploy is being fixed the exact error is the useful thing on the
+ * screen. It is deliberately not dressed up as the copilot speaking — see the
+ * error branch in ChatMessage.
+ *
+ * What has NOT changed: nothing here mimes a working assistant. A canned reply
+ * that sounds like success teaches the user their copilot is running work it is
+ * not.
  *
  * @param {Object} props
  * @param {Object} props.copilot  Whose conversation this is.
@@ -36,10 +47,11 @@
  *   belongs to which button.
  */
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 import { IDEAS } from "../../_data/ideas";
+import { describeApiError, sendChat } from "../../_data/copilotApi";
 import { OPENERS, SUBHEADINGS, lineForNow } from "../../_data/copilotGreetings";
 import CopilotComposer from "../../_components/CopilotComposer";
 import ChatMessage from "./ChatMessage";
@@ -59,29 +71,45 @@ const firstName = (user) => {
 };
 
 /**
- * The pair one send produces: what was asked, and the answer under it.
+ * The pair one send produces: what was asked, and a placeholder for the answer
+ * that has not arrived yet.
  *
  * ⚠️ Shared by the composer's send AND by a workflow arriving pre-sent, so a
  * message the user never typed is built exactly like one they did — same ids,
- * same shape, same reply. Seeding the thread with a hand-rolled message object
- * instead would be a second definition of "a message" to keep in step.
+ * same shape, same request. Seeding the thread by hand instead would be a second
+ * definition of "a message" to keep in step.
+ *
+ * The reply starts `pending` and empty rather than holding optimistic text: the
+ * only thing we know at this point is that we asked.
  *
  * @param {string} text
  * @param {number} index  How many messages precede it — ids only need to be
- *   unique within the thread, and this is remounted per conversation.
+ *   unique within the thread, and this remounts per conversation.
  */
-const exchange = (text, index) => {
+const turn = (text, index) => {
   const at = new Date();
   return [
     { id: `u-${index}`, role: "user", text, at },
-    {
-      id: `a-${index}`,
-      role: "assistant",
-      at,
-      text: "I'm not connected to my backend yet, so I can't run that. Once Copilot is live, this is where I'd pick it up and report back.",
-    },
+    { id: `a-${index}`, role: "assistant", at, text: "", pending: true },
   ];
 };
+
+/**
+ * The copilot's words out of a response whose shape nobody has seen yet.
+ *
+ * ⚠️ The endpoint has never returned 2xx (it 500s — controller not deployed), so
+ * every key here is a guess. The last resort is the raw JSON rather than a
+ * friendly "something went wrong": if the reply arrives under a key we did not
+ * guess, showing the actual payload is what lets us name the right one, and
+ * silently swallowing it would hide the answer we are waiting for.
+ */
+const replyTextFrom = (data) =>
+  data?.reply ??
+  data?.response ??
+  data?.message ??
+  data?.text ??
+  data?.data?.reply ??
+  (data == null ? "Empty response." : JSON.stringify(data, null, 2));
 
 export default function Conversation({
   copilot,
@@ -94,9 +122,14 @@ export default function Conversation({
   // hero ("Hey Rex, …") for a frame before replacing it, which reads as the
   // screen changing its mind about what it is.
   const [messages, setMessages] = useState(() =>
-    initialMessage ? exchange(initialMessage, 0) : [],
+    initialMessage ? turn(initialMessage, 0) : [],
   );
   const [draft, setDraft] = useState(initialDraft);
+
+  // The server's id for this thread, once it gives us one. A ref, not state:
+  // it changes nothing on screen, and putting it in state would re-render the
+  // whole thread to store a number. Never invented — see sendChat.
+  const conversationRef = useRef(null);
   const [showChips, setShowChips] = useState(true);
   const started = messages.length > 0;
   const name = firstName(user);
@@ -111,10 +144,60 @@ export default function Conversation({
   }));
   const { opener, subheading } = hero;
 
+  /**
+   * Make the request and settle the placeholder it belongs to.
+   *
+   * Patches BY ID rather than by position, because anything the user sends while
+   * this is in flight lands in the array first — settling "the last message"
+   * would put the answer under the wrong question.
+   */
+  const answer = useCallback(
+    async (text, replyId) => {
+      const settle = (patch) =>
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === replyId ? { ...m, pending: false, ...patch } : m,
+          ),
+        );
+
+      try {
+        const data = await sendChat({
+          message: text,
+          copilotId: copilot.id,
+          conversationId: conversationRef.current,
+        });
+        // Keep the thread id if the server names one, so the next turn
+        // continues this conversation instead of opening another.
+        const id = data?.conversation_id ?? data?.conversation?.id ?? null;
+        if (id != null) conversationRef.current = id;
+        settle({ text: replyTextFrom(data) });
+      } catch (err) {
+        settle({ text: describeApiError(err).text, error: true });
+      }
+    },
+    [copilot.id],
+  );
+
   const send = () => {
-    setMessages((prev) => [...prev, ...exchange(draft.trim(), prev.length)]);
+    const text = draft.trim();
+    if (!text) return;
+    const [asked, reply] = turn(text, messages.length);
+    setMessages((prev) => [...prev, asked, reply]);
     setDraft("");
+    answer(text, reply.id);
   };
+
+  // A workflow that arrived pre-sent has its question already in the thread (see
+  // the state initialiser) but has not been ASKED yet — this is the request for
+  // it. Guarded by a ref so React's development double-invoke doesn't fire two
+  // requests, which would show up as a duplicate in the Network tab and read as
+  // a bug in the very thing we are trying to observe.
+  const askedRef = useRef(false);
+  useEffect(() => {
+    if (!initialMessage || askedRef.current) return;
+    askedRef.current = true;
+    answer(initialMessage, "a-0");
+  }, [initialMessage, answer]);
 
   const composer = (
     <CopilotComposer

@@ -1,38 +1,37 @@
 "use client";
 
 /**
- * The Copilot catalog — ONE list behind every Copilot surface until the backend
- * lands: the sidebar's Favorites + Recents sections and the /copilot/all grid.
+ * The Copilot catalog — ONE list behind every Copilot surface: the sidebar's
+ * Favorites + Recents sections and the /copilot/all grid.
  *
- * ⚠️ THERE IS NO API YET. This module is the stand-in: a seed list plus a tiny
- * module-level store so the surfaces stay in step with each other. Favouriting a
- * copilot on /copilot/all has to light up in the sidebar's Favorites the same
- * instant, and deleting one has to drop it from Recents — two independent
- * `useState` lists would show the user a bug, not a placeholder. When the real
- * endpoints exist, `useCopilots` becomes the data hook and the mutators become
- * requests; nothing that renders needs to change.
+ * ⚠️ THIS IS NOW THE REAL API (`GET /copilots`, see ./copilotApi). It used to be
+ * a seed array with a module-level store; the store stayed, the seed went. One
+ * store rather than a `useState` per screen is still the point: favouriting on
+ * /copilot/all has to light up in the sidebar's Favorites the same instant, and
+ * deleting has to drop it from Recents.
  *
  * `useSyncExternalStore` rather than a context provider: the two consumers sit
  * on opposite sides of the dashboard layout (the sidebar and the page), so a
  * provider would have to wrap the whole shell to join them.
  *
- * ⚠️ `editedAgo` is a WRITTEN LABEL, not a timestamp. Seeded dates would read
- * "2 years ago" by next year, and deriving the label from `Date.now()` at render
- * risks a hydration mismatch on the minute boundary. The API will send real
- * timestamps and this field becomes a formatter call.
- *
- * Every copilot here is a standing task this product could actually run — the
- * same rule the starter-idea cards in ./ideas.js follow. A mock copilot that
- * promises work Creative Klux cannot do is worse than one fewer mock.
- *
- * `category` is a key into IDEAS (./ideas.js) — it is what lets a copilot's
- * conversation suggest starters that belong to ITS job rather than a generic
- * set, without a second list of suggestions to keep in step.
+ * ⚠️ `category` is a key into IDEAS (./ideas.js) — it decides which starter
+ * ideas a copilot suggests. THE SERVER HAS NO SUCH FIELD, so every copilot
+ * currently defaults to Brand; see adaptCopilot below. It needs to become a real
+ * column, otherwise a product-photography copilot offers ad-buying starters.
  */
 
 import { useSyncExternalStore } from "react";
+import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { Palette, CalendarDays, Megaphone, Camera, Radar, Mic } from "lucide-react";
+import {
+  createCopilot,
+  describeApiError,
+  destroyCopilot,
+  listCopilots,
+  patchCopilot,
+  toCopilotRecord,
+} from "./copilotApi";
 
 /** How many copilots the sidebar's Recents lists before "View all" takes over. */
 export const RECENTS_LIMIT = 3;
@@ -51,6 +50,21 @@ export const notifyPending = (label) =>
   toast(`${label} lands with the Copilot backend.`);
 
 /**
+ * Report a failed write in the SERVER'S OWN WORDS.
+ *
+ * ⚠️ Not paraphrased to something friendly. While the backend is being brought
+ * up, "Unknown column 'copilot_id'" is the sentence that tells the backend dev
+ * what to fix, and "Something went wrong" tells them nothing. The mutators below
+ * all reject on failure, so every caller must route through this rather than
+ * toasting success unconditionally.
+ *
+ * @param {unknown} err   Whatever the request threw.
+ * @param {string} what   What was being attempted ("Couldn't delete").
+ */
+export const reportFailure = (err, what) =>
+  toast.error(`${what} — ${describeApiError(err).text}`);
+
+/**
  * An id for a conversation that does not exist server-side yet.
  *
  * It rides the URL as `?c=` and is the conversation's React `key`, so all it has
@@ -65,136 +79,250 @@ export const notifyPending = (label) =>
  */
 export const newConversationId = () => Date.now().toString(36);
 
-// Ordered newest-edited first — the array order IS the recency order, so
-// Recents is a `slice`, not a sort. The tints are saturated (not `-50` tints)
-// so the avatars read the same in both themes; only the grays are re-pointed in
-// dark mode (see the .dark block in globals.css).
-const SEED = [
-  {
-    id: "brand-warden",
-    category: "Brand",
-    name: "Brand Warden",
-    description:
-      "Checks the week's new designs against my brand kit and flags the ones that drift.",
-    Icon: Palette,
-    tint: "bg-blue-600",
-    editedAgo: "32 minutes ago",
-    favorite: false,
-  },
-  {
-    id: "week-ahead",
-    category: "Social",
-    name: "Week Ahead",
-    description:
-      "Drafts seven posts every Thursday and loads them into next week's calendar.",
-    Icon: CalendarDays,
-    tint: "bg-emerald-600",
-    editedAgo: "2 hours ago",
-    favorite: false,
-  },
-  {
-    id: "ad-refresher",
-    category: "Ads",
-    name: "Ad Refresher",
-    description:
-      "Builds fresh creative variants every two weeks so nothing running goes stale.",
-    Icon: Megaphone,
-    tint: "bg-orange-500",
-    editedAgo: "yesterday",
-    favorite: false,
-  },
-  {
-    id: "shelf-ready",
-    category: "Product",
-    name: "Shelf Ready",
-    description:
-      "Cleans up every product photo I upload and files the set ready to use.",
-    Icon: Camera,
-    tint: "bg-violet-600",
-    editedAgo: "3 days ago",
-    favorite: false,
-  },
-  {
-    id: "rival-watch",
-    category: "Performance",
-    name: "Rival Watch",
-    description:
-      "Breaks down the ads my competitors are running and briefs me every Monday.",
-    Icon: Radar,
-    tint: "bg-rose-500",
-    editedAgo: "12 days ago",
-    favorite: false,
-  },
-  {
-    id: "voice-desk",
-    category: "Studio",
-    name: "Voice Desk",
-    description:
-      "Turns each script I write into a voiceover in the voice I've chosen.",
-    Icon: Mic,
-    tint: "bg-cyan-600",
-    editedAgo: "17 days ago",
-    favorite: false,
-  },
+/* ── Server rows → what the UI renders ─────────────────────────────────────
+ *
+ * ⚠️ THE SERVER MODEL IS NARROWER THAN THE UI'S. A copilot row is
+ * { id, name, description, instructions, greeting, channels, allowed_tools },
+ * with no `category`, no icon and no tint — but every card, avatar and settings
+ * sheet on this screen renders those. They are derived here, in one place, so
+ * the rest of the feature keeps the shape it already renders.
+ *
+ * `category` in particular is NOT cosmetic: it picks which starter ideas a
+ * copilot suggests (see ./ideas.js). Defaulted below, and flagged to the
+ * backend as a field the API needs — a guess would put ad-buying starters in a
+ * product-photography copilot.
+ */
+
+const GLYPHS = [Palette, CalendarDays, Megaphone, Camera, Radar, Mic];
+const TINTS = [
+  "bg-blue-600",
+  "bg-emerald-600",
+  "bg-orange-500",
+  "bg-violet-600",
+  "bg-rose-500",
+  "bg-cyan-600",
 ];
 
-let copilots = SEED;
-let cloneCount = 0;
+/** Stable per id, so a copilot keeps its face between renders and screens. */
+const hashOf = (value) => {
+  const key = String(value ?? "");
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  return Math.abs(hash);
+};
+
+/** "3 days ago" from a timestamp, or a plain fallback when none came back. */
+const editedAgoFrom = (row) => {
+  const stamp = row?.updated_at ?? row?.created_at;
+  if (!stamp) return "recently";
+  const at = new Date(stamp);
+  if (Number.isNaN(at.getTime())) return "recently";
+  return formatDistanceToNow(at, { addSuffix: true });
+};
+
+/** One server row in the shape the cards, avatar and settings sheet expect. */
+export function adaptCopilot(row) {
+  const id = row?.id;
+  const seed = hashOf(id ?? row?.name);
+  return {
+    ...row,
+    id: String(id),
+    name: row?.name ?? "Untitled copilot",
+    description: row?.description ?? "",
+    // ⚠️ Not from the server — see above. Every copilot therefore suggests the
+    // Brand starters until the API carries a category.
+    category: row?.category ?? "Brand",
+    Icon: GLYPHS[seed % GLYPHS.length],
+    tint: TINTS[seed % TINTS.length],
+    favorite: Boolean(row?.favorite),
+    editedAgo: editedAgoFrom(row),
+  };
+}
+
+/** The list out of a response, whichever envelope it arrives in. */
+const rowsFrom = (data) => {
+  const list = Array.isArray(data)
+    ? data
+    : (data?.data ?? data?.copilots ?? data?.items ?? []);
+  return Array.isArray(list) ? list.map(adaptCopilot) : [];
+};
+
+/* ── The store ─────────────────────────────────────────────────────────────
+ *
+ * Still useSyncExternalStore rather than a context provider: the consumers sit
+ * on opposite sides of the dashboard layout (the sidebar rail and the page), so
+ * a provider would have to wrap the whole shell to join them.
+ *
+ * ⚠️ IT LOADS ONCE, ON FIRST SUBSCRIBE. Whichever surface mounts first triggers
+ * the fetch; the second one joins the same store rather than firing a second
+ * request. `loading` starts true so nothing renders "no copilots yet" during the
+ * round trip — an empty catalog and an unfinished request look identical on
+ * screen and mean opposite things.
+ */
+
+let state = { items: [], loading: true, error: null };
+let started = false;
 const listeners = new Set();
+
+const emit = () => listeners.forEach((fn) => fn());
+
+// Identity-stable while nothing has changed, which is what useSyncExternalStore
+// needs — building a fresh object here would re-render on every check.
+const snapshot = () => state;
+const setState = (patch) => {
+  state = { ...state, ...patch };
+  emit();
+};
 
 const subscribe = (fn) => {
   listeners.add(fn);
+  if (!started) {
+    started = true;
+    void refreshCopilots();
+  }
   return () => listeners.delete(fn);
 };
 
-// Identity-stable while nothing has changed, which is what useSyncExternalStore
-// needs — returning a fresh array here would re-render on every check.
-const snapshot = () => copilots;
+/** Server-render snapshot: never loading, because no fetch happens there. */
+const SERVER_STATE = { items: [], loading: false, error: null };
+const serverSnapshot = () => SERVER_STATE;
 
-const commit = (next) => {
-  copilots = next;
-  listeners.forEach((fn) => fn());
-};
-
-/** The live catalog. Same reference on the server and the first client render. */
-export function useCopilots() {
-  return useSyncExternalStore(subscribe, snapshot, snapshot);
+/** Re-read the catalog. Exported so a failed load can be retried from the UI. */
+export async function refreshCopilots() {
+  setState({ loading: true, error: null });
+  try {
+    setState({ items: rowsFrom(await listCopilots()), loading: false });
+  } catch (err) {
+    // The server's own words, kept intact — while the backend is being fixed
+    // that sentence is the useful thing on the screen.
+    setState({ loading: false, error: describeApiError(err).text });
+  }
 }
 
-export function toggleFavorite(id) {
-  commit(
-    copilots.map((c) => (c.id === id ? { ...c, favorite: !c.favorite } : c)),
-  );
+/** The live catalog. Unchanged contract: an array. */
+export function useCopilots() {
+  return useSyncExternalStore(subscribe, snapshot, serverSnapshot).items;
+}
+
+/** The same store with its request state, for screens that show loading/errors. */
+export function useCopilotsState() {
+  return useSyncExternalStore(subscribe, snapshot, serverSnapshot);
 }
 
 /**
- * Patch one copilot — the settings sheet's General panel saving a name or a
- * brief. Local like the rest of this store, which is what makes a rename show
- * up in the sidebar rail the instant the sheet is saved.
+ * Optimistic write: change the list now, put it back if the server refuses.
+ *
+ * ⚠️ The rollback restores the SNAPSHOT taken before the change, not an inverse
+ * operation — inverting is only correct if nothing else moved in between, and
+ * two writes overlapping is exactly when a rollback matters.
  */
+async function optimistic(next, request) {
+  const before = state.items;
+  setState({ items: next });
+  try {
+    return await request();
+  } catch (err) {
+    setState({ items: before });
+    throw err;
+  }
+}
+
+/**
+ * ⚠️ `favorite` IS NOT A DOCUMENTED SERVER FIELD. It is sent anyway rather than
+ * kept locally, because a favourite that lives in one browser tab is not a
+ * favourite. If the API rejects it the error surfaces — which is how the gap
+ * gets reported rather than quietly papered over.
+ */
+export function toggleFavorite(id) {
+  const current = state.items.find((c) => c.id === id);
+  const favorite = !current?.favorite;
+  return optimistic(
+    state.items.map((c) => (c.id === id ? { ...c, favorite } : c)),
+    () => patchCopilot(id, { favorite }),
+  );
+}
+
+/** Patch one copilot — the settings sheet saving a name, brief or instructions. */
 export function updateCopilot(id, patch) {
-  commit(copilots.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  return optimistic(
+    state.items.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    () => patchCopilot(id, patch),
+  );
 }
 
 export function removeCopilot(id) {
-  commit(copilots.filter((c) => c.id !== id));
+  return optimistic(
+    state.items.filter((c) => c.id !== id),
+    () => destroyCopilot(id),
+  );
 }
 
-/** Duplicate a copilot to the front of the list (it is now the most recent). */
+const NEW_COPILOT_NAME = "New copilot";
+
+/**
+ * A name for a copilot nobody has named.
+ *
+ * ⚠️ THIS IS A STOPGAP. `POST /copilots` rejects a request with no name — "The
+ * name field is required" — so the server will not name one for us the way the
+ * sibling product's `POST /autopilots` does. Until it defaults the column, the
+ * name has to come from somewhere, and a form in front of an empty copilot is
+ * the thing we were trying to avoid.
+ *
+ * Numbered only when it has to be: the second "New copilot" becomes "New
+ * copilot 2", so the list stays readable without stamping a number on the very
+ * first one. Counted from names already in the store, so it is wrong only when
+ * the catalog has not loaded — and a duplicate name is a rename, not a bug.
+ */
+function defaultCopilotName() {
+  const taken = new Set(state.items.map((c) => c.name));
+  if (!taken.has(NEW_COPILOT_NAME)) return NEW_COPILOT_NAME;
+  let n = 2;
+  while (taken.has(`${NEW_COPILOT_NAME} ${n}`)) n += 1;
+  return `${NEW_COPILOT_NAME} ${n}`;
+}
+
+/**
+ * Create one, and put it at the front — it is now the most recently edited.
+ *
+ * ⚠️ NOTHING IS ASKED OF THE USER. A plain create sends only the placeholder
+ * name above; they rename it from the settings sheet once it exists and they
+ * know what it is for.
+ *
+ * ⚠️ Not optimistic. The id comes from the server, and a card with an invented
+ * id breaks the moment someone clicks it.
+ *
+ * Some APIs answer a create with a bare success message and no record. Rather
+ * than invent one, refetch and take the newest — the same fallback the sibling
+ * product's autopilot client uses against this backend's conventions.
+ */
+export async function addCopilot(payload = {}) {
+  const body = { name: defaultCopilotName(), ...payload };
+  const record = toCopilotRecord(await createCopilot(body));
+
+  if (!record) {
+    await refreshCopilots();
+    const newest = state.items[0];
+    if (!newest) {
+      throw new Error("The copilot was created but could not be loaded.");
+    }
+    return newest;
+  }
+
+  const created = adaptCopilot(record);
+  setState({ items: [created, ...state.items], loading: false, error: null });
+  return created;
+}
+
+/** Duplicate a copilot. A real create, so the copy survives a reload. */
 export function cloneCopilot(id) {
-  const source = copilots.find((c) => c.id === id);
-  if (!source) return;
-  cloneCount += 1;
-  commit([
-    {
-      ...source,
-      // A counter, not Math.random/Date.now: the id has to be identical on
-      // every render pass for React's keys, and this list is client-only state.
-      id: `${source.id}-copy-${cloneCount}`,
-      name: `${source.name} copy`,
-      editedAgo: "just now",
-      favorite: false,
-    },
-    ...copilots,
-  ]);
+  const source = state.items.find((c) => c.id === id);
+  if (!source) return Promise.resolve(null);
+  return addCopilot({
+    name: `${source.name} copy`,
+    description: source.description,
+    instructions: source.instructions ?? null,
+    greeting: source.greeting ?? null,
+    channels: source.channels ?? null,
+    allowed_tools: source.allowed_tools ?? null,
+  });
 }

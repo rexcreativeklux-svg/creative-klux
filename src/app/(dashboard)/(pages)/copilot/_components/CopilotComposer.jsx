@@ -25,7 +25,7 @@
  * @param {string} [props.sendLabel="Send task"]  Accessible name for send.
  */
 
-import { Plus, Mic, ArrowUp } from "lucide-react";
+import { Plus, Mic, ArrowUp, Loader2 } from "lucide-react";
 import { notifyPending } from "../_data/copilots";
 
 export default function CopilotComposer({
@@ -35,11 +35,13 @@ export default function CopilotComposer({
   placeholder = "Give your Copilot a task to do...",
   rows = 2,
   className = "",
-
+  // In flight — the /copilot home composer creates a copilot before it can send,
+  // which is a round trip long enough to press the button twice.
+  busy = false,
   sendLabel = "Send task",
 }) {
   const submit = () => {
-    if (!value.trim()) return;
+    if (busy || !value.trim()) return;
     onSubmit?.();
   };
 
@@ -84,11 +86,16 @@ export default function CopilotComposer({
           <button
             onClick={submit}
             aria-label={sendLabel}
+            aria-busy={busy || undefined}
             className={`p-2 rounded-lg bg-blue-50 text-blue-600 transition-colors cursor-pointer ${
-              value.trim() ? "hover:bg-blue-100" : "opacity-50"
+              value.trim() && !busy ? "hover:bg-blue-100" : "opacity-50"
             }`}
           >
-            <ArrowUp className="h-4 w-4" />
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowUp className="h-4 w-4" />
+            )}
           </button>
         </div>
       </div>

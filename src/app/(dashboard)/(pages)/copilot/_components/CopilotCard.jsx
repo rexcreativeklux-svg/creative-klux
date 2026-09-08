@@ -35,7 +35,8 @@ import { toast } from "sonner";
 import ResultActionsMenu from "@/app/(components)/product-studio/ResultActionsMenu";
 import CopilotAvatar from "./CopilotAvatar";
 import { buildCopilotActions } from "./copilotActions";
-import { toggleFavorite } from "../_data/copilots";
+import { RENAME_INPUT_CLASS, useInlineRename } from "./useInlineRename";
+import { reportFailure, toggleFavorite } from "../_data/copilots";
 
 // Width of ResultActionsMenu (its w-52), so the menu can be right-aligned under
 // the ⋯ trigger and open inside the card instead of past its right edge.
@@ -54,15 +55,62 @@ export default function CopilotCard({ copilot, variant = "grid", onOpen }) {
     );
   };
 
-  const handleFavorite = () => {
-    toggleFavorite(copilot.id);
-    toast.success(
-      favorite ? `${name} removed from favorites` : `${name} added to favorites`,
-    );
-  };
+  // The toast waits for the server — the star flips instantly (the store's write
+  // is optimistic) but "added to favorites" must not appear if it rolls back.
+  const handleFavorite = () =>
+    toggleFavorite(copilot.id)
+      .then(() =>
+        toast.success(
+          favorite
+            ? `${name} removed from favorites`
+            : `${name} added to favorites`,
+        ),
+      )
+      .catch((err) => reportFailure(err, "Couldn't update favorites"));
 
   const handleOpen = () =>
     onOpen ? onOpen(copilot) : router.push(`/copilot/${copilot.id}`);
+
+  const rename = useInlineRename();
+  const renaming = rename.editingId === copilot.id;
+
+  // Built once and placed in whichever wrapper the row needs — see below. The
+  // meta lines are identical either way, so they are not written twice.
+  const body = (
+    <>
+      <CopilotAvatar copilot={copilot} size={isGrid ? "lg" : "md"} />
+      <span className="min-w-0 flex-1">
+        {renaming ? (
+          <input
+            value={rename.draft}
+            onChange={(e) => rename.setDraft(e.target.value)}
+            onKeyDown={(e) => rename.onKeyDown(e, copilot)}
+            onBlur={() => rename.commit(copilot)}
+            disabled={rename.saving}
+            aria-label={`Rename ${name}`}
+            autoFocus
+            className={RENAME_INPUT_CLASS}
+          />
+        ) : (
+          <span className="block truncate text-[15px] font-semibold text-gray-900">
+            {name}
+          </span>
+        )}
+        {/* The list row has the width for the description; the tile does not,
+            and the reference tile shows the edit time alone. */}
+        {!isGrid && (
+          <span className="block truncate text-[13px] text-gray-500">
+            {description}
+          </span>
+        )}
+        <span
+          className={`block truncate text-gray-500 ${isGrid ? "text-[13px]" : "text-[11px] mt-0.5"}`}
+        >
+          Last edited {editedAgo}
+        </span>
+      </span>
+    </>
+  );
 
   const starVisibility = favorite
     ? "opacity-100"
@@ -79,30 +127,21 @@ export default function CopilotCard({ copilot, variant = "grid", onOpen }) {
       {/* Body — the whole name/meta block is the open target, so the hit area
           matches what the card looks like it does. The action buttons are
           SIBLINGS, not children: a button inside a button is invalid markup and
-          browsers resolve it by dropping one of them. */}
-      <button
-        onClick={handleOpen}
-        className="flex min-w-0 flex-1 items-center gap-4 text-left cursor-pointer"
-      >
-        <CopilotAvatar copilot={copilot} size={isGrid ? "lg" : "md"} />
-        <span className="min-w-0">
-          <span className="block truncate text-[15px] font-semibold text-gray-900">
-            {name}
-          </span>
-          {/* The list row has the width for the description; the tile does not,
-              and the reference tile shows the edit time alone. */}
-          {!isGrid && (
-            <span className="block truncate text-[13px] text-gray-500">
-              {description}
-            </span>
-          )}
-          <span
-            className={`block truncate text-gray-500 ${isGrid ? "text-[13px]" : "text-[11px] mt-0.5"}`}
-          >
-            Last edited {editedAgo}
-          </span>
-        </span>
-      </button>
+          browsers resolve it by dropping one of them.
+
+          ⚠️ While renaming, the wrapper is a plain div for exactly that reason —
+          the field would otherwise sit inside the open button, where a click
+          meant for the text would open the copilot instead of placing a cursor. */}
+      {renaming ? (
+        <div className="flex min-w-0 flex-1 items-center gap-4">{body}</div>
+      ) : (
+        <button
+          onClick={handleOpen}
+          className="flex min-w-0 flex-1 items-center gap-4 text-left cursor-pointer"
+        >
+          {body}
+        </button>
+      )}
 
       {/* Hover actions */}
       <div className="flex items-center gap-0.5 shrink-0">
@@ -131,7 +170,7 @@ export default function CopilotCard({ copilot, variant = "grid", onOpen }) {
         <ResultActionsMenu
           x={menu.x}
           y={menu.y}
-          actions={buildCopilotActions(copilot)}
+          actions={buildCopilotActions(copilot, { onRename: rename.start })}
           onClose={() => setMenu(null)}
         />
       )}

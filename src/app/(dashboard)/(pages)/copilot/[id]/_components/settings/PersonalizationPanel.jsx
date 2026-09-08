@@ -24,7 +24,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
-import { updateCopilot } from "../../../_data/copilots";
+import { reportFailure, updateCopilot } from "../../../_data/copilots";
 
 const TABS = ["Identity", "Memory"];
 
@@ -66,11 +66,14 @@ export default function PersonalizationPanel({ copilot }) {
       return;
     }
     if (trimmed === copilot.name && about.trim() === copilot.description) return;
-    updateCopilot(copilot.id, {
-      name: trimmed,
-      description: about.trim(),
-      editedAgo: "just now",
-    });
+    // `editedAgo` is derived from the server's timestamp now, so it is no longer
+    // something to write — sending it would put a display string in a column.
+    updateCopilot(copilot.id, { name: trimmed, description: about.trim() }).catch(
+      (err) => {
+        setName(copilot.name); // the store rolled back; the field must agree
+        reportFailure(err, "Couldn't save");
+      },
+    );
   };
 
   // ── Memory (session-only) ─────────────────────────────────────

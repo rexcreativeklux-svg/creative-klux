@@ -14,14 +14,19 @@
  */
 
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Bot } from "lucide-react";
 import PlatformChip from "./_components/PlatformChip";
 import CopilotComposer from "./_components/CopilotComposer";
 import { CATEGORIES, IDEAS } from "./_data/ideas";
-import { notifyPending } from "./_data/copilots";
+import {
+  addCopilot,
+  newConversationId,
+  reportFailure,
+} from "./_data/copilots";
 
 function CopilotHome() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   // `?task=` — the sidebar's rotating ideas hand their description over this
   // way, so one arrives already typed into the box instead of sending the user
@@ -33,7 +38,34 @@ function CopilotHome() {
   // rewriting the URL on every keystroke is not what a draft is.
   const [task, setTask] = useState(() => searchParams.get("task") ?? "");
   const [activeCategory, setActiveCategory] = useState("Brand");
+  const [creating, setCreating] = useState(false);
   const ideas = IDEAS[activeCategory] ?? [];
+
+  /**
+   * "Give your Copilot its first task" — so it makes one and gives it the task.
+   *
+   * ⚠️ TWO STEPS, and the order matters: the copilot has to exist before there
+   * is anywhere to ask. The task then rides `?send=` (see [id]/page.jsx), which
+   * posts it as an asked message rather than parking it in the composer — the
+   * user already pressed send once here, and asking them to press it again in
+   * the new thread would be the same click twice.
+   *
+   * The server names the copilot; nothing is asked up front.
+   */
+  const handleCreate = async () => {
+    const text = task.trim();
+    if (!text || creating) return;
+    setCreating(true);
+    try {
+      const copilot = await addCopilot();
+      router.push(
+        `/copilot/${copilot.id}?c=${newConversationId()}&send=${encodeURIComponent(text)}`,
+      );
+    } catch (err) {
+      reportFailure(err, "Couldn't create a copilot");
+      setCreating(false); // on success we navigate away, so only failure resets
+    }
+  };
 
   return (
     // No pb-nav: `main` in (dashboard)/layout.js reserves the mobile bottom
@@ -75,7 +107,8 @@ function CopilotHome() {
         <CopilotComposer
           value={task}
           onChange={setTask}
-          onSubmit={() => notifyPending("Creating a copilot from a task")}
+          onSubmit={handleCreate}
+          busy={creating}
           className="mt-10 w-full max-w-xl"
         />
 

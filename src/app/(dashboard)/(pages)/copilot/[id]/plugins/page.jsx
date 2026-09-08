@@ -24,7 +24,9 @@ import {
   useCopilots,
   notifyPending,
   newConversationId,
+  reportFailure,
 } from "../../_data/copilots";
+import { beginConnect } from "../../_data/copilotApi";
 import { CREATE_SKILL_PROMPT } from "../../_data/skills";
 import { CONNECTORS } from "../../_data/connectors";
 import ConnectorCard from "../_components/ConnectorCard";
@@ -179,7 +181,11 @@ export default function CopilotPlugins() {
               <ConnectorCard
                 key={platform.id}
                 platform={platform}
-                onConnect={() => notifyPending(`Connecting ${platform.name}`)}
+                onConnect={() =>
+                  beginConnect(platform.id).catch((err) =>
+                    reportFailure(err, `Couldn't connect ${platform.name}`),
+                  )
+                }
               />
             ))}
           </div>

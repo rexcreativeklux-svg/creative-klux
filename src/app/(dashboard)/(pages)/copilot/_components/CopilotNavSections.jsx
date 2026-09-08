@@ -32,6 +32,7 @@ import ResultActionsMenu from "@/app/(components)/product-studio/ResultActionsMe
 import NavSection from "./NavSection";
 import CopilotAvatar from "./CopilotAvatar";
 import { buildCopilotActions } from "./copilotActions";
+import { useInlineRename } from "./useInlineRename";
 import { useCopilots, RECENTS_LIMIT } from "../_data/copilots";
 
 // Gap between a row's ⋯ and the menu it opens. The menu (w-52 = 208px) is wider
@@ -41,7 +42,9 @@ import { useCopilots, RECENTS_LIMIT } from "../_data/copilots";
 const MENU_GAP = 8;
 
 /** One copilot in the rail: avatar, name, and a ⋯ that appears on hover. */
-function NavRow({ copilot, onOpenMenu, menuOpen, onNavigate, active }) {
+function NavRow({ copilot, onOpenMenu, menuOpen, onNavigate, active, rename }) {
+  const renaming = rename.editingId === copilot.id;
+
   return (
     <div
       className={`group relative flex items-center rounded-xl transition-colors ${
@@ -50,14 +53,32 @@ function NavRow({ copilot, onOpenMenu, menuOpen, onNavigate, active }) {
           : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
       }`}
     >
-      <Link
-        href={`/copilot/${copilot.id}`}
-        onClick={onNavigate}
-        className="flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-3 text-[13px] font-medium text-left"
-      >
-        <CopilotAvatar copilot={copilot} size="sm" />
-        <span className="truncate">{copilot.name}</span>
-      </Link>
+      {/* ⚠️ Not a Link while renaming — inside one, a click meant to place the
+          cursor navigates to the copilot instead, and typing space scrolls. */}
+      {renaming ? (
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-3">
+          <CopilotAvatar copilot={copilot} size="sm" />
+          <input
+            value={rename.draft}
+            onChange={(e) => rename.setDraft(e.target.value)}
+            onKeyDown={(e) => rename.onKeyDown(e, copilot)}
+            onBlur={() => rename.commit(copilot)}
+            disabled={rename.saving}
+            aria-label={`Rename ${copilot.name}`}
+            autoFocus
+            className="w-full min-w-0 rounded-md border border-blue-400 bg-surface px-1.5 py-0.5 text-[13px] font-medium text-gray-900 outline-none focus:ring-2 focus:ring-blue-500/20"
+          />
+        </div>
+      ) : (
+        <Link
+          href={`/copilot/${copilot.id}`}
+          onClick={onNavigate}
+          className="flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-3 text-[13px] font-medium text-left"
+        >
+          <CopilotAvatar copilot={copilot} size="sm" />
+          <span className="truncate">{copilot.name}</span>
+        </Link>
+      )}
       <button
         onClick={(e) => onOpenMenu(copilot, e)}
         aria-label={`${copilot.name} actions`}
@@ -83,6 +104,9 @@ export default function CopilotNavSections({ onNavigate }) {
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [recentsOpen, setRecentsOpen] = useState(true);
   const [menu, setMenu] = useState(null); // { copilot, x, y }
+  // One editor for the rail: a row can only be renamed one at a time, and the
+  // hook tracks which by id.
+  const rename = useInlineRename();
 
   const favorites = copilots.filter((c) => c.favorite);
   // The catalog is already ordered newest-edited first, so Recents is a slice.
@@ -105,6 +129,7 @@ export default function CopilotNavSections({ onNavigate }) {
         onOpenMenu={openMenu}
         menuOpen={menu?.copilot.id === copilot.id}
         onNavigate={onNavigate}
+        rename={rename}
         // Any screen inside a copilot's workspace lights its row — the panel
         // over there names which of them you are on.
         active={pathname?.startsWith(`/copilot/${copilot.id}`)}
@@ -159,7 +184,7 @@ export default function CopilotNavSections({ onNavigate }) {
         <ResultActionsMenu
           x={menu.x}
           y={menu.y}
-          actions={buildCopilotActions(menu.copilot)}
+          actions={buildCopilotActions(menu.copilot, { onRename: rename.start })}
           onClose={() => setMenu(null)}
         />
       )}

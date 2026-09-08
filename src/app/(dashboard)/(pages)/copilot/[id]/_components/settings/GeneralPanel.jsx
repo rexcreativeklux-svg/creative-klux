@@ -40,6 +40,7 @@ import {
   removeCopilot,
   cloneCopilot,
   notifyPending,
+  reportFailure,
 } from "../../../_data/copilots";
 import { CATEGORY_SURFACES } from "../../../_data/surfaces";
 import SettingsSelect from "./SettingsSelect";
@@ -271,9 +272,12 @@ export default function GeneralPanel({ copilot, onClose }) {
         action={
           <GhostButton
             onClick={() => {
-              cloneCopilot(copilot.id);
-              toast.success(`${copilot.name} cloned`);
+              // Closes straight away: the sheet is done with either way, and
+              // the toast (success or the server's error) lands over the page.
               onClose();
+              cloneCopilot(copilot.id)
+                .then(() => toast.success(`${copilot.name} cloned`))
+                .catch((err) => reportFailure(err, "Couldn't clone this copilot"));
             }}
           >
             <Copy className="h-4 w-4" />
@@ -319,9 +323,12 @@ export default function GeneralPanel({ copilot, onClose }) {
               <GhostButton
                 danger
                 onClick={() => {
-                  removeCopilot(copilot.id);
-                  toast.success(`${copilot.name} deleted`);
                   onClose();
+                  removeCopilot(copilot.id)
+                    .then(() => toast.success(`${copilot.name} deleted`))
+                    .catch((err) =>
+                      reportFailure(err, "Couldn't delete this copilot"),
+                    );
                 }}
               >
                 <Trash2 className="h-4 w-4" />

@@ -21,7 +21,8 @@
 import { useState } from "react";
 import { Search, ArrowUpDown, Plug } from "lucide-react";
 import ResponsiveModal from "@/app/(components)/ui/ResponsiveModal";
-import { notifyPending } from "../../_data/copilots";
+import { notifyPending, reportFailure } from "../../_data/copilots";
+import { beginConnect } from "../../_data/copilotApi";
 import {
   CONNECTORS,
   CONNECTOR_CATEGORIES,
@@ -141,7 +142,11 @@ export default function ConnectorsModal({ isOpen, onClose, onRequest }) {
                   key={connector.id}
                   platform={connector}
                   stacked
-                  onConnect={() => notifyPending(`Connecting ${connector.name}`)}
+                  onConnect={() =>
+                    beginConnect(connector.id).catch((err) =>
+                      reportFailure(err, `Couldn't connect ${connector.name}`),
+                    )
+                  }
                 />
               ))}
             </div>

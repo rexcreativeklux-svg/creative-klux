@@ -13,14 +13,14 @@
  *   • real, and local — favorite / clone / delete mutate the mock store, so the
  *     sidebar reflects them the moment the card does;
  *   • real, and browser-side — Copy copilot ID hits the clipboard;
- *   • honest placeholders — anything that needs a server (folders, sharing,
- *     rename, settings) says so in a toast rather than silently doing nothing.
+ *   • real, and server-backed — favourite, rename, clone and delete;
+ *   • honest placeholders — sharing and settings still need endpoints, and say
+ *     so in a toast rather than silently doing nothing.
  * A dead menu item the user clicks twice before giving up is worse than one that
  * tells them what it is waiting for.
  */
 
 import {
-  FolderInput,
   Star,
   StarOff,
   Share2,
@@ -65,11 +65,8 @@ const run = (promise, done, failed) =>
 export function buildCopilotActions(copilot, { onRename } = {}) {
   const { id, name, favorite } = copilot;
   return [
-    {
-      label: "Move to folder",
-      icon: FolderInput,
-      onClick: () => notifyPending("Folders"),
-    },
+    // No "Move to folder" — folders have no endpoint, and a menu item that only
+    // ever says "coming soon" costs a row at the top of every copilot's menu.
     {
       label: favorite ? "Remove from favorites" : "Add to favorites",
       icon: favorite ? StarOff : Star,

@@ -31,7 +31,7 @@
  */
 
 import { useRef, useState } from "react";
-import { Copy, FolderInput, Play, Sparkles, Square, Trash2 } from "lucide-react";
+import { Copy, Play, Sparkles, Square, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { MODEL_GROUPS, MODEL_OPTIONS } from "@/app/(components)/studio/composerModel";
@@ -39,7 +39,6 @@ import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
 import {
   removeCopilot,
   cloneCopilot,
-  notifyPending,
   reportFailure,
 } from "../../../_data/copilots";
 import { CATEGORY_SURFACES } from "../../../_data/surfaces";
@@ -286,17 +285,7 @@ export default function GeneralPanel({ copilot, onClose }) {
         }
       />
 
-      {/* ── Move ─────────────────────────────────────────────── */}
-      <Section
-        title="Move to folder"
-        description="File this copilot under one of your folders."
-        action={
-          <GhostButton onClick={() => notifyPending("Folders")}>
-            <FolderInput className="h-4 w-4" />
-            Move copilot
-          </GhostButton>
-        }
-      />
+      {/* No "Move to folder" section — folders have no endpoint. */}
 
       {/* ── Delete ───────────────────────────────────────────── */}
       <Section

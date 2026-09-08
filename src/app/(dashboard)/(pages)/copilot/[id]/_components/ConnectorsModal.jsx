@@ -21,15 +21,14 @@
 import { useState } from "react";
 import { Search, ArrowUpDown, Plug } from "lucide-react";
 import ResponsiveModal from "@/app/(components)/ui/ResponsiveModal";
-import { notifyPending, reportFailure } from "../../_data/copilots";
-import { beginConnect } from "../../_data/copilotApi";
+import { notifyPending } from "../../_data/copilots";
 import {
   CONNECTORS,
   CONNECTOR_CATEGORIES,
   CONNECTOR_SORTS,
 } from "../../_data/connectors";
 import ConnectorCard from "./ConnectorCard";
-import DropdownMenu from "./DropdownMenu";
+import DropdownMenu from "../../_components/DropdownMenu";
 
 const TABS = ["Apps", "MCP"];
 
@@ -39,8 +38,20 @@ const TABS = ["Apps", "MCP"];
  * @param {() => void} props.onClose
  * @param {() => void} props.onRequest  "Request a connector" — the page swaps
  *   this dialog for the request form rather than stacking one on the other.
+ * @param {(connector: Object) => void} props.onConnectPlatform  Connects the app
+ *   for the whole brand — the same integration the /integrations page manages.
+ *   See useBrandIntegrations.
+ * @param {Map<string, Object>} [props.connectedBy]  platform id → integration row.
+ * @param {(integrationId: string|number) => void} [props.onDisconnect]
  */
-export default function ConnectorsModal({ isOpen, onClose, onRequest }) {
+export default function ConnectorsModal({
+  isOpen,
+  onClose,
+  onRequest,
+  onConnectPlatform,
+  connectedBy,
+  onDisconnect,
+}) {
   const [tab, setTab] = useState("Apps");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
@@ -142,10 +153,13 @@ export default function ConnectorsModal({ isOpen, onClose, onRequest }) {
                   key={connector.id}
                   platform={connector}
                   stacked
-                  onConnect={() =>
-                    beginConnect(connector.id).catch((err) =>
-                      reportFailure(err, `Couldn't connect ${connector.name}`),
-                    )
+                  onConnect={() => onConnectPlatform(connector)}
+                  // Same connected state the grid behind this dialog shows —
+                  // browsing the catalog should not offer to connect something
+                  // that already is.
+                  connected={connectedBy?.get(connector.id)}
+                  onDisconnect={() =>
+                    onDisconnect?.(connectedBy?.get(connector.id)?.id)
                   }
                 />
               ))}

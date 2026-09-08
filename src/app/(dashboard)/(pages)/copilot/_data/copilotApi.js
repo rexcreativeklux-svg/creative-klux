@@ -89,14 +89,40 @@ export async function sendChat({
 }
 
 /**
- * Load one thread. `GET copilot/conversations/{id}` exists; there is NO index
- * route (`copilot/conversations` 404s), so threads can be fetched by id but not
- * listed — which is why the sidebar's conversation history is still empty.
+ * Load one thread, with its messages.
+ *
+ * ⚠️ Note the singular `copilot/` here against the plural `copilots/` in
+ * listConversations below — they are two different routes, not a typo.
+ * `copilot/conversations` (no id) does NOT exist; the index is nested under the
+ * copilot instead.
  */
 export async function fetchConversation(id) {
   const res = await api.get(`${COPILOT_API_BASE}/copilot/conversations/${id}`);
-  return res.data;
+  return assertOk(res.data, "Could not load that conversation.");
 }
+
+/** Every thread with one copilot, newest first (the server's order). */
+export async function listConversations(copilotId) {
+  const res = await api.get(
+    `${COPILOT_API_BASE}/copilots/${copilotId}/conversations`,
+  );
+  return assertOk(res.data, "Could not load conversations.");
+}
+
+/** The rows out of a list response, whichever envelope it uses. */
+export const conversationRows = (data) => {
+  const list = Array.isArray(data)
+    ? data
+    : (data?.data ?? data?.conversations ?? []);
+  return Array.isArray(list) ? list : [];
+};
+
+/** The messages out of a single-conversation response. */
+export const conversationMessages = (data) => {
+  const row = data?.conversation ?? data?.data ?? data;
+  const list = row?.messages ?? data?.messages ?? [];
+  return Array.isArray(list) ? list : [];
+};
 
 /* ── Copilots (the backend calls them agents) ──────────────────────────────
  *

@@ -1,8 +1,12 @@
 "use client";
 
 /**
- * DropdownMenu — a trigger that drops a list, for the three menus on the Plugins
- * screen: the connector browser's category and sort filters, and "Add Skill".
+ * DropdownMenu — a trigger that drops a list. Used by the Plugins screen (the
+ * connector browser's category and sort filters, and "Add Skill") and by the
+ * All Copilots sort.
+ *
+ * Lives at the Copilot root rather than under `[id]/` because it is shared by
+ * both, and a copy at each would be two dropdowns to keep behaving alike.
  *
  * One component covers both jobs because they differ only in what an item MEANS:
  * a filter item sets a value (and shows a ✓ on the current one), an action item

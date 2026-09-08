@@ -25,12 +25,10 @@
  * to my backend yet" and made no request at all, which meant a failure was
  * invisible — nothing in the Network tab, nothing to send to the backend dev.
  *
- * ⚠️ THE BACKEND IS HALF-DEPLOYED, so today that call fails: the routes were
- * registered but `CopilotController` was never uploaded, and the endpoint
- * answers 500. That failure is now SHOWN, in the server's own words, because
- * while the deploy is being fixed the exact error is the useful thing on the
- * screen. It is deliberately not dressed up as the copilot speaking — see the
- * error branch in ChatMessage.
+ * ⚠️ A FAILURE IS SHOWN IN THE SERVER'S OWN WORDS, not paraphrased, and
+ * deliberately not dressed up as the copilot speaking — see the error branch in
+ * ChatMessage. While the backend is being brought up the exact error is the
+ * useful thing on the screen.
  *
  * What has NOT changed: nothing here mimes a working assistant. A canned reply
  * that sounds like success teaches the user their copilot is running work it is
@@ -38,6 +36,9 @@
  *
  * @param {Object} props
  * @param {Object} props.copilot  Whose conversation this is.
+ * @param {string} [props.conversationId]  The `?c=` in the URL. A numeric one
+ *   names a thread the server stored, and its messages are fetched; anything
+ *   else was minted locally by newConversationId and starts empty.
  * @param {string} [props.initialDraft]  Text the composer opens with, unsent —
  *   Plugins' "Activate skill" hands `/slug ` over this way, because the user
  *   still has to say what to run it on.
@@ -51,9 +52,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 import { IDEAS } from "../../_data/ideas";
-import { describeApiError, sendChat } from "../../_data/copilotApi";
+import {
+  conversationMessages,
+  describeApiError,
+  fetchConversation,
+  sendChat,
+} from "../../_data/copilotApi";
 import { OPENERS, SUBHEADINGS, lineForNow } from "../../_data/copilotGreetings";
 import CopilotComposer from "../../_components/CopilotComposer";
+import { conversationsChanged } from "./conversationsChanged";
 import ChatMessage from "./ChatMessage";
 import SuggestionChips from "./SuggestionChips";
 
@@ -95,13 +102,37 @@ const turn = (text, index) => {
 };
 
 /**
+ * A stored message in the shape this thread renders.
+ *
+ * ✅ CONFIRMED against the real API (2026-09-08):
+ *   { id, role: "user"|"assistant", content, created_at }
+ * The other keys are kept as fallbacks, but `content` is the one it sends.
+ *
+ * ⚠️ Anything that is not explicitly the user is treated as the copilot. Getting
+ * this backwards would attribute the assistant's words to the person, which is
+ * worse than an unstyled message — so the ambiguous case falls to the side that
+ * cannot put words in the user's mouth.
+ */
+const fromStored = (row, index) => {
+  const role = row?.role === "user" || row?.sender === "user" ? "user" : "assistant";
+  const stamp = row?.created_at ?? row?.at;
+  const at = stamp ? new Date(stamp) : new Date();
+  return {
+    id: `s-${row?.id ?? index}`,
+    role,
+    text: row?.content ?? row?.text ?? row?.message ?? "",
+    at: Number.isNaN(at.getTime()) ? new Date() : at,
+  };
+};
+
+/**
  * The copilot's words out of a response whose shape nobody has seen yet.
  *
- * ⚠️ The endpoint has never returned 2xx (it 500s — controller not deployed), so
- * every key here is a guess. The last resort is the raw JSON rather than a
- * friendly "something went wrong": if the reply arrives under a key we did not
- * guess, showing the actual payload is what lets us name the right one, and
- * silently swallowing it would hide the answer we are waiting for.
+ * ⚠️ Every key here is a guess — the endpoint had not returned a 2xx when this
+ * was written. The last resort is the raw JSON rather than a friendly "something
+ * went wrong": if the reply arrives under a key we did not guess, showing the
+ * actual payload is what lets us name the right one, and swallowing it would
+ * hide the answer we are waiting for.
  */
 const replyTextFrom = (data) =>
   data?.reply ??
@@ -111,8 +142,18 @@ const replyTextFrom = (data) =>
   data?.data?.reply ??
   (data == null ? "Empty response." : JSON.stringify(data, null, 2));
 
+/**
+ * Is this `?c=` a thread the SERVER knows about, or one we minted locally?
+ *
+ * newConversationId() produces a base36 timestamp, which is not all digits; a
+ * server id is. Getting it wrong costs a 404 that is caught and ignored, so the
+ * cheap test is the right one here.
+ */
+const isStoredConversation = (value) => /^\d+$/.test(String(value ?? ""));
+
 export default function Conversation({
   copilot,
+  conversationId = null,
   initialDraft = "",
   initialMessage = "",
 }) {
@@ -126,10 +167,14 @@ export default function Conversation({
   );
   const [draft, setDraft] = useState(initialDraft);
 
-  // The server's id for this thread, once it gives us one. A ref, not state:
-  // it changes nothing on screen, and putting it in state would re-render the
-  // whole thread to store a number. Never invented — see sendChat.
-  const conversationRef = useRef(null);
+  // The server's id for this thread. A ref, not state: it changes nothing on
+  // screen, and putting it in state would re-render the whole thread to store a
+  // number. Seeded when the URL already names a stored conversation, so the
+  // first message sent into a reopened thread continues it rather than starting
+  // a second one beside it.
+  const stored = isStoredConversation(conversationId);
+  const conversationRef = useRef(stored ? conversationId : null);
+  const [loadingHistory, setLoadingHistory] = useState(stored);
   const [showChips, setShowChips] = useState(true);
   const started = messages.length > 0;
   const name = firstName(user);
@@ -169,7 +214,13 @@ export default function Conversation({
         // Keep the thread id if the server names one, so the next turn
         // continues this conversation instead of opening another.
         const id = data?.conversation_id ?? data?.conversation?.id ?? null;
-        if (id != null) conversationRef.current = id;
+        if (id != null && String(id) !== String(conversationRef.current)) {
+          conversationRef.current = id;
+          // First reply in a new thread: the server has just created the
+          // conversation, so the history panel needs to hear about it. The URL
+          // has not changed, so nothing else would tell it.
+          conversationsChanged();
+        }
         settle({ text: replyTextFrom(data) });
       } catch (err) {
         settle({ text: describeApiError(err).text, error: true });
@@ -199,6 +250,27 @@ export default function Conversation({
     answer(initialMessage, "a-0");
   }, [initialMessage, answer]);
 
+  // Reopening a stored thread: load what was said. State is set only in the
+  // callbacks — a synchronous setState in an effect body cascades renders and
+  // this repo's compiler rules reject it.
+  useEffect(() => {
+    if (!stored) return undefined;
+    let alive = true;
+    fetchConversation(conversationId)
+      .then((data) => {
+        if (alive) setMessages(conversationMessages(data).map(fromStored));
+      })
+      // An unreadable thread opens empty rather than throwing the screen away;
+      // the composer below it still works.
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setLoadingHistory(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [stored, conversationId]);
+
   const composer = (
     <CopilotComposer
       value={draft}
@@ -209,6 +281,19 @@ export default function Conversation({
       sendLabel="Send message"
     />
   );
+
+  // ── Reopening a stored thread ─────────────────────────────────
+  // ⚠️ Checked BEFORE the empty state. Without this, reopening a conversation
+  // shows "Hey Rex, what do you want to hand over?" for the length of the
+  // request — the screen greeting you as if the thread you just clicked were
+  // brand new, then replacing itself.
+  if (loadingHistory && !started) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-xs text-gray-400">Loading conversation…</p>
+      </div>
+    );
+  }
 
   // ── New conversation ──────────────────────────────────────────
   if (!started) {

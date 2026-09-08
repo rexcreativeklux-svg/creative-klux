@@ -30,7 +30,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   PanelLeftClose,
   PanelLeftOpen,
@@ -47,6 +47,10 @@ import {
 import { useSecondarySidebar } from "@/context/SecondarySidebarContext";
 import Drawer from "@/app/(components)/ui/Drawer";
 import CopilotAvatar from "../../_components/CopilotAvatar";
+import {
+  conversationTitle,
+  useConversationList,
+} from "./useConversationList";
 import { newConversationId } from "../../_data/copilots";
 import { CHANNELS } from "../../_data/channels";
 import CopilotSettingsModal from "./settings/CopilotSettingsModal";
@@ -98,6 +102,18 @@ export default function CopilotWorkspaceLayout({ copilot, children }) {
   const [settings, setSettings] = useState(null);
 
   const base = `/copilot/${copilot.id}`;
+
+  // Which thread is on screen, so its row in the history can light up.
+  const searchParams = useSearchParams();
+  const openConversation = searchParams.get("c");
+
+  // ⚠️ Keyed on the open conversation so the list refetches when you land in a
+  // new thread — a conversation the server has only just created would
+  // otherwise be missing from the history until a reload.
+  const { conversations, loading: conversationsLoading } = useConversationList(
+    copilot.id,
+    openConversation,
+  );
   // Exact match: every screen here is a leaf, and the conversation lives at the
   // root, so a prefix test would light Workflows from inside a conversation.
   const isActive = (href) => pathname === href;
@@ -277,17 +293,46 @@ export default function CopilotWorkspaceLayout({ copilot, children }) {
                 className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${conversationsOpen ? "" : "-rotate-90"}`}
               />
             </button>
-            {conversationsOpen && (
-              // ⚠️ No mock threads here on purpose. A copilot's history is the
-              // one thing that is genuinely empty until the backend records it,
-              // and seeding fake conversations would put words in this
-              // copilot's mouth that the user never said.
-              <p className="mt-1 rounded-xl border border-gray-200 px-3 py-4 text-center text-[11px] leading-relaxed text-gray-400">
-                No conversations yet.
-                <br />
-                Your chats with {copilot.name} land here.
-              </p>
-            )}
+            {conversationsOpen &&
+              (conversationsLoading ? (
+                <p className="mt-1 px-3 py-3 text-center text-[11px] text-gray-400">
+                  Loading…
+                </p>
+              ) : conversations.length ? (
+                <div className="mt-0.5 flex flex-col">
+                  {conversations.map((row) => {
+                    // ⚠️ Compared as strings: the id arrives as a number from
+                    // the API and as text from the URL, and `5 !== "5"`.
+                    const active = String(row.id) === String(openConversation);
+                    return (
+                      <button
+                        key={row.id}
+                        onClick={() => {
+                          setDrawerOpen(false);
+                          router.push(`${base}?c=${row.id}`);
+                        }}
+                        title={conversationTitle(row)}
+                        className={`truncate rounded-xl px-3 py-2 text-left text-[13px] font-medium transition-colors cursor-pointer ${
+                          active
+                            ? "bg-blue-50 text-blue-600"
+                            : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                        }`}
+                      >
+                        {conversationTitle(row)}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                // ⚠️ Still no mock threads. A copilot's history is genuinely
+                // empty until it has one, and seeding fake conversations would
+                // put words in this copilot's mouth the user never said.
+                <p className="mt-1 rounded-xl border border-gray-200 px-3 py-4 text-center text-[11px] leading-relaxed text-gray-400">
+                  No conversations yet.
+                  <br />
+                  Your chats with {copilot.name} land here.
+                </p>
+              ))}
           </>
         )}
       </nav>

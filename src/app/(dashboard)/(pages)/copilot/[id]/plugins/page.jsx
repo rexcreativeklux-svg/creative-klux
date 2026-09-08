@@ -6,11 +6,16 @@
  * Header + Add Connector, a Connectors / Skills tab pair, the promo banner, a
  * "Most popular" grid with Browse all, and "Apps connected" beneath it.
  *
- * ⚠️ UI ONLY. Nothing here connects anything, and it deliberately does not read
- * the brand's existing integrations either: the backend decides how a copilot's
- * integrations work, so this screen states no opinion about it. Every action
- * says the click was heard and stops there — see notifyPending. When the
- * endpoints land, `connect` and "Apps connected" are the two places to wire.
+ * ⚠️ THIS IS THE SAME SET OF INTEGRATIONS AS /integrations, not a second one.
+ * Connect Instagram here or connect it there — one row, one table, both screens
+ * show it, and disconnecting on either takes it away from both. Anything else
+ * would ask the user to authorise the same account twice and then wonder why
+ * their copilot cannot post to a page they already connected.
+ *
+ * See ../../_components/useBrandIntegrations: it drives the publishing page's
+ * own connect engine rather than repeating it.
+ *
+ * Still UI only: MCP servers, connector requests and skill upload.
  *
  * The connector list is the app's own integrations registry, so a card can only
  * name a platform Creative Klux genuinely has a brand mark for.
@@ -24,9 +29,9 @@ import {
   useCopilots,
   notifyPending,
   newConversationId,
-  reportFailure,
 } from "../../_data/copilots";
-import { beginConnect } from "../../_data/copilotApi";
+import PlatformPageModal from "@/app/(components)/integrations/PlatformPageModal";
+import { useBrandIntegrations } from "../../_components/useBrandIntegrations";
 import { CREATE_SKILL_PROMPT } from "../../_data/skills";
 import { CONNECTORS } from "../../_data/connectors";
 import ConnectorCard from "../_components/ConnectorCard";
@@ -35,7 +40,7 @@ import RequestConnectorModal from "../_components/RequestConnectorModal";
 import SkillsTab from "../_components/SkillsTab";
 import SkillsModal from "../_components/SkillsModal";
 import UploadSkillModal from "../_components/UploadSkillModal";
-import DropdownMenu from "../_components/DropdownMenu";
+import DropdownMenu from "../../_components/DropdownMenu";
 
 /** Cards under "Most popular", with the rest behind "Browse all". */
 const POPULAR = 8;
@@ -54,6 +59,18 @@ export default function CopilotPlugins() {
   // other "show me the rest", and they land on the same catalog.
   const [dialog, setDialog] = useState(null); // "connectors" | "request" | "skills" | "upload" | null
 
+  // ⚠️ ONE SET OF INTEGRATIONS, shared with the publishing page — see the hook.
+  // Called before the early return below, because hooks cannot be conditional.
+  const {
+    connectedBy,
+    loading: integrationsLoading,
+    connectPlatform: connect,
+    connectingId,
+    disconnect,
+    disconnectingId,
+    pageModal,
+  } = useBrandIntegrations();
+
   if (!copilot) return null; // the layout owns the "not found" state
 
   // Every skill action lands in the SAME place: a new conversation with the
@@ -67,7 +84,15 @@ export default function CopilotPlugins() {
     );
   };
 
+  const connectPlatform = (platform) => {
+    setDialog(null);
+    connect(platform.id);
+  };
+
   const popular = CONNECTORS.slice(0, POPULAR);
+
+  /** The catalog rows that are actually connected, for "Apps connected". */
+  const connectedApps = CONNECTORS.filter((c) => connectedBy.has(c.id));
 
   return (
     // Full width, gutters only — no centred column. The connector grid is the
@@ -181,20 +206,50 @@ export default function CopilotPlugins() {
               <ConnectorCard
                 key={platform.id}
                 platform={platform}
-                onConnect={() =>
-                  beginConnect(platform.id).catch((err) =>
-                    reportFailure(err, `Couldn't connect ${platform.name}`),
-                  )
+                onConnect={() => connectPlatform(platform)}
+                connected={connectedBy.get(platform.id)}
+                onDisconnect={() =>
+                  disconnect(connectedBy.get(platform.id)?.id)
+                }
+                busy={
+                  connectingId === platform.id ||
+                  disconnectingId === connectedBy.get(platform.id)?.id
                 }
               />
             ))}
           </div>
 
-          {/* ── Apps connected ──────────────────────────────── */}
+          {/* ── Apps connected ────────────────────────────────
+              The brand's real integrations, the same ones the Integrations page
+              lists. Said out loud in the subtitle, because a list of apps on a
+              copilot's own screen reads as belonging to that copilot. */}
           <h2 className="mt-10 text-lg font-bold text-gray-900">
             Apps connected
           </h2>
-          <p className="mt-3 text-sm text-gray-500">No apps connected yet.</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Connected for your whole brand — every copilot can use these, and
+            they are the same apps your Integrations page lists.
+          </p>
+
+          {integrationsLoading ? (
+            <p className="mt-3 text-sm text-gray-400">Loading…</p>
+          ) : connectedApps.length ? (
+            <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {connectedApps.map((platform) => (
+                <ConnectorCard
+                  key={platform.id}
+                  platform={platform}
+                  connected={connectedBy.get(platform.id)}
+                  onDisconnect={() =>
+                    disconnect(connectedBy.get(platform.id)?.id)
+                  }
+                  busy={disconnectingId === connectedBy.get(platform.id)?.id}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-gray-500">No apps connected yet.</p>
+          )}
         </>
       ) : (
         <SkillsTab
@@ -208,6 +263,9 @@ export default function CopilotPlugins() {
         isOpen={dialog === "connectors"}
         onClose={() => setDialog(null)}
         onRequest={() => setDialog("request")}
+        onConnectPlatform={connectPlatform}
+        connectedBy={connectedBy}
+        onDisconnect={disconnect}
       />
       <RequestConnectorModal
         isOpen={dialog === "request"}
@@ -219,6 +277,19 @@ export default function CopilotPlugins() {
         onClose={() => setDialog(null)}
         onAskChat={() => openInChat(CREATE_SKILL_PROMPT)}
       />
+
+      {/* Which Facebook Page / ad account to connect. Some platforms resolve to
+          several targets, and the engine cannot pick for the user — the same
+          modal the Integrations page shows, for the same step. */}
+      {pageModal.open && (
+        <PlatformPageModal
+          pages={pageModal.pages}
+          onSelect={pageModal.onSelect}
+          onClose={pageModal.onClose}
+          loading={pageModal.loadingPageId}
+          selectedPageId={null}
+        />
+      )}
     </div>
   );
 }

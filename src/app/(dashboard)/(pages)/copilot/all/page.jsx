@@ -3,15 +3,17 @@
 /**
  * /copilot/all — the Copilot catalog, and where the sidebar's "View all" lands.
  *
- * Header with New folder / Create actions, a search + filter + sort toolbar, a
- * favorites filter, a grid/list toggle, and the copilots themselves.
+ * Header with Create, a search + sort toolbar, a favorites filter, a grid/list
+ * toggle, and the copilots themselves.
  *
- * ⚠️ THERE IS NO API YET. The list comes from ../_data/copilots, a module-level
- * mock store shared with the sidebar — so starring a copilot here lights it up
- * in the sidebar's Favorites, and deleting one drops it from Recents. Search,
- * the favorites filter and the view toggle are real; New folder, Create, the
- * owner filter and Sort are the placeholders that are left, and each says so
- * when clicked rather than doing nothing.
+ * The list comes from `GET /copilots` through ../_data/copilots, the store the
+ * sidebar shares — so starring a copilot here lights it up in the sidebar's
+ * Favorites, and deleting one drops it from Recents.
+ *
+ * ⚠️ EVERY CONTROL ON THIS SCREEN NOW DOES SOMETHING. The two that could not —
+ * New folder (no endpoint) and the "Created by me" owner filter (no creator on
+ * the row) — were removed rather than left saying "coming soon"; see the notes
+ * where each stood. Sort stayed because it needs no endpoint at all.
  *
  * Every card is a {@link CopilotCard} — the same component the list view uses,
  * so the two views cannot drift apart on hover, favouriting or the ⋯ menu.
@@ -21,9 +23,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
-  FolderPlus,
   Plus,
-  ChevronDown,
   ArrowUpDown,
   LayoutGrid,
   List,
@@ -32,13 +32,50 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import CopilotCard from "../_components/CopilotCard";
+import DropdownMenu from "../_components/DropdownMenu";
 import {
   useCopilotsState,
   refreshCopilots,
-  notifyPending,
   addCopilot,
   reportFailure,
 } from "../_data/copilots";
+
+/**
+ * How the grid can be ordered.
+ *
+ * ⚠️ Ordered on the SERVER'S timestamps, not on `editedAgo` — that is a rendered
+ * phrase ("about 2 hours ago"), and sorting strings like that puts "3 days" above
+ * "about 2 hours" alphabetically. A row with no timestamp sorts last rather than
+ * first: an unknown date is not the newest.
+ *
+ * `localeCompare` for names so accents and case land where a reader expects,
+ * rather than in ASCII order where "Zoe" precedes "alien".
+ */
+const timeOf = (copilot, field) => {
+  const at = Date.parse(copilot?.[field] ?? "");
+  return Number.isNaN(at) ? -Infinity : at;
+};
+
+const SORTS = {
+  edited: {
+    label: "Last edited",
+    compare: (a, b) => timeOf(b, "updated_at") - timeOf(a, "updated_at"),
+  },
+  created: {
+    label: "Date created",
+    compare: (a, b) => timeOf(b, "created_at") - timeOf(a, "created_at"),
+  },
+  az: {
+    label: "Name A–Z",
+    compare: (a, b) => a.name.localeCompare(b.name),
+  },
+  za: {
+    label: "Name Z–A",
+    compare: (a, b) => b.name.localeCompare(a.name),
+  },
+};
+
+const SORT_KEYS = Object.keys(SORTS);
 
 export default function AllCopilots() {
   const router = useRouter();
@@ -46,6 +83,7 @@ export default function AllCopilots() {
   const [query, setQuery] = useState("");
   const [view, setView] = useState("grid");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [sort, setSort] = useState("edited");
   const [creating, setCreating] = useState(false);
 
   /**
@@ -71,13 +109,18 @@ export default function AllCopilots() {
   };
 
   const term = query.trim().toLowerCase();
-  const visible = copilots.filter(
+  const matches = copilots.filter(
     (copilot) =>
       (!favoritesOnly || copilot.favorite) &&
       (!term ||
         copilot.name.toLowerCase().includes(term) ||
         copilot.description.toLowerCase().includes(term)),
   );
+
+  // ⚠️ Sorted on a COPY. `copilots` is the store's own array, and Array#sort
+  // mutates in place — sorting it directly would reorder the sidebar's Recents
+  // too, and reorder it without telling anyone that subscribes.
+  const visible = [...matches].sort(SORTS[sort].compare);
   // An empty catalog and an over-filtered one are different problems, and the
   // fix for each is different — so they do not share a message.
   const filtered = copilots.length > 0 && visible.length === 0;
@@ -98,14 +141,10 @@ export default function AllCopilots() {
               Create, organize, and manage all copilots in your workspace.
             </p>
           </div>
+          {/* No folders. Unlike sort, this cannot be done client-side — a
+              folder is stored state, and there is no endpoint for it. Bring the
+              button back with the API, not before. */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => notifyPending("Folders")}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-gray-300 bg-surface text-sm font-medium text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
-            >
-              <FolderPlus className="h-4 w-4" />
-              New folder
-            </button>
             <button
               onClick={handleCreate}
               disabled={creating}
@@ -134,20 +173,28 @@ export default function AllCopilots() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => notifyPending("Filtering by owner")}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 bg-surface text-sm font-medium text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
-            >
-              Created by me
-              <ChevronDown className="h-4 w-4 text-gray-400" />
-            </button>
-            <button
-              onClick={() => notifyPending("Sorting")}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 bg-surface text-sm font-medium text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
-            >
-              <ArrowUpDown className="h-4 w-4 text-gray-400" />
-              Sort
-            </button>
+            {/* No owner filter. `GET /copilots` returns one brand's copilots
+                and the rows carry no owner, so "Created by me" could only ever
+                mean "all of them" — a control that filters nothing. It belongs
+                back here if the API grows a creator. */}
+
+            {/* Sorting needs no endpoint — the whole catalog is already here,
+                so it is a comparator over what is loaded. */}
+            <DropdownMenu
+              heading="Sort by"
+              align="right"
+              trigger={
+                <>
+                  <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                  {SORTS[sort].label}
+                </>
+              }
+              items={SORT_KEYS.map((key) => ({
+                label: SORTS[key].label,
+                selected: key === sort,
+                onClick: () => setSort(key),
+              }))}
+            />
             {/* Favorites filter — a toggle, not a link, so it reads against the
                 stars on the cards themselves. */}
             <button

@@ -52,17 +52,34 @@ export const notifyPending = (label) =>
 /**
  * Report a failed write in the SERVER'S OWN WORDS.
  *
- * ⚠️ Not paraphrased to something friendly. While the backend is being brought
- * up, "Unknown column 'copilot_id'" is the sentence that tells the backend dev
- * what to fix, and "Something went wrong" tells them nothing. The mutators below
- * all reject on failure, so every caller must route through this rather than
- * toasting success unconditionally.
+ * ⚠️ THE SERVER'S SENTENCE IS THE HEADLINE, not ours. "Unknown integration
+ * provider: facebook" is the line that tells the backend dev what to fix;
+ * "Couldn't connect Facebook Pages" tells them nothing. So the server's message
+ * is the toast's title and our own context drops to the description — the
+ * reverse of the usual arrangement, and deliberate while the backend is being
+ * brought up.
+ *
+ * Long enough to read (these are diagnostics, not confirmations), and with a
+ * Copy action, because the next thing that happens to this text is being pasted
+ * to whoever can fix it.
  *
  * @param {unknown} err   Whatever the request threw.
  * @param {string} what   What was being attempted ("Couldn't delete").
  */
-export const reportFailure = (err, what) =>
-  toast.error(`${what} — ${describeApiError(err).text}`);
+export const reportFailure = (err, what) => {
+  const { status, detail, text } = describeApiError(err);
+  toast.error(detail, {
+    description: status ? `${what} · HTTP ${status}` : what,
+    duration: 12000,
+    action: {
+      label: "Copy",
+      onClick: () => {
+        navigator.clipboard?.writeText(`${what} — ${text}`);
+        toast.success("Error copied");
+      },
+    },
+  });
+};
 
 /**
  * An id for a conversation that does not exist server-side yet.

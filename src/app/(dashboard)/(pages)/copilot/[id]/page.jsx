@@ -42,6 +42,10 @@ function CopilotConversation() {
       //   ?send=  a MESSAGE, already asked. Workflows' "Send to chat" uses it:
       //           the description is a whole request on its own, and a button
       //           that says send should not need a second click to send.
+      // The same `?c=` that keys this component. Passed as a prop too, because
+      // a numeric one names a thread the SERVER stored and its messages have to
+      // be fetched — see isStoredConversation.
+      conversationId={searchParams.get("c")}
       initialDraft={searchParams.get("task") ?? ""}
       initialMessage={searchParams.get("send") ?? ""}
     />

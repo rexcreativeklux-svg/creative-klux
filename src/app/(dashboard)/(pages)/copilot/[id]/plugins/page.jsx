@@ -266,6 +266,8 @@ export default function CopilotPlugins() {
         onConnectPlatform={connectPlatform}
         connectedBy={connectedBy}
         onDisconnect={disconnect}
+        connectingId={connectingId}
+        disconnectingId={disconnectingId}
       />
       <RequestConnectorModal
         isOpen={dialog === "request"}

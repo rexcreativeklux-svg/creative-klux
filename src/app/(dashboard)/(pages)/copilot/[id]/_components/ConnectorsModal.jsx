@@ -43,6 +43,8 @@ const TABS = ["Apps", "MCP"];
  *   See useBrandIntegrations.
  * @param {Map<string, Object>} [props.connectedBy]  platform id → integration row.
  * @param {(integrationId: string|number) => void} [props.onDisconnect]
+ * @param {string} [props.connectingId]     Platform whose handshake is open.
+ * @param {string|number} [props.disconnectingId]  Integration being removed.
  */
 export default function ConnectorsModal({
   isOpen,
@@ -51,6 +53,8 @@ export default function ConnectorsModal({
   onConnectPlatform,
   connectedBy,
   onDisconnect,
+  connectingId,
+  disconnectingId,
 }) {
   const [tab, setTab] = useState("Apps");
   const [query, setQuery] = useState("");
@@ -160,6 +164,14 @@ export default function ConnectorsModal({
                   connected={connectedBy?.get(connector.id)}
                   onDisconnect={() =>
                     onDisconnect?.(connectedBy?.get(connector.id)?.id)
+                  }
+                  // Without this the button sits inert while the provider's
+                  // window is open — and the second click that invites starts a
+                  // second handshake.
+                  busy={
+                    connectingId === connector.id ||
+                    (disconnectingId != null &&
+                      disconnectingId === connectedBy?.get(connector.id)?.id)
                   }
                 />
               ))}

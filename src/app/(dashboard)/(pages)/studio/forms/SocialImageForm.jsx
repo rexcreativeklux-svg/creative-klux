@@ -618,7 +618,7 @@ const SocialImageForm = ({
 
         size: formData.size,
         // Which preset that size came from — "Facebook Cover" reads very
-        // differently from a bare "820x312". The banners form sent this; it now
+        // differently from a bare "851x315". The banners form sent this; it now
         // goes for every kind.
         sizeLabel: activeSizeLabel || null,
         campaignGoal: formData.campaignGoal || null,

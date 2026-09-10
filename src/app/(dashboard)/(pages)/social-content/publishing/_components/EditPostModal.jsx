@@ -306,6 +306,7 @@ function Section({ title, subtitle, locked, lockNote, children }) {
 
 export default function EditPostModal({
   post,
+  brandId,
   integrations = [],
   integrationsMap = {},
   onClose,
@@ -373,7 +374,7 @@ export default function EditPostModal({
       if (!isScheduled) {
         await updatePostCaptionOnPlatform(updated, caption, integrations);
       }
-      savePublishedPost(updated);
+      savePublishedPost(brandId, updated);
       toast.success(
         isScheduled
           ? "Changes saved."

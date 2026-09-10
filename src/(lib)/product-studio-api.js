@@ -34,6 +34,10 @@ export const TOOL_ENUM = {
   poster: "edit",
   pod: "edit",
 
+  // The photo editor's "Describe a change" bar drives that same `edit` engine
+  // directly, with no product-tool wrapper around it: one prompt, one photo.
+  photo_edit: "edit",
+
   // Product Video generates motion rather than a still, but it posts to the same
   // /product-studio/generate endpoint as everything else — only its payload
   // differs (`image_urls` for 1-4 frames, and the reduced VIDEO_SIZES set).
@@ -106,6 +110,39 @@ function resolveMediaUrl(urlOrKey) {
   if (!urlOrKey || typeof urlOrKey !== "string") return null;
   if (/^https?:\/\//i.test(urlOrKey)) return urlOrKey;
   return `${CDN_BASE}/${urlOrKey.replace(/^\/+/, "")}`;
+}
+
+/**
+ * Pull the finished image URL out of a POST /product-studio/generate response.
+ *
+ * A completed run reports its output in several places at once: a top-level
+ * `url`, the same value again on the `generation` record, the object key it was
+ * stored under in `generation.s3_key`, and the `generation.meta.outputs[]` list
+ * the provider returned. They don't all always arrive — and `s3_key` / `key` are
+ * bare object keys, not URLs — so this walks them most-direct first and resolves
+ * whichever it finds through {@link resolveMediaUrl}.
+ *
+ * @param {object} result Response body from {@link generateProductPhoto}.
+ * @returns {string|null} The hosted image URL, or null when the run carried no
+ *   output — which is what a still-running job (see {@link PENDING_STATUSES})
+ *   and a silent failure both look like, so callers must handle it.
+ */
+export function pickGeneratedUrl(result) {
+  if (!result || typeof result !== "object") return null;
+
+  const g = result.generation || {};
+  const output = Array.isArray(g.meta?.outputs) ? g.meta.outputs[0] : null;
+
+  return (
+    resolveMediaUrl(result.url) ||
+    resolveMediaUrl(result.image_url) ||
+    resolveMediaUrl(result.data?.url) ||
+    resolveMediaUrl(g.url) ||
+    resolveMediaUrl(g.s3_key) ||
+    resolveMediaUrl(output?.url) ||
+    resolveMediaUrl(output?.key) ||
+    null
+  );
 }
 
 // File extensions we treat as video when inferring a history item's media type

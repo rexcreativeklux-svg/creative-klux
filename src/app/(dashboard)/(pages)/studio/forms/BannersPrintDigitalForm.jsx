@@ -24,11 +24,14 @@ const BANNER_MEDIUM = [
   { value: "both",    label: "Both",     icon: Layers,   desc: "Multi-use assets" },
 ];
 
+// Dimensions mirror the backend's SIZES['banners_print_digital'] map — it is the
+// source of truth for every size both sides carry. The print sizes below have no
+// backend counterpart and are left as they are.
 const DIGITAL_SIZES = [
   { value: "2560x1440", label: "YouTube Banner",       desc: "2560 × 1440 px" },
-  { value: "1920x1080", label: "Facebook Banner",      desc: "1920 × 1080 px" },
-  { value: "1600x400",  label: "LinkedIn Banner",      desc: "1600 × 400 px" },
-  { value: "820x312",   label: "Twitter Banner",       desc: "820 × 312 px" },
+  { value: "851x315",   label: "Facebook Banner",      desc: "851 × 315 px" },
+  { value: "1584x396",  label: "LinkedIn Banner",      desc: "1584 × 396 px" },
+  { value: "1500x500",  label: "Twitter Banner",       desc: "1500 × 500 px" },
   { value: "1200x628",  label: "Display Ad Landscape", desc: "1200 × 628 px" },
   { value: "300x250",   label: "Display Ad Rectangle", desc: "300 × 250 px" },
   { value: "728x90",    label: "Leaderboard Ad",       desc: "728 × 90 px" },

@@ -39,11 +39,14 @@ const FILE_FORMAT_OPTIONS = [
 ];
 
 const SIZE_OPTIONS = [
+  // Dimensions mirror the backend's SIZES['posters'] map — it is the source of
+  // truth. Digital A3 was 794x1123 here, which is an A4 page: the label said A3,
+  // the pixels said A4, and the generator rendered the backend's actual A3.
   { value: "816x1056",  label: "Digital Letter", desc: "8.5×11 in · 96 DPI" },
-  { value: "794x1123",  label: "Digital A3",     desc: "297×420 mm · 72 DPI" },
+  { value: "1123x1587", label: "Digital A3",     desc: "297×420 mm · 96 DPI" },
   { value: "5400x7200", label: "Print Poster",   desc: "18×24 in · 300 DPI" },
   { value: "3508x4961", label: "Print A3",       desc: "297×420 mm · 300 DPI" },
-  { value: "576x864",   label: "Digital Tabloid",desc: "6×9 in · 96 DPI" },
+  { value: "1056x1632", label: "Digital Tabloid",desc: "11×17 in · 96 DPI" },
 ];
 
 const ORIENTATION_OPTIONS = [

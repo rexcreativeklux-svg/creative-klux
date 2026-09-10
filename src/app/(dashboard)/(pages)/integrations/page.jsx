@@ -4,7 +4,12 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Info, AlertCircle, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
-import { setStoredXRefresh, setStoredTikTokRefresh } from "@/(lib)/integration";
+import {
+  setStoredXRefresh,
+  setStoredTikTokRefresh,
+  getPublishedPosts,
+  setPublishedPosts,
+} from "@/(lib)/integration";
 import {
   SOCIAL_PLATFORMS,
   AD_PLATFORMS,
@@ -262,17 +267,13 @@ const IntegrationsPage = () => {
         setIntegrations((prev) => prev.filter((i) => i.id !== integrationId));
 
         if (disconnectedPlatform) {
+          // Only this brand's bucket — the integration belonged to it, and the
+          // other brands' posts have nothing to do with this disconnect.
           try {
-            const stored = JSON.parse(
-              localStorage.getItem("creativeklux_published_posts") || "[]",
-            );
-            const cleaned = stored.filter(
+            const cleaned = getPublishedPosts(activeBrandId).filter(
               (p) => !(p.live && p.platform === disconnectedPlatform),
             );
-            localStorage.setItem(
-              "creativeklux_published_posts",
-              JSON.stringify(cleaned),
-            );
+            setPublishedPosts(activeBrandId, cleaned);
           } catch (e) {
             console.warn("Failed to clean localStorage posts:", e);
           }
@@ -286,7 +287,7 @@ const IntegrationsPage = () => {
         setLoadingIntegrationId(null);
       }
     },
-    [disconnectIntegration, integrations],
+    [disconnectIntegration, integrations, activeBrandId],
   );
 
   return (

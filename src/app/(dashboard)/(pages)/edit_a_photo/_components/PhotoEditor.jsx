@@ -20,6 +20,12 @@ import {
   disposeSegmentationWorker,
 } from "@/(lib)/ai-engine/tasks/removeBackground";
 import {
+  generateProductPhoto,
+  pickGeneratedUrl,
+  TOOL_ENUM,
+  QUALITY_ENUM,
+} from "@/(lib)/product-studio-api";
+import {
   X,
   Undo,
   Plus,
@@ -4351,10 +4357,76 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     }
   };
 
+  /**
+   * A URL the backend can fetch for itself.
+   *
+   * The generate endpoint takes an `image_url`, not an upload, so anything that
+   * only exists in this tab — a blob: from background removal, a data: from a
+   * baked adjustment, a file the user just picked — has to be hosted first.
+   * An http(s) source is already fetchable and passes straight through.
+   */
+  const hostedImageUrl = async (src) => {
+    if (/^https?:/i.test(src)) return src;
+
+    const blob = await fetch(src).then((r) => r.blob());
+    const file = new File([blob], `photo-editor-${Date.now()}.png`, {
+      type: blob.type || "image/png",
+    });
+    const res = await uploadMedia(file);
+    const url =
+      res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
+    if (!url) throw new Error("Couldn't upload this photo to edit.");
+    return url;
+  };
+
+  /**
+   * "Describe a change" — the prompt bar under the canvas.
+   *
+   * Runs the same backend engine as the Product Studio prompt tools
+   * (`tool: "edit"` on POST /product-studio/generate), with the current photo as
+   * its input. The result is written back as the new base photo, so the effect
+   * chain (adjust, transform, filters, shadow) re-applies on top and the layers
+   * above it are untouched — same contract as Magic Eraser, and undoable for the
+   * same reason.
+   */
   const handleAiApply = async () => {
-    if (!aiPrompt.trim() || !displayImage) return;
-    // AI image editing needs a backend generation endpoint that isn't wired up yet.
-    toast.info("AI editing is coming soon — not available yet.");
+    const prompt = aiPrompt.trim();
+    if (!prompt || !displayImage || applyingAi) return;
+
+    setApplyingAi(true);
+    const t = toast.loading("Applying your change…");
+    try {
+      const imageUrl = await hostedImageUrl(displayImage);
+
+      const result = await generateProductPhoto({
+        tool: TOOL_ENUM.photo_edit,
+        image_url: imageUrl,
+        prompt,
+        quality: QUALITY_ENUM.Standard,
+        // The editor has its own canvas and Resize controls, so an edit here
+        // must not impose an aspect ratio of its own.
+        size: "original",
+        apply_brand_style: false,
+      });
+      console.log("🎨 [edit_a_photo] AI edit result ←", result);
+
+      const url = pickGeneratedUrl(result);
+      if (!url) throw new Error("That edit came back without an image.");
+
+      replaceBasePhoto(url);
+      setAiPrompt("");
+      toast.success("Change applied", { id: t });
+    } catch (err) {
+      console.error("❌ [edit_a_photo] AI edit failed:", err);
+      toast.dismiss(t);
+      // generateProductPhoto already explains anything the server answered
+      // (out of credits, invalid tool, …). Only speak up for the failures it
+      // can't see: the upload, and a 200 that carried no image.
+      if (!err?.response)
+        toast.error(err?.message || "Couldn't apply that change.");
+    } finally {
+      setApplyingAi(false);
+    }
   };
 
   // Composite the image + every active edit (filters, adjust, transform, flip,
@@ -4980,10 +5052,11 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     if (!displayImage) { toast.error("Add an image first"); return; }
     setMagicEraserOpen(true);
   };
-  // Write the erased result back to the base photo so the effect chain
-  // re-applies on top (mirrors the cutout tool). processedUrl/originalUrl are
-  // snapshotted for undo, so this is undoable for free.
-  const applyMagicEraser = (url) => {
+  // Swap in a new base photo so the effect chain re-applies on top (mirrors the
+  // cutout tool). processedUrl/originalUrl are snapshotted for undo, so anything
+  // routed through here is undoable for free. Shared by Magic Eraser and the
+  // "Describe a change" AI edit — both hand back a whole replacement image.
+  const replaceBasePhoto = (url) => {
     if (processedUrl) setProcessedUrl(url);
     else setOriginalUrl(url);
   };
@@ -5084,7 +5157,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
         {magicEraserOpen && (
           <MagicEraserOverlay
             src={displayImage}
-            onApply={applyMagicEraser}
+            onApply={replaceBasePhoto}
             onClose={() => setMagicEraserOpen(false)}
           />
         )}

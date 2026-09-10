@@ -26,6 +26,7 @@ import {
 } from "date-fns";
 import {
   getPublishedPosts,
+  setPublishedPosts,
   deletePostFromPlatform,
   platformSupportsDelete,
   fetchLivePostsFromConnectedAccounts,
@@ -124,7 +125,7 @@ export default function AdsContentCalendar() {
 
   // AuthContext does NOT expose `integrations` — fetch them ourselves (the old
   // `const { integrations } = useAuth()` was always undefined → no live ads ever).
-  const { fetchIntegrations, updateIntegration } = useAuth();
+  const { fetchIntegrations, updateIntegration, activeBrandId } = useAuth();
   const [integrations, setIntegrations] = useState([]);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -145,7 +146,18 @@ export default function AdsContentCalendar() {
   // which of the two it is. Later refetches (after a delete) keep the grid up.
   const [loading, setLoading] = useState(true);
 
-  const reload = useCallback(() => setAllPosts(getPublishedPosts()), []);
+  const reload = useCallback(
+    () => setAllPosts(getPublishedPosts(activeBrandId)),
+    [activeBrandId],
+  );
+
+  // A brand switch swaps the whole calendar: seed from the new brand's stored
+  // posts right away and hold the skeleton until its live fetch lands, rather
+  // than leaving the previous brand's month on screen.
+  useEffect(() => {
+    setAllPosts(getPublishedPosts(activeBrandId));
+    setLoading(true);
+  }, [activeBrandId]);
 
   const fetchLive = useCallback(async () => {
     try {
@@ -159,7 +171,7 @@ export default function AdsContentCalendar() {
       // Live (Facebook/Meta) is authoritative for status. Keep a local post ONLY when
       // it's no longer reported live, and never trust a local 'scheduled'.
       const liveIds = new Set(livePosts.map((p) => p.id));
-      const local = getPublishedPosts();
+      const local = getPublishedPosts(activeBrandId);
       const localOnly = local.filter(
         (p) => !liveIds.has(p.id) && p.status !== "scheduled",
       );
@@ -170,9 +182,9 @@ export default function AdsContentCalendar() {
       });
       const all = [...byId.values()];
 
-      localStorage.setItem(
-        "creativeklux_published_posts",
-        JSON.stringify(all.filter((p) => p.status !== "scheduled")),
+      setPublishedPosts(
+        activeBrandId,
+        all.filter((p) => p.status !== "scheduled"),
       );
       setAllPosts(all);
     } catch {
@@ -180,7 +192,7 @@ export default function AdsContentCalendar() {
     } finally {
       setLoading(false);
     }
-  }, [fetchIntegrations, reload]);
+  }, [fetchIntegrations, reload, activeBrandId]);
 
   useEffect(() => {
     fetchLive();
@@ -228,7 +240,7 @@ export default function AdsContentCalendar() {
     if (!post) return;
     setDeleting(true);
     try {
-      await deletePostFromPlatform(post, integrations ?? []);
+      await deletePostFromPlatform(post, integrations ?? [], activeBrandId);
       await fetchLive(); // re-fetch (keeps live posts; reload() would drop them)
       toast.success("Ad removed");
     } catch {

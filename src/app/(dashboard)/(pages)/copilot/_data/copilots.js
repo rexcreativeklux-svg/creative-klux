@@ -82,6 +82,23 @@ export const reportFailure = (err, what) => {
 };
 
 /**
+ * Every `?c=` minted in this page load.
+ *
+ * ⚠️ OPENING A COPILOT LOADS ITS HISTORY FROM THE SERVER, and a minted
+ * `?c=` is the one thing that says "not this time, give me a blank thread". But
+ * a `?c=` outlives the click that meant it: it stays in the address bar, so a
+ * refresh would go on showing the empty hero over messages the server has been
+ * storing all along. Module state is exactly the right lifetime — an id is
+ * "new" for every client-side navigation within one visit and stops being new
+ * the moment the page is loaded again. Same arrangement as Macrid's agents.
+ *
+ * ⚠️ Dev-only wrinkle: a Fast Refresh that re-evaluates this module clears the
+ * set, so a blank thread can flip to resuming mid-edit. It cannot happen in
+ * production, where the module is evaluated once.
+ */
+const sessionConversations = new Set();
+
+/**
  * An id for a conversation that does not exist server-side yet.
  *
  * It rides the URL as `?c=` and is the conversation's React `key`, so all it has
@@ -94,7 +111,25 @@ export const reportFailure = (err, what) => {
  * two callers (the panel's New conversation, a workflow's Send to chat) mint
  * them the same way.
  */
-export const newConversationId = () => Date.now().toString(36);
+export const newConversationId = () => {
+  const id = Date.now().toString(36);
+  sessionConversations.add(id);
+  return id;
+};
+
+/**
+ * Whether this `?c=` was minted by a click in the visit that is still running —
+ * i.e. whether the blank thread it asked for is still the right answer.
+ *
+ * ⚠️ FALSE AFTER A RELOAD, AND THAT IS THE FEATURE. See the set above: by then
+ * what was said in it is in `GET copilots/{id}/messages`, and loading that
+ * history is right again.
+ *
+ * @param {string|null|undefined} conversationId
+ * @returns {boolean}
+ */
+export const isSessionConversation = (conversationId) =>
+  Boolean(conversationId) && sessionConversations.has(conversationId);
 
 /* ── Server rows → what the UI renders ─────────────────────────────────────
  *

@@ -23,6 +23,8 @@
 import { AlertTriangle, Copy, Volume2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import CopilotAvatar from "../../_components/CopilotAvatar";
 
 /** Read a message aloud with the browser's own voice, if it has one. */
@@ -35,6 +37,66 @@ const speak = (text) => {
   synth.cancel(); // stop whatever is mid-sentence, rather than queueing behind it
   synth.speak(new SpeechSynthesisUtterance(text));
 };
+
+/**
+ * One Markdown element drawn with this screen's classes.
+ *
+ * react-markdown hands every component its AST `node`, which is not a DOM
+ * attribute — spread onto the tag it becomes a React warning per element.
+ */
+const md = (Tag, className, extra) =>
+  function MarkdownPart(props) {
+    const rest = { ...props };
+    delete rest.node;
+    return <Tag className={className} {...extra} {...rest} />;
+  };
+
+/**
+ * The copilot's answers are written in Markdown — `**bold**`, numbered lists —
+ * and printed as plain text they arrived as literal asterisks. Same split the
+ * studio's AiChatMessage makes, at this screen's page-text scale.
+ *
+ * ⚠️ ASSISTANT TURNS ONLY. The user's own lines stay plain in their bubble:
+ * Markdown would fold their single newlines into spaces and eat any * or _
+ * they typed.
+ */
+const MARKDOWN = {
+  p: md("p", "mb-3 last:mb-0"),
+  strong: md("strong", "font-semibold text-gray-900"),
+  em: md("em", "italic"),
+  ul: md("ul", "mb-3 last:mb-0 list-disc space-y-1.5 pl-6"),
+  ol: md("ol", "mb-3 last:mb-0 list-decimal space-y-1.5 pl-6"),
+  li: md("li", "pl-1"),
+  a: md("a", "text-blue-600 underline underline-offset-2", {
+    target: "_blank",
+    rel: "noopener noreferrer",
+  }),
+  h1: md("h1", "mt-5 mb-2 first:mt-0 text-[20px] font-semibold"),
+  h2: md("h2", "mt-5 mb-2 first:mt-0 text-[18px] font-semibold"),
+  h3: md("h3", "mt-4 mb-2 first:mt-0 text-[17px] font-semibold"),
+  code: md("code", "rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[14px]"),
+  // The inner <code> resets, so a block does not get a pill inside its box.
+  pre: md(
+    "pre",
+    "mb-3 last:mb-0 overflow-x-auto rounded-xl bg-gray-100 p-3.5 text-[14px] [&_code]:bg-transparent [&_code]:p-0",
+  ),
+  blockquote: md("blockquote", "mb-3 last:mb-0 border-l-2 border-gray-300 pl-4 text-gray-600"),
+  hr: md("hr", "my-5 border-gray-200"),
+  // Wrapped so a wide table scrolls on its own instead of widening the thread.
+  table: function MarkdownTable(props) {
+    const rest = { ...props };
+    delete rest.node;
+    return (
+      <div className="mb-3 last:mb-0 overflow-x-auto">
+        <table className="border-collapse text-[14px]" {...rest} />
+      </div>
+    );
+  },
+  th: md("th", "border border-gray-200 bg-gray-50 px-3 py-1.5 text-left font-semibold"),
+  td: md("td", "border border-gray-200 px-3 py-1.5 align-top"),
+};
+
+const REMARK_PLUGINS = [remarkGfm];
 
 export default function ChatMessage({ message, copilot }) {
   const { role, text, body, at, pending, error } = message;
@@ -85,8 +147,16 @@ export default function ChatMessage({ message, copilot }) {
           </p>
         </div>
       ) : (
-        <div className="mt-3 text-[17px] leading-relaxed text-gray-900 whitespace-pre-wrap">
-          {body ?? text}
+        // pre-wrap only for hand-built `body`: Markdown already turns blank
+        // lines into paragraphs, and pre-wrap on top doubles every gap.
+        <div
+          className={`mt-3 text-[17px] leading-relaxed text-gray-900 wrap-break-word ${body ? "whitespace-pre-wrap" : ""}`}
+        >
+          {body ?? (
+            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN}>
+              {text}
+            </ReactMarkdown>
+          )}
         </div>
       )}
 

@@ -10,8 +10,11 @@
  * open. The alternative — a reset callback threaded from the panel button down
  * into the thread's state — leaves the URL lying about what is on screen.
  *
- * When the backend lands, `?c=` becomes a real conversation id and this is where
- * its messages get fetched; nothing below has to change shape.
+ * ⚠️ NO `?c=` MEANS "SHOW ME OUR HISTORY". Opening a copilot from the catalog
+ * or the rail carries none, and the thread loads everything said to that
+ * copilot from the server — like opening a chat in WhatsApp. Only New
+ * conversation (and the Send to chat / Activate skill handoffs) mint one, and
+ * those open blank. See isSessionConversation in ../_data/copilots.
  */
 
 import { Suspense } from "react";
@@ -30,7 +33,7 @@ function CopilotConversation() {
 
   return (
     <Conversation
-      key={searchParams.get("c") ?? "new"}
+      key={searchParams.get("c") ?? "latest"}
       copilot={copilot}
       // ⚠️ TWO PARAMS, TWO INTENTIONS. Both ride the URL rather than component
       // state because the screens that set them do not share one — Workflows
@@ -43,8 +46,8 @@ function CopilotConversation() {
       //           the description is a whole request on its own, and a button
       //           that says send should not need a second click to send.
       // The same `?c=` that keys this component. Passed as a prop too, because
-      // a numeric one names a thread the SERVER stored and its messages have to
-      // be fetched — see isStoredConversation.
+      // it decides whether the thread loads history: none at all does, and so
+      // does one minted before a reload — see Conversation.
       conversationId={searchParams.get("c")}
       initialDraft={searchParams.get("task") ?? ""}
       initialMessage={searchParams.get("send") ?? ""}

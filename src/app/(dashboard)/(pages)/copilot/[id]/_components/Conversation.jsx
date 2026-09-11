@@ -36,9 +36,10 @@
  *
  * @param {Object} props
  * @param {Object} props.copilot  Whose conversation this is.
- * @param {string} [props.conversationId]  The `?c=` in the URL. A numeric one
- *   names a thread the server stored, and its messages are fetched; anything
- *   else was minted locally by newConversationId and starts empty.
+ * @param {string} [props.conversationId]  The `?c=` in the URL. One minted by
+ *   newConversationId in this page load starts empty; none at all — or one that
+ *   has outlived its page load — loads this copilot's history from the server.
+ *   See `wantsHistory` below.
  * @param {string} [props.initialDraft]  Text the composer opens with, unsent —
  *   Plugins' "Activate skill" hands `/slug ` over this way, because the user
  *   still has to say what to run it on.
@@ -53,14 +54,13 @@ import { format } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 import { IDEAS } from "../../_data/ideas";
 import {
-  conversationMessages,
   describeApiError,
-  fetchConversation,
+  fetchMessages,
   sendChat,
 } from "../../_data/copilotApi";
+import { isSessionConversation } from "../../_data/copilots";
 import { OPENERS, SUBHEADINGS, lineForNow } from "../../_data/copilotGreetings";
 import CopilotComposer from "../../_components/CopilotComposer";
-import { conversationsChanged } from "./conversationsChanged";
 import ChatMessage from "./ChatMessage";
 import SuggestionChips from "./SuggestionChips";
 
@@ -142,15 +142,6 @@ const replyTextFrom = (data) =>
   data?.data?.reply ??
   (data == null ? "Empty response." : JSON.stringify(data, null, 2));
 
-/**
- * Is this `?c=` a thread the SERVER knows about, or one we minted locally?
- *
- * newConversationId() produces a base36 timestamp, which is not all digits; a
- * server id is. Getting it wrong costs a 404 that is caught and ignored, so the
- * cheap test is the right one here.
- */
-const isStoredConversation = (value) => /^\d+$/.test(String(value ?? ""));
-
 export default function Conversation({
   copilot,
   conversationId = null,
@@ -167,14 +158,20 @@ export default function Conversation({
   );
   const [draft, setDraft] = useState(initialDraft);
 
-  // The server's id for this thread. A ref, not state: it changes nothing on
-  // screen, and putting it in state would re-render the whole thread to store a
-  // number. Seeded when the URL already names a stored conversation, so the
-  // first message sent into a reopened thread continues it rather than starting
-  // a second one beside it.
-  const stored = isStoredConversation(conversationId);
-  const conversationRef = useRef(stored ? conversationId : null);
-  const [loadingHistory, setLoadingHistory] = useState(stored);
+  // The server's id for this thread, once a reply names one, so the next turn is
+  // sent with it. A ref, not state: it changes nothing on screen, and putting it
+  // in state would re-render the whole thread to store a number.
+  const conversationRef = useRef(null);
+  // ⚠️ WHETHER TO LOAD HISTORY IS DECIDED BY THE CLICK, NOT BY THE URL — the
+  // same arrangement as Macrid's agents. Opening a copilot (the catalog, the
+  // rail) carries no `?c=` and loads everything said to it from the server.
+  // Only a `?c=` minted by a click in this page load (New conversation,
+  // Activate skill) asks for a blank thread; after a reload it is stale, and
+  // what was said in it is already in the copilot's history. A pre-sent message
+  // skips history too: loading would replace the question it is about to ask.
+  const wantsHistory =
+    !initialMessage && !isSessionConversation(conversationId);
+  const [loadingHistory, setLoadingHistory] = useState(wantsHistory);
   const [showChips, setShowChips] = useState(true);
   const started = messages.length > 0;
   const name = firstName(user);
@@ -213,14 +210,12 @@ export default function Conversation({
         });
         // Keep the thread id if the server names one, so the next turn
         // continues this conversation instead of opening another.
-        const id = data?.conversation_id ?? data?.conversation?.id ?? null;
-        if (id != null && String(id) !== String(conversationRef.current)) {
-          conversationRef.current = id;
-          // First reply in a new thread: the server has just created the
-          // conversation, so the history panel needs to hear about it. The URL
-          // has not changed, so nothing else would tell it.
-          conversationsChanged();
-        }
+        const id =
+          data?.conversation_id ??
+          data?.conversation?.id ??
+          data?.data?.conversation_id ??
+          null;
+        if (id != null) conversationRef.current = id;
         settle({ text: replyTextFrom(data) });
       } catch (err) {
         settle({ text: describeApiError(err).text, error: true });
@@ -250,26 +245,43 @@ export default function Conversation({
     answer(initialMessage, "a-0");
   }, [initialMessage, answer]);
 
-  // Reopening a stored thread: load what was said. State is set only in the
-  // callbacks — a synchronous setState in an effect body cascades renders and
-  // this repo's compiler rules reject it.
+  // Opening a copilot: load everything said to it. An empty history means you
+  // have never talked to it, so the hero. State is set only in the callbacks —
+  // a synchronous setState in an effect body cascades renders and this repo's
+  // compiler rules reject it.
   useEffect(() => {
-    if (!stored) return undefined;
+    if (!wantsHistory) return undefined;
     let alive = true;
-    fetchConversation(conversationId)
-      .then((data) => {
-        if (alive) setMessages(conversationMessages(data).map(fromStored));
+    fetchMessages(copilot.id)
+      .then((rows) => {
+        // A row with no readable text would render as a blank turn, which reads
+        // as the copilot having said nothing rather than as a row we could not
+        // parse.
+        if (alive) setMessages(rows.map(fromStored).filter((m) => m.text));
       })
-      // An unreadable thread opens empty rather than throwing the screen away;
-      // the composer below it still works.
-      .catch(() => {})
+      // ⚠️ SHOWN, NOT SWALLOWED. This used to fail silently into the empty
+      // hero, which looks exactly like "your history is gone" — the one thing a
+      // refresh must never appear to do. The server's own words go in the
+      // thread instead, and the composer under them still works.
+      .catch((err) => {
+        if (!alive) return;
+        setMessages([
+          {
+            id: "history-error",
+            role: "assistant",
+            at: new Date(),
+            error: true,
+            text: describeApiError(err).text,
+          },
+        ]);
+      })
       .finally(() => {
         if (alive) setLoadingHistory(false);
       });
     return () => {
       alive = false;
     };
-  }, [stored, conversationId]);
+  }, [wantsHistory, copilot.id]);
 
   const composer = (
     <CopilotComposer

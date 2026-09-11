@@ -49,13 +49,18 @@ const POST_SIZES = [
   { value: "1000x1500", label: "Pinterest Pin", platform: "pinterest" },
 ];
 
-// Memes ran the same eight presets as posts — which is exactly why the tag row
-// exists: a size alone cannot tell a meme from a post. The one difference is
-// LinkedIn Square, which the memes form had at 627x627, so the list is written
-// out rather than shared by reference.
+// Memes run the same eight presets as posts — which is exactly why the tag row
+// exists: a size alone cannot tell a meme from a post.
+//
+// These two lists were once genuinely different: the memes form had LinkedIn
+// Square at 627x627. That was drift from the backend, whose SIZES['memes_trends']
+// agrees with SIZES['posts'] at 1080x1080, so the form promised one size and the
+// generator rendered another. They are identical again. Still written out rather
+// than shared by reference, so a future meme-only preset doesn't have to unpick
+// a shared array first.
 const MEME_SIZES = [
   { value: "1200x627", label: "LinkedIn Horizontal", platform: "linkedin" },
-  { value: "627x627", label: "LinkedIn Square", platform: "linkedin" },
+  { value: "1080x1080", label: "LinkedIn Square", platform: "linkedin" },
   { value: "1080x1080", label: "Instagram Square", platform: "instagram" },
   { value: "1080x1350", label: "Instagram Portrait", platform: "instagram" },
   { value: "1080x1920", label: "Stories / Reels", platform: null },
@@ -68,7 +73,7 @@ const MEME_SIZES = [
 // Rectangle, Skyscraper, Mobile) were commented out in BannersForm and stay out
 // — they belong to Ads Creative, not here.
 const BANNER_SIZES = [
-  { value: "820x312", label: "Facebook Cover", platform: "facebook" },
+  { value: "851x315", label: "Facebook Cover", platform: "facebook" },
   { value: "1500x500", label: "Twitter / X Cover", platform: "twitter" },
   { value: "1128x191", label: "LinkedIn Cover", platform: "linkedin" },
   { value: "2560x1440", label: "YouTube Channel Art", platform: "youtube" },

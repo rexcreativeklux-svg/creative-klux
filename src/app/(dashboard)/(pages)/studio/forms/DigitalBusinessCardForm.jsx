@@ -18,8 +18,11 @@ const FILE_FORMAT_OPTIONS = [
 ];
 
 const SIZE_OPTIONS = [
-  { value: "252x144",  label: "Digital Horizontal", desc: "3.5×2 in · 72 DPI" },
-  { value: "144x252",  label: "Digital Vertical",   desc: "2×3.5 in · 72 DPI" },
+  // Dimensions mirror the backend's SIZES['digital_business_cards'] map — it is
+  // the source of truth. The digital pair were 72 DPI here against the backend's
+  // 200, so the form asked for a card a third of the size that came back.
+  { value: "700x400",  label: "Digital Horizontal", desc: "3.5×2 in · 200 DPI" },
+  { value: "400x700",  label: "Digital Vertical",   desc: "2×3.5 in · 200 DPI" },
   { value: "1050x600", label: "Print Horizontal",   desc: "3.5×2 in · 300 DPI" },
   { value: "600x1050", label: "Print Vertical",     desc: "2×3.5 in · 300 DPI" },
 ];

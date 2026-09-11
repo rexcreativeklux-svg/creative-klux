@@ -32,6 +32,12 @@ import {
 } from "@/(lib)/creative/imageGate";
 
 // ── constants ─────────────────────────────────────────────────────────────────
+// Dimensions mirror the backend's SIZES['video'] map exactly — it is the source
+// of truth for every size both sides carry.
+//
+// ⚠️ TWO PRESETS SHARE 1080x1920 (TikTok / Reels and Stories), exactly as they do
+// on the backend. The LABEL is therefore this list's identity, not the value:
+// see `formData.sizeLabel` at the picker below.
 const SIZE_OPTIONS = [
   { value: "1080x1920", label: "TikTok / Reels" },
   { value: "1080x1080", label: "Meta Square" },
@@ -39,7 +45,7 @@ const SIZE_OPTIONS = [
   { value: "1920x1080", label: "YouTube / Landscape" },
   { value: "1200x628", label: "Google Display" },
   { value: "1200x627", label: "LinkedIn" },
-  { value: "720x1280", label: "Stories" },
+  { value: "1080x1920", label: "Stories" },
   { value: "1280x720", label: "Pre-roll" },
 ];
 
@@ -545,9 +551,13 @@ const VideoAdsForm = ({
     setError("");
 
     try {
-      // Resolve the size's label (for Scraive category + Redesign payload)
+      // Resolve the size's label (for Scraive category + Redesign payload).
+      // The picker records it, because two presets share 1080x1920 and a lookup
+      // by value alone would resolve Stories to "TikTok / Reels".
       const selectedSizeLabel =
-        SIZE_OPTIONS.find((s) => s.value === formData.size)?.label || "";
+        formData.sizeLabel ||
+        SIZE_OPTIONS.find((s) => s.value === formData.size)?.label ||
+        "";
       const scraiveCategory = selectedSizeLabel
         .toLowerCase()
         .replace(/\s+/g, "_");
@@ -959,20 +969,29 @@ const VideoAdsForm = ({
 
             <Field label="Video Size">
               <div className="flex flex-wrap gap-2">
-                {SIZE_OPTIONS.map((s) => (
-                  <button
-                    key={s.value}
-                    onClick={() => field("size", s.value)}
-                    className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${formData.size === s.value ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"}`}
-                  >
-                    <p className="text-xs font-semibold">{s.label}</p>
-                    <p
-                      className={`text-[10px] mt-0.5 ${formData.size === s.value ? "text-blue-500" : "text-gray-400"}`}
+                {SIZE_OPTIONS.map((s) => {
+                  // Matched on label, not value: TikTok / Reels and Stories are
+                  // both 1080x1920, so a value match would light both chips and
+                  // hand React two children with the same key.
+                  const active = formData.sizeLabel === s.label;
+                  return (
+                    <button
+                      key={s.label}
+                      onClick={() => {
+                        field("size", s.value);
+                        field("sizeLabel", s.label);
+                      }}
+                      className={`text-left px-2 py-2 cursor-pointer rounded-lg border-2 transition-all ${active ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300"}`}
                     >
-                      {s.value}
-                    </p>
-                  </button>
-                ))}
+                      <p className="text-xs font-semibold">{s.label}</p>
+                      <p
+                        className={`text-[10px] mt-0.5 ${active ? "text-blue-500" : "text-gray-400"}`}
+                      >
+                        {s.value}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             </Field>
 

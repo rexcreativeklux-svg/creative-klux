@@ -26,6 +26,7 @@ import {
 } from "date-fns";
 import {
   getPublishedPosts,
+  setPublishedPosts,
   deletePostFromPlatform,
   platformSupportsDelete,
   fetchLivePostsFromConnectedAccounts,
@@ -120,7 +121,7 @@ export default function SocialContentCalendar() {
   const typeLabel = "Social";
   const matchType = "social";
 
-  const { fetchIntegrations, updateIntegration } = useAuth();
+  const { fetchIntegrations, updateIntegration, activeBrandId } = useAuth();
   const [integrations, setIntegrations] = useState([]);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -141,7 +142,18 @@ export default function SocialContentCalendar() {
   // which of the two it is. Later refetches (after a delete) keep the grid up.
   const [loading, setLoading] = useState(true);
 
-  const reload = useCallback(() => setAllPosts(getPublishedPosts()), []);
+  const reload = useCallback(
+    () => setAllPosts(getPublishedPosts(activeBrandId)),
+    [activeBrandId],
+  );
+
+  // A brand switch swaps the whole calendar: seed from the new brand's stored
+  // posts right away and hold the skeleton until its live fetch lands, rather
+  // than leaving the previous brand's month on screen.
+  useEffect(() => {
+    setAllPosts(getPublishedPosts(activeBrandId));
+    setLoading(true);
+  }, [activeBrandId]);
 
   const fetchLive = useCallback(async () => {
     try {
@@ -157,7 +169,7 @@ export default function SocialContentCalendar() {
       // reports it, and never trust a local 'scheduled' — otherwise a stale local
       // scheduled entry (persisted by an earlier bug) shadows the now-published post.
       const liveIds = new Set(livePosts.map((p) => p.id));
-      const local = getPublishedPosts();
+      const local = getPublishedPosts(activeBrandId);
       const localOnly = local.filter(
         (p) => !liveIds.has(p.id) && p.status !== "scheduled",
       );
@@ -170,9 +182,9 @@ export default function SocialContentCalendar() {
       const all = [...byId.values()];
 
       // Persist published only — scheduled stays live-only.
-      localStorage.setItem(
-        "creativeklux_published_posts",
-        JSON.stringify(all.filter((p) => p.status !== "scheduled")),
+      setPublishedPosts(
+        activeBrandId,
+        all.filter((p) => p.status !== "scheduled"),
       );
       setAllPosts(all);
     } catch {
@@ -180,7 +192,7 @@ export default function SocialContentCalendar() {
     } finally {
       setLoading(false);
     }
-  }, [reload, fetchIntegrations]);
+  }, [reload, fetchIntegrations, activeBrandId]);
 
   useEffect(() => {
     fetchLive();
@@ -228,7 +240,7 @@ export default function SocialContentCalendar() {
     if (!post) return;
     setDeleting(true);
     try {
-      await deletePostFromPlatform(post, integrations);
+      await deletePostFromPlatform(post, integrations, activeBrandId);
       await fetchLive(); // re-fetch (keeps live scheduled posts; reload() would drop them)
       toast.success("Post removed");
     } catch {

@@ -39,11 +39,14 @@ const FILE_FORMAT_OPTIONS = [
 ];
 
 const SIZE_OPTIONS = [
+  // Dimensions mirror the backend's SIZES['flyers'] map — it is the source of
+  // truth. The digital A-series were at 72 DPI here and 96 DPI there, so the
+  // form promised a page the generator never rendered.
   { value: "816x1056",  label: "Digital Letter", desc: "8.5×11 in · 96 DPI" },
-  { value: "595x842",   label: "Digital A4",      desc: "210×297 mm · 72 DPI" },
+  { value: "794x1123",  label: "Digital A4",      desc: "210×297 mm · 96 DPI" },
   { value: "2550x3300", label: "Print Letter",    desc: "8.5×11 in · 300 DPI" },
   { value: "2480x3508", label: "Print A4",        desc: "210×297 mm · 300 DPI" },
-  { value: "420x594",   label: "Digital A5",      desc: "148×210 mm · 72 DPI" },
+  { value: "559x794",   label: "Digital A5",      desc: "148×210 mm · 96 DPI" },
 ];
 
 const ORIENTATION_OPTIONS = [

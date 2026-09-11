@@ -10,13 +10,17 @@
  * shell's measurements, tooltip trick and `SecondarySidebarContext` so the two
  * feel like one system. But SectionLayout renders ONE flat list of links, and
  * this panel is a copilot's home: an identity header, a primary action, grouped
- * nav, a channel list, a conversation history and a footer. Bending
- * SectionLayout into slots for all of that would put six new props on the shell
- * four shipped sections depend on, to serve one caller.
+ * nav, a channel list and a footer. Bending SectionLayout into slots for all of
+ * that would put five new props on the shell four shipped sections depend on,
+ * to serve one caller.
+ *
+ * ⚠️ NO CONVERSATION LIST HERE, deliberately. Opening a copilot loads its whole
+ * message history from the server (see Conversation), so there is one ongoing
+ * thread per copilot rather than a list of them to pick from.
  *
  * Below `lg` the panel is a <Drawer> behind a "Copilot menu" button rather than
- * SectionLayout's horizontal pill bar — channels and a conversation list do not
- * survive being flattened into a scrolling strip of pills.
+ * SectionLayout's horizontal pill bar — a channel list does not survive being
+ * flattened into a scrolling strip of pills.
  *
  * ⚠️ The route must also be listed in SECONDARY_SIDEBAR_ROUTES in
  * (dashboard)/layout.js, or the primary rail stays expanded and two full-width
@@ -30,7 +34,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   PanelLeftClose,
   PanelLeftOpen,
@@ -47,10 +51,6 @@ import {
 import { useSecondarySidebar } from "@/context/SecondarySidebarContext";
 import Drawer from "@/app/(components)/ui/Drawer";
 import CopilotAvatar from "../../_components/CopilotAvatar";
-import {
-  conversationTitle,
-  useConversationList,
-} from "./useConversationList";
 import { newConversationId } from "../../_data/copilots";
 import { CHANNELS } from "../../_data/channels";
 import CopilotSettingsModal from "./settings/CopilotSettingsModal";
@@ -90,7 +90,6 @@ export default function CopilotWorkspaceLayout({ copilot, children }) {
   const router = useRouter();
   const { isOpen, toggle } = useSecondarySidebar();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [conversationsOpen, setConversationsOpen] = useState(true);
   // Which footer item is open, and the rect of the row that opened it — one
   // value rather than a flag each, so two of them can never be open at once as
   // the footer grows, and the anchor travels with the thing that needs it
@@ -103,17 +102,6 @@ export default function CopilotWorkspaceLayout({ copilot, children }) {
 
   const base = `/copilot/${copilot.id}`;
 
-  // Which thread is on screen, so its row in the history can light up.
-  const searchParams = useSearchParams();
-  const openConversation = searchParams.get("c");
-
-  // ⚠️ Keyed on the open conversation so the list refetches when you land in a
-  // new thread — a conversation the server has only just created would
-  // otherwise be missing from the history until a reload.
-  const { conversations, loading: conversationsLoading } = useConversationList(
-    copilot.id,
-    openConversation,
-  );
   // Exact match: every screen here is a leaf, and the conversation lives at the
   // root, so a prefix test would light Workflows from inside a conversation.
   const isActive = (href) => pathname === href;
@@ -279,62 +267,6 @@ export default function CopilotWorkspaceLayout({ copilot, children }) {
             )}
           </button>
         ))}
-
-        {/* ── Conversations ─────────────────────────────────────── */}
-        {expanded && (
-          <>
-            <button
-              onClick={() => setConversationsOpen((p) => !p)}
-              aria-expanded={conversationsOpen}
-              className="mt-4 flex items-center gap-2 w-full px-3 py-1.5 text-[12px] font-medium text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
-            >
-              <span className="flex-1 text-left truncate">Conversations</span>
-              <ChevronDown
-                className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${conversationsOpen ? "" : "-rotate-90"}`}
-              />
-            </button>
-            {conversationsOpen &&
-              (conversationsLoading ? (
-                <p className="mt-1 px-3 py-3 text-center text-[11px] text-gray-400">
-                  Loading…
-                </p>
-              ) : conversations.length ? (
-                <div className="mt-0.5 flex flex-col">
-                  {conversations.map((row) => {
-                    // ⚠️ Compared as strings: the id arrives as a number from
-                    // the API and as text from the URL, and `5 !== "5"`.
-                    const active = String(row.id) === String(openConversation);
-                    return (
-                      <button
-                        key={row.id}
-                        onClick={() => {
-                          setDrawerOpen(false);
-                          router.push(`${base}?c=${row.id}`);
-                        }}
-                        title={conversationTitle(row)}
-                        className={`truncate rounded-xl px-3 py-2 text-left text-[13px] font-medium transition-colors cursor-pointer ${
-                          active
-                            ? "bg-blue-50 text-blue-600"
-                            : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                        }`}
-                      >
-                        {conversationTitle(row)}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                // ⚠️ Still no mock threads. A copilot's history is genuinely
-                // empty until it has one, and seeding fake conversations would
-                // put words in this copilot's mouth the user never said.
-                <p className="mt-1 rounded-xl border border-gray-200 px-3 py-4 text-center text-[11px] leading-relaxed text-gray-400">
-                  No conversations yet.
-                  <br />
-                  Your chats with {copilot.name} land here.
-                </p>
-              ))}
-          </>
-        )}
       </nav>
 
       {/* ── Panel footer ────────────────────────────────────────── */}

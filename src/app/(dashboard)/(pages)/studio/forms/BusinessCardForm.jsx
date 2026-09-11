@@ -18,11 +18,19 @@ import OptionChip from "./OptionChip";
 const THEME = "#7c3aed"; // violet
 
 // ── constants ─────────────────────────────────────────────────────────────────
+// Dimensions mirror the backend's SIZES['business_cards'] map — it is the source
+// of truth. These were physical units ("3.5x2", "85x55mm", "square_2.5"), which
+// the generator has no entry for at all, so the chosen size never reached it.
+// Now pixels, like every other form, with the physical size kept in `desc` for a
+// field where inches and millimetres are what the user is actually thinking in.
+//
+// ⚠️ Mini reads oddly on purpose: 825×330 is the backend's value, and at 300 DPI
+// that is 2.75 × 1.1 in — not the 3.375 × 2.125 in this option used to claim.
 const CARD_SIZES = [
-  { value: "3.5x2",        label: "Standard US",  desc: "3.5 × 2 in" },
-  { value: "85x55mm",      label: "Standard EU",  desc: "85 × 55 mm" },
-  { value: "3.375x2.125",  label: "Mini",         desc: "3.375 × 2.125 in" },
-  { value: "square_2.5",   label: "Square",       desc: "2.5 × 2.5 in" },
+  { value: "1050x600",  label: "Standard US",  desc: "3.5 × 2 in · 1050 × 600 px" },
+  { value: "1004x650",  label: "Standard EU",  desc: "85 × 55 mm · 1004 × 650 px" },
+  { value: "825x330",   label: "Mini",         desc: "2.75 × 1.1 in · 825 × 330 px" },
+  { value: "750x750",   label: "Square",       desc: "2.5 × 2.5 in · 750 × 750 px" },
 ];
 
 const CARD_LAYOUTS = [

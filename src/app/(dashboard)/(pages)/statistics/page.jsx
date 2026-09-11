@@ -77,12 +77,12 @@ export default function Statistics() {
         source the social/ads publishing pages read) ── */
   useEffect(() => {
     try {
-      const posts = getPublishedPosts() || [];
+      const posts = getPublishedPosts(activeBrandId) || [];
       setPublishedCount(posts.filter((p) => p?.status === "published").length);
     } catch {
       setPublishedCount(0);
     }
-  }, []);
+  }, [activeBrandId]);
 
   /* ── stats derived from designs ── */
   const statsByCategory = {

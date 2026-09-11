@@ -33,6 +33,7 @@ import { format, subDays } from "date-fns";
 import { toast } from "sonner";
 import {
   getPublishedPosts,
+  setPublishedPosts,
   savePublishedPost,
   getFacebookPostStats,
   getInstagramPostStats,
@@ -177,7 +178,7 @@ export default function AdsAnalytics() {
   const [allPosts, setAllPosts] = useState([]);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [fetchingLive, setFetchingLive] = useState(false);
-  const { fetchIntegrations, updateIntegration } = useAuth();
+  const { fetchIntegrations, updateIntegration, activeBrandId } = useAuth();
 
   const [integrations, setIntegrations] = useState([]);
   // This page loads in two hops — integrations, then live posts and per-ad
@@ -200,9 +201,20 @@ export default function AdsAnalytics() {
     };
 
     loadIntegrations();
-  }, [fetchIntegrations]);
+  }, [fetchIntegrations, activeBrandId]);
 
-  const reload = useCallback(() => setAllPosts(getPublishedPosts()), []);
+  const reload = useCallback(
+    () => setAllPosts(getPublishedPosts(activeBrandId)),
+    [activeBrandId],
+  );
+
+  // A brand switch means a different set of ads and a different set of stats.
+  // Seed from the new brand's bucket and put the KPI tiles back into their
+  // loading state, so they never present the previous brand's numbers as final.
+  useEffect(() => {
+    setAllPosts(getPublishedPosts(activeBrandId));
+    setStatsLoaded(false);
+  }, [activeBrandId]);
 
   const fetchLive = useCallback(
     async (silent = false) => {
@@ -215,14 +227,11 @@ export default function AdsAnalytics() {
               updateIntegration(id, { refresh_token: rt }),
           },
         );
-        const local = getPublishedPosts();
+        const local = getPublishedPosts(activeBrandId);
         const localIds = new Set(local.map((p) => p.id));
         const newPosts = livePosts.filter((lp) => !localIds.has(lp.id));
         const merged = [...newPosts, ...local];
-        localStorage.setItem(
-          "creativeklux_published_posts",
-          JSON.stringify(merged),
-        );
+        setPublishedPosts(activeBrandId, merged);
         setAllPosts(merged);
         if (!silent) {
           toast.success(
@@ -238,7 +247,7 @@ export default function AdsAnalytics() {
         setFetchingLive(false);
       }
     },
-    [reload, integrations],
+    [reload, integrations, activeBrandId],
   );
 
   const accountsMap = useCallback(() => {
@@ -263,7 +272,7 @@ export default function AdsAnalytics() {
       setRefreshingAll(true);
       try {
         const accounts = accountsMap();
-        const localPosts = getPublishedPosts();
+        const localPosts = getPublishedPosts(activeBrandId);
         const adPosts = localPosts.filter(
           (p) => p.type === "ad" && p.status === "published",
         );
@@ -294,7 +303,7 @@ export default function AdsAnalytics() {
             }
 
             if (newStats) {
-              savePublishedPost({
+              savePublishedPost(activeBrandId, {
                 ...post,
                 stats: {
                   ...post.stats,
@@ -444,7 +453,7 @@ export default function AdsAnalytics() {
         }
 
         if (newStats) {
-          savePublishedPost({
+          savePublishedPost(activeBrandId, {
             ...post,
             stats: {
               ...post.stats,

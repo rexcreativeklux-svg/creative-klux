@@ -515,7 +515,14 @@
  * }
  */
 
-const POSTS_KEY = "creativeklux_published_posts";
+// Posts are stored per brand — `${POSTS_KEY_PREFIX}${brandId}`. The un-suffixed
+// key below is the legacy single bucket that predates brand scoping; it is
+// migrated once into the first brand that reads it (see migrateLegacyPosts).
+const POSTS_KEY_PREFIX = "creativeklux_published_posts_";
+const LEGACY_POSTS_KEY = "creativeklux_published_posts";
+// Deliberately outside the POSTS_KEY_PREFIX namespace, so it can never be
+// mistaken for the bucket of a brand literally named after it.
+const LEGACY_MIGRATED_KEY = "creativeklux_posts_brand_migration_done";
 
 // ─────────────────────────────────────────────────────────────
 // Meta API Versioning
@@ -531,16 +538,69 @@ const META_OAUTH_BASE = `https://www.facebook.com/${META_API_VERSION}`;
 // Published / Scheduled Posts (localStorage)
 // ─────────────────────────────────────────────────────────────
 
-export function getPublishedPosts() {
+function postsKey(brandId) {
+  return `${POSTS_KEY_PREFIX}${brandId}`;
+}
+
+/**
+ * One-time move of the pre-brand-scoping bucket into `brandId`.
+ *
+ * The legacy blob carries no brand of its own, so there is nothing to split it
+ * by — the whole thing lands in the first brand that reads after this ships,
+ * which is the right answer for the single-brand case and a recoverable guess
+ * otherwise (published posts on connected platforms come back via Fetch Live
+ * Posts regardless). The flag makes it happen once, so a later brand switch
+ * doesn't drag the same posts into a second brand.
+ */
+function migrateLegacyPosts(brandId) {
   try {
-    return JSON.parse(localStorage.getItem(POSTS_KEY) || "[]");
+    if (localStorage.getItem(LEGACY_MIGRATED_KEY)) return;
+
+    const legacy = localStorage.getItem(LEGACY_POSTS_KEY);
+    localStorage.setItem(LEGACY_MIGRATED_KEY, "1");
+    if (!legacy) return;
+
+    // Never clobber a brand bucket that already has posts.
+    if (!localStorage.getItem(postsKey(brandId)))
+      localStorage.setItem(postsKey(brandId), legacy);
+
+    localStorage.removeItem(LEGACY_POSTS_KEY);
+  } catch {
+    // Storage unavailable — nothing to migrate, and the reads below handle it.
+  }
+}
+
+export function getPublishedPosts(brandId) {
+  // No active brand yet (still loading, or none selected) — there is no bucket
+  // to read, and guessing one would show another brand's posts.
+  if (!brandId) return [];
+
+  try {
+    migrateLegacyPosts(brandId);
+    return JSON.parse(localStorage.getItem(postsKey(brandId)) || "[]");
   } catch {
     return [];
   }
 }
 
-export function savePublishedPost(post) {
-  const posts = getPublishedPosts();
+/** Replace a brand's whole list — used by the live-merge in the content pages. */
+export function setPublishedPosts(brandId, posts) {
+  if (!brandId) return;
+
+  try {
+    localStorage.setItem(postsKey(brandId), JSON.stringify(posts));
+  } catch {
+    // Quota or a blocked store — the in-memory list still renders this session.
+  }
+}
+
+export function savePublishedPost(brandId, post) {
+  if (!brandId) {
+    console.warn("savePublishedPost: no active brand — post not saved");
+    return null;
+  }
+
+  const posts = getPublishedPosts(brandId);
 
   const existing = posts.findIndex((p) => p.id === post.id);
 
@@ -553,19 +613,20 @@ export function savePublishedPost(post) {
     });
   }
 
-  localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+  setPublishedPosts(brandId, posts);
 
   return posts.find((p) => p.id === post.id);
 }
 
-export function deletePublishedPost(id) {
-  const posts = getPublishedPosts().filter((p) => p.id !== id);
-
-  localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+export function deletePublishedPost(brandId, id) {
+  setPublishedPosts(
+    brandId,
+    getPublishedPosts(brandId).filter((p) => p.id !== id),
+  );
 }
 
-export function updatePostStats(id, stats) {
-  const posts = getPublishedPosts();
+export function updatePostStats(brandId, id, stats) {
+  const posts = getPublishedPosts(brandId);
 
   const idx = posts.findIndex((p) => p.id === id);
 
@@ -576,7 +637,7 @@ export function updatePostStats(id, stats) {
       last_updated: new Date().toISOString(),
     };
 
-    localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+    setPublishedPosts(brandId, posts);
   }
 }
 
@@ -2445,7 +2506,7 @@ export function platformSupportsDelete(platform) {
  * post stays in the list, because it still exists on the platform. Platforms
  * outside platformSupportsDelete() are removed locally only.
  */
-export async function deletePostFromPlatform(post, integrations = []) {
+export async function deletePostFromPlatform(post, integrations = [], brandId) {
   const accounts = buildAccountsMap(integrations);
 
   // facebook int_token is the Page access token — the one a page post delete needs.
@@ -2460,7 +2521,7 @@ export async function deletePostFromPlatform(post, integrations = []) {
     await deleteMetaNode(post.post_id, token);
   }
 
-  deletePublishedPost(post.id);
+  deletePublishedPost(brandId, post.id);
 }
 
 export async function updatePostCaptionOnPlatform(

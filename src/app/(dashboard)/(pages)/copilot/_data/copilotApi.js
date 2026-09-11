@@ -85,44 +85,42 @@ export async function sendChat({
   if (conversationId != null) body.conversation_id = conversationId;
 
   const res = await api.post(`${COPILOT_API_BASE}/copilot/chat`, body);
+  // ⚠️ INTEGRATION AID — the raw body, so the reply and the conversation id it
+  // names can be read straight off the console while the contract settles.
+  console.log("[copilot] POST copilot/chat ←", res.data);
   return res.data;
 }
 
 /**
- * Load one thread, with its messages.
+ * One copilot's whole message history, oldest first — what opening a copilot
+ * shows. The same contract as Macrid's `GET /agents/{id}/messages`.
  *
- * ⚠️ Note the singular `copilot/` here against the plural `copilots/` in
- * listConversations below — they are two different routes, not a typo.
- * `copilot/conversations` (no id) does NOT exist; the index is nested under the
- * copilot instead.
+ * ⚠️ THE BACKEND IS THE SOURCE OF TRUTH, and this is the only place history
+ * comes from — nothing is kept in the browser. Probed 2026-09-11 the route
+ * answered 404 "Endpoint not found." and has been requested from the backend;
+ * until it lands, opening a copilot shows that 404 in the thread rather than an
+ * empty screen that looks like lost history.
+ *
+ * Expected: { status: true, messages: [{ id, role, content, created_at }] } —
+ * the message shape `copilot/conversations/{id}` already sends.
+ *
+ * @param {string|number} copilotId
+ * @returns {Promise<Object[]>} Raw message rows, oldest first.
  */
-export async function fetchConversation(id) {
-  const res = await api.get(`${COPILOT_API_BASE}/copilot/conversations/${id}`);
-  return assertOk(res.data, "Could not load that conversation.");
-}
-
-/** Every thread with one copilot, newest first (the server's order). */
-export async function listConversations(copilotId) {
+export async function fetchMessages(copilotId) {
   const res = await api.get(
-    `${COPILOT_API_BASE}/copilots/${copilotId}/conversations`,
+    `${COPILOT_API_BASE}/copilots/${copilotId}/messages`,
   );
-  return assertOk(res.data, "Could not load conversations.");
+  // ⚠️ INTEGRATION AID — the raw body, so a thread that opens empty can be told
+  // apart from one whose messages arrived under a key we don't read.
+  console.log(`[copilot] GET copilots/${copilotId}/messages ←`, res.data);
+  const data = assertOk(res.data, "Could not load the conversation.");
+  return (
+    [data?.messages, data?.data?.messages, data?.data, data].find(
+      Array.isArray,
+    ) ?? []
+  );
 }
-
-/** The rows out of a list response, whichever envelope it uses. */
-export const conversationRows = (data) => {
-  const list = Array.isArray(data)
-    ? data
-    : (data?.data ?? data?.conversations ?? []);
-  return Array.isArray(list) ? list : [];
-};
-
-/** The messages out of a single-conversation response. */
-export const conversationMessages = (data) => {
-  const row = data?.conversation ?? data?.data ?? data;
-  const list = row?.messages ?? data?.messages ?? [];
-  return Array.isArray(list) ? list : [];
-};
 
 /* ── Copilots (the backend calls them agents) ──────────────────────────────
  *

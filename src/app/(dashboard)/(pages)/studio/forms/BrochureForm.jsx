@@ -39,9 +39,12 @@ const FOLD_TYPES = [
 ];
 
 const SIZE_OPTIONS = [
+  // Dimensions mirror the backend's SIZES['brochures'] map — it is the source of
+  // truth. The digital A-series were at 72 DPI here and 96 DPI there, so the form
+  // promised a page the generator never rendered.
   { value: "816x1056",  label: "Digital Letter", desc: "8.5×11in, 96 DPI",   type: "Digital" },
-  { value: "595x842",   label: "Digital A4",      desc: "210×297mm, 72 DPI",  type: "Digital" },
-  { value: "420x594",   label: "Digital A5",      desc: "148×210mm, 72 DPI",  type: "Digital" },
+  { value: "794x1123",  label: "Digital A4",      desc: "210×297mm, 96 DPI",  type: "Digital" },
+  { value: "559x794",   label: "Digital A5",      desc: "148×210mm, 96 DPI",  type: "Digital" },
   { value: "2550x3300", label: "Print Letter",    desc: "8.5×11in, 300 DPI",  type: "Print" },
   { value: "2480x3508", label: "Print A4",        desc: "210×297mm, 300 DPI", type: "Print" },
 ];

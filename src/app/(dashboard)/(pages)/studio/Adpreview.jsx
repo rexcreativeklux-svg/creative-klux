@@ -897,7 +897,6 @@ const AdPreview = ({
 const getPlatformLabel = (size) => {
   const map = {
     "1200x627": "LinkedIn",
-    "627x627": "LinkedIn",
     "1200x628": "Google",
     "1200x1200": "Google",
     "1080x1920": "TikTok / Meta Stories",

@@ -33,15 +33,18 @@ import {
 } from "@/(lib)/creative/imageGate";
 
 // ── constants ─────────────────────────────────────────────────────────────────
+// Dimensions mirror the backend's SIZES['image'] map exactly. The backend is the
+// source of truth for every size both sides carry — where these drifted apart the
+// generator rendered at one size and the form promised another.
 const SIZE_OPTIONS = [
   { category: "LinkedIn Horizontal", type_size: "1200x627" },
-  { category: "LinkedIn Square", type_size: "627x627" },
+  { category: "LinkedIn Square", type_size: "1080x1080" },
   { category: "Google Landscape", type_size: "1200x628" },
   { category: "Google Square", type_size: "1200x1200" },
   { category: "TikTok Vertical", type_size: "1080x1920" },
   { category: "Meta Square", type_size: "1080x1080" },
   { category: "Meta Vertical", type_size: "1080x1350" },
-  { category: "Meta Stories/Reels", type_size: "1080x1921" },
+  { category: "Meta Stories/Reels", type_size: "1080x1920" },
 ];
 
 const CAMPAIGN_GOALS = [
@@ -1039,14 +1042,19 @@ const ImageAdsForm = ({
           <div className="flex flex-col gap-6">
             <SectionTitle>Size, Goals & Audience</SectionTitle>
 
-            {/* ── Size picker: shows both name and dimensions ── */}
+            {/* ── Size picker: shows both name and dimensions ──
+                Keyed on `category`, NOT `type_size`: several presets share
+                dimensions (LinkedIn Square and Meta Square are both 1080x1080,
+                TikTok Vertical and Meta Stories/Reels both 1080x1920), so
+                matching on the size would light up two chips at once and give
+                React duplicate keys. The name is the identity here. */}
             <Field label="Ad Size">
               <div className="flex flex-wrap gap-2">
                 {SIZE_OPTIONS.map((s) => {
-                  const active = selectedSize?.type_size === s.type_size;
+                  const active = selectedSize?.category === s.category;
                   return (
                     <button
-                      key={s.type_size}
+                      key={s.category}
                       onClick={() => {
                         setSelectedSize(s);
                         setError("");

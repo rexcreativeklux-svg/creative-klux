@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import {
   getPublishedPosts,
+  setPublishedPosts,
   savePublishedPost,
   getFacebookPostStats,
   getInstagramPostStats,
@@ -274,18 +275,22 @@ export default function SocialPublishing() {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
-  const { fetchIntegrations, updateIntegration } = useAuth();
+  const { fetchIntegrations, updateIntegration, activeBrandId } = useAuth();
   const [integrations, setIntegrations] = useState([]);
   const [integrationsReady, setIntegrationsReady] = useState(false);
   // First load only — see the skeleton guard below the hooks.
   const [loading, setLoading] = useState(true);
 
-  // Show saved posts immediately — even before integrations resolve, or if there are none.
+  // Show this brand's saved posts immediately — even before integrations resolve,
+  // or if there are none. Re-runs on a brand switch, so the previous brand's rows
+  // are replaced rather than left on screen while the live merge catches up.
   useEffect(() => {
-    setAllPosts(getPublishedPosts());
-  }, []);
+    setAllPosts(getPublishedPosts(activeBrandId));
+    setLoading(true);
+  }, [activeBrandId]);
 
-  // 1. Load integrations first
+  // 1. Load integrations first. Keyed on the active brand too: the endpoint scopes
+  //    integrations to the brand the backend has active, so a switch must refetch.
   useEffect(() => {
     const loadIntegrations = async () => {
       try {
@@ -300,7 +305,7 @@ export default function SocialPublishing() {
       }
     };
     loadIntegrations();
-  }, [fetchIntegrations]);
+  }, [fetchIntegrations, activeBrandId]);
 
   // 2. Fix the stale closure by adding integrations to deps
   const mergeLiveIntoLocal = useCallback(
@@ -319,7 +324,7 @@ export default function SocialPublishing() {
         // reports it, and never trust a local 'scheduled' — otherwise a stale local
         // scheduled entry shadows the now-published post and the status never flips.
         const liveIds = new Set(livePosts.map((p) => p.id));
-        const local = getPublishedPosts();
+        const local = getPublishedPosts(activeBrandId);
         const prevIds = new Set(local.map((p) => p.id));
         const localOnly = local.filter(
           (p) => !liveIds.has(p.id) && p.status !== "scheduled",
@@ -333,9 +338,9 @@ export default function SocialPublishing() {
         const all = [...byId.values()];
 
         // Persist published only — scheduled stays live-only.
-        localStorage.setItem(
-          "creativeklux_published_posts",
-          JSON.stringify(all.filter((p) => p.status !== "scheduled")),
+        setPublishedPosts(
+          activeBrandId,
+          all.filter((p) => p.status !== "scheduled"),
         );
         setAllPosts(all);
 
@@ -348,13 +353,13 @@ export default function SocialPublishing() {
           toast.info("No new posts found from connected accounts");
       } catch {
         if (!silent) toast.error("Failed to fetch live posts");
-        setAllPosts(getPublishedPosts());
+        setAllPosts(getPublishedPosts(activeBrandId));
       } finally {
         setFetchingLive(false);
         setLoading(false);
       }
     },
-    [integrations],
+    [integrations, activeBrandId],
   );
 
   // 3. Auto-fetch once integrations have resolved — even if there are none,
@@ -364,7 +369,10 @@ export default function SocialPublishing() {
     mergeLiveIntoLocal(true);
   }, [integrationsReady, integrations, mergeLiveIntoLocal]);
 
-  const reload = useCallback(() => setAllPosts(getPublishedPosts()), []);
+  const reload = useCallback(
+    () => setAllPosts(getPublishedPosts(activeBrandId)),
+    [activeBrandId],
+  );
   const posts = allPosts.filter((p) => p.type === matchType);
 
   const filteredPosts = useMemo(() => {
@@ -415,7 +423,7 @@ export default function SocialPublishing() {
     if (!post) return;
     setDeleting(true);
     try {
-      await deletePostFromPlatform(post, integrations);
+      await deletePostFromPlatform(post, integrations, activeBrandId);
       reload();
       toast.success("Post removed");
     } catch {
@@ -467,7 +475,7 @@ export default function SocialPublishing() {
           `For ${post.platform}, complete the final publish step in the platform dashboard.`,
         );
       }
-      savePublishedPost({
+      savePublishedPost(activeBrandId, {
         ...post,
         status: "published",
         published_at: new Date().toISOString(),
@@ -508,7 +516,7 @@ export default function SocialPublishing() {
       }
 
       if (newStats) {
-        const all = getPublishedPosts();
+        const all = getPublishedPosts(activeBrandId);
         const idx = all.findIndex((p) => p.id === post.id);
         if (idx >= 0) {
           all[idx].stats = {
@@ -516,10 +524,7 @@ export default function SocialPublishing() {
             ...newStats,
             last_updated: new Date().toISOString(),
           };
-          localStorage.setItem(
-            "creativeklux_published_posts",
-            JSON.stringify(all),
-          );
+          setPublishedPosts(activeBrandId, all);
           reload();
           toast.success("Stats refreshed from platform");
         }
@@ -965,6 +970,7 @@ export default function SocialPublishing() {
       {editingPost && (
         <EditPostModal
           post={editingPost}
+          brandId={activeBrandId}
           integrations={integrations}
           integrationsMap={integrationsMap}
           onClose={() => setEditingPost(null)}

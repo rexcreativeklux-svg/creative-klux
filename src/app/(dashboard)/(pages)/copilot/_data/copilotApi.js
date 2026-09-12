@@ -91,35 +91,58 @@ export async function sendChat({
   return res.data;
 }
 
+/** Oldest first; the id settles two messages stamped in the same second. */
+const byCreated = (a, b) => {
+  const t = (row) => {
+    const ms = new Date(row?.created_at ?? 0).getTime();
+    return Number.isNaN(ms) ? 0 : ms;
+  };
+  return t(a) - t(b) || (Number(a?.id) || 0) - (Number(b?.id) || 0);
+};
+
 /**
  * One copilot's whole message history, oldest first — what opening a copilot
- * shows. The same contract as Macrid's `GET /agents/{id}/messages`.
+ * shows. Used the way Macrid uses `GET /agents/{id}/messages`: one call, per
+ * copilot, and the backend is the only source — nothing is kept in the browser.
  *
- * ⚠️ THE BACKEND IS THE SOURCE OF TRUTH, and this is the only place history
- * comes from — nothing is kept in the browser. Probed 2026-09-11 the route
- * answered 404 "Endpoint not found." and has been requested from the backend;
- * until it lands, opening a copilot shows that 404 in the thread rather than an
- * empty screen that looks like lost history.
- *
- * Expected: { status: true, messages: [{ id, role, content, created_at }] } —
- * the message shape `copilot/conversations/{id}` already sends.
+ * ⚠️ `copilots/{id}/conversations` IS THE ROUTE THE BACKEND NAMED for this
+ * (2026-09-11). `copilots/{id}/messages` does not exist (404). The response
+ * shape has not been seen with data in it yet — an earlier probe came back
+ * `{ data: [] }` — so both likely shapes are read:
+ *   • a flat list of messages   [{ id, role, content, created_at }, …]
+ *   • a list of conversations, each carrying its own `messages`, which are
+ *     flattened into one thread
+ * The raw body is logged; if messages arrive somewhere else, that log names it.
  *
  * @param {string|number} copilotId
  * @returns {Promise<Object[]>} Raw message rows, oldest first.
  */
 export async function fetchMessages(copilotId) {
   const res = await api.get(
-    `${COPILOT_API_BASE}/copilots/${copilotId}/messages`,
+    `${COPILOT_API_BASE}/copilots/${copilotId}/conversations`,
   );
   // ⚠️ INTEGRATION AID — the raw body, so a thread that opens empty can be told
   // apart from one whose messages arrived under a key we don't read.
-  console.log(`[copilot] GET copilots/${copilotId}/messages ←`, res.data);
+  console.log(`[copilot] GET copilots/${copilotId}/conversations ←`, res.data);
   const data = assertOk(res.data, "Could not load the conversation.");
-  return (
-    [data?.messages, data?.data?.messages, data?.data, data].find(
-      Array.isArray,
-    ) ?? []
-  );
+
+  const rows =
+    [
+      data?.messages,
+      data?.conversations,
+      data?.data?.messages,
+      data?.data?.conversations,
+      data?.data?.data, // Laravel's paginator
+      data?.data,
+      data,
+    ].find(Array.isArray) ?? [];
+
+  // Conversations carrying their messages → one thread, in the order said.
+  const conversations = rows.filter((row) => Array.isArray(row?.messages));
+  const messages = conversations.length
+    ? conversations.flatMap((row) => row.messages)
+    : rows;
+  return [...messages].sort(byCreated);
 }
 
 /* ── Copilots (the backend calls them agents) ──────────────────────────────

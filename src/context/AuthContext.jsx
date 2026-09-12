@@ -2089,6 +2089,42 @@ export function AuthProvider({ children }) {
           credentials: "include",
           body: JSON.stringify({ generation_data }),
         });
+
+        // Polling logic for redesign endpoint
+        if (response.ok) {
+          const clone = response.clone();
+          const initialData = await clone.json().catch(() => ({}));
+          
+          if (initialData.job_id && (initialData.status === "queued" || initialData.status === "processing")) {
+            let isFinished = false;
+            let pollResponse;
+            
+            while (!isFinished) {
+              await new Promise((r) => setTimeout(r, 3000));
+              
+              pollResponse = await fetch(`${BASE_URL}/creatives/redesign/${initialData.job_id}`, {
+                method: "POST",
+                headers: {
+                  Accept: "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                credentials: "include",
+              });
+              
+              if (!pollResponse.ok) {
+                response = pollResponse;
+                break;
+              }
+              
+              const pollData = await pollResponse.clone().json().catch(() => ({}));
+              if (pollData.status !== "queued" && pollData.status !== "processing") {
+                isFinished = true;
+                response = pollResponse;
+              }
+            }
+          }
+        }
+
         batchResult = await classifyResult({ response });
       } catch (error) {
         batchResult = await classifyResult({ error });

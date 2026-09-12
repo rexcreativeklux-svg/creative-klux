@@ -122,7 +122,7 @@ export const newConversationId = () => {
  * i.e. whether the blank thread it asked for is still the right answer.
  *
  * ⚠️ FALSE AFTER A RELOAD, AND THAT IS THE FEATURE. See the set above: by then
- * what was said in it is in `GET copilots/{id}/messages`, and loading that
+ * what was said in it is in `GET copilots/{id}/conversations`, and loading that
  * history is right again.
  *
  * @param {string|null|undefined} conversationId

@@ -106,6 +106,13 @@ function DesignResultPanel({
   const pendingCount = Math.max(0, expectedCount - variations.length);
   const isLoadingMore = !done && pendingCount > 0;
   const [saving, setSaving] = useState(false);
+  // "result" = the redesigned variations, "design" = the public-fetch
+  // templates we sent to redesign. Every form puts those on result.payload,
+  // and handleResult's append keeps payload, so they survive later batches.
+  const [view, setView] = useState("result");
+  const templates = Array.isArray(result?.payload?.templates)
+    ? result.payload.templates
+    : [];
 
   const toggleSelect = (id) =>
     setSelectedIds((prev) =>
@@ -205,10 +212,60 @@ function DesignResultPanel({
                 : `${variations.length} designs ready`}
             </span>
           </div>
+
+          {/* Result / Design tabs — only when there were templates to compare
+              against (involk sends none). */}
+          {templates.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                padding: 2,
+                gap: 2,
+                borderRadius: 8,
+                background: "var(--color-gray-100)",
+                border: "1px solid var(--color-gray-200)",
+              }}
+            >
+              {[
+                ["result", `Result (${variations.length})`],
+                ["design", `Design (${templates.length})`],
+              ].map(([id, label]) => {
+                const active = view === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setView(id)}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background: active ? "var(--color-surface)" : "transparent",
+                      boxShadow: active ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                      fontSize: 11,
+                      fontWeight: active ? 600 : 500,
+                      color: active
+                        ? "var(--color-gray-900)"
+                        : "var(--color-gray-500)",
+                      cursor: "pointer",
+                      transition: "background 0.15s, color 0.15s",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* right */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {/* right — selection actions only apply to the redesigned results */}
+        <div
+          style={{
+            display: view === "result" ? "flex" : "none",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
           <button
             className="hover:scale-95 transition-all duration-200"
             onClick={selectAll}
@@ -295,7 +352,79 @@ function DesignResultPanel({
           scrollbarColor: "rgba(0,0,0,0.08) transparent",
         }}
       >
-        {variations.map((v) => {
+        {/* ── Design tab: the templates sent to redesign, view-only ── */}
+        {view === "design" &&
+          templates.map((tpl, i) => (
+            <div
+              key={tpl.id ?? `tpl-${i}`}
+              style={{
+                breakInside: "avoid",
+                marginBottom: 10,
+                borderRadius: 12,
+                overflow: "hidden",
+                border: "1.5px solid var(--color-gray-200)",
+                background: "var(--color-surface)",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "var(--color-page)",
+                  padding: 8,
+                }}
+              >
+                <DesignCanvas variation={tpl} />
+              </div>
+              <div
+                style={{
+                  padding: "8px 10px 10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 6,
+                }}
+              >
+                <p
+                  title={tpl.name}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "var(--color-gray-900)",
+                    margin: 0,
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {tpl.name}
+                </p>
+                {(tpl.type_size || tpl.canvas?.width) && (
+                  <span
+                    style={{
+                      fontSize: 8,
+                      fontWeight: 600,
+                      padding: "1px 6px",
+                      borderRadius: 20,
+                      background: "var(--color-gray-100)",
+                      color: "var(--color-gray-500)",
+                      flexShrink: 0,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {tpl.type_size ||
+                      `${tpl.canvas.width}x${tpl.canvas.height}`}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+
+        {view === "result" && variations.map((v) => {
           const isSelected = selectedIds.includes(v.id);
           const score = scoreNum(v);
           const scoreLabel =
@@ -497,7 +626,8 @@ function DesignResultPanel({
         })}
 
         {/* ── skeleton placeholders for designs still being generated ── */}
-        {isLoadingMore &&
+        {view === "result" &&
+          isLoadingMore &&
           Array.from({ length: pendingCount }).map((_, i) => (
             <div
               key={`skeleton-${i}`}

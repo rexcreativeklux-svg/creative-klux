@@ -105,44 +105,39 @@ const byCreated = (a, b) => {
  * shows. Used the way Macrid uses `GET /agents/{id}/messages`: one call, per
  * copilot, and the backend is the only source — nothing is kept in the browser.
  *
- * ⚠️ `copilots/{id}/conversations` IS THE ROUTE THE BACKEND NAMED for this
- * (2026-09-11). `copilots/{id}/messages` does not exist (404). The response
- * shape has not been seen with data in it yet — an earlier probe came back
- * `{ data: [] }` — so both likely shapes are read:
- *   • a flat list of messages   [{ id, role, content, created_at }, …]
- *   • a list of conversations, each carrying its own `messages`, which are
- *     flattened into one thread
- * The raw body is logged; if messages arrive somewhere else, that log names it.
+ * `GET copilots/{id}/messages` (replaced `copilots/{id}/conversations`,
+ * 2026-09-15) answers:
+ *
+ *   { copilot: { id, name }, has_more: false,
+ *     data: [{ id, conversation_id, conversation_title, channel, role,
+ *              content, tool_calls, tool_results, created_at }, …] }
+ *
+ * Confirmed with a filled thread (2026-09-15). Every conversation the copilot
+ * has had comes back in the one flat list.
+ *
+ * ⚠️ `has_more` MEANS THE LIST IS PAGED, and the paging parameter hasn't been
+ * named yet — so a long history shows only its first page. Warned below rather
+ * than guessed at.
  *
  * @param {string|number} copilotId
  * @returns {Promise<Object[]>} Raw message rows, oldest first.
  */
 export async function fetchMessages(copilotId) {
   const res = await api.get(
-    `${COPILOT_API_BASE}/copilots/${copilotId}/conversations`,
+    `${COPILOT_API_BASE}/copilots/${copilotId}/messages`,
   );
-  // ⚠️ INTEGRATION AID — the raw body, so a thread that opens empty can be told
-  // apart from one whose messages arrived under a key we don't read.
-  console.log(`[copilot] GET copilots/${copilotId}/conversations ←`, res.data);
+  // ⚠️ INTEGRATION AID — the raw body, while paging is still unnamed.
+  console.log(`[copilot] GET copilots/${copilotId}/messages ←`, res.data);
   const data = assertOk(res.data, "Could not load the conversation.");
 
-  const rows =
-    [
-      data?.messages,
-      data?.conversations,
-      data?.data?.messages,
-      data?.data?.conversations,
-      data?.data?.data, // Laravel's paginator
-      data?.data,
-      data,
-    ].find(Array.isArray) ?? [];
+  if (data?.has_more) {
+    console.warn(
+      `[copilot] copilots/${copilotId}/messages has more pages — older messages are not loaded.`,
+    );
+  }
 
-  // Conversations carrying their messages → one thread, in the order said.
-  const conversations = rows.filter((row) => Array.isArray(row?.messages));
-  const messages = conversations.length
-    ? conversations.flatMap((row) => row.messages)
-    : rows;
-  return [...messages].sort(byCreated);
+  const rows = Array.isArray(data?.data) ? data.data : [];
+  return [...rows].sort(byCreated);
 }
 
 /* ── Copilots (the backend calls them agents) ──────────────────────────────
@@ -173,12 +168,7 @@ export async function getCopilot(id) {
  * Make one.
  *
  * ⚠️ `name` IS REQUIRED — an empty body comes back 422 "The name field is
- * required". The caller supplies a placeholder (see defaultCopilotName in
- * ./copilots) so the user is never asked to name a thing before making it.
- *
- * This differs from the sibling product's `POST /autopilots`, which takes no
- * body and names the record itself. Worth having the same here: the placeholder
- * only exists because the column has no default.
+ * required". The user enters it in CreateCopilotModal before anything is sent.
  */
 export async function createCopilot(payload = {}) {
   const res = await api.post(`${COPILOT_API_BASE}/copilots`, payload);

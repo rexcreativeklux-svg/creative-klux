@@ -16,9 +16,9 @@
  * that is when "what else can this thing do?" is the live question.
  *
  * ⚠️ State resets by REMOUNT, not by clearing: the page gives this component a
- * `key` taken from the conversation in the URL, so "New conversation" is a
- * navigation like any other and the browser's back button returns to the thread
- * that was open. Nothing in here has to know the button exists.
+ * `key` taken from the conversation in the URL, so a handoff (Send to chat,
+ * Activate skill) or the panel's Conversation link is a navigation like any
+ * other and the browser's back button returns to the thread that was open.
  *
  * ⚠️ SENDING NOW CALLS THE REAL ENDPOINT (`POST copilot/chat`, see
  * _data/copilotApi). It previously answered with a hardcoded "I'm not connected
@@ -47,6 +47,14 @@
  *   Workflows' "Send to chat" hands its description over this way, and the
  *   thread opens with it asked and answered. See ../page.jsx for which handoff
  *   belongs to which button.
+ * @param {boolean} [props.isNew]  The copilot was just created (`?new=1`): the
+ *   thread opens with its introduction.
+ *
+ * ⚠️ THE INTRODUCTION IS NOT SAVED YET — it is shown only. There is no route to
+ * store a message verbatim (`POST copilots/{id}/messages` answers 405
+ * MethodNotAllowed), and the backend is providing one. Until then a reload after
+ * chatting loads the stored history without it. When the route lands, store
+ * `intro.text` once the history read comes back empty.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -60,6 +68,7 @@ import {
 } from "../../_data/copilotApi";
 import { isSessionConversation } from "../../_data/copilots";
 import { OPENERS, SUBHEADINGS, lineForNow } from "../../_data/copilotGreetings";
+import { copilotIntro } from "../../_data/copilotIntros";
 import CopilotComposer from "../../_components/CopilotComposer";
 import ChatMessage from "./ChatMessage";
 import SuggestionChips from "./SuggestionChips";
@@ -104,8 +113,9 @@ const turn = (text, index) => {
 /**
  * A stored message in the shape this thread renders.
  *
- * ✅ CONFIRMED against the real API (2026-09-08):
- *   { id, role: "user"|"assistant", content, created_at }
+ * ✅ CONFIRMED against `GET copilots/{id}/messages` (2026-09-15):
+ *   { id, conversation_id, conversation_title, channel,
+ *     role: "user"|"assistant", content, tool_calls, tool_results, created_at }
  * The other keys are kept as fallbacks, but `content` is the one it sends.
  *
  * ⚠️ Anything that is not explicitly the user is treated as the copilot. Getting
@@ -147,15 +157,33 @@ export default function Conversation({
   conversationId = null,
   initialDraft = "",
   initialMessage = "",
+  isNew = false,
 }) {
   const { user } = useAuth();
+  // The new copilot introducing itself. Rolled ONCE, in an initialiser, so the
+  // wording holds still while it is being read.
+  const [intro] = useState(() =>
+    isNew
+      ? {
+          id: "intro",
+          role: "assistant",
+          at: new Date(),
+          text: copilotIntro({
+            copilotName: copilot.name,
+            userName: firstName(user),
+          }),
+        }
+      : null,
+  );
   // ⚠️ Seeded in the INITIALISER, not an effect. The thread has to render in
   // its started state on the first paint — an effect would flash the empty
   // hero ("Hey Rex, …") for a frame before replacing it, which reads as the
-  // screen changing its mind about what it is.
-  const [messages, setMessages] = useState(() =>
-    initialMessage ? turn(initialMessage, 0) : [],
-  );
+  // screen changing its mind about what it is. The intro, when there is one,
+  // comes before a pre-sent task: the copilot says hello, then gets asked.
+  const [messages, setMessages] = useState(() => [
+    ...(intro ? [intro] : []),
+    ...(initialMessage ? turn(initialMessage, intro ? 1 : 0) : []),
+  ]);
   const [draft, setDraft] = useState(initialDraft);
 
   // The server's id for this thread, once a reply names one, so the next turn is
@@ -165,8 +193,8 @@ export default function Conversation({
   // ⚠️ WHETHER TO LOAD HISTORY IS DECIDED BY THE CLICK, NOT BY THE URL — the
   // same arrangement as Macrid's agents. Opening a copilot (the catalog, the
   // rail) carries no `?c=` and loads everything said to it from the server.
-  // Only a `?c=` minted by a click in this page load (New conversation,
-  // Activate skill) asks for a blank thread; after a reload it is stale, and
+  // Only a `?c=` minted by a click in this page load (Activate skill, Send to
+  // chat) asks for a blank thread; after a reload it is stale, and
   // what was said in it is already in the copilot's history. A pre-sent message
   // skips history too: loading would replace the question it is about to ask.
   const wantsHistory =
@@ -242,8 +270,9 @@ export default function Conversation({
   useEffect(() => {
     if (!initialMessage || askedRef.current) return;
     askedRef.current = true;
-    answer(initialMessage, "a-0");
-  }, [initialMessage, answer]);
+    // After the intro, when there is one — see the state initialiser.
+    answer(initialMessage, `a-${intro ? 1 : 0}`);
+  }, [initialMessage, answer, intro]);
 
   // Opening a copilot: load everything said to it. An empty history means you
   // have never talked to it, so the hero. State is set only in the callbacks —
@@ -254,18 +283,30 @@ export default function Conversation({
     let alive = true;
     fetchMessages(copilot.id)
       .then((rows) => {
+        if (!alive) return;
+        // A just-created copilot with nothing stored: keep the intro already on
+        // screen. Anything stored wins over it.
+        if (rows.length === 0 && intro) return;
+        // Continue the thread on screen rather than opening a new one on the
+        // server: the next turn is sent with the newest row's conversation.
+        const last = rows[rows.length - 1];
+        if (last?.conversation_id != null) {
+          conversationRef.current = last.conversation_id;
+        }
         // A row with no readable text would render as a blank turn, which reads
         // as the copilot having said nothing rather than as a row we could not
         // parse.
-        if (alive) setMessages(rows.map(fromStored).filter((m) => m.text));
+        setMessages(rows.map(fromStored).filter((m) => m.text));
       })
       // ⚠️ SHOWN, NOT SWALLOWED. This used to fail silently into the empty
       // hero, which looks exactly like "your history is gone" — the one thing a
       // refresh must never appear to do. The server's own words go in the
-      // thread instead, and the composer under them still works.
+      // thread instead, and the composer under them still works. A new
+      // copilot's intro stays above the error.
       .catch((err) => {
         if (!alive) return;
         setMessages([
+          ...(intro ? [intro] : []),
           {
             id: "history-error",
             role: "assistant",
@@ -281,7 +322,7 @@ export default function Conversation({
     return () => {
       alive = false;
     };
-  }, [wantsHistory, copilot.id]);
+  }, [wantsHistory, copilot.id, intro]);
 
   const composer = (
     <CopilotComposer
@@ -307,7 +348,7 @@ export default function Conversation({
     );
   }
 
-  // ── New conversation ──────────────────────────────────────────
+  // ── Empty thread ──────────────────────────────────────────────
   if (!started) {
     return (
       <div className="flex h-full flex-col items-center justify-center px-4 md:px-8 pb-12">

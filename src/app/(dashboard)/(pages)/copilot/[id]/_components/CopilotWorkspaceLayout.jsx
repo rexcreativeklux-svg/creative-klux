@@ -9,7 +9,7 @@
  * collapse toggle, content scrolling beside it) and it deliberately reuses that
  * shell's measurements, tooltip trick and `SecondarySidebarContext` so the two
  * feel like one system. But SectionLayout renders ONE flat list of links, and
- * this panel is a copilot's home: an identity header, a primary action, grouped
+ * this panel is a copilot's home: an identity header, the conversation, grouped
  * nav, a channel list and a footer. Bending SectionLayout into slots for all of
  * that would put five new props on the shell four shipped sections depend on,
  * to serve one caller.
@@ -34,11 +34,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   PanelLeftClose,
   PanelLeftOpen,
-  Plus,
+  MessageSquare,
   Workflow,
   Blocks,
   SlidersHorizontal,
@@ -51,7 +51,6 @@ import {
 import { useSecondarySidebar } from "@/context/SecondarySidebarContext";
 import Drawer from "@/app/(components)/ui/Drawer";
 import CopilotAvatar from "../../_components/CopilotAvatar";
-import { newConversationId } from "../../_data/copilots";
 import { CHANNELS } from "../../_data/channels";
 import CopilotSettingsModal from "./settings/CopilotSettingsModal";
 import InviteCreditsModal from "./InviteCreditsModal";
@@ -87,7 +86,6 @@ const FOOTER_ITEMS = [
 
 export default function CopilotWorkspaceLayout({ copilot, children }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { isOpen, toggle } = useSecondarySidebar();
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Which footer item is open, and the rect of the row that opened it — one
@@ -103,7 +101,7 @@ export default function CopilotWorkspaceLayout({ copilot, children }) {
   const base = `/copilot/${copilot.id}`;
 
   // Exact match: every screen here is a leaf, and the conversation lives at the
-  // root, so a prefix test would light Workflows from inside a conversation.
+  // root, so a prefix test would light Conversation from inside Workflows.
   const isActive = (href) => pathname === href;
 
   // ── Collapsed-panel label tooltip ───────────────────────────────
@@ -170,25 +168,28 @@ export default function CopilotWorkspaceLayout({ copilot, children }) {
         className={`flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar py-3 flex flex-col gap-1 ${expanded ? "px-3" : "px-2"}`}
         onScroll={hideTip}
       >
-        {/* New conversation — the panel's one primary action, so it is the one
-            item drawn as a button rather than a link in a list.
-            ⚠️ It carries a fresh `?c=`, which is what makes it work from
-            anywhere: from Workflows it navigates to the thread, and from a
-            thread it changes the URL, so the conversation remounts empty
-            instead of the router deciding you are already there and doing
-            nothing. See newConversationId in ../../_data/copilots. */}
-        <button
-          onClick={() => {
-            setDrawerOpen(false);
-            router.push(`${base}?c=${newConversationId()}`);
-          }}
-          onMouseEnter={(e) => showTip(e, "New conversation")}
+        {/* Conversation — back to the thread, where you left off.
+            ⚠️ A plain link to the copilot's root with NO `?c=`: that is what
+            makes the thread load its stored history (see Conversation's
+            `wantsHistory`), so from Workflows or Plugins this returns to the
+            conversation rather than opening a blank one. It replaced "New
+            conversation", which minted a fresh `?c=` and started empty. */}
+        <Link
+          href={base}
+          onClick={() => setDrawerOpen(false)}
+          onMouseEnter={(e) => showTip(e, "Conversation", isActive(base))}
           onMouseLeave={hideTip}
-          className={`group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-medium text-gray-900 hover:bg-gray-100 transition-all duration-150 cursor-pointer ${expanded ? "" : "justify-center px-0"}`}
+          onFocus={(e) => showTip(e, "Conversation", isActive(base))}
+          onBlur={hideTip}
+          className={`group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-150
+            ${isActive(base) ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"}
+            ${expanded ? "" : "justify-center px-0"}`}
         >
-          <Plus className="h-4.5 w-4.5 shrink-0" />
-          {expanded && <span className="flex-1 truncate text-left">New conversation</span>}
-        </button>
+          <MessageSquare
+            className={`h-4.5 w-4.5 shrink-0 ${isActive(base) ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"}`}
+          />
+          {expanded && <span className="flex-1 truncate">Conversation</span>}
+        </Link>
 
         {NAV_ITEMS.map(({ label, segment, icon: Icon }) => {
           const href = `${base}/${segment}`;

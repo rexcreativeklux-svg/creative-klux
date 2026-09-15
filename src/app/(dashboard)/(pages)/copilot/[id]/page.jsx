@@ -5,16 +5,16 @@
  *
  * The thread itself lives in <Conversation>; this page's whole job is to decide
  * WHICH conversation is on screen. ⚠️ That comes from `?c=` in the URL, and it is
- * the component's `key`: "New conversation" is then an ordinary navigation, the
- * thread resets by remounting, and Back returns to the conversation that was
- * open. The alternative — a reset callback threaded from the panel button down
- * into the thread's state — leaves the URL lying about what is on screen.
+ * the component's `key`: a handoff is then an ordinary navigation, the thread
+ * resets by remounting, and Back returns to the conversation that was open. The
+ * alternative — a reset callback threaded down into the thread's state — leaves
+ * the URL lying about what is on screen.
  *
  * ⚠️ NO `?c=` MEANS "SHOW ME OUR HISTORY". Opening a copilot from the catalog
  * or the rail carries none, and the thread loads everything said to that
- * copilot from the server — like opening a chat in WhatsApp. Only New
- * conversation (and the Send to chat / Activate skill handoffs) mint one, and
- * those open blank. See isSessionConversation in ../_data/copilots.
+ * copilot from the server — like opening a chat in WhatsApp; the panel's
+ * Conversation link goes there too. Only the Send to chat / Activate skill
+ * handoffs mint one, and those open blank. See isSessionConversation in ../_data/copilots.
  */
 
 import { Suspense } from "react";
@@ -51,6 +51,8 @@ function CopilotConversation() {
       conversationId={searchParams.get("c")}
       initialDraft={searchParams.get("task") ?? ""}
       initialMessage={searchParams.get("send") ?? ""}
+      // `?new=1` — set by the create flows, so the copilot introduces itself.
+      isNew={searchParams.get("new") === "1"}
     />
   );
 }

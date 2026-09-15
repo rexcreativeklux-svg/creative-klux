@@ -102,13 +102,13 @@ const sessionConversations = new Set();
  * An id for a conversation that does not exist server-side yet.
  *
  * It rides the URL as `?c=` and is the conversation's React `key`, so all it has
- * to be is different from the last one — that is what makes "New conversation"
- * an ordinary navigation instead of a no-op when you are already on the thread.
+ * to be is different from the last one — that is what makes a handoff an
+ * ordinary navigation instead of a no-op when you are already on the thread.
  *
  * ⚠️ EVENT HANDLERS ONLY, never during render: `Date.now()` is impure, so a
  * render that called it would produce a new key on every pass and remount the
  * conversation under the user. It lives out here rather than inline so the
- * two callers (the panel's New conversation, a workflow's Send to chat) mint
+ * callers (Plugins' Activate skill, a workflow's Send to chat, the home create) mint
  * them the same way.
  */
 export const newConversationId = () => {
@@ -122,7 +122,7 @@ export const newConversationId = () => {
  * i.e. whether the blank thread it asked for is still the right answer.
  *
  * ⚠️ FALSE AFTER A RELOAD, AND THAT IS THE FEATURE. See the set above: by then
- * what was said in it is in `GET copilots/{id}/conversations`, and loading that
+ * what was said in it is in `GET copilots/{id}/messages`, and loading that
  * history is right again.
  *
  * @param {string|null|undefined} conversationId
@@ -309,36 +309,12 @@ export function removeCopilot(id) {
   );
 }
 
-const NEW_COPILOT_NAME = "New copilot";
-
-/**
- * A name for a copilot nobody has named.
- *
- * ⚠️ THIS IS A STOPGAP. `POST /copilots` rejects a request with no name — "The
- * name field is required" — so the server will not name one for us the way the
- * sibling product's `POST /autopilots` does. Until it defaults the column, the
- * name has to come from somewhere, and a form in front of an empty copilot is
- * the thing we were trying to avoid.
- *
- * Numbered only when it has to be: the second "New copilot" becomes "New
- * copilot 2", so the list stays readable without stamping a number on the very
- * first one. Counted from names already in the store, so it is wrong only when
- * the catalog has not loaded — and a duplicate name is a rename, not a bug.
- */
-function defaultCopilotName() {
-  const taken = new Set(state.items.map((c) => c.name));
-  if (!taken.has(NEW_COPILOT_NAME)) return NEW_COPILOT_NAME;
-  let n = 2;
-  while (taken.has(`${NEW_COPILOT_NAME} ${n}`)) n += 1;
-  return `${NEW_COPILOT_NAME} ${n}`;
-}
-
 /**
  * Create one, and put it at the front — it is now the most recently edited.
  *
- * ⚠️ NOTHING IS ASKED OF THE USER. A plain create sends only the placeholder
- * name above; they rename it from the settings sheet once it exists and they
- * know what it is for.
+ * ⚠️ `name` IS REQUIRED — `POST /copilots` answers 422 without one. The user
+ * types it in CreateCopilotModal; a clone derives it from the source. Checked
+ * here too, so a caller that forgets fails with a sentence, not a 422.
  *
  * ⚠️ Not optimistic. The id comes from the server, and a card with an invented
  * id breaks the moment someone clicks it.
@@ -348,8 +324,9 @@ function defaultCopilotName() {
  * product's autopilot client uses against this backend's conventions.
  */
 export async function addCopilot(payload = {}) {
-  const body = { name: defaultCopilotName(), ...payload };
-  const record = toCopilotRecord(await createCopilot(body));
+  const name = payload.name?.trim();
+  if (!name) throw new Error("Give the copilot a name.");
+  const record = toCopilotRecord(await createCopilot({ ...payload, name }));
 
   if (!record) {
     await refreshCopilots();

@@ -31,7 +31,7 @@ import Link from "next/link";
 import LogoutModal from "./LogoutModal";
 import ThemeSwitcher from "./ThemeSwitcher";
 import CopilotNavSections from "@/app/(dashboard)/(pages)/copilot/_components/CopilotNavSections";
-import IdeaSuggestions from "@/app/(dashboard)/(pages)/copilot/_components/IdeaSuggestions";
+import RecentCopilots from "@/app/(dashboard)/(pages)/copilot/_components/RecentCopilots";
 
 /**
  * Which app links get a permanent slot in the mobile bottom bar, in order.
@@ -543,10 +543,10 @@ const Sidebar = ({
           {activeTab === "apps" ? (
             <>
               {renderNavList(appsItems)}
-              {/* Three starter ideas, rotating hourly — the Copilot catalog
-                  put where someone working on designs passes it. Expanded
-                  only, same reason as the Copilot sections below. */}
-              {isOpen && <IdeaSuggestions onNavigate={onNavigate} />}
+              {/* The three newest copilots, from GET /copilots — put where
+                  someone working on designs passes them. Expanded only, same
+                  reason as the Copilot sections below. */}
+              {isOpen && <RecentCopilots onNavigate={onNavigate} />}
             </>
           ) : (
             <>

@@ -18,12 +18,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Bot } from "lucide-react";
 import PlatformChip from "./_components/PlatformChip";
 import CopilotComposer from "./_components/CopilotComposer";
+import CreateCopilotModal from "./_components/CreateCopilotModal";
 import { CATEGORIES, IDEAS } from "./_data/ideas";
-import {
-  addCopilot,
-  newConversationId,
-  reportFailure,
-} from "./_data/copilots";
+import { newConversationId } from "./_data/copilots";
 
 function CopilotHome() {
   const router = useRouter();
@@ -38,33 +35,27 @@ function CopilotHome() {
   // rewriting the URL on every keystroke is not what a draft is.
   const [task, setTask] = useState(() => searchParams.get("task") ?? "");
   const [activeCategory, setActiveCategory] = useState("Brand");
-  const [creating, setCreating] = useState(false);
+  const [naming, setNaming] = useState(false);
   const ideas = IDEAS[activeCategory] ?? [];
 
   /**
    * "Give your Copilot its first task" — so it makes one and gives it the task.
    *
-   * ⚠️ TWO STEPS, and the order matters: the copilot has to exist before there
-   * is anywhere to ask. The task then rides `?send=` (see [id]/page.jsx), which
-   * posts it as an asked message rather than parking it in the composer — the
-   * user already pressed send once here, and asking them to press it again in
-   * the new thread would be the same click twice.
-   *
-   * The server names the copilot; nothing is asked up front.
+   * ⚠️ THREE STEPS, and the order matters: the user names it (CreateCopilotModal),
+   * the copilot has to exist before there is anywhere to ask, and the task then
+   * rides `?send=` (see [id]/page.jsx), which posts it as an asked message rather
+   * than parking it in the composer — the user already pressed send once here,
+   * and asking them to press it again in the new thread would be the same click
+   * twice.
    */
-  const handleCreate = async () => {
-    const text = task.trim();
-    if (!text || creating) return;
-    setCreating(true);
-    try {
-      const copilot = await addCopilot();
-      router.push(
-        `/copilot/${copilot.id}?c=${newConversationId()}&send=${encodeURIComponent(text)}`,
-      );
-    } catch (err) {
-      reportFailure(err, "Couldn't create a copilot");
-      setCreating(false); // on success we navigate away, so only failure resets
-    }
+  const handleSubmit = () => {
+    if (task.trim()) setNaming(true);
+  };
+
+  const handleCreated = (copilot) => {
+    router.push(
+      `/copilot/${copilot.id}?new=1&c=${newConversationId()}&send=${encodeURIComponent(task.trim())}`,
+    );
   };
 
   return (
@@ -107,9 +98,14 @@ function CopilotHome() {
         <CopilotComposer
           value={task}
           onChange={setTask}
-          onSubmit={handleCreate}
-          busy={creating}
+          onSubmit={handleSubmit}
           className="mt-10 w-full max-w-xl"
+        />
+
+        <CreateCopilotModal
+          isOpen={naming}
+          onClose={() => setNaming(false)}
+          onCreated={handleCreated}
         />
 
         <p className="mt-14 text-xs text-gray-500">

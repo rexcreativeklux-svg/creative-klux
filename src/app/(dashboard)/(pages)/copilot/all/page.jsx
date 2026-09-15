@@ -32,13 +32,9 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import CopilotCard from "../_components/CopilotCard";
+import CreateCopilotModal from "../_components/CreateCopilotModal";
 import DropdownMenu from "../_components/DropdownMenu";
-import {
-  useCopilotsState,
-  refreshCopilots,
-  addCopilot,
-  reportFailure,
-} from "../_data/copilots";
+import { useCopilotsState, refreshCopilots } from "../_data/copilots";
 
 /**
  * How the grid can be ordered.
@@ -84,29 +80,9 @@ export default function AllCopilots() {
   const [view, setView] = useState("grid");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [sort, setSort] = useState("edited");
-  const [creating, setCreating] = useState(false);
-
-  /**
-   * Make one on the server, then open it.
-   *
-   * ⚠️ NO FORM FIRST. The server names it; the user renames it from the settings
-   * sheet once it exists and they know what it is for. Asking for a name up
-   * front is a form standing between someone and an empty copilot.
-   *
-   * Guarded against a second click, because two clicks on a slow create make two
-   * copilots and only one of them gets opened.
-   */
-  const handleCreate = async () => {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const copilot = await addCopilot();
-      router.push(`/copilot/${copilot.id}`);
-    } catch (err) {
-      reportFailure(err, "Couldn't create a copilot");
-      setCreating(false); // give the button back; on success we navigate away
-    }
-  };
+  // The name dialog owns the create (and its double-submit guard); this page
+  // only decides where to go once the copilot exists.
+  const [createOpen, setCreateOpen] = useState(false);
 
   const term = query.trim().toLowerCase();
   const matches = copilots.filter(
@@ -146,19 +122,20 @@ export default function AllCopilots() {
               button back with the API, not before. */}
           <div className="flex items-center gap-2">
             <button
-              onClick={handleCreate}
-              disabled={creating}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-gray-900 text-sm font-medium text-surface hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={() => setCreateOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-gray-900 text-sm font-medium text-surface hover:bg-gray-800 transition-colors cursor-pointer"
             >
-              {creating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              {creating ? "Creating…" : "Create copilot"}
+              <Plus className="h-4 w-4" />
+              Create copilot
             </button>
           </div>
         </div>
+
+        <CreateCopilotModal
+          isOpen={createOpen}
+          onClose={() => setCreateOpen(false)}
+          onCreated={(copilot) => router.push(`/copilot/${copilot.id}?new=1`)}
+        />
 
         {/* ── Toolbar ─────────────────────────────────────────── */}
         <div className="mt-6 flex flex-col md:flex-row md:items-center gap-2">

@@ -20,9 +20,10 @@ import {
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
 // so this ad preview matches exactly what opens in the editor.
 import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
+import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 
 /* ─── DesignCanvas (shared renderer) ───────────────────────── */
-function DesignCanvas({ variation }) {
+function DesignCanvas({ variation, scraive = variation?.source === "scraive" }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -41,11 +42,16 @@ function DesignCanvas({ variation }) {
       }
     }
     const canvasSpec = design?.canvas || design;
-    const elements = Array.isArray(variation.elements)
-      ? variation.elements
-      : Array.isArray(design?.elements)
-        ? design.elements
-        : [];
+    // Scraive layouts (fetched templates, redesigns) take Scraive's top-aligned
+    // text; involk variations are already ours and stay centred.
+    const elements = fromScraiveElements(
+      Array.isArray(variation.elements)
+        ? variation.elements
+        : Array.isArray(design?.elements)
+          ? design.elements
+          : [],
+      { text: scraive },
+    );
     if (!canvasSpec) return;
 
     let cancelled = false;
@@ -70,7 +76,7 @@ function DesignCanvas({ variation }) {
     return () => {
       cancelled = true;
     };
-  }, [variation]);
+  }, [variation, scraive]);
 
   if (!variation) return null;
 
@@ -376,7 +382,8 @@ function DesignResultPanel({
                   padding: 8,
                 }}
               >
-                <DesignCanvas variation={tpl} />
+                {/* public-fetch templates are Scraive layouts by definition */}
+                <DesignCanvas variation={tpl} scraive />
               </div>
               <div
                 style={{

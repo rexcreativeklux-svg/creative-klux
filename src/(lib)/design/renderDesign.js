@@ -24,6 +24,7 @@ import { isCropped } from "./imageCrop";
 import { isColourValue, tintedImageCanvas } from "./imageTint";
 import { isClipped, windowed } from "./clip";
 import { flattenGroups } from "./groups";
+import { fromScraiveElements } from "./scraiveCompat";
 
 /**
  * The two coordinate spaces a fill can be asked for.
@@ -78,7 +79,10 @@ export async function renderDesignToCanvas({ canvas, elements }) {
   // coordinates, and the painter below never has to know they exist. Done first
   // so the font scan sees text nested inside a group too — otherwise grouped
   // text exported in the fallback face.
-  const flat = flattenGroups(elements || []);
+  //
+  // Scraive shape types (`rectangle`, `hexagon`, …) are translated before that —
+  // this painter has no branch for them and would skip them without a trace.
+  const flat = flattenGroups(fromScraiveElements(elements || []));
 
   // Ensure any custom fonts used by text elements are loaded before painting —
   // canvas fillText silently falls back to a default if the font isn't ready.
@@ -104,7 +108,14 @@ export async function renderDesignToCanvas({ canvas, elements }) {
       /* leave white */
     }
   } else {
-    ctx.fillStyle = bg;
+    // A CSS gradient string is silently ignored by fillStyle (Scraive pages can
+    // carry one), so it becomes a real CanvasGradient across the page.
+    ctx.fillStyle = fillStyleFor(ctx, bg, {
+      x: 0,
+      y: 0,
+      width: canvas.width,
+      height: canvas.height,
+    });
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
@@ -354,9 +365,9 @@ export async function renderDesignToCanvas({ canvas, elements }) {
         lines.push(line);
       }
 
-      // Sticky notes are top-aligned; other text is vertically centered.
+      // Sticky notes and Scraive text are top-aligned; other text is centred.
       const blockH = lines.length * lineH;
-      const firstY = el.sticky
+      const firstY = el.sticky || el.verticalAlign === "top"
         ? el.y + pad + size * 0.85
         : el.y + Math.max(pad, ((el.height || 0) - blockH) / 2) + size * 0.85;
 

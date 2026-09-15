@@ -553,7 +553,7 @@ function renderInner(el, opts) {
       height: "100%",
       display: "flex",
       flexDirection: "column",
-      justifyContent: el.sticky ? "flex-start" : "center",
+      justifyContent: el.sticky || el.verticalAlign === "top" ? "flex-start" : "center",
       fontSize: el.fontSize || 16,
       fontWeight: el.fontWeight || "normal",
       fontFamily: el.fontFamily || "'DM Sans', sans-serif",

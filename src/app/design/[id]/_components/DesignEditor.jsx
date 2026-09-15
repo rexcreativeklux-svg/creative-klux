@@ -33,6 +33,7 @@ import {
   drawCover,
 } from "@/(lib)/design/renderDesign";
 import { isCropped } from "@/(lib)/design/imageCrop";
+import { isGradient } from "@/(lib)/design/gradient";
 import { boundsOf, isGroup } from "@/(lib)/design/groups";
 import { SHAPES, aspectOf, isStraightLine, isBendableLine } from "@/(lib)/design/shapes";
 import { frameGeo } from "@/(lib)/design/frames";
@@ -2154,8 +2155,14 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
                 height: canvas.height,
                 transform: `scale(${zoom})`,
                 transformOrigin: "top left",
-                backgroundColor: isImageBg ? "#ffffff" : bg,
-                backgroundImage: isImageBg ? `url(${proxiedSrc(bg)})` : undefined,
+                // A gradient is an image to CSS — as a backgroundColor it is
+                // invalid and the artboard would paint nothing.
+                backgroundColor: isImageBg || isGradient(bg) ? "#ffffff" : bg,
+                backgroundImage: isImageBg
+                  ? `url(${proxiedSrc(bg)})`
+                  : isGradient(bg)
+                    ? bg
+                    : undefined,
                 backgroundSize: "cover",
                 backgroundPosition: "center",
               }}

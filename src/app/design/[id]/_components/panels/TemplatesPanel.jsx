@@ -5,6 +5,7 @@ import { LayoutTemplate, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
+import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 
 // Scraive's canvas-templates/public-fetch currently 500s. Keep it OFF so we
@@ -100,7 +101,12 @@ export default function TemplatesPanel({ editor, designId }) {
   };
 
   const applyTemplate = (tpl) => {
-    editor.replaceDesign({ canvas: tpl.canvas, elements: tpl.elements });
+    editor.replaceDesign({
+      canvas: tpl.canvas,
+      // Library rows are Scraive layouts (adaptScraive tags them); the brand's
+      // own designs are already ours and keep their centred text.
+      elements: fromScraiveElements(tpl.elements, { text: tpl.source === "scraive" }),
+    });
     setPending(null);
     toast.success("Template applied");
   };
@@ -201,7 +207,10 @@ function TemplateThumb({ tpl }) {
     let alive = true;
     (async () => {
       try {
-        const cnv = await renderDesignToCanvas({ canvas: tpl.canvas, elements: tpl.elements });
+        const cnv = await renderDesignToCanvas({
+          canvas: tpl.canvas,
+          elements: fromScraiveElements(tpl.elements, { text: tpl.source === "scraive" }),
+        });
         if (alive) setSrc(cnv.toDataURL("image/png"));
       } catch {
         /* leave placeholder */
@@ -281,6 +290,7 @@ function adaptScraive(tpl) {
       canvas: layout.canvas,
       elements: layout.elements,
       image: tpl?.thumbnail || tpl?.preview || tpl?.image_url || null,
+      source: "scraive",
     };
   }
   return null;

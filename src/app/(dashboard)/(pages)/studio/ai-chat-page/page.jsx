@@ -25,6 +25,7 @@ import { normalizeSessionMessages } from "@/app/(components)/studio/chatSessions
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
 // so these previews match exactly what opens in the editor.
 import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
+import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 
 /* ─── config ───────────────────────────────────────────────── */
 
@@ -113,7 +114,9 @@ function DesignCanvas({ variation }) {
       try {
         const off = await renderDesignToCanvas({
           canvas: variation.canvas,
-          elements: variation.elements || [],
+          elements: fromScraiveElements(variation.elements || [], {
+            text: variation.source === "scraive",
+          }),
         });
         if (cancelled || !canvasRef.current) return;
         const target = canvasRef.current;

@@ -14,6 +14,7 @@ import { clearImpersonating } from "@/utils/impersonation";
 import api from "@/app/api/axios";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
 import { renderDesignToDataUrl } from "@/(lib)/design/renderDesign";
+import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 
 const AuthContext = createContext();
 
@@ -2145,8 +2146,11 @@ export function AuthProvider({ children }) {
 
       // Success — data is the parsed JSON body
       const data = batchResult.raw || batchResult.data;
+      // Tagged because a redesign is a Scraive layout, and `{type:"text"}` reads
+      // the same in both formats — renderers and saveDesign use this to lay its
+      // text out the Scraive way (see scraiveCompat).
       const batchVariations = Array.isArray(data?.variations)
-        ? data.variations
+        ? data.variations.map((v) => ({ ...v, source: "scraive" }))
         : [];
       const batchAssets = Array.isArray(data?.assets) ? data.assets : [];
       aggregated.variations.push(...batchVariations);
@@ -2653,11 +2657,15 @@ export function AuthProvider({ children }) {
             }
           }
           const canvasSpec = design?.canvas || design;
-          const els = Array.isArray(v.elements)
+          const rawEls = Array.isArray(v.elements)
             ? v.elements
             : Array.isArray(design?.elements)
               ? design.elements
               : [];
+          // A redesign is saved in OUR format, so the editor opens it the way
+          // the results grid showed it rather than re-centring its text.
+          const scraive = v.source === "scraive";
+          const els = scraive ? fromScraiveElements(rawEls, { text: true }) : rawEls;
           const thumbnail = canvasSpec
             ? await renderDesignToDataUrl({ canvas: canvasSpec, elements: els })
             : null;
@@ -2670,7 +2678,7 @@ export function AuthProvider({ children }) {
                 10,
               ) || 0,
             copy: JSON.stringify(v.copy || {}),
-            canvas: { canvas: v.canvas, elements: v.elements },
+            canvas: { canvas: v.canvas, elements: scraive ? els : v.elements },
             // base64 data URL: "data:image/jpeg;base64,…"
             thumbnail,
             type: typeShort,

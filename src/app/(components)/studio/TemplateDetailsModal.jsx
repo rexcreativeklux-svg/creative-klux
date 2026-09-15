@@ -66,6 +66,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Link2, Loader2, Mail, PenLine, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
+import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 import TemplateCard, { GUTTER, TemplateCardGrid } from "./TemplateCard";
 import { buildTemplateShareQuery } from "./templatesApi";
 
@@ -319,7 +320,11 @@ export default function TemplateDetailsModal({
     (async () => {
       try {
         const dataUrl = await renderDesignToThumbnail(
-          { canvas: item.canvas, elements: item.elements },
+          {
+            canvas: item.canvas,
+            // Library templates are Scraive layouts — see scraiveCompat.
+            elements: fromScraiveElements(item.elements, { text: item.kind === "template" }),
+          },
           { maxDim: PREVIEW_MAX_DIM, quality: 0.92 },
         );
         if (!alive) return;

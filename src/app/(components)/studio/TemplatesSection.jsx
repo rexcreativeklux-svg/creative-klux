@@ -435,6 +435,9 @@ export default function TemplatesSection({
             canvas: item.canvas,
             elements: item.elements,
             category: item.formatKey || "image", // → sub_type
+            // A library template is a Scraive layout: saveDesign converts it to
+            // ours, so the editor opens it the way the card painted it.
+            source: item.kind === "template" ? "scraive" : undefined,
           },
         ],
         creativeType,

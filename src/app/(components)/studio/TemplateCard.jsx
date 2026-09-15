@@ -31,6 +31,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ImageIcon, MoreHorizontal } from "lucide-react";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
+import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 
 /**
  * Horizontal padding shared by a card's inset and by whatever heading row sits
@@ -171,7 +172,11 @@ function useDesignPreview(item) {
     const paint = async () => {
       try {
         const dataUrl = await renderDesignToThumbnail(
-          { canvas: item.canvas, elements: item.elements },
+          {
+            canvas: item.canvas,
+            // Library templates are Scraive layouts — see scraiveCompat.
+            elements: fromScraiveElements(item.elements, { text: item.kind === "template" }),
+          },
           { maxDim: PREVIEW_MAX_DIM },
         );
         if (!alive) return;

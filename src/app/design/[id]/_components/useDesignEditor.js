@@ -14,6 +14,7 @@ import {
 import { styleGroup } from "@/(lib)/design/groupStyling";
 import { scaledProps } from "@/(lib)/design/scaleProps";
 import { cloneClip, scaledClip } from "@/(lib)/design/clip";
+import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 
 /**
  * useDesignEditor — the single source of truth for the design editor.
@@ -158,7 +159,7 @@ export function normalizeForEditor(design) {
     background: design?.canvas?.background || DEFAULT_CANVAS.background,
   };
 
-  const elements = (design?.elements || []).map(normalizeElement);
+  const elements = fromScraiveElements(design?.elements).map(normalizeElement);
 
   return { canvas, elements };
 }

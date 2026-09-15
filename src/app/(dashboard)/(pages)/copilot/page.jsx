@@ -28,9 +28,9 @@ import {
 function CopilotHome() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // `?task=` — the sidebar's rotating ideas hand their description over this
-  // way, so one arrives already typed into the box instead of sending the user
-  // to find it again in the grid below. Same param, same meaning, as the one
+  // `?task=` — a link can hand a task over this way, so it arrives already
+  // typed into the box instead of sending the user to find it again in the
+  // grid below. Same param, same meaning, as the one
   // /copilot/[id] reads for a workflow's "Send to chat".
   //
   // Seed, not source: it is the composer's INITIAL value and the user edits

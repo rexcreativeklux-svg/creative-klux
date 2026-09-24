@@ -13,7 +13,10 @@
  * from the home hero on that.
  *
  * STARTED: the thread, dated, with the copilot's starters above the composer —
- * that is when "what else can this thing do?" is the live question.
+ * that is when "what else can this thing do?" is the live question. It opens on
+ * the NEWEST message and stays there as turns arrive, the way every chat the
+ * user has met behaves; scrolling up to read back releases that, and sending
+ * takes it back. See useStickToBottom.
  *
  * ⚠️ State resets by REMOUNT, not by clearing: the page gives this component a
  * `key` taken from the conversation in the URL, so a handoff (Send to chat,
@@ -72,6 +75,7 @@ import { copilotIntro } from "../../_data/copilotIntros";
 import CopilotComposer from "../../_components/CopilotComposer";
 import ChatMessage from "./ChatMessage";
 import SuggestionChips from "./SuggestionChips";
+import useStickToBottom from "./useStickToBottom";
 
 /**
  * The name to greet someone by. `name` is the profile field, `username` the
@@ -204,6 +208,12 @@ export default function Conversation({
   const started = messages.length > 0;
   const name = firstName(user);
 
+  // The thread opens on its newest message and stays there as turns land,
+  // unless the user scrolls up to read back. `started` is what tells the hook
+  // the scrolling box exists — the two branches below render instead of it.
+  const { viewportRef, contentRef, onScroll, pinToBottom } =
+    useStickToBottom(started);
+
   // Both lines picked in ONE initialiser so they always change together, and
   // once per mount so the copy holds still while the user is reading it. The
   // pick is derived from the hour, so the server and the client agree without a
@@ -258,6 +268,9 @@ export default function Conversation({
     const [asked, reply] = turn(text, messages.length);
     setMessages((prev) => [...prev, asked, reply]);
     setDraft("");
+    // Back to the foot of the thread even if they were reading back: you sent
+    // this, so you get to watch it be answered.
+    pinToBottom();
     answer(text, reply.id);
   };
 
@@ -395,8 +408,15 @@ export default function Conversation({
   // ── Started ───────────────────────────────────────────────────
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8">
-        <div className="mx-auto flex max-w-3xl flex-col gap-8">
+      <div
+        ref={viewportRef}
+        onScroll={onScroll}
+        className="flex-1 overflow-y-auto px-4 md:px-8 py-8"
+      >
+        <div
+          ref={contentRef}
+          className="mx-auto flex max-w-3xl flex-col gap-8"
+        >
           {/* Date divider — hairline, date, hairline */}
           <div className="flex items-center gap-4">
             <span className="h-px flex-1 bg-gray-200" />

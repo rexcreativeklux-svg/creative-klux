@@ -18,7 +18,7 @@
  * proper marks when the channels are actually wired.
  *
  * ── The `connect` block ─────────────────────────────────────────────────────
- * Everything ChannelConnectView renders comes from here, so a fifth channel is a
+ * Everything ChannelConnectView renders comes from here, so another channel is a
  * row in this file rather than a branch in the view:
  *
  *   blurb    the one-line pitch on the Channels list — what talking to a
@@ -26,32 +26,26 @@
  *   hero     the flat colour behind the code and the preview. Straight from
  *            each channel's design — they are NOT the service's brand colour
  *            (WhatsApp's card is orange), so they cannot be derived from `tint`.
- *   preview  what the phone beside the code shows. `chat` is a two-bubble
- *            thread (its own surface and outgoing-bubble colours per channel);
- *            `slack` is a channel with two posts, because a Slack copilot is
- *            mentioned in a channel rather than DMed, and showing it as a DM
- *            would teach the wrong gesture.
+ *   preview  what the phone beside the code shows: a two-bubble thread, with
+ *            its own surface and outgoing-bubble colours per channel.
  *   cta      the primary button's label.
- *   steps    the numbered instructions, in order. Slack has three.
+ *   joinPhrase  optional; prepends a "join the test number" step (WhatsApp
+ *            sandbox only).
+ *   steps    the numbered instructions, in order.
+ *
+ * The links themselves (QR, button) are NOT here — they carry the copilot's
+ * secret code and come from `GET copilots/{id}`, keyed by these same ids.
  */
 
-import { MessageCircle, Send, MessageSquare, Hash } from "lucide-react";
+import { MessageCircle, Send } from "lucide-react";
 
 /**
- * The reassurance line under every channel's steps. One string, not four: it is
- * a promise about how the product handles messages, so it must not drift into
- * four slightly different promises.
+ * The reassurance line under every channel's steps. One string, not one per
+ * channel: it is a promise about how the product handles messages, so it must
+ * not drift into slightly different promises.
  */
 export const CHANNEL_PRIVACY_NOTE =
   "We only see messages you send to your copilot. You can disconnect anytime.";
-
-/**
- * What the copilot is called inside a Slack workspace. It is ONE app installed
- * per workspace that every copilot answers through — which is exactly the thing
- * step 2 has to warn about, since users go looking for their copilot's own name
- * in the /invite list and do not find it.
- */
-export const SLACK_APP_NAME = "Creative Klux Copilots";
 
 export const CHANNELS = [
   {
@@ -61,10 +55,14 @@ export const CHANNELS = [
     Icon: MessageCircle,
     tint: "bg-[#25D366]",
     blurb:
-      "Chat with your copilot on WhatsApp. Scan the QR code or send a quick activation code.",
+      "Chat with your copilot on WhatsApp. Scan the QR code and send the message it fills in.",
     connect: {
       hero: "bg-[#F97316]",
       cta: "Open WhatsApp",
+      // Twilio's sandbox number ignores anyone who has not sent its join phrase
+      // first, and the wa.me link cannot pre-fill it. Set while on the sandbox;
+      // unset it once there is a production sender and the step disappears.
+      joinPhrase: process.env.NEXT_PUBLIC_WHATSAPP_SANDBOX_JOIN || null,
       preview: {
         kind: "chat",
         surface: "bg-[#EFE7DE]",
@@ -73,11 +71,11 @@ export const CHANNELS = [
       steps: [
         {
           title: "Scan the QR code or click the button",
-          body: "Scan the QR code with your phone or click the button to open the conversation in WhatsApp.",
+          body: "WhatsApp opens with your link message already typed in.",
         },
         {
-          title: "Send the activation code",
-          body: "Send the activation code in the chat to start sending and receiving messages through your copilot.",
+          title: "Send the link message",
+          body: "Send it as it is. Your copilot says hello, and from then on it answers every message from this number.",
         },
       ],
     },
@@ -89,7 +87,7 @@ export const CHANNELS = [
     Icon: Send,
     tint: "bg-[#229ED9]",
     blurb:
-      "Chat with your copilot on Telegram. We'll create a private bot for you in one click.",
+      "Chat with your copilot on Telegram. Scan the QR code, tap Start, and you're connected.",
     connect: {
       hero: "bg-[#DCEB6E]",
       cta: "Open Telegram",
@@ -101,67 +99,11 @@ export const CHANNELS = [
       steps: [
         {
           title: "Scan the QR code or click the button",
-          body: "Scan the QR code with your phone or click the button to open the bot in Telegram.",
+          body: "Telegram opens the Creative Klux bot.",
         },
         {
-          title: "Send the activation code",
-          body: "Confirm the bot in Telegram, then we'll set everything up automatically.",
-        },
-      ],
-    },
-  },
-  {
-    id: "imessage",
-    label: "Continue on iMessage",
-    short: "iMessage",
-    Icon: MessageSquare,
-    tint: "bg-[#34C759]",
-    blurb:
-      "Chat with your copilot from any Apple device. Verify by texting a short code from your iPhone or Mac.",
-    connect: {
-      hero: "bg-[#3A5BE0]",
-      cta: "Open iMessage",
-      preview: {
-        kind: "chat",
-        surface: "bg-white",
-        bubble: "bg-[#3B82F6] text-white",
-      },
-      steps: [
-        {
-          title: "Scan the QR code or click the button",
-          body: "Scan the QR code with your phone or click the button to open the conversation in iMessage.",
-        },
-        {
-          title: "Send the activation code",
-          body: "Send the activation code in the chat to start sending and receiving messages through your copilot.",
-        },
-      ],
-    },
-  },
-  {
-    id: "slack",
-    label: "Continue on Slack",
-    short: "Slack",
-    Icon: Hash,
-    tint: "bg-[#4A154B]",
-    blurb:
-      "Add your copilot to a Slack workspace. Mention its @handle in a channel and it replies in the thread.",
-    connect: {
-      hero: "bg-[#8E96F0]",
-      cta: "Add to Slack",
-      preview: { kind: "slack" },
-      steps: [
-        {
-          title: "Scan the QR code or click the button",
-          body: `Scan the QR code with your phone or click the button to add “${SLACK_APP_NAME}” to your workspace.`,
-        },
-        {
-          title: `Invite ${SLACK_APP_NAME} to a channel`,
-          body: `In Slack, type /invite and pick the app “${SLACK_APP_NAME}” (not your copilot's name) in each channel you want your copilot in.`,
-        },
-        {
-          title: "Mention your copilot",
-          body: "Use your copilot's @handle (you'll see it after connecting) — it replies in a thread.",
+          title: "Tap Start",
+          body: "That links this chat to your copilot, with no code to type. If Start doesn't appear, send the link message instead.",
         },
       ],
     },

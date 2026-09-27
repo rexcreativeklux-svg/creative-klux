@@ -4,10 +4,9 @@
  * The picture at the top of a channel's connect panel: a code to scan on the
  * left, and a glimpse of the destination on the right.
  *
- * Split out of ChannelConnectView because it is the half that varies — a Slack
- * copilot is mentioned in a channel, the other three are messaged directly, so
- * one of these renders a channel and the rest render a thread. The view around
- * it (steps, note, button) is identical for all four.
+ * Split out of ChannelConnectView because it is the half that varies per
+ * channel (colours, surface). The view around it (steps, note, button) is
+ * identical for every channel.
  *
  * The conversation shown is THIS copilot's own description, which is already
  * written first-person as the standing job you would ask it for, so the preview
@@ -26,8 +25,7 @@ const REPLY = "On it — I'll report back right here.";
  *
  * `qrcode` is imported lazily — it is weight that only matters once someone
  * opens this panel, and the same dynamic import is what the editor's share
- * panel uses. It spins in its own tile rather than blocking the panel, which is
- * the state the iMessage design happens to have been captured in.
+ * panel uses. It spins in its own tile rather than blocking the panel.
  */
 function ChannelQr({ value }) {
   const [src, setSrc] = useState("");
@@ -62,7 +60,7 @@ function ChannelQr({ value }) {
   );
 }
 
-/** WhatsApp / Telegram / iMessage: a two-bubble thread, in that app's colours. */
+/** WhatsApp / Telegram: a two-bubble thread, in that app's colours. */
 function ChatPreview({ copilot, preview }) {
   return (
     <div className="w-56 overflow-hidden rounded-t-2xl bg-white shadow-xl">
@@ -89,53 +87,6 @@ function ChatPreview({ copilot, preview }) {
 }
 
 /**
- * Slack: a channel, with someone mentioning the copilot and the copilot
- * answering — the gesture step 3 describes. The APP badge is the giveaway that
- * the second poster is a bot, and it is how Slack itself marks them.
- */
-function SlackPreview({ copilot }) {
-  const handle = `@${copilot.id}`;
-  return (
-    <div className="w-56 overflow-hidden rounded-t-2xl bg-white shadow-xl">
-      <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-bold text-gray-900">
-        #brand-team
-      </p>
-      <div className="flex flex-col gap-2.5 px-3 py-2.5">
-        <div className="flex gap-2">
-          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-violet-500 text-[8px] font-bold text-white">
-            MC
-          </span>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold text-gray-900">
-              Mike C. <span className="font-normal text-gray-400">9:01 AM</span>
-            </p>
-            <p className="text-[10px] leading-snug text-gray-700">
-              <span className="rounded bg-blue-50 px-1 text-blue-600">
-                {handle}
-              </span>{" "}
-              can you take this one?
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <CopilotAvatar copilot={copilot} size="sm" />
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold text-gray-900">
-              {copilot.name}{" "}
-              <span className="rounded bg-gray-100 px-1 text-[7px] font-semibold text-gray-500">
-                APP
-              </span>{" "}
-              <span className="font-normal text-gray-400">9:01 AM</span>
-            </p>
-            <p className="text-[10px] leading-snug text-gray-700">{REPLY}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
  * @param {Object} props
  * @param {Object} props.channel  A row from ../../../_data/channels.
  * @param {Object} props.copilot  Named in the preview, and what the code points at.
@@ -152,11 +103,7 @@ export default function ChannelPreview({ channel, copilot, qrValue }) {
     >
       <ChannelQr value={qrValue} />
       <div className="hidden shrink-0 translate-y-5 -mr-5 sm:block">
-        {preview.kind === "slack" ? (
-          <SlackPreview copilot={copilot} />
-        ) : (
-          <ChatPreview copilot={copilot} preview={preview} />
-        )}
+        <ChatPreview copilot={copilot} preview={preview} />
       </div>
     </div>
   );

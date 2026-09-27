@@ -35,7 +35,7 @@ Here's what I can take off your plate:
 - **Product** — clean up product photos, stage lifestyle shots and cut short videos
 - **Studio** — turn scripts into voiceovers and videos, and generate image variations
 
-I can run any of these on a schedule as a workflow, and you can reach me on WhatsApp, Telegram or Slack once you connect them.
+I can run any of these on a schedule as a workflow, and you can reach me on WhatsApp or Telegram once you connect them.
 
 So — what should I take on first?`,
 
@@ -61,7 +61,7 @@ I work across Creative Klux, so you can hand me whole jobs, not just questions:
 2. **Check** — brand consistency, ad policy and creative scores before anything goes live
 3. **Watch** — your competitors, your trends and how your creative is performing
 
-Give me something once, or set it up as a workflow and I'll keep doing it — and we can pick this up on WhatsApp, Telegram or Slack whenever you're away from your desk.
+Give me something once, or set it up as a workflow and I'll keep doing it — and we can pick this up on WhatsApp or Telegram whenever you're away from your desk.
 
 What would you like handled?`,
 
@@ -113,7 +113,7 @@ In the meantime, I can already:
 2. **Resize and repurpose** what you've made for every platform
 3. **Analyse** your creative and your competitors', and tell you what to change
 
-And once you connect WhatsApp, Telegram or Slack, you can message me from there too.
+And once you connect WhatsApp or Telegram, you can message me from there too.
 
 What's the first job?`,
 

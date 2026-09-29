@@ -12,9 +12,10 @@
 
 import Skeleton from "@/app/(components)/skeletons/Skeleton";
 
-/** SOCIAL_PLATFORMS and AD_PLATFORMS, roughly, so both sections fill out. */
+/** SOCIAL, AD and PRODUCTIVITY platforms, roughly, so each section fills out. */
 const DEFAULT_SECTIONS = [
   { rows: 5 },
+  { rows: 4 },
   { rows: 4 },
 ];
 

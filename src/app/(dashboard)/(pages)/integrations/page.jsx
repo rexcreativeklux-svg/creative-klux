@@ -13,6 +13,7 @@ import {
 import {
   SOCIAL_PLATFORMS,
   AD_PLATFORMS,
+  PRODUCTIVITY_PLATFORMS,
   getPlatformName,
 } from "@/(lib)/integrations/platforms";
 import IntegrationsSkeleton from "@/app/(components)/integrations/IntegrationsSkeleton";
@@ -357,6 +358,25 @@ const IntegrationsPage = () => {
               <SectionHeader title="Advertising Platforms" />
               <div className="flex flex-col gap-3">
                 {AD_PLATFORMS.map((platform) => (
+                  <PlatformCard
+                    key={platform.id}
+                    platform={platform}
+                    integrations={integrations.filter(
+                      (i) => i.platform === platform.id,
+                    )}
+                    onConnect={handleConnect}
+                    onDisconnect={handleDisconnect}
+                    loadingPlatformId={loadingPlatformId}
+                    loadingIntegrationId={loadingIntegrationId}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <SectionHeader title="Productivity" />
+              <div className="flex flex-col gap-3">
+                {PRODUCTIVITY_PLATFORMS.map((platform) => (
                   <PlatformCard
                     key={platform.id}
                     platform={platform}

@@ -56,6 +56,32 @@ export const GoogleAdsIcon = () => (
   </svg>
 );
 
+export const GmailIcon = () => (
+  <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+    <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" />
+  </svg>
+);
+export const GoogleSheetsIcon = () => (
+  <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+    <path d="M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6h6l-6-6zm1.363 10.636h-3.41v1.91h3.41v-1.91zm0 3.273h-3.41v1.91h3.41v-1.91zM20.727 6.5v15.864c0 .904-.732 1.636-1.636 1.636H4.909a1.636 1.636 0 0 1-1.636-1.636V1.636C3.273.732 4.005 0 4.909 0h9.318v6.5h6.5zm-3.273 2.773H6.545v7.909h10.91v-7.91zm-6.136 4.636H7.91v1.91h3.41v-1.91z" />
+  </svg>
+);
+export const GoogleDocsIcon = () => (
+  <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+    <path d="M14.727 6.727H14V0H4.91c-.905 0-1.637.732-1.637 1.636v20.728c0 .904.732 1.636 1.636 1.636h14.182c.904 0 1.636-.732 1.636-1.636V6.727h-6zm-.545 10.455H7.09v-1.364h7.09v1.364zm2.727-3.273H7.091v-1.364h9.818v1.364zm0-3.273H7.091V9.273h9.818v1.363zM14.727 6h6l-6-6v6z" />
+  </svg>
+);
+// White tile with the "X" knocked out in Excel green (sits on the green iconBg).
+export const ExcelIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-5 h-5">
+    <rect x="3" y="3" width="18" height="18" rx="3" fill="white" />
+    <path
+      d="M8 7.5l3 4.5-3 4.5h2.2l1.8-2.9 1.8 2.9H16l-3-4.5 3-4.5h-2.2L12 10.4l-1.8-2.9z"
+      fill="#107C41"
+    />
+  </svg>
+);
+
 // ── Platform config ───────────────────────────────────────────────────────────
 export const SOCIAL_PLATFORMS = [
   {
@@ -148,6 +174,39 @@ export const AD_PLATFORMS = [
   },
 ];
 
+// Docs, sheets and mail — not publishing targets, so they're kept out of
+// SOCIAL/AD (which the brand wizard and Copilot also iterate).
+export const PRODUCTIVITY_PLATFORMS = [
+  {
+    id: "gmail",
+    name: "Gmail",
+    description: "Send emails from your Gmail account.",
+    Icon: GmailIcon,
+    iconBg: "linear-gradient(135deg, #EA4335, #C5221F)",
+  },
+  {
+    id: "google_sheets",
+    name: "Google Sheets",
+    description: "Read and write spreadsheets in your Google Drive.",
+    Icon: GoogleSheetsIcon,
+    iconBg: "linear-gradient(135deg, #0F9D58, #0B8043)",
+  },
+  {
+    id: "google_docs",
+    name: "Google Docs",
+    description: "Create and edit documents in your Google Drive.",
+    Icon: GoogleDocsIcon,
+    iconBg: "linear-gradient(135deg, #4285F4, #1A73E8)",
+  },
+  {
+    id: "excel",
+    name: "Microsoft Excel",
+    description: "Read and write Excel workbooks in your OneDrive.",
+    Icon: ExcelIcon,
+    iconBg: "linear-gradient(135deg, #21A366, #107C41)",
+  },
+];
+
 // Platforms whose login is a full-page redirect (nested SSO that popups can't
 // finish). The Integrations page uses redirects for these; the brand-create
 // wizard forces a popup instead so the in-progress form isn't navigated away.
@@ -155,7 +214,7 @@ export const REDIRECT_PLATFORMS = ["twitter", "linkedin", "pinterest", "tiktok"]
 
 // Look up a platform's display name from its id.
 export const getPlatformName = (platformId) => {
-  const all = [...SOCIAL_PLATFORMS, ...AD_PLATFORMS];
+  const all = [...SOCIAL_PLATFORMS, ...AD_PLATFORMS, ...PRODUCTIVITY_PLATFORMS];
   return all.find((p) => p.id === platformId)?.name || platformId;
 };
 

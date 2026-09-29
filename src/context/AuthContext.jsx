@@ -63,6 +63,17 @@ const extractGalleryPayload = (data) => {
   return { raw: flat, meta: null };
 };
 
+// Platforms whose integration persists the REFRESH token in int_token (see
+// saveIntegration) — callers must mint a fresh access token from it before use.
+const REFRESH_TOKEN_PLATFORMS = [
+  "twitter",
+  "tiktok",
+  "gmail",
+  "google_sheets",
+  "google_docs",
+  "excel",
+];
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -3368,10 +3379,11 @@ export function AuthProvider({ children }) {
             // ephemeral (re-derived on every publish), so for those we store the REFRESH token
             // in int_token — that's the value that must survive + sync cross-device. Every
             // other platform stores its (long-lived) access token as before.
-            int_token:
-              platform === "twitter" || platform === "tiktok"
-                ? refresh_token || access_token || null
-                : access_token || null,
+            // Google Workspace + Excel are the same case: their access tokens die in ~1h,
+            // so the refresh token is what has to be kept.
+            int_token: REFRESH_TOKEN_PLATFORMS.includes(platform)
+              ? refresh_token || access_token || null
+              : access_token || null,
             // Kept for forward-compat if the backend ever adds a dedicated column; the
             // authoritative field today is int_token (above).
             int_refresh_token: refresh_token || null,

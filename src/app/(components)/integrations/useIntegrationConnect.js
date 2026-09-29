@@ -251,7 +251,7 @@ export function useIntegrationConnect({
     };
   }
 
-  async function resolveExcelIntegration(oauthResult) {
+  async function resolveMicrosoftIntegration(oauthResult) {
     const res = await fetch("/api/microsoft/exchange", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -411,8 +411,8 @@ export function useIntegrationConnect({
       return await resolveTikTokIntegration(oauthResult);
     if (["gmail", "google_sheets", "google_docs"].includes(platformId))
       return await resolveGoogleWorkspaceIntegration(platformId, oauthResult);
-    if (platformId === "excel")
-      return await resolveExcelIntegration(oauthResult);
+    if (platformId === "microsoft")
+      return await resolveMicrosoftIntegration(oauthResult);
 
     return await resolveGenericIntegration(platformId, oauthResult);
   }

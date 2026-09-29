@@ -1,9 +1,9 @@
 // app/api/microsoft/exchange/route.js
-// Exchanges a Microsoft identity-platform auth code (Excel connect) for tokens,
+// Exchanges a Microsoft identity-platform auth code (Microsoft connect) for tokens,
 // then reads the signed-in user from Microsoft Graph to label the integration.
 
-const CLIENT_ID = process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID;
-const CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET;
+const CLIENT_ID = process.env.MS_COPILOT_CLIENT_ID;
+const CLIENT_SECRET = process.env.MS_COPILOT_CLIENT_SECRET;
 // Must match the redirect in oauth/page.jsx and the one registered on the Azure app.
 const REDIRECT_URI = "https://app.creativeklux.com/oauth-callback";
 
@@ -16,7 +16,7 @@ export async function POST(req) {
     }
     if (!CLIENT_ID || !CLIENT_SECRET) {
       return Response.json(
-        { error: "Microsoft app is not configured (set NEXT_PUBLIC_MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET)." },
+        { error: "Microsoft app is not configured (set MS_COPILOT_CLIENT_ID and MS_COPILOT_CLIENT_SECRET)." },
         { status: 500 }
       );
     }

@@ -71,14 +71,13 @@ export const GoogleDocsIcon = () => (
     <path d="M14.727 6.727H14V0H4.91c-.905 0-1.637.732-1.637 1.636v20.728c0 .904.732 1.636 1.636 1.636h14.182c.904 0 1.636-.732 1.636-1.636V6.727h-6zm-.545 10.455H7.09v-1.364h7.09v1.364zm2.727-3.273H7.091v-1.364h9.818v1.364zm0-3.273H7.091V9.273h9.818v1.363zM14.727 6h6l-6-6v6z" />
   </svg>
 );
-// White tile with the "X" knocked out in Excel green (sits on the green iconBg).
-export const ExcelIcon = () => (
+// The four-colour Microsoft mark (keeps its own colours on a dark iconBg).
+export const MicrosoftIcon = () => (
   <svg viewBox="0 0 24 24" className="w-5 h-5">
-    <rect x="3" y="3" width="18" height="18" rx="3" fill="white" />
-    <path
-      d="M8 7.5l3 4.5-3 4.5h2.2l1.8-2.9 1.8 2.9H16l-3-4.5 3-4.5h-2.2L12 10.4l-1.8-2.9z"
-      fill="#107C41"
-    />
+    <rect x="1" y="1" width="10.5" height="10.5" fill="#F25022" />
+    <rect x="12.5" y="1" width="10.5" height="10.5" fill="#7FBA00" />
+    <rect x="1" y="12.5" width="10.5" height="10.5" fill="#00A4EF" />
+    <rect x="12.5" y="12.5" width="10.5" height="10.5" fill="#FFB900" />
   </svg>
 );
 
@@ -199,11 +198,13 @@ export const PRODUCTIVITY_PLATFORMS = [
     iconBg: "linear-gradient(135deg, #4285F4, #1A73E8)",
   },
   {
-    id: "excel",
-    name: "Microsoft Excel",
-    description: "Read and write Excel workbooks in your OneDrive.",
-    Icon: ExcelIcon,
-    iconBg: "linear-gradient(135deg, #21A366, #107C41)",
+    // One Microsoft account connection covers every Graph app we use —
+    // Excel/OneDrive, Outlook Calendar and Mail. Scopes live in oauth/page.jsx.
+    id: "microsoft",
+    name: "Microsoft",
+    description: "Use Excel, OneDrive, Outlook Calendar and Mail from your Microsoft account.",
+    Icon: MicrosoftIcon,
+    iconBg: "linear-gradient(135deg, #2F2F2F, #1B1B1B)",
   },
 ];
 

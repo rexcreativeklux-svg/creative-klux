@@ -71,7 +71,7 @@ const REFRESH_TOKEN_PLATFORMS = [
   "gmail",
   "google_sheets",
   "google_docs",
-  "excel",
+  "microsoft",
 ];
 
 export function AuthProvider({ children }) {
@@ -3379,7 +3379,7 @@ export function AuthProvider({ children }) {
             // ephemeral (re-derived on every publish), so for those we store the REFRESH token
             // in int_token — that's the value that must survive + sync cross-device. Every
             // other platform stores its (long-lived) access token as before.
-            // Google Workspace + Excel are the same case: their access tokens die in ~1h,
+            // Google Workspace + Microsoft are the same case: their access tokens die in ~1h,
             // so the refresh token is what has to be kept.
             int_token: REFRESH_TOKEN_PLATFORMS.includes(platform)
               ? refresh_token || access_token || null

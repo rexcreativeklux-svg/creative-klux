@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // TikTok's client key is public (it goes in the OAuth URL), but it's named
-  // without NEXT_PUBLIC_, so inline it for the browser-side oauth helper.
+  // OAuth client ids are public (they go in the login URL), but these are named
+  // without NEXT_PUBLIC_, so inline them for the browser-side oauth helper.
   // Never add secrets here — everything in `env` ships to the client bundle.
   env: {
     TIKTOK_CLIENT_KEY: process.env.TIKTOK_CLIENT_KEY,
+    MS_COPILOT_CLIENT_ID: process.env.MS_COPILOT_CLIENT_ID,
   },
   // Old flat URLs → new section URLs (sidebar restructure: Ad Intelligence,
   // Social Content and Ads Content became sections with a secondary sidebar).

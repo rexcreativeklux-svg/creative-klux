@@ -568,8 +568,8 @@ const CLIENT_IDS = {
   google_docs:
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
 
-  excel:
-    process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID,
+  microsoft:
+    process.env.MS_COPILOT_CLIENT_ID,
 };
 
 // Scopes per Google Workspace app. Each also gets openid/email/profile so the
@@ -985,12 +985,24 @@ async function buildAuthUrl(platform, clientId) {
     }
 
     // ────────────────────────────────────────────────────────
-    // Microsoft Excel (Microsoft Graph — workbooks live in OneDrive)
+    // Microsoft (Graph) — one connection for all Microsoft apps:
+    //   Files.ReadWrite     → Excel workbooks + OneDrive
+    //   Calendars.ReadWrite → Outlook Calendar appointments
+    //   Mail.Send           → send mail from Outlook
+    // All are user-consentable delegated scopes; add one here (and in the Entra
+    // app's API permissions) to unlock another app. Users must reconnect to grant it.
     // ────────────────────────────────────────────────────────
-    case 'excel': {
-      const scope = encodeURIComponent(
-        'openid profile email offline_access User.Read Files.ReadWrite'
-      );
+    case 'microsoft': {
+      const scope = encodeURIComponent([
+        'openid',
+        'profile',
+        'email',
+        'offline_access',
+        'User.Read',
+        'Files.ReadWrite',
+        'Calendars.ReadWrite',
+        'Mail.Send',
+      ].join(' '));
 
       return (
         `https://login.microsoftonline.com/common/oauth2/v2.0/authorize` +

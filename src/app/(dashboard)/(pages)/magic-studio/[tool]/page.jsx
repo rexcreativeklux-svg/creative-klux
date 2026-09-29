@@ -18,6 +18,12 @@
  *   │     │ Style ▾ Size ▾        [↑] │          │    tool, and it GENERATES
  *   └─────┴───────────────────────────┴──────────┘    (see StudioComposer)
  *
+ * A tool with example pictures (Text to Image, for now — see
+ * textToImageTemplates.js) gets a third canvas, Templates, and opens on it. It
+ * is its own masonry grid rather than a state of the lattice: it shows someone
+ * else's pictures to choose from, not your results, and "Use" hands its prompt
+ * to the composer and switches to Create.
+ *
  * ⚠️ TWO CANVASES, ONE LATTICE. Create is the working surface: it starts empty
  * and fills with what you make in this sitting. History is the whole backlog.
  * The composer is pinned under both, because it is the point of the screen —
@@ -42,13 +48,15 @@
 
 import { useMemo, useState } from "react";
 import { notFound, useParams } from "next/navigation";
-import { History, Loader2, Sparkles } from "lucide-react";
+import { History, LayoutTemplate, Loader2, Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import HistoryLattice from "../HistoryLattice";
 import StudioComposer from "../StudioComposer";
+import TemplateGallery from "../TemplateGallery";
 import useMagicHistory from "../useMagicHistory";
 import { getMagicConfig } from "../magicStudioConfigs";
 import { toolBySlug } from "../magicTools";
+import { templatesFor } from "../textToImageTemplates";
 
 export default function MagicToolPage() {
   const { user } = useAuth();
@@ -92,10 +100,14 @@ function MagicToolScreen({ tool, user }) {
     resultType: "image",
   });
 
-  // Which canvas is showing. Create by default: this is a working screen, and
-  // landing on the backlog would make the first click of every visit "get me
-  // out of the archive I didn't ask for".
-  const [view, setView] = useState("create");
+  // Example pictures with their prompts — Text to Image only, for now.
+  const templates = templatesFor(tool.id);
+
+  // Which canvas is showing. Templates where the tool has them — a first visit
+  // is exactly when a blank box is hardest to write into. Otherwise Create:
+  // this is a working screen, and landing on the backlog would make the first
+  // click of every visit "get me out of the archive I didn't ask for".
+  const [view, setView] = useState(templates ? "templates" : "create");
 
   // The in-flight tile, taken off the canvas by its ✕. Reset when a new run
   // starts — the dismissal is of THAT wait, not a standing preference, and
@@ -109,7 +121,12 @@ function MagicToolScreen({ tool, user }) {
   const [wasGenerating, setWasGenerating] = useState(status.generating);
   if (wasGenerating !== status.generating) {
     setWasGenerating(status.generating);
-    if (status.generating) setWaitHidden(false);
+    if (status.generating) {
+      setWaitHidden(false);
+      // A run started from Templates would otherwise land on a canvas that
+      // isn't showing — the wait tile and the result both live on Create.
+      if (view === "templates") setView("create");
+    }
   }
 
   // A prompt pushed back into the composer by the in-flight tile's pencil.
@@ -242,6 +259,14 @@ function MagicToolScreen({ tool, user }) {
   }, [baseline, items, sessionItems]);
 
   const creating = view === "create";
+  const browsing = view === "templates";
+
+  // A template's prompt into the composer, and over to Create — you picked it
+  // to make something, and that is where what you make will land.
+  const applyTemplate = (template) => {
+    setRefill({ text: template.prompt, nonce: Date.now() });
+    setView("create");
+  };
   // Session results first in history too — they are the newest thing that
   // happened, and the two on-device tools have nowhere else to put them.
   const visible = creating
@@ -263,6 +288,23 @@ function MagicToolScreen({ tool, user }) {
         <p className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
           {tool.label}
         </p>
+
+        {templates && (
+          <button
+            type="button"
+            onClick={() => setView("templates")}
+            title="Example pictures — pick one to start from its prompt"
+            aria-pressed={browsing}
+            className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              browsing
+                ? "bg-gray-100 text-gray-900"
+                : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+            }`}
+          >
+            <LayoutTemplate className="h-3.5 w-3.5 shrink-0" />
+            Templates
+          </button>
+        )}
 
         <button
           type="button"
@@ -290,11 +332,11 @@ function MagicToolScreen({ tool, user }) {
           }}
           disabled={loading || !tool.backend}
           title={`Everything made with ${tool.label}`}
-          aria-pressed={!creating}
+          aria-pressed={view === "history"}
           className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 enabled:cursor-pointer ${
-            creating
-              ? "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-              : "bg-gray-100 text-gray-900"
+            view === "history"
+              ? "bg-gray-100 text-gray-900"
+              : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
           }`}
         >
           {loading ? (
@@ -320,36 +362,40 @@ function MagicToolScreen({ tool, user }) {
             This used to be a hand-tuned `pb-56` on the scroller that had to be
             re-tuned by hand every time the box grew a row. */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <HistoryLattice
-          items={visible}
-          // Only History is ever waiting on the network. The create canvas is
-          // built from what has already arrived, so showing its spinner there
-          // would put a loading state on a grid that has nothing to load.
-          loading={!creating && loading}
-          generating={(status.generating || resumed) && !waitHidden}
-          generatingCount={resumed ? resumedCount : status.count}
-          generatingProgress={resumed ? null : status.progress}
-          generatingPrompt={resumed ? pending[0]?.prompt || null : status.prompt}
-          generatingType={resumed ? resumedType : status.resultType}
-          generatingLabel={tool.working}
-          onDismissGenerating={() => setWaitHidden(true)}
-          onEditGenerating={() =>
-            setRefill({
-              // The same words the tile is showing — a resumed run's prompt
-              // comes off its record, not off a composer that never typed it.
-              text: (resumed ? pending[0]?.prompt : status.prompt) || "",
-              nonce: Date.now(),
-            })
-          }
-          onDelete={remove}
-          removingId={removingId}
-          emptyHint={
-            creating
-              ? `Describe what you want below. Everything you make lands here.`
-              : tool.emptyHint ||
-                `Everything you make with ${tool.short} lands here.`
-          }
-        />
+        {browsing ? (
+          <TemplateGallery templates={templates} onUse={applyTemplate} />
+        ) : (
+          <HistoryLattice
+            items={visible}
+            // Only History is ever waiting on the network. The create canvas is
+            // built from what has already arrived, so showing its spinner there
+            // would put a loading state on a grid that has nothing to load.
+            loading={!creating && loading}
+            generating={(status.generating || resumed) && !waitHidden}
+            generatingCount={resumed ? resumedCount : status.count}
+            generatingProgress={resumed ? null : status.progress}
+            generatingPrompt={resumed ? pending[0]?.prompt || null : status.prompt}
+            generatingType={resumed ? resumedType : status.resultType}
+            generatingLabel={tool.working}
+            onDismissGenerating={() => setWaitHidden(true)}
+            onEditGenerating={() =>
+              setRefill({
+                // The same words the tile is showing — a resumed run's prompt
+                // comes off its record, not off a composer that never typed it.
+                text: (resumed ? pending[0]?.prompt : status.prompt) || "",
+                nonce: Date.now(),
+              })
+            }
+            onDelete={remove}
+            removingId={removingId}
+            emptyHint={
+              creating
+                ? `Describe what you want below. Everything you make lands here.`
+                : tool.emptyHint ||
+                  `Everything you make with ${tool.short} lands here.`
+            }
+          />
+        )}
 
         {/* The prompt, floating over the history rather than sitting under it,
             so the grid runs behind it. `pointer-events-none` on the positioner

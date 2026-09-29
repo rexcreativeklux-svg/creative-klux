@@ -558,6 +558,27 @@ const CLIENT_IDS = {
 
   tiktok_ads:
     process.env.NEXT_PUBLIC_TIKTOK_ADS_APP_ID,
+
+  gmail:
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+
+  google_sheets:
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+
+  google_docs:
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+
+  excel:
+    process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID,
+};
+
+// Scopes per Google Workspace app. Each also gets openid/email/profile so the
+// connection can be labelled with the account's email. Every API here must be
+// enabled on the Google Cloud project and its scope added to the consent screen.
+const GOOGLE_WORKSPACE_SCOPES = {
+  gmail: ['https://www.googleapis.com/auth/gmail.send'],
+  google_sheets: ['https://www.googleapis.com/auth/spreadsheets'],
+  google_docs: ['https://www.googleapis.com/auth/documents'],
 };
 
 /**
@@ -933,6 +954,52 @@ async function buildAuthUrl(platform, clientId) {
         `https://business-api.tiktok.com/portal/auth` +
         `?app_id=${clientId}` +
         `&redirect_uri=${redirect}` +
+        `&state=${state}`
+      );
+    }
+
+    // ────────────────────────────────────────────────────────
+    // Gmail / Google Sheets / Google Docs
+    // ────────────────────────────────────────────────────────
+    // Same Google client + callback as YouTube, so /api/google/exchange works as-is.
+    case 'gmail':
+    case 'google_sheets':
+    case 'google_docs': {
+      const scope = encodeURIComponent([
+        'openid',
+        'email',
+        'profile',
+        ...GOOGLE_WORKSPACE_SCOPES[platform],
+      ].join(' '));
+
+      return (
+        `https://accounts.google.com/o/oauth2/v2/auth` +
+        `?client_id=${clientId}` +
+        `&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}` +
+        `&response_type=code` +
+        `&scope=${scope}` +
+        `&access_type=offline` +
+        `&prompt=consent` +
+        `&state=${state}`
+      );
+    }
+
+    // ────────────────────────────────────────────────────────
+    // Microsoft Excel (Microsoft Graph — workbooks live in OneDrive)
+    // ────────────────────────────────────────────────────────
+    case 'excel': {
+      const scope = encodeURIComponent(
+        'openid profile email offline_access User.Read Files.ReadWrite'
+      );
+
+      return (
+        `https://login.microsoftonline.com/common/oauth2/v2.0/authorize` +
+        `?client_id=${clientId}` +
+        `&redirect_uri=${redirect}` +
+        `&response_type=code` +
+        `&response_mode=query` +
+        `&scope=${scope}` +
+        `&prompt=select_account` +
         `&state=${state}`
       );
     }

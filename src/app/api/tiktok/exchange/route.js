@@ -8,7 +8,7 @@
 // tokens; it can rotate, so the caller persists whatever comes back), and the user's
 // open_id + display name for int_id / int_name.
 
-const CLIENT_KEY = process.env.NEXT_PUBLIC_TIKTOK_CLIENT_KEY;
+const CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY;
 const CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET;
 const REDIRECT_URI = "https://app.creativeklux.com/oauth-callback";
 

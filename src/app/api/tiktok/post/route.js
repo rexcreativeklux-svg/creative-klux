@@ -17,7 +17,7 @@
 //   - PULL_FROM_URL requires the image URL's DOMAIN to be verified in the TikTok developer
 //     portal (URL properties). Unverified → TikTok rejects with a url-ownership error.
 
-const CLIENT_KEY = process.env.NEXT_PUBLIC_TIKTOK_CLIENT_KEY;
+const CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY;
 const CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET;
 
 const TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/";

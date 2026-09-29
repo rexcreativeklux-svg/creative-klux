@@ -554,7 +554,7 @@ const CLIENT_IDS = {
     process.env.NEXT_PUBLIC_SNAPCHAT_CLIENT_ID,
 
   tiktok:
-    process.env.NEXT_PUBLIC_TIKTOK_CLIENT_KEY,
+    process.env.TIKTOK_CLIENT_KEY,
 
   tiktok_ads:
     process.env.NEXT_PUBLIC_TIKTOK_ADS_APP_ID,

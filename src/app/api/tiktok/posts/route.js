@@ -5,7 +5,7 @@
 // client secret. Refreshes the 24h token first (returns the rotated refresh token so the
 // caller persists it), then lists recent videos/photo posts.
 
-const CLIENT_KEY = process.env.NEXT_PUBLIC_TIKTOK_CLIENT_KEY;
+const CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY;
 const CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET;
 
 const TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/";

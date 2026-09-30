@@ -28,6 +28,7 @@
 
 import {
   FileImage,
+  Images,
   Video,
   Layers,
   Mic,
@@ -721,10 +722,7 @@ const descriptionField = (value) => {
  * succeeds: an undeclared key is dropped, and nothing about the result says the
  * logo went missing.
  *
- * ⚠️ `brand_name` IS REQUIRED AND `logo_url` IS NOT. A run with no brand name is
- * blocked before it reaches here (see the tool's `validate`), so the guard below
- * is the belt to that braces rather than the rule itself; the logo is simply
- * omitted when nobody picked one.
+ * Both are optional: each is omitted from the payload when left empty.
  *
  * ⚠️ THE LOGO IS SENT BY ITS OWN URL, NEVER AS A FILE — the field is named for
  * it. Nothing is copied into the gallery on the way — same as the source image
@@ -1528,15 +1526,10 @@ export const MAGIC_STUDIO_CONFIGS = {
         items: [RATIO_SQUARE, RATIO_LANDSCAPE, RATIO_PORTRAIT, RATIO_WIDE],
       },
     ],
-    /**
-     * ⚠️ THE BRAND NAME IS AS REQUIRED AS THE PROMPT. The endpoint wants both on
-     * every run — the words describing the image AND who it is for — so a run
-     * with an untouched Brand chip is stopped here rather than being sent to
-     * earn a 422. The logo is the optional half of that chip and is not checked.
-     */
-    validate: ({ input, values }) => {
+    // Only the prompt is required. The Brand chip (name and logo) is optional —
+    // brandFields leaves both out of the payload when they're empty.
+    validate: ({ input }) => {
       if (!input?.trim()) return "Please enter a prompt.";
-      if (!values?.brandName?.trim()) return "Please enter a brand name.";
       return null;
     },
     generate: async ({ input, values }) => {
@@ -1559,9 +1552,8 @@ export const MAGIC_STUDIO_CONFIGS = {
         variations: values.variations,
         // Absent unless a colour was actually picked — see COLOR_OPTION.
         ...colorField(values.color),
-        // The brand this is for, and its mark where one was picked. `brand_name`
-        // is required and guaranteed present by `validate`; `logo_url` is absent
-        // unless a logo was chosen — see brandFields.
+        // The brand this is for, and its mark where one was picked. Both are
+        // optional and absent unless filled in — see brandFields.
         ...brandFields(values.brandName, values.brandLogo),
         prompt: input.trim(),
       };
@@ -2854,5 +2846,54 @@ export const MAGIC_STUDIO_CONFIGS = {
     },
   },
 };
+
+// ── DESIGN TOOLS (Stock Image / Social Design / Ads Design) ─────────────────
+// Text to Image with the Purpose chip taken away and its value fixed. Each one
+// sends its design type as `tool` + `purpose` exactly as Text to Image does
+// when that purpose is picked, and its id IS that value — so `historyTool`,
+// the page's history fetch (tool.id) and toolById(record.tool) all filter on
+// what it sent. Everything else is inherited, so the four can't drift.
+const designTool = ({ purpose, title, subtitle, Icon, placeholder }) => {
+  const base = MAGIC_STUDIO_CONFIGS.text_to_image;
+  return {
+    ...base,
+    id: purpose,
+    title,
+    subtitle,
+    Icon,
+    historyTool: purpose,
+    inputConfig: { ...base.inputConfig, placeholder },
+    options: base.options.filter((option) => option !== PURPOSE_OPTION),
+    generate: (args) =>
+      base.generate({ ...args, values: { ...args.values, purpose } }),
+  };
+};
+
+MAGIC_STUDIO_CONFIGS["image-design"] = designTool({
+  purpose: "image-design",
+  title: "Stock Image",
+  subtitle: "On-brand images with no particular channel in mind.",
+  Icon: Images,
+  placeholder:
+    "Describe the image you want… be specific about subject, setting, lighting, and mood.",
+});
+
+MAGIC_STUDIO_CONFIGS["social-design"] = designTool({
+  purpose: "social-design",
+  title: "Social Design",
+  subtitle: "Feed-native designs built to be scrolled, stopped on and shared.",
+  Icon: Share2,
+  placeholder:
+    "Describe the post you want… what it's about, the mood, and who it's for.",
+});
+
+MAGIC_STUDIO_CONFIGS["ad-design"] = designTool({
+  purpose: "ad-design",
+  title: "Ads Design",
+  subtitle: "Ad creatives built to sell — a clear offer and a reason to click.",
+  Icon: Megaphone,
+  placeholder:
+    "Describe the ad you want… the product, the offer, and the audience.",
+});
 
 export const getMagicConfig = (id) => MAGIC_STUDIO_CONFIGS[id] || null;

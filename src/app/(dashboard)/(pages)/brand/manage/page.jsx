@@ -21,6 +21,7 @@ import BasicInfoTab from "./components/BasicInfoTab";
 import MembersTab from "./components/MembersTab";
 import AllocationTab from "./components/AllocationTab";
 import IntegrationsTab from "./components/IntegrationsTab";
+import AiKeysTab from "./components/AiKeysTab";
 
 export default function ManageBrandPage() {
   const { activeBrand, activeBrandId, brandsLoading } = useAuth();
@@ -46,6 +47,8 @@ export default function ManageBrandPage() {
         );
       case "integrations":
         return <IntegrationsTab />;
+      case "aiKeys":
+        return <AiKeysTab key={activeBrandId} brandId={activeBrandId} />;
       case "comingSoon":
         return (
           <ComingSoon

@@ -31,11 +31,12 @@ import {
   Plug,
   Palette,
   HardDrive,
+  KeyRound,
 } from "lucide-react";
 
 // ── Top-level tabs ────────────────────────────────────────────────────────────
 // `type` tells the page which panel component to render.
-//   basic | members | allocation | integrations → full panels
+//   basic | members | allocation | integrations | aiKeys → full panels
 //   comingSoon                                   → shared placeholder card
 export const TAB_CONFIG = [
   { id: "basic", label: "Basic Information", Icon: FileText, type: "basic" },
@@ -64,6 +65,7 @@ export const TAB_CONFIG = [
     badge: "Builder+",
     type: "integrations",
   },
+  { id: "aiKeys", label: "AI Keys", Icon: KeyRound, type: "aiKeys" },
   {
     id: "skills",
     label: "Skills",

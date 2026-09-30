@@ -30,8 +30,10 @@
  *
  * @param {Object}   props
  * @param {string}   props.title    Section heading shown at the top of the panel
- * @param {Array<{label: string, href: string, icon: import("react").ElementType}>} props.items
- *                                  Navs rendered in the secondary sidebar
+ * @param {Array<{label: string, href: string, icon: import("react").ElementType, group?: string}>} props.items
+ *                                  Navs rendered in the secondary sidebar. An
+ *                                  optional `group` puts a small heading above
+ *                                  the first item of each run with that group.
  * @param {boolean}  [props.bleed]  Hand the content area to the page UNPADDED.
  *                                  For sections whose pages run edge to edge —
  *                                  Magic Studio's history lattice draws its own
@@ -44,7 +46,7 @@
  * @param {import("react").ReactNode} props.children  The active section page
  */
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -103,27 +105,39 @@ const SectionLayout = ({ title, items, bleed = false, children }) => {
           className={`flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar pb-4 flex flex-col gap-1 ${isOpen ? "px-3" : "px-2"}`}
           onScroll={hideTip}
         >
-          {items.map(({ label, href, icon: Icon }) => {
+          {items.map(({ label, href, icon: Icon, group }, index) => {
             const active = isActive(href);
+            // Optional grouping: a heading (or, collapsed, a hairline) wherever
+            // `group` changes. Sections that don't set it render as before.
+            const startsGroup = !!group && group !== items[index - 1]?.group;
             return (
-              <Link
-                key={href}
-                href={href}
-                className={`group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-150
+              <Fragment key={href}>
+                {startsGroup &&
+                  (isOpen ? (
+                    <p className="px-3 pt-4 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-gray-400">
+                      {group}
+                    </p>
+                  ) : (
+                    <div className="mx-2 my-2 border-t border-gray-200" />
+                  ))}
+                <Link
+                  href={href}
+                  className={`group flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-150
                   ${active ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"}
                   ${!isOpen ? "justify-center px-0" : ""}`}
-                onMouseEnter={(e) => showTip(e, label, active)}
-                onMouseLeave={hideTip}
-                onFocus={(e) => showTip(e, label, active)}
-                onBlur={hideTip}
-              >
-                {/* h-4.5 as well as w-4.5 — see the matching note in Sidebar.jsx:
+                  onMouseEnter={(e) => showTip(e, label, active)}
+                  onMouseLeave={hideTip}
+                  onFocus={(e) => showTip(e, label, active)}
+                  onBlur={hideTip}
+                >
+                  {/* h-4.5 as well as w-4.5 — see the matching note in Sidebar.jsx:
                     lucide sets height="24", so width alone letterboxes the glyph. */}
-                <Icon
-                  className={`h-4.5 w-4.5 shrink-0 transition-transform duration-150 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"} ${!isOpen ? "group-hover:scale-110" : ""}`}
-                />
-                {isOpen && <span className="flex-1 truncate">{label}</span>}
-              </Link>
+                  <Icon
+                    className={`h-4.5 w-4.5 shrink-0 transition-transform duration-150 ${active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-900"} ${!isOpen ? "group-hover:scale-110" : ""}`}
+                  />
+                  {isOpen && <span className="flex-1 truncate">{label}</span>}
+                </Link>
+              </Fragment>
             );
           })}
         </nav>

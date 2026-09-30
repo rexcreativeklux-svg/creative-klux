@@ -19,13 +19,55 @@
  */
 
 import SectionLayout from "@/app/(components)/SectionLayout";
-import { MAGIC_TOOLS, hrefForTool } from "./magicTools";
+import { MAGIC_TOOLS, hrefForTool, toolById } from "./magicTools";
 
-const NAV_ITEMS = MAGIC_TOOLS.map((tool) => ({
+// Sidebar grouping only — MAGIC_TOOLS order still drives the redirect, filter
+// pills and the composer picker. The headline image tools lead ungrouped; the
+// rest sit under what they make.
+const NAV_GROUPS = [
+  {
+    group: null,
+    ids: ["text_to_image", "image-design", "social-design", "ad-design"],
+  },
+  { group: "Image", ids: ["image_to_variations", "persona_generator"] },
+  {
+    group: "Video",
+    ids: [
+      "text_to_video",
+      "image_to_video",
+      "digital_human",
+      "video_enhancer",
+      "video_effects",
+      "video_background_remover",
+    ],
+  },
+  {
+    group: "Audio",
+    ids: ["script_to_voiceover", "text_to_audio", "audio_to_text"],
+  },
+];
+
+const toNavItem = (tool, group) => ({
   label: tool.label,
   href: hrefForTool(tool),
   icon: tool.icon,
-}));
+  group,
+});
+
+const grouped = new Set(NAV_GROUPS.flatMap((g) => g.ids));
+
+const NAV_ITEMS = [
+  ...NAV_GROUPS.flatMap(({ group, ids }) =>
+    ids
+      .map(toolById)
+      .filter(Boolean)
+      .map((tool) => toNavItem(tool, group)),
+  ),
+  // A tool added to MAGIC_TOOLS but not placed above still gets a nav item.
+  ...MAGIC_TOOLS.filter((tool) => !grouped.has(tool.id)).map((tool) =>
+    toNavItem(tool, "More"),
+  ),
+];
 
 export default function MagicStudioLayout({ children }) {
   return (

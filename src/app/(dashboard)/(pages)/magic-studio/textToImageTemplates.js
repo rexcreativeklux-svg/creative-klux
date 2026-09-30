@@ -187,11 +187,14 @@ export const TEXT_TO_IMAGE_TEMPLATES = CATALOG.map((entry) => ({
 }));
 
 /**
- * Which tools have a Templates canvas. Text to Image only, for now — a tool not
- * listed here opens on Create as it always has.
+ * Which tools have a Templates canvas. Text to Image and the three design tools
+ * built on it — a tool not listed here opens on Create as it always has.
  */
 const TEMPLATES_BY_TOOL = {
   text_to_image: TEXT_TO_IMAGE_TEMPLATES,
+  "image-design": TEXT_TO_IMAGE_TEMPLATES,
+  "social-design": TEXT_TO_IMAGE_TEMPLATES,
+  "ad-design": TEXT_TO_IMAGE_TEMPLATES,
 };
 
 /** The templates for a tool, or null when it has none. */

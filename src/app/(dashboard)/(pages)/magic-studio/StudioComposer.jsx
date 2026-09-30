@@ -715,17 +715,7 @@ export default function StudioComposer({
       if (kind === "persona" && !values.personaName?.trim())
         return { message: "Give the persona a name." };
     }
-    // A branded tool cannot run anonymously — `brand_name` is required on every
-    // request. Last, and the only one with a fix button: it is the one
-    // requirement whose control is hidden behind a chip, so telling someone what
-    // is missing without also opening the place to fix it sends them hunting
-    // along a row of icons.
-    if (brandEnabled && !brandNameValue)
-      return {
-        message: "A brand name is required.",
-        fixLabel: "Add one",
-        onFix: () => setOpenPanel("brand"),
-      };
+    // The Brand chip is optional — a run with no brand name goes through.
     return null;
   })();
   const ready = !generating && !blocker;
@@ -1425,8 +1415,8 @@ export default function StudioComposer({
         ))}
 
         {/* Who this run is for. ⚠️ TWO FIELDS, ASKED TOGETHER AND SENT
-            SEPARATELY: the name is required and goes up as `brand_name`, the
-            logo is optional and goes up as `logo_url`. They used to be an
+            SEPARATELY: the name goes up as `brand_name`, the logo as
+            `logo_url`, and both are optional. They used to be an
             either/or behind one string — picking a mark wiped the typed name —
             which cost you the required half to answer the optional one. Both
             are on screen at once now and neither replaces the other. */}
@@ -1437,11 +1427,6 @@ export default function StudioComposer({
             onClose={closePanel}
             label="Brand"
             icon={Stamp}
-            // Marked from the first render, not once the run is blocked: the
-            // chip is where the one required setting on this tool lives, and
-            // pointing at it before the prompt is written is cheaper than
-            // explaining a dead button after it.
-            attention={!brandNameValue}
             width={300}
           >
             <div className="flex flex-col gap-2 p-3">
@@ -1449,10 +1434,8 @@ export default function StudioComposer({
                 <span className="text-[11px] font-medium text-gray-500">
                   Brand name
                 </span>
-                {/* Said in the panel as well as enforced on the button: a send
-                    button that is simply dead explains nothing. */}
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-red-500">
-                  Required
+                <span className="text-[10px] font-medium text-gray-400">
+                  Optional
                 </span>
               </div>
               <input

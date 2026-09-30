@@ -119,6 +119,42 @@ export function useManageApi() {
           method: "PATCH",
           body: { allocation: value },
         }),
+
+      // ── AI credentials (bring your own key) ────────────────────────────────
+      // These routes aren't brand-scoped in the path, so brand_id rides along
+      // in the query / body the same way fetchDesigns does it.
+      getAiCredentials: (brandId) =>
+        request(`/ai-credentials?brand_id=${brandId}`),
+
+      // Backend verifies the key against the provider before storing it — a
+      // bad key comes back 422 with the provider's own rejection message.
+      saveAiCredential: (brandId, { capability, provider, api_key, model, activate }) =>
+        request(`/ai-credentials`, {
+          method: "POST",
+          body: { brand_id: brandId, capability, provider, api_key, model, activate },
+        }),
+
+      activateAiCredential: (brandId, id) =>
+        request(`/ai-credentials/${id}/activate`, {
+          method: "POST",
+          body: { brand_id: brandId },
+        }),
+
+      verifyAiCredential: (brandId, id) =>
+        request(`/ai-credentials/${id}/verify`, {
+          method: "POST",
+          body: { brand_id: brandId },
+        }),
+
+      revertToSystemAiKey: (brandId, capability) =>
+        request(`/ai-credentials/system/${capability}?brand_id=${brandId}`, {
+          method: "DELETE",
+        }),
+
+      deleteAiCredential: (brandId, id) =>
+        request(`/ai-credentials/${id}?brand_id=${brandId}`, {
+          method: "DELETE",
+        }),
     }),
     [request],
   );

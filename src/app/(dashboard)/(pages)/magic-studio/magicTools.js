@@ -24,10 +24,13 @@ import {
   Eraser,
   FileImage,
   ImagePlay,
+  Images,
   Layers,
   Maximize2,
+  Megaphone,
   Mic,
   Music,
+  Share2,
   Speech,
   User,
   Video,
@@ -83,6 +86,41 @@ export const MAGIC_TOOLS = [
     backend: true,
     publish: true,
     icon: FileImage,
+  },
+  // ── Design tools ───────────────────────────────────────────────────────────
+  // Text to Image with the Purpose chip fixed. Their ids ARE the design-type
+  // values Text to Image sends as `tool` ("image-design" / "social-design" /
+  // "ad-design" — see PURPOSE_OPTION), so History filters on exactly what each
+  // one sent, and toolById(record.tool) resolves records from either surface.
+  {
+    id: "image-design",
+    slug: "stock-image",
+    label: "Stock Image",
+    short: "Stock",
+    working: "Painting your image…",
+    backend: true,
+    publish: true,
+    icon: Images,
+  },
+  {
+    id: "social-design",
+    slug: "social-design",
+    label: "Social Design",
+    short: "Social",
+    working: "Designing your post…",
+    backend: true,
+    publish: true,
+    icon: Share2,
+  },
+  {
+    id: "ad-design",
+    slug: "ads-design",
+    label: "Ads Design",
+    short: "Ads",
+    working: "Designing your ad…",
+    backend: true,
+    publish: true,
+    icon: Megaphone,
   },
   {
     id: "text_to_video",

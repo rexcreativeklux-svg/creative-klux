@@ -267,8 +267,10 @@ const pillClass = (active) =>
  *   Lets the page draw the placeholder tile, put the words on it, and fill its
  *   bar. `progress` is a whole percent while an on-device engine reports one,
  *   and null otherwise — see the note where it is computed.
- * @param {{text: string, nonce: number}|null} [props.refill] A prompt pushed
- *   back INTO the composer from outside — the in-flight tile's edit affordance.
+ * @param {{text: string, values?: object|null, nonce: number}|null} [props.refill]
+ *   A prompt pushed back INTO the composer from outside — the in-flight tile's
+ *   edit affordance, or a template's Use. `values`, when present, are option
+ *   values to set alongside it (a design template's aspect ratio).
  *   Keyed by `nonce` rather than by the text so asking for the same words twice
  *   still lands; see the effect that applies it.
  */
@@ -558,6 +560,7 @@ export default function StudioComposer({
   if (refill?.nonce != null && refill.nonce !== appliedRefill) {
     setAppliedRefill(refill.nonce);
     setText(refill.text || "");
+    if (refill.values) setValues((prev) => ({ ...prev, ...refill.values }));
   }
 
   // ── Input handlers ─────────────────────────────────────────────────────────

@@ -27,7 +27,7 @@ import { MAGIC_TOOLS, hrefForTool, toolById } from "./magicTools";
 const NAV_GROUPS = [
   {
     group: null,
-    ids: ["text_to_image", "image-design", "social-design", "ad-design"],
+    ids: ["image-design", "social-design", "ad-design"],
   },
   { group: "Image", ids: ["image_to_variations", "persona_generator"] },
   {
@@ -63,8 +63,11 @@ const NAV_ITEMS = [
       .filter(Boolean)
       .map((tool) => toNavItem(tool, group)),
   ),
-  // A tool added to MAGIC_TOOLS but not placed above still gets a nav item.
-  ...MAGIC_TOOLS.filter((tool) => !grouped.has(tool.id)).map((tool) =>
+  // A tool added to MAGIC_TOOLS but not placed above still gets a nav item —
+  // unless it opts out with `nav: false`.
+  ...MAGIC_TOOLS.filter(
+    (tool) => !grouped.has(tool.id) && tool.nav !== false,
+  ).map((tool) =>
     toNavItem(tool, "More"),
   ),
 ];

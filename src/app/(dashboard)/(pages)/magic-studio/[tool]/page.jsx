@@ -100,7 +100,8 @@ function MagicToolScreen({ tool, user }) {
     resultType: "image",
   });
 
-  // Example pictures with their prompts — Text to Image only, for now.
+  // Example pictures with their prompts — photos for Text to Image and Stock
+  // Image, designs for Social and Ads.
   const templates = templatesFor(tool.id);
 
   // Which canvas is showing. Templates where the tool has them — a first visit
@@ -263,8 +264,14 @@ function MagicToolScreen({ tool, user }) {
 
   // A template's prompt into the composer, and over to Create — you picked it
   // to make something, and that is where what you make will land.
+  // A Social or Ads design also sets the aspect ratio, so a story template
+  // makes a story rather than a square with a story's words in it.
   const applyTemplate = (template) => {
-    setRefill({ text: template.prompt, nonce: Date.now() });
+    setRefill({
+      text: template.prompt,
+      values: template.design ? { ratio: template.design.format } : null,
+      nonce: Date.now(),
+    });
     setView("create");
   };
   // Session results first in history too — they are the newest thing that

@@ -66,6 +66,8 @@ const CREATIVE_ID = "magic_studio";
  *   decide it: the persona generator returns text as readily as it returns an
  *   image, and the ⋯ menu still gates on the item having a media URL.
  * @property {import("react").ElementType} icon
+ * @property {boolean} [nav] `false` keeps the tool out of the side nav (and the
+ *   /magic-studio landing redirect) while its route keeps working.
  *
  * ⚠️ NO USER-FACING COPY HERE MENTIONS WHERE THE WORK HAPPENS. Two of these
  * tools run entirely on the user's own machine, and saying so in a loader reads
@@ -86,6 +88,9 @@ export const MAGIC_TOOLS = [
     backend: true,
     publish: true,
     icon: FileImage,
+    // Out of the side nav — Stock Image, Social Design and Ads Design cover it
+    // there. The route still resolves, and its history still labels correctly.
+    nav: false,
   },
   // ── Design tools ───────────────────────────────────────────────────────────
   // Text to Image with the Purpose chip fixed. Their ids ARE the design-type

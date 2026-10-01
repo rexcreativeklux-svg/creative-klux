@@ -25,10 +25,12 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { downloadImageUrl } from "@/app/(components)/product-studio/saveToGallery";
+import TemplateDesign from "./TemplateDesign";
 
 /**
  * @param {object} props
- * @param {Array} props.templates  See textToImageTemplates.js for the shape.
+ * @param {Array} props.templates  See textToImageTemplates.js for the shape —
+ *   an entry with a `design` (Social / Ads) is drawn by TemplateDesign.
  * @param {(template: object) => void} props.onUse  Put its prompt in the composer.
  */
 export default function TemplateGallery({ templates, onUse }) {
@@ -41,7 +43,7 @@ export default function TemplateGallery({ templates, onUse }) {
           <div
             key={template.id}
             className="group relative mb-3 break-inside-avoid overflow-hidden rounded-xl bg-gray-100"
-            style={{ aspectRatio: `${template.width} / ${template.height}` }}
+            style={{ aspectRatio: template.aspect }}
           >
             <button
               type="button"
@@ -49,33 +51,53 @@ export default function TemplateGallery({ templates, onUse }) {
               aria-label="View template"
               className="block h-full w-full cursor-pointer"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={template.thumb}
-                alt={template.prompt}
-                loading="lazy"
-                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-              />
+              {template.design ? (
+                <TemplateDesign
+                  template={template}
+                  className="h-full w-full transition-transform duration-300 group-hover:scale-[1.03]"
+                />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={template.thumb}
+                  alt={template.prompt}
+                  loading="lazy"
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                />
+              )}
             </button>
 
             {/* The prompt and Use, over a scrim. `pointer-events-none` on the
                 scrim so the picture underneath still takes the click everywhere
                 except Use itself.
                 Below `lg` it is always on — there is no hover on a phone, and
-                hiding Use there would leave the viewer as the only way in. */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-2 bg-linear-to-t from-black/75 via-black/35 to-transparent p-3 pt-10 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
-              <p className="line-clamp-2 min-w-0 flex-1 text-[11px] leading-snug text-white/90">
-                {template.prompt}
-              </p>
-              <button
-                type="button"
-                onClick={() => onUse(template)}
-                className="pointer-events-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow transition-colors hover:bg-blue-700"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Use
-              </button>
+                hiding Use there would leave the viewer as the only way in.
+                ⚠️ EXCEPT ON A DESIGN. Its copy is the point of the card, and a
+                permanent scrim would sit right on the headline and CTA — so a
+                phone gets a bare Use in the corner instead (below). */}
+            <div
+              className={`pointer-events-none absolute inset-x-0 bottom-0 items-end gap-2 bg-linear-to-t from-black/75 via-black/35 to-transparent p-3 pt-10 opacity-100 transition-opacity lg:flex lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 ${
+                template.design ? "hidden" : "flex"
+              }`}
+            >
+              <div className="min-w-0 flex-1">
+                {template.formatLabel && (
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+                    {template.formatLabel}
+                  </p>
+                )}
+                <p className="line-clamp-2 text-[11px] leading-snug text-white/90">
+                  {template.prompt}
+                </p>
+              </div>
+              <UseButton onClick={() => onUse(template)} />
             </div>
+
+            {template.design && (
+              <div className="absolute right-2 bottom-2 lg:hidden">
+                <UseButton onClick={() => onUse(template)} />
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -93,6 +115,19 @@ export default function TemplateGallery({ templates, onUse }) {
         />
       )}
     </>
+  );
+}
+
+function UseButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="pointer-events-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow transition-colors hover:bg-blue-700"
+    >
+      <Sparkles className="h-3.5 w-3.5" />
+      Use
+    </button>
   );
 }
 
@@ -163,16 +198,29 @@ function TemplateViewer({ templates, index, onIndexChange, onClose, onUse }) {
         {/* The picture, contained rather than cropped — this is the one place
             the whole frame is shown. The grey panel is a fixed box so the
             arrows don't move as photos of different shapes come and go. */}
-        <div className="relative flex h-[60vh] w-full max-w-md shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-100 shadow-sm md:h-[78vh]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            // Keyed so a slow load of the next photo never shows the previous
-            // one stretched into the new one's box.
-            key={template.id}
-            src={template.image}
-            alt={template.prompt}
-            className="max-h-full max-w-full object-contain"
-          />
+        <div className="relative flex h-[60vh] w-full max-w-md shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-100 shadow-sm @container-[size] md:h-[78vh]">
+          {template.design ? (
+            <TemplateDesign
+              key={template.id}
+              template={template}
+              src={template.image}
+              // As large as the panel allows at the design's own shape: the
+              // full width, unless that would make it taller than the panel.
+              style={{
+                width: `min(100cqw, calc(100cqh * ${template.aspect}))`,
+              }}
+            />
+          ) : (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              // Keyed so a slow load of the next photo never shows the previous
+              // one stretched into the new one's box.
+              key={template.id}
+              src={template.image}
+              alt={template.prompt}
+              className="max-h-full max-w-full object-contain"
+            />
+          )}
 
           <button
             type="button"
@@ -193,6 +241,11 @@ function TemplateViewer({ templates, index, onIndexChange, onClose, onUse }) {
         </div>
 
         <div className="w-full max-w-sm">
+          {template.formatLabel && (
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-blue-600">
+              {template.formatLabel}
+            </p>
+          )}
           <p className="text-sm leading-relaxed text-gray-800">
             {template.prompt}
           </p>
@@ -210,14 +263,18 @@ function TemplateViewer({ templates, index, onIndexChange, onClose, onUse }) {
               <Sparkles className="h-3.5 w-3.5" />
               Use this
             </button>
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="flex cursor-pointer items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Download
-            </button>
+            {/* Not on a design: its copy is HTML laid over the photo, so the
+                file would be the bare photo — not what the card shows. */}
+            {!template.design && (
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="flex cursor-pointer items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download
+              </button>
+            )}
           </div>
 
           {/* Pexels asks for the photographer to be credited. Quiet, but there. */}

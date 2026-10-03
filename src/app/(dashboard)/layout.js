@@ -60,13 +60,10 @@ const matchesRoute = (pathname, route) =>
 // while here still works — it just doesn't stick to the next route.
 const COLLAPSED_SIDEBAR_ROUTES = ["/studio/ai-chat-page"];
 
-// A user counts as verified if either flag says so — the backend sends
-// `is_email_verified` (1/0) and/or a truthy `email_verified_at` timestamp.
+// A user counts as verified if either flag says so — /profile sends
+// `is_email_verified` (boolean) and/or a truthy `email_verified_at` timestamp.
 const isUserVerified = (user) =>
-    !!user &&
-    (user.is_email_verified === 1 ||
-        user.is_email_verified === true ||
-        !!user.email_verified_at);
+    !!user && (user.is_email_verified === true || !!user.email_verified_at);
 
 export default function DashboardLayout({ children }) {
     const router = useRouter();

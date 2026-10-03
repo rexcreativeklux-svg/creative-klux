@@ -34,7 +34,7 @@ export default function LogoutModal({ isOpen, onClose, onConfirm }) {
 
     setIsLoggingOut(true);
     try {
-      await onConfirm?.(); // runs logout() + router.push("/login")
+      await onConfirm?.(); // runs logout(), which sends the browser to /login
       console.log("✅ Logout successful");
       toast.success("Logged out successfully");
       // Navigation unmounts this modal, so we intentionally leave the button

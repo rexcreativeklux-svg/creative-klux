@@ -7,14 +7,17 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { toUserMessage } from "@/utils/authErrors";
-import { getPendingInvite, buildInvitePath } from "@/utils/inviteUrl";
 import AuthShell from "@/app/(components)/auth/AuthShell";
 import AuthProviders from "@/app/(components)/auth/AuthProviders";
+import useSocialAuth, {
+  getPostAuthDestination,
+} from "@/app/(components)/auth/useSocialAuth";
 import Input from "@/app/(components)/ui/Input";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
+  const social = useSocialAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,22 +29,10 @@ export default function LoginPage() {
     try {
       const msg = await login(email, password);
       toast.success(msg || "Signed in successfully.");
-      // Optional ?returnTo= — used by flows that send guests here and bring
-      // them back (e.g. the product-studio pending save, or a brand invite).
-      // Relative paths only, so a crafted link can't redirect off-site.
-      const params = new URLSearchParams(window.location.search);
-      const returnTo = params.get("returnTo");
-      const validReturn =
-        returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
-          ? returnTo
-          : null;
-      // A saved brand invite (from an /invites/{token} detour) wins over the
-      // default home, so a guest who had to sign up first lands back on their
-      // invite — even if `returnTo` was dropped along register → verify → login.
-      const pendingInvite = getPendingInvite();
-      const safeReturn =
-        validReturn || (pendingInvite ? buildInvitePath(pendingInvite) : "/");
-      setTimeout(() => router.push(safeReturn), 1500);
+      // ?returnTo= (e.g. the product-studio pending save) or a saved brand
+      // invite brings the guest back to where they started; otherwise home.
+      const destination = getPostAuthDestination();
+      setTimeout(() => router.push(destination), 1500);
     } catch (err) {
       console.error("❌ login failed:", err);
       toast.error(
@@ -117,8 +108,7 @@ export default function LoginPage() {
       {/* Social sign-in */}
       <AuthProviders
         label="or continue with"
-        onGoogle={() => {}}
-        onFacebook={() => {}}
+        {...social}
       />
 
       {/* Register */}

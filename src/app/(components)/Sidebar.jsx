@@ -172,12 +172,11 @@ const Sidebar = ({
   // the modal stays open (showing its "Logging out…" state) until this
   // resolves, then toasts success — or catches a thrown error and toasts the
   // failure. We intentionally do NOT close the modal here and let errors
-  // propagate so the modal can surface them. `logout()` is best-effort and
-  // always clears the local session, so resolving is the normal path.
+  // propagate so the modal can surface them. `logout()` is best-effort, always
+  // clears the local session, and sends the browser to /login itself.
   const handleLogout = async () => {
     setShowBottomMenu(false);
-    await logout(); // auth action (best-effort server call + always-local clear)
-    router.push("/login");
+    await logout();
   };
 
   //   const handleLogout = async () => {

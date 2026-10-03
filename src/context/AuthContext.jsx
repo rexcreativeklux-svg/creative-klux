@@ -360,6 +360,105 @@ export function AuthProvider({ children }) {
     return data.message || "Login successful";
   };
 
+  // Continue with Google / Facebook. The backend owns the OAuth round trip:
+  // GET /auth/{provider}/redirect hands us the provider URL, the provider
+  // returns to the backend's callback, and that page postMessages the result
+  // back to this window. Resolves { isNew, message }; rejects with a
+  // user-safe Error (cancelled popups carry err.cancelled = true).
+  const socialLogin = (provider) => {
+    // Open the popup synchronously inside the click — opening it after the
+    // redirect fetch resolves would get it blocked as a non-user-initiated popup.
+    const width = 500;
+    const height = 650;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    const popup = window.open(
+      "about:blank",
+      "creativeklux-social-auth",
+      `width=${width},height=${height},left=${left},top=${top}`,
+    );
+
+    return new Promise((resolve, reject) => {
+      if (!popup) {
+        reject(
+          new Error("Your browser blocked the sign-in window. Allow pop-ups and try again."),
+        );
+        return;
+      }
+
+      const apiOrigin = new URL(BASE_URL).origin;
+      let settled = false;
+      let closedPoll;
+
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener("message", onMessage);
+        clearInterval(closedPoll);
+        if (!popup.closed) popup.close();
+        fn(value);
+      };
+
+      const onMessage = (e) => {
+        if (e.origin !== apiOrigin) return;
+        if (e.data?.source !== "creativeklux-social-auth") return;
+
+        const data = e.data;
+        if (!data.success || !data.token) {
+          console.error(`❌ socialLogin(${provider}) failed:`, data);
+          finish(
+            reject,
+            new Error(data.message || "Couldn’t sign you in. Please try again."),
+          );
+          return;
+        }
+
+        console.log(`✅ socialLogin(${provider}) success`);
+        saveAuth(data.token);
+        if (data.user) {
+          localStorage.setItem("user", JSON.stringify(data.user));
+          setUser(data.user);
+        }
+        finish(resolve, { isNew: !!data.is_new, message: data.message });
+      };
+
+      window.addEventListener("message", onMessage);
+
+      // The user closing the popup never posts a message — detect it so the
+      // caller's loading state doesn't hang.
+      closedPoll = setInterval(() => {
+        if (popup.closed) {
+          const err = new Error("Sign-in was cancelled.");
+          err.cancelled = true;
+          finish(reject, err);
+        }
+      }, 500);
+
+      (async () => {
+        try {
+          const res = await fetch(`${BASE_URL}/auth/${provider}/redirect`, {
+            headers: { Accept: "application/json" },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.redirect_url) {
+            throw new Error(data.message || "Couldn’t start sign-in. Please try again.");
+          }
+          if (!settled) popup.location.href = data.redirect_url;
+        } catch (err) {
+          console.error(`❌ socialLogin(${provider}) redirect failed:`, err);
+          finish(
+            reject,
+            new Error(
+              err instanceof TypeError
+                ? "Couldn’t reach the server. Check your connection and try again."
+                : err.message,
+            ),
+          );
+        }
+      })();
+    });
+  };
+
   const register = async (name, email, password, licenseCode = "") => {
     const payload = {
       name,
@@ -596,7 +695,17 @@ export function AuthProvider({ children }) {
     };
   };
 
-  const logout = async () => {
+  // ⚠️ ENDS IN A HARD NAVIGATION, NOT A STATE RESET. Nulling `user` while the
+  // dashboard is still mounted re-renders every page with no user, and the
+  // first one that reads `user.something` throws — the visitor lands on Next's
+  // "This page couldn't load" screen before any router.push("/login") can win.
+  // So the session is cleared from storage and the browser is sent straight to
+  // `redirectTo`, which also drops every bit of in-memory state with it.
+  // Callers pass a different `redirectTo` (the invite page keeps its returnTo);
+  // `null` opts out and falls back to clearing state in place.
+  // (A bare onClick={logout} hands us the click event — it has no redirectTo,
+  // so it gets the default.)
+  const logout = async ({ redirectTo = "/login" } = {}) => {
     try {
       if (token) {
         // Best-effort: we always clear the local session in `finally`, so a
@@ -628,16 +737,22 @@ export function AuthProvider({ children }) {
       }
     } catch (err) {
       console.warn("⚠️ logout — unexpected error:", err?.message || err);
-    } finally {
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
-      clearImpersonating();
-      setUser(null);
-      setToken(null);
-      setBrands([]);
-      setActiveBrandState(null);
-      setBrandsLoading(false);
     }
+
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    clearImpersonating();
+
+    if (redirectTo) {
+      window.location.replace(redirectTo);
+      return;
+    }
+
+    setUser(null);
+    setToken(null);
+    setBrands([]);
+    setActiveBrandState(null);
+    setBrandsLoading(false);
   };
 
   const inviteTeamMember = async (email) => {
@@ -3803,6 +3918,7 @@ export function AuthProvider({ children }) {
         deleteResell,
         fetchResells,
         login,
+        socialLogin,
         register,
         updateProfile,
         handleDeleteTeam,

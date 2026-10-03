@@ -4,14 +4,69 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeProvider";
 import { Toaster } from "sonner";
 import Script from "next/script";
+import { SITE, pageMetadata } from "@/(lib)/site";
+
+// Defaults for EVERY route, including the ~150 client-only dashboard pages that
+// can't export metadata themselves. Two deliberate choices:
+//   • The full share card lives here, so any app link pasted into WhatsApp,
+//     Slack, etc. — even a private one — previews with the brand card.
+//   • robots defaults to noindex. Almost everything here sits behind sign-in
+//     (logged-out visitors are bounced to /login client-side, even from "/"),
+//     so the public pages — login, register, privacy, terms — opt IN via
+//     pageMetadata(). No canonical here: children would inherit it.
+const { alternates, ...rootDefaults } = pageMetadata({
+  title: SITE.title,
+  description: SITE.description,
+  path: "/",
+  index: false,
+});
 
 export const metadata = {
-  title: "Creative Klux",
-  description:
-    "Creative Klux is the all-in-one platform for creators, managers & brands. Get stunning templates, AI-generated content, design tools, client dashboards, and monetization — all in one place.",
+  ...rootDefaults,
+  metadataBase: new URL(SITE.url),
+  title: { default: SITE.title, template: `%s | ${SITE.name}` },
+  applicationName: SITE.name,
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
   },
+};
+
+export const viewport = {
+  themeColor: SITE.themeColor,
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE.homepage}/#organization`,
+      name: SITE.name,
+      url: SITE.homepage,
+      logo: `${SITE.url}${SITE.logo}`,
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE.url}/#website`,
+      name: SITE.name,
+      url: SITE.url,
+      publisher: { "@id": `${SITE.homepage}/#organization` },
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: SITE.name,
+      url: SITE.url,
+      description: SITE.description,
+      applicationCategory: "DesignApplication",
+      operatingSystem: "Web",
+      image: `${SITE.url}/og-image.jpg`,
+      publisher: { "@id": `${SITE.homepage}/#organization` },
+    },
+  ],
 };
 
 export default function RootLayout({ children }) {
@@ -60,6 +115,10 @@ export default function RootLayout({ children }) {
       </head>
 
       <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <ThemeProvider>
           <AuthProvider>
             <ReusableFunctionsProvider>{children}</ReusableFunctionsProvider>

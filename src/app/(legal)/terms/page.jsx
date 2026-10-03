@@ -4,44 +4,16 @@ import LegalLayout, {
   P,
   Bullets,
 } from "@/app/(components)/legal/LegalLayout";
+import { pageMetadata } from "@/(lib)/site";
 
 // ─── SEO ──────────────────────────────────────────────────────────────────────
 
-export const metadata = {
-  metadataBase: new URL("https://app.creativeklux.com"),
-  title: "Terms of Service · Creative Klux",
+export const metadata = pageMetadata({
+  title: "Terms of Service — Your Agreement With Us",
   description:
-    "The Terms of Service governing your use of Creative Klux — the all-in-one platform for AI-powered content, design tools, and social publishing for creators, managers and brands.",
-  keywords: [
-    "Creative Klux terms",
-    "terms of service",
-    "terms and conditions",
-    "user agreement",
-    "acceptable use policy",
-  ],
-  alternates: { canonical: "/terms" },
-  openGraph: {
-    title: "Terms of Service · Creative Klux",
-    description:
-      "The agreement that governs your use of Creative Klux and its creative, AI and publishing tools.",
-    url: "https://app.creativeklux.com/terms",
-    siteName: "Creative Klux",
-    type: "website",
-    images: [{ url: "/heroimg.png", alt: "Creative Klux" }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Terms of Service · Creative Klux",
-    description:
-      "The agreement that governs your use of Creative Klux and its creative, AI and publishing tools.",
-    images: ["/heroimg.png"],
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true },
-  },
-};
+    "The terms that govern your use of Creative Klux, the all-in-one platform for AI-powered ad creatives, design tools and social publishing for brands.",
+  path: "/terms",
+});
 
 // ─── Table of contents ────────────────────────────────────────────────────────
 

@@ -4,44 +4,16 @@ import LegalLayout, {
   P,
   Bullets,
 } from "@/app/(components)/legal/LegalLayout";
+import { pageMetadata } from "@/(lib)/site";
 
 // ─── SEO ──────────────────────────────────────────────────────────────────────
 
-export const metadata = {
-  metadataBase: new URL("https://app.creativeklux.com"),
-  title: "Privacy Policy · Creative Klux",
+export const metadata = pageMetadata({
+  title: "Privacy Policy — How We Handle Your Data",
   description:
-    "How Creative Klux collects, uses, protects, and shares your information across our AI content, design, and social publishing tools — and the privacy choices you control.",
-  keywords: [
-    "Creative Klux privacy",
-    "privacy policy",
-    "data protection",
-    "GDPR",
-    "how we use your data",
-  ],
-  alternates: { canonical: "/privacy" },
-  openGraph: {
-    title: "Privacy Policy · Creative Klux",
-    description:
-      "How Creative Klux collects, uses, protects, and shares your information — and the choices you control.",
-    url: "https://app.creativeklux.com/privacy",
-    siteName: "Creative Klux",
-    type: "website",
-    images: [{ url: "/heroimg.png", alt: "Creative Klux" }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Privacy Policy · Creative Klux",
-    description:
-      "How Creative Klux collects, uses, protects, and shares your information — and the choices you control.",
-    images: ["/heroimg.png"],
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true },
-  },
-};
+    "How Creative Klux collects, uses, protects and shares your information across its AI content, design and publishing tools — and the choices you control.",
+  path: "/privacy",
+});
 
 // ─── Table of contents ────────────────────────────────────────────────────────
 

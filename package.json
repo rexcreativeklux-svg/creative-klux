@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "models": "node scripts/download-models.mjs",
     "voice-samples": "node scripts/generate-voice-samples.mjs",
-    "aura-samples": "node scripts/generate-aura-samples.mjs"
+    "aura-samples": "node scripts/generate-aura-samples.mjs",
+    "og-image": "node scripts/generate-og-image.mjs"
   },
   "repository": {
     "type": "git",
@@ -62,6 +63,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.2.10",
     "postcss": "^8.5.10",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.2.2"
   }
 }

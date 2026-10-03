@@ -9,11 +9,13 @@ import { toast } from "sonner";
 import { toUserMessage } from "@/utils/authErrors";
 import AuthShell from "@/app/(components)/auth/AuthShell";
 import AuthProviders from "@/app/(components)/auth/AuthProviders";
+import useSocialAuth from "@/app/(components)/auth/useSocialAuth";
 import Input from "@/app/(components)/ui/Input";
 
 export default function RegisterPage() {
   const { register } = useAuth();
   const router = useRouter();
+  const social = useSocialAuth();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -142,8 +144,7 @@ export default function RegisterPage() {
       {/* Social sign-up */}
       <AuthProviders
         label="or sign up with"
-        onGoogle={() => {}}
-        onFacebook={() => {}}
+        {...social}
       />
 
       {/* Login */}

@@ -21,7 +21,7 @@
  * catalog's width/height so the columns don't jump as images arrive.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight, Download, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { downloadImageUrl } from "@/app/(components)/product-studio/saveToGallery";
@@ -33,8 +33,13 @@ import TemplateDesign from "./TemplateDesign";
  *   an entry with a `design` (Social / Ads) is drawn by TemplateDesign.
  * @param {(template: object) => void} props.onUse  Put its prompt in the composer.
  */
-export default function TemplateGallery({ templates, onUse }) {
+export default function TemplateGallery({ templates: catalog, onUse }) {
   const [openIndex, setOpenIndex] = useState(null);
+  const templates = useShuffled(catalog);
+
+  // Only during the server render and hydration — drawing the catalog order
+  // there would flash every card into a new spot a moment later.
+  if (!templates) return null;
 
   return (
     <>
@@ -115,6 +120,39 @@ export default function TemplateGallery({ templates, onUse }) {
         />
       )}
     </>
+  );
+}
+
+/**
+ * The catalog in a fresh random order each time the canvas mounts, so coming
+ * back to a tool shows a different first screen rather than the same dozen
+ * cards every visit.
+ *
+ * ⚠️ NOT SHUFFLED ON THE SERVER. The page is server-rendered first, and a
+ * Math.random() order there would never match the client's — a hydration
+ * mismatch. The server snapshot is null; the client one is shuffled once per
+ * mount (held in the ref, because getSnapshot must return the same array on
+ * every call or React re-renders forever).
+ */
+const noSubscription = () => () => {};
+
+function useShuffled(items) {
+  const cache = useRef(null);
+
+  return useSyncExternalStore(
+    noSubscription,
+    () => {
+      if (cache.current?.items !== items) {
+        const copy = [...items];
+        for (let i = copy.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        cache.current = { items, shuffled: copy };
+      }
+      return cache.current.shuffled;
+    },
+    () => null,
   );
 }
 

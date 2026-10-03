@@ -35,6 +35,7 @@ const NAV_GROUPS = [
     ids: [
       "text_to_video",
       "image_to_video",
+      "script_to_voiceover",
       "digital_human",
       "video_enhancer",
       "video_effects",
@@ -43,7 +44,7 @@ const NAV_GROUPS = [
   },
   {
     group: "Audio",
-    ids: ["script_to_voiceover", "text_to_audio", "audio_to_text"],
+    ids: ["text_to_audio", "audio_to_text"],
   },
 ];
 

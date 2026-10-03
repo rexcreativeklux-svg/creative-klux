@@ -193,9 +193,10 @@ export default function InvitePage() {
   // "Not you?" — sign out but keep the invite, then go sign in as someone else.
   const handleNotYou = useCallback(async () => {
     setPendingInvite(token);
-    await logout();
-    router.push(`/login?returnTo=${encodeURIComponent(buildInvitePath(token))}`);
-  }, [token, logout, router]);
+    await logout({
+      redirectTo: `/login?returnTo=${encodeURIComponent(buildInvitePath(token))}`,
+    });
+  }, [token, logout]);
 
   const expiryLabel = invite ? formatExpiry(invite.expiresAt) : "";
 

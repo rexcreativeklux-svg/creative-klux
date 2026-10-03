@@ -11,7 +11,13 @@
  * @param {string}   [label]     Divider text (e.g. "or continue with").
  * @param {Function} [onGoogle]  Click handler for the Google button.
  * @param {Function} [onFacebook] Click handler for the Facebook button.
+ * @param {string}   [pending]   Provider currently signing in ("google" |
+ *                               "facebook"); disables both buttons meanwhile.
  */
+
+const Spinner = () => (
+  <div className="w-4 h-4 border-2 border-gray-200 border-t-gray-500 rounded-full animate-spin shrink-0" />
+);
 
 const GoogleIcon = () => (
   <svg className="w-4.5 h-4.5 shrink-0" viewBox="0 0 24 24">
@@ -44,6 +50,7 @@ export default function AuthProviders({
   label = "or continue with",
   onGoogle,
   onFacebook,
+  pending = null,
 }) {
   return (
     <div className="mt-6">
@@ -59,16 +66,18 @@ export default function AuthProviders({
         <button
           type="button"
           onClick={onGoogle}
-          className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl bg-surface hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer"
+          disabled={!!pending}
+          className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl bg-surface hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <GoogleIcon /> Google
+          {pending === "google" ? <Spinner /> : <GoogleIcon />} Google
         </button>
         <button
           type="button"
           onClick={onFacebook}
-          className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl bg-surface hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer"
+          disabled={!!pending}
+          className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl bg-surface hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <FacebookIcon /> Facebook
+          {pending === "facebook" ? <Spinner /> : <FacebookIcon />} Facebook
         </button>
       </div>
     </div>

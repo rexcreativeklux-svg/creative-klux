@@ -19,6 +19,20 @@ import {
   normalizeDesignTemplate,
 } from "@/app/(components)/studio/designTemplates";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+// Magic Designs run on Magic Studio's own tools and generation watch, unchanged.
+import useMagicGenerate from "@/app/(components)/magic-studio/useMagicGenerate";
+import { getMagicConfig } from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
+// Named `sonner` here: this page already has its own `toast` state.
+import { toast as sonner } from "sonner";
+import {
+  MAGIC_TOOLS,
+  findRunOutcome,
+  isMagicDesign,
+  magicPromptFrom,
+  magicResultToVariation,
+  magicToolFor,
+  magicValuesFrom,
+} from "./magicDesign";
 import Toast from "@/app/(components)/Toast";
 import ChatHistoryPanel from "./ChatHistoryPanel";
 import { normalizeSessionMessages } from "@/app/(components)/studio/chatSessions";
@@ -93,11 +107,26 @@ const TYPE_ORDER = [
   "magic_studio",
 ];
 
+/**
+ * Magic Studio's Ads Design / Social Design / Stock Image / Text to Video
+ * configs, exactly as the Magic Studio page uses them. Looked up once:
+ * useMagicGenerate keys its callbacks on the config object.
+ */
+const MAGIC_CONFIGS = Object.fromEntries(
+  MAGIC_TOOLS.map((tool) => [tool, getMagicConfig(tool)]),
+);
+
 /* ─── helpers ───────────────────────────────────────────────── */
 
 function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
+
+/**
+ * Tallest a design or video may be drawn in the preview. Leaves room for the
+ * banner above and the card's copy below, so the whole card stays on screen.
+ */
+const PREVIEW_MAX_HEIGHT = "60vh";
 
 /* ─── DesignCanvas ─────────────────────────────────────────────
    Renders a single variation's elements array onto an HTML canvas
@@ -141,7 +170,11 @@ function DesignCanvas({ variation }) {
     <canvas
       ref={canvasRef}
       style={{
-        width: "100%",
+        // Fit inside the pane, keeping the design's shape. Full width alone let
+        // a tall design (9:16, 4:5) run below the bottom of the screen.
+        maxWidth: "100%",
+        maxHeight: PREVIEW_MAX_HEIGHT,
+        width: "auto",
         height: "auto",
         // Deliberately TIGHTER than the 5 of the card around it. The artwork is
         // the thing being judged, and a corner curved to match the card's reads
@@ -182,6 +215,15 @@ const STAGE_MESSAGES = {
     "Writing headlines and copy…",
     "Laying out the artwork…",
     "Applying your colours and logo…",
+  ],
+  // Magic Designs — one stage, and a long one: an image was measured at ~2
+  // minutes, and a video takes longer.
+  magic: [
+    "Generating your design…",
+    "Composing the scene…",
+    "Working in your brand colour…",
+    "Adding your headline and logo…",
+    "Still going — this takes a minute or two…",
   ],
 };
 
@@ -242,17 +284,21 @@ const CREATE_STEPS = [
   { key: "designs", label: "Design" },
 ];
 
+/** Magic Designs have no template step — Magic Studio makes it in one go. */
+const MAGIC_STEPS = [{ key: "magic", label: "Magic Design" }];
+
 /* ─── StepTrail ────────────────────────────────────────────────
    Template → Design, shown under each placeholder so a tile says where it is
    rather than only that it is busy. A step that's finished keeps its tick, so
    the trail reads as progress made, not just progress pending.
 ──────────────────────────────────────────────────────────────── */
 function StepTrail({ stage, config }) {
-  const current = CREATE_STEPS.findIndex((s) => s.key === stage);
+  const steps = stage === "magic" ? MAGIC_STEPS : CREATE_STEPS;
+  const current = steps.findIndex((s) => s.key === stage);
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      {CREATE_STEPS.map((step, i) => {
+      {steps.map((step, i) => {
         const done = current > i;
         const active = current === i;
         return (
@@ -755,6 +801,8 @@ function PreviewPanel({ result,
                 // Persist the real creative type so cards show the correct Ads/Social/Design/Magic badge.
                 // saveDesign strips the "_creative" suffix; "general" has no category so default it to "ads".
                 const saveType = !creativeType || creativeType === "general" ? "ads" : creativeType;
+                // Magic Design videos save through here too: they're designs
+                // with a still frame under a video layer (see magicDesign.js).
                 const res = await saveDesign(activeBrandId, selectedDesigns, saveType);
 
                 if (res?.ok) {
@@ -915,7 +963,33 @@ function PreviewPanel({ result,
                         justifyContent: "center",
                       }}
                     >
-                      <DesignCanvas variation={v} />
+                      {/* A Magic Design video plays here as returned —
+                          DesignCanvas paints still frames only. */}
+                      {v.kind === "video" ? (
+                        <video
+                          src={v.src}
+                          controls
+                          playsInline
+                          loop
+                          // Clicks on the player work its controls rather than
+                          // toggling the card's selection.
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            // Fit inside the pane, keeping its shape: full width
+                            // made a 9:16 clip taller than the screen.
+                            maxWidth: "100%",
+                            maxHeight: PREVIEW_MAX_HEIGHT,
+                            width: "auto",
+                            height: "auto",
+                            borderRadius: 2,
+                            boxShadow: "0 4px 24px rgba(0,0,0,0.10)",
+                            display: "block",
+                            background: "#000",
+                          }}
+                        />
+                      ) : (
+                        <DesignCanvas variation={v} />
+                      )}
                     </div>
 
                     {/* copy details */}
@@ -926,19 +1000,23 @@ function PreviewPanel({ result,
                         <p style={{ fontSize: 10, fontWeight: 700, color: "var(--color-gray-900)", margin: 0, lineHeight: 1.3 }}>
                           {v.name}
                         </p>
-                        <span style={{
-                          fontSize: 8.5,
-                          fontWeight: 600,
-                          padding: "2px 7px",
-                          borderRadius: 20,
-                          background: "var(--color-gray-100)",
-                          color: "var(--color-gray-500)",
-                          whiteSpace: "nowrap",
-                          marginLeft: 6,
-                          flexShrink: 0,
-                        }}>
-                          {v.category}
-                        </span>
+                        {/* Redesign results carry no category, so the pill
+                            only shows when one exists. */}
+                        {v.category && (
+                          <span style={{
+                            fontSize: 8.5,
+                            fontWeight: 600,
+                            padding: "2px 7px",
+                            borderRadius: 20,
+                            background: "var(--color-gray-100)",
+                            color: "var(--color-gray-500)",
+                            whiteSpace: "nowrap",
+                            marginLeft: 6,
+                            flexShrink: 0,
+                          }}>
+                            {v.category}
+                          </span>
+                        )}
                       </div>
 
                       {/* headline */}
@@ -1404,6 +1482,168 @@ export default function AiCreativeChatPage() {
     ]);
   }, []);
 
+  /* ── Magic Designs ─────────────────────────────────────────────────────────
+     One useMagicGenerate per Magic Studio tool: the hook is bound to a config,
+     and which tool runs is only known when the create reply lands. Hooks can't
+     be picked conditionally, so all four are held and the right one is called.
+
+     The hook is used rather than calling the endpoint directly because
+     /magic-studio/generate can outlive Cloudflare's 120s window (measured: a
+     524 at 126s on a run that then completed). The hook watches the run
+     through history and status, so the result still arrives.
+
+     `usesHistory: false` makes it hand the finished result to onResult instead
+     of refreshing a history list this page doesn't have. generate() resolves
+     with nothing, so the result is parked in a ref and read after the await. */
+  const magicResultRef = useRef(null);
+  const onMagicResult = useCallback((res) => {
+    magicResultRef.current = res;
+  }, []);
+  const magicAd = useMagicGenerate({
+    config: MAGIC_CONFIGS["ad-design"],
+    usesHistory: false,
+    onResult: onMagicResult,
+  });
+  const magicSocial = useMagicGenerate({
+    config: MAGIC_CONFIGS["social-design"],
+    usesHistory: false,
+    onResult: onMagicResult,
+  });
+  const magicStock = useMagicGenerate({
+    config: MAGIC_CONFIGS["image-design"],
+    usesHistory: false,
+    onResult: onMagicResult,
+  });
+  const magicVideo = useMagicGenerate({
+    config: MAGIC_CONFIGS.text_to_video,
+    usesHistory: false,
+    onResult: onMagicResult,
+  });
+
+  /**
+   * Say WHY a Magic run produced nothing — in a toast and in the thread.
+   *
+   * The generate hook's own toast carries the provider's raw text
+   * ("fal.ai queue result error (fal-ai/kling-video): {"detail":[…]}"), so it
+   * is dismissed and replaced with the readable reason from the run's record.
+   * The thread gets the same reason, since a toast is gone in seconds and the
+   * transcript is what the user still has a minute later.
+   *
+   * @param {string} tool      The Magic Studio tool that ran.
+   * @param {number} startedAt When this run was started (ms).
+   */
+  const explainMagicFailure = useCallback(
+    async (tool, startedAt) => {
+      const what = tool === "text_to_video" ? "video" : "design";
+      const outcome = await findRunOutcome(tool, startedAt);
+
+      if (outcome.status === "failed") {
+        sonner.dismiss();
+        sonner.error(`Couldn't make your ${what}: ${outcome.message}`, { duration: 8000 });
+        postAssistantNote(
+          `I couldn't make this ${what} — Magic Studio reported: **${outcome.message}**\n\nTell me what to change and I'll try again.`,
+        );
+        return;
+      }
+
+      if (outcome.status === "pending") {
+        // The hook already said it's taking a while; the run is still going.
+        postAssistantNote(
+          `Your ${what} is still generating. It'll appear in your Magic Studio history as soon as it's done.`,
+        );
+        return;
+      }
+
+      // No record: the request itself was refused (credits, validation). The
+      // Magic Studio client has already toasted the server's own message.
+      postAssistantNote(
+        `Magic Studio didn't accept this request — the reason is in the error message. Ask me to try again once it's sorted.`,
+      );
+    },
+    [postAssistantNote],
+  );
+
+  /**
+   * Build a Magic Design: the backend said `design_mode: "Magic-Designs"`, so
+   * the Magic Studio tool for this reply (video / ads / social / stock — see
+   * magicDesign.js) makes it from the prompt the backend wrote. What comes back
+   * is shown as returned.
+   *
+   * @param {object} data The parsed `type: "create"` chat response.
+   */
+  const createWithMagic = useCallback(
+    async (data) => {
+      const tool = magicToolFor(data);
+      const prompt = magicPromptFrom(data);
+
+      if (!prompt) {
+        console.warn("⚠️ [chat] Magic Design reply has no prompt", data);
+        showToast("The assistant didn't describe what to make.", "error");
+        postAssistantNote(
+          "I didn't get a description of what to make. Tell me what it should show and I'll try again.",
+        );
+        return;
+      }
+
+      const generate = {
+        "ad-design": magicAd.generate,
+        "social-design": magicSocial.generate,
+        "image-design": magicStock.generate,
+        text_to_video: magicVideo.generate,
+      }[tool];
+
+      const values = magicValuesFrom(data, activeBrand);
+      console.log(`🪄 [chat] Magic Design → ${tool}`, values);
+
+      setCreateStage("magic");
+      setExpectedCount(values.variations);
+      magicResultRef.current = null;
+      const startedAt = Date.now();
+
+      try {
+        // A run that never produced a result just leaves the ref empty.
+        await generate({ primaryInput: prompt, values, activeBrand });
+
+        const assets = (magicResultRef.current?.assets || []).filter(
+          (asset) => (asset.type === "image" || asset.type === "video") && asset.src,
+        );
+        if (!assets.length) {
+          await explainMagicFailure(tool, startedAt);
+          return;
+        }
+
+        // "Instagram · Social Design" — where it's for, and what made it.
+        const details = data?.brand_details || {};
+        const name =
+          [details.platforms, MAGIC_CONFIGS[tool]?.title].filter(Boolean).join(" · ") ||
+          "Magic Design";
+        const variations = await Promise.all(
+          assets.map((asset, i) =>
+            magicResultToVariation(asset, {
+              name: assets.length > 1 ? `${name} (${i + 1})` : name,
+              ratio: values.ratio,
+              tool,
+            }),
+          ),
+        );
+
+        setPreviewResult({ type: "design", variations, time: nowTime() });
+        console.log(`✅ [chat] ${variations.length} Magic Design(s) ready`);
+      } finally {
+        setCreateStage(null);
+      }
+    },
+    [
+      magicAd.generate,
+      magicSocial.generate,
+      magicStock.generate,
+      magicVideo.generate,
+      activeBrand,
+      postAssistantNote,
+      explainMagicFailure,
+    ],
+  );
+
   /**
    * Inspect a chat reply and, when the assistant signals it has everything it
    * needs (`type: "create"`), build the design end to end and show it.
@@ -1430,6 +1670,13 @@ export default function AiCreativeChatPage() {
   const maybeCreateDesign = useCallback(
     async (data, images = []) => {
       if (data?.type !== "create") return;
+
+      // The backend picks the mode. Magic Designs never touch Scraive or
+      // redesign; Studio Designs carry on below exactly as before.
+      if (isMagicDesign(data)) {
+        await createWithMagic(data);
+        return;
+      }
 
       const query = buildTemplateQuery(data);
       if (!query) {
@@ -1596,6 +1843,7 @@ export default function AiCreativeChatPage() {
       activeBrandId,
       creativeType,
       postAssistantNote,
+      createWithMagic,
     ],
   );
 

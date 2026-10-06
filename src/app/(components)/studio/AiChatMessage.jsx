@@ -33,6 +33,25 @@ function UserMessageContent({ content }) {
   );
 }
 
+/**
+ * Keep the assistant's single line breaks.
+ *
+ * The backend lays its replies out one item per line with a single "\n"
+ * ("**Ad type?** (Image or Video)\n**Platform/size?** …"), and Markdown folds a
+ * single newline into a space — so the whole list rendered as one run-on
+ * paragraph. A line ending in two spaces is Markdown's hard break, so every
+ * lone newline gets them. Blank lines (paragraph breaks) are left as they are,
+ * and so is anything inside a ``` code fence, where the spaces would show.
+ */
+function keepLineBreaks(markdown) {
+  return markdown
+    .split(/(```[\s\S]*?```)/g)
+    .map((part, i) =>
+      i % 2 ? part : part.replace(/\r\n/g, "\n").replace(/([^\n])\n(?!\n)/g, "$1  \n"),
+    )
+    .join("");
+}
+
 /** A message the ASSISTANT wrote — full Markdown, since replies are authored in it. */
 function MessageContent({ content, color }) {
   if (!content) return null;
@@ -112,7 +131,7 @@ function MessageContent({ content, color }) {
           ),
         }}
       >
-        {content}
+        {keepLineBreaks(content)}
       </ReactMarkdown>
     </div>
   );

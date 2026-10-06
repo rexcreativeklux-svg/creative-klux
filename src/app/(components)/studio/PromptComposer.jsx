@@ -9,7 +9,7 @@
 //   │ [attachment chips, only when files attached] │
 //   │ Describe what you want to create…            │
 //   │ ────────────────────────────────────────────  │
-//   │ Model ▾ │ Engine ▾ │ +       Build ▾  🎙  ↑  │
+//   │ Model ▾ │ +            Build ▾  🎙  ↑        │
 //   └──────────────────────────────────────────────┘
 //
 // Each control is wired to a real capability:
@@ -17,9 +17,6 @@
 //            APP-WIDE and remembered between visits (composerModel.js), not this
 //            component's own state, so every composer shows the same one. It
 //            rides along on the URL as ?model=.
-//   Engine → Editable design (Scraive + redesign) or Image (Magic Studio).
-//            App-wide and remembered the same way (composerEngine.js); NOT in
-//            the URL or the payload — the chat reads it when it creates.
 //   +      → uploads IMAGES to the user's gallery (useGalleryUpload) and keeps
 //            the returned hosted URLs as attachments on the prompt. Images only,
 //            max 10 — the chat API takes an `images` array and nothing else.
@@ -53,8 +50,6 @@ import {
   MODEL_OPTIONS,
   useComposerModel,
 } from "./composerModel";
-// Which engine builds the design — app-wide and persisted, like the model.
-import { ENGINE_OPTIONS, useComposerEngine } from "./composerEngine";
 import useGalleryUpload from "./useGalleryUpload";
 import useVoiceInput, { describeVoiceState } from "./useVoiceInput";
 import {
@@ -201,11 +196,8 @@ export default function PromptComposer({
   // hence a store rather than useState. Shaped like useState all the same, so
   // everything below reads exactly as it did.
   const [model, setModel] = useComposerModel();
-  // Not part of the submit payload: the chat page reads the shared choice
-  // itself when the create reply lands. See composerEngine.js.
-  const [engine, setEngine] = useComposerEngine();
   const [mode, setMode] = useState(MODE_OPTIONS[0].id);
-  const [openMenu, setOpenMenu] = useState(null); // "model" | "engine" | "mode" | null
+  const [openMenu, setOpenMenu] = useState(null); // "model" | "mode" | null
   const [focused, setFocused] = useState(false);
 
   const textareaRef = useRef(null);
@@ -502,19 +494,6 @@ export default function PromptComposer({
               <span className="h-5 w-px shrink-0 bg-gray-200" />
             </>
           )}
-
-          {/* Engine — Editable design (Scraive + redesign) or Image (Magic
-              Studio). Shows its value, like Build/Plan: with two choices the
-              value is the useful thing to see. */}
-          <ComposerDropdown
-            options={ENGINE_OPTIONS}
-            value={engine}
-            onChange={setEngine}
-            open={openMenu === "engine"}
-            onOpenChange={(next) => setOpenMenu(next ? "engine" : null)}
-            ariaLabel="Choose what builds the design"
-          />
-          <span className="h-5 w-px shrink-0 bg-gray-200" />
 
           {/* Attach */}
           <button

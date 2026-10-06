@@ -898,6 +898,30 @@ function renderInner(el, opts) {
     );
   }
 
+  // A video layer — a Magic Design video saved from the AI chat. It plays
+  // muted on a loop so the canvas shows the motion, and lets pointer events
+  // through so it selects and drags like an image. The PNG exporter can't
+  // paint video, which is why those designs carry a still frame beneath it.
+  if (el.type === "video" && el.src) {
+    return (
+      <video
+        src={el.src}
+        muted
+        loop
+        autoPlay
+        playsInline
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: el.objectFit || "cover",
+          borderRadius: radiusToCss(el.borderRadius),
+          pointerEvents: "none",
+          display: "block",
+        }}
+      />
+    );
+  }
+
   return null;
 }
 

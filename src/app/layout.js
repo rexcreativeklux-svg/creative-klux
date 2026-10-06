@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeProvider";
 import { Toaster } from "sonner";
 import Script from "next/script";
-import { SITE, pageMetadata } from "@/(lib)/site";
+import { SITE, OG_IMAGE, pageMetadata } from "@/(lib)/site";
 
 // Defaults for EVERY route, including the ~150 client-only dashboard pages that
 // can't export metadata themselves. Two deliberate choices:
@@ -63,7 +63,7 @@ const jsonLd = {
       description: SITE.description,
       applicationCategory: "DesignApplication",
       operatingSystem: "Web",
-      image: `${SITE.url}/og-image.jpg`,
+      image: `${SITE.url}${OG_IMAGE.url}`,
       publisher: { "@id": `${SITE.homepage}/#organization` },
     },
   ],

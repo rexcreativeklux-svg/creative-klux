@@ -21,6 +21,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, Film, Loader2, Music, Paperclip, Plus, SendHorizontal, X } from "lucide-react";
 import VoiceMicButton from "./VoiceMicButton";
+import ComposerDropdown from "./ComposerDropdown";
+import { ENGINE_OPTIONS, useComposerEngine } from "./composerEngine";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
 import useGalleryUpload from "./useGalleryUpload";
@@ -55,6 +57,10 @@ export default function AiChatInput({
   const [focused, setFocused] = useState(false);
   // The gallery picker behind the "+" button.
   const [pickerOpen, setPickerOpen] = useState(false);
+  // The same app-wide engine choice the home composer shows (composerEngine.js).
+  // Changing it here applies to the next design this chat creates.
+  const [engine, setEngine] = useComposerEngine();
+  const [engineMenuOpen, setEngineMenuOpen] = useState(false);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -283,6 +289,19 @@ export default function AiChatInput({
               <SendHorizontal style={{ width: 14, height: 14 }} />
             )}
           </button>
+        </div>
+
+        {/* Engine — its own row under the input: the chat pane can be dragged
+            down to 300px, and the input row has no room left at that width. */}
+        <div style={{ display: "flex", alignItems: "center", padding: "0 6px 6px" }}>
+          <ComposerDropdown
+            options={ENGINE_OPTIONS}
+            value={engine}
+            onChange={setEngine}
+            open={engineMenuOpen}
+            onOpenChange={setEngineMenuOpen}
+            ariaLabel="Choose what builds the design"
+          />
         </div>
 
         {/* Hidden picker — images only, matching what the chat API can carry.

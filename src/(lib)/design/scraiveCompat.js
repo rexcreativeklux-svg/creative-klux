@@ -94,8 +94,13 @@ function toShape(el, shapeKey) {
     stroke: el.stroke && el.stroke !== "none" ? withOpacity(el.stroke, strokeOpacity) : undefined,
   };
 
-  // Scraive's `rectangle` drawer ignores cornerRadius; `rect` and `badge` round.
-  if (type === "rect") next.borderRadius = cornerRadius ?? 12;
+  // `rectangle` keeps the radius the data carries. Scraive's own editor drawer
+  // ignores it, but the library and redesign output clearly mean it — 730 of
+  // 1,197 library rectangles carry one, pill buttons at radius = height / 2 —
+  // and its thumbnail renderer rounds them. `rect` and `badge` always round.
+  if (type === "rectangle") {
+    if (cornerRadius > 0) next.borderRadius = cornerRadius;
+  } else if (type === "rect") next.borderRadius = cornerRadius ?? 12;
   else if (type === "badge") next.borderRadius = 8;
   else if (type === "gradient-box") {
     next.fill = gradientBoxFill(el);

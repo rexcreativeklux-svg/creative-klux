@@ -19,6 +19,18 @@ import {
   normalizeDesignTemplate,
 } from "@/app/(components)/studio/designTemplates";
 import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+// The user's engine choice (Editable design / Image), read when a create lands.
+import { getComposerEngine } from "@/app/(components)/studio/composerEngine";
+// The "Image" engine drives Magic Studio's own design tools, unchanged.
+import useMagicGenerate from "@/app/(components)/magic-studio/useMagicGenerate";
+import { getMagicConfig } from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
+import {
+  MAGIC_DESIGN_TOOLS,
+  imageToDesign,
+  magicPromptFrom,
+  magicToolFor,
+  magicValuesFrom,
+} from "./magicDesign";
 import Toast from "@/app/(components)/Toast";
 import ChatHistoryPanel from "./ChatHistoryPanel";
 import { normalizeSessionMessages } from "@/app/(components)/studio/chatSessions";
@@ -92,6 +104,16 @@ const TYPE_ORDER = [
   "designer_creative",
   "magic_studio",
 ];
+
+/**
+ * Magic Studio's Ads Design / Social Design / Stock Image configs, exactly as
+ * the Magic Studio page uses them. Looked up once: useMagicGenerate keys its
+ * callbacks on the config object, so a fresh lookup per render would rebuild
+ * them every time.
+ */
+const MAGIC_CONFIGS = Object.fromEntries(
+  MAGIC_DESIGN_TOOLS.map((tool) => [tool, getMagicConfig(tool)]),
+);
 
 /* ─── helpers ───────────────────────────────────────────────── */
 
@@ -183,6 +205,15 @@ const STAGE_MESSAGES = {
     "Laying out the artwork…",
     "Applying your colours and logo…",
   ],
+  // The Image engine (Magic Studio) — one stage, and a long one: a single
+  // picture has been measured at ~46s.
+  images: [
+    "Generating your image…",
+    "Composing the scene…",
+    "Working in your brand colour…",
+    "Adding your headline and logo…",
+    "Almost there — images take about a minute…",
+  ],
 };
 
 /** How long each line holds before the next one takes over. */
@@ -242,17 +273,21 @@ const CREATE_STEPS = [
   { key: "designs", label: "Design" },
 ];
 
+/** The Image engine has no template step — Magic Studio makes it in one go. */
+const IMAGE_STEPS = [{ key: "images", label: "Image" }];
+
 /* ─── StepTrail ────────────────────────────────────────────────
    Template → Design, shown under each placeholder so a tile says where it is
    rather than only that it is busy. A step that's finished keeps its tick, so
    the trail reads as progress made, not just progress pending.
 ──────────────────────────────────────────────────────────────── */
 function StepTrail({ stage, config }) {
-  const current = CREATE_STEPS.findIndex((s) => s.key === stage);
+  const steps = stage === "images" ? IMAGE_STEPS : CREATE_STEPS;
+  const current = steps.findIndex((s) => s.key === stage);
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      {CREATE_STEPS.map((step, i) => {
+      {steps.map((step, i) => {
         const done = current > i;
         const active = current === i;
         return (
@@ -926,19 +961,23 @@ function PreviewPanel({ result,
                         <p style={{ fontSize: 10, fontWeight: 700, color: "var(--color-gray-900)", margin: 0, lineHeight: 1.3 }}>
                           {v.name}
                         </p>
-                        <span style={{
-                          fontSize: 8.5,
-                          fontWeight: 600,
-                          padding: "2px 7px",
-                          borderRadius: 20,
-                          background: "var(--color-gray-100)",
-                          color: "var(--color-gray-500)",
-                          whiteSpace: "nowrap",
-                          marginLeft: 6,
-                          flexShrink: 0,
-                        }}>
-                          {v.category}
-                        </span>
+                        {/* Neither redesign nor Magic Studio results carry a
+                            category, so the pill only shows when one exists. */}
+                        {v.category && (
+                          <span style={{
+                            fontSize: 8.5,
+                            fontWeight: 600,
+                            padding: "2px 7px",
+                            borderRadius: 20,
+                            background: "var(--color-gray-100)",
+                            color: "var(--color-gray-500)",
+                            whiteSpace: "nowrap",
+                            marginLeft: 6,
+                            flexShrink: 0,
+                          }}>
+                            {v.category}
+                          </span>
+                        )}
                       </div>
 
                       {/* headline */}
@@ -1404,6 +1443,113 @@ export default function AiCreativeChatPage() {
     ]);
   }, []);
 
+  /* ── The Image engine ─────────────────────────────────────────────────────
+     One useMagicGenerate per Magic Studio design tool — the hook is bound to a
+     config, and which tool runs is only known when the create reply says
+     whether this is an ad, a social post or a plain image. Hooks can't be
+     picked conditionally, so all three are held and the right one is called.
+
+     `usesHistory: false` makes the hook hand the finished result to onResult
+     instead of refreshing a history list this page doesn't have. The result
+     is parked in a ref because the hook's generate() resolves with nothing:
+     reading the ref after awaiting it is how the caller gets the pictures. */
+  const magicResultRef = useRef(null);
+  const onMagicResult = useCallback((res) => {
+    magicResultRef.current = res;
+  }, []);
+  const magicAd = useMagicGenerate({
+    config: MAGIC_CONFIGS["ad-design"],
+    usesHistory: false,
+    onResult: onMagicResult,
+  });
+  const magicSocial = useMagicGenerate({
+    config: MAGIC_CONFIGS["social-design"],
+    usesHistory: false,
+    onResult: onMagicResult,
+  });
+  const magicStock = useMagicGenerate({
+    config: MAGIC_CONFIGS["image-design"],
+    usesHistory: false,
+    onResult: onMagicResult,
+  });
+  const magicGenerate = {
+    "ad-design": magicAd.generate,
+    "social-design": magicSocial.generate,
+    "image-design": magicStock.generate,
+  };
+
+  /**
+   * Build a create reply with Magic Studio and show the pictures as designs.
+   *
+   * The reply already holds everything the tool needs — see magicDesign.js for
+   * the mapping. Whatever comes back is shown as returned: one design per
+   * picture, at the picture's own size.
+   *
+   * @param {object} data The parsed `type: "create"` chat response.
+   */
+  const createWithMagic = useCallback(
+    async (data) => {
+      const details = data?.brand_details || {};
+      const tool = magicToolFor(details.creative_type);
+      const prompt = magicPromptFrom(data);
+
+      if (!prompt) {
+        console.warn("⚠️ [chat] create reply has no prompt for Magic Studio", data);
+        showToast("The assistant didn't describe the image to make.", "error");
+        postAssistantNote(
+          "I didn't get a description of the image to make. Tell me what it should show and I'll try again.",
+        );
+        return;
+      }
+
+      const values = magicValuesFrom(data, activeBrand);
+      console.log(`🪄 [chat] Image engine → ${tool}`, values);
+
+      setCreateStage("images");
+      setExpectedCount(values.variations);
+      magicResultRef.current = null;
+
+      try {
+        // Errors are reported by the hook itself (toast); a run that never
+        // produced a result simply leaves the ref empty.
+        await magicGenerate[tool]({ primaryInput: prompt, values, activeBrand });
+
+        const assets = (magicResultRef.current?.assets || []).filter(
+          (asset) => asset.type === "image" && asset.src,
+        );
+        if (!assets.length) {
+          postAssistantNote(
+            "I couldn't get the image back from Magic Studio. If it's still generating, it'll appear in your Magic Studio history — or ask me to try again.",
+          );
+          return;
+        }
+
+        // "Facebook · Social Design" — the platform the chat settled on and
+        // the Magic Studio tool that made it.
+        const name =
+          [details.platforms, MAGIC_CONFIGS[tool]?.title].filter(Boolean).join(" · ") ||
+          "Magic Studio design";
+        const designs = await Promise.all(
+          assets.map((asset, i) =>
+            imageToDesign(asset, {
+              name: assets.length > 1 ? `${name} (${i + 1})` : name,
+              ratio: values.ratio,
+              tool,
+            }),
+          ),
+        );
+
+        setPreviewResult({ type: "design", variations: designs, time: nowTime() });
+        console.log(`✅ [chat] ${designs.length} image design(s) ready`);
+      } finally {
+        setCreateStage(null);
+      }
+    },
+    // magicGenerate's three functions are the real dependencies.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [magicAd.generate, magicSocial.generate, magicStock.generate, activeBrand, postAssistantNote],
+  );
+
   /**
    * Inspect a chat reply and, when the assistant signals it has everything it
    * needs (`type: "create"`), build the design end to end and show it.
@@ -1453,6 +1599,13 @@ export default function AiCreativeChatPage() {
         postAssistantNote(
           "I need an active brand before I can build a design. Pick one from the brand switcher and ask me again.",
         );
+        return;
+      }
+
+      // The user's engine choice, read NOW — switching it mid-chat applies to
+      // the next design. "magic" never touches Scraive or redesign.
+      if (getComposerEngine() === "magic") {
+        await createWithMagic(data);
         return;
       }
 
@@ -1596,6 +1749,7 @@ export default function AiCreativeChatPage() {
       activeBrandId,
       creativeType,
       postAssistantNote,
+      createWithMagic,
     ],
   );
 

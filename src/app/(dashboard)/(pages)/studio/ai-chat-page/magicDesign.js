@@ -22,7 +22,13 @@
 //   · an image comes back as a CDN URL (1024×1024 for a 1:1 request).
 
 import api from "@/app/api/axios";
-import { getGenerationError } from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
+import {
+  getGenerationError,
+  getGenerationStatus,
+  normalizeStatusResult,
+} from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
+import { checkGenerationStatus } from "@/(lib)/magic-studio-api";
+import { POLL_CEILING_MS, nextPollDelay } from "@/app/(components)/magic-studio/pollSchedule";
 
 /** Same base the Magic Studio client calls (magic-studio-api.js). */
 const API_BASE = "https://api.creativeklux.com/api/creativeklux-userend";
@@ -192,9 +198,10 @@ export function readableMagicError(raw) {
  * is read here and the newest record this run could have created (started no
  * earlier than `startedAt`, with slack for clock skew) is inspected.
  *
- * @returns {Promise<{status: "failed"|"pending"|"none", message: string}>}
+ * @returns {Promise<{status: "failed"|"pending"|"none", message: string, id?: number}>}
  *   "none" when no record was made — the request itself was refused, and the
  *   Magic Studio client has already toasted the server's own message for that.
+ *   "pending" carries the run's `id`, so the caller can keep following it.
  */
 export async function findRunOutcome(tool, startedAt) {
   try {
@@ -212,11 +219,58 @@ export async function findRunOutcome(tool, startedAt) {
         message: readableMagicError(getGenerationError(run)) || "The generator reported a failure.",
       };
     }
-    return { status: "pending", message: "" };
+    return { status: "pending", message: "", id: run.id };
   } catch (err) {
     console.warn("⚠️ [chat] couldn't read the Magic run's outcome:", err?.message);
     return { status: "none", message: "" };
   }
+}
+
+/**
+ * Follow one run to its end through the status endpoint.
+ *
+ * ⚠️ WHY THE CHAT NEEDS THIS. /magic-studio/generate holds its connection for
+ * the whole job, and Cloudflare cuts it at 120s (a 524 with no CORS headers, so
+ * the browser reports "Network Error"). useMagicGenerate races that request
+ * against its own watch, and the request's rejection wins the race — the hook
+ * reports a failure and stops watching while the backend carries on. Measured
+ * on production 2026-10-07: two 2-image flyers finished at ~3½ minutes, after
+ * the chat had already given up on both. This picks the run back up by its id.
+ *
+ * Same cadence and ceiling as Magic Studio's own watch (pollSchedule.js). A
+ * failed status CHECK is retried on the next beat; only the record itself
+ * saying "failed" ends the run.
+ *
+ * @param {number} id          The generation id.
+ * @param {number} startedAt   When the run started (ms) — paces the polling.
+ * @param {"image"|"video"} resultType
+ * @param {() => boolean} isActive False once the chat page has gone away.
+ * @returns {Promise<{status: "completed", assets: object[]} | {status: "failed", message: string} | {status: "timeout"|"cancelled"}>}
+ */
+export async function followRun(id, startedAt, resultType, isActive) {
+  while (isActive()) {
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > POLL_CEILING_MS) return { status: "timeout" };
+    await new Promise((resolve) => setTimeout(resolve, nextPollDelay(elapsed)));
+    if (!isActive()) break;
+
+    try {
+      const data = await checkGenerationStatus(id);
+      const status = getGenerationStatus(data);
+      if (status === "completed") {
+        return { status: "completed", assets: normalizeStatusResult(data, resultType).assets || [] };
+      }
+      if (status === "failed") {
+        return {
+          status: "failed",
+          message: readableMagicError(getGenerationError(data)) || "The generator reported a failure.",
+        };
+      }
+    } catch (err) {
+      console.warn(`⚠️ [chat] status check for run ${id} failed (retrying):`, err?.message);
+    }
+  }
+  return { status: "cancelled" };
 }
 
 /** Natural size of an image URL, or null. */

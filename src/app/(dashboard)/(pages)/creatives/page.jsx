@@ -135,11 +135,41 @@ const MAX_FETCH = 500;
    does the filtering, searching, counting and paging here. If those params ever
    land server-side, this is the code to replace.                             */
 
-/** Rows fetched per request while pulling the full set. */
-const FETCH_PAGE_SIZE = 200;
+/**
+ * Rows fetched per request while pulling the full set.
+ *
+ * ⚠️ SMALL ON PURPOSE. GET /creative-designs costs ~1.5s plus ~140ms PER ROW on
+ * the server (measured 2026-10-07: 12 rows 3.3s, 48 rows 8.1s, 153 rows 23.4s
+ * before the first byte) — it does per-design work one row at a time. One big
+ * request is therefore the slowest possible way to load: 153 designs in a
+ * single 200-row page took 26s. Pages of 24 fetched in parallel brought the
+ * same 153 back in ~9s, and the first page is on screen in ~5s.
+ */
+const FETCH_PAGE_SIZE = 24;
 
-/** Safety stop for the fetch-everything loop (200 × 50 = 10,000 designs). */
-const MAX_FETCH_PAGES = 50;
+/** Safety stop for the fetch-everything loop (24 × 400 = 9,600 designs). */
+const MAX_FETCH_PAGES = 400;
+
+/**
+ * How many of the remaining pages are requested at once. Enough to overlap the
+ * server's per-row work, few enough not to queue up on its PHP workers — seven
+ * in parallel all came back within 5–9s.
+ */
+const FETCH_CONCURRENCY = 6;
+
+/**
+ * The server's order (created_at, newest first) for a list assembled from pages
+ * that arrive out of order. Duplicates are dropped by id — a design saved
+ * mid-load shifts every later page by one, repeating a row across two of them.
+ */
+function sortNewestFirst(rows) {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return [...byId.values()].sort(
+    (a, b) =>
+      String(b.created_at || "").localeCompare(String(a.created_at || "")) ||
+      Number(b.id) - Number(a.id),
+  );
+}
 
 /** Marker for a gap in the page list. */
 const ELLIPSIS = "…";
@@ -449,41 +479,61 @@ export default function CreativesPage() {
   //
   // Deliberately NOT re-run when the tab, search or page size changes — those
   // are all client-side now, so refetching would be wasted work.
+  //
+  // ⚠️ THE FIRST PAGE IS SHOWN AS SOON AS IT LANDS, the rest stream in after it
+  // (see FETCH_PAGE_SIZE for why). Until they do, the tab counts and search
+  // cover only what has arrived — a few seconds, against a 26s blank grid.
+  //
+  // Each run carries an id so a slower, older run (the user switched brands
+  // mid-load) can't append another brand's designs to this one's list.
+  const loadRunRef = useRef(0);
   const loadDesigns = useCallback(async () => {
+    const run = ++loadRunRef.current;
+    const current = () => run === loadRunRef.current;
+
     setLoading(true);
     setError(null);
     try {
       const first = await fetchDesigns(FETCH_PAGE_SIZE, 1);
+      if (!current()) return;
       if (!first) {
         setCreatives([]);
         return;
       }
 
-      let rows = first.data;
-      const pageCount = Math.min(first.last_page || 1, MAX_FETCH_PAGES);
+      setCreatives(first.data.map(normalizeDesign));
+      setLoading(false);
 
-      if (pageCount > 1) {
-        const rest = await Promise.all(
-          Array.from({ length: pageCount - 1 }, (_, i) =>
-            fetchDesigns(FETCH_PAGE_SIZE, i + 2),
-          ),
+      const pageCount = Math.min(first.last_page || 1, MAX_FETCH_PAGES);
+      const remaining = Array.from({ length: pageCount - 1 }, (_, i) => i + 2);
+      let loaded = first.data.length;
+
+      // A few pages at a time, each appended the moment it arrives. Pages can
+      // land out of order, so the list is re-sorted newest-first as it grows.
+      for (let i = 0; i < remaining.length; i += FETCH_CONCURRENCY) {
+        const batch = await Promise.all(
+          remaining
+            .slice(i, i + FETCH_CONCURRENCY)
+            .map((page) => fetchDesigns(FETCH_PAGE_SIZE, page)),
         );
-        rows = rows.concat(...rest.map((r) => r?.data || []));
+        if (!current()) return;
+        const rows = batch.flatMap((r) => r?.data || []).map(normalizeDesign);
+        loaded += rows.length;
+        setCreatives((prev) => sortNewestFirst([...prev, ...rows]));
       }
 
       if (first.last_page > MAX_FETCH_PAGES) {
         console.warn(
-          `⚠️ [creatives] brand has ${first.last_page} pages; loaded the first ${MAX_FETCH_PAGES} (${rows.length} of ${first.total}). Counts and filters cover only what was loaded.`,
+          `⚠️ [creatives] brand has ${first.last_page} pages; loaded the first ${MAX_FETCH_PAGES} (${loaded} of ${first.total}). Counts and filters cover only what was loaded.`,
         );
       }
-
-      console.log(`✅ [creatives] loaded ${rows.length} of ${first.total} designs`);
-      setCreatives(rows.map(normalizeDesign));
+      console.log(`✅ [creatives] loaded ${loaded} of ${first.total} designs`);
     } catch {
+      if (!current()) return;
       setError("Failed to load designs.");
       setCreatives([]);
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
   }, [fetchDesigns, activeBrandId]);
 

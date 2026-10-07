@@ -29,7 +29,7 @@ import {
   findRunOutcome,
   followRun,
   isMagicDesign,
-  magicPromptFrom,
+  magicPromptsFrom,
   magicResultToVariation,
   magicToolFor,
   magicValuesFrom,
@@ -1607,17 +1607,23 @@ export default function AiCreativeChatPage() {
   /**
    * Build a Magic Design: the backend said `design_mode: "Magic-Designs"`, so
    * the Magic Studio tool for this reply (video / ads / social / stock — see
-   * magicDesign.js) makes it from the prompt the backend wrote. What comes back
-   * is shown as returned.
+   * magicDesign.js) makes it from the prompts the backend wrote. What comes
+   * back is shown as returned.
+   *
+   * ⚠️ ONE PROMPT PER VERSION, SENT ONE AFTER THE OTHER. Three versions come
+   * with three `generation_prompts`; each goes out as its own run with
+   * `variations: 1`, the next only once the last has finished, and each card
+   * lands as its run does. A failed run is reported and the rest still go.
+   * Only a reply with a single prompt asks Magic Studio for `variations` of it.
    *
    * @param {object} data The parsed `type: "create"` chat response.
    */
   const createWithMagic = useCallback(
     async (data) => {
       const tool = magicToolFor(data);
-      const prompt = magicPromptFrom(data);
+      const prompts = magicPromptsFrom(data);
 
-      if (!prompt) {
+      if (!prompts.length) {
         console.warn("⚠️ [chat] Magic Design reply has no prompt", data);
         showToast("The assistant didn't describe what to make.", "error");
         postAssistantNote(
@@ -1634,46 +1640,59 @@ export default function AiCreativeChatPage() {
       }[tool];
 
       const values = magicValuesFrom(data, activeBrand);
-      console.log(`🪄 [chat] Magic Design → ${tool}`, values);
+      const perPrompt = prompts.length > 1;
+      const runValues = perPrompt ? { ...values, variations: 1 } : values;
+      const expected = perPrompt ? prompts.length : values.variations;
+      console.log(`🪄 [chat] Magic Design → ${tool} × ${prompts.length} prompt(s)`, runValues);
 
-      setCreateStage("magic");
-      setExpectedCount(values.variations);
-      magicResultRef.current = null;
-      const startedAt = Date.now();
-
-      try {
-        // A run that never produced a result just leaves the ref empty.
-        await generate({ primaryInput: prompt, values, activeBrand });
-
-        const usable = (list) =>
-          (list || []).filter(
-            (asset) => (asset.type === "image" || asset.type === "video") && asset.src,
-          );
-        let assets = usable(magicResultRef.current?.assets);
-        if (!assets.length) {
-          // Nothing from the hook — usually a run still finishing after the
-          // generate request was cut off. Follow it rather than give up.
-          assets = usable(await recoverMagicRun(tool, startedAt));
-          if (!assets.length) return;
-        }
-
-        // "Instagram · Social Design" — where it's for, and what made it.
-        const details = data?.brand_details || {};
-        const name =
-          [details.platforms, MAGIC_CONFIGS[tool]?.title].filter(Boolean).join(" · ") ||
-          "Magic Design";
-        const variations = await Promise.all(
-          assets.map((asset, i) =>
-            magicResultToVariation(asset, {
-              name: assets.length > 1 ? `${name} (${i + 1})` : name,
-              ratio: values.ratio,
-              tool,
-            }),
-          ),
+      // "Instagram · Social Design" — where it's for, and what made it.
+      const details = data?.brand_details || {};
+      const name =
+        [details.platforms, MAGIC_CONFIGS[tool]?.title].filter(Boolean).join(" · ") ||
+        "Magic Design";
+      const usable = (list) =>
+        (list || []).filter(
+          (asset) => (asset.type === "image" || asset.type === "video") && asset.src,
         );
 
-        setPreviewResult({ type: "design", variations, time: nowTime() });
-        console.log(`✅ [chat] ${variations.length} Magic Design(s) ready`);
+      // A previous run's cards would count as this run's landed versions.
+      setPreviewResult(null);
+      setCreateStage("magic");
+      setExpectedCount(expected);
+      const collected = [];
+
+      try {
+        for (const prompt of prompts) {
+          if (!magicActiveRef.current) return;
+          magicResultRef.current = null;
+          const startedAt = Date.now();
+
+          // A run that never produced a result just leaves the ref empty.
+          await generate({ primaryInput: prompt, values: runValues, activeBrand });
+
+          let assets = usable(magicResultRef.current?.assets);
+          if (!assets.length) {
+            // Nothing from the hook — usually a run still finishing after the
+            // generate request was cut off. Follow it rather than give up.
+            assets = usable(await recoverMagicRun(tool, startedAt));
+            if (!assets.length) continue;
+          }
+
+          const landed = await Promise.all(
+            assets.map((asset, i) =>
+              magicResultToVariation(asset, {
+                name: expected > 1 ? `${name} (${collected.length + i + 1})` : name,
+                ratio: values.ratio,
+                tool,
+              }),
+            ),
+          );
+          collected.push(...landed);
+          // Each version shows as it lands; the stage stays "magic" so the
+          // tiles still waiting keep shimmering beside it.
+          setPreviewResult({ type: "design", variations: [...collected], time: nowTime() });
+        }
+        console.log(`✅ [chat] ${collected.length} of ${expected} Magic Design(s) ready`);
       } finally {
         setCreateStage(null);
       }

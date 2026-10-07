@@ -15,6 +15,7 @@ import useSocialAuth, {
 import Input from "@/app/(components)/ui/Input";
 
 export default function LoginPage() {
+  console.log("trigger redeploy");
   const router = useRouter();
   const { login } = useAuth();
   const social = useSocialAuth();
@@ -106,10 +107,7 @@ export default function LoginPage() {
       </form>
 
       {/* Social sign-in */}
-      <AuthProviders
-        label="or continue with"
-        {...social}
-      />
+      <AuthProviders label="or continue with" {...social} />
 
       {/* Register */}
       <p className="mt-5 text-center text-[13px] text-gray-400">

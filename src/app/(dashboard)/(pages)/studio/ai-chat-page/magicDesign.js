@@ -14,8 +14,9 @@
 //   anything else ("designer", …)       → Stock Image
 //
 // Probed against the live API (2026-10-06):
-//   · the create reply carries the prompt Magic Studio needs, ready-written, in
-//     `generation_prompts[0]`, plus size, variations, duration and brand fields;
+//   · the create reply carries the prompts Magic Studio needs, ready-written, in
+//     `generation_prompts` — one per version, each sent as its own run, one
+//     after the other — plus size, variations, duration and brand fields;
 //   · /magic-studio/generate can outlive Cloudflare's 120s window and answer 524
 //     while the run still completes — useMagicGenerate watches history for
 //     exactly that, which is why it is used rather than awaiting the request;
@@ -109,12 +110,18 @@ function fitPrompt(text, max) {
   return open ? `${cut.slice(0, max - 1)}”` : cut;
 }
 
-/** The prompt the backend wrote for this run, else the brief. */
-export function magicPromptFrom(data) {
+/**
+ * The prompts the backend wrote for this run — one per version — else the
+ * brief as a single prompt. Each is kept within PROMPT_MAX.
+ */
+export function magicPromptsFrom(data) {
   const details = data?.brand_details || {};
-  const prompts = [data?.generation_prompts, details.generation_prompts].find(Array.isArray) || [];
-  const prompt = (prompts.find((p) => typeof p === "string" && p.trim()) || details.description || "").trim();
-  return fitPrompt(prompt, PROMPT_MAX);
+  const written = [data?.generation_prompts, details.generation_prompts].find(Array.isArray) || [];
+  const prompts = written.filter((p) => typeof p === "string" && p.trim()).map((p) => p.trim());
+  if (!prompts.length && String(details.description || "").trim()) {
+    prompts.push(details.description.trim());
+  }
+  return prompts.map((p) => fitPrompt(p, PROMPT_MAX));
 }
 
 /**

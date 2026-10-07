@@ -27,6 +27,7 @@ import { toast as sonner } from "sonner";
 import {
   MAGIC_TOOLS,
   findRunOutcome,
+  followRun,
   isMagicDesign,
   magicPromptFrom,
   magicResultToVariation,
@@ -216,14 +217,14 @@ const STAGE_MESSAGES = {
     "Laying out the artwork…",
     "Applying your colours and logo…",
   ],
-  // Magic Designs — one stage, and a long one: an image was measured at ~2
-  // minutes, and a video takes longer.
+  // Magic Designs — one stage, and a long one: measured ~2 minutes for one
+  // image, ~3½ for two, and longer for video.
   magic: [
     "Generating your design…",
     "Composing the scene…",
     "Working in your brand colour…",
     "Adding your headline and logo…",
-    "Still going — this takes a minute or two…",
+    "Still going — this can take a few minutes…",
   ],
 };
 
@@ -1520,45 +1521,85 @@ export default function AiCreativeChatPage() {
     onResult: onMagicResult,
   });
 
+  // False once this page unmounts, so a run being followed stops polling.
+  const magicActiveRef = useRef(true);
+  useEffect(() => {
+    magicActiveRef.current = true;
+    return () => {
+      magicActiveRef.current = false;
+    };
+  }, []);
+
   /**
-   * Say WHY a Magic run produced nothing — in a toast and in the thread.
+   * The generate hook came back with nothing — find out what really happened to
+   * the run, and either recover its result or say why there isn't one.
    *
-   * The generate hook's own toast carries the provider's raw text
-   * ("fal.ai queue result error (fal-ai/kling-video): {"detail":[…]}"), so it
-   * is dismissed and replaced with the readable reason from the run's record.
-   * The thread gets the same reason, since a toast is gone in seconds and the
-   * transcript is what the user still has a minute later.
+   *   still running → keep following it (followRun) and return its assets. This
+   *                   is the common case on production: Cloudflare cuts the
+   *                   generate request at 120s ("Network Error"), the hook gives
+   *                   up, and the run finishes a minute or two later anyway.
+   *   failed        → the readable reason, in a toast and in the thread. The
+   *                   hook's own toast (raw provider text, or "Network Error")
+   *                   is dismissed first so the two don't contradict each other.
+   *   no record     → the request itself was refused; the Magic Studio client
+   *                   has already toasted the server's message.
    *
    * @param {string} tool      The Magic Studio tool that ran.
    * @param {number} startedAt When this run was started (ms).
+   * @returns {Promise<object[]|null>} The run's assets, or null when there are none.
    */
-  const explainMagicFailure = useCallback(
+  const recoverMagicRun = useCallback(
     async (tool, startedAt) => {
       const what = tool === "text_to_video" ? "video" : "design";
+      const reportFailure = (message) => {
+        sonner.dismiss();
+        sonner.error(`Couldn't make your ${what}: ${message}`, { duration: 8000 });
+        postAssistantNote(
+          `I couldn't make this ${what} — Magic Studio reported: **${message}**\n\nTell me what to change and I'll try again.`,
+        );
+      };
+
       const outcome = await findRunOutcome(tool, startedAt);
 
       if (outcome.status === "failed") {
-        sonner.dismiss();
-        sonner.error(`Couldn't make your ${what}: ${outcome.message}`, { duration: 8000 });
-        postAssistantNote(
-          `I couldn't make this ${what} — Magic Studio reported: **${outcome.message}**\n\nTell me what to change and I'll try again.`,
-        );
-        return;
+        reportFailure(outcome.message);
+        return null;
       }
 
-      if (outcome.status === "pending") {
-        // The hook already said it's taking a while; the run is still going.
+      if (outcome.status === "none") {
         postAssistantNote(
-          `Your ${what} is still generating. It'll appear in your Magic Studio history as soon as it's done.`,
+          `Magic Studio didn't accept this request — the reason is in the error message. Ask me to try again once it's sorted.`,
         );
-        return;
+        return null;
       }
 
-      // No record: the request itself was refused (credits, validation). The
-      // Magic Studio client has already toasted the server's own message.
-      postAssistantNote(
-        `Magic Studio didn't accept this request — the reason is in the error message. Ask me to try again once it's sorted.`,
+      // Still running. The hook's "Network Error" toast is wrong about that.
+      console.log(`⏳ [chat] run ${outcome.id} still going — following it`);
+      sonner.dismiss();
+      sonner(`Still working on your ${what} — this one takes a few minutes.`);
+
+      const run = await followRun(
+        outcome.id,
+        startedAt,
+        tool === "text_to_video" ? "video" : "image",
+        () => magicActiveRef.current,
       );
+
+      if (run.status === "completed") {
+        if (run.assets.length) return run.assets;
+        reportFailure("It finished but returned nothing.");
+        return null;
+      }
+      if (run.status === "failed") {
+        reportFailure(run.message);
+        return null;
+      }
+      if (run.status === "timeout") {
+        postAssistantNote(
+          `Your ${what} is taking unusually long. It'll appear in your Magic Studio history as soon as it's done.`,
+        );
+      }
+      return null;
     },
     [postAssistantNote],
   );
@@ -1604,12 +1645,16 @@ export default function AiCreativeChatPage() {
         // A run that never produced a result just leaves the ref empty.
         await generate({ primaryInput: prompt, values, activeBrand });
 
-        const assets = (magicResultRef.current?.assets || []).filter(
-          (asset) => (asset.type === "image" || asset.type === "video") && asset.src,
-        );
+        const usable = (list) =>
+          (list || []).filter(
+            (asset) => (asset.type === "image" || asset.type === "video") && asset.src,
+          );
+        let assets = usable(magicResultRef.current?.assets);
         if (!assets.length) {
-          await explainMagicFailure(tool, startedAt);
-          return;
+          // Nothing from the hook — usually a run still finishing after the
+          // generate request was cut off. Follow it rather than give up.
+          assets = usable(await recoverMagicRun(tool, startedAt));
+          if (!assets.length) return;
         }
 
         // "Instagram · Social Design" — where it's for, and what made it.
@@ -1640,7 +1685,7 @@ export default function AiCreativeChatPage() {
       magicVideo.generate,
       activeBrand,
       postAssistantNote,
-      explainMagicFailure,
+      recoverMagicRun,
     ],
   );
 

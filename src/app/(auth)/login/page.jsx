@@ -15,7 +15,6 @@ import useSocialAuth, {
 import Input from "@/app/(components)/ui/Input";
 
 export default function LoginPage() {
-  console.log("trigger redeploy");
   const router = useRouter();
   const { login } = useAuth();
   const social = useSocialAuth();

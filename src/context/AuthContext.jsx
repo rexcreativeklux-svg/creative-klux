@@ -414,6 +414,11 @@ export function AuthProvider({ children }) {
         }
 
         console.log(`✅ socialLogin(${provider}) success`);
+        // The popup's user payload isn't the full /profile shape — it can lack
+        // `is_email_verified` / `email_verified_at`. Hold `loading` until the
+        // token effect's fetchProfile lands, otherwise the dashboard's verify
+        // gate judges this partial user and wrongly bounces to /verify-email.
+        if (data.token !== token) setLoading(true);
         saveAuth(data.token);
         if (data.user) {
           localStorage.setItem("user", JSON.stringify(data.user));

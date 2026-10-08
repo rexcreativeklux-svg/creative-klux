@@ -144,6 +144,15 @@ export default function VerifyEmailPage() {
     }
   };
 
+  // Already verified (e.g. a stale redirect landed here before /profile
+  // resolved) — nothing to do on this page, so move on.
+  useEffect(() => {
+    if (user?.is_email_verified === true || user?.email_verified_at) {
+      const pendingInvite = getPendingInvite();
+      router.replace(pendingInvite ? buildInvitePath(pendingInvite) : "/");
+    }
+  }, [user, router]);
+
   // Focus first input + warn if no email
   useEffect(() => {
     inputRefs.current[0]?.focus();

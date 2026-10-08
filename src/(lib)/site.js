@@ -25,17 +25,18 @@ export const SITE = {
   sameAs: [],
 };
 
-// public/og-preview.jpg — the app home screenshot (public/image.png) letterboxed
-// to 1200×630 JPEG. WhatsApp needs an absolute https JPEG/PNG, ideally under
-// 300KB, with explicit dimensions; metadataBase turns the path into an absolute
-// URL. Scrapers cache previews by URL, so give a replacement a NEW filename.
+// public/creativeklux-seo-image.jpg — the "design team in WhatsApp" card,
+// resized to 1200×630 baseline JPEG (~65KB). WhatsApp needs an absolute https
+// JPEG/PNG, ideally under 300KB, with explicit dimensions; metadataBase turns
+// the path into an absolute URL. Scrapers cache previews by URL, so give a
+// replacement a NEW filename.
 // (public/og-image.jpg from `npm run og-image` is the old branded card.)
 export const OG_IMAGE = {
-  url: "/og-preview.jpg",
+  url: "/creativeklux-seo-image.jpg",
   width: 1200,
   height: 630,
   type: "image/jpeg",
-  alt: "Creative Klux workspace — describe your idea and turn a blank page into an on-brand campaign.",
+  alt: "Creative Klux — your design team now lives in WhatsApp. Create, publish and manage ads and social designs from a message.",
 };
 
 /**

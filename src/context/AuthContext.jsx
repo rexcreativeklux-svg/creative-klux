@@ -194,14 +194,21 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const saveAuth = (token) => {
-    console.log("Saving token:", token);
-    if (!token) {
+  const saveAuth = (newToken) => {
+    console.log("Saving token:", newToken);
+    if (!newToken) {
       console.error("saveAuth called without a token!");
       return;
     }
-    localStorage.setItem("token", token);
-    setToken(token);
+    // Hold `loading` until the token effect's fetchProfile lands. On a fresh
+    // visit `loading` was already flipped false (no stored token), so without
+    // this ProtectedRoute renders the dashboard with a token but `user === null`
+    // and the first `user.something` read crashes into Next's "This page
+    // couldn't load" screen. Only when the token changes — otherwise the effect
+    // won't re-run and nothing would ever clear it.
+    if (newToken !== token) setLoading(true);
+    localStorage.setItem("token", newToken);
+    setToken(newToken);
     // A real sign-in replaces whatever session was here, so any impersonation flag
     // left behind by /impersonate must go with it — otherwise the next user on this
     // browser would inherit the relaxed verification gate.

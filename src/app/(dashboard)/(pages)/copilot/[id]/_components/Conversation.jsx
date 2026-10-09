@@ -233,12 +233,16 @@ export default function Conversation({
    */
   const answer = useCallback(
     async (text, replyId) => {
-      const settle = (patch) =>
+      // The answer is the newest message, so it takes the view to the foot of
+      // the thread even if the user had scrolled up while waiting.
+      const settle = (patch) => {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === replyId ? { ...m, pending: false, ...patch } : m,
           ),
         );
+        pinToBottom();
+      };
 
       try {
         const data = await sendChat({
@@ -259,7 +263,7 @@ export default function Conversation({
         settle({ text: describeApiError(err).text, error: true });
       }
     },
-    [copilot.id],
+    [copilot.id, pinToBottom],
   );
 
   const send = () => {

@@ -20,8 +20,9 @@
  * leave the view a few hundred pixels short of the bottom it just scrolled to.
  * Anything that makes the thread taller re-pins it.
  *
- * Scrolling UP releases the pin, so reading back is never yanked away by an
- * answer landing. Sending re-takes it — see `pin`.
+ * Scrolling UP releases the pin while the user reads back. Sending re-takes it,
+ * and so does an answer landing — the caller calls `pinToBottom` for both, so
+ * the newest message is always what's on screen when it arrives.
  *
  * @param {boolean} enabled  Whether the scrolling thread is on screen. ⚠️ The
  *   caller renders a loading state and an empty hero before the thread exists,
@@ -75,12 +76,25 @@ export default function useStickToBottom(enabled) {
     scrollToEnd();
   }, [scrollToEnd]);
 
-  /** Wired to the viewport's onScroll: the user's wheel is what releases it. */
+  /**
+   * Wired to the viewport's onScroll: the user scrolling UP is what releases it.
+   *
+   * ⚠️ DIRECTION, NOT DISTANCE. Our own scrollToEnd fires a scroll event too,
+   * and it is dispatched on the next frame — after React has already committed
+   * the turn that was just sent. Measured then, the view sits a whole message
+   * short of the new bottom, so a distance check read our own scroll as the
+   * user leaving and dropped the pin before the ResizeObserver could use it.
+   * Scrolling to the end only ever moves down, so only a move up can release.
+   */
+  const lastTopRef = useRef(0);
   const onScroll = useCallback(() => {
     const el = viewportRef.current;
     if (!el) return;
-    stuckRef.current =
-      el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD;
+    const top = el.scrollTop;
+    const atFoot = el.scrollHeight - top - el.clientHeight <= STICK_THRESHOLD;
+    if (atFoot) stuckRef.current = true;
+    else if (top < lastTopRef.current) stuckRef.current = false;
+    lastTopRef.current = top;
   }, []);
 
   useIsomorphicLayoutEffect(() => {

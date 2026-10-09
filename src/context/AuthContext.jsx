@@ -365,11 +365,13 @@ export function AuthProvider({ children }) {
     return data.message || "Login successful";
   };
 
-  // Continue with Google / Facebook. The backend owns the OAuth round trip:
-  // GET /auth/{provider}/redirect hands us the provider URL, the provider
+  // Continue with Google / Facebook / TikTok. The backend owns the OAuth round
+  // trip: GET /auth/{provider}/redirect hands us the provider URL, the provider
   // returns to the backend's callback, and that page postMessages the result
-  // back to this window. Resolves { isNew, message }; rejects with a
-  // user-safe Error (cancelled popups carry err.cancelled = true).
+  // back to this window. Resolves { isNew, message }, or — for a first-time
+  // TikTok user, since TikTok never shares an email — { needsEmail,
+  // pendingToken, suggestedName } for completeSocialRegistration to finish.
+  // Rejects with a user-safe Error (cancelled popups carry err.cancelled = true).
   const socialLogin = (provider) => {
     // Open the popup synchronously inside the click — opening it after the
     // redirect fetch resolves would get it blocked as a non-user-initiated popup.
@@ -409,6 +411,20 @@ export function AuthProvider({ children }) {
         if (e.data?.source !== "creativeklux-social-auth") return;
 
         const data = e.data;
+        // No account yet and no email from the provider: the backend parked
+        // the identity in an encrypted pending_token; the caller asks for an
+        // email and completes the signup with it.
+        if (data.success && data.needs_email && data.pending_token) {
+          console.log(`✉️ socialLogin(${provider}) needs an email`);
+          finish(resolve, {
+            needsEmail: true,
+            pendingToken: data.pending_token,
+            suggestedName: data.suggested_name || "",
+            message: data.message,
+          });
+          return;
+        }
+
         if (!data.success || !data.token) {
           console.error(`❌ socialLogin(${provider}) failed:`, data);
           finish(
@@ -467,6 +483,56 @@ export function AuthProvider({ children }) {
         }
       })();
     });
+  };
+
+  // Second half of a social signup whose provider gave no email (TikTok).
+  // POST /auth/social/complete with the pending_token from socialLogin plus the
+  // email the user typed. The provider identity rides inside the encrypted
+  // token, so only the email comes from the client. Resolves { isNew };
+  // rejects with a user-safe Error — `err.field === "email"` for a validation
+  // error on the address (e.g. already registered), `err.expired` when the
+  // pending token is no longer valid and the user must start over.
+  const completeSocialRegistration = async ({ pendingToken, email, name }) => {
+    let res;
+    let data = {};
+    try {
+      res = await fetch(`${BASE_URL}/auth/social/complete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ pending_token: pendingToken, email, name }),
+      });
+      data = await res.json().catch(() => ({}));
+    } catch {
+      throw new Error(
+        "Couldn’t reach the server. Check your connection and try again.",
+      );
+    }
+
+    if (!res.ok || !data.token) {
+      const emailError = data?.errors?.email?.[0];
+      const err = new Error(
+        emailError || data?.message || "Couldn’t finish signing you up.",
+      );
+      if (emailError) err.field = "email";
+      else if (res.status === 422) err.expired = true;
+      console.error("❌ completeSocialRegistration failed:", res.status, data);
+      throw err;
+    }
+
+    console.log("✅ completeSocialRegistration success");
+    // Same partial-user caveat as socialLogin: hold `loading` until the token
+    // effect's fetchProfile lands.
+    if (data.token !== token) setLoading(true);
+    saveAuth(data.token);
+    if (data.user) {
+      localStorage.setItem("user", JSON.stringify(data.user));
+      setUser(data.user);
+    }
+    // "Finished in another tab already" comes back 200 with is_new: false.
+    return { isNew: data.is_new !== false, message: data.message };
   };
 
   const register = async (name, email, password, licenseCode = "") => {
@@ -4030,6 +4096,7 @@ export function AuthProvider({ children }) {
         fetchResells,
         login,
         socialLogin,
+        completeSocialRegistration,
         register,
         updateProfile,
         handleDeleteTeam,

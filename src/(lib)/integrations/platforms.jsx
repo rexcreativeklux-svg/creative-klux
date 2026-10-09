@@ -71,6 +71,11 @@ export const GoogleDocsIcon = () => (
     <path d="M14.727 6.727H14V0H4.91c-.905 0-1.637.732-1.637 1.636v20.728c0 .904.732 1.636 1.636 1.636h14.182c.904 0 1.636-.732 1.636-1.636V6.727h-6zm-.545 10.455H7.09v-1.364h7.09v1.364zm2.727-3.273H7.091v-1.364h9.818v1.364zm0-3.273H7.091V9.273h9.818v1.363zM14.727 6h6l-6-6v6z" />
   </svg>
 );
+export const GoogleDriveIcon = () => (
+  <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+    <path d="M7.71 3.5 1.15 15l3.43 6 6.56-11.5L7.71 3.5zm1.73 0 6.57 11.5h6.84L16.28 3.5H9.44zM9.42 16.5 6 22.5h13.12l3.43-6H9.42z" />
+  </svg>
+);
 export const GoogleSlidesIcon = () => (
   <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
     <path d="M14.727 0H4.909C4.005 0 3.273.732 3.273 1.636v20.728c0 .904.732 1.636 1.636 1.636h14.182c.904 0 1.636-.732 1.636-1.636V6.545L14.727 0zM17.455 17.455H6.545V10.91h10.91v6.545zM14.727 6.545V0l6 6.545h-6z" />
@@ -203,6 +208,14 @@ export const PRODUCTIVITY_PLATFORMS = [
     description: "Read and send email from your Gmail account.",
     Icon: GmailIcon,
     iconBg: "linear-gradient(135deg, #EA4335, #C5221F)",
+  },
+  {
+    id: "google_drive",
+    provider: "google",
+    name: "Google Drive",
+    description: "List files in your Google Drive.",
+    Icon: GoogleDriveIcon,
+    iconBg: "linear-gradient(135deg, #1FA463, #4285F4)",
   },
   {
     id: "google_sheets",

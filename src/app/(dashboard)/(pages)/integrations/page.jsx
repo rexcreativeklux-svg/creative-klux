@@ -479,7 +479,8 @@ const IntegrationsPage = () => {
                 ))}
               </div>
               <p className="mt-3 text-xs text-gray-500">
-                Gmail and Google Sheets share one Google connection. Disconnecting
+                Gmail, Google Drive and Google Sheets share one Google
+                connection. Disconnecting
                 removes access from Creative Klux only — to remove the app from
                 your account entirely, revoke it in your Google or Microsoft
                 security settings.

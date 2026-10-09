@@ -16,7 +16,7 @@ import Skeleton from "@/app/(components)/skeletons/Skeleton";
 const DEFAULT_SECTIONS = [
   { rows: 7 },
   { rows: 5 },
-  { rows: 7 },
+  { rows: 8 },
 ];
 
 /** One platform row. */

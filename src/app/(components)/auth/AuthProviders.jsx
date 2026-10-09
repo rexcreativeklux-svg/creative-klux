@@ -2,18 +2,26 @@
  * AuthProviders
  * ---------------------------------------------------------------------------
  * The social sign-in options shared by the login and register screens:
- * an "or …" divider followed by side-by-side Google + Facebook buttons.
- * Designed to sit BELOW the email form, so the divider comes first.
+ * an "or …" divider followed by side-by-side Google + Facebook + TikTok
+ * buttons. Designed to sit BELOW the email form, so the divider comes first.
  *
  * Only rendered on pages that support social auth (login / register). Handlers
- * are injected so each page controls what the buttons do.
+ * are injected so each page controls what the buttons do — pages spread
+ * useSocialAuth() straight in.
  *
  * @param {string}   [label]     Divider text (e.g. "or continue with").
  * @param {Function} [onGoogle]  Click handler for the Google button.
  * @param {Function} [onFacebook] Click handler for the Facebook button.
+ * @param {Function} [onTiktok]  Click handler for the TikTok button.
  * @param {string}   [pending]   Provider currently signing in ("google" |
- *                               "facebook"); disables both buttons meanwhile.
+ *                               "facebook" | "tiktok"); disables all buttons.
+ * @param {Object}   [emailStep] A first-time TikTok signup waiting for an
+ *                               email ({ suggestedName }); opens the email step.
+ * @param {Function} [submitEmail]     Completes that signup with the email.
+ * @param {Function} [cancelEmailStep] Abandons it.
  */
+
+import SocialEmailStep from "./SocialEmailStep";
 
 const Spinner = () => (
   <div className="w-4 h-4 border-2 border-gray-200 border-t-gray-500 rounded-full animate-spin shrink-0" />
@@ -46,11 +54,21 @@ const FacebookIcon = () => (
   </svg>
 );
 
+const TikTokIcon = () => (
+  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="#010101">
+    <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
+  </svg>
+);
+
 export default function AuthProviders({
   label = "or continue with",
   onGoogle,
   onFacebook,
+  onTiktok,
   pending = null,
+  emailStep = null,
+  submitEmail,
+  cancelEmailStep,
 }) {
   return (
     <div className="mt-6">
@@ -62,12 +80,12 @@ export default function AuthProviders({
       </div>
 
       {/* Social buttons */}
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-3 gap-2.5">
         <button
           type="button"
           onClick={onGoogle}
           disabled={!!pending}
-          className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl bg-surface hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex items-center justify-center gap-1.5 py-2.5 px-2 sm:gap-2 sm:px-3 border border-gray-200 rounded-xl bg-surface hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {pending === "google" ? <Spinner /> : <GoogleIcon />} Google
         </button>
@@ -75,11 +93,30 @@ export default function AuthProviders({
           type="button"
           onClick={onFacebook}
           disabled={!!pending}
-          className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl bg-surface hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex items-center justify-center gap-1.5 py-2.5 px-2 sm:gap-2 sm:px-3 border border-gray-200 rounded-xl bg-surface hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {pending === "facebook" ? <Spinner /> : <FacebookIcon />} Facebook
         </button>
+        <button
+          type="button"
+          onClick={onTiktok}
+          disabled={!!pending}
+          className="flex items-center justify-center gap-1.5 py-2.5 px-2 sm:gap-2 sm:px-3 border border-gray-200 rounded-xl bg-surface hover:bg-gray-50 hover:border-gray-300 text-[13px] font-medium text-gray-700 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {pending === "tiktok" ? <Spinner /> : <TikTokIcon />} TikTok
+        </button>
       </div>
+
+      {/* First-time TikTok signup: TikTok shares no email, so ask for one.
+          Keyed on the pending token so a fresh attempt starts with an empty
+          form. */}
+      <SocialEmailStep
+        key={emailStep?.pendingToken || "idle"}
+        isOpen={!!emailStep}
+        suggestedName={emailStep?.suggestedName}
+        onSubmit={submitEmail}
+        onClose={cancelEmailStep}
+      />
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
 import IntegrationsSkeleton from "@/app/(components)/integrations/IntegrationsSkeleton";
 import PlatformPageModal from "@/app/(components)/integrations/PlatformPageModal";
 import { useIntegrationConnect } from "@/app/(components)/integrations/useIntegrationConnect";
+import { runServerOAuth } from "@/app/(components)/integrations/serverOAuth";
 
 // ── Platform Card ─────────────────────────────────────────────────────────────
 const PlatformCard = ({
@@ -106,6 +107,9 @@ const IntegrationsPage = () => {
     saveIntegration,
     disconnectIntegration,
     fetchIntegrations,
+    connectIntegrationProvider,
+    fetchIntegrationCatalogue,
+    disconnectIntegrationPlatform,
     activeBrandId,
     token,
   } = useAuth();
@@ -113,6 +117,11 @@ const IntegrationsPage = () => {
   const [loadingIntegrationId, setLoadingIntegrationId] = useState(null);
   const [fetching, setFetching] = useState(true);
   const [integrations, setIntegrations] = useState([]);
+  // Server-owned providers (Productivity): their state comes from the catalogue,
+  // never from POST/GET /integrations rows.
+  const [catalogue, setCatalogue] = useState([]);
+  const [connectingProvider, setConnectingProvider] = useState(null);
+  const [disconnectingProvider, setDisconnectingProvider] = useState(null);
 
   const [toast, setToast] = useState({
     isOpen: false,
@@ -128,8 +137,12 @@ const IntegrationsPage = () => {
     const load = async () => {
       setFetching(true);
       try {
-        const data = await fetchIntegrations();
+        const [data, entries] = await Promise.all([
+          fetchIntegrations(),
+          fetchIntegrationCatalogue(),
+        ]);
         if (Array.isArray(data)) setIntegrations(data);
+        if (Array.isArray(entries)) setCatalogue(entries);
       } catch (err) {
         console.error("Failed to load integrations:", err);
       } finally {
@@ -137,7 +150,79 @@ const IntegrationsPage = () => {
       }
     };
     load();
-  }, [fetchIntegrations]);
+  }, [fetchIntegrations, fetchIntegrationCatalogue]);
+
+  const refreshCatalogue = useCallback(async () => {
+    const entries = await fetchIntegrationCatalogue();
+    if (Array.isArray(entries)) setCatalogue(entries);
+  }, [fetchIntegrationCatalogue]);
+
+  // ── Server-owned connect (Google Workspace / Outlook) ──
+  // The API runs the OAuth; we open its consent URL and wait for the callback's
+  // postMessage. The catalogue is re-read whatever the outcome — it's the only
+  // record of what was actually stored. A failed connect is never retried.
+  const handleServerConnect = useCallback(
+    async (platformId) => {
+      const provider = PRODUCTIVITY_PLATFORMS.find(
+        (p) => p.id === platformId,
+      )?.provider;
+      if (!provider) return;
+      if (!activeBrandId) {
+        showToast("Select a brand first.", "error");
+        return;
+      }
+
+      setConnectingProvider(provider);
+      try {
+        const result = await runServerOAuth(() =>
+          connectIntegrationProvider(provider, activeBrandId),
+        );
+        if (result.status === "blocked") {
+          showToast("Allow popups for this site, then try again.", "error");
+          return;
+        }
+        if (result.status === "success") {
+          showToast(result.message || "Connected", "success");
+        } else if (result.status === "error") {
+          showToast(result.message, "error");
+        }
+        // "closed": the user shut the popup — say nothing, just refresh.
+        await refreshCatalogue();
+      } finally {
+        setConnectingProvider(null);
+      }
+    },
+    [activeBrandId, connectIntegrationProvider, refreshCatalogue],
+  );
+
+  // ── Server-owned disconnect ── (`provider` is the card's synthetic row id)
+  const handleServerDisconnect = useCallback(
+    async (provider) => {
+      setDisconnectingProvider(provider);
+      try {
+        const result = await disconnectIntegrationPlatform(provider);
+        if (!result.ok) {
+          showToast(result.message || "Failed to disconnect", "error");
+          return;
+        }
+        showToast("Integration disconnected.", "success");
+        await refreshCatalogue();
+      } finally {
+        setDisconnectingProvider(null);
+      }
+    },
+    [disconnectIntegrationPlatform, refreshCatalogue],
+  );
+
+  // A Productivity card's "integrations" — one synthetic row (id = provider)
+  // when the catalogue says its provider is connected, so PlatformCard renders
+  // it like any other connection.
+  const catalogueRowsFor = (provider) => {
+    const entry = catalogue.find((e) => e.platform === provider);
+    return entry?.connected
+      ? [{ id: provider, platform: provider, int_name: entry.account_label }]
+      : [];
+  };
 
   // Persist a resolved connection against the active brand, then reflect it in
   // the list. This is the Integrations-page behaviour for the shared engine.
@@ -380,16 +465,25 @@ const IntegrationsPage = () => {
                   <PlatformCard
                     key={platform.id}
                     platform={platform}
-                    integrations={integrations.filter(
-                      (i) => i.platform === platform.id,
-                    )}
-                    onConnect={handleConnect}
-                    onDisconnect={handleDisconnect}
-                    loadingPlatformId={loadingPlatformId}
-                    loadingIntegrationId={loadingIntegrationId}
+                    integrations={catalogueRowsFor(platform.provider)}
+                    onConnect={handleServerConnect}
+                    onDisconnect={handleServerDisconnect}
+                    // Rows sharing a provider (Gmail + Sheets) go busy together.
+                    loadingPlatformId={
+                      connectingProvider === platform.provider
+                        ? platform.id
+                        : null
+                    }
+                    loadingIntegrationId={disconnectingProvider}
                   />
                 ))}
               </div>
+              <p className="mt-3 text-xs text-gray-500">
+                Gmail and Google Sheets share one Google connection. Disconnecting
+                removes access from Creative Klux only — to remove the app from
+                your account entirely, revoke it in your Google or Microsoft
+                security settings.
+              </p>
             </div>
           </>
         )}

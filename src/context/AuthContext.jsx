@@ -68,10 +68,6 @@ const extractGalleryPayload = (data) => {
 const REFRESH_TOKEN_PLATFORMS = [
   "twitter",
   "tiktok",
-  "gmail",
-  "google_sheets",
-  "google_docs",
-  "microsoft",
 ];
 
 export function AuthProvider({ children }) {
@@ -256,13 +252,15 @@ export function AuthProvider({ children }) {
       localStorage.setItem("user", JSON.stringify(data));
       return data;
     } catch (err) {
-      console.error("Profile fetch failed:", err.message);
+      // warn, not error: a dropped request is not a bug, and console.error is
+      // what raises Next's full-screen dev overlay over the page.
+      console.warn("Profile fetch failed:", err.message);
 
       // ❌ DO NOT LOG OUT HERE
       // Just keep existing session
-    } finally {
-      setLoading(false);
     }
+    // ⚠️ No setLoading(false) here — the token effect's init() owns releasing
+    // `loading`, because a FAILED profile read hasn't decided anything yet.
   };
 
   // Update the current user's profile via the shared POST /profile endpoint
@@ -1168,8 +1166,19 @@ export function AuthProvider({ children }) {
     if (!token) return;
 
     const init = async () => {
-      await fetchProfile(token);
+      // Profile read → session confirmed, open the dashboard straight away.
+      //
+      // ⚠️ Profile FAILED (network blip, "Failed to fetch") → the session is
+      // still unknown, so stay on the skeleton until brands answers too.
+      // Releasing early rendered the dashboard off the cached user, and when
+      // brands then came back 401 the user was yanked to /login a moment later
+      // — the dashboard-then-login flash. Waiting means an expired session goes
+      // from the skeleton straight to /login, while a genuinely offline user
+      // still gets the cached session once both reads have settled.
+      const profile = await fetchProfile(token);
+      if (profile) setLoading(false);
       const brands = await fetchBrands(token);
+      setLoading(false);
       setBrandsInitialized(true);
       
       await Promise.all([fetchTeams(), fetchMyImages(), fetchTutorialVideos()]);
@@ -3666,6 +3675,93 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
+  // ── Server-owned OAuth (Google Workspace + Outlook) ──────────────────────────
+  // The backend runs these providers' OAuth end to end: it hands out a consent
+  // URL, exchanges the code on its own callback and stores access + refresh
+  // token, expiry and scopes. POST /integrations rejects them with a 422.
+
+  // POST /integrations/{platform}/connect → { redirect_url } (single-use, signed).
+  const connectIntegrationProvider = useCallback(
+    async (platform, brand_id) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
+      try {
+        const res = await authFetch(
+          `${API_INTEGRATIONS_URL}/${platform}/connect`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(brand_id ? { brand_id } : {}),
+          },
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.redirect_url) {
+          return {
+            ok: false,
+            status: res.status,
+            message: data?.message || "Couldn't start the connection.",
+          };
+        }
+        return { ok: true, redirect_url: data.redirect_url };
+      } catch (err) {
+        return { ok: false, message: err.message || "Network error" };
+      }
+    },
+    [token],
+  );
+
+  // GET /integrations/catalogue → { brand, integrations: [{ platform, label,
+  // connected, account_label? }] }. The only source that reflects what the
+  // server actually stored, so it is re-read after every connect/disconnect.
+  const fetchIntegrationCatalogue = useCallback(async () => {
+    if (!token) return null;
+    try {
+      const res = await authFetch(`${API_INTEGRATIONS_URL}/catalogue`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) return null;
+      return Array.isArray(data.integrations) ? data.integrations : null;
+    } catch (err) {
+      console.error("fetchIntegrationCatalogue error:", err);
+      return null;
+    }
+  }, [token]);
+
+  // DELETE /integrations/platform/{platform} — removes the active brand's stored
+  // tokens. Does NOT revoke the grant at Google/Microsoft.
+  const disconnectIntegrationPlatform = useCallback(
+    async (platform) => {
+      if (!token) return { ok: false, message: "Not authenticated" };
+      try {
+        const res = await authFetch(
+          `${API_INTEGRATIONS_URL}/platform/${platform}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data?.success === false) {
+          return {
+            ok: false,
+            message: data?.message || "Failed to disconnect integration",
+          };
+        }
+        return { ok: true, data };
+      } catch (err) {
+        return { ok: false, message: err.message || "Network error" };
+      }
+    },
+    [token],
+  );
+
   const runComparison = useCallback(
     async ({ mode, creativeA, creativeB, urlA, urlB }) => {
       if (!token) return { ok: false, message: "Not authenticated" };
@@ -3896,6 +3992,9 @@ export function AuthProvider({ children }) {
         creativeScoring,
         getCompetitorInsights,
         fetchIntegrations,
+        connectIntegrationProvider,
+        fetchIntegrationCatalogue,
+        disconnectIntegrationPlatform,
         bulkDeleteDesigns,
         updateDesignById,
         toggleDesignFavorite,

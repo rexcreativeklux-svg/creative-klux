@@ -71,6 +71,21 @@ export const GoogleDocsIcon = () => (
     <path d="M14.727 6.727H14V0H4.91c-.905 0-1.637.732-1.637 1.636v20.728c0 .904.732 1.636 1.636 1.636h14.182c.904 0 1.636-.732 1.636-1.636V6.727h-6zm-.545 10.455H7.09v-1.364h7.09v1.364zm2.727-3.273H7.091v-1.364h9.818v1.364zm0-3.273H7.091V9.273h9.818v1.363zM14.727 6h6l-6-6v6z" />
   </svg>
 );
+export const GoogleSlidesIcon = () => (
+  <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+    <path d="M14.727 0H4.909C4.005 0 3.273.732 3.273 1.636v20.728c0 .904.732 1.636 1.636 1.636h14.182c.904 0 1.636-.732 1.636-1.636V6.545L14.727 0zM17.455 17.455H6.545V10.91h10.91v6.545zM14.727 6.545V0l6 6.545h-6z" />
+  </svg>
+);
+export const GoogleCalendarIcon = () => (
+  <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+    <path d="M19 3h-1V1h-2v2H8V1H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H5V9h14v10zM7 11h5v5H7v-5z" />
+  </svg>
+);
+export const GoogleAnalyticsIcon = () => (
+  <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+    <path d="M19.5 2A2.5 2.5 0 0 0 17 4.5v15a2.5 2.5 0 0 0 5 0v-15A2.5 2.5 0 0 0 19.5 2zM12 9a2.5 2.5 0 0 0-2.5 2.5v8a2.5 2.5 0 0 0 5 0v-8A2.5 2.5 0 0 0 12 9zm-7.5 7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" />
+  </svg>
+);
 // The four-colour Microsoft mark (keeps its own colours on a dark iconBg).
 export const MicrosoftIcon = () => (
   <svg viewBox="0 0 24 24" className="w-5 h-5">
@@ -175,34 +190,65 @@ export const AD_PLATFORMS = [
 
 // Docs, sheets and mail — not publishing targets, so they're kept out of
 // SOCIAL/AD (which the brand wizard and Copilot also iterate).
+//
+// Their OAuth is run by the BACKEND (see serverOAuth.js), keyed by `provider` —
+// the exact platform string the API expects. Several rows can share one
+// provider: `google` is a single consent covering Gmail, Drive and Sheets, so
+// those rows connect and disconnect together.
 export const PRODUCTIVITY_PLATFORMS = [
   {
     id: "gmail",
+    provider: "google",
     name: "Gmail",
-    description: "Send emails from your Gmail account.",
+    description: "Read and send email from your Gmail account.",
     Icon: GmailIcon,
     iconBg: "linear-gradient(135deg, #EA4335, #C5221F)",
   },
   {
     id: "google_sheets",
+    provider: "google",
     name: "Google Sheets",
-    description: "Read and write spreadsheets in your Google Drive.",
+    description: "Read and append to spreadsheets in your Google Drive.",
     Icon: GoogleSheetsIcon,
     iconBg: "linear-gradient(135deg, #0F9D58, #0B8043)",
   },
   {
     id: "google_docs",
+    provider: "google_docs",
     name: "Google Docs",
-    description: "Create and edit documents in your Google Drive.",
+    description: "Create documents in your Google Drive.",
     Icon: GoogleDocsIcon,
     iconBg: "linear-gradient(135deg, #4285F4, #1A73E8)",
   },
   {
-    // One Microsoft account connection covers every Graph app we use —
-    // Excel/OneDrive, Outlook Calendar and Mail. Scopes live in oauth/page.jsx.
+    id: "google_slides",
+    provider: "google_slides",
+    name: "Google Slides",
+    description: "Create presentations in your Google Drive.",
+    Icon: GoogleSlidesIcon,
+    iconBg: "linear-gradient(135deg, #F4B400, #E37400)",
+  },
+  {
+    id: "google_calendar",
+    provider: "google_calendar",
+    name: "Google Calendar",
+    description: "List and create events on your Google Calendar.",
+    Icon: GoogleCalendarIcon,
+    iconBg: "linear-gradient(135deg, #4285F4, #1967D2)",
+  },
+  {
+    id: "google_analytics",
+    provider: "google_analytics",
+    name: "Google Analytics",
+    description: "Pull reporting from your Google Analytics properties.",
+    Icon: GoogleAnalyticsIcon,
+    iconBg: "linear-gradient(135deg, #F9AB00, #E37400)",
+  },
+  {
     id: "microsoft",
-    name: "Microsoft",
-    description: "Use Excel, OneDrive, Outlook Calendar and Mail from your Microsoft account.",
+    provider: "outlook",
+    name: "Microsoft Outlook",
+    description: "Use Outlook mail and calendar from your Microsoft account.",
     Icon: MicrosoftIcon,
     iconBg: "linear-gradient(135deg, #2F2F2F, #1B1B1B)",
   },

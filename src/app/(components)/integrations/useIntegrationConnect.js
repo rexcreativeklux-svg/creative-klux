@@ -219,54 +219,6 @@ export function useIntegrationConnect({
     };
   }
 
-  // Gmail / Sheets / Docs: same Google exchange as YouTube, labelled by email.
-  // `scopeCheck` guards against a consent screen that silently dropped the scope.
-  async function resolveGoogleWorkspaceIntegration(platformId, oauthResult) {
-    const scopeCheck = {
-      gmail: /auth\/gmail/,
-      google_sheets: /auth\/spreadsheets/,
-      google_docs: /auth\/documents/,
-    }[platformId];
-
-    const tokenData = await resolveGoogleAdsIntegration(oauthResult);
-    if (tokenData.scope && !scopeCheck.test(tokenData.scope)) {
-      console.warn(`${platformId} connect — granted scopes:`, tokenData.scope);
-      throw new Error(
-        "Google didn't grant access. Tick every permission on the consent screen, then try again. If the checkbox wasn't there, the API and its scope need enabling on the Google Cloud project.",
-      );
-    }
-
-    const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
-    const user = await res.json();
-    if (!res.ok)
-      throw new Error(user.error?.message || "Failed to fetch Google account");
-
-    return {
-      int_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      int_id: user.id,
-      int_name: user.email || user.name,
-    };
-  }
-
-  async function resolveMicrosoftIntegration(oauthResult) {
-    const res = await fetch("/api/microsoft/exchange", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: oauthResult.code }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Microsoft exchange failed");
-    return {
-      int_token: data.access_token,
-      refresh_token: data.refresh_token,
-      int_id: data.int_id,
-      int_name: data.name,
-    };
-  }
-
   async function fetchGoogleAdAccounts(access_token) {
     const res = await fetch("/api/google/ad-accounts", {
       method: "POST",
@@ -409,11 +361,6 @@ export function useIntegrationConnect({
       return await resolveYouTubeIntegration(oauthResult);
     if (platformId === "tiktok")
       return await resolveTikTokIntegration(oauthResult);
-    if (["gmail", "google_sheets", "google_docs"].includes(platformId))
-      return await resolveGoogleWorkspaceIntegration(platformId, oauthResult);
-    if (platformId === "microsoft")
-      return await resolveMicrosoftIntegration(oauthResult);
-
     return await resolveGenericIntegration(platformId, oauthResult);
   }
 

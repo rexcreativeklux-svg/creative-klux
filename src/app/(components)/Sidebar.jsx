@@ -272,13 +272,13 @@ const Sidebar = ({
     },
     {
       id: "social-content",
-      label: "Social Content",
+      label: "Social",
       href: "/social-content",
       icon: Share2,
     },
     {
       id: "ads-content",
-      label: "Ads Content",
+      label: "Ads",
       href: "/ads-content",
       icon: Megaphone,
     },

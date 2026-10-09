@@ -23,6 +23,13 @@ const CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET;
 const TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/";
 const CONTENT_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/content/init/";
 
+// MEDIA_UPLOAD sends the post to the creator's TikTok inbox as a draft they finish
+// in the app — it needs only the video.upload scope, which the app has today.
+// DIRECT_POST publishes straight to the profile but needs video.publish (Direct
+// Post enabled on the TikTok app, and an audit for public posts); switch to it
+// together with adding that scope in (lib)/oauth/page.jsx.
+const POST_MODE = "MEDIA_UPLOAD";
+
 const MAX_TITLE = 90; // TikTok photo title cap
 const MAX_DESC = 4000; // photo description cap
 
@@ -92,21 +99,22 @@ export async function POST(req) {
       await refreshAccessToken(refresh_token);
     rotatedRefresh = newRefresh;
 
-    // 2. Create the photo post.
+    // 2. Create the photo post. Privacy / comments / music are only set for a
+    // direct post — an inbox draft leaves those to the creator in the TikTok app.
     const body = {
       post_info: {
         title: (title || "").slice(0, MAX_TITLE),
         description: (description || "").slice(0, MAX_DESC),
-        disable_comment: false,
-        privacy_level,
-        auto_add_music: true,
+        ...(POST_MODE === "DIRECT_POST"
+          ? { disable_comment: false, privacy_level, auto_add_music: true }
+          : {}),
       },
       source_info: {
         source: "PULL_FROM_URL",
         photo_cover_index: 0,
         photo_images: [image_url],
       },
-      post_mode: "DIRECT_POST",
+      post_mode: POST_MODE,
       media_type: "PHOTO",
     };
 

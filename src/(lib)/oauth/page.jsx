@@ -910,10 +910,13 @@ async function buildAuthUrl(platform, clientId) {
     // TIKTOK
     // ────────────────────────────────────────────────────────
     case 'tiktok': {
-      // video.publish = direct post (our use case); video.upload = draft-to-inbox fallback;
-      // video.list = read posts for the calendar. All must be approved on the TikTok app.
+      // Exactly the scopes enabled on the TikTok app (sandbox) — TikTok rejects the
+      // whole login if we ask for one it doesn't have. video.upload = post to the
+      // creator's inbox as a draft (see api/tiktok/post); video.list = read posts for
+      // the calendar; user.info.* = account label/stats. Add video.publish (Direct
+      // Post) here only once it's enabled on the app, and flip POST_MODE with it.
       const scope = encodeURIComponent(
-        'user.info.basic,video.publish,video.upload,video.list'
+        'user.info.basic,user.info.profile,user.info.stats,video.upload,video.list'
       );
 
       return (

@@ -197,13 +197,13 @@ export const AD_PLATFORMS = [
 // SOCIAL/AD (which the brand wizard and Copilot also iterate).
 //
 // Their OAuth is run by the BACKEND (see serverOAuth.js), keyed by `provider` —
-// the exact platform string the API expects. Several rows can share one
-// provider: `google` is a single consent covering Gmail, Drive and Sheets, so
-// those rows connect and disconnect together.
+// the exact platform string the API expects. Each row is its own connection
+// (the backend split the original shared `google` key into gmail /
+// google_drive / google_sheets).
 export const PRODUCTIVITY_PLATFORMS = [
   {
     id: "gmail",
-    provider: "google",
+    provider: "gmail",
     name: "Gmail",
     description: "Read and send email from your Gmail account.",
     Icon: GmailIcon,
@@ -211,7 +211,7 @@ export const PRODUCTIVITY_PLATFORMS = [
   },
   {
     id: "google_drive",
-    provider: "google",
+    provider: "google_drive",
     name: "Google Drive",
     description: "List files in your Google Drive.",
     Icon: GoogleDriveIcon,
@@ -219,7 +219,7 @@ export const PRODUCTIVITY_PLATFORMS = [
   },
   {
     id: "google_sheets",
-    provider: "google",
+    provider: "google_sheets",
     name: "Google Sheets",
     description: "Read and append to spreadsheets in your Google Drive.",
     Icon: GoogleSheetsIcon,
@@ -258,7 +258,7 @@ export const PRODUCTIVITY_PLATFORMS = [
     iconBg: "linear-gradient(135deg, #F9AB00, #E37400)",
   },
   {
-    id: "microsoft",
+    id: "outlook",
     provider: "outlook",
     name: "Microsoft Outlook",
     description: "Use Outlook mail and calendar from your Microsoft account.",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Info, AlertCircle, Check, Loader2 } from "lucide-react";
+import { Info, AlertCircle, Check, Loader2, Plug } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
 import {
@@ -20,6 +20,13 @@ import IntegrationsSkeleton from "@/app/(components)/integrations/IntegrationsSk
 import PlatformPageModal from "@/app/(components)/integrations/PlatformPageModal";
 import { useIntegrationConnect } from "@/app/(components)/integrations/useIntegrationConnect";
 import { runServerOAuth } from "@/app/(components)/integrations/serverOAuth";
+
+// Look for a catalogue provider PRODUCTIVITY_PLATFORMS has no entry for yet.
+const GENERIC_APP = {
+  Icon: () => <Plug className="w-5 h-5 text-white" />,
+  iconBg: "linear-gradient(135deg, #64748B, #475569)",
+  description: "",
+};
 
 // ── Platform Card ─────────────────────────────────────────────────────────────
 const PlatformCard = ({
@@ -163,11 +170,7 @@ const IntegrationsPage = () => {
   // postMessage. The catalogue is re-read whatever the outcome — it's the only
   // record of what was actually stored. A failed connect is never retried.
   const handleServerConnect = useCallback(
-    async (platformId) => {
-      const provider = PRODUCTIVITY_PLATFORMS.find(
-        (p) => p.id === platformId,
-      )?.provider;
-      if (!provider) return;
+    async (provider) => {
       if (!activeBrandId) {
         showToast("Select a brand first.", "error");
         return;
@@ -219,11 +222,32 @@ const IntegrationsPage = () => {
   // when the catalogue says its provider is connected, so PlatformCard renders
   // it like any other connection.
   const catalogueRowsFor = (provider) => {
-    const entry = catalogue.find((e) => e.platform === provider);
+    const entry = catalogue.find((e) => e.provider === provider);
     return entry?.connected
       ? [{ id: provider, platform: provider, int_name: entry.account_label }]
       : [];
   };
+
+  // The Productivity rows come FROM the catalogue: every provider the backend
+  // runs OAuth for (`is_oauth`), in its order, under its label — so a key the
+  // backend renames or adds can't drift from what we send. PRODUCTIVITY_PLATFORMS
+  // only supplies each row's icon and description; an unknown provider still
+  // shows, with a generic mark. If the catalogue couldn't be read, the local
+  // list stands in so the section isn't empty.
+  const oauthEntries = catalogue.filter((e) => e.is_oauth && e.provider);
+  const productivityRows = oauthEntries.length
+    ? oauthEntries.map((entry) => {
+        const look =
+          PRODUCTIVITY_PLATFORMS.find((p) => p.provider === entry.provider) ||
+          GENERIC_APP;
+        return {
+          ...look,
+          id: entry.provider,
+          provider: entry.provider,
+          name: entry.label || look.name || entry.provider,
+        };
+      })
+    : PRODUCTIVITY_PLATFORMS;
 
   // Persist a resolved connection against the active brand, then reflect it in
   // the list. This is the Integrations-page behaviour for the shared engine.
@@ -412,14 +436,13 @@ const IntegrationsPage = () => {
             <div className="mb-8">
               <SectionHeader title="Productivity" />
               <div className="flex flex-col gap-3">
-                {PRODUCTIVITY_PLATFORMS.map((platform) => (
+                {productivityRows.map((platform) => (
                   <PlatformCard
                     key={platform.id}
                     platform={platform}
                     integrations={catalogueRowsFor(platform.provider)}
                     onConnect={handleServerConnect}
                     onDisconnect={handleServerDisconnect}
-                    // Rows sharing a provider (Gmail + Sheets) go busy together.
                     loadingPlatformId={
                       connectingProvider === platform.provider
                         ? platform.id
@@ -430,9 +453,7 @@ const IntegrationsPage = () => {
                 ))}
               </div>
               <p className="mt-3 text-xs text-gray-500">
-                Gmail, Google Drive and Google Sheets share one Google
-                connection. Disconnecting
-                removes access from Creative Klux only — to remove the app from
+                Disconnecting removes access from Creative Klux only — to remove the app from
                 your account entirely, revoke it in your Google or Microsoft
                 security settings.
               </p>

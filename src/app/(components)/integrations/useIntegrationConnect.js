@@ -521,6 +521,8 @@ export function useIntegrationConnect({
           int_name: page._ig_username ? `@${page._ig_username}` : page.name,
         };
       } else if (platformId === "meta_ads") {
+        // Step 1 picked the Page the ads run as; the ad account is picked next
+        // (or used directly when there's only one).
         const adRes = await fetch(
           `https://graph.facebook.com/v23.0/me/adaccounts?fields=id,name,account_status&access_token=${userToken}`,
         );
@@ -528,13 +530,30 @@ export function useIntegrationConnect({
         if (adData.error) throw new Error(adData.error.message);
         const accounts = adData.data || [];
         if (!accounts.length) throw new Error("No Meta ad accounts found.");
-        const adAccount = accounts[0];
+        if (accounts.length > 1) {
+          setFbPages(accounts.map((a) => ({ id: a.id, name: a.name })));
+          setPendingFbOauth({
+            platformId: "meta_ads_account",
+            userToken,
+            page_id: page.id,
+          });
+          return; // picker stays open on the ad-account list
+        }
         payload = {
           platform: "meta_ads",
           access_token: userToken,
-          int_id: adAccount.id,
-          int_name: `${page.name} • ${adAccount.name}`,
+          int_id: accounts[0].id,
+          int_name: accounts[0].name,
           page_id: page.id,
+        };
+      } else if (platformId === "meta_ads_account") {
+        // Step 2 of Meta Ads: `page` is the chosen ad account here.
+        payload = {
+          platform: "meta_ads",
+          access_token: userToken,
+          int_id: page.id,
+          int_name: page.name,
+          page_id: pendingFbOauth.page_id,
         };
       }
 

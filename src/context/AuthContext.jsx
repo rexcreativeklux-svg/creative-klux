@@ -3778,9 +3778,11 @@ export function AuthProvider({ children }) {
     [token],
   );
 
-  // GET /integrations/catalogue → { brand, integrations: [{ platform, label,
-  // connected, account_label? }] }. The only source that reflects what the
-  // server actually stored, so it is re-read after every connect/disconnect.
+  // GET /integrations/catalogue → { brand, integrations: [{ provider, label,
+  // family, is_oauth, connected, status, account_label, tools }] } — keyed by
+  // `provider`, NOT `platform` as the backend doc says. The only source that
+  // reflects what the server actually stored, so it is re-read after every
+  // connect/disconnect.
   const fetchIntegrationCatalogue = useCallback(async () => {
     if (!token) return null;
     try {

@@ -3,8 +3,8 @@
 // useIntegrationConnect
 // ─────────────────────────────────────────────────────────────────────────────
 // The shared OAuth "connect engine" behind both the Integrations page and the
-// brand-create wizard. It runs the platform handshake (popup or full-page
-// redirect), resolves the platform credentials, and — for platforms that expose
+// brand-create wizard. It runs the platform handshake (in a new browser tab —
+// see (lib)/oauth/authTab.js), resolves the platform credentials, and — for platforms that expose
 // multiple targets — drives the account/page picker. It never persists anything
 // itself: every resolved connection is handed to the caller's `onResolved`
 // callback, which decides whether to save it to a brand (Integrations page) or
@@ -12,22 +12,11 @@
 //
 // onResolved receives a normalized payload (NO brand_id — the caller adds it):
 //   { platform, access_token, refresh_token, int_id, int_name, page_id? }
-//
-// Options:
-//   brandId    — used only to stash the redirect "pending" state (Integrations).
-//   forcePopup — when true, redirect platforms use a popup instead of a full-page
-//                redirect, so the caller's page (the wizard) isn't navigated away.
 
 import { useState } from "react";
-import { openOAuthPopup, startOAuthRedirect } from "@/(lib)/oauth/page";
-import { REDIRECT_PLATFORMS } from "@/(lib)/integrations/platforms";
+import { openOAuthPopup } from "@/(lib)/oauth/page";
 
-export function useIntegrationConnect({
-  brandId,
-  onResolved,
-  showToast,
-  forcePopup = false,
-} = {}) {
+export function useIntegrationConnect({ onResolved, showToast } = {}) {
   const [loadingPlatformId, setLoadingPlatformId] = useState(null);
 
   // Account/page picker state (Facebook Pages, ad accounts, advertisers…).
@@ -375,9 +364,8 @@ export function useIntegrationConnect({
     });
   }
 
-  // Run the resolve step for a completed OAuth handshake (popup result OR the
-  // code returned from a full-page redirect), then emit unless it opened the
-  // picker. Exposed so the Integrations page's redirect-return effect can reuse it.
+  // Run the resolve step for a completed OAuth handshake, then emit unless it
+  // opened the picker.
   async function resolveFromOauth(platform, oauthResult) {
     const creds = await resolveIntegrationCredentials(platform, oauthResult);
     if (!creds) return; // picker path — finishes in handleSelectPage
@@ -385,24 +373,9 @@ export function useIntegrationConnect({
   }
 
   // ── Public: start a connect ────────────────────────────────────────────────
+  // Every platform logs in in a new tab; this page stays put with its button
+  // spinning (loadingPlatformId) until the tab reports back.
   async function connect(platformId) {
-    // Redirect platforms (Integrations page only): navigate the whole tab away
-    // and finish on return. The wizard passes forcePopup so it never does this.
-    if (!forcePopup && REDIRECT_PLATFORMS.includes(platformId)) {
-      try {
-        sessionStorage.setItem(
-          "creativeklux_oauth_pending",
-          JSON.stringify({ platform: platformId, brandId }),
-        );
-        setLoadingPlatformId(platformId);
-        await startOAuthRedirect(platformId);
-      } catch (err) {
-        setLoadingPlatformId(null);
-        toast(err.message || "Couldn't start the connection", "error");
-      }
-      return;
-    }
-
     setLoadingPlatformId(platformId);
     try {
       const oauthResult = await openOAuthPopup(platformId);
@@ -525,8 +498,6 @@ export function useIntegrationConnect({
   return {
     connect,
     loadingPlatformId,
-    setLoadingPlatformId,
-    resolveFromOauth,
     // Props ready to spread into <PlatformPageModal /> (rendered when open).
     pageModal: {
       open: showPageModal,

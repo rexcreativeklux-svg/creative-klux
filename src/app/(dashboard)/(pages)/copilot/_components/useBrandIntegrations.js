@@ -25,9 +25,8 @@
  * until the backend persists them. A second implementation would be wrong on
  * exactly those details first, and it would be wrong quietly.
  *
- * `forcePopup` so a connect never navigates the copilot away mid-flow; the
- * publishing page can afford a full-page redirect, a settings screen inside a
- * workspace cannot.
+ * Logins run in a new tab, so a connect never navigates the copilot away
+ * mid-flow.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -136,13 +135,11 @@ export function useBrandIntegrations() {
   );
 
   const { connect, loadingPlatformId, pageModal } = useIntegrationConnect({
-    brandId: activeBrandId,
     onResolved,
     // The engine reports through a (message, type) callback; route it to the
     // app's toaster so a failure inside the popup flow is not silent.
     showToast: (message, type) =>
       type === "error" ? toast.error(message) : toast.success(message),
-    forcePopup: true,
   });
 
   /**

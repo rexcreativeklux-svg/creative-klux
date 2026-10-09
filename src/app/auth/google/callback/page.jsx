@@ -1,12 +1,14 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { reportToOpener } from "@/(lib)/oauth/authTab";
 
 // Google's OAuth client is registered with /auth/google/callback (not /oauth-callback),
 // so Google redirects here after consent. This page does exactly what /oauth-callback does:
-// hand the code back to the opener (popup) or forward to /integrations (full-page redirect).
+// hand the code back to the Integrations page that opened this tab, then close.
 export default function GoogleOAuthCallback() {
   const params = useSearchParams();
+  const [done, setDone] = useState(false);
 
   useEffect(() => {
     try {
@@ -24,31 +26,26 @@ export default function GoogleOAuthCallback() {
 
       const error = params.get("error");
 
-      const payload = {
+      reportToOpener({
         type: "OAUTH_CALLBACK",
         platform,
         access_token,
         code,
         error,
-      };
-
-      if (window.opener && !window.opener.closed) {
-        // Popup flow: hand the result back to the opener and close.
-        window.opener.postMessage(payload, window.location.origin);
-        window.close();
-      } else {
-        // Full-page redirect flow: forward to /integrations to finish the connect.
-        const qs = new URLSearchParams();
-        if (code) qs.set("oauth_code", code);
-        if (access_token) qs.set("oauth_token", access_token);
-        if (rawState) qs.set("oauth_state", rawState);
-        if (error) qs.set("oauth_error", error);
-        window.location.replace(`/integrations?${qs.toString()}`);
-      }
+      });
     } catch (err) {
       console.error("Google OAuth callback error:", err);
     }
+    // Still here a moment later → the browser kept the tab open.
+    const id = setTimeout(() => setDone(true), 800);
+    return () => clearTimeout(id);
   }, [params]);
 
-  return <div style={{ padding: 20 }}>Connecting account...</div>;
+  return (
+    <div style={{ padding: 20 }}>
+      {done
+        ? "All set — you can close this tab and go back to Creative Klux."
+        : "Connecting account..."}
+    </div>
+  );
 }

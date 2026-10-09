@@ -1,18 +1,19 @@
 // serverOAuth.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Popup flow for providers whose OAuth the BACKEND owns (Google Workspace,
+// Connect flow for providers whose OAuth the BACKEND owns (Google Workspace,
 // Outlook). The browser never sees a code or a token: it asks the API for a
-// consent URL, opens it in a popup, and the API's callback page posts the
+// consent URL, opens it in a new tab, and the API's callback page posts the
 // outcome back to us and closes itself.
 //
-// The popup is opened BEFORE the API call, synchronously inside the click, so
+// The tab is opened BEFORE the API call, synchronously inside the click, so
 // popup blockers still count it as user-initiated; it is pointed at the consent
-// URL once that arrives.
+// URL once that arrives. Same tab mechanics as every other connect — see
+// (lib)/oauth/authTab.js.
+
+import { openAuthTab, watchAuthTabClosed } from "@/(lib)/oauth/authTab";
 
 // The callback page is served from the API, so its messages come from here.
 export const API_ORIGIN = "https://api.creativeklux.com";
-
-const POPUP_FEATURES = "width=520,height=680,menubar=no,toolbar=no";
 
 /**
  * Run one server-owned connect.
@@ -27,19 +28,19 @@ const POPUP_FEATURES = "width=520,height=680,menubar=no,toolbar=no";
  * >}
  */
 export async function runServerOAuth(getConsentUrl) {
-  const popup = window.open("", "ck-oauth", POPUP_FEATURES);
-  if (!popup) return { status: "blocked" };
+  const tab = openAuthTab("ck-oauth");
+  if (!tab) return { status: "blocked" };
 
   const started = await getConsentUrl();
   if (!started.ok) {
-    popup.close();
+    tab.close();
     return {
       status: "error",
       message: started.message || "Couldn't start the connection.",
     };
   }
   // Single-use, signed URL — opened exactly as given.
-  popup.location.href = started.redirect_url;
+  tab.location.href = started.redirect_url;
 
   return new Promise((resolve) => {
     const onMessage = (event) => {
@@ -63,18 +64,16 @@ export async function runServerOAuth(getConsentUrl) {
       );
     };
 
-    // The user can close the popup without finishing — no message arrives.
-    const poll = setInterval(() => {
-      if (popup.closed) {
-        cleanup();
-        resolve({ status: "closed" });
-      }
-    }, 500);
+    // The user can close the tab without finishing — no message arrives.
+    const stopWatching = watchAuthTabClosed(tab, () => {
+      cleanup();
+      resolve({ status: "closed" });
+    });
 
     function cleanup() {
-      clearInterval(poll);
+      stopWatching();
       window.removeEventListener("message", onMessage);
-      if (!popup.closed) popup.close();
+      if (!tab.closed) tab.close();
     }
 
     window.addEventListener("message", onMessage);

@@ -484,6 +484,7 @@
 "use client";
 
 import { LINKEDIN_POSTING_ENABLED, LINKEDIN_POST_SCOPE } from "@/(lib)/linkedinConfig";
+import { OAUTH_CHANNEL, openAuthTab, watchAuthTabClosed } from "./authTab";
 
 /**
  * OAuth popup flow for CreativeKlux integrations.
@@ -949,142 +950,77 @@ async function buildAuthUrl(platform, clientId) {
 // Popup orchestration
 // ─────────────────────────────────────────────────────────────
 
-export function openOAuthPopup(platform) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const clientId =
-        getClientId(platform);
-
-      const url = await buildAuthUrl(
-        platform,
-        clientId
-      );
-
-      const width = 600;
-      const height = 700;
-
-      const left =
-        window.screenX +
-        (window.outerWidth - width) / 2;
-
-      const top =
-        window.screenY +
-        (window.outerHeight - height) / 2;
-
-      const popup = window.open(
-        url,
-        `oauth_${platform}`,
-        `width=${width},height=${height},left=${left},top=${top}`
-      );
-
-      if (!popup) {
-        reject(
-          new Error(
-            'Popup was blocked. Please allow popups.'
-          )
-        );
-
-        return;
-      }
-
-      const handler = (event) => {
-        if (
-          event.origin !==
-          window.location.origin
-        ) {
-          return;
-        }
-
-        if (
-          event.data?.type !==
-          'OAUTH_CALLBACK'
-        ) {
-          return;
-        }
-
-        window.removeEventListener(
-          'message',
-          handler
-        );
-
-        clearInterval(pollClosed);
-
-        if (event.data.error) {
-          reject(
-            new Error(event.data.error)
-          );
-
-          return;
-        }
-
-        if (event.data.access_token) {
-          resolve({
-            access_token:
-              event.data.access_token,
-
-            platform:
-              event.data.platform,
-          });
-
-          return;
-        }
-
-        if (event.data.code) {
-          resolve({
-            code: event.data.code,
-            platform:
-              event.data.platform,
-          });
-
-          return;
-        }
-
-        reject(
-          new Error('No token received')
-        );
-      };
-
-      window.addEventListener(
-        'message',
-        handler
-      );
-
-      const pollClosed = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(pollClosed);
-
-          window.removeEventListener(
-            'message',
-            handler
-          );
-
-          reject(
-            new Error('cancelled')
-          );
-        }
-      }, 500);
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
 /**
- * Full-page redirect OAuth (instead of a popup).
+ * Run a provider login in a NEW TAB and resolve with what our callback page
+ * reports: { code } or { access_token }, plus `platform`. Rejects with
+ * Error('cancelled') when the user closes the tab, and with the provider's
+ * error otherwise. See ./authTab.js for why a tab, and the two delivery paths.
  *
- * Popups can't complete *nested* logins — e.g. an X account that signs in via Google
- * means x.com must open google.com inside the popup, which modern browsers block
- * (partitioned cookies/storage) → blank screen / login loop. Navigating the whole tab
- * avoids that: the login happens in a normal first-party context.
- *
- * The platform redirects back to /oauth-callback, which (no popup opener) forwards to
- * /integrations?oauth_code=… where the connect is finished. The PKCE verifier stored by
- * buildAuthUrl survives in sessionStorage across the round-trip (same tab + origin).
+ * The tab is opened before the (async) auth URL is built, so it still counts
+ * as opened by the click. The PKCE verifier buildAuthUrl stores for X lives in
+ * THIS tab's sessionStorage, which is where the code exchange then runs.
  */
-export async function startOAuthRedirect(platform) {
-  const clientId = getClientId(platform);
-  const url = await buildAuthUrl(platform, clientId);
-  window.location.assign(url);
+export function openOAuthPopup(platform) {
+  const tab = openAuthTab(`oauth_${platform}`);
+
+  return new Promise((resolve, reject) => {
+    if (!tab) {
+      reject(new Error('The sign-in tab was blocked. Allow pop-ups for this site and try again.'));
+      return;
+    }
+
+    let settled = false;
+    let channel = null;
+    let stopWatching = () => {};
+
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('message', onWindowMessage);
+      channel?.close();
+      stopWatching();
+      fn(value);
+    };
+
+    const handle = (data) => {
+      if (data?.type !== 'OAUTH_CALLBACK') return;
+      // The broadcast reaches every tab of the app — only take our platform's.
+      if (data.platform && data.platform !== platform) return;
+
+      if (data.error) return finish(reject, new Error(data.error));
+      if (data.access_token)
+        return finish(resolve, { access_token: data.access_token, platform: data.platform });
+      if (data.code) return finish(resolve, { code: data.code, platform: data.platform });
+      finish(reject, new Error('No token received'));
+    };
+
+    const onWindowMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      handle(event.data);
+    };
+    window.addEventListener('message', onWindowMessage);
+
+    try {
+      channel = new BroadcastChannel(OAUTH_CHANNEL);
+      channel.onmessage = (event) => handle(event.data);
+    } catch {
+      /* no BroadcastChannel — the opener postMessage path still works */
+    }
+
+    stopWatching = watchAuthTabClosed(tab, () =>
+      finish(reject, new Error('cancelled')),
+    );
+
+    (async () => {
+      try {
+        const url = await buildAuthUrl(platform, getClientId(platform));
+        if (!settled) tab.location.href = url;
+      } catch (err) {
+        if (!tab.closed) tab.close();
+        finish(reject, err);
+      }
+    })();
+  });
 }
 
 // ─────────────────────────────────────────────────────────────

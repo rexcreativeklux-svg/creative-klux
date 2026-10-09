@@ -240,11 +240,9 @@ export default function CreateBrand() {
       [bucket]: p[bucket].filter((a) => a.platform !== platformId),
     }));
 
-  // forcePopup keeps the wizard on-screen (no full-page redirect that would
-  // discard the in-progress form). brandId is null — we hold, we don't save.
+  // Logins run in a new tab, so the in-progress form stays on screen. No brand
+  // yet — handleResolved holds the creds instead of saving them.
   const { connect, loadingPlatformId, pageModal } = useIntegrationConnect({
-    brandId: null,
-    forcePopup: true,
     onResolved: handleResolved,
     showToast: (msg, type) =>
       type === "error" ? toast.error(msg) : toast.success(msg),

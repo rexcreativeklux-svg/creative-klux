@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Info, AlertCircle, Check } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Info, AlertCircle, Check, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
 import {
@@ -82,9 +82,10 @@ const PlatformCard = ({
             <button
               onClick={() => onConnect(platform.id)}
               disabled={isPending}
-              className="px-3 py-1.5 hover:scale-105 cursor-pointer text-xs text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-3 py-1.5 hover:scale-105 cursor-pointer text-xs text-white rounded-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
               style={{ background: "linear-gradient(135deg, #155dfc, #3b82f6)" }}
             >
+              {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {isPending ? "Connecting…" : "Connect"}
             </button>
           )}
@@ -268,14 +269,7 @@ const IntegrationsPage = () => {
     [saveIntegration, activeBrandId],
   );
 
-  const {
-    connect,
-    loadingPlatformId,
-    setLoadingPlatformId,
-    resolveFromOauth,
-    pageModal,
-  } = useIntegrationConnect({
-    brandId: activeBrandId,
+  const { connect, loadingPlatformId, pageModal } = useIntegrationConnect({
     onResolved,
     showToast,
   });
@@ -291,49 +285,6 @@ const IntegrationsPage = () => {
     },
     [activeBrandId, connect],
   );
-
-  // ── Finish a full-page redirect connect (X etc.) on return ──
-  const redirectHandled = useRef(false);
-  useEffect(() => {
-    if (redirectHandled.current) return;
-    const url = new URL(window.location.href);
-    const code = url.searchParams.get("oauth_code");
-    const oauthError = url.searchParams.get("oauth_error");
-    const rawState = url.searchParams.get("oauth_state");
-    if (!code && !oauthError) return;
-    if (!token) return; // wait until the app session is restored
-
-    redirectHandled.current = true;
-
-    let pending = null;
-    try {
-      pending = JSON.parse(
-        sessionStorage.getItem("creativeklux_oauth_pending") || "null",
-      );
-    } catch {
-      /* ignore */
-    }
-    const platform =
-      pending?.platform || rawState?.replace(/_\d+$/, "") || null;
-
-    window.history.replaceState({}, "", "/integrations");
-    sessionStorage.removeItem("creativeklux_oauth_pending");
-
-    if (!platform) return;
-
-    (async () => {
-      setLoadingPlatformId(platform);
-      try {
-        if (oauthError) throw new Error(oauthError);
-        await resolveFromOauth(platform, { code, platform });
-      } catch (err) {
-        console.error("Redirect connect error:", err);
-        showToast(err.message || "Connection failed", "error");
-      } finally {
-        setLoadingPlatformId(null);
-      }
-    })();
-  }, [token, resolveFromOauth, setLoadingPlatformId]);
 
   // ── Disconnect handler ──
   const handleDisconnect = useCallback(

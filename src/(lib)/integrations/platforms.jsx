@@ -267,11 +267,6 @@ export const PRODUCTIVITY_PLATFORMS = [
   },
 ];
 
-// Platforms whose login is a full-page redirect (nested SSO that popups can't
-// finish). The Integrations page uses redirects for these; the brand-create
-// wizard forces a popup instead so the in-progress form isn't navigated away.
-export const REDIRECT_PLATFORMS = ["twitter", "linkedin", "pinterest", "tiktok"];
-
 // Look up a platform's display name from its id.
 export const getPlatformName = (platformId) => {
   const all = [...SOCIAL_PLATFORMS, ...AD_PLATFORMS, ...PRODUCTIVITY_PLATFORMS];

@@ -3623,8 +3623,8 @@ export function AuthProvider({ children }) {
     [integrationsRequest],
   );
 
-  // GET /integrations/catalogue → { brand, integrations: [{ provider, label,
-  // family, is_oauth, connected, awaiting_selection, selects, status,
+  // GET /integrations/catalogue → { status, catalogue: [{ provider, label,
+  // family, kind, is_oauth, connected, awaiting_selection, selects, status,
   // account_label, tools }] } — keyed by `provider`. The only source that
   // reflects what the server actually stored, so it is re-read after every
   // connect / select / disconnect. Returns { ok, integrations, message }.
@@ -3634,12 +3634,10 @@ export function AuthProvider({ children }) {
         query: { brand_id },
       });
       if (!res.ok) return { ok: false, integrations: [], message: res.message };
-      return {
-        ok: true,
-        integrations: Array.isArray(res.data?.integrations)
-          ? res.data.integrations
-          : [],
-      };
+      // The list arrives under `catalogue` (it was `integrations` in the first
+      // version of the endpoint — still accepted).
+      const rows = res.data?.catalogue ?? res.data?.integrations;
+      return { ok: true, integrations: Array.isArray(rows) ? rows : [] };
     },
     [integrationsRequest],
   );

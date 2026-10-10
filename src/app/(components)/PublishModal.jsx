@@ -1050,10 +1050,8 @@ export default function PublishModal({
               : undefined,
           });
         } else if (selected === "tiktok") {
-          // TikTok is VIDEO-only on the API and our creatives are images, so the
-          // image is bridged to a short clip in the browser and hosted for it (the
-          // server then sends the file bytes — the only way past TikTok's
-          // media-domain check). Title = first line of the caption.
+          // The image goes to the API as it is — the server posts it to TikTok.
+          // Title = first line of the caption.
           const text = caption.trim();
           const firstLine = text.split("\n")[0]?.trim();
           const tt = await publishToTikTok({

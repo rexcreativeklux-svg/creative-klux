@@ -286,6 +286,7 @@ export default function CopilotPlugins() {
       {pageModal.open && (
         <PlatformPageModal
           pages={pageModal.pages}
+          message={pageModal.message}
           onSelect={pageModal.onSelect}
           onClose={pageModal.onClose}
           loading={pageModal.loadingPageId}

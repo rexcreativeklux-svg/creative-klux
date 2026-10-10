@@ -17,10 +17,7 @@
 import { useState, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Share2,
-  Recycle,
   Loader2,
-  ChevronRight,
   ArrowLeft,
   Sparkles,
   Globe,
@@ -31,14 +28,11 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { STEPS, SOCIAL_PLATFORMS, AD_PLATFORMS } from "./components/constants";
+import { STEPS } from "./components/constants";
 import { pickUploadedUrl } from "./components/helpers";
 import { StepIndicator } from "./components/ui";
 import BrandPreview from "./components/BrandPreview";
-import { BrandDetailsStep, AccountsStep } from "./components/steps";
-import { AD_PLATFORM_IDS } from "@/(lib)/integrations/platforms";
-import PlatformPageModal from "@/app/(components)/integrations/PlatformPageModal";
-import { useIntegrationConnect } from "@/app/(components)/integrations/useIntegrationConnect";
+import { BrandDetailsStep } from "./components/steps";
 
 // Empty form — also used to reset state when switching modes.
 const INITIAL_FORM = {
@@ -188,65 +182,12 @@ export default function CreateBrand() {
     }
   };
 
-  // ── Connect social / ad accounts (REAL OAuth, same engine as Integrations) ──
-  // The brand doesn't exist yet, so instead of saving each connection to a
-  // brand_id we HOLD the resolved credentials in the form and send them with
-  // social_accounts / ad_accounts when the brand is created (see handleCreate).
-  const handleResolved = (payload) => {
-    if (!payload) return;
-    const bucket = AD_PLATFORM_IDS.includes(payload.platform)
-      ? "adAccounts"
-      : "socialAccounts";
-
-    // X (twitter) and TikTok rotate their refresh token and derive a fresh access
-    // token on every use, so — exactly like saveIntegration — the value worth
-    // persisting is the REFRESH token. Everyone else stores their access token.
-    const isRotating =
-      payload.platform === "twitter" || payload.platform === "tiktok";
-    const primaryToken = isRotating
-      ? payload.refresh_token || payload.access_token || null
-      : payload.access_token || null;
-
-    const held = {
-      platform: payload.platform,
-      name: payload.int_name || payload.int_id || payload.platform,
-      // Legacy keys the create-brand endpoint reads off each account — it indexes
-      // `id` / `token` directly and 500s ("Undefined array key id") without them.
-      id: payload.int_id || null,
-      token: primaryToken,
-      // Real credential fields, kept so the backend can build a working integration
-      // (int_token is the single token column saveIntegration writes).
-      int_token: primaryToken,
-      access_token: payload.access_token,
-      refresh_token: payload.refresh_token,
-      int_id: payload.int_id,
-      int_name: payload.int_name,
-      ...(payload.page_id ? { page_id: payload.page_id } : {}),
-    };
-    setFormData((p) => ({
-      ...p,
-      // Replace any existing connection for this platform (one per platform).
-      [bucket]: [
-        ...p[bucket].filter((a) => a.platform !== payload.platform),
-        held,
-      ],
-    }));
-    toast.success(`${held.name} connected`);
-  };
-
-  const removeAccount = (bucket) => (platformId) =>
-    setFormData((p) => ({
-      ...p,
-      [bucket]: p[bucket].filter((a) => a.platform !== platformId),
-    }));
-
-  // Logins run in a new tab, so the in-progress form stays on screen. No brand
-  // yet — handleResolved holds the creds instead of saving them.
-  const { connect, loadingPlatformId, pageModal } = useIntegrationConnect({
-    onResolved: handleResolved,
-    showToast: (msg, type) =>
-      type === "error" ? toast.error(msg) : toast.success(msg),
-  });
+  // Accounts are NOT connected here. Connecting is the API's server-side OAuth,
+  // which stores the connection against a brand — and this brand doesn't exist
+  // until Create. So the wizard only makes the brand; its accounts are connected
+  // afterwards on the Integrations page. (It used to run the logins here and
+  // send the resulting tokens with the create request — no token is held or
+  // sent by the browser any more.)
 
   // ── Create the brand — ONE path for both modes via the shared createBrand ──
   const handleCreate = async () => {
@@ -266,9 +207,10 @@ export default function CreateBrand() {
         fonts: formData.fonts || "",
         primary_color: formData.primary || "#1e3a8a",
         secondary_color: formData.secondary || "#10b981",
-        // Backend reads these as JSON strings (parity with the previous request).
-        social_accounts: JSON.stringify(formData.socialAccounts || []),
-        ad_accounts: JSON.stringify(formData.adAccounts || []),
+        // Backend reads these as JSON strings. Always empty: accounts are
+        // connected after creation, through the API's own OAuth.
+        social_accounts: "[]",
+        ad_accounts: "[]",
         industry: formData.industry || "",
         // Source URL fields only apply to Smart Import; manual leaves them blank.
         url: mode === "import" ? url.trim() : "",
@@ -284,7 +226,9 @@ export default function CreateBrand() {
       const brand = await createBrand(payload);
       if (!brand) throw new Error("No response from the server.");
       console.log("✅ Brand created — redirecting");
-      toast.success("Brand created! Redirecting…");
+      toast.success(
+        "Brand created! Connect its accounts on the Integrations page.",
+      );
       setTimeout(() => router.push("/brand/reuse"), 1500);
     } catch (err) {
       toast.error(err.message || "Something went wrong.");
@@ -469,32 +413,6 @@ export default function CreateBrand() {
                   />
                 )}
 
-                {step === 2 && (
-                  <AccountsStep
-                    title="Social Accounts"
-                    Icon={Share2}
-                    description="Connect social media accounts to manage posts for this brand."
-                    platforms={SOCIAL_PLATFORMS}
-                    accounts={formData.socialAccounts}
-                    onConnect={connect}
-                    onRemove={removeAccount("socialAccounts")}
-                    loadingPlatformId={loadingPlatformId}
-                  />
-                )}
-
-                {step === 3 && (
-                  <AccountsStep
-                    title="Ad Accounts"
-                    Icon={Recycle}
-                    description="Connect ad platforms to run campaigns for this brand."
-                    platforms={AD_PLATFORMS}
-                    accounts={formData.adAccounts}
-                    onConnect={connect}
-                    onRemove={removeAccount("adAccounts")}
-                    loadingPlatformId={loadingPlatformId}
-                  />
-                )}
-
                 {/* Navigation */}
                 <div className="flex justify-between gap-3 pt-2">
                   <button
@@ -516,29 +434,19 @@ export default function CreateBrand() {
                     {step === 1 ? "Cancel" : "Back"}
                   </button>
 
-                  {step < 3 ? (
-                    <button
-                      onClick={() => setStep((p) => p + 1)}
-                      disabled={!canContinue}
-                      className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 cursor-pointer transition flex items-center gap-2"
-                    >
-                      Continue <ChevronRight className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleCreate}
-                      disabled={creating || logoUploading}
-                      className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 cursor-pointer transition flex items-center gap-2"
-                    >
-                      {creating ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4" /> Create Brand
-                        </>
-                      )}
-                    </button>
-                  )}
+                  <button
+                    onClick={handleCreate}
+                    disabled={!canContinue || creating || logoUploading}
+                    className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 cursor-pointer transition flex items-center gap-2"
+                  >
+                    {creating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" /> Create Brand
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
@@ -549,16 +457,6 @@ export default function CreateBrand() {
         )}
       </div>
 
-      {/* Account / page picker (Facebook Pages, ad accounts…) from the connect flow */}
-      {pageModal.open && (
-        <PlatformPageModal
-          pages={pageModal.pages}
-          onSelect={pageModal.onSelect}
-          onClose={pageModal.onClose}
-          loading={pageModal.loadingPageId}
-          selectedPageId={null}
-        />
-      )}
     </div>
   );
 }

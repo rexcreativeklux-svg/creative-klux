@@ -1,17 +1,27 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import { Check, X, AlertTriangle } from "lucide-react";
 
 /**
- * PlatformPageModal — the account/page picker shown after an OAuth handshake
- * returns more than one target (Facebook Pages, ad accounts, advertisers…).
- * Shared by the Integrations page and the brand-create wizard so the picker
- * looks and behaves identically in both.
+ * PlatformPageModal — the account chooser shown when a connection needs a
+ * specific target picked (a Facebook Page, an Instagram business account, an
+ * ad account). The list comes from GET integrations/{platform}/accounts.
+ * Shared by the Integrations page and the copilot's Plugins screen so the
+ * chooser looks and behaves identically in both.
  *
- * Props: { pages, onSelect, onClose, loading, selectedPageId }
+ * An account can carry a `warning` (e.g. a Page the user can view but not
+ * publish to). It is shown, muted, and the account stays selectable — a
+ * read-only ad account is still useful for reporting, and refusing the choice
+ * without explaining it would be worse.
+ *
+ * Props: { pages, message, onSelect, onClose, loading, selectedPageId }
+ *   pages    [{ id, name, avatar?, warning? }]
+ *   message  why the list is empty, in the server's words (shown instead of it)
+ *   loading  id of the account being saved, if any
  */
 export default function PlatformPageModal({
-  pages,
+  pages = [],
+  message,
   onSelect,
   onClose,
   loading,
@@ -28,10 +38,10 @@ export default function PlatformPageModal({
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="font-semibold text-gray-900 text-sm">
-                Select a Page
+                Choose an account
               </h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Choose which page to connect to this brand.
+                Pick which one to connect to this brand.
               </p>
             </div>
             <button
@@ -43,11 +53,18 @@ export default function PlatformPageModal({
           </div>
         </div>
 
-        {/* Page list */}
+        {/* Account list */}
         <div className="p-3 flex flex-col gap-2 max-h-72 overflow-y-auto">
+          {pages.length === 0 && (
+            <p className="px-2 py-6 text-center text-sm text-gray-500">
+              {message || "No accounts are available to connect."}
+            </p>
+          )}
+
           {pages.map((page) => {
             const isSelected = selectedPageId === page.id;
             const isLoading = loading === page.id;
+            const avatar = page.avatar || page.picture?.data?.url;
             return (
               <button
                 key={page.id}
@@ -59,10 +76,9 @@ export default function PlatformPageModal({
                     : "border-gray-200 bg-surface hover:border-blue-300 hover:bg-blue-50/50"
                 }`}
               >
-                {/* Page avatar */}
-                {page.picture?.data?.url ? (
+                {avatar ? (
                   <img
-                    src={page.picture.data.url}
+                    src={avatar}
                     alt={page.name}
                     className="w-9 h-9 rounded-lg object-cover shrink-0 border border-gray-100"
                   />
@@ -73,17 +89,23 @@ export default function PlatformPageModal({
                       background: "linear-gradient(135deg, #1877F2, #0C5FCA)",
                     }}
                   >
-                    {page.name?.charAt(0)?.toUpperCase() || "F"}
+                    {page.name?.charAt(0)?.toUpperCase() || "A"}
                   </div>
                 )}
 
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">
-                    {page.name}
+                    {page.name || page.id}
                   </p>
                   <p className="text-[11px] text-gray-400 mt-0.5 truncate">
                     ID: {page.id}
                   </p>
+                  {page.warning && (
+                    <p className="mt-1 flex items-start gap-1 text-[11px] leading-snug text-amber-700">
+                      <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />
+                      {page.warning}
+                    </p>
+                  )}
                 </div>
 
                 {isLoading ? (

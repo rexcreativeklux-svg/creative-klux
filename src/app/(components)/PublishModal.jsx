@@ -642,8 +642,8 @@ export default function PublishModal({
   showToast,
   startInSchedule = false,
 }) {
-  const { fetchIntegrations, updateIntegration, activeBrand, uploadMedia } =
-    useAuth();
+  const { fetchIntegrations, activeBrand, uploadMedia } = useAuth();
+  const brandId = activeBrand?.id;
   const router = useRouter();
 
   const [integrations, setIntegrations] = useState([]);
@@ -751,12 +751,20 @@ export default function PublishModal({
     // Both organic Pinterest and Pinterest Ads need a board (the ad promotes a pin).
     if (selected !== "pinterest" && selected !== "pinterest_ads") return;
     const integration = integrations.find((i) => i.platform === selected);
-    if (!integration?.int_token) return;
+    if (!integration) return;
     let alive = true;
     setPinBoardsLoading(true);
     setPinBoardsError("");
     (async () => {
       try {
+        // ⚠️ The board list is still read with the token in the browser — the
+        // publishing API has no boards endpoint yet. Once the API stops
+        // returning int_token there is nothing to load them with, so say that
+        // instead of leaving an empty picker.
+        if (!integration.int_token)
+          throw new Error(
+            "Pinterest boards can't be loaded yet — the API needs a boards endpoint.",
+          );
         const boards = await fetchPinterestBoards(integration.int_token);
         if (!alive) return;
         setPinBoards(boards);
@@ -808,6 +816,8 @@ export default function PublishModal({
       setBusyAction(scheduledUnix ? "schedule" : "publish");
       try {
         const cap = captionForPublish(caption.trim(), capsHeadline);
+        // Set by a branch whose outcome isn't a plain "Published to X!".
+        let successMessage = null;
 
         // Resolve a real, publishable image URL.
         // Canvas-based designs have no image_url — render them to a PNG, upload it,
@@ -842,18 +852,19 @@ export default function PublishModal({
             );
         }
 
+        // Social platforms publish through the API (POST creatives/publish): the
+        // server holds the tokens and talks to the network; nothing here reads
+        // one. Each helper throws the platform's own error, which the toast shows.
         if (selected === "facebook") {
           await publishToFacebook({
-            access_token: integration.int_token,
-            page_id: integration.int_id,
+            brand_id: brandId,
             image_url: imageUrl,
             caption: cap,
             scheduled_publish_time: scheduledUnix || undefined,
           });
         } else if (selected === "instagram") {
           await publishToInstagram({
-            access_token: integration.int_token,
-            ig_user_id: integration.int_id,
+            brand_id: brandId,
             image_url: imageUrl,
             caption: cap,
           });
@@ -994,7 +1005,7 @@ export default function PublishModal({
           const text = caption.trim();
           const firstLine = text.split("\n")[0]?.trim();
           await publishToPinterest({
-            access_token: integration.int_token,
+            brand_id: brandId,
             board_id: pinBoardId,
             title: (firstLine || creative?.name || "").slice(0, 100),
             description: text,
@@ -1002,44 +1013,29 @@ export default function PublishModal({
             link: activeBrand?.url || undefined,
           });
         } else if (selected === "linkedin") {
-          // LinkedIn posts server-side (no browser CORS). Author = the connected
-          // member (int_id). Only reachable when LINKEDIN_POSTING_ENABLED is on
-          // (gates the `real` flag), i.e. after LinkedIn approves w_member_social.
+          // Only reachable when LINKEDIN_POSTING_ENABLED is on (gates the `real`
+          // flag), i.e. after LinkedIn approves w_member_social.
           await publishToLinkedIn({
-            access_token: integration.int_token,
-            author_id: integration.int_id,
+            brand_id: brandId,
             text: cap,
             image_url: imageUrl,
           });
         } else if (selected === "twitter") {
-          // X posts server-side (no browser CORS). The route refreshes the 2h token,
-          // optionally uploads the image, and posts. Refresh token comes from the
-          // backend record (once it stores it) or localStorage; rotation handled inside.
           // NOTE: posting (text or image) needs an X API plan with write credits — a
           // Free/unprovisioned app returns "…does not have any credits" (X-side, not code).
-          // Image tweets additionally need a PAID tier (the media-upload endpoint).
-          const xRes = await publishToTwitter({
-            integration_id: integration.id,
-            // Backend stores the X refresh token in int_token (single token field).
-            refresh_token:
-              integration.int_token || integration.int_refresh_token,
+          await publishToTwitter({
+            brand_id: brandId,
             text: cap,
             image_url: imageUrl,
           });
-          // X rotates the refresh token on every use — persist the new one to the backend
-          // so other devices don't fall back to a stale copy. Best-effort (already in localStorage).
-          if (xRes?.refresh_token) {
-            updateIntegration?.(integration.id, {
-              refresh_token: xRes.refresh_token,
-            });
-          }
         } else if (selected === "youtube") {
           // YouTube is video-only — the image (or rendered canvas) is converted to a
-          // short video in-browser, then uploaded. Title = first line of the caption.
+          // short video in-browser and hosted, and the API uploads it from that URL.
+          // Title = first line of the caption.
           const text = caption.trim();
           const firstLine = text.split("\n")[0]?.trim();
           await publishToYouTube({
-            access_token: integration.int_token,
+            brand_id: brandId,
             title: (firstLine || creative?.name || "Creative Klux video").slice(
               0,
               100,
@@ -1054,26 +1050,21 @@ export default function PublishModal({
               : undefined,
           });
         } else if (selected === "tiktok") {
-          // TikTok posts server-side (no browser CORS) as an image-native PHOTO post —
-          // TikTok fetches the public image URL itself. Refresh token comes from the
-          // backend record or localStorage; rotation handled inside. Title = first line.
+          // TikTok is VIDEO-only on the API and our creatives are images, so the
+          // image is bridged to a short clip in the browser and hosted for it (the
+          // server then sends the file bytes — the only way past TikTok's
+          // media-domain check). Title = first line of the caption.
           const text = caption.trim();
           const firstLine = text.split("\n")[0]?.trim();
-          const ttRes = await publishToTikTok({
-            integration_id: integration.id,
-            // Backend stores the TikTok refresh token in int_token (single token field).
-            refresh_token:
-              integration.int_token || integration.int_refresh_token,
+          const tt = await publishToTikTok({
+            brand_id: brandId,
             title: (firstLine || creative?.name || "").slice(0, 90),
             description: cap,
             image_url: imageUrl,
           });
-          // TikTok rotates its refresh token too — persist the new one to the backend.
-          if (ttRes?.refresh_token) {
-            updateIntegration?.(integration.id, {
-              refresh_token: ttRes.refresh_token,
-            });
-          }
+          // With video.upload only, TikTok takes it as a draft the creator
+          // finishes in the app — say so rather than claiming it went live.
+          if (tt.draft_only) successMessage = "Sent to your TikTok drafts.";
         } else {
           // No live publisher yet — keep the UI wired.
           await new Promise((r) => setTimeout(r, 1200));
@@ -1081,7 +1072,9 @@ export default function PublishModal({
 
         setPublished(true);
         showToast(
-          scheduledUnix
+          successMessage
+            ? successMessage
+            : scheduledUnix
             ? `Scheduled for ${new Date(scheduledUnix * 1000).toLocaleString()}`
             : selected === "meta_ads"
               ? "Ad created and live on Meta!"
@@ -1105,8 +1098,8 @@ export default function PublishModal({
       onClose,
       showToast,
       uploadMedia,
-      updateIntegration,
       activeBrand,
+      brandId,
       adGoal,
       adBudget,
       adDays,

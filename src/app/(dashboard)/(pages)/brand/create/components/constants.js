@@ -3,15 +3,6 @@
  * Kept in one place so both modes render the exact same options and steps.
  */
 
-// Social + ad platforms come from the SHARED integrations config so the wizard
-// offers the exact same platforms that actually connect (and syncs with the
-// Integrations page). Re-exported here so the rest of the wizard keeps importing
-// from one place.
-export {
-  SOCIAL_PLATFORMS,
-  AD_PLATFORMS,
-} from "@/(lib)/integrations/platforms";
-
 // Industry + font choices for the Brand Details step.
 export const INDUSTRIES = [
   "Technology",
@@ -32,10 +23,8 @@ export const FONTS = [
   "Montserrat",
 ];
 
-// The three shared steps. Both modes walk the same sequence; Smart Import just
-// prepends a URL-entry screen (handled as "step 0" in the page).
-export const STEPS = [
-  { id: 1, label: "Brand Details" },
-  { id: 2, label: "Social Accounts" },
-  { id: 3, label: "Ad Accounts" },
-];
+// The wizard's steps. Smart Import prepends a URL-entry screen (handled as
+// "step 0" in the page). Social and ad accounts are no longer steps here:
+// connecting needs a brand to attach to, so it happens on the Integrations
+// page once the brand exists.
+export const STEPS = [{ id: 1, label: "Brand Details" }];

@@ -1530,7 +1530,10 @@ export async function publishToTikTok({
   privacy_level,
   brand_id,
 }) {
-  const video_url = await hostedVideoFor({ image_url, video });
+  // The creative goes to the API as it is: an image is sent as `image_url`
+  // (the server posts it to TikTok itself). Only a real video is uploaded for a
+  // `video_url` — nothing is converted in the browser.
+  const video_url = video ? await hostedVideoFor({ video }) : undefined;
   // `draft_only` on the result: with video.upload alone TikTok takes it as a
   // draft the creator finishes in the app — callers should say so.
   return publishToPlatform("tiktok", {
@@ -1538,7 +1541,7 @@ export async function publishToTikTok({
     title,
     text: description,
     image_url,
-    video_url,
+    ...(video_url ? { video_url } : {}),
     ...(privacy_level ? { privacy_level } : {}),
   });
 }

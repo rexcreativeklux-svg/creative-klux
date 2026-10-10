@@ -271,7 +271,7 @@ export default function AdsPublishing() {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
-  const { fetchIntegrations, updateIntegration, activeBrandId } = useAuth();
+  const { fetchIntegrations, activeBrandId } = useAuth();
   const [integrations, setIntegrations] = useState([]);
   const [integrationsReady, setIntegrationsReady] = useState(false);
   // First load only — see the skeleton guard below the hooks.
@@ -310,12 +310,7 @@ export default function AdsPublishing() {
       setFetchingLive(true);
       try {
         const livePosts = await fetchLivePostsFromConnectedAccounts(
-          integrations,
-          {
-            onTokenRotated: (id, rt) =>
-              updateIntegration(id, { refresh_token: rt }),
-          },
-        );
+          integrations);
 
         const liveIds = new Set(livePosts.map((p) => p.id));
         const local = getPublishedPosts(activeBrandId);
@@ -339,6 +334,9 @@ export default function AdsPublishing() {
         const newCount = livePosts.filter(
           (p) => p.status !== "scheduled" && !prevIds.has(p.id),
         ).length;
+        // A platform the API couldn't read: show its own error, not silence.
+        if (!silent && livePosts.errors?.length)
+          toast.error(livePosts.errors.join(" · "));
         if (!silent && newCount > 0)
           toast.success(
             `Fetched ${newCount} live post(s) from connected accounts`,
@@ -420,8 +418,8 @@ export default function AdsPublishing() {
       await deletePostFromPlatform(post, integrations, activeBrandId);
       reload();
       toast.success("Ad removed");
-    } catch {
-      toast.error("Failed to remove ad");
+    } catch (err) {
+      toast.error(err.message || "Failed to remove ad");
     } finally {
       setDeleting(false);
       setPendingDelete(null);
@@ -456,16 +454,14 @@ export default function AdsPublishing() {
       let postId = null;
       if (post.platform === "facebook") {
         const r = await publishToFacebook({
-          access_token: account.int_token,
-          page_id: account.int_id,
+          brand_id: activeBrandId,
           image_url: post.image_url,
           caption: post.caption,
         });
         postId = r.post_id;
       } else if (post.platform === "instagram") {
         const r = await publishToInstagram({
-          access_token: account.int_token,
-          ig_user_id: account.int_id,
+          brand_id: activeBrandId,
           image_url: post.image_url,
           caption: post.caption,
         });
@@ -509,7 +505,7 @@ export default function AdsPublishing() {
         post.post_id
       ) {
         newStats = await getFacebookPostStats({
-          access_token: integrationsMap.facebook.int_token,
+          brand_id: activeBrandId,
           post_id: post.post_id,
         });
       } else if (
@@ -518,7 +514,7 @@ export default function AdsPublishing() {
         post.post_id
       ) {
         newStats = await getInstagramPostStats({
-          access_token: integrationsMap.instagram.int_token,
+          brand_id: activeBrandId,
           post_id: post.post_id,
         });
       }

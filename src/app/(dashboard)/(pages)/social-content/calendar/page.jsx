@@ -121,7 +121,7 @@ export default function SocialContentCalendar() {
   const typeLabel = "Social";
   const matchType = "social";
 
-  const { fetchIntegrations, updateIntegration, activeBrandId } = useAuth();
+  const { fetchIntegrations, activeBrandId } = useAuth();
   const [integrations, setIntegrations] = useState([]);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -161,9 +161,7 @@ export default function SocialContentCalendar() {
       // the platform, not just from localStorage.
       const ints = (await fetchIntegrations()) || [];
       setIntegrations(ints);
-      const livePosts = await fetchLivePostsFromConnectedAccounts(ints, {
-        onTokenRotated: (id, rt) => updateIntegration(id, { refresh_token: rt }),
-      });
+      const livePosts = await fetchLivePostsFromConnectedAccounts(ints);
 
       // Facebook is authoritative for status. Keep a local post ONLY when FB no longer
       // reports it, and never trust a local 'scheduled' — otherwise a stale local
@@ -243,8 +241,8 @@ export default function SocialContentCalendar() {
       await deletePostFromPlatform(post, integrations, activeBrandId);
       await fetchLive(); // re-fetch (keeps live scheduled posts; reload() would drop them)
       toast.success("Post removed");
-    } catch {
-      toast.error("Failed to remove post");
+    } catch (err) {
+      toast.error(err.message || "Failed to remove post");
     } finally {
       setDeleting(false);
       setPendingDelete(null);

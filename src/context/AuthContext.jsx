@@ -63,13 +63,6 @@ const extractGalleryPayload = (data) => {
   return { raw: flat, meta: null };
 };
 
-// Platforms whose integration persists the REFRESH token in int_token (see
-// saveIntegration) — callers must mint a fresh access token from it before use.
-const REFRESH_TOKEN_PLATFORMS = [
-  "twitter",
-  "tiktok",
-];
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -151,9 +144,7 @@ export function AuthProvider({ children }) {
   const API_CREATE_RESELL_URL = `${BASE_URL}/resells`;
   const API_SEND_URL = `${BASE_URL}/brands/import`;
   const API_CREATE_BRAND_URL = `${BASE_URL}/brands`;
-  const API_FETCH_BRAND_URL = `${BASE_URL}/brands`;
-  const API_CONNECT_SOCIAL_ACCOUNT_URL = `${BASE_URL}/social-accounts/connect`;
-  const API_FETCH_SOCIAL_ACCOUNTS_URL = `${BASE_URL}/social-accounts`;
+  const API_FETCH_BRAND_URL = `${BASE_URL}/brands`;  const API_FETCH_SOCIAL_ACCOUNTS_URL = `${BASE_URL}/social-accounts`;
   const API_FETCH_AD_ACCOUNTS_URL = `${BASE_URL}/ad-accounts`;
   const API_CONNECT_AD_ACCOUNTS_URL = `${BASE_URL}/ad-accounts/connect`;
   const API_DELETE_SOCIAL_ACCOUNT_URL = `${BASE_URL}/social-accounts/disconnect`;
@@ -1661,38 +1652,13 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const connectSocialAccount = async (socialData) => {
-    if (!token) {
-      console.error("No auth token found. User may not be logged in.");
-      return null;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append("brand_id", socialData.brand_id);
-      formData.append("name", socialData.name);
-      formData.append("platform", socialData.platform);
-      formData.append("token", socialData.token);
-      formData.append("platform_id", socialData.platform_id);
-
-      const res = await authFetch(API_CONNECT_SOCIAL_ACCOUNT_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!res.ok) throw new Error(`Failed to update brand: ${res.status}`);
-
-      const data = await res.json();
-      console.log("Social Connect Response:", data);
-
-      return data;
-    } catch (err) {
-      console.error("Error connecting social account:", err.message);
-      return null;
-    }
+  // Legacy manual connect (a pasted token POSTed to social-accounts/connect).
+  // Retired: accounts are connected through the API's server-side OAuth on the
+  // Integrations page, and the browser no longer sends a token anywhere. Kept
+  // as a refusal so the old screens that still call it fail clearly.
+  const connectSocialAccount = async () => {
+    toast.error("Accounts are now connected on the Integrations page.");
+    return null;
   };
 
   const handleDelete = async (socialId) => {
@@ -3546,167 +3512,6 @@ export function AuthProvider({ children }) {
     [token],
   );
 
-  const saveIntegration = useCallback(
-    async ({
-      platform,
-      access_token,
-      refresh_token,
-      code,
-      brand_id,
-      int_id,
-      int_name,
-    }) => {
-      if (!token) return { ok: false, message: "Not authenticated" };
-
-      // Explicit brand_id from caller wins over the closure value (avoids stale null)
-      const resolvedBrandId = brand_id || activeBrandId;
-      if (!resolvedBrandId)
-        return {
-          ok: false,
-          message: "No active brand selected. Please select a brand first.",
-        };
-
-      try {
-        const res = await authFetch(API_INTEGRATIONS_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            brand_id: resolvedBrandId,
-            platform,
-            // The backend persists ONE token field: `int_token` (it's also the only token
-            // returned on GET). X/TikTok rotate their refresh token and the *access* token is
-            // ephemeral (re-derived on every publish), so for those we store the REFRESH token
-            // in int_token — that's the value that must survive + sync cross-device. Every
-            // other platform stores its (long-lived) access token as before.
-            // Google Workspace + Microsoft are the same case: their access tokens die in ~1h,
-            // so the refresh token is what has to be kept.
-            int_token: REFRESH_TOKEN_PLATFORMS.includes(platform)
-              ? refresh_token || access_token || null
-              : access_token || null,
-            // Kept for forward-compat if the backend ever adds a dedicated column; the
-            // authoritative field today is int_token (above).
-            int_refresh_token: refresh_token || null,
-            // code: code || null,
-            int_id: int_id || null, // ← platform account ID e.g. Facebook User ID
-            int_name: int_name,
-          }),
-        });
-
-        const text = await res.text();
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = {};
-        }
-        console.log("saveIntegration response:", data);
-
-        if (!res.ok) {
-          return {
-            ok: false,
-            message: data?.message || "Failed to save integration",
-          };
-        }
-
-        return { ok: true, data };
-      } catch (err) {
-        console.error("saveIntegration error:", err);
-        return { ok: false, message: err.message || "Network error" };
-      }
-    },
-    [token, activeBrandId],
-  );
-
-  const disconnectIntegration = useCallback(
-    async (id) => {
-      if (!token) return { ok: false, message: "Not authenticated" };
-
-      try {
-        const res = await authFetch(`${API_INTEGRATIONS_URL}/${id}`, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        const text = await res.text();
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = {};
-        }
-
-        if (!res.ok) {
-          return {
-            ok: false,
-            message: data?.message || "Failed to disconnect integration",
-          };
-        }
-
-        return { ok: true, data };
-      } catch (err) {
-        return { ok: false, message: err.message || "Network error" };
-      }
-    },
-    [token],
-  );
-
-  // Update an existing integration (PUT `/integrations/{id}`). Used to persist the ROTATED
-  // refresh token for X/TikTok after each publish/live-fetch — those rotate on every use, and
-  // without writing the new one back the backend copy goes stale and a second device fails.
-  // The backend stores ONE token field (`int_token`, also the only one returned on GET), so
-  // the rotated refresh token is written there. Best-effort: a failed update must NOT break
-  // the publish/fetch that triggered it (localStorage stays the device-local source of truth).
-  const updateIntegration = useCallback(
-    async (id, { access_token, refresh_token } = {}) => {
-      if (!token) return { ok: false, message: "Not authenticated" };
-      if (!id) return { ok: false, message: "Missing integration id" };
-
-      const body = {};
-      // The rotated refresh token (X/TikTok) is the authoritative value → write it to int_token.
-      const tokenForIntToken = refresh_token ?? access_token;
-      if (tokenForIntToken !== undefined) body.int_token = tokenForIntToken;
-      if (refresh_token !== undefined) body.int_refresh_token = refresh_token; // forward-compat
-      if (Object.keys(body).length === 0)
-        return { ok: false, message: "Nothing to update" };
-
-      try {
-        const res = await authFetch(`${API_INTEGRATIONS_URL}/${id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(body),
-        });
-
-        const text = await res.text();
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = {};
-        }
-
-        if (!res.ok) {
-          return {
-            ok: false,
-            message: data?.message || "Failed to update integration",
-          };
-        }
-        return { ok: true, data };
-      } catch (err) {
-        console.error("updateIntegration error:", err);
-        return { ok: false, message: err.message || "Network error" };
-      }
-    },
-    [token],
-  );
-
   const fetchIntegrations = useCallback(async () => {
     if (!token) return null;
 
@@ -3730,47 +3535,67 @@ export function AuthProvider({ children }) {
       if (!res.ok) return null;
 
       // Normalize: expects array or { data: [...] }
-      return Array.isArray(data)
+      const rows = Array.isArray(data)
         ? data
         : Array.isArray(data.data)
           ? data.data
-          : data;
+          : null;
+      if (!rows) return data;
+      // The API calls X `x`; the app's id for it is `twitter`. And a row at
+      // status 0 is a connection still waiting for its account to be chosen —
+      // not connected, so it must not surface as a publish target.
+      return rows
+        .filter((row) => Number(row?.status) !== 0)
+        .map((row) =>
+          row?.platform === "x" ? { ...row, platform: "twitter" } : row,
+        );
     } catch (err) {
       console.error("fetchIntegrations error:", err);
       return null;
     }
   }, [token]);
 
-  // ── Server-owned OAuth (Google Workspace + Outlook) ──────────────────────────
-  // The backend runs these providers' OAuth end to end: it hands out a consent
-  // URL, exchanges the code on its own callback and stores access + refresh
-  // token, expiry and scopes. POST /integrations rejects them with a 422.
+  // ── Connecting accounts — server-side OAuth for EVERY platform ───────────────
+  // The backend runs the whole OAuth round trip: it hands out a consent URL,
+  // exchanges the code on its own (public) callback and stores access + refresh
+  // token, expiry and scopes. The browser never holds a credential, and nothing
+  // here POSTs a token. Each helper returns { ok, message } with the SERVER'S
+  // OWN WORDS on failure — those name the actual problem, so they are shown as-is.
 
-  // POST /integrations/{platform}/connect → { redirect_url } (single-use, signed).
-  const connectIntegrationProvider = useCallback(
-    async (platform, brand_id) => {
+  const integrationsRequest = useCallback(
+    async (path, { method = "GET", body, query } = {}) => {
       if (!token) return { ok: false, message: "Not authenticated" };
+      const qs = query
+        ? `?${new URLSearchParams(
+            Object.entries(query).filter(([, v]) => v != null),
+          )}`
+        : "";
       try {
-        const res = await authFetch(
-          `${API_INTEGRATIONS_URL}/${platform}/connect`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(brand_id ? { brand_id } : {}),
+        const res = await authFetch(`${API_INTEGRATIONS_URL}/${path}${qs}`, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
           },
-        );
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data?.redirect_url) {
+        const failed =
+          !res.ok || data?.status === "error" || data?.success === false;
+        if (failed) {
+          console.warn(`[integrations] ${method} ${path} →`, res.status, data);
           return {
             ok: false,
             status: res.status,
-            message: data?.message || "Couldn't start the connection.",
+            data,
+            message:
+              (data?.errors && Object.values(data.errors)[0]?.[0]) ||
+              data?.message ||
+              `Request failed (HTTP ${res.status}).`,
           };
         }
-        return { ok: true, redirect_url: data.redirect_url };
+        return { ok: true, status: res.status, data };
       } catch (err) {
         return { ok: false, message: err.message || "Network error" };
       }
@@ -3778,56 +3603,86 @@ export function AuthProvider({ children }) {
     [token],
   );
 
-  // GET /integrations/catalogue → { brand, integrations: [{ provider, label,
-  // family, is_oauth, connected, status, account_label, tools }] } — keyed by
-  // `provider`, NOT `platform` as the backend doc says. The only source that
-  // reflects what the server actually stored, so it is re-read after every
-  // connect/disconnect.
-  const fetchIntegrationCatalogue = useCallback(async () => {
-    if (!token) return null;
-    try {
-      const res = await authFetch(`${API_INTEGRATIONS_URL}/catalogue`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+  // POST /integrations/{platform}/connect → { authorize_url } (single-use, signed).
+  // (`redirect_url` was the first doc's name for it — accepted for a rollback.)
+  const connectIntegrationProvider = useCallback(
+    async (platform, brand_id) => {
+      const res = await integrationsRequest(`${platform}/connect`, {
+        method: "POST",
+        body: brand_id ? { brand_id } : {},
       });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data) return null;
-      return Array.isArray(data.integrations) ? data.integrations : null;
-    } catch (err) {
-      console.error("fetchIntegrationCatalogue error:", err);
-      return null;
-    }
-  }, [token]);
-
-  // DELETE /integrations/platform/{platform} — removes the active brand's stored
-  // tokens. Does NOT revoke the grant at Google/Microsoft.
-  const disconnectIntegrationPlatform = useCallback(
-    async (platform) => {
-      if (!token) return { ok: false, message: "Not authenticated" };
-      try {
-        const res = await authFetch(
-          `${API_INTEGRATIONS_URL}/platform/${platform}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data?.success === false) {
-          return {
-            ok: false,
-            message: data?.message || "Failed to disconnect integration",
-          };
-        }
-        return { ok: true, data };
-      } catch (err) {
-        return { ok: false, message: err.message || "Network error" };
-      }
+      if (!res.ok) return res;
+      const authorize_url = res.data?.authorize_url || res.data?.redirect_url;
+      if (!authorize_url)
+        return {
+          ok: false,
+          message: "The connect endpoint returned no authorize URL.",
+        };
+      return { ok: true, authorize_url };
     },
-    [token],
+    [integrationsRequest],
+  );
+
+  // GET /integrations/catalogue → { brand, integrations: [{ provider, label,
+  // family, is_oauth, connected, awaiting_selection, selects, status,
+  // account_label, tools }] } — keyed by `provider`. The only source that
+  // reflects what the server actually stored, so it is re-read after every
+  // connect / select / disconnect. Returns { ok, integrations, message }.
+  const fetchIntegrationCatalogue = useCallback(
+    async (brand_id) => {
+      const res = await integrationsRequest("catalogue", {
+        query: { brand_id },
+      });
+      if (!res.ok) return { ok: false, integrations: [], message: res.message };
+      return {
+        ok: true,
+        integrations: Array.isArray(res.data?.integrations)
+          ? res.data.integrations
+          : [],
+      };
+    },
+    [integrationsRequest],
+  );
+
+  // GET /integrations/{platform}/accounts → the Pages / Instagram accounts / ad
+  // accounts to choose from: { accounts: [{ id, name, avatar?, warning? }],
+  // selected, message? } (an empty list comes with a `message` saying why).
+  const fetchIntegrationAccounts = useCallback(
+    async (platform, brand_id) => {
+      const res = await integrationsRequest(`${platform}/accounts`, {
+        query: { brand_id },
+      });
+      if (!res.ok) return { ok: false, accounts: [], message: res.message };
+      return {
+        ok: true,
+        accounts: Array.isArray(res.data?.accounts) ? res.data.accounts : [],
+        selected: res.data?.selected ?? null,
+        message: res.data?.message || null,
+      };
+    },
+    [integrationsRequest],
+  );
+
+  // POST /integrations/{platform}/select — finishes a connection that needed an
+  // account choice. Until this succeeds the row is not connected.
+  const selectIntegrationAccount = useCallback(
+    (platform, account_id, brand_id) =>
+      integrationsRequest(`${platform}/select`, {
+        method: "POST",
+        body: { ...(brand_id ? { brand_id } : {}), account_id },
+      }),
+    [integrationsRequest],
+  );
+
+  // DELETE /integrations/{platform} — removes the brand's stored tokens. Does
+  // NOT revoke the grant at the provider.
+  const disconnectIntegrationPlatform = useCallback(
+    (platform, brand_id) =>
+      integrationsRequest(platform, {
+        method: "DELETE",
+        body: brand_id ? { brand_id } : undefined,
+      }),
+    [integrationsRequest],
   );
 
   const runComparison = useCallback(
@@ -4052,17 +3907,16 @@ export function AuthProvider({ children }) {
         createChatSession,
         runComparison,
         checkCompliance,
-        saveIntegration,
         creativeInsights,
         deleteDesignById,
-        disconnectIntegration,
-        updateIntegration,
         creativeScoring,
         getCompetitorInsights,
         fetchIntegrations,
         connectIntegrationProvider,
         fetchIntegrationCatalogue,
         disconnectIntegrationPlatform,
+        fetchIntegrationAccounts,
+        selectIntegrationAccount,
         bulkDeleteDesigns,
         updateDesignById,
         toggleDesignFavorite,

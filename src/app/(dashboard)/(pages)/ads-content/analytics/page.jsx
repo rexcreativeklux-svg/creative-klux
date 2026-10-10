@@ -178,7 +178,7 @@ export default function AdsAnalytics() {
   const [allPosts, setAllPosts] = useState([]);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [fetchingLive, setFetchingLive] = useState(false);
-  const { fetchIntegrations, updateIntegration, activeBrandId } = useAuth();
+  const { fetchIntegrations, activeBrandId } = useAuth();
 
   const [integrations, setIntegrations] = useState([]);
   // This page loads in two hops — integrations, then live posts and per-ad
@@ -221,12 +221,7 @@ export default function AdsAnalytics() {
       setFetchingLive(true);
       try {
         const livePosts = await fetchLivePostsFromConnectedAccounts(
-          integrations,
-          {
-            onTokenRotated: (id, rt) =>
-              updateIntegration(id, { refresh_token: rt }),
-          },
-        );
+          integrations);
         const local = getPublishedPosts(activeBrandId);
         const localIds = new Set(local.map((p) => p.id));
         const newPosts = livePosts.filter((lp) => !localIds.has(lp.id));

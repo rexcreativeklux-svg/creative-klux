@@ -125,7 +125,7 @@ export default function AdsContentCalendar() {
 
   // AuthContext does NOT expose `integrations` — fetch them ourselves (the old
   // `const { integrations } = useAuth()` was always undefined → no live ads ever).
-  const { fetchIntegrations, updateIntegration, activeBrandId } = useAuth();
+  const { fetchIntegrations, activeBrandId } = useAuth();
   const [integrations, setIntegrations] = useState([]);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -163,10 +163,7 @@ export default function AdsContentCalendar() {
     try {
       const ints = (await fetchIntegrations()) || [];
       setIntegrations(ints);
-      const livePosts = await fetchLivePostsFromConnectedAccounts(ints, {
-        onTokenRotated: (id, rt) =>
-          updateIntegration(id, { refresh_token: rt }),
-      });
+      const livePosts = await fetchLivePostsFromConnectedAccounts(ints);
 
       // Live (Facebook/Meta) is authoritative for status. Keep a local post ONLY when
       // it's no longer reported live, and never trust a local 'scheduled'.
@@ -243,8 +240,8 @@ export default function AdsContentCalendar() {
       await deletePostFromPlatform(post, integrations ?? [], activeBrandId);
       await fetchLive(); // re-fetch (keeps live posts; reload() would drop them)
       toast.success("Ad removed");
-    } catch {
-      toast.error("Failed to remove ad");
+    } catch (err) {
+      toast.error(err.message || "Failed to remove ad");
     } finally {
       setDeleting(false);
       setPendingDelete(null);

@@ -196,14 +196,13 @@ export const AD_PLATFORMS = [
 // Docs, sheets and mail — not publishing targets, so they're kept out of
 // SOCIAL/AD (which the brand wizard and Copilot also iterate).
 //
-// Their OAuth is run by the BACKEND (see serverOAuth.js), keyed by `provider` —
-// the exact platform string the API expects. Each row is its own connection
-// (the backend split the original shared `google` key into gmail /
-// google_drive / google_sheets).
+// This list only supplies each row's icon and description, keyed by the API's
+// own provider id. WHICH rows appear, their names and their connected state all
+// come from GET integrations/catalogue (see the Integrations page) — so a
+// provider the backend adds or renames needs no change here.
 export const PRODUCTIVITY_PLATFORMS = [
   {
     id: "gmail",
-    provider: "gmail",
     name: "Gmail",
     description: "Read and send email from your Gmail account.",
     Icon: GmailIcon,
@@ -211,7 +210,6 @@ export const PRODUCTIVITY_PLATFORMS = [
   },
   {
     id: "google_drive",
-    provider: "google_drive",
     name: "Google Drive",
     description: "List files in your Google Drive.",
     Icon: GoogleDriveIcon,
@@ -219,7 +217,6 @@ export const PRODUCTIVITY_PLATFORMS = [
   },
   {
     id: "google_sheets",
-    provider: "google_sheets",
     name: "Google Sheets",
     description: "Read and append to spreadsheets in your Google Drive.",
     Icon: GoogleSheetsIcon,
@@ -227,7 +224,6 @@ export const PRODUCTIVITY_PLATFORMS = [
   },
   {
     id: "google_docs",
-    provider: "google_docs",
     name: "Google Docs",
     description: "Create documents in your Google Drive.",
     Icon: GoogleDocsIcon,
@@ -235,7 +231,6 @@ export const PRODUCTIVITY_PLATFORMS = [
   },
   {
     id: "google_slides",
-    provider: "google_slides",
     name: "Google Slides",
     description: "Create presentations in your Google Drive.",
     Icon: GoogleSlidesIcon,
@@ -243,7 +238,6 @@ export const PRODUCTIVITY_PLATFORMS = [
   },
   {
     id: "google_calendar",
-    provider: "google_calendar",
     name: "Google Calendar",
     description: "List and create events on your Google Calendar.",
     Icon: GoogleCalendarIcon,
@@ -251,7 +245,6 @@ export const PRODUCTIVITY_PLATFORMS = [
   },
   {
     id: "google_analytics",
-    provider: "google_analytics",
     name: "Google Analytics",
     description: "Pull reporting from your Google Analytics properties.",
     Icon: GoogleAnalyticsIcon,
@@ -259,20 +252,9 @@ export const PRODUCTIVITY_PLATFORMS = [
   },
   {
     id: "outlook",
-    provider: "outlook",
     name: "Microsoft Outlook",
     description: "Use Outlook mail and calendar from your Microsoft account.",
     Icon: MicrosoftIcon,
     iconBg: "linear-gradient(135deg, #2F2F2F, #1B1B1B)",
   },
 ];
-
-// Look up a platform's display name from its id.
-export const getPlatformName = (platformId) => {
-  const all = [...SOCIAL_PLATFORMS, ...AD_PLATFORMS, ...PRODUCTIVITY_PLATFORMS];
-  return all.find((p) => p.id === platformId)?.name || platformId;
-};
-
-// Ids that belong to the advertising set (used to route a resolved connection
-// into the right bucket — social vs ad accounts).
-export const AD_PLATFORM_IDS = AD_PLATFORMS.map((p) => p.id);

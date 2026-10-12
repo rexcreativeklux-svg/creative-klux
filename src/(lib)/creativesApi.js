@@ -22,11 +22,7 @@ const TO_API_PLATFORM = { twitter: "x" };
 export const toApiPlatform = (platform) =>
   TO_API_PLATFORM[platform] || platform;
 
-/**
- * Social platforms the publishing API covers (app-side ids). Ads go through the
- * same `creatives/publish` call but aren't listed here — this list also gates
- * reading posts back, which ads don't have.
- */
+/** Social platforms the publishing API covers (app-side ids). Ads have their own endpoints, below. */
 export const SERVER_PUBLISH_PLATFORMS = [
   "facebook",
   "instagram",
@@ -190,6 +186,99 @@ export async function deletePlatformPost({ brand_id, platform, post_id }) {
     return res.data;
   } catch (error) {
     throw new Error(serverMessage(error, `Couldn't delete the ${platform} post`));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ads. A separate set of endpoints from social publishing:
+//
+//   POST   creatives/ads               campaign + ad set + creative + ad, in one call
+//   GET    creatives/campaigns         campaigns on one ad platform
+//   GET    creatives/campaign-metrics  spend / impressions / clicks for one campaign
+//   PATCH  creatives/campaign-status   pause or resume a campaign
+//
+// The brand is read server-side from the signed-in user's `active_brand_id` —
+// these calls take no `brand_id`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Ad platforms the API knows (app-side ids match the API's). */
+export const SERVER_AD_PLATFORMS = [
+  "meta_ads",
+  "google_ads",
+  "tiktok_ads",
+  "snapchat_ads",
+  "pinterest_ads",
+];
+
+/**
+ * Create a complete ad. Created PAUSED unless `status: "ACTIVE"` is sent.
+ * Budgets are whole units of the ad account's own currency.
+ *
+ * @param {Object} ad { platform, name, daily_budget, countries: string[],
+ *   image_url | video_url, link, objective?, lifetime_budget?, status?,
+ *   start_date?, end_date?, age_min?, age_max?, text?, headline?,
+ *   description?, call_to_action? }
+ * @returns {Promise<{campaign_id, adset_id, creative_id, ad_id, name, status, currency}>}
+ */
+export async function createAd(ad) {
+  // Drop empty optionals — the API validates a present-but-blank field.
+  const body = Object.fromEntries(
+    Object.entries(ad).filter(([, v]) => v != null && v !== ""),
+  );
+  console.log("📡 [creatives/ads] →", body);
+  try {
+    const res = await api.post(`${BASE}/creatives/ads`, body);
+    console.log("📡 [creatives/ads] ←", res.data);
+    return res.data?.data ?? res.data;
+  } catch (error) {
+    console.error(
+      "❌ [creatives/ads]",
+      error?.response?.status,
+      error?.response?.data || error?.message,
+    );
+    throw new Error(serverMessage(error, "Couldn't create the ad"));
+  }
+}
+
+/** Campaigns on one ad platform, normalised by the API: { id, name, status, objective, daily_budget, created_time }. */
+export async function fetchCampaigns({ platform, limit = 25 }) {
+  try {
+    const res = await api.get(`${BASE}/creatives/campaigns`, {
+      params: { platform, limit },
+    });
+    console.log(`📡 [creatives/campaigns ${platform}] ←`, res.data);
+    const data = res.data?.data ?? res.data;
+    return Array.isArray(data) ? data : data?.campaigns || [];
+  } catch (error) {
+    throw new Error(serverMessage(error, `Couldn't load ${platform} campaigns`));
+  }
+}
+
+/** Spend, impressions, clicks and conversions for one campaign over the last `days` (1–90). */
+export async function fetchCampaignMetrics({ platform, campaign_id, days = 7 }) {
+  try {
+    const res = await api.get(`${BASE}/creatives/campaign-metrics`, {
+      params: { platform, campaign_id, days },
+    });
+    console.log(`📡 [creatives/campaign-metrics ${platform}] ←`, res.data);
+    return res.data?.data ?? res.data;
+  } catch (error) {
+    throw new Error(serverMessage(error, `Couldn't load ${platform} metrics`));
+  }
+}
+
+/** Pause or resume a campaign. `status` is "ACTIVE" or "PAUSED" — resuming spends money. */
+export async function setCampaignStatus({ platform, campaign_id, status }) {
+  try {
+    const res = await api.patch(`${BASE}/creatives/campaign-status`, {
+      platform,
+      campaign_id,
+      status,
+    });
+    console.log(`📡 [creatives/campaign-status ${platform}] ←`, res.data);
+    return res.data?.data ?? res.data;
+  } catch (error) {
+    throw new Error(serverMessage(error, "Couldn't update the campaign"));
   }
 }
 

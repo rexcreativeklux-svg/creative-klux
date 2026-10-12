@@ -32,7 +32,6 @@ import {
   getInstagramPostStats,
   publishToFacebook,
   publishToInstagram,
-  publishToMetaAds,
   fetchLivePostsFromConnectedAccounts,
   deletePostFromPlatform,
   platformSupportsDelete,
@@ -455,14 +454,6 @@ export default function SocialPublishing() {
           brand_id: activeBrandId,
           image_url: post.image_url,
           caption: post.caption,
-        });
-        postId = r.post_id;
-      } else if (post.platform === "meta_ads") {
-        const r = await publishToMetaAds({
-          brand_id: activeBrandId,
-          image_url: post.image_url,
-          caption: post.caption,
-          campaign_name: post.project_title,
         });
         postId = r.post_id;
       } else {

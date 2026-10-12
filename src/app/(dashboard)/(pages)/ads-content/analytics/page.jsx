@@ -38,7 +38,7 @@ import {
   getFacebookPostStats,
   getInstagramPostStats,
   fetchLivePostsFromConnectedAccounts,
-  getMetaAdsCampaignStats,
+  getAdCampaignStats,
 } from "../../../../../(lib)/integration";
 import { useAuth } from "@/context/AuthContext";
 import ResponsiveTable from "@/app/(components)/ui/ResponsiveTable";
@@ -290,10 +290,12 @@ export default function AdsAnalytics() {
               });
             }
 
-            if (post.platform === "meta_ads" && accounts.meta_ads) {
-              newStats = await getMetaAdsCampaignStats({
-                access_token: accounts.meta_ads.access_token,
+            // Campaign metrics come from the API for every connected ad network.
+            if (post.platform.endsWith("_ads") && accounts[post.platform]) {
+              newStats = await getAdCampaignStats({
+                platform: post.platform,
                 campaign_id: post.post_id,
+                days: 30,
               });
             }
 
@@ -440,10 +442,11 @@ export default function AdsAnalytics() {
           });
         }
 
-        if (post.platform === "meta_ads" && accounts.meta_ads) {
-          newStats = await getMetaAdsCampaignStats({
-            access_token: accounts.meta_ads.access_token,
+        if (post.platform.endsWith("_ads") && accounts[post.platform]) {
+          newStats = await getAdCampaignStats({
+            platform: post.platform,
             campaign_id: post.post_id,
+            days: 30,
           });
         }
 

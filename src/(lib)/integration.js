@@ -781,180 +781,57 @@ export async function publishToInstagram({ image_url, caption, brand_id }) {
   return publishToPlatform("instagram", { brand_id, text: caption, image_url });
 }
 
+// ─────────────────────────────────────────────────────────────
+// Ads
+// ─────────────────────────────────────────────────────────────
+//
+// Ads go through the same POST creatives/publish as social posts: the server
+// holds the ad-account tokens and builds the campaign itself, so nothing here
+// reads a token or an ad account id. The ad fields ride alongside the social
+// ones (`text`, `image_url`, `link`, `title`).
+
 /**
- * Publish a REAL Meta ad: campaign → ad set → ad creative → ad.
- * Goes live (status ACTIVE) — it spends real money, so the caller's form collects budget/etc.
- *
- * Requires:
- *  - ad_account_id  (from the meta_ads integration; needs a payment method set up in Ads Manager)
- *  - page_id        (the ad runs "as" a Facebook Page — taken from the connected facebook integration)
- *  - access_token   (a token with ads_management on that ad account)
+ * Publish a Meta ad (campaign → ad set → creative → ad).
  *
  * Form inputs: goal ('awareness'|'traffic'|'engagement'), daily_budget (whole units of the
  * account currency, e.g. 5 = $5/day), days (run length), country (ISO-2 code), link (destination).
  */
-const META_ADS_GOALS = {
-  awareness: { objective: "OUTCOME_AWARENESS", optimization_goal: "REACH" },
-  traffic: { objective: "OUTCOME_TRAFFIC", optimization_goal: "LINK_CLICKS" },
-  engagement: {
-    objective: "OUTCOME_ENGAGEMENT",
-    optimization_goal: "POST_ENGAGEMENT",
-  },
-};
-
 export async function publishToMetaAds({
-  access_token,
-  ad_account_id,
-  page_id,
+  brand_id,
   image_url,
   message,
+  caption,
   link,
-  goal = "traffic",
+  goal,
   daily_budget,
-  days = 7,
-  country = "US",
+  days,
+  country,
   ad_name,
+  campaign_name,
+  ...extra
 }) {
-  if (!access_token) throw new Error("No access token — reconnect Meta Ads.");
-  if (!ad_account_id) throw new Error("No ad account — reconnect Meta Ads.");
-  if (!page_id)
-    throw new Error("Connect a Facebook Page first — Meta ads run as a Page.");
   if (!image_url) throw new Error("No image to advertise.");
-  if (!daily_budget || daily_budget <= 0)
-    throw new Error("Enter a daily budget.");
-
-  const acct = ad_account_id.startsWith("act_")
-    ? ad_account_id
-    : `act_${ad_account_id}`;
-  const base = `${META_GRAPH_BASE}/${acct}`;
-  const g = META_ADS_GOALS[goal] || META_ADS_GOALS.traffic;
-  const dest = link || "https://www.facebook.com";
-  const name = ad_name || "CreativeKlux Ad";
-
-  // Small POST helper that surfaces the full Graph error (logs status + body).
-  const post = async (path, body) => {
-    let res,
-      data = {};
-    try {
-      res = await fetch(`${base}/${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, access_token }),
-      });
-      data = await res.json();
-    } catch (netErr) {
-      console.error(`Meta Ads ${path} network/CORS error:`, netErr);
-      throw new Error(
-        "Could not reach Meta Ads. Ad-account calls may be blocked from the browser — this likely needs a backend.",
-      );
-    }
-    if (!res.ok || data.error) {
-      console.error(`Meta Ads ${path} error (HTTP ${res.status}):`, data);
-      const e = data.error || {};
-      const msg =
-        e.error_user_msg ||
-        e.message ||
-        `Meta Ads "${path}" failed (HTTP ${res.status}). Usually means: the ad account has no payment method, the token lacks ads_management, or the account/app is restricted.`;
-      throw new Error(
-        `${msg}${e.code ? ` [code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ""}]` : ""}`,
-      );
-    }
-    return data;
-  };
-
-  // Best-effort delete of any object by id (used to clean up after a partial failure).
-  // Deleting a campaign cascades to its ad sets / ads, so removing the campaign is enough.
-  const del = async (id) => {
-    try {
-      await fetch(
-        `${META_GRAPH_BASE}/${id}?access_token=${encodeURIComponent(access_token)}`,
-        { method: "DELETE" },
-      );
-    } catch (cleanupErr) {
-      console.warn(`Meta Ads cleanup of ${id} failed:`, cleanupErr?.message);
-    }
-  };
-
-  // 1. Campaign (the goal/objective). Budget lives on the ad set, so we must explicitly
-  //    opt out of campaign-level budget sharing (is_adset_budget_sharing_enabled).
-  const campaign = await post("campaigns", {
-    name: `${name} — Campaign`,
-    objective: g.objective,
-    status: "ACTIVE",
-    special_ad_categories: [],
-    is_adset_budget_sharing_enabled: false,
+  return publishToPlatform("meta_ads", {
+    ...extra,
+    brand_id,
+    image_url,
+    text: message ?? caption,
+    link,
+    goal,
+    daily_budget,
+    days,
+    country,
+    campaign_name: campaign_name || ad_name,
   });
-
-  // Steps 2-4 build on the campaign. If any throws, the campaign (and whatever ad set we
-  // got to) would be left orphaned in Ads Manager — so delete the campaign before rethrowing.
-  let adset, creative, ad;
-  try {
-    // 2. Ad set (budget, schedule, audience). Budget is in the currency's minor units (×100).
-    const now = Math.floor(Date.now() / 1000);
-    adset = await post("adsets", {
-      name: `${name} — Ad Set`,
-      campaign_id: campaign.id,
-      daily_budget: Math.round(Number(daily_budget) * 100),
-      billing_event: "IMPRESSIONS",
-      optimization_goal: g.optimization_goal,
-      bid_strategy: "LOWEST_COST_WITHOUT_CAP",
-      start_time: now,
-      end_time: now + Math.max(1, Number(days)) * 86400,
-      targeting: {
-        geo_locations: { countries: [country] },
-        age_min: 18,
-        age_max: 65,
-      },
-      status: "ACTIVE",
-    });
-
-    // 3. Ad creative — use the public image URL directly (`picture`) instead of uploading
-    //    to /adimages first (one fewer call, and adimages-by-url is unreliable).
-    creative = await post("adcreatives", {
-      name: `${name} — Creative`,
-      object_story_spec: {
-        page_id,
-        link_data: {
-          picture: image_url,
-          message: message || "",
-          link: dest,
-          call_to_action: { type: "LEARN_MORE", value: { link: dest } },
-        },
-      },
-    });
-
-    // 4. Ad (ties the creative to the ad set, live)
-    ad = await post("ads", {
-      name,
-      adset_id: adset.id,
-      creative: { creative_id: creative.id },
-      status: "ACTIVE",
-    });
-  } catch (err) {
-    // Roll back: deleting the campaign cascades to the ad set we may have created.
-    await del(campaign.id);
-    throw err;
-  }
-
-  return {
-    post_id: ad.id,
-    campaign_id: campaign.id,
-    adset_id: adset.id,
-    creative_id: creative.id,
-  };
 }
 
 // ─────────────────────────────────────────────────────────────
-// Google Ads (UNTESTED wiring)
+// Google Ads
 // ─────────────────────────────────────────────────────────────
 //
-// Unlike Meta (which works browser-side), the Google Ads API blocks browser CORS and
-// needs the developer token, so the whole campaign chain runs server-side in
-// /api/google-ads/publish. This just calls that route. The campaign is created PAUSED
-// (does NOT spend until reviewed in Ads Manager). See the route for the full caveat list.
+// A Display campaign + Responsive Display Ad, built by the API from these fields.
 export async function publishToGoogleAds({
-  refresh_token,
-  customer_id,
+  brand_id,
   image_url,
   final_url,
   headline,
@@ -963,26 +840,21 @@ export async function publishToGoogleAds({
   business_name,
   daily_budget,
   campaign_name,
+  ...extra
 }) {
-  const res = await fetch("/api/google-ads/publish", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      refresh_token,
-      customer_id,
-      image_url,
-      final_url,
-      headline,
-      long_headline,
-      description,
-      business_name,
-      daily_budget,
-      campaign_name,
-    }),
+  if (!image_url) throw new Error("No image to advertise.");
+  return publishToPlatform("google_ads", {
+    ...extra,
+    brand_id,
+    image_url,
+    link: final_url,
+    headline,
+    long_headline,
+    text: description,
+    business_name,
+    daily_budget,
+    campaign_name,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Google Ads publish failed");
-  return data; // { ok, campaign, responses }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1336,15 +1208,12 @@ export async function publishToPinterest({
 }
 
 // ─────────────────────────────────────────────────────────────
-// Pinterest ADS (promoted pin, UNTESTED)
+// Pinterest ADS (promoted pin)
 // ─────────────────────────────────────────────────────────────
 //
-// Image-native (no video bridge) — a Pinterest ad is a promoted pin. Reuses the connected
-// Pinterest token (pinterest_ads scope already has ads:write). Server-side route builds
-// pin → campaign → ad group → ad, all PAUSED. See /api/pinterest-ads/publish for caveats.
+// Image-native (no video bridge) — a Pinterest ad is a promoted pin on a board.
 export async function publishToPinterestAds({
-  access_token,
-  ad_account_id,
+  brand_id,
   board_id,
   image_url,
   title,
@@ -1352,99 +1221,67 @@ export async function publishToPinterestAds({
   link,
   daily_budget,
   campaign_name,
+  ...extra
 }) {
-  if (!access_token || !ad_account_id)
-    throw new Error("Reconnect Pinterest Ads — missing token / ad account.");
   if (!board_id) throw new Error("Pick a Pinterest board first.");
   if (!image_url) throw new Error("Pinterest needs an image to promote.");
-
-  const res = await fetch("/api/pinterest-ads/publish", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      access_token,
-      ad_account_id,
-      board_id,
-      image_url,
-      title,
-      description,
-      link,
-      daily_budget,
-      campaign_name,
-    }),
+  return publishToPlatform("pinterest_ads", {
+    ...extra,
+    brand_id,
+    board_id,
+    image_url,
+    title,
+    text: description,
+    link,
+    daily_budget,
+    campaign_name,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error)
-    throw new Error(data.error || "Pinterest Ads publish failed");
-  return data; // { ok, pin_id, campaign_id, ad_group_id, ad_id }
 }
 
 /**
- * Publish a single-image Sponsored Content ad to LinkedIn (campaign group → campaign →
- * post → creative), all created DRAFT/PAUSED. Runs server-side (/api/linkedin-ads/publish)
- * because api.linkedin.com has no browser CORS and needs the versioned headers.
+ * Publish a single-image Sponsored Content ad to LinkedIn.
  *
- *  - access_token    the LinkedIn ads token (int_token)
- *  - ad_account_id   the chosen LinkedIn ad account id (int_id)
  *  - image_url       public image URL to promote
  *  - text            ad copy / caption
  *  - link            destination URL (brand site) — makes the ad a clickable link share
- *  - daily_budget    daily budget (currency-naïve — uses the ad account's currency)
- *  - country         target country code → LinkedIn geo URN (defaults to US)
+ *  - daily_budget    daily budget, in the ad account's currency
+ *  - country         target country code
  */
 export async function publishToLinkedInAds({
-  access_token,
-  ad_account_id,
+  brand_id,
   image_url,
   text,
   link,
   daily_budget,
   campaign_name,
   country,
+  ...extra
 }) {
-  if (!access_token || !ad_account_id)
-    throw new Error("Reconnect LinkedIn Ads — missing token / ad account.");
   if (!image_url) throw new Error("LinkedIn ads need an image to promote.");
-
-  const res = await fetch("/api/linkedin-ads/publish", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      access_token,
-      ad_account_id,
-      image_url,
-      text,
-      link,
-      daily_budget,
-      campaign_name,
-      country,
-    }),
+  return publishToPlatform("linkedin_ads", {
+    ...extra,
+    brand_id,
+    image_url,
+    text,
+    link,
+    daily_budget,
+    campaign_name,
+    country,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error)
-    throw new Error(data.error || "LinkedIn Ads publish failed");
-  return data; // { ok, post_urn, campaign_group_urn, campaign_urn, creative_id }
 }
 
 /**
- * Publish a single-image Snap ad (media → creative → campaign → ad squad → ad), all created
- * PAUSED. Runs server-side (/api/snapchat-ads/publish) — Snapchat needs the client secret to
- * refresh its ~1h token and has no browser CORS.
+ * Publish a single-image Snap ad.
  *
- *  - access_token    Snapchat ads token (int_token)
- *  - refresh_token   long-lived refresh token (int_refresh_token) — used to mint a fresh token
- *  - ad_account_id   the chosen Snapchat ad account id (int_id)
  *  - image_url       public image URL to promote (ideally 9:16)
  *  - headline        short ad headline
  *  - brand_name      brand name shown on the ad
  *  - link            destination URL → makes the ad a clickable web-view ad
- *  - daily_budget    daily budget (currency-naïve; converted to micro-currency server-side)
- *  - country         target country code → Snapchat geo (defaults to US)
+ *  - daily_budget    daily budget, in the ad account's currency
+ *  - country         target country code
  */
 export async function publishToSnapchatAds({
-  access_token,
-  refresh_token,
-  ad_account_id,
+  brand_id,
   image_url,
   headline,
   brand_name,
@@ -1452,31 +1289,20 @@ export async function publishToSnapchatAds({
   daily_budget,
   campaign_name,
   country,
+  ...extra
 }) {
-  if (!ad_account_id)
-    throw new Error("Reconnect Snapchat Ads — missing ad account.");
   if (!image_url) throw new Error("Snapchat ads need an image to promote.");
-
-  const res = await fetch("/api/snapchat-ads/publish", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      access_token,
-      refresh_token,
-      ad_account_id,
-      image_url,
-      headline,
-      brand_name,
-      link,
-      daily_budget,
-      campaign_name,
-      country,
-    }),
+  return publishToPlatform("snapchat_ads", {
+    ...extra,
+    brand_id,
+    image_url,
+    headline,
+    business_name: brand_name,
+    link,
+    daily_budget,
+    campaign_name,
+    country,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error)
-    throw new Error(data.error || "Snapchat Ads publish failed");
-  return data; // { ok, media_id, creative_id, campaign_id, ad_squad_id, ad_id }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1547,16 +1373,13 @@ export async function publishToTikTok({
 }
 
 // ─────────────────────────────────────────────────────────────
-// TikTok ADS (Marketing API, UNTESTED scaffold)
+// TikTok ADS
 // ─────────────────────────────────────────────────────────────
 //
-// Separate from the organic TikTok above (different app/API). TikTok ads are video-first,
-// so we bridge the image creative into a short video in-browser (imageUrlToVideoBlob, same
-// as YouTube), then POST it (multipart) to /api/tiktok-ads/publish which uploads it and
-// builds the campaign → ad group → ad chain (all created PAUSED). See the route for caveats.
+// Separate from the organic TikTok above (different app/API). Like it, the
+// creative goes up as it is — only a real video is uploaded for a `video_url`.
 export async function publishToTikTokAds({
-  access_token,
-  advertiser_id,
+  brand_id,
   image_url,
   video,
   ad_text,
@@ -1564,35 +1387,21 @@ export async function publishToTikTokAds({
   daily_budget,
   campaign_name,
   location_ids,
+  ...extra
 }) {
-  if (!access_token || !advertiser_id)
-    throw new Error("Reconnect TikTok Ads — missing token / advertiser.");
-  // Bridge image → short video (unless a real video Blob is supplied).
-  const blob =
-    video ||
-    (image_url
-      ? await imageUrlToVideoBlob(image_url, { durationSec: 5 })
-      : null);
-  if (!blob) throw new Error("No creative to advertise.");
-
-  const form = new FormData();
-  form.append("access_token", access_token);
-  form.append("advertiser_id", advertiser_id);
-  form.append("video", blob, "creative.mp4");
-  form.append("ad_text", ad_text || "");
-  form.append("landing_url", landing_url || "");
-  form.append("daily_budget", String(daily_budget || 2000));
-  form.append("campaign_name", campaign_name || "Creative Klux Campaign");
-  form.append("location_ids", JSON.stringify(location_ids || []));
-
-  const res = await fetch("/api/tiktok-ads/publish", {
-    method: "POST",
-    body: form,
+  if (!image_url && !video) throw new Error("No creative to advertise.");
+  const video_url = video ? await hostedVideoFor({ video }) : undefined;
+  return publishToPlatform("tiktok_ads", {
+    ...extra,
+    brand_id,
+    image_url,
+    ...(video_url ? { video_url } : {}),
+    text: ad_text,
+    link: landing_url,
+    daily_budget,
+    campaign_name,
+    location_ids,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error)
-    throw new Error(data.error || "TikTok Ads publish failed");
-  return data; // { ok, campaign_id, adgroup_id, ad_ids }
 }
 
 // ─────────────────────────────────────────────────────────────

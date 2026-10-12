@@ -180,6 +180,14 @@ const AD_GOALS = [
   { value: "engagement", label: "Engagement — likes / comments / messages" },
 ];
 const MIN_AD_BUDGET = 2000; // minimum daily budget the form allows
+const AD_PLATFORMS = [
+  "meta_ads",
+  "google_ads",
+  "tiktok_ads",
+  "pinterest_ads",
+  "linkedin_ads",
+  "snapchat_ads",
+];
 // TikTok ad groups need a numeric location id (NOT an ISO code). These are TikTok's
 // GeoNames-style region ids — ⚠️ verify against TikTok's /tools/region/get/ per advertiser;
 // a wrong id makes the ad group fail. Countries missing here block tiktok_ads publish.
@@ -868,137 +876,78 @@ export default function PublishModal({
             image_url: imageUrl,
             caption: cap,
           });
-        } else if (selected === "meta_ads") {
-          // Real Meta ad (campaign→ad set→creative→ad). Runs "as" a connected FB Page.
-          const fb = integrations.find((i) => i.platform === "facebook");
-          if (!fb)
-            throw new Error(
-              "Connect a Facebook Page first — Meta ads run as a Page.",
-            );
+        } else if (AD_PLATFORMS.includes(selected)) {
+          // Ads publish through the API too (POST creatives/publish): the server
+          // holds the ad-account token and builds the campaign. Every ad detail
+          // the form has is sent; each helper adds what its platform needs.
           if (!adBudget || Number(adBudget) < MIN_AD_BUDGET)
             throw new Error(
               `Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`,
             );
-          await publishToMetaAds({
-            access_token: integration.int_token,
-            ad_account_id: integration.int_id,
-            page_id: fb.int_id,
+          const text = caption.trim();
+          const firstLine =
+            text.split("\n")[0]?.trim() || creative?.name || "";
+          const link = activeBrand?.url || undefined;
+          const adFields = {
+            brand_id: brandId,
             image_url: imageUrl,
-            message: cap,
-            link: activeBrand?.url || undefined,
+            link,
             goal: adGoal,
             daily_budget: Number(adBudget),
             days: Number(adDays) || 7,
             country: adCountry,
-            ad_name: creative?.name,
-          });
-        } else if (selected === "google_ads") {
-          // Real Google Ads Display campaign + Responsive Display Ad — runs server-side
-          // (/api/google-ads/publish) and is created PAUSED (won't spend until reviewed).
-          if (!integration.int_refresh_token)
-            throw new Error(
-              "Reconnect Google Ads — no refresh token stored for this account.",
-            );
-          if (!adBudget || Number(adBudget) < MIN_AD_BUDGET)
-            throw new Error(
-              `Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`,
-            );
-          const text = caption.trim();
-          const firstLine = text.split("\n")[0]?.trim();
-          await publishToGoogleAds({
-            refresh_token: integration.int_refresh_token,
-            customer_id: integration.int_id,
-            image_url: imageUrl,
-            final_url: activeBrand?.url || undefined,
-            headline: (firstLine || creative?.name || "").slice(0, 30),
-            long_headline: (firstLine || creative?.name || "").slice(0, 90),
-            description: text.slice(0, 90),
+            campaign_name: creative?.name,
             business_name: activeBrand?.name || creative?.name,
-            daily_budget: Number(adBudget),
-            campaign_name: creative?.name,
-          });
-        } else if (selected === "tiktok_ads") {
-          // Real TikTok ad (campaign→ad group→ad), server-side. The image is bridged to
-          // a short video. Created PAUSED. Country → TikTok location id.
-          if (!adBudget || Number(adBudget) < MIN_AD_BUDGET)
-            throw new Error(
-              `Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`,
-            );
-          const locId = TIKTOK_LOCATION_IDS[adCountry];
-          if (!locId)
-            throw new Error(
-              "Pick a target country that's mapped to a TikTok region.",
-            );
-          await publishToTikTokAds({
-            access_token: integration.int_token,
-            advertiser_id: integration.int_id,
-            image_url: imageUrl,
-            ad_text: cap,
-            landing_url: activeBrand?.url || undefined,
-            daily_budget: Number(adBudget),
-            campaign_name: creative?.name,
-            location_ids: [locId],
-          });
-        } else if (selected === "pinterest_ads") {
-          // Real Pinterest promoted-pin ad (pin → campaign → ad group → ad), server-side,
-          // created PAUSED. Reuses the connected Pinterest token + chosen board.
-          if (!adBudget || Number(adBudget) < MIN_AD_BUDGET)
-            throw new Error(
-              `Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`,
-            );
-          if (!pinBoardId) throw new Error("Pick a Pinterest board first.");
-          const text = caption.trim();
-          const firstLine = text.split("\n")[0]?.trim();
-          await publishToPinterestAds({
-            access_token: integration.int_token,
-            ad_account_id: integration.int_id,
-            board_id: pinBoardId,
-            image_url: imageUrl,
-            title: (firstLine || creative?.name || "").slice(0, 100),
-            description: text,
-            link: activeBrand?.url || undefined,
-            daily_budget: Number(adBudget),
-            campaign_name: creative?.name,
-          });
-        } else if (selected === "linkedin_ads") {
-          // Real LinkedIn Sponsored Content ad (campaign group → campaign → post →
-          // creative), server-side, created DRAFT/PAUSED. Runs as the Company Page that
-          // owns the ad account (resolved server-side). Country → LinkedIn geo URN.
-          if (!adBudget || Number(adBudget) < MIN_AD_BUDGET)
-            throw new Error(
-              `Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`,
-            );
-          await publishToLinkedInAds({
-            access_token: integration.int_token,
-            ad_account_id: integration.int_id,
-            image_url: imageUrl,
-            text: cap,
-            link: activeBrand?.url || undefined,
-            daily_budget: Number(adBudget),
-            campaign_name: creative?.name,
-            country: adCountry,
-          });
-        } else if (selected === "snapchat_ads") {
-          // Real Snapchat single-image Snap ad (media → creative → campaign → ad squad →
-          // ad), server-side, created PAUSED. Token refreshed server-side. Country → geo.
-          if (!adBudget || Number(adBudget) < MIN_AD_BUDGET)
-            throw new Error(
-              `Daily budget must be at least ${MIN_AD_BUDGET.toLocaleString()}.`,
-            );
-          const text = caption.trim();
-          const firstLine = text.split("\n")[0]?.trim();
-          await publishToSnapchatAds({
-            access_token: integration.int_token,
-            refresh_token: integration.int_refresh_token,
-            ad_account_id: integration.int_id,
-            image_url: imageUrl,
-            headline: (firstLine || creative?.name || "").slice(0, 34),
-            brand_name: activeBrand?.name || creative?.name,
-            link: activeBrand?.url || undefined,
-            daily_budget: Number(adBudget),
-            campaign_name: creative?.name,
-            country: adCountry,
-          });
+            headline: firstLine.slice(0, 30),
+          };
+
+          if (selected === "meta_ads") {
+            // Meta ads run "as" a connected Facebook Page.
+            if (!integrations.some((i) => i.platform === "facebook"))
+              throw new Error(
+                "Connect a Facebook Page first — Meta ads run as a Page.",
+              );
+            await publishToMetaAds({ ...adFields, message: cap });
+          } else if (selected === "google_ads") {
+            // Display campaign + Responsive Display Ad.
+            await publishToGoogleAds({
+              ...adFields,
+              final_url: link,
+              long_headline: firstLine.slice(0, 90),
+              description: text.slice(0, 90),
+            });
+          } else if (selected === "tiktok_ads") {
+            // Country → TikTok location id.
+            const locId = TIKTOK_LOCATION_IDS[adCountry];
+            if (!locId)
+              throw new Error(
+                "Pick a target country that's mapped to a TikTok region.",
+              );
+            await publishToTikTokAds({
+              ...adFields,
+              ad_text: cap,
+              landing_url: link,
+              location_ids: [locId],
+            });
+          } else if (selected === "pinterest_ads") {
+            // A promoted pin on the chosen board.
+            if (!pinBoardId) throw new Error("Pick a Pinterest board first.");
+            await publishToPinterestAds({
+              ...adFields,
+              board_id: pinBoardId,
+              title: firstLine.slice(0, 100),
+              description: text,
+            });
+          } else if (selected === "linkedin_ads") {
+            // Sponsored Content, run as the Company Page that owns the ad account.
+            await publishToLinkedInAds({ ...adFields, text: cap });
+          } else if (selected === "snapchat_ads") {
+            await publishToSnapchatAds({
+              ...adFields,
+              headline: firstLine.slice(0, 34),
+              brand_name: adFields.business_name,
+            });
+          }
         } else if (selected === "pinterest") {
           // A pin is an image on a board. Pinterest fetches the public image URL itself.
           if (!pinBoardId) throw new Error("Pick a Pinterest board first.");

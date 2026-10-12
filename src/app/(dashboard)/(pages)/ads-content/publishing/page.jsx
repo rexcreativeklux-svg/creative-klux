@@ -468,9 +468,9 @@ export default function AdsPublishing() {
         postId = r.post_id;
       } else if (post.platform === "meta_ads") {
         const r = await publishToMetaAds({
-          access_token: account.int_token,
-          ad_account_id: account.int_id,
+          brand_id: activeBrandId,
           image_url: post.image_url,
+          caption: post.caption,
           campaign_name: post.project_title,
         });
         postId = r.post_id;

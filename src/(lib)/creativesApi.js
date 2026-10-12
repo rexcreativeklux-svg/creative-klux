@@ -22,7 +22,11 @@ const TO_API_PLATFORM = { twitter: "x" };
 export const toApiPlatform = (platform) =>
   TO_API_PLATFORM[platform] || platform;
 
-/** Platforms the publishing API covers (app-side ids). Ads are not among them. */
+/**
+ * Social platforms the publishing API covers (app-side ids). Ads go through the
+ * same `creatives/publish` call but aren't listed here — this list also gates
+ * reading posts back, which ads don't have.
+ */
 export const SERVER_PUBLISH_PLATFORMS = [
   "facebook",
   "instagram",

@@ -516,12 +516,17 @@
  */
 
 import {
+  SERVER_AD_PLATFORMS,
   SERVER_DELETE_PLATFORMS,
   SERVER_PUBLISH_PLATFORMS,
+  createAd,
   deletePlatformPost,
+  fetchCampaignMetrics,
+  fetchCampaigns,
   fetchPlatformPosts,
   fetchPostMetrics,
   publishToPlatform,
+  setCampaignStatus,
   uploadForPublish,
 } from "./creativesApi";
 
@@ -785,76 +790,96 @@ export async function publishToInstagram({ image_url, caption, brand_id }) {
 // Ads
 // ─────────────────────────────────────────────────────────────
 //
-// Ads go through the same POST creatives/publish as social posts: the server
-// holds the ad-account tokens and builds the campaign itself, so nothing here
-// reads a token or an ad account id. The ad fields ride alongside the social
-// ones (`text`, `image_url`, `link`, `title`).
+// Ads are created by the API (POST creatives/ads): it holds the ad-account
+// tokens and builds campaign → ad set → creative → ad in one call, so nothing
+// here reads a token or an ad account id. The brand is the signed-in user's
+// active brand, resolved server-side.
+
+// The form's goal → each network's own objective vocabulary. A goal a network
+// has no word for is left to the API's default. Google's "objective" is the
+// channel type; an image creative is a Display ad.
+const AD_OBJECTIVES = {
+  meta_ads: {
+    awareness: "OUTCOME_AWARENESS",
+    traffic: "OUTCOME_TRAFFIC",
+    engagement: "OUTCOME_ENGAGEMENT",
+  },
+  tiktok_ads: { awareness: "REACH", traffic: "TRAFFIC", engagement: "ENGAGEMENT" },
+  snapchat_ads: {
+    awareness: "AWARENESS",
+    traffic: "WEB_VIEW",
+    engagement: "ENGAGEMENT",
+  },
+  pinterest_ads: { awareness: "AWARENESS", traffic: "CONSIDERATION" },
+  google_ads: { awareness: "DISPLAY", traffic: "DISPLAY", engagement: "DISPLAY" },
+};
+
+// YYYY-MM-DD in the user's own timezone, `offsetDays` from today.
+const adDate = (offsetDays = 0) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 /**
- * Publish a Meta ad (campaign → ad set → creative → ad).
+ * Create an ad on one network. Created PAUSED (the API's default) so targeting
+ * can be checked before any money is spent — it is resumed from the Ads page.
  *
- * Form inputs: goal ('awareness'|'traffic'|'engagement'), daily_budget (whole units of the
- * account currency, e.g. 5 = $5/day), days (run length), country (ISO-2 code), link (destination).
+ *  - platform      meta_ads | google_ads | tiktok_ads | snapchat_ads | pinterest_ads
+ *  - name          campaign / ad name
+ *  - daily_budget  whole units of the AD ACCOUNT'S currency (not dollars)
+ *  - country       ISO-2 code to target (or `countries` for several)
+ *  - link          where the ad sends people — required by the API
+ *  - goal          'awareness' | 'traffic' | 'engagement' → the network's objective
+ *  - days          run length; sent as start/end dates
+ *
+ * Failures throw the network's own sentence. Only Meta builds a full ad today;
+ * the others refuse with a "not available yet" message.
+ *
+ * @returns {Promise<{post_id, campaign_id, adset_id, creative_id, ad_id, status, currency}>}
  */
-export async function publishToMetaAds({
-  brand_id,
+export async function publishAd({
+  platform,
+  name,
   image_url,
-  message,
-  caption,
+  video_url,
   link,
+  text,
+  headline,
+  description,
   goal,
   daily_budget,
   days,
   country,
-  ad_name,
-  campaign_name,
-  ...extra
+  countries,
+  call_to_action,
 }) {
-  if (!image_url) throw new Error("No image to advertise.");
-  return publishToPlatform("meta_ads", {
-    ...extra,
-    brand_id,
-    image_url,
-    text: message ?? caption,
-    link,
-    goal,
-    daily_budget,
-    days,
-    country,
-    campaign_name: campaign_name || ad_name,
-  });
-}
+  if (!image_url && !video_url) throw new Error("No image to advertise.");
+  if (!link)
+    throw new Error(
+      "Add a website to your brand first — an ad needs somewhere to send people.",
+    );
 
-// ─────────────────────────────────────────────────────────────
-// Google Ads
-// ─────────────────────────────────────────────────────────────
-//
-// A Display campaign + Responsive Display Ad, built by the API from these fields.
-export async function publishToGoogleAds({
-  brand_id,
-  image_url,
-  final_url,
-  headline,
-  long_headline,
-  description,
-  business_name,
-  daily_budget,
-  campaign_name,
-  ...extra
-}) {
-  if (!image_url) throw new Error("No image to advertise.");
-  return publishToPlatform("google_ads", {
-    ...extra,
-    brand_id,
+  const runDays = Number(days) > 0 ? Number(days) : null;
+  const ad = await createAd({
+    platform,
+    name: (name || "Creative Klux Ad").slice(0, 200),
+    objective: AD_OBJECTIVES[platform]?.[goal],
+    daily_budget: Number(daily_budget),
+    countries: countries?.length ? countries : country ? [country] : [],
     image_url,
-    link: final_url,
-    headline,
-    long_headline,
-    text: description,
-    business_name,
-    daily_budget,
-    campaign_name,
+    video_url,
+    link,
+    text: text?.slice(0, 2000),
+    headline: headline?.slice(0, 255),
+    description: description?.slice(0, 500),
+    call_to_action,
+    ...(runDays ? { start_date: adDate(0), end_date: adDate(runDays) } : {}),
   });
+
+  // Rows on the Ads pages are campaigns, so that is the id they key on.
+  return { ...ad, post_id: ad?.campaign_id ?? ad?.ad_id ?? null };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1208,104 +1233,6 @@ export async function publishToPinterest({
 }
 
 // ─────────────────────────────────────────────────────────────
-// Pinterest ADS (promoted pin)
-// ─────────────────────────────────────────────────────────────
-//
-// Image-native (no video bridge) — a Pinterest ad is a promoted pin on a board.
-export async function publishToPinterestAds({
-  brand_id,
-  board_id,
-  image_url,
-  title,
-  description,
-  link,
-  daily_budget,
-  campaign_name,
-  ...extra
-}) {
-  if (!board_id) throw new Error("Pick a Pinterest board first.");
-  if (!image_url) throw new Error("Pinterest needs an image to promote.");
-  return publishToPlatform("pinterest_ads", {
-    ...extra,
-    brand_id,
-    board_id,
-    image_url,
-    title,
-    text: description,
-    link,
-    daily_budget,
-    campaign_name,
-  });
-}
-
-/**
- * Publish a single-image Sponsored Content ad to LinkedIn.
- *
- *  - image_url       public image URL to promote
- *  - text            ad copy / caption
- *  - link            destination URL (brand site) — makes the ad a clickable link share
- *  - daily_budget    daily budget, in the ad account's currency
- *  - country         target country code
- */
-export async function publishToLinkedInAds({
-  brand_id,
-  image_url,
-  text,
-  link,
-  daily_budget,
-  campaign_name,
-  country,
-  ...extra
-}) {
-  if (!image_url) throw new Error("LinkedIn ads need an image to promote.");
-  return publishToPlatform("linkedin_ads", {
-    ...extra,
-    brand_id,
-    image_url,
-    text,
-    link,
-    daily_budget,
-    campaign_name,
-    country,
-  });
-}
-
-/**
- * Publish a single-image Snap ad.
- *
- *  - image_url       public image URL to promote (ideally 9:16)
- *  - headline        short ad headline
- *  - brand_name      brand name shown on the ad
- *  - link            destination URL → makes the ad a clickable web-view ad
- *  - daily_budget    daily budget, in the ad account's currency
- *  - country         target country code
- */
-export async function publishToSnapchatAds({
-  brand_id,
-  image_url,
-  headline,
-  brand_name,
-  link,
-  daily_budget,
-  campaign_name,
-  country,
-  ...extra
-}) {
-  if (!image_url) throw new Error("Snapchat ads need an image to promote.");
-  return publishToPlatform("snapchat_ads", {
-    ...extra,
-    brand_id,
-    image_url,
-    headline,
-    business_name: brand_name,
-    link,
-    daily_budget,
-    campaign_name,
-    country,
-  });
-}
-
-// ─────────────────────────────────────────────────────────────
 // TikTok
 // ─────────────────────────────────────────────────────────────
 //
@@ -1373,38 +1300,6 @@ export async function publishToTikTok({
 }
 
 // ─────────────────────────────────────────────────────────────
-// TikTok ADS
-// ─────────────────────────────────────────────────────────────
-//
-// Separate from the organic TikTok above (different app/API). Like it, the
-// creative goes up as it is — only a real video is uploaded for a `video_url`.
-export async function publishToTikTokAds({
-  brand_id,
-  image_url,
-  video,
-  ad_text,
-  landing_url,
-  daily_budget,
-  campaign_name,
-  location_ids,
-  ...extra
-}) {
-  if (!image_url && !video) throw new Error("No creative to advertise.");
-  const video_url = video ? await hostedVideoFor({ video }) : undefined;
-  return publishToPlatform("tiktok_ads", {
-    ...extra,
-    brand_id,
-    image_url,
-    ...(video_url ? { video_url } : {}),
-    text: ad_text,
-    link: landing_url,
-    daily_budget,
-    campaign_name,
-    location_ids,
-  });
-}
-
-// ─────────────────────────────────────────────────────────────
 // Stats
 // ─────────────────────────────────────────────────────────────
 
@@ -1420,25 +1315,40 @@ export async function getInstagramPostStats({ post_id, brand_id }) {
   );
 }
 
-export async function getMetaAdsCampaignStats({ access_token, campaign_id }) {
-  const res = await fetch(
-    `${META_GRAPH_BASE}/${campaign_id}/insights?fields=impressions,reach,clicks,ctr&access_token=${access_token}`,
-  );
+/**
+ * Spend / impressions / clicks for one campaign (GET creatives/campaign-metrics).
+ * `metrics` comes back as one object or as rows (per day / per breakdown), with
+ * only the numbers the network reports — rows are summed.
+ */
+export async function getAdCampaignStats({ platform, campaign_id, days = 7 }) {
+  const data = await fetchCampaignMetrics({ platform, campaign_id, days });
+  const raw = data?.metrics ?? data ?? {};
+  const rows = Array.isArray(raw) ? raw : [raw];
+  const sum = (...keys) =>
+    rows.reduce((total, row) => {
+      for (const k of keys) {
+        const v = Number(row?.[k]);
+        if (row?.[k] != null && row[k] !== "" && !Number.isNaN(v))
+          return total + v;
+      }
+      return total;
+    }, 0);
 
-  const data = await res.json();
-
-  if (data.error) {
-    throw new Error(data.error.message);
-  }
-
-  const insight = data.data?.[0] || {};
-
+  const impressions = sum("impressions");
+  const clicks = sum("clicks", "link_clicks", "swipes");
   return {
-    impressions: Number(insight.impressions || 0),
-    reach: Number(insight.reach || 0),
-    clicks: Number(insight.clicks || 0),
-    ctr: Number(insight.ctr || 0),
+    impressions,
+    reach: sum("reach"),
+    clicks,
+    ctr: impressions ? (clicks / impressions) * 100 : 0,
+    spend: sum("spend", "cost"),
+    conversions: sum("conversions"),
   };
+}
+
+/** Pause or resume a campaign. Resuming ("ACTIVE") starts spending real money. */
+export async function setAdCampaignStatus({ platform, campaign_id, status }) {
+  return setCampaignStatus({ platform, campaign_id, status });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1568,229 +1478,54 @@ export async function fetchLivePostsFromConnectedAccounts(
   // words for each platform that failed, for the page to surface.
   livePosts.errors = fetchErrors;
 
-  // ── Meta Ads ─────────────────────────
-
-  if (accounts.meta_ads?.access_token && accounts.meta_ads?.ad_account_id) {
-    try {
-      const rawAccountId = accounts.meta_ads.ad_account_id;
-
-      const normalizedAccountId = rawAccountId.startsWith("act_")
-        ? rawAccountId
-        : `act_${rawAccountId}`;
-
-      const res = await fetch(
-        `${META_GRAPH_BASE}/${normalizedAccountId}/campaigns?fields=id,name,status,created_time,objective&limit=20&access_token=${accounts.meta_ads.access_token}`,
-      );
-
-      const data = await res.json();
-
-      if (!data.error && data.data) {
-        data.data.forEach((campaign) => {
-          livePosts.push({
-            id: `meta_campaign_${campaign.id}`,
+  // ── Ad platforms — campaigns through the API (creatives/campaigns) ───────
+  // One call per connected ad platform; the list comes back normalised. Each
+  // campaign is a row (type:'ad'): ACTIVE is "published", anything else
+  // (paused) is "scheduled" so it still lands on a calendar day.
+  const connectedAds = SERVER_AD_PLATFORMS.filter((p) =>
+    integrations.some((i) => i.platform === p),
+  );
+  const adLists = await Promise.all(
+    connectedAds.map(async (platform) => {
+      try {
+        const campaigns = await fetchCampaigns({ platform, limit: 25 });
+        return campaigns.map((c) => {
+          const when = c.created_time
+            ? new Date(c.created_time).toISOString()
+            : null;
+          return {
+            id: `${platform}_campaign_${c.id}`,
             project_id: null,
-            project_title: campaign.name,
-            caption: `Objective: ${
-              campaign.objective || "N/A"
-            } · Status: ${campaign.status}`,
+            project_title: c.name || `${platform} campaign`,
+            caption: [
+              c.objective ? `Objective: ${c.objective}` : null,
+              `Status: ${c.status || "N/A"}`,
+              c.daily_budget != null ? `Daily budget: ${c.daily_budget}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · "),
             image_url: null,
-            platform: "meta_ads",
+            platform,
             type: "ad",
-            status: campaign.status === "ACTIVE" ? "published" : "scheduled",
-            published_at: campaign.created_time,
-            // Campaigns have no separate schedule time — use created_time so non-ACTIVE
-            // campaigns still land on a calendar day (otherwise they're invisible).
-            scheduled_at: campaign.created_time,
-            post_id: campaign.id,
+            status: c.status === "ACTIVE" ? "published" : "scheduled",
+            campaign_status: c.status || null,
+            published_at: when,
+            // Campaigns have no separate schedule time — use created_time so
+            // paused ones still land on a calendar day.
+            scheduled_at: when,
+            post_id: String(c.id),
             live: true,
             stats: {},
-          });
+          };
         });
-      }
-    } catch (err) {
-      console.warn("Meta Ads live fetch failed:", err.message);
-    }
-  }
-
-  // ── Server-side ad platforms (Google / TikTok / Pinterest / LinkedIn / Snapchat Ads) ──
-  // These APIs block browser CORS, so each lists its campaigns via a BFF route. We map every
-  // campaign to a calendar post (type:'ad'); a live/enabled campaign is "published", anything
-  // else (paused/draft) is "scheduled" so it still lands on a calendar day. They use the raw
-  // integration record (need int_id / int_refresh_token), not buildAccountsMap.
-  const pushAdCampaigns = (platform, campaigns, isLive, whenOf) => {
-    (campaigns || []).forEach((c) => {
-      let when = null;
-      try {
-        when = whenOf(c);
-      } catch {
-        when = null;
-      }
-      const live = isLive(c);
-      livePosts.push({
-        id: `${platform}_campaign_${c.id}`,
-        project_id: null,
-        project_title: c.name || `${platform} campaign`,
-        caption: `Status: ${c.status || "N/A"}`,
-        image_url: null,
-        platform,
-        type: "ad",
-        status: live ? "published" : "scheduled",
-        published_at: when,
-        scheduled_at: when, // campaigns have no separate schedule time — use created/start
-        post_id: c.id,
-        live: true,
-        stats: {},
-      });
-    });
-  };
-
-  // Google Ads
-  {
-    const gi = integrations.find((i) => i.platform === "google_ads");
-    if (gi?.int_refresh_token && gi.int_id) {
-      try {
-        const res = await fetch("/api/google-ads/list", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            refresh_token: gi.int_refresh_token,
-            customer_id: gi.int_id,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && !data.error) {
-          pushAdCampaigns(
-            "google_ads",
-            data.campaigns,
-            (c) => c.status === "ENABLED",
-            (c) => (c.start_date ? new Date(c.start_date).toISOString() : null),
-          );
-        } else console.warn("Google Ads list error:", data.error);
       } catch (err) {
-        console.warn("Google Ads live fetch failed:", err.message);
+        console.warn(`${platform} campaigns fetch failed:`, err.message);
+        fetchErrors.push(`${platform}: ${err.message}`);
+        return [];
       }
-    }
-  }
-
-  // TikTok Ads
-  {
-    const ti = integrations.find((i) => i.platform === "tiktok_ads");
-    if (ti?.int_token && ti.int_id) {
-      try {
-        const res = await fetch("/api/tiktok-ads/list", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            access_token: ti.int_token,
-            advertiser_id: ti.int_id,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && !data.error) {
-          pushAdCampaigns(
-            "tiktok_ads",
-            data.campaigns,
-            (c) => c.status === "ENABLE",
-            (c) =>
-              c.create_time
-                ? new Date(c.create_time.replace(" ", "T") + "Z").toISOString()
-                : null,
-          );
-        } else console.warn("TikTok Ads list error:", data.error);
-      } catch (err) {
-        console.warn("TikTok Ads live fetch failed:", err.message);
-      }
-    }
-  }
-
-  // Pinterest Ads
-  {
-    const pi = integrations.find((i) => i.platform === "pinterest_ads");
-    if (pi?.int_token && pi.int_id) {
-      try {
-        const res = await fetch("/api/pinterest-ads/list", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            access_token: pi.int_token,
-            ad_account_id: pi.int_id,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && !data.error) {
-          pushAdCampaigns(
-            "pinterest_ads",
-            data.campaigns,
-            (c) => c.status === "ACTIVE",
-            (c) =>
-              c.created_time
-                ? new Date(c.created_time * 1000).toISOString()
-                : null,
-          );
-        } else console.warn("Pinterest Ads list error:", data.error);
-      } catch (err) {
-        console.warn("Pinterest Ads live fetch failed:", err.message);
-      }
-    }
-  }
-
-  // LinkedIn Ads
-  {
-    const li = integrations.find((i) => i.platform === "linkedin_ads");
-    if (li?.int_token && li.int_id) {
-      try {
-        const res = await fetch("/api/linkedin-ads/list", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            access_token: li.int_token,
-            ad_account_id: li.int_id,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && !data.error) {
-          pushAdCampaigns(
-            "linkedin_ads",
-            data.campaigns,
-            (c) => c.status === "ACTIVE",
-            (c) =>
-              c.created_time ? new Date(c.created_time).toISOString() : null,
-          );
-        } else console.warn("LinkedIn Ads list error:", data.error);
-      } catch (err) {
-        console.warn("LinkedIn Ads live fetch failed:", err.message);
-      }
-    }
-  }
-
-  // Snapchat Ads
-  {
-    const si = integrations.find((i) => i.platform === "snapchat_ads");
-    if (si?.int_id && (si.int_token || si.int_refresh_token)) {
-      try {
-        const res = await fetch("/api/snapchat-ads/list", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            access_token: si.int_token,
-            refresh_token: si.int_refresh_token,
-            ad_account_id: si.int_id,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && !data.error) {
-          pushAdCampaigns(
-            "snapchat_ads",
-            data.campaigns,
-            (c) => c.status === "ACTIVE",
-            (c) => (c.created_at ? new Date(c.created_at).toISOString() : null),
-          );
-        } else console.warn("Snapchat Ads list error:", data.error);
-      } catch (err) {
-        console.warn("Snapchat Ads live fetch failed:", err.message);
-      }
-    }
-  }
+    }),
+  );
+  adLists.forEach((list) => livePosts.push(...list));
 
   return livePosts;
 }
@@ -1827,7 +1562,7 @@ async function deleteMetaNode(nodeId, token) {
  * so those are local-only removals — the confirm copy says so.
  */
 export function platformSupportsDelete(platform) {
-  return SERVER_DELETE_PLATFORMS.includes(platform) || platform === "meta_ads";
+  return SERVER_DELETE_PLATFORMS.includes(platform);
 }
 
 /**
@@ -1845,11 +1580,9 @@ export async function deletePostFromPlatform(post, integrations = [], brandId) {
       platform: post.platform,
       post_id: post.post_id,
     });
-  } else if (post.platform === "meta_ads" && post.post_id) {
-    // Ads aren't covered by the publishing API yet — still a direct Graph call.
-    const token = buildAccountsMap(integrations).meta_ads?.access_token;
-    if (token) await deleteMetaNode(post.post_id, token);
   }
+  // Ads: the API exposes no delete — a campaign is removed in the network's
+  // own Ads Manager, so this only clears our row.
 
   deletePublishedPost(brandId, post.id);
 }

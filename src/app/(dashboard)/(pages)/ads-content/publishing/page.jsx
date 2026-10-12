@@ -16,6 +16,8 @@ import {
   TrendingUp,
   AlertCircle,
   Send,
+  Pause,
+  Play,
   Edit2,
   X,
   Search,
@@ -32,7 +34,8 @@ import {
   getInstagramPostStats,
   publishToFacebook,
   publishToInstagram,
-  publishToMetaAds,
+  getAdCampaignStats,
+  setAdCampaignStatus,
   fetchLivePostsFromConnectedAccounts,
   deletePostFromPlatform,
   platformSupportsDelete,
@@ -64,8 +67,10 @@ function isAfterNow(iso) {
   return iso && new Date() > new Date(iso);
 }
 
-// Says what a delete actually does for this ad — Meta Ads creatives come down for
-// real, a platform without a delete API can only be dropped from this list.
+// Says what a delete actually does for this ad. The API can't delete a campaign
+// (that is done in the network's own Ads Manager), so an ad is only dropped
+// from this list.
+const isAdPlatform = (platform) => platform?.endsWith("_ads");
 function deleteMessage(post) {
   const title = post.project_title || "Untitled";
   const label = PLATFORM_META[post.platform]?.label || post.platform;
@@ -265,6 +270,9 @@ export default function AdsPublishing() {
   // The ad the trash icon armed — deleting is irreversible, so it waits on a confirm.
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  // Resuming a campaign starts spending, so it waits on a confirm; pausing doesn't.
+  const [pendingResume, setPendingResume] = useState(null);
+  const [togglingStatus, setTogglingStatus] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -466,14 +474,6 @@ export default function AdsPublishing() {
           caption: post.caption,
         });
         postId = r.post_id;
-      } else if (post.platform === "meta_ads") {
-        const r = await publishToMetaAds({
-          brand_id: activeBrandId,
-          image_url: post.image_url,
-          caption: post.caption,
-          campaign_name: post.project_title,
-        });
-        postId = r.post_id;
       } else {
         toast.info(
           `For ${post.platform}, complete the final publish step in the platform dashboard.`,
@@ -517,29 +517,57 @@ export default function AdsPublishing() {
           brand_id: activeBrandId,
           post_id: post.post_id,
         });
+      } else if (isAdPlatform(post.platform) && post.post_id) {
+        // Campaign spend / impressions / clicks over the last 30 days.
+        newStats = await getAdCampaignStats({
+          platform: post.platform,
+          campaign_id: post.post_id,
+          days: 30,
+        });
       }
       if (newStats) {
+        const stats = {
+          ...post.stats,
+          ...newStats,
+          last_updated: new Date().toISOString(),
+        };
+        // Paused campaigns aren't persisted, so update the row on screen too.
         const all = getPublishedPosts(activeBrandId);
         const idx = all.findIndex((p) => p.id === post.id);
         if (idx >= 0) {
-          all[idx].stats = {
-            ...all[idx].stats,
-            ...newStats,
-            last_updated: new Date().toISOString(),
-          };
+          all[idx].stats = stats;
           setPublishedPosts(activeBrandId, all);
-          reload();
-          toast.success("Stats refreshed from platform");
         }
-      } else {
-        toast.info(
-          "Real-time stats are only available for connected Facebook/Instagram posts.",
+        setAllPosts((rows) =>
+          rows.map((p) => (p.id === post.id ? { ...p, stats } : p)),
         );
+        toast.success("Stats refreshed from platform");
+      } else {
+        toast.info("Stats aren't available for this item.");
       }
     } catch (err) {
       toast.error(`Failed to refresh stats: ${err.message}`);
     } finally {
       setRefreshing(null);
+    }
+  };
+
+  // Pause or resume a campaign on its network, then re-read the live list.
+  const handleCampaignStatus = async (post, status) => {
+    setTogglingStatus(post.id);
+    try {
+      await setAdCampaignStatus({
+        platform: post.platform,
+        campaign_id: post.post_id,
+        status,
+      });
+      await mergeLiveIntoLocal(true);
+      toast.success(status === "ACTIVE" ? "Campaign resumed" : "Campaign paused");
+    } catch (err) {
+      toast.error(err.message || "Couldn't update the campaign");
+    } finally {
+      setTogglingStatus(null);
+      setPendingResume(null);
     }
   };
 
@@ -865,7 +893,31 @@ export default function AdsPublishing() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          {post.status === "scheduled" && (
+                          {isAdPlatform(post.platform) && post.live && (
+                            <button
+                              className="h-7 w-7 rounded-md flex items-center justify-center text-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-40"
+                              onClick={() =>
+                                post.status === "published"
+                                  ? handleCampaignStatus(post, "PAUSED")
+                                  : setPendingResume(post)
+                              }
+                              disabled={togglingStatus === post.id}
+                              title={
+                                post.status === "published"
+                                  ? "Pause campaign"
+                                  : "Resume campaign"
+                              }
+                            >
+                              {togglingStatus === post.id ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : post.status === "published" ? (
+                                <Pause className="w-3.5 h-3.5" />
+                              ) : (
+                                <Play className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
+                          {post.status === "scheduled" && !post.live && (
                             <button
                               className="h-7 w-7 rounded-md flex items-center justify-center text-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-40"
                               onClick={() => handlePublishNow(post)}
@@ -1004,6 +1056,23 @@ export default function AdsPublishing() {
         busy={deleting}
         onConfirm={handleDelete}
         onCancel={() => setPendingDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={!!pendingResume}
+        title="Resume this campaign?"
+        message={
+          pendingResume
+            ? `“${pendingResume.project_title || "Untitled"}” will go live on ${
+                PLATFORM_META[pendingResume.platform]?.label ||
+                pendingResume.platform
+              } and start spending its budget.`
+            : ""
+        }
+        confirmLabel={togglingStatus ? "Resuming…" : "Resume"}
+        busy={!!togglingStatus}
+        onConfirm={() => handleCampaignStatus(pendingResume, "ACTIVE")}
+        onCancel={() => setPendingResume(null)}
       />
     </div>
   );

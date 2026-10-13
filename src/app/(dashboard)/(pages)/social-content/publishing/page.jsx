@@ -30,8 +30,7 @@ import {
   savePublishedPost,
   getFacebookPostStats,
   getInstagramPostStats,
-  publishToFacebook,
-  publishToInstagram,
+  publishPost,
   fetchLivePostsFromConnectedAccounts,
   deletePostFromPlatform,
   platformSupportsDelete,
@@ -441,26 +440,15 @@ export default function SocialPublishing() {
       return;
     }
     try {
-      let postId = null;
-      if (post.platform === "facebook") {
-        const r = await publishToFacebook({
-          brand_id: activeBrandId,
-          image_url: post.image_url,
-          caption: post.caption,
-        });
-        postId = r.post_id;
-      } else if (post.platform === "instagram") {
-        const r = await publishToInstagram({
-          brand_id: activeBrandId,
-          image_url: post.image_url,
-          caption: post.caption,
-        });
-        postId = r.post_id;
-      } else {
-        toast.info(
-          `For ${post.platform}, complete the final publish step in the platform dashboard.`,
-        );
-      }
+      // Every platform goes to the API as it is; a refusal is thrown with the
+      // platform's own words and toasted below.
+      const r = await publishPost({
+        platform: post.platform,
+        brand_id: activeBrandId,
+        image_url: post.image_url,
+        caption: post.caption,
+      });
+      const postId = r.post_id;
       savePublishedPost(activeBrandId, {
         ...post,
         status: "published",

@@ -32,8 +32,8 @@ import {
   savePublishedPost,
   getFacebookPostStats,
   getInstagramPostStats,
-  publishToFacebook,
-  publishToInstagram,
+  publishPost,
+  publishAd,
   getAdCampaignStats,
   setAdCampaignStatus,
   fetchLivePostsFromConnectedAccounts,
@@ -459,26 +459,23 @@ export default function AdsPublishing() {
       return;
     }
     try {
-      let postId = null;
-      if (post.platform === "facebook") {
-        const r = await publishToFacebook({
-          brand_id: activeBrandId,
-          image_url: post.image_url,
-          caption: post.caption,
-        });
-        postId = r.post_id;
-      } else if (post.platform === "instagram") {
-        const r = await publishToInstagram({
-          brand_id: activeBrandId,
-          image_url: post.image_url,
-          caption: post.caption,
-        });
-        postId = r.post_id;
-      } else {
-        toast.info(
-          `For ${post.platform}, complete the final publish step in the platform dashboard.`,
-        );
-      }
+      // Everything goes to the API as it is — ads to creatives/ads, posts to
+      // creatives/publish. A refusal is thrown with the API's own words and
+      // toasted below.
+      const r = isAdPlatform(post.platform)
+        ? await publishAd({
+            platform: post.platform,
+            name: post.project_title,
+            image_url: post.image_url,
+            text: post.caption,
+          })
+        : await publishPost({
+            platform: post.platform,
+            brand_id: activeBrandId,
+            image_url: post.image_url,
+            caption: post.caption,
+          });
+      const postId = r.post_id;
       savePublishedPost(activeBrandId, {
         ...post,
         status: "published",

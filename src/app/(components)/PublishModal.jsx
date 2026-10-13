@@ -48,7 +48,6 @@ import {
   publishToLinkedIn,
   publishToPinterest,
   publishToTikTok,
-  fetchPinterestBoards,
 } from "@/(lib)/integration";
 import { LINKEDIN_POSTING_ENABLED } from "@/(lib)/linkedinConfig";
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint
@@ -678,10 +677,6 @@ export default function PublishModal({
   const [adDays, setAdDays] = useState("7");
   const [adCountry, setAdCountry] = useState("NG");
   // Pinterest board picker (only used when selected === "pinterest")
-  const [pinBoards, setPinBoards] = useState([]);
-  const [pinBoardId, setPinBoardId] = useState("");
-  const [pinBoardsLoading, setPinBoardsLoading] = useState(false);
-  const [pinBoardsError, setPinBoardsError] = useState("");
 
   const order = useMemo(
     () => platformsForCategory(creative?.category),
@@ -724,44 +719,6 @@ export default function PublishModal({
     };
   }, [fetchIntegrations]);
 
-  // Load the user's Pinterest boards when Pinterest is the selected platform (a pin
-  // must go on a board). Defaults to the first board.
-  useEffect(() => {
-    if (selected !== "pinterest") return;
-    const integration = integrations.find((i) => i.platform === selected);
-    if (!integration) return;
-    let alive = true;
-    setPinBoardsLoading(true);
-    setPinBoardsError("");
-    (async () => {
-      try {
-        // ⚠️ The board list is still read with the token in the browser — the
-        // publishing API has no boards endpoint yet. Once the API stops
-        // returning int_token there is nothing to load them with, so say that
-        // instead of leaving an empty picker.
-        if (!integration.int_token)
-          throw new Error(
-            "Pinterest boards can't be loaded yet — the API needs a boards endpoint.",
-          );
-        const boards = await fetchPinterestBoards(integration.int_token);
-        if (!alive) return;
-        setPinBoards(boards);
-        setPinBoardId((prev) => prev || boards[0]?.id || "");
-        if (!boards.length)
-          setPinBoardsError(
-            "No boards found — create a board on Pinterest first.",
-          );
-      } catch (err) {
-        if (alive) setPinBoardsError(err.message || "Couldn't load boards.");
-      } finally {
-        if (alive) setPinBoardsLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [selected, integrations]);
-
   const connectedSet = useMemo(
     () => new Set(integrations.map((i) => i.platform)),
     [integrations],
@@ -798,9 +755,14 @@ export default function PublishModal({
         let successMessage = null;
 
         // Resolve a real, publishable image URL.
-        // Canvas-based designs have no image_url — render them to a PNG, upload it,
-        // and publish the returned public URL (platforms can't fetch browser canvases).
-        let imageUrl = creative.image || null;
+        // A saved design carries the backend's hosted `thumbnail` (an 800px
+        // WebP) — send that so the publish call goes out immediately. Only a
+        // design with no hosted thumbnail yet is rendered to a PNG and uploaded
+        // first (platforms can't fetch browser canvases).
+        const hostedThumbnail = /^https?:\/\//i.test(creative.thumbnail || "")
+          ? creative.thumbnail
+          : null;
+        let imageUrl = creative.image || hostedThumbnail || null;
         if (!imageUrl && creative.canvas) {
           try {
             const file = await renderDesignToFile(
@@ -848,9 +810,9 @@ export default function PublishModal({
           });
         } else if (AD_PLATFORMS.includes(selected)) {
           // Ads are created by the API (POST creatives/ads): the server holds
-          // the ad-account token and builds the whole campaign, PAUSED. No
-          // minimum budget is enforced here — it varies by currency, so the
-          // network's own refusal is what the toast shows.
+          // the ad-account token and builds the whole campaign, PAUSED.
+          // Nothing is checked here — a missing budget, link or anything the
+          // network refuses comes back as the API's own message in the toast.
           const text = caption.trim();
           const firstLine =
             text.split("\n")[0]?.trim() || creative?.name || "";
@@ -862,8 +824,8 @@ export default function PublishModal({
             text: cap,
             headline: firstLine,
             goal: adGoal,
-            daily_budget: Number(adBudget),
-            days: Number(adDays) || 7,
+            daily_budget: adBudget,
+            days: adDays,
             country: adCountry,
           });
           successMessage = `Ad created${
@@ -871,12 +833,10 @@ export default function PublishModal({
           }${ad.currency ? ` (budget in ${ad.currency})` : ""}.`;
         } else if (selected === "pinterest") {
           // A pin is an image on a board. Pinterest fetches the public image URL itself.
-          if (!pinBoardId) throw new Error("Pick a Pinterest board first.");
           const text = caption.trim();
           const firstLine = text.split("\n")[0]?.trim();
           await publishToPinterest({
             brand_id: brandId,
-            board_id: pinBoardId,
             title: (firstLine || creative?.name || "").slice(0, 100),
             description: text,
             image_url: imageUrl,
@@ -899,9 +859,8 @@ export default function PublishModal({
             image_url: imageUrl,
           });
         } else if (selected === "youtube") {
-          // YouTube is video-only — the image (or rendered canvas) is converted to a
-          // short video in-browser and hosted, and the API uploads it from that URL.
-          // Title = first line of the caption.
+          // The image goes to the API as it is — nothing is converted to video
+          // here. Title = first line of the caption.
           const text = caption.trim();
           const firstLine = text.split("\n")[0]?.trim();
           await publishToYouTube({
@@ -970,7 +929,6 @@ export default function PublishModal({
       adBudget,
       adDays,
       adCountry,
-      pinBoardId,
     ],
   );
 
@@ -985,22 +943,7 @@ export default function PublishModal({
     );
   }, [integrations, selected, activeBrand]);
 
-  // Every ad network uses the same form, and the API requires all of it:
-  // a budget, a country to target and a link (the brand's website).
   const isAdForm = AD_PLATFORMS.includes(selected);
-  const adNeedsLink = isAdForm && !activeBrand?.url;
-  const adIncomplete =
-    isAdForm &&
-    (!adGoal ||
-      !adCountry ||
-      !adBudget ||
-      Number(adBudget) <= 0 ||
-      !adDays ||
-      Number(adDays) < 1 ||
-      adNeedsLink);
-
-  // Organic Pinterest needs a board chosen before it can pin.
-  const pinterestIncomplete = selected === "pinterest" && !pinBoardId;
 
   // ── Scheduling (Facebook + YouTube — both schedule natively) ──────────────────
   // FB holds an unpublished post; YouTube uploads private with a publishAt. IG/X have
@@ -1272,52 +1215,11 @@ export default function PublishModal({
                         created.
                       </>
                     )}{" "}
-                    {adNeedsLink ? (
-                      <span className="text-red-500">
-                        Add a website to your brand first — an ad needs
-                        somewhere to send people.
-                      </span>
-                    ) : (
-                      <>Sends clicks to {activeBrand.url}.</>
-                    )}
+                    Sends clicks to {activeBrand?.url || "your brand website"}.
                   </p>
                 </div>
               )}
 
-              {/* Pinterest: pick the board to pin to (required). */}
-              {selected === "pinterest" && (
-                <label className="rounded-xl border border-gray-200 p-3 flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                    Pin to board
-                  </span>
-                  {pinBoardsLoading ? (
-                    <span className="text-sm text-gray-400 flex items-center gap-2 py-1">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading
-                      boards…
-                    </span>
-                  ) : pinBoardsError ? (
-                    <span className="text-[11px] text-red-500">
-                      {pinBoardsError}
-                    </span>
-                  ) : (
-                    <select
-                      value={pinBoardId}
-                      onChange={(e) => setPinBoardId(e.target.value)}
-                      className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-400"
-                    >
-                      {pinBoards.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </label>
-              )}
-
-              {/* Live native preview — the post itself is editable (click the caption to type).
-                                For ads it flows full-height (the whole modal body scrolls); for socials it
-                                scrolls in its own box like the real platforms. */}
               {isAdForm && (
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                   Preview
@@ -1455,21 +1357,7 @@ export default function PublishModal({
               )}
               <button
                 onClick={() => handlePublish()}
-                disabled={
-                  publishing ||
-                  published ||
-                  adIncomplete ||
-                  pinterestIncomplete
-                }
-                title={
-                  adNeedsLink
-                    ? "Add a website to your brand first"
-                    : adIncomplete
-                      ? "Fill in all ad settings first"
-                      : pinterestIncomplete
-                        ? "Pick a board first"
-                        : undefined
-                }
+                disabled={publishing || published}
                 className="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl cursor-pointer transition flex items-center gap-2 font-semibold"
               >
                 {busyAction === "publish" ? (

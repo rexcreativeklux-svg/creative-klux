@@ -14,8 +14,6 @@ import useSocialAuth, {
 } from "@/app/(components)/auth/useSocialAuth";
 import Input from "@/app/(components)/ui/Input";
 
-console.log("trigger deploy");
-
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();

@@ -75,9 +75,18 @@ export function toUserMessage(
  * @param {string} context  Short label used in logs, e.g. "login".
  * @param {object} result   The object returned by `classifyResult()`.
  * @param {string} fallback User-facing message for credential / unknown 4xx cases.
+ * @param {object} [options]
+ * @param {boolean} [options.showBackendMessage] Show the backend's own message
+ *   on a 5xx instead of the generic one. Only for routes whose 5xx bodies have
+ *   been checked to be user-readable.
  * @throws {Error} Always throws — carries `.source`, `.status`, `.messageForDevs`.
  */
-export function throwClassifiedAuthError(context, result = {}, fallback) {
+export function throwClassifiedAuthError(
+  context,
+  result = {},
+  fallback,
+  options = {},
+) {
   const status = result.status;
   const devMsg = result.messageForDevs || result.message || "Unknown error";
   // No HTTP status => `fetch` threw before any response arrived =>
@@ -107,7 +116,18 @@ export function throwClassifiedAuthError(context, result = {}, fallback) {
     // classifyResult already crafted a friendly quota/rate-limit message.
     userMessage = result.message || fallback;
   } else if (status >= 500) {
-    userMessage = "Something went wrong on our end. Please try again shortly.";
+    const generic = "Something went wrong on our end. Please try again shortly.";
+    // Opt-in only: some routes report ordinary failures (e.g. validation — "The
+    // email field must be a valid email address.") as HTTP 500 with a readable
+    // JSON body. Prefer the specific `error` field over the summary `message`;
+    // technical-looking text is still masked.
+    const backendMsg = String(
+      result.backendError || result.messageForDevs || "",
+    );
+    userMessage =
+      options.showBackendMessage && !/sqlstate|exception/i.test(backendMsg)
+        ? toUserMessage(backendMsg, generic)
+        : generic;
   } else if (result.source === "validation") {
     // Surface every field error the backend flagged (e.g. "The email has
     // already been taken."), falling back to the first one classifyResult kept.

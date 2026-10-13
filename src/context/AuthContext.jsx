@@ -625,6 +625,7 @@ export function AuthProvider({ children }) {
         "verifyEmail",
         result,
         "The code is incorrect or has expired.",
+        { showBackendMessage: true },
       );
     }
 
@@ -671,6 +672,7 @@ export function AuthProvider({ children }) {
         "resendVerificationEmail",
         result,
         "Couldn't resend the code. Please try again.",
+        { showBackendMessage: true },
       );
     }
 

@@ -172,6 +172,7 @@ export async function classifyResult({ response, error, rawText } = {}) {
       source: "backend",
       message: GENERIC_USER_MESSAGES.backend,
       messageForDevs: data?.message || data?.error || `HTTP ${status}`,
+      backendError: typeof data?.error === "string" ? data.error : undefined,
       status,
     };
   }

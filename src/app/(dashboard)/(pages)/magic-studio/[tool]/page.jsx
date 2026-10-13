@@ -18,8 +18,8 @@
  *   │     │ Style ▾ Size ▾        [↑] │          │    tool, and it GENERATES
  *   └─────┴───────────────────────────┴──────────┘    (see StudioComposer)
  *
- * A tool with example pictures (Text to Image, for now — see
- * textToImageTemplates.js) gets a third canvas, Templates, and opens on it. It
+ * A tool with examples (the design tools, and most of the Image and Video ones
+ * — see textToImageTemplates.js) gets a third canvas, Templates, and opens on it. It
  * is its own masonry grid rather than a state of the lattice: it shows someone
  * else's pictures to choose from, not your results, and "Use" hands its prompt
  * to the composer and switches to Create.
@@ -52,11 +52,11 @@ import { History, LayoutTemplate, Loader2, Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import HistoryLattice from "../HistoryLattice";
 import StudioComposer from "../StudioComposer";
-import TemplateGallery from "../TemplateGallery";
+import TemplateGallery, { TemplateGallerySkeleton } from "../TemplateGallery";
 import useMagicHistory from "../useMagicHistory";
 import { getMagicConfig } from "../magicStudioConfigs";
 import { toolBySlug } from "../magicTools";
-import { templatesFor } from "../textToImageTemplates";
+import { hasTemplates, useToolTemplates } from "../mediaTemplates";
 
 export default function MagicToolPage() {
   const { user } = useAuth();
@@ -100,15 +100,21 @@ function MagicToolScreen({ tool, user }) {
     resultType: "image",
   });
 
-  // Example pictures with their prompts — photos for Text to Image and Stock
-  // Image, designs for Social and Ads.
-  const templates = templatesFor(tool.id);
+  // Examples with their prompts — photos for Text to Image and Stock Image,
+  // designs for Social and Ads, clips and worked setups for Image and Video.
+  //
+  // ⚠️ TWO ANSWERS, BECAUSE ONE OF THEM CAN BE LATE. Whether the tool has a
+  // Templates canvas is known at once; the Image and Video catalogs themselves
+  // load on demand (see mediaTemplates.js), so `templates` is null for a
+  // moment on those and the canvas draws a skeleton in the meantime.
+  const templated = hasTemplates(tool.id);
+  const templates = useToolTemplates(tool.id);
 
   // Which canvas is showing. Templates where the tool has them — a first visit
   // is exactly when a blank box is hardest to write into. Otherwise Create:
   // this is a working screen, and landing on the backlog would make the first
   // click of every visit "get me out of the archive I didn't ask for".
-  const [view, setView] = useState(templates ? "templates" : "create");
+  const [view, setView] = useState(templated ? "templates" : "create");
 
   // The in-flight tile, taken off the canvas by its ✕. Reset when a new run
   // starts — the dismissal is of THAT wait, not a standing preference, and
@@ -266,10 +272,21 @@ function MagicToolScreen({ tool, user }) {
   // to make something, and that is where what you make will land.
   // A Social or Ads design also sets the aspect ratio, so a story template
   // makes a story rather than a square with a story's words in it.
+  // An Image or Video template carries more still — the option values that suit
+  // it, and on the tools that start from a picture or a clip, that too (see
+  // mediaTemplates.js).
   const applyTemplate = (template) => {
     setRefill({
-      text: template.prompt,
-      values: template.design ? { ratio: template.design.format } : null,
+      // ⚠️ NOT ON A SAMPLE CLIP. The enhancer and the background remover have
+      // no text box; the words on those cards only say what the clip shows,
+      // and seeding them would label the in-flight tile with a caption nobody
+      // typed.
+      text: template.sourceVideo ? "" : template.prompt,
+      values: template.design
+        ? { ratio: template.design.format }
+        : template.values || null,
+      image: template.sourceImage || null,
+      video: template.sourceVideo || null,
       nonce: Date.now(),
     });
     setView("create");
@@ -296,11 +313,11 @@ function MagicToolScreen({ tool, user }) {
           {tool.label}
         </p>
 
-        {templates && (
+        {templated && (
           <button
             type="button"
             onClick={() => setView("templates")}
-            title="Example pictures — pick one to start from its prompt"
+            title="Examples — pick one to start from"
             aria-pressed={browsing}
             className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
               browsing
@@ -370,7 +387,11 @@ function MagicToolScreen({ tool, user }) {
             re-tuned by hand every time the box grew a row. */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {browsing ? (
-          <TemplateGallery templates={templates} onUse={applyTemplate} />
+          templates ? (
+            <TemplateGallery templates={templates} onUse={applyTemplate} />
+          ) : (
+            <TemplateGallerySkeleton />
+          )
         ) : (
           <HistoryLattice
             items={visible}

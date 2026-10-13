@@ -216,6 +216,27 @@ function probeVideo(url) {
   });
 }
 
+/**
+ * A source URL the backend can fetch.
+ *
+ * Everything from the picker is already absolute and passes through untouched.
+ * The template stills are not — they live in this app's /public and are written
+ * as "/templates/…", which means nothing to a server that isn't this one. Sent
+ * as-is, `image_url` would be a path with no host.
+ *
+ * ⚠️ STILL UNREACHABLE FROM A LOCAL DEV SERVER. This makes it
+ * http://localhost:3000/templates/…, which the backend cannot reach either — a
+ * template still only generates for real from a deployed origin.
+ */
+const hostedUrl = (src) => {
+  if (typeof window === "undefined" || !src) return src;
+  try {
+    return new URL(src, window.location.origin).href;
+  } catch {
+    return src;
+  }
+};
+
 /** Seconds → "1:04". Blank for anything unreadable, so the strip just omits it. */
 const formatDuration = (seconds) => {
   if (!Number.isFinite(seconds) || seconds <= 0) return "";
@@ -267,10 +288,11 @@ const pillClass = (active) =>
  *   Lets the page draw the placeholder tile, put the words on it, and fill its
  *   bar. `progress` is a whole percent while an on-device engine reports one,
  *   and null otherwise — see the note where it is computed.
- * @param {{text: string, values?: object|null, nonce: number}|null} [props.refill]
+ * @param {{text: string, values?: object|null, image?: string|null, video?: string|null, nonce: number}|null} [props.refill]
  *   A prompt pushed back INTO the composer from outside — the in-flight tile's
  *   edit affordance, or a template's Use. `values`, when present, are option
- *   values to set alongside it (a design template's aspect ratio).
+ *   values to set alongside it (a design template's aspect ratio), and `image`
+ *   / `video` a picture or clip to select as the source.
  *   Keyed by `nonce` rather than by the text so asking for the same words twice
  *   still lands; see the effect that applies it.
  */
@@ -561,6 +583,15 @@ export default function StudioComposer({
     setAppliedRefill(refill.nonce);
     setText(refill.text || "");
     if (refill.values) setValues((prev) => ({ ...prev, ...refill.values }));
+    // A template on a tool that starts from a picture brings the picture too.
+    // Absent on every other refill, which must leave a chosen image alone.
+    if (refill.image) {
+      const src = hostedUrl(refill.image);
+      setImage({ url: src, preview: src });
+    }
+    // …and a sample clip, on the tools that start from a video. No metadata
+    // probe here: this runs during render, and the strip reads fine without it.
+    if (refill.video) setVideo({ url: refill.video, meta: null });
   }
 
   // ── Input handlers ─────────────────────────────────────────────────────────
@@ -584,8 +615,10 @@ export default function StudioComposer({
    */
   const handlePickedImage = (src) => {
     if (!src) return;
-    console.log("🖼️ [magic-studio] source image:", src);
-    setImage({ url: src, preview: src });
+    // A Video Effects template's still is an app-relative path — see hostedUrl.
+    const url = hostedUrl(src);
+    console.log("🖼️ [magic-studio] source image:", url);
+    setImage({ url, preview: url });
   };
 
   /**

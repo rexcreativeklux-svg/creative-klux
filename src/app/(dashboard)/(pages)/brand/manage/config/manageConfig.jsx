@@ -158,10 +158,10 @@ export const ALLOCATION_CONFIG = [
     label: "Copilot",
     Icon: Bot,
     field: "copilot", // brand.copilot_allocation / brand.copilot_used
-    // GET /brands returns the copilot fields, but there is no update route yet —
-    // allocations/copilot and allocations/copilots both 404 (probed 2026-10-13).
-    slug: "copilots",
-    wired: false,
+    // Agreed route: PATCH allocations/copilot with `copilot_allocation`. It still
+    // 404s (probed 2026-10-13) — Save starts working the moment backend ships it.
+    slug: "copilot",
+    wired: true,
     defaultTotal: 0,
   },
 ];

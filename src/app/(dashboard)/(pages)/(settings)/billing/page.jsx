@@ -40,6 +40,13 @@ import {
 
 const API_BASE = "https://api.creativeklux.com/api/creativeklux-userend";
 
+/** The cycle toggle. Annual is ten months' price for twelve. */
+const CYCLE_TABS = [
+  { id: BILLING_CYCLES.MONTHLY, label: "Monthly" },
+  { id: BILLING_CYCLES.ANNUAL, label: "Annual", badge: "2 months free" },
+  { id: BILLING_CYCLES.LIFETIME, label: "Lifetime" },
+];
+
 export default function PlansAndBilling() {
   const { user, token } = useAuth();
 
@@ -120,8 +127,6 @@ export default function PlansAndBilling() {
     console.log("✅ Plan activated via license code:", next.planName);
     toast.success(`${next.planName} activated with your license code.`);
   };
-
-  const isAnnual = cycle === BILLING_CYCLES.ANNUAL;
 
   return (
     <div className="space-y-6 py-3 pb-16">
@@ -220,35 +225,32 @@ export default function PlansAndBilling() {
 
             {/* Cycle toggle */}
             <div className="inline-flex shrink-0 items-center gap-1 self-start rounded-full border border-gray-200 bg-surface p-1 sm:self-auto">
-              <button
-                type="button"
-                onClick={() => setCycle(BILLING_CYCLES.MONTHLY)}
-                className={`cursor-pointer rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
-                  !isAnnual
-                    ? "bg-[#155dfc] text-white"
-                    : "text-gray-500 hover:text-gray-900"
-                }`}
-              >
-                Monthly
-              </button>
-              <button
-                type="button"
-                onClick={() => setCycle(BILLING_CYCLES.ANNUAL)}
-                className={`flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
-                  isAnnual
-                    ? "bg-[#155dfc] text-white"
-                    : "text-gray-500 hover:text-gray-900"
-                }`}
-              >
-                Annual
-                <span
-                  className={`text-[10px] font-bold ${
-                    isAnnual ? "text-blue-100" : "text-green-600"
-                  }`}
-                >
-                  Save 20%
-                </span>
-              </button>
+              {CYCLE_TABS.map(({ id, label, badge }) => {
+                const isActive = cycle === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setCycle(id)}
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
+                      isActive
+                        ? "bg-[#155dfc] text-white"
+                        : "text-gray-500 hover:text-gray-900"
+                    }`}
+                  >
+                    {label}
+                    {badge && (
+                      <span
+                        className={`text-[10px] font-bold ${
+                          isActive ? "text-blue-100" : "text-green-600"
+                        }`}
+                      >
+                        {badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

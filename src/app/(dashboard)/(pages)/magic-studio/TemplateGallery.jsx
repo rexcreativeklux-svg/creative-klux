@@ -30,7 +30,9 @@ import TemplateDesign from "./TemplateDesign";
 /**
  * @param {object} props
  * @param {Array} props.templates  See textToImageTemplates.js for the shape —
- *   an entry with a `design` (Social / Ads) is drawn by TemplateDesign.
+ *   an entry with a `design` (Social / Ads) is drawn by TemplateDesign, and one
+ *   with a `video` (the video tools) plays its clip while it is on screen.
+ *   mediaTemplates.js documents the fields the Image and Video tools add.
  * @param {(template: object) => void} props.onUse  Put its prompt in the composer.
  */
 export default function TemplateGallery({ templates: catalog, onUse }) {
@@ -61,6 +63,8 @@ export default function TemplateGallery({ templates: catalog, onUse }) {
                   template={template}
                   className="h-full w-full transition-transform duration-300 group-hover:scale-[1.03]"
                 />
+              ) : template.video ? (
+                <TemplateClip template={template} />
               ) : (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
@@ -124,6 +128,33 @@ export default function TemplateGallery({ templates: catalog, onUse }) {
 }
 
 /**
+ * The canvas while a tool's catalog is still on its way — the Image and Video
+ * tools load theirs on demand (see mediaTemplates.js). Same columns as the real
+ * thing, so the cards arrive into the places these were holding.
+ */
+const SKELETON_ASPECTS = [
+  "3 / 4", "16 / 9", "1 / 1", "9 / 16", "4 / 3", "16 / 9",
+  "3 / 4", "1 / 1", "16 / 9", "9 / 16", "4 / 3", "3 / 4",
+];
+
+export function TemplateGallerySkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="columns-2 gap-3 p-3 sm:columns-3 lg:columns-4"
+    >
+      {SKELETON_ASPECTS.map((aspect, index) => (
+        <div
+          key={index}
+          className="mb-3 break-inside-avoid animate-pulse rounded-xl bg-gray-100"
+          style={{ aspectRatio: aspect }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
  * The catalog in a fresh random order each time the canvas mounts, so coming
  * back to a tool shows a different first screen rather than the same dozen
  * cards every visit.
@@ -153,6 +184,58 @@ function useShuffled(items) {
       return cache.current.shuffled;
     },
     () => null,
+  );
+}
+
+/**
+ * A video template's card: its clip, playing on its own for as long as the card
+ * is on screen. Hover adds the prompt and Use, exactly as on a photo card.
+ *
+ * ⚠️ "ON SCREEN" IS THE PART THAT MAKES THIS AFFORDABLE. A canvas is a hundred
+ * clips; playing all of them at once is a hundred downloads and a hundred
+ * decoders for cards nobody can see. So the <video> exists only while its card
+ * is in (or about to enter) the viewport — every clip you can see is moving,
+ * and the ones you scrolled past are back to being a lazy poster <img>.
+ *
+ * The poster stays underneath the whole time, so a clip that is still
+ * buffering shows its first frame rather than a grey box.
+ */
+function TemplateClip({ template }) {
+  const frameRef = useRef(null);
+  const [onScreen, setOnScreen] = useState(false);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame || typeof IntersectionObserver === "undefined") return undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => setOnScreen(entry.isIntersecting),
+      // A little early, so a clip is already moving as it scrolls into view.
+      { rootMargin: "150px 0px" },
+    );
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <span ref={frameRef} className="relative block h-full w-full">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={template.thumb}
+        alt={template.prompt}
+        loading="lazy"
+        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+      />
+      {onScreen && (
+        <video
+          src={template.video}
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        />
+      )}
+    </span>
   );
 }
 
@@ -248,6 +331,20 @@ function TemplateViewer({ templates, index, onIndexChange, onClose, onUse }) {
                 width: `min(100cqw, calc(100cqh * ${template.aspect}))`,
               }}
             />
+          ) : template.video ? (
+            // The clip itself, playing — this is the one place you watch it
+            // rather than glimpse it. Muted so autoplay is allowed.
+            <video
+              key={template.id}
+              src={template.video}
+              poster={template.image}
+              autoPlay
+              muted
+              loop
+              playsInline
+              controls
+              className="max-h-full max-w-full object-contain"
+            />
           ) : (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -302,8 +399,9 @@ function TemplateViewer({ templates, index, onIndexChange, onClose, onUse }) {
               Use this
             </button>
             {/* Not on a design: its copy is HTML laid over the photo, so the
-                file would be the bare photo — not what the card shows. */}
-            {!template.design && (
+                file would be the bare photo — not what the card shows. Nor on
+                a clip, for the same reason: it would save the still. */}
+            {!template.design && !template.video && (
               <button
                 type="button"
                 onClick={handleDownload}
@@ -323,7 +421,7 @@ function TemplateViewer({ templates, index, onIndexChange, onClose, onUse }) {
               rel="noopener noreferrer"
               className="mt-6 inline-block text-[11px] text-gray-400 transition-colors hover:text-gray-600"
             >
-              Photo by {template.credit} on Pexels
+              {template.video ? "Video" : "Photo"} by {template.credit} on Pexels
             </a>
           )}
         </div>

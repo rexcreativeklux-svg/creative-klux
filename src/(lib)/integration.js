@@ -754,6 +754,14 @@ export async function fetchFacebookPageId(userAccessToken) {
 // ─────────────────────────────────────────────────────────────
 
 /**
+ * Publish a post to any social platform as it is — one call to the API
+ * (POST creatives/publish), which answers with the platform's own error.
+ */
+export async function publishPost({ platform, brand_id, image_url, caption }) {
+  return publishToPlatform(platform, { brand_id, text: caption, image_url });
+}
+
+/**
  * Publish to Facebook Page
  */
 export async function publishToFacebook({
@@ -782,7 +790,6 @@ export async function publishToFacebook({
  * Publish to Instagram Business account
  */
 export async function publishToInstagram({ image_url, caption, brand_id }) {
-  if (!image_url) throw new Error("Instagram requires an image or video.");
   return publishToPlatform("instagram", { brand_id, text: caption, image_url });
 }
 
@@ -834,8 +841,9 @@ const adDate = (offsetDays = 0) => {
  *  - goal          'awareness' | 'traffic' | 'engagement' → the network's objective
  *  - days          run length; sent as start/end dates
  *
- * Failures throw the network's own sentence. Only Meta builds a full ad today;
- * the others refuse with a "not available yet" message.
+ * Nothing is checked here — whatever is missing or refused comes back as the
+ * API's (or the network's) own sentence. Only Meta builds a full ad today; the
+ * others refuse with a "not available yet" message.
  *
  * @returns {Promise<{post_id, campaign_id, adset_id, creative_id, ad_id, status, currency}>}
  */
@@ -855,18 +863,13 @@ export async function publishAd({
   countries,
   call_to_action,
 }) {
-  if (!image_url && !video_url) throw new Error("No image to advertise.");
-  if (!link)
-    throw new Error(
-      "Add a website to your brand first — an ad needs somewhere to send people.",
-    );
-
   const runDays = Number(days) > 0 ? Number(days) : null;
   const ad = await createAd({
     platform,
     name: (name || "Creative Klux Ad").slice(0, 200),
     objective: AD_OBJECTIVES[platform]?.[goal],
-    daily_budget: Number(daily_budget),
+    daily_budget:
+      daily_budget == null || daily_budget === "" ? undefined : Number(daily_budget),
     countries: countries?.length ? countries : country ? [country] : [],
     image_url,
     video_url,
@@ -882,148 +885,15 @@ export async function publishAd({
   return { ...ad, post_id: ad?.campaign_id ?? ad?.ad_id ?? null };
 }
 
-// ─────────────────────────────────────────────────────────────
-// YouTube
-// ─────────────────────────────────────────────────────────────
-//
-// YouTube ONLY accepts video uploads — there is no "image post". Our creatives
-// are images / canvas designs, so to publish we first turn the image into a short
-// video clip *in the browser* (canvas + MediaRecorder → a .webm blob), then run
-// YouTube's resumable upload. No backend / ffmpeg needed.
-
-// Route http(s) images through the proxy so the canvas isn't CORS-tainted
-// (a tainted canvas can't be captured to a video). Leaves data:/blob: alone.
-function ytProxiedSrc(src) {
-  if (!src) return src;
-  if (/^https?:/i.test(src)) {
-    return `/api/proxy-image?url=${encodeURIComponent(src)}`;
-  }
-  return src;
-}
-
-function ytLoadImage(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () =>
-      reject(new Error("Failed to load the image to build the video."));
-    img.src = ytProxiedSrc(url);
-  });
-}
-
-// Pick a MediaRecorder mime type the browser actually supports. YouTube accepts webm.
-function ytPickMime() {
-  const candidates = [
-    "video/webm;codecs=vp9",
-    "video/webm;codecs=vp8",
-    "video/webm",
-    "video/mp4",
-  ];
-  if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported) {
-    for (const m of candidates) {
-      if (MediaRecorder.isTypeSupported(m)) return m;
-    }
-  }
-  return "video/webm";
-}
-
-/**
- * Turn a still image into a short looping-still video Blob, entirely in-browser.
- * Draws the image onto a canvas, captures the canvas as a media stream, and records
- * it for `durationSec` seconds with MediaRecorder.
- */
-export async function imageUrlToVideoBlob(
-  imageUrl,
-  { durationSec = 5, fps = 30 } = {},
-) {
-  if (typeof document === "undefined" || typeof MediaRecorder === "undefined") {
-    throw new Error("Video creation is only available in the browser.");
-  }
-
-  const img = await ytLoadImage(imageUrl);
-
-  // Even dimensions (some encoders require it); cap to keep the file reasonable.
-  const cap = 1920;
-  let w = img.naturalWidth || 1280;
-  let h = img.naturalHeight || 720;
-  if (w > cap || h > cap) {
-    const scale = cap / Math.max(w, h);
-    w = Math.round(w * scale);
-    h = Math.round(h * scale);
-  }
-  w = Math.max(2, w - (w % 2));
-  h = Math.max(2, h - (h % 2));
-
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-
-  const stream = canvas.captureStream(fps);
-  const mimeType = ytPickMime();
-  const recorder = new MediaRecorder(stream, { mimeType });
-  const chunks = [];
-  recorder.ondataavailable = (e) => {
-    if (e.data && e.data.size) chunks.push(e.data);
-  };
-
-  return new Promise((resolve, reject) => {
-    let raf;
-    const stop = () => {
-      if (raf) cancelAnimationFrame(raf);
-      stream.getTracks().forEach((t) => t.stop());
-    };
-
-    recorder.onstop = () => {
-      stop();
-      resolve(new Blob(chunks, { type: mimeType }));
-    };
-    recorder.onerror = (e) => {
-      stop();
-      reject(e.error || new Error("Video recording failed."));
-    };
-
-    // Keep the stream alive by continuously redrawing the still frame.
-    const draw = () => {
-      ctx.drawImage(img, 0, 0, w, h);
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-
-    recorder.start();
-    setTimeout(
-      () => {
-        try {
-          recorder.stop();
-        } catch (err) {
-          stop();
-          reject(err);
-        }
-      },
-      Math.max(1, durationSec) * 1000,
-    );
-  });
-}
-
-/**
- * The hosted `video_url` the publishing API needs for TikTok and YouTube. Our
- * creatives are images, so unless a real video is passed the image is turned
- * into a short clip in the browser, then uploaded to get a public URL.
- */
-async function hostedVideoFor({ image_url, video, durationSec = 5 }) {
-  let blob = video || null;
-  if (!blob) {
-    if (!image_url) {
-      throw new Error("Nothing to publish — no video or image was provided.");
-    }
-    blob = await imageUrlToVideoBlob(image_url, { durationSec });
-  }
-  const ext = (blob.type || "").includes("mp4") ? "mp4" : "webm";
+// A real video File/Blob is hosted through the gallery upload to get the
+// `video_url` the API takes. Images are never converted to video here — they
+// go to the API as `image_url` and the API decides what the platform accepts.
+async function hostedVideoFor(video) {
+  const ext = (video.type || "").includes("mp4") ? "mp4" : "webm";
   return uploadForPublish(
-    blob instanceof File
-      ? blob
-      : new File([blob], `creative.${ext}`, { type: blob.type || "video/webm" }),
+    video instanceof File
+      ? video
+      : new File([video], `creative.${ext}`, { type: video.type || "video/webm" }),
   );
 }
 
@@ -1062,20 +932,17 @@ function normalizeMetrics(data) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────
+// YouTube
+// ─────────────────────────────────────────────────────────────
+
 /**
- * Publish a video to YouTube.
+ * Publish to YouTube through the API. The creative is sent as it is: an image
+ * as `image_url`, a real `video` File/Blob as a hosted `video_url`.
  *
- * The video is built in the BROWSER (canvas + MediaRecorder, which are browser-only) and
- * then handed to /api/youtube/upload, which does the resumable upload SERVER-SIDE —
- * googleapis' upload endpoint has no browser CORS, so a direct upload is blocked.
- *
- * Pass a real `video` Blob/File when you have one; otherwise pass `image_url` and it's
- * converted to a short video first. Requires a token with the `youtube.upload` scope.
- *
- *  - access_token   from the youtube integration (int_token)
  *  - title / description  video metadata (title capped to 100 chars)
  *  - privacyStatus  'public' | 'unlisted' | 'private'
- *  - publishAt      optional ISO string — schedules the video (forces privacyStatus 'private')
+ *  - publishAt      scheduling — not supported by the publishing API
  */
 export async function publishToYouTube({
   title,
@@ -1084,15 +951,16 @@ export async function publishToYouTube({
   video,
   privacyStatus = "public",
   publishAt,
-  durationSec = 5,
   brand_id,
 }) {
+  // The API has no "publish at" field, and sending one it ignores would post
+  // immediately — the opposite of what was asked.
   if (publishAt) {
     throw new Error(
       "Scheduling isn't available yet — the publishing API can only post now.",
     );
   }
-  const video_url = await hostedVideoFor({ image_url, video, durationSec });
+  const video_url = video ? await hostedVideoFor(video) : undefined;
   const res = await publishToPlatform("youtube", {
     brand_id,
     title: (title || "Untitled").slice(0, 100),
@@ -1112,42 +980,9 @@ export async function publishToYouTube({
 // X / Twitter
 // ─────────────────────────────────────────────────────────────
 //
-// X has no browser CORS, so the actual posting happens server-side in
-// /api/twitter/post. Here we just call that route. X access tokens last ~2h and the
-// refresh token rotates on every use, so we keep the *current* refresh token in
-// localStorage (keyed by integration id) as a stopgap until the backend persists it,
-// and overwrite it with the rotated value the route returns after each post.
+// Posted by the API (POST creatives/publish, platform `x`).
 
-const X_REFRESH_KEY = (id) => `ck_x_refresh_${id}`;
-
-export function getStoredXRefresh(integrationId) {
-  if (typeof window === "undefined" || !integrationId) return null;
-  try {
-    return localStorage.getItem(X_REFRESH_KEY(integrationId));
-  } catch {
-    return null;
-  }
-}
-
-export function setStoredXRefresh(integrationId, token) {
-  if (typeof window === "undefined" || !integrationId || !token) return;
-  try {
-    localStorage.setItem(X_REFRESH_KEY(integrationId), token);
-  } catch {
-    /* storage unavailable — ignore */
-  }
-}
-
-/**
- * Post to X (Twitter). Resolves the refresh token (passed in from the backend record
- * if present, else from localStorage), hands it to the server route, and persists the
- * rotated refresh token the route returns.
- *
- *  - integration_id  the saved integration's id (used as the localStorage key)
- *  - refresh_token   optional — from the backend record once it stores int_refresh_token
- *  - text            tweet body (capped to 280 server-side)
- *  - image_url       optional public image URL to attach
- */
+/** Post to X (Twitter): `text`, plus an optional public `image_url`. */
 export async function publishToTwitter({ text, image_url, brand_id }) {
   const res = await publishToPlatform("twitter", { brand_id, text, image_url });
   return {
@@ -1160,18 +995,9 @@ export async function publishToTwitter({ text, image_url, brand_id }) {
 // LinkedIn
 // ─────────────────────────────────────────────────────────────
 //
-// LinkedIn has no browser CORS, so posting runs server-side in /api/linkedin/post.
-// Gated by LINKEDIN_POSTING_ENABLED (linkedinConfig.js): the Publish modal only routes
-// here when LinkedIn is `real`, which is tied to that same flag. Token comes from the
-// integration record (LinkedIn tokens last ~60 days; no refresh dance like X).
+// Posted by the API (POST creatives/publish).
 
-/**
- * Post to LinkedIn (the connected member's own feed).
- *  - access_token  the integration's int_token
- *  - author_id     the integration's int_id (LinkedIn member id = OpenID `sub`)
- *  - text          post commentary
- *  - image_url     optional public image URL to attach
- */
+/** Post to LinkedIn: `text`, plus an optional public `image_url`. */
 export async function publishToLinkedIn({ text, image_url, brand_id }) {
   const res = await publishToPlatform("linkedin", { brand_id, text, image_url });
   return {
@@ -1186,32 +1012,10 @@ export async function publishToLinkedIn({ text, image_url, brand_id }) {
 // Pinterest
 // ─────────────────────────────────────────────────────────────
 //
-// Pinterest is image-native: a "pin" is an image on a board. No browser CORS, so the
-// calls go through server routes. A pin MUST go on a board, so publishing needs a
-// board_id (the modal shows a board picker fed by fetchPinterestBoards).
+// A pin is an image on a board. The API has no boards endpoint, so no board is
+// picked here — it is sent only if the caller has one, and the API answers.
 
-/** List the connected account's boards (for the board picker). */
-export async function fetchPinterestBoards(access_token) {
-  const res = await fetch("/api/pinterest/boards", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ access_token }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) {
-    throw new Error(data.error || "Couldn't load your Pinterest boards.");
-  }
-  return data.boards || [];
-}
-
-/**
- * Create a Pin.
- *  - access_token  the integration's int_token
- *  - board_id      which board to pin to (required — pins live on boards)
- *  - title/description  pin metadata
- *  - image_url     public image URL (Pinterest fetches it)
- *  - link          optional click-through URL
- */
+/** Create a Pin: `title` / `description`, a public `image_url`, optional `link` and `board_id`. */
 export async function publishToPinterest({
   board_id,
   title,
@@ -1220,8 +1024,6 @@ export async function publishToPinterest({
   link,
   brand_id,
 }) {
-  if (!board_id) throw new Error("Pick a Pinterest board first.");
-  if (!image_url) throw new Error("Pinterest needs an image to create a pin.");
   return publishToPlatform("pinterest", {
     brand_id,
     board_id,
@@ -1236,44 +1038,14 @@ export async function publishToPinterest({
 // TikTok
 // ─────────────────────────────────────────────────────────────
 //
-// TikTok has no browser CORS, so posting + reading run server-side (/api/tiktok/post,
-// /api/tiktok/posts). It's a PHOTO post (image-native — no video bridge): TikTok fetches
-// the public image URL itself (PULL_FROM_URL). TikTok access tokens last ~24h and the
-// refresh token can rotate, so — like X — we keep the *current* refresh token in
-// localStorage (keyed by integration id) as a stopgap until the backend persists it, and
-// overwrite it with whatever the route returns after each call.
-
-const TIKTOK_REFRESH_KEY = (id) => `ck_tiktok_refresh_${id}`;
-
-export function getStoredTikTokRefresh(integrationId) {
-  if (typeof window === "undefined" || !integrationId) return null;
-  try {
-    return localStorage.getItem(TIKTOK_REFRESH_KEY(integrationId));
-  } catch {
-    return null;
-  }
-}
-
-export function setStoredTikTokRefresh(integrationId, token) {
-  if (typeof window === "undefined" || !integrationId || !token) return;
-  try {
-    localStorage.setItem(TIKTOK_REFRESH_KEY(integrationId), token);
-  } catch {
-    /* storage unavailable — ignore */
-  }
-}
+// Posted by the API (POST creatives/publish). The image goes up as `image_url`.
 
 /**
- * Post a photo to TikTok. Resolves the refresh token (from the backend record if present,
- * else localStorage), hands it to the server route, and persists the rotated refresh token
- * the route returns.
- *
- *  - integration_id  the saved integration's id (used as the localStorage key)
- *  - refresh_token   optional — from the backend record once it stores int_refresh_token
- *  - title           short title (first line of the caption)
- *  - description     full caption
- *  - image_url       public image URL (TikTok fetches it)
- *  - privacy_level   "PUBLIC_TO_EVERYONE" (default) | "SELF_ONLY" (pre-audit testing) | …
+ * Post to TikTok.
+ *  - title          short title (first line of the caption)
+ *  - description    full caption
+ *  - image_url      public image URL
+ *  - privacy_level  "PUBLIC_TO_EVERYONE" (default) | "SELF_ONLY" | …
  */
 export async function publishToTikTok({
   title,
@@ -1286,7 +1058,7 @@ export async function publishToTikTok({
   // The creative goes to the API as it is: an image is sent as `image_url`
   // (the server posts it to TikTok itself). Only a real video is uploaded for a
   // `video_url` — nothing is converted in the browser.
-  const video_url = video ? await hostedVideoFor({ video }) : undefined;
+  const video_url = video ? await hostedVideoFor(video) : undefined;
   // `draft_only` on the result: with video.upload alone TikTok takes it as a
   // draft the creator finishes in the app — callers should say so.
   return publishToPlatform("tiktok", {

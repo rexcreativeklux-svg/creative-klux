@@ -32,6 +32,7 @@ import {
   Palette,
   HardDrive,
   KeyRound,
+  Bot,
 } from "lucide-react";
 
 // ── Top-level tabs ────────────────────────────────────────────────────────────
@@ -149,6 +150,15 @@ export const ALLOCATION_CONFIG = [
     Icon: HardDrive,
     field: "storage",
     slug: "storage",
+    wired: true,
+    defaultTotal: 0,
+  },
+  {
+    id: "copilot",
+    label: "Copilot",
+    Icon: Bot,
+    field: "copilot", // brand.copilot_allocation / brand.copilot_used
+    slug: "copilot", // "copilots" 404s; fields confirmed on GET /brands
     wired: true,
     defaultTotal: 0,
   },

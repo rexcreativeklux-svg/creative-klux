@@ -1,7 +1,10 @@
 "use client";
 
 import { Check, Sparkles } from "lucide-react";
-import { BILLING_CYCLES } from "@/app/(components)/billing/billingData";
+import {
+  BILLING_CYCLES,
+  CYCLE_COPY,
+} from "@/app/(components)/billing/billingData";
 
 /**
  * PlanCard
@@ -19,8 +22,10 @@ import { BILLING_CYCLES } from "@/app/(components)/billing/billingData";
  * @param {Function} onSelect      - Called with `plan` when the CTA is pressed.
  */
 export default function PlanCard({ plan, cycle, isCurrent, onSelect }) {
-  const price = plan.price[cycle] ?? plan.price[BILLING_CYCLES.MONTHLY];
-  const billedNote = plan.billedNote[cycle] ?? "";
+  const active = cycle in plan.price ? cycle : BILLING_CYCLES.MONTHLY;
+  const price = plan.price[active];
+  const features = plan.features[active];
+  const { unit, note: billedNote } = CYCLE_COPY[active];
 
   return (
     <div
@@ -50,14 +55,14 @@ export default function PlanCard({ plan, cycle, isCurrent, onSelect }) {
           <span className="text-4xl font-bold leading-none text-gray-900">
             ${price}
           </span>
-          <span className="pb-1 text-sm text-gray-500">/mo</span>
+          {unit && <span className="pb-1 text-sm text-gray-500">{unit}</span>}
         </div>
         <p className="mt-1.5 text-xs text-gray-400">{billedNote}</p>
       </div>
 
       {/* Features */}
       <ul className="mb-6 flex-1 space-y-3">
-        {plan.features.map((feature) => (
+        {features.map((feature) => (
           <li key={feature} className="flex items-start gap-2.5">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#155dfc]" />
             <span className="text-sm text-gray-700">{feature}</span>

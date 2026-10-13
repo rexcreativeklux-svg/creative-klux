@@ -19,6 +19,7 @@
 export const BILLING_CYCLES = {
   MONTHLY: "monthly",
   ANNUAL: "annual",
+  LIFETIME: "lifetime",
 };
 
 /**
@@ -111,57 +112,87 @@ export const packageToSubscription = (pkg) => {
   };
 };
 
+const count = (n, noun) => `${n.toLocaleString()} ${noun}${n === 1 ? "" : "s"}`;
+
+/** The feature list for one package, straight from its quotas. */
+const quotaFeatures = (q) => [
+  `${q.tokens.toLocaleString()} AI tokens / month`,
+  `${q.creatives.toLocaleString()} creatives / month`,
+  count(q.brands, "brand"),
+  count(q.teams, "team member"),
+  count(q.integrations, "integration"),
+  count(q.copilots, "copilot"),
+  `${q.storage} GB storage`,
+  // Resells are agency-only, so the line is dropped where there are none.
+  ...(q.resells > 0 ? [count(q.resells, "resell")] : []),
+];
+
 /**
- * Plan tiers shown in the pricing grid.
- * - `price` holds the per-month figure for each cycle (annual is the discounted
- *   monthly equivalent, billed once a year).
- * - `billedNote` is the small print under the price, per cycle.
+ * One tier → the shape PlanCard renders. `shared` quotas are the same on every
+ * cycle; `cycles` carries what differs (price, tokens, creatives, resells).
+ */
+const tier = ({ shared, cycles, ...rest }) => ({
+  ...rest,
+  price: Object.fromEntries(
+    Object.entries(cycles).map(([cycle, pkg]) => [cycle, pkg.price]),
+  ),
+  features: Object.fromEntries(
+    Object.entries(cycles).map(([cycle, pkg]) => [
+      cycle,
+      quotaFeatures({ ...shared, ...pkg }),
+    ]),
+  ),
+});
+
+/** Unit after the price, and the small print under it, per cycle. */
+export const CYCLE_COPY = {
+  monthly: { unit: "/mo", note: "billed monthly" },
+  annual: { unit: "/yr", note: "billed yearly — 12 months for the price of 10" },
+  lifetime: { unit: "", note: "one-time payment, perpetual access" },
+};
+
+/**
+ * The nine packages — three tiers × three cycles — mirroring the admin Packages
+ * form (duration 30 / 365 / 36500 days).
+ * - Tokens and creatives are PER MONTH on every package, lifetime included: a
+ *   lifetime plan grants perpetual access, not a perpetual pile of credits.
  * - `highlight` marks the visually promoted tier ("Most popular").
  */
 export const PLANS = [
-  {
-    id: "free",
-    name: "Free",
-    tagline: "For getting started",
-    price: { monthly: 0, annual: 0 },
-    billedNote: { monthly: "Free forever", annual: "Free forever" },
+  tier({
+    id: "starter",
+    name: "Starter",
+    tagline: "For solo creators getting started",
     highlight: false,
-    features: [
-      "3 projects per month",
-      "Basic templates",
-      "Standard export quality",
-      "On-device AI tools",
-      "Community support",
-    ],
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    tagline: "For solo creators shipping regularly",
-    price: { monthly: 19, annual: 15 },
-    billedNote: { monthly: "billed monthly", annual: "billed $180 yearly" },
+    shared: { brands: 1, teams: 1, integrations: 3, copilots: 1, storage: 5 },
+    cycles: {
+      monthly: { price: 15, tokens: 45000, creatives: 50, resells: 0 },
+      annual: { price: 150, tokens: 45000, creatives: 50, resells: 0 },
+      lifetime: { price: 59, tokens: 15000, creatives: 20, resells: 0 },
+    },
+  }),
+  tier({
+    id: "growth",
+    name: "Growth",
+    tagline: "For growing brands and small teams",
     highlight: true,
-    features: [
-      "Unlimited projects",
-      "Premium templates & Magic Studio",
-      "Remove watermark",
-      "4K exports & background removal",
-      "Priority support",
-    ],
-  },
-  {
-    id: "business",
-    name: "Business",
-    tagline: "For teams and brands",
-    price: { monthly: 49, annual: 39 },
-    billedNote: { monthly: "billed monthly", annual: "billed $468 yearly" },
+    shared: { brands: 5, teams: 5, integrations: 10, copilots: 5, storage: 25 },
+    cycles: {
+      monthly: { price: 39, tokens: 110000, creatives: 150, resells: 0 },
+      annual: { price: 390, tokens: 110000, creatives: 150, resells: 0 },
+      lifetime: { price: 129, tokens: 36000, creatives: 50, resells: 0 },
+    },
+  }),
+  tier({
+    id: "agency",
+    name: "Agency",
+    tagline: "For agencies with their own clients",
     highlight: false,
-    features: [
-      "Everything in Pro",
-      "Multi-seat workspaces",
-      "Shared brand kits & assets",
-      "Team roles and permissions",
-      "Dedicated support",
-    ],
-  },
+    shared: { brands: 20, teams: 20, integrations: 25, copilots: 20, storage: 100 },
+    cycles: {
+      monthly: { price: 89, tokens: 250000, creatives: 400, resells: 25 },
+      annual: { price: 890, tokens: 250000, creatives: 400, resells: 25 },
+      lifetime: { price: 249, tokens: 60000, creatives: 100, resells: 10 },
+    },
+  }),
 ];

@@ -625,6 +625,7 @@ export function AuthProvider({ children }) {
         "verifyEmail",
         result,
         "The code is incorrect or has expired.",
+        { showBackendMessage: true },
       );
     }
 
@@ -646,6 +647,40 @@ export function AuthProvider({ children }) {
     return {
       success: true,
       message: data.message || "Email verified successfully!",
+    };
+  };
+
+  // Resend the email-verification code (verify-email page). Separate from
+  // sendVerificationCode below, which starts the password-reset flow.
+  const resendVerificationEmail = async (email) => {
+    console.log("📡 resendVerificationEmail → email:", email);
+
+    let result;
+    try {
+      const res = await fetch(`${BASE_URL}/resend-verification-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email }),
+      });
+      result = await classifyResult({ response: res });
+    } catch (error) {
+      result = await classifyResult({ error });
+    }
+
+    if (!result.ok) {
+      throwClassifiedAuthError(
+        "resendVerificationEmail",
+        result,
+        "Couldn't resend the code. Please try again.",
+        { showBackendMessage: true },
+      );
+    }
+
+    const data = result.raw ?? result.data ?? {};
+    console.log("✅ resendVerificationEmail success");
+    return {
+      success: true,
+      message: data.message || "Code resent to your email",
     };
   };
 
@@ -3971,6 +4006,7 @@ export function AuthProvider({ children }) {
         uploadMedia,
         deleteImage,
         verifyEmail,
+        resendVerificationEmail,
         sendVerificationCode,
         verifyResetCode,
         resetPassword,

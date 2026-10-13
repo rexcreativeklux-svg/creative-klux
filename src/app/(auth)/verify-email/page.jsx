@@ -73,14 +73,15 @@ export default function VerifyEmailPage() {
   // Verify Code
   const handleVerify = async (e) => {
     e.preventDefault();
-    if (code.length !== 6 || !/^\d{6}$/.test(code)) {
-      toast.error("Please enter all 6 digits.");
+    // Codes are alphanumeric (the inputs accept letters too), not digits only.
+    if (!/^[A-Z0-9]{6}$/i.test(code)) {
+      toast.error("Please enter the full 6-character code.");
       return;
     }
 
     setLoading(true);
     try {
-      await verifyEmail(code, email);
+      await verifyEmail(code);
       // Already-logged-in users go straight to the app; fresh registrations
       // (no session yet) go to login to sign in. A saved brand invite overrides
       // both so the invitee lands back on their invite page once verified.
@@ -166,7 +167,7 @@ export default function VerifyEmailPage() {
       title="Verify your email"
       subtitle={
         <>
-          Enter the 6-digit code we sent to{" "}
+          Enter the 6-character code we sent to{" "}
           <span className="text-gray-600 font-medium break-all">
             {email || "your email"}
           </span>

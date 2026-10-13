@@ -119,11 +119,8 @@ export function throwClassifiedAuthError(
     const generic = "Something went wrong on our end. Please try again shortly.";
     // Opt-in only: some routes report ordinary failures (e.g. validation — "The
     // email field must be a valid email address.") as HTTP 500 with a readable
-    // JSON body. Prefer the specific `error` field over the summary `message`;
-    // technical-looking text is still masked.
-    const backendMsg = String(
-      result.backendError || result.messageForDevs || "",
-    );
+    // JSON body. Show its `message`; technical-looking text is still masked.
+    const backendMsg = String(result.messageForDevs || "");
     userMessage =
       options.showBackendMessage && !/sqlstate|exception/i.test(backendMsg)
         ? toUserMessage(backendMsg, generic)

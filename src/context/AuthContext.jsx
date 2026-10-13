@@ -585,24 +585,23 @@ export function AuthProvider({ children }) {
     };
   };
 
-  const verifyEmail = async (code, emailArg) => {
+  const verifyEmail = async (code) => {
     if (!code || code.length !== 6) {
       throw new Error("Please enter a valid 6-digit code");
     }
 
-    // Prefer the address the verify page is showing; fall back to the
-    // just-registered session value, then the logged-in user so an
-    // already-signed-in-but-unverified user can verify on refresh.
-    const email =
-      emailArg || sessionStorage.getItem("pendingEmail") || user?.email;
+    // Prefer the just-registered session value; fall back to the logged-in
+    // user so an already-signed-in-but-unverified user can verify on refresh.
+    const userId = sessionStorage.getItem("pendingUserId") || user?.id;
 
-    if (!email) {
+    if (!userId) {
       throw new Error("Session expired. Please register again.");
     }
 
-    // The backend validates `email` + `code` on this route (not `user_id`).
+    // The backend validates `user_id` + `code` on this route (not `email`).
+    // /password/verify-reset-code is the password-reset counterpart.
     const payload = {
-      email: email,
+      user_id: userId,
       code: code,
     };
 
@@ -610,7 +609,7 @@ export function AuthProvider({ children }) {
 
     let result;
     try {
-      const res = await fetch(`${BASE_URL}/password/verify-reset-code`, {
+      const res = await fetch(`${BASE_URL}/update-verification-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

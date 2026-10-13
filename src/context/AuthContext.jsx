@@ -585,22 +585,24 @@ export function AuthProvider({ children }) {
     };
   };
 
-  const verifyEmail = async (code) => {
+  const verifyEmail = async (code, emailArg) => {
     if (!code || code.length !== 6) {
       throw new Error("Please enter a valid 6-digit code");
     }
 
-    // Prefer the just-registered session values; fall back to the logged-in
-    // user so an already-signed-in-but-unverified user can verify on refresh.
-    const userId = sessionStorage.getItem("pendingUserId") || user?.id;
-    // const email = sessionStorage.getItem("pendingEmail") || user?.email;
+    // Prefer the address the verify page is showing; fall back to the
+    // just-registered session value, then the logged-in user so an
+    // already-signed-in-but-unverified user can verify on refresh.
+    const email =
+      emailArg || sessionStorage.getItem("pendingEmail") || user?.email;
 
-    if (!userId) {
+    if (!email) {
       throw new Error("Session expired. Please register again.");
     }
 
+    // The backend validates `email` + `code` on this route (not `user_id`).
     const payload = {
-      user_id: userId, // This is what the backend requires
+      email: email,
       code: code,
     };
 

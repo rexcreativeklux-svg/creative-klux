@@ -80,7 +80,7 @@ export default function VerifyEmailPage() {
 
     setLoading(true);
     try {
-      await verifyEmail(code);
+      await verifyEmail(code, email);
       // Already-logged-in users go straight to the app; fresh registrations
       // (no session yet) go to login to sign in. A saved brand invite overrides
       // both so the invitee lands back on their invite page once verified.
@@ -116,7 +116,7 @@ export default function VerifyEmailPage() {
 
     setResendLoading(true);
     try {
-      await sendVerificationCode(email); // This calls /verify-email with { email }
+      await sendVerificationCode(email); // POST /password/forgot-password with { email }
 
       toast.success("Code sent!", {
         description:

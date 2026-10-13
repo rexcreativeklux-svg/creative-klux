@@ -55,7 +55,7 @@ function AllocationPanel({ brandId, item, brand }) {
 
     setSaving(true);
     console.log(`💾 Updating ${slug} allocation →`, num);
-    const res = await updateAllocation(brandId, slug, num);
+    const res = await updateAllocation(brandId, slug, field, num);
     setSaving(false);
 
     if (res.ok) {

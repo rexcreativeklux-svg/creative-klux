@@ -158,8 +158,10 @@ export const ALLOCATION_CONFIG = [
     label: "Copilot",
     Icon: Bot,
     field: "copilot", // brand.copilot_allocation / brand.copilot_used
-    slug: "copilot", // "copilots" 404s; fields confirmed on GET /brands
-    wired: true,
+    // GET /brands returns the copilot fields, but there is no update route yet —
+    // allocations/copilot and allocations/copilots both 404 (probed 2026-10-13).
+    slug: "copilots",
+    wired: false,
     defaultTotal: 0,
   },
 ];

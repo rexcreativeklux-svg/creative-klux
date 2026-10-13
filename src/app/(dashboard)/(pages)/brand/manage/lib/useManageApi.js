@@ -114,10 +114,13 @@ export function useManageApi() {
 
       // ── Allocations ────────────────────────────────────────────────────────
       // slug ∈ { tokens, team, resells, creatives, integrations, storage }
-      updateAllocation: (brandId, slug, value) =>
+      // The body key is per-type — `{field}_allocation` (token_allocation,
+      // team_allocation, …), the same name the brand object reads it back under.
+      // A bare `allocation` is rejected: "The token allocation field is required."
+      updateAllocation: (brandId, slug, field, value) =>
         request(`/brands/${brandId}/allocations/${slug}`, {
           method: "PATCH",
-          body: { allocation: value },
+          body: { [`${field}_allocation`]: value },
         }),
 
       // ── AI credentials (bring your own key) ────────────────────────────────

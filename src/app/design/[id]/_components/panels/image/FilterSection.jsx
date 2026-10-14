@@ -13,7 +13,9 @@ import { SectionHeader, PresetStrip } from "./imageEditControls";
 export default function FilterSection({ editor }) {
   const [expanded, setExpanded] = useState(false);
   const el = editor?.selectedElement;
-  const thumb = el?.src ? proxiedSrc(el.src) : null;
+  // A video previews on its poster still — its src is not a picture.
+  const still = el?.type === "video" ? el.poster : el?.src;
+  const thumb = still ? proxiedSrc(still) : null;
   const activeId = el?.filter || "none";
 
   const pickFilter = (id) =>

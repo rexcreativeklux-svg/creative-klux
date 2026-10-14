@@ -15,6 +15,7 @@ import { proxiedSrc } from "@/(lib)/design/renderDesign";
 import { radiusToCss } from "@/(lib)/design/radius";
 import { hasPerspective } from "@/(lib)/design/perspective";
 import PerspectiveImage from "./PerspectiveImage";
+import VideoInner from "./video/VideoInner";
 import { fitFontSize } from "./textFit";
 import { textEffectCss } from "@/(lib)/design/textEffects";
 import { animationStyle } from "@/(lib)/design/animations";
@@ -898,28 +899,12 @@ function renderInner(el, opts) {
     );
   }
 
-  // A video layer — a Magic Design video saved from the AI chat. It plays
-  // muted on a loop so the canvas shows the motion, and lets pointer events
-  // through so it selects and drags like an image. The PNG exporter can't
-  // paint video, which is why those designs carry a still frame beneath it.
+  // A video layer — uploaded, stock, or a Magic Design video saved from the AI
+  // chat. Rests on its first frame with a ▶ to play it (see VideoInner). The PNG
+  // exporter paints its `poster` still instead; older Magic Design videos have
+  // none, and carry a still image beneath them for that.
   if (el.type === "video" && el.src) {
-    return (
-      <video
-        src={el.src}
-        muted
-        loop
-        autoPlay
-        playsInline
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: el.objectFit || "cover",
-          borderRadius: radiusToCss(el.borderRadius),
-          pointerEvents: "none",
-          display: "block",
-        }}
-      />
-    );
+    return <VideoInner el={el} zoom={zoom} />;
   }
 
   return null;

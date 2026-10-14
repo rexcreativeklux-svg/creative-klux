@@ -26,6 +26,8 @@ import { EditorContextMenu } from "./EditorElementMenu";
 import ImageCropOverlay from "./ImageCropOverlay";
 import ImageEraserOverlay from "./ImageEraserOverlay";
 import PreviewOverlay from "./PreviewOverlay";
+import VideoTrimBar from "./video/VideoTrimBar";
+import VideoCropOverlay from "./video/VideoCropOverlay";
 import {
   renderDesignToBlob,
   renderDesignToDataUrl,
@@ -50,6 +52,14 @@ import {
 import { measureText } from "./textFit";
 import { TABLE_DEFAULTS, makeCells } from "@/(lib)/design/tableUtils";
 import { KEYFRAMES_CSS } from "@/(lib)/design/animations";
+import { videoMeta, captureVideoFrame } from "@/(lib)/design/video";
+import {
+  cropSessionPatch,
+  fitRatio,
+  ratioValue,
+  sourceRect,
+} from "@/(lib)/design/videoCrop";
+import { styleBrushFrom, styleBrushPatch } from "@/(lib)/design/copyStyle";
 import { alignToPagePatch } from "@/(lib)/design/alignToPage";
 import {
   decodeElements,
@@ -58,6 +68,9 @@ import {
 import { useBreakpoint, useIsTouch } from "@/utils/useMediaQuery";
 
 const DRAW_TOOLS = ["pen", "marker", "highlighter", "eraser"];
+
+// A URL that points at a video file rather than a picture.
+const VIDEO_URL = /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i;
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
@@ -180,6 +193,16 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     notes: design?.notes || "",
   });
   const [addNodeMode, setAddNodeMode] = useState(false);
+  // Copy style: the look lifted off one element, waiting to be laid on the next
+  // one clicked (see copyStyle.js). Null when the brush is down.
+  const [styleBrush, setStyleBrush] = useState(null);
+  // Video trim mode: the id of the video being trimmed. Its trim bar takes the
+  // context bar's place until Done, Escape, or the selection moving elsewhere.
+  const [trimmingId, setTrimmingId] = useState(null);
+  if (trimmingId && !(selectedIds.length === 1 && selectedIds[0] === trimmingId)) {
+    setTrimmingId(null);
+  }
+  const brushSpentRef = useRef(false);
   // Brief "applied" flash on the stage when a whole design is swapped in
   // (template / Klux AI apply). Driven by the editor's replaceToken.
   // Armed during render off the token rather than in an effect: an effect would
@@ -236,6 +259,10 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   const cropResetRef = useRef(null);
   const eraseCommitRef = useRef(null);
 
+  // A video's crop session — { id, ratio, rotate, sel } while it is in crop
+  // mode; the side panel and the canvas overlay both edit it (videoCrop.js).
+  const [videoCrop, setVideoCrop] = useState(null);
+
   // ── Image crop / erase handlers ───────────────────────────────────────
   // Declared up here (above the keyboard effect that depends on them).
   const startCrop = useCallback(
@@ -244,6 +271,18 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
       setEditingId(null);
       setErasingId(null);
       setCroppingId(id);
+      // A video crops in Canva's crop mode: a session the side panel and the
+      // canvas overlay share, starting from the frame as it stands.
+      const el = elementsRef.current.find((e) => e.id === id);
+      if (el?.type === "video") {
+        setVideoCrop({
+          id,
+          ratio: "free",
+          rotate: Number(el.cropRotate) || 0,
+          sel: { x: 0, y: 0, w: el.width, h: el.height },
+        });
+        setActivePanel("video-crop");
+      }
     },
     [selectElement],
   );
@@ -261,6 +300,27 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   const cancelImageTool = useCallback(() => {
     setCroppingId(null);
     setErasingId(null);
+  }, []);
+
+  // ── Video crop session ────────────────────────────────────────────────
+  // (state declared above startCrop) It belongs to `croppingId`: whatever
+  // ends that (Esc, selecting away, Cancel) ends this.
+  if (videoCrop && croppingId !== videoCrop.id) setVideoCrop(null);
+
+  const setVideoCropSel = useCallback(
+    (sel) => setVideoCrop((s) => (s ? { ...s, sel } : s)),
+    [],
+  );
+  const setVideoCropRotate = useCallback(
+    (rotate) => setVideoCrop((s) => (s ? { ...s, rotate } : s)),
+    [],
+  );
+  const setVideoCropRatio = useCallback((ratio) => {
+    setVideoCrop((s) => {
+      const el = s && elementsRef.current.find((e) => e.id === s.id);
+      if (!el) return s;
+      return { ...s, ratio, sel: fitRatio(s.sel, sourceRect(el), ratioValue(ratio, el)) };
+    });
   }, []);
 
   // Selecting anything else leaves the tool.
@@ -398,10 +458,21 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     [erasingId, updateElement, uploadMedia],
   );
 
+  // Done on a video crop: the session becomes the element's crop, box and
+  // straighten angle in one undo step (videoCrop.js).
+  const applyVideoCrop = useCallback(() => {
+    const s = videoCrop;
+    const el = s && elementsRef.current.find((e) => e.id === s.id);
+    setCroppingId(null);
+    if (!el) return;
+    updateElement(el.id, cropSessionPatch(el, s.sel, s.rotate), { record: true });
+  }, [videoCrop, updateElement]);
+
   const commitImageTool = useCallback(async () => {
-    if (croppingId) cropCommitRef.current?.();
+    if (videoCrop) applyVideoCrop();
+    else if (croppingId) cropCommitRef.current?.();
     else if (erasingId) await eraseCommitRef.current?.();
-  }, [croppingId, erasingId]);
+  }, [croppingId, erasingId, videoCrop, applyVideoCrop]);
   const stageWrapRef = useRef(null);
   const stageInnerRef = useRef(null);
 
@@ -430,8 +501,10 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   // During render, not in an effect: whether a contextual panel still has
   // anything to act on is a fact about this render's selection, and an effect
   // would show one frame of a panel pointing at nothing.
-  const CONTEXTUAL_PANELS = ["color", "effects", "animate", "position", "img-edit"];
+  const CONTEXTUAL_PANELS = ["color", "effects", "animate", "position", "img-edit", "video-edit", "video-replace"];
   const panelStays = activePanel === "position" && positionSection === "layers";
+  // The video Crop panel lives exactly as long as its crop session.
+  if (activePanel === "video-crop" && !videoCrop) setActivePanel(null);
   if (
     CONTEXTUAL_PANELS.includes(activePanel) &&
     !selectedElement &&
@@ -723,6 +796,20 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   // press that starts the drag would collapse the sweep you just made.
   const handleSelect = useCallback(
     (id, e) => {
+      // With a style brush loaded, the next element clicked takes the style
+      // and becomes the selection — the brush is spent either way, Canva-style.
+      if (styleBrush) {
+        // One press can reach here twice (react-rnd's mousedown AND its drag
+        // start) before the state update lands; only the first one paints.
+        if (brushSpentRef.current) return;
+        brushSpentRef.current = true;
+        const target = elementsRef.current.find((el) => el.id === id);
+        const patch = styleBrushPatch(styleBrush, target);
+        if (patch && !target.locked) updateElement(id, patch, { record: true });
+        setStyleBrush(null);
+        selectElement(id);
+        return;
+      }
       if (e && (e.shiftKey || e.metaKey || e.ctrlKey)) {
         toggleSelection(id);
         return;
@@ -730,8 +817,14 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
       if (selectedIds.length > 1 && selectedIds.includes(id)) return;
       selectElement(id);
     },
-    [selectedIds, toggleSelection, selectElement],
+    [selectedIds, toggleSelection, selectElement, styleBrush, updateElement],
   );
+
+  // Copy style: load the brush from the selected element (or put it down again).
+  const toggleStyleBrush = useCallback(() => {
+    brushSpentRef.current = false;
+    setStyleBrush((cur) => (cur ? null : styleBrushFrom(selectedElement)));
+  }, [selectedElement]);
 
   const multiSelected = selectedIds.length > 1;
   const selectionBounds = multiSelected ? boundsOf(selectedElements) : null;
@@ -1301,6 +1394,16 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
         removeElements(selectedIds);
       }
       if (e.key === "Escape") {
+        // Trim mode, then a loaded style brush, are the first things Escape
+        // puts down — before it touches the selection.
+        if (trimmingId) {
+          setTrimmingId(null);
+          return;
+        }
+        if (styleBrush) {
+          setStyleBrush(null);
+          return;
+        }
         setEditingId(null);
         // One level at a time: inside a group, Escape hands the selection back
         // to the group rather than dropping it altogether, so a stray press
@@ -1333,6 +1436,8 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     erasingId,
     commitImageTool,
     cancelImageTool,
+    styleBrush,
+    trimmingId,
   ]);
 
   // ── Insert actions ────────────────────────────────────────────────────
@@ -1516,6 +1621,108 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     img.onload = () => place(img.naturalWidth, img.naturalHeight);
     img.onerror = () => place(canvas.width * 0.4, canvas.width * 0.4);
     img.src = src;
+  };
+
+  /**
+   * Place a video from a durable URL, sized like an image (60% of the canvas
+   * width at its own aspect) and resting paused on its first frame.
+   *
+   * Its size and length are read first — only metadata, so it is quick — and a
+   * still frame is captured afterwards for everything that can't play video
+   * (export, thumbnail, layers). `probeSrc` lets an upload read both from the
+   * local file it just sent, which is faster and always CORS-clean; `poster`
+   * skips the capture when the source already has one (Pexels does).
+   *
+   * @param {string} src
+   * @param {{ poster?: string, duration?: number, probeSrc?: string }} [opts]
+   */
+  const insertVideoUrl = async (src, { poster: givenPoster, duration, probeSrc } = {}) => {
+    if (!src) return;
+    // Some gallery records put the video's own URL in `thumbnail`; a poster has
+    // to be a picture, or the export has nothing it can paint.
+    const poster =
+      givenPoster && givenPoster !== src && !VIDEO_URL.test(givenPoster)
+        ? givenPoster
+        : null;
+    const probe = probeSrc || src;
+    const meta = await videoMeta(probe);
+    const natW = meta?.width || 1920;
+    const natH = meta?.height || 1080;
+    const w = Math.min(canvas.width * 0.6, natW);
+    const h = w * (natH / natW);
+    const len = meta?.duration || Number(duration) || 0;
+    const id = addElement({
+      type: "video",
+      src,
+      poster: poster || null,
+      natW,
+      natH,
+      duration: len,
+      trimStart: 0,
+      trimEnd: len || null,
+      volume: 1,
+      muted: false,
+      speed: 1,
+      x: cx() - w / 2,
+      y: cy() - h / 2,
+      width: w,
+      height: h,
+    });
+    if (!poster) {
+      const still = await captureVideoFrame(probe);
+      if (still) updateElement(id, { poster: still }, { record: false });
+    }
+    if (probeSrc?.startsWith("blob:")) URL.revokeObjectURL(probeSrc);
+  };
+
+  /**
+   * Replace a video's footage, keeping its box, look and place in the stack —
+   * Canva's Replace. Trim and crop reset because they described the old clip.
+   *
+   * `source` is either a File (uploaded from the Replace panel) — shown at once
+   * from the local file, its durable URL swapped in once the upload lands,
+   * outside the history — or `{ src, poster?, duration? }` for footage that is
+   * already hosted (your gallery, your creatives, stock).
+   */
+  const replaceVideo = async (id, source) => {
+    const isFile = typeof File !== "undefined" && source instanceof File;
+    if (isFile && !source.type?.startsWith("video/")) {
+      toast.error("Choose a video file to replace this one.");
+      return;
+    }
+    if (!isFile && !source?.src) return;
+    const src = isFile ? URL.createObjectURL(source) : source.src;
+    const given =
+      !isFile && source.poster && !VIDEO_URL.test(source.poster) ? source.poster : null;
+    const [meta, still] = await Promise.all([
+      videoMeta(src),
+      given ? Promise.resolve(given) : captureVideoFrame(src),
+    ]);
+    const len = meta?.duration || Number(source.duration) || 0;
+    updateElement(
+      id,
+      {
+        src,
+        poster: still,
+        natW: meta?.width,
+        natH: meta?.height,
+        duration: len,
+        trimStart: 0,
+        trimEnd: len || null,
+        crop: null,
+      },
+      { record: true },
+    );
+    if (!isFile) return;
+    const file = source;
+    try {
+      const res = await uploadMedia(file);
+      const url =
+        res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
+      if (url) updateElement(id, { src: url }, { record: false });
+    } catch {
+      toast.error("Video upload failed — it won't persist after save.");
+    }
   };
 
   // Insert an empty frame (an image clipped to a shape). Sized to the frame's
@@ -1930,6 +2137,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
             graphic: insertGraphic,
             imageUrl: insertImageUrl,
             imageFile: handleAddImage,
+            videoUrl: insertVideoUrl,
           }}
           setBackground={setBackground}
           background={
@@ -1947,6 +2155,14 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
           positionSection={positionSection}
           onPositionSection={setPositionSection}
           onPlayAnimation={playAnimations}
+          onReplaceVideo={replaceVideo}
+          videoCrop={{
+            session: videoCrop,
+            onRatio: setVideoCropRatio,
+            onRotate: setVideoCropRotate,
+            onCancel: cancelImageTool,
+            onDone: applyVideoCrop,
+          }}
           imageActions={{
             onRemoveBg: removeImageBackground,
             onStartErase: startErase,
@@ -1993,7 +2209,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
           ref={stageWrapRef}
           className={`relative flex-1 flex items-center justify-center overflow-auto pb-nav [&>*]:m-auto lg:pb-0 ${
             panning ? "select-none" : ""
-          }`}
+          } ${styleBrush ? "**:cursor-copy!" : ""}`}
           onPointerDown={(e) => {
             onStagePointerDown(e);
             // click empty area → deselect, and start a marquee from here so a
@@ -2001,6 +2217,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
             // ⚠️ Depends on the click landing on THIS node — do not wrap the
             // stage below in another element without moving this check with it.
             if (e.target === e.currentTarget) {
+              setStyleBrush(null);
               if (!e.shiftKey) selectElement(null);
               setEditingId(null);
               setActiveCell(null);
@@ -2064,7 +2281,17 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
             />
           )}
 
-          {!croppingId && !erasingId && (
+          {/* Video trim bar — replaces the context bar while trimming. */}
+          {trimmingId && selectedElement?.type === "video" && (
+            <VideoTrimBar
+              el={selectedElement}
+              onChange={(patch, opts) => updateElement(selectedElement.id, patch, opts)}
+              onGestureBegin={commit}
+              onDone={() => setTrimmingId(null)}
+            />
+          )}
+
+          {!croppingId && !erasingId && !trimmingId && (
             <EditorContextBar
               // Formatting is per-element: with several selected there is no one
               // element these controls belong to, so a multi-selection gets no
@@ -2092,11 +2319,15 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
               onStartCrop={startCrop}
               onStartErase={startErase}
               onFrameFill={fillFrame}
+              onStartTrim={setTrimmingId}
+              styleBrushActive={!!styleBrush}
+              onToggleStyleBrush={toggleStyleBrush}
             />
           )}
 
-          {/* Crop / Erase control bar — replaces the context bar while active. */}
-          {(croppingId || erasingId) && (
+          {/* Crop / Erase control bar — replaces the context bar while active.
+              A video's crop has its Cancel / Done in the Crop panel instead. */}
+          {((croppingId && !videoCrop) || erasingId) && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 bg-surface border border-gray-200 shadow-lg rounded-xl px-3 py-2">
               <span className="text-xs font-semibold text-gray-700">
                 {croppingId ? "Crop image" : "Erase"}
@@ -2140,6 +2371,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
           {/* Scaled stage. `position: relative` anchors the chrome layer that
               sits over it — see the sibling below. */}
           <div
+            className="group/page"
             style={{
               position: "relative",
               width: canvas.width * zoom,
@@ -2147,6 +2379,14 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
               flexShrink: 0,
             }}
           >
+            {/* Page hover outline, Canva-style. On this unscaled wrapper rather
+                than the scaled stage so it stays 2px on screen at any zoom, and
+                just outside the artboard so it never covers the artwork's
+                edge. Pointer-transparent. */}
+            <div
+              className="pointer-events-none absolute -inset-0.5 border-2 border-[#6366f1] opacity-0 transition-opacity duration-150 group-hover/page:opacity-100"
+              style={{ zIndex: 43 }}
+            />
             <div
               ref={stageInnerRef}
               className="relative shadow-xl overflow-hidden"
@@ -2169,6 +2409,7 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
               onPointerDown={(e) => {
                 // Bare artboard: clear the selection and start a marquee.
                 if (e.target === e.currentTarget) {
+                  setStyleBrush(null);
                   if (!e.shiftKey) selectElement(null);
                   setEditingId(null);
                   if (!isDrawTool && !addNodeMode) startMarquee(e);
@@ -2456,6 +2697,18 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
               {croppingId &&
                 (() => {
                   const ce = elements.find((e) => e.id === croppingId);
+                  if (ce && videoCrop && ce.type === "video") {
+                    return (
+                      <VideoCropOverlay
+                        el={ce}
+                        zoom={zoom}
+                        sel={videoCrop.sel}
+                        onSel={setVideoCropSel}
+                        ratio={ratioValue(videoCrop.ratio, ce)}
+                        rotate={videoCrop.rotate}
+                      />
+                    );
+                  }
                   return ce ? (
                     <ImageCropOverlay
                       el={ce}

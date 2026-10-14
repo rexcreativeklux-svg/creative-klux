@@ -19,11 +19,29 @@ const normalizePhotos = (photos = []) =>
     alt: p.alt || "Pexels photo",
   }));
 
-const normalizeVideos = (videos = []) =>
+/**
+ * The rendition to place. Pexels lists files in no useful order — the first is
+ * as likely a 4K master as a 360p preview — so take the largest MP4 that is
+ * still at most 1080p on its short side: sharp on a 1080 canvas without
+ * dragging a 4K stream into the editor.
+ */
+const pickVideoFile = (files = []) => {
+  const mp4 = files.filter((f) => f.link && (f.file_type || "").includes("mp4"));
+  const pool = mp4.length ? mp4 : files.filter((f) => f.link);
+  const short = (f) => Math.min(f.width || 0, f.height || 0);
+  const fits = pool.filter((f) => short(f) <= 1080);
+  const ranked = (fits.length ? fits : pool).sort((a, b) =>
+    fits.length ? short(b) - short(a) : short(a) - short(b),
+  );
+  return ranked[0]?.link;
+};
+
+export const normalizeVideos = (videos = []) =>
   videos.map((v) => ({
     id: v.id,
     thumb: v.image,
-    full: v.video_files?.[0]?.link,
+    full: pickVideoFile(v.video_files),
+    duration: v.duration,
     alt: v.user?.name ? `Video by ${v.user.name}` : "Pexels video",
   }));
 

@@ -24,6 +24,8 @@ import { isCropped } from "./imageCrop";
 import { isColourValue, tintedImageCanvas } from "./imageTint";
 import { isClipped, windowed } from "./clip";
 import { flattenGroups } from "./groups";
+import { borderDashArray, borderLineCap } from "./borderDash";
+import { coverScale } from "./videoCrop";
 import { fromScraiveElements } from "./scraiveCompat";
 
 /**
@@ -82,7 +84,14 @@ export async function renderDesignToCanvas({ canvas, elements }) {
   //
   // Scraive shape types (`rectangle`, `hexagon`, …) are translated before that —
   // this painter has no branch for them and would skip them without a trace.
-  const flat = flattenGroups(fromScraiveElements(elements || []));
+  //
+  // A canvas can't paint a playing video, so a video is painted as its poster
+  // still — an image in the same box, with the same fit, corners and flips.
+  // One without a poster (older Magic Design videos, which carry a still image
+  // beneath them instead) is left out.
+  const flat = flattenGroups(fromScraiveElements(elements || [])).flatMap((el) =>
+    el.type !== "video" ? [el] : el.poster ? [{ ...el, type: "image", src: el.poster }] : [],
+  );
 
   // Ensure any custom fonts used by text elements are loaded before painting —
   // canvas fillText silently falls back to a default if the font isn't ready.
@@ -549,6 +558,23 @@ export async function renderDesignToCanvas({ canvas, elements }) {
         // offscreen canvas translated by -(x, y). That redirection is what makes
         // an isolated tint possible without restating the four fit modes.
         const paintImage = (target) => {
+          target.save();
+          // Straighten (a video's crop-mode Rotate, painted on its poster):
+          // turn about the box centre and scale to keep it covered — the same
+          // transform VideoInner applies on the stage.
+          if (el.cropRotate) {
+            const rcx = el.x + el.width / 2;
+            const rcy = el.y + el.height / 2;
+            const k = coverScale(el.width, el.height, el.cropRotate);
+            target.translate(rcx, rcy);
+            target.rotate((el.cropRotate * Math.PI) / 180);
+            target.scale(k, k);
+            target.translate(-rcx, -rcy);
+          }
+          paintImageBody(target);
+          target.restore();
+        };
+        const paintImageBody = (target) => {
           if (hasPerspective(el)) {
             // Perspective: keystone-warp the image (box aspect) and stretch onto
             // the box — the same warp PerspectiveImage draws on screen.
@@ -606,6 +632,10 @@ export async function renderDesignToCanvas({ canvas, elements }) {
           ctx.filter = "none";
           ctx.strokeStyle = el.borderColor || "#ffffff";
           ctx.lineWidth = bw;
+          // Dashed / dotted borders (borderDash.js) — the same pattern the
+          // stage strokes, so the download matches.
+          ctx.setLineDash(borderDashArray(el.borderDash, bw));
+          ctx.lineCap = borderLineCap(el.borderDash);
           // Stroke down the middle of the border's width, so half lands inside
           // the box edge and half over the image — the same pixels CSS paints
           // for an inset `border` with `box-sizing: border-box`. The radius

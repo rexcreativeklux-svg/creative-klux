@@ -44,9 +44,12 @@ export default function UploadsPanel({ insert }) {
   const stock = usePexelsSearch({ query: q, type: activeType });
   const { pick } = useMediaInsert({ insert });
 
-  // Upload once, to the gallery, then place images from the durable URL that
-  // comes back. Going through insert.imageFile instead would upload behind our
-  // back and leave the list below showing stale contents.
+  // Upload once, to the gallery, then place images and videos from the durable
+  // URL that comes back. Going through insert.imageFile instead would upload
+  // behind our back and leave the list below showing stale contents.
+  //
+  // A video is measured and its poster captured from the LOCAL file, not the
+  // uploaded one: it's already on disk, and a blob URL never trips CORS.
   const onFiles = async (files) => {
     setUploading(true);
     try {
@@ -54,7 +57,11 @@ export default function UploadsPanel({ insert }) {
         const res = await uploadMedia(file);
         const url =
           res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
-        if (url && file.type.startsWith("image/")) insert.imageUrl(url);
+        if (!url) continue;
+        if (file.type.startsWith("image/")) insert.imageUrl(url);
+        else if (file.type.startsWith("video/")) {
+          insert.videoUrl(url, { probeSrc: URL.createObjectURL(file) });
+        }
       }
       await refresh?.();
     } catch (err) {

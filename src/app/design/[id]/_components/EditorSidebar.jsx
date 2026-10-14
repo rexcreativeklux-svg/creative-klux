@@ -34,6 +34,9 @@ import ShapeEffectsPanel from "./panels/effects/ShapeEffectsPanel";
 import AnimatePanel from "./panels/animate/AnimatePanel";
 import PositionPanel from "./panels/position/PositionPanel";
 import EditImagePanel from "./panels/image/EditImagePanel";
+import EditVideoPanel from "./video/EditVideoPanel";
+import ReplaceVideoPanel from "./video/ReplaceVideoPanel";
+import VideoCropPanel from "./video/VideoCropPanel";
 
 /**
  * EditorSidebar — Canva-style navigation: a slim icon rail on the far left and
@@ -200,6 +203,33 @@ export default function EditorSidebar({ active: activeProp, onActiveChange, ...p
         <EditImagePanel
           editor={props.editor}
           imageActions={props.imageActions}
+          onClose={() => setActive(null)}
+        />
+      )}
+
+      {/* Edit video — Adjust / Filters, opened from the video toolbar. */}
+      {active === "video-edit" && (
+        <EditVideoPanel editor={props.editor} onClose={() => setActive(null)} />
+      )}
+
+      {/* Crop video — ratio / rotate / Cancel / Done for the crop session the
+          canvas overlay is editing. Closing it cancels. */}
+      {active === "video-crop" && (
+        <VideoCropPanel
+          session={props.videoCrop?.session}
+          onRatio={props.videoCrop?.onRatio}
+          onRotate={props.videoCrop?.onRotate}
+          onCancel={props.videoCrop?.onCancel}
+          onDone={props.videoCrop?.onDone}
+          onClose={props.videoCrop?.onCancel}
+        />
+      )}
+
+      {/* Replace video — new footage from uploads, creatives, AI, stock. */}
+      {active === "video-replace" && (
+        <ReplaceVideoPanel
+          editor={props.editor}
+          onReplace={props.onReplaceVideo}
           onClose={() => setActive(null)}
         />
       )}

@@ -28,14 +28,28 @@ import {
   Wand2,
   Play,
   Move,
-  Blend,
   SlidersHorizontal,
   Eraser,
   Crop,
   Sparkles,
   PenLine,
   Droplet,
+  Scissors,
+  Volume2,
+  VolumeX,
+  Gauge,
+  AlignJustify,
+  SquareRoundCorner,
+  PaintRoller,
+  Replace,
 } from "lucide-react";
+import { clipRange, formatSeconds } from "@/(lib)/design/video";
+import {
+  VolumePopover,
+  SpeedPopover,
+  BorderPopover,
+  FlipPopover,
+} from "./video/VideoPopovers";
 import { isLineShape } from "@/(lib)/design/shapes";
 import { addRow, addCol, removeRow, removeCol } from "@/(lib)/design/tableUtils";
 import { gridCellRects, resizeGridCells } from "@/(lib)/design/grids";
@@ -83,12 +97,19 @@ export default function EditorContextBar({
   onStartCrop,
   onStartErase,
   onFrameFill,
+  onStartTrim,
+  styleBrushActive = false,
+  onToggleStyleBrush,
 }) {
   const [menu, setMenu] = useState(null); // 'spacing' | null
 
   if (!element) return null;
 
   const patch = (p) => onChange(element.id, p, { record: true });
+  // A slider's moves: written without history. The press before them calls
+  // `patch` with the value as it stands, which is what records the one undo
+  // step the whole drag rolls back to.
+  const live = (p) => onChange(element.id, p, { record: false });
   // Table row/col helpers return {} when they'd drop below 1×1 — skip those so
   // hitting the limit doesn't push an empty (no-op) undo entry.
   const tableEdit = (p) => {
@@ -591,6 +612,95 @@ export default function EditorContextBar({
         </>
       )}
 
+      {element.type === "video" && (
+        <>
+          {/* Canva's video bar, in Canva's order: Edit · Replace · Trim ·
+              Volume · Speed | Border · Corners · Crop · Flip, then the shared
+              Transparency · Animate · Position · Copy style. The trim button
+              carries the clip's length. */}
+          <PanelButton
+            icon={SlidersHorizontal}
+            label="Edit"
+            onClick={() => onOpenImageTool?.("video-edit")}
+          />
+          <Divider />
+          {/* Opens the Replace panel: uploads, creatives, AI and stock video. */}
+          <PanelButton
+            icon={Replace}
+            label="Replace"
+            onClick={() => onOpenImageTool?.("video-replace")}
+          />
+          <PanelButton
+            icon={Scissors}
+            label={
+              clipRange(element).length > 0
+                ? formatSeconds(clipRange(element).length)
+                : "Trim"
+            }
+            onClick={() => {
+              setMenu(null);
+              onStartTrim?.(element.id);
+            }}
+          />
+          <Toggle
+            active={menu === "volume"}
+            onClick={() => setMenu((m) => (m === "volume" ? null : "volume"))}
+            title="Volume"
+          >
+            {element.muted ? (
+              <VolumeX className="w-4 h-4" />
+            ) : (
+              <Volume2 className="w-4 h-4" />
+            )}
+          </Toggle>
+          <PanelButton
+            icon={Gauge}
+            label={(Number(element.speed) || 1) === 1 ? "Speed" : `${element.speed}x`}
+            active={menu === "speed"}
+            onClick={() => setMenu((m) => (m === "speed" ? null : "speed"))}
+          />
+          <Divider />
+          <Toggle
+            active={menu === "border" || (Number(element.borderWidth) || 0) > 0}
+            onClick={() => setMenu((m) => (m === "border" ? null : "border"))}
+            title="Border"
+          >
+            <AlignJustify className="w-4 h-4" />
+          </Toggle>
+          {/* Border colour — on the bar, like Canva, once there's a border. */}
+          {(Number(element.borderWidth) || 0) > 0 && (
+            <ColorInput
+              value={element.borderColor || "#000000"}
+              keys={["borderColor"]}
+              title="Border color"
+              onOpen={onOpenColorPanel}
+            />
+          )}
+          <Toggle
+            active={menu === "rounding"}
+            onClick={() =>
+              setMenu((m) => (m === "rounding" ? null : "rounding"))
+            }
+            title="Corner rounding"
+          >
+            <SquareRoundCorner className="w-4 h-4" />
+          </Toggle>
+          <Toggle
+            active={!!element.crop}
+            onClick={() => onStartCrop?.(element.id)}
+            title="Crop"
+          >
+            <Crop className="w-4 h-4" />
+          </Toggle>
+          <PanelButton
+            icon={FlipHorizontal}
+            label="Flip"
+            active={menu === "flip"}
+            onClick={() => setMenu((m) => (m === "flip" ? null : "flip"))}
+          />
+        </>
+      )}
+
         {/* ── A selected GROUP ────────────────────────────────────────────
             The UNION of what its contents can be styled with, all on screen at
             once — which is why it is the longest bar in the editor. One swatch
@@ -712,7 +822,17 @@ export default function EditorContextBar({
           </>
         )}
 
-        {/* Animate + Position — shared across element types */}
+        {/* Shared across element types, in Canva's order: Transparency ·
+            Animate · Position | Copy style. */}
+        <Toggle
+          active={menu === "transparency"}
+          onClick={() =>
+            setMenu((m) => (m === "transparency" ? null : "transparency"))
+          }
+          title="Transparency"
+        >
+          <CheckerIcon className="w-4 h-4" />
+        </Toggle>
         <PanelButton
           icon={Play}
           label="Animate"
@@ -721,16 +841,14 @@ export default function EditorContextBar({
         />
         <PanelButton icon={Move} label="Position" onClick={onOpenPositionPanel} />
         <Divider />
-
-        {/* Transparency — shared (Canva-style popover) */}
+        {/* Copy style — loads the brush; the next element clicked takes this
+            one's look (see copyStyle.js). Esc or an empty click puts it down. */}
         <Toggle
-          active={menu === "transparency"}
-          onClick={() =>
-            setMenu((m) => (m === "transparency" ? null : "transparency"))
-          }
-          title="Transparency"
+          active={styleBrushActive}
+          onClick={onToggleStyleBrush}
+          title={styleBrushActive ? "Click an element to paste the style" : "Copy style"}
         >
-          <Blend className="w-4 h-4" />
+          <PaintRoller className="w-4 h-4" />
         </Toggle>
       </div>
 
@@ -793,13 +911,39 @@ export default function EditorContextBar({
       )}
 
       {/* Corner-rounding popover — sibling of the scroll row (not clipped by
-          overflow-x-auto). Image only. */}
-      {menu === "rounding" && element.type === "image" && (
+          overflow-x-auto). Images and videos. */}
+      {menu === "rounding" && (element.type === "image" || element.type === "video") && (
         <RoundingPopover
           value={radiusToNumber(element.borderRadius)}
           max={Math.round(Math.min(element.width, element.height) / 2)}
-          onChange={(v) => patch({ borderRadius: v })}
+          onBegin={() => patch({ borderRadius: element.borderRadius })}
+          onLive={(v) => live({ borderRadius: v })}
+          onSet={(v) => patch({ borderRadius: v })}
         />
+      )}
+
+      {/* Video volume / speed / border / flip. Keyed by the committed values so
+          an undo that changes them re-seeds the popover's local slider state.
+          (Trim is a mode with its own bar — VideoTrimBar.) */}
+      {element.type === "video" && menu === "volume" && (
+        <VolumePopover
+          key={`${element.id}:${element.volume}:${element.muted}`}
+          el={element}
+          onCommit={patch}
+        />
+      )}
+      {element.type === "video" && menu === "speed" && (
+        <SpeedPopover el={element} onCommit={patch} />
+      )}
+      {element.type === "video" && menu === "border" && (
+        <BorderPopover
+          key={`${element.id}:${element.borderWidth}:${element.borderDash}`}
+          el={element}
+          onCommit={patch}
+        />
+      )}
+      {element.type === "video" && menu === "flip" && (
+        <FlipPopover el={element} onCommit={patch} />
       )}
 
       {/* Grid cell-rounding popover. Max = half the smallest cell edge. */}
@@ -807,7 +951,9 @@ export default function EditorContextBar({
         <RoundingPopover
           value={element.cellRadius || 0}
           max={gridCellMaxRadius(element)}
-          onChange={(v) => patch({ cellRadius: v })}
+          onBegin={() => patch({ cellRadius: element.cellRadius })}
+          onLive={(v) => live({ cellRadius: v })}
+          onSet={(v) => patch({ cellRadius: v })}
         />
       )}
 
@@ -823,33 +969,28 @@ export default function EditorContextBar({
       {menu === "transparency" && (
         <TransparencyPopover
           value={Math.round((element.opacity ?? 1) * 100)}
-          onChange={(v) => patch({ opacity: v / 100 })}
+          onBegin={() => patch({ opacity: element.opacity ?? 1 })}
+          onLive={(v) => live({ opacity: v / 100 })}
+          onSet={(v) => patch({ opacity: v / 100 })}
         />
       )}
     </div>
   );
 }
 
-/** Element transparency (opacity) slider, dropped below the toolbar. Canva
- *  labels this "Transparency"; 100 = fully opaque, 0 = invisible. */
-function TransparencyPopover({ value, onChange }) {
+/** Element transparency (opacity), dropped below the toolbar. Canva labels
+ *  this "Transparency"; 100 = fully opaque, 0 = invisible. */
+function TransparencyPopover({ value, onBegin, onLive, onSet }) {
   return (
-    <div className="absolute top-full right-0 mt-2 w-64 rounded-2xl border border-gray-100 bg-surface p-4 shadow-2xl z-[9999]">
-      <div className="flex items-center justify-between mb-1.5">
-        <p className="text-sm font-semibold text-gray-700">Transparency</p>
-        <span className="w-12 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-xs text-gray-600 tabular-nums">
-          {value}
-        </span>
-      </div>
-      <input
-        type="range"
-        min={0}
-        max={100}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full cursor-pointer accent-blue-600"
-      />
-    </div>
+    <SliderBoxPopover
+      label="Transparency"
+      value={value}
+      max={100}
+      onBegin={onBegin}
+      onLive={onLive}
+      onSet={onSet}
+      className="right-0"
+    />
   );
 }
 
@@ -908,16 +1049,16 @@ function gridCellMaxRadius(el) {
   return Math.round(Math.min(cell.w, cell.h) / 2);
 }
 
-/** Image swatch that opens a file picker and hands the chosen file back — used
- *  by the frame toolbar to fill/replace the frame's image. */
-function ReplaceImageButton({ onFile }) {
+/** "Replace" button that opens a file picker and hands the chosen file back —
+ *  used by the frame toolbar (images) and the video toolbar (`accept="video/*"`). */
+function ReplaceImageButton({ onFile, accept = "image/*", title = "Replace image" }) {
   const ref = useRef(null);
   return (
     <>
       <button
         type="button"
         onClick={() => ref.current?.click()}
-        title="Replace image"
+        title={title}
         className="h-8 flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 text-xs text-gray-700 hover:bg-gray-50 transition cursor-pointer shrink-0"
       >
         <ImageUp className="w-4 h-4" />
@@ -926,7 +1067,7 @@ function ReplaceImageButton({ onFile }) {
       <input
         ref={ref}
         type="file"
-        accept="image/*"
+        accept={accept}
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) onFile(f);
@@ -1042,24 +1183,103 @@ function OutlinePopover({ width, dash, onWidth, onDash }) {
   );
 }
 
-function RoundingPopover({ value, max, onChange }) {
+/** Corner rounding — Canva's popover (see SliderBoxPopover). */
+function RoundingPopover({ value, max, onBegin, onLive, onSet }) {
   return (
-    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 rounded-2xl border border-gray-100 bg-surface p-4 shadow-2xl">
-      <div className="flex items-center justify-between mb-1.5">
-        <p className="text-sm font-semibold text-gray-700">Corner rounding</p>
-        <span className="w-12 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-xs text-gray-600 tabular-nums">
-          {value}
-        </span>
+    <SliderBoxPopover
+      label="Corner rounding"
+      value={value}
+      max={Math.max(1, max)}
+      onBegin={onBegin}
+      onLive={onLive}
+      onSet={onSet}
+      className="left-1/2 -translate-x-1/2"
+    />
+  );
+}
+
+/**
+ * The one-slider popover Canva uses for Transparency and Corner rounding: the
+ * label, a slider filled up to its value, and the value in a box beside it
+ * that can be typed into (clamped to the range).
+ *
+ * A drag is ONE undo step that previews live: `onBegin` records history when
+ * the thumb is pressed, `onLive` writes each move without recording. A typed
+ * value is a single recorded write (`onSet`).
+ */
+function SliderBoxPopover({ label, value, min = 0, max, onBegin, onLive, onSet, className = "" }) {
+  const [draft, setDraft] = useState(null); // the box while typing
+  const v = Math.min(max, Math.max(min, value));
+  const pct = ((v - min) / (max - min || 1)) * 100;
+  return (
+    <div
+      className={`absolute top-full mt-2 w-80 rounded-2xl border border-gray-100 bg-surface p-5 shadow-2xl z-9999 ${className}`}
+    >
+      <p className="text-sm text-gray-700 mb-2">{label}</p>
+      <div className="flex items-center gap-3">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={v}
+          onPointerDown={onBegin}
+          onKeyDown={onBegin}
+          onChange={(e) => onLive(Number(e.target.value))}
+          aria-label={label}
+          className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer
+                     [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+                     [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2
+                     [&::-webkit-slider-thumb]:border-blue-600 [&::-webkit-slider-thumb]:shadow
+                     [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full
+                     [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-600"
+          style={{
+            background: `linear-gradient(to right, #2563eb ${pct}%, #e5e7eb ${pct}%)`,
+          }}
+        />
+        <input
+          value={draft ?? String(value)}
+          onFocus={(e) => {
+            setDraft(String(value));
+            e.target.select();
+          }}
+          onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ""))}
+          onBlur={() => {
+            const n = Number(draft);
+            setDraft(null);
+            if (draft !== "" && Number.isFinite(n)) {
+              const next = Math.max(min, Math.min(max, Math.round(n)));
+              if (next !== value) onSet(next);
+            }
+          }}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          aria-label={`${label} value`}
+          className="w-14 h-10 rounded-lg border border-gray-200 text-center text-sm text-gray-700 tabular-nums focus:outline-none focus:border-blue-400"
+        />
       </div>
-      <input
-        type="range"
-        min={0}
-        max={Math.max(1, max)}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full cursor-pointer accent-blue-600"
-      />
     </div>
+  );
+}
+
+/** Canva's transparency icon — a checkerboard. */
+function CheckerIcon({ className }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} aria-hidden="true">
+      {[0, 1, 2, 3].flatMap((r) =>
+        [0, 1, 2, 3]
+          .filter((c) => (r + c) % 2 === 0)
+          .map((c) => (
+            <rect
+              key={`${r}-${c}`}
+              x={c * 4}
+              y={r * 4}
+              width="4"
+              height="4"
+              fill="currentColor"
+              opacity={0.25 + 0.25 * (r / 3) + 0.5 * (c / 3)}
+            />
+          )),
+      )}
+    </svg>
   );
 }
 

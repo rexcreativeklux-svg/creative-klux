@@ -48,7 +48,10 @@ export default function StockList({
           src={r.full}
           thumb={r.thumb}
           label={r.alt}
-          onPick={() => onPick(typeId, r.full)}
+          duration={r.duration}
+          onPick={() =>
+            onPick(typeId, r.full, { thumb: r.thumb, duration: r.duration })
+          }
         />
       ))}
     </MediaGrid>

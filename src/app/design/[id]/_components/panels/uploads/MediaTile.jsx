@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Film, AudioLines, FileText } from "lucide-react";
+import { formatSeconds } from "@/(lib)/design/video";
 
 const TILE =
   "relative w-full aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-50 cursor-pointer transition hover:border-blue-400";
@@ -9,18 +10,24 @@ const TILE =
 /**
  * MediaTile — one item in the uploads panel, rendered by media type.
  *
- * Only images are insertable: the editor composes a static PNG and has no
- * video/audio/document element type. The rest still render so the panel mirrors
- * the gallery, and `onPick` explains that rather than failing silently.
+ * Images and videos are insertable. Audio and documents still render so the
+ * panel mirrors the gallery, and `onPick` explains why they can't be placed
+ * rather than failing silently.
  *
- * Props: { type, src, thumb?, label?, onPick }
+ * Props: { type, src, thumb?, label?, duration?, onPick }
  */
-export default function MediaTile({ type, src, thumb, label, onPick }) {
+export default function MediaTile({ type, src, thumb, label, duration, onPick }) {
   const title = label || type;
 
   if (type === "video") {
     return (
       <button onClick={onPick} title={title} className={`${TILE} bg-black`}>
+        {/* Length chip, top-left like Canva's — only when the source told us. */}
+        {Number(duration) > 0 && (
+          <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-semibold tabular-nums">
+            {formatSeconds(duration)}
+          </span>
+        )}
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumb} alt={title} className="w-full h-full object-cover" />

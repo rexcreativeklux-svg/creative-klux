@@ -47,11 +47,13 @@ function previewCss(v) {
   return p.join(" ");
 }
 
-export default function AdjustSection({ editor }) {
-  const [expanded, setExpanded] = useState(false);
+export default function AdjustSection({ editor, defaultExpanded = false }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const el = editor?.selectedElement;
   const adjust = el?.adjust || {};
-  const thumb = el?.src ? proxiedSrc(el.src) : null;
+  // A video previews on its poster still — its src is not a picture.
+  const still = el?.type === "video" ? el.poster : el?.src;
+  const thumb = still ? proxiedSrc(still) : null;
 
   const setAdjust = (key, value) =>
     editor.updateElement(el.id, { adjust: { ...adjust, [key]: value } }, { record: true });

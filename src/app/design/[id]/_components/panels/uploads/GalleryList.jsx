@@ -57,7 +57,13 @@ export default function GalleryList({
               src={item.src}
               thumb={item.thumbnail || item.thumb}
               label={item.filename || item.alt}
-              onPick={() => onPick(type, item.src)}
+              duration={item.duration}
+              onPick={() =>
+                onPick(type, item.src, {
+                  thumb: item.thumbnail || item.thumb,
+                  duration: item.duration,
+                })
+              }
             />
           );
         })}

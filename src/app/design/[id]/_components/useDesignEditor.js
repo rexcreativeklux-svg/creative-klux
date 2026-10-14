@@ -94,7 +94,7 @@ function cloneElement(el) {
  * Scale one element to a canvas resize. Most elements scale per-axis (sx, sy)
  * so the layout stays proportional; scalar typographic props (font size,
  * tracking, stroke, radius) scale by a single uniform factor so text and shapes
- * don't distort. Images are special-cased: they scale UNIFORMLY (preserving
+ * don't distort. Images (and videos) are special-cased: they scale UNIFORMLY (preserving
  * their own aspect ratio) and stay centred on their proportionally-moved
  * centre, so pictures never stretch.
  */
@@ -102,7 +102,7 @@ function refitElement(el, sx, sy, uni) {
   const next = { ...el };
 
   if (
-    el.type === "image" &&
+    (el.type === "image" || el.type === "video") &&
     typeof el.width === "number" &&
     typeof el.height === "number"
   ) {

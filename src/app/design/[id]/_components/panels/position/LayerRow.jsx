@@ -48,11 +48,13 @@ function LayerThumb({ el }) {
   const base =
     "w-9 h-9 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-50";
 
-  if (el.type === "image" && el.src) {
+  // A video shows its poster still — the same frame the export paints.
+  const picture = el.type === "image" ? el.src : el.type === "video" ? el.poster : null;
+  if (picture) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={el.src}
+        src={picture}
         alt=""
         draggable={false}
         className={`${base} object-cover`}

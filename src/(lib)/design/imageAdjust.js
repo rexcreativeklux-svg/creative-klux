@@ -10,10 +10,15 @@
  * download matches the stage.
  *
  * Stored on an image element as:
- *   el.adjust    = { brightness, contrast, saturation, warmth, hue, blur }
- *   el.filter    = <filter id>            (a FILTERS preset)
+ *   el.adjust    = { brightness, contrast, saturation, warmth, hue, blur,
+ *                    tint, highlights, shadows, whites, blacks, vibrance }
+ *                  (the second row is Canva's video Adjust — see toneFilter.js)
+ *   el.filter    = <filter id>            (a FILTERS preset, or a `look-*` from filterLooks)
  *   el.imgShadow = "none" | "glow" | "drop"
  */
+
+import { lookCssById } from "./filterLooks";
+import { toneFilterUrl } from "./toneFilter";
 
 // Filter presets — CSS filter strings (mirrors the photo editor's FILTERS).
 export const IMAGE_FILTERS = [
@@ -127,7 +132,8 @@ export function resolveShadow(el) {
 
 export function filterCssById(id) {
   const f = IMAGE_FILTERS.find((x) => x.id === id);
-  return f ? f.css : "";
+  // Not one of the image presets → maybe one of the named looks (filterLooks).
+  return f ? f.css : lookCssById(id);
 }
 
 const r3 = (n) => Math.round(n * 1000) / 1000;
@@ -159,6 +165,10 @@ export function buildImageFilter(el) {
     }
   }
   if (a.hue) parts.push(`hue-rotate(${a.hue}deg)`);
+  // Tint / highlights / shadows / whites / blacks / vibrance need a tone curve,
+  // which only an SVG filter can carry (toneFilter.js).
+  const tone = toneFilterUrl(a);
+  if (tone) parts.push(tone);
   if (a.blur) parts.push(`blur(${a.blur}px)`);
 
   const sp = resolveShadow(el);

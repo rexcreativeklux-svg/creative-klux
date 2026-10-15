@@ -4,15 +4,28 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
-  Sparkles, ArrowLeft, Tv2, Share2, Palette, Wand2,
-  CheckCircle2, ImageIcon, History, MoreHorizontal, Eye, Pencil, Bookmark,
+  Sparkles,
+  ArrowLeft,
+  Tv2,
+  Share2,
+  Palette,
+  Wand2,
+  CheckCircle2,
+  ImageIcon,
+  History,
+  MoreHorizontal,
+  Eye,
+  Pencil,
+  Bookmark,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import AiChatMessage from "@/app/(components)/studio/AiChatMessage";
 import AiChatInput from "@/app/(components)/studio/AiChatInput";
 import AiChatTypingIndicator from "@/app/(components)/studio/AiChatTypingIndicator";
 import AiPreviewIdle from "@/app/(components)/studio/AiPreviewIdle";
-import PaneResizer, { useResizablePane } from "@/app/(components)/studio/PaneResizer";
+import PaneResizer, {
+  useResizablePane,
+} from "@/app/(components)/studio/PaneResizer";
 import { useBreakpoint } from "@/utils/useMediaQuery";
 import {
   buildTemplateQuery,
@@ -34,6 +47,7 @@ import {
   magicResultToVariation,
   magicToolFor,
   magicValuesFrom,
+  readMagicOfferAnswer,
 } from "./magicDesign";
 import {
   downloadVariation,
@@ -138,7 +152,10 @@ const MAGIC_CONFIGS = Object.fromEntries(
 /* ─── helpers ───────────────────────────────────────────────── */
 
 function nowTime() {
-  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /**
@@ -352,8 +369,11 @@ function StepTrail({ stage, config }) {
                   height: 5,
                   borderRadius: "50%",
                   flexShrink: 0,
-                  background: done || active ? config.color : "var(--color-gray-300)",
-                  animation: active ? "ck-stage-pulse 1.2s ease-in-out infinite" : "none",
+                  background:
+                    done || active ? config.color : "var(--color-gray-300)",
+                  animation: active
+                    ? "ck-stage-pulse 1.2s ease-in-out infinite"
+                    : "none",
                 }}
               />
               {done ? `✓ ${step.label}` : step.label}
@@ -454,7 +474,14 @@ function DesignShimmer({ index, stage, config, message }) {
    place being watched. Pass `complete` and it settles into a green resting
    state instead of unmounting.
 ──────────────────────────────────────────────────────────────── */
-function StageBanner({ stage, config, done, total, complete = false, message }) {
+function StageBanner({
+  stage,
+  config,
+  done,
+  total,
+  complete = false,
+  message,
+}) {
   const { color, colorRgb } = config;
   // Green is the state colour used for "ready" throughout this pane (the
   // footer dot, the selected-card ring), so the finished banner borrows it
@@ -469,7 +496,9 @@ function StageBanner({ stage, config, done, total, complete = false, message }) 
         gap: 9,
         padding: "10px 12px",
         borderBottom: "1px solid var(--color-gray-200)",
-        background: complete ? "rgba(34,197,94,0.06)" : `rgba(${colorRgb},0.04)`,
+        background: complete
+          ? "rgba(34,197,94,0.06)"
+          : `rgba(${colorRgb},0.04)`,
       }}
     >
       <span
@@ -481,7 +510,9 @@ function StageBanner({ stage, config, done, total, complete = false, message }) 
           // The pulse is what says "still working". It stops on completion —
           // a banner that kept throbbing next to the word "ready" would keep
           // the reader waiting for something that already happened.
-          animation: complete ? "none" : "ck-stage-pulse 1.2s ease-in-out infinite",
+          animation: complete
+            ? "none"
+            : "ck-stage-pulse 1.2s ease-in-out infinite",
           flexShrink: 0,
         }}
       />
@@ -506,7 +537,13 @@ function StageBanner({ stage, config, done, total, complete = false, message }) 
           reads as a stall rather than progress. Suppressed when complete: the
           label already carries the count, and "4 of 4" beside it is noise. */}
       {!complete && total > 0 && done > 0 && (
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--color-gray-500)" }}>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 11,
+            color: "var(--color-gray-500)",
+          }}
+        >
           {done} of {total}
         </span>
       )}
@@ -660,21 +697,24 @@ function TemplatesPreview({ templates, time, config, onPick, selectedId }) {
   );
 }
 
-function PreviewPanel({ result,
+function PreviewPanel({
+  result,
   config,
   creativeType,
   selectedDesigns,
   setSelectedDesigns,
   onToggleSelect,
   saveDesign,
-  activeBrandId, showToast,
+  activeBrandId,
+  showToast,
   stage,
   // The current rotating line, owned by the page so the chat's typing
   // indicator and this pane are never a beat out of step with each other.
   stageMessage,
   expectedCount,
   onPickTemplate,
-  selectedTemplateId, }) {
+  selectedTemplateId,
+}) {
   const { colorRgb, colorLight } = config;
   // Owned here rather than by the page: the save belongs to this panel's
   // toolbar, and nothing outside it needs to know the button is busy.
@@ -759,7 +799,9 @@ function PreviewPanel({ result,
       if (toastId) sonner.dismiss(toastId);
     } catch (err) {
       console.error("❌ [chat] preview failed:", err);
-      sonner.error(err?.message || "Couldn't open the preview", { id: toastId ?? undefined });
+      sonner.error(err?.message || "Couldn't open the preview", {
+        id: toastId ?? undefined,
+      });
     }
   };
 
@@ -770,13 +812,19 @@ function PreviewPanel({ result,
       sonner.success("Downloaded", { id: toastId });
     } catch (err) {
       console.error("❌ [chat] download failed:", err);
-      sonner.error(err?.message || "Couldn't download that design", { id: toastId });
+      sonner.error(err?.message || "Couldn't download that design", {
+        id: toastId,
+      });
     }
   };
 
   /** Save one design to the brand's designs. Resolves to the saved row's id. */
   const saveOne = async (variation) => {
-    const res = await saveDesign(activeBrandId, [variation], saveTypeFor(creativeType));
+    const res = await saveDesign(
+      activeBrandId,
+      [variation],
+      saveTypeFor(creativeType),
+    );
     if (!res?.ok) throw new Error(res?.message || "Failed to save the design");
     let id = savedDesignId(res.data);
     if (id == null) {
@@ -832,7 +880,9 @@ function PreviewPanel({ result,
       }
     } catch (err) {
       console.error("❌ [chat] edit (save first) failed:", err);
-      sonner.error(err?.message || "Couldn't open this design in the editor", { id: toastId });
+      sonner.error(err?.message || "Couldn't open this design in the editor", {
+        id: toastId,
+      });
     } finally {
       setEditingId(null);
     }
@@ -872,9 +922,14 @@ function PreviewPanel({ result,
               sonner.success("Link copied!");
             }
           : undefined,
-        onSaveToGallery: url && uploadMedia ? () => handleSaveToGallery(variation) : undefined,
+        onSaveToGallery:
+          url && uploadMedia ? () => handleSaveToGallery(variation) : undefined,
       }),
-      { label: "Save design", icon: Bookmark, onClick: () => handleSaveOne(variation) },
+      {
+        label: "Save design",
+        icon: Bookmark,
+        onClick: () => handleSaveOne(variation),
+      },
     ];
   };
 
@@ -953,8 +1008,6 @@ function PreviewPanel({ result,
 
   const { variations, time } = result;
 
-
-
   return (
     <div
       style={{
@@ -1019,7 +1072,11 @@ function PreviewPanel({ result,
                 // saveDesign strips the "_creative" suffix; "general" has no category so default it to "ads".
                 // Magic Design videos save through here too: they're designs
                 // with a still frame under a video layer (see magicDesign.js).
-                const res = await saveDesign(activeBrandId, selectedDesigns, saveTypeFor(creativeType));
+                const res = await saveDesign(
+                  activeBrandId,
+                  selectedDesigns,
+                  saveTypeFor(creativeType),
+                );
 
                 if (res?.ok) {
                   setSelectedDesigns([]);
@@ -1032,7 +1089,10 @@ function PreviewPanel({ result,
                 // render is browser work and can still blow up — without this
                 // the button would stay stuck on "Saving…" forever.
                 console.error("❌ [chat] save threw:", err);
-                showToast("Couldn't save the design(s). Please try again.", "error");
+                showToast(
+                  "Couldn't save the design(s). Please try again.",
+                  "error",
+                );
               } finally {
                 setSaving(false);
               }
@@ -1121,214 +1181,256 @@ function PreviewPanel({ result,
         }}
       >
         {variations.map((v) => {
-                const score = String(v.copy?.performance_score ?? "");
-                const scoreNum = score.split("/")[0];
-                const scoreLabel = score.split("—")[1]?.trim() || "";
-                const isSelected = selectedDesigns?.some((s) => s.id === v.id);
+          const score = String(v.copy?.performance_score ?? "");
+          const scoreNum = score.split("/")[0];
+          const scoreLabel = score.split("—")[1]?.trim() || "";
+          const isSelected = selectedDesigns?.some((s) => s.id === v.id);
 
-                return (
-                  <div
-                    key={v.id}
-                    onClick={() => onToggleSelect(v)}
-                    className="group border border-gray-200"
-                    style={{
-                      // The ✓ and ⋯ are pinned to THIS card's corners. Without
-                      // it they resolved against the pane, and the ✓ sat in the
-                      // pane's top-right corner instead of on the card.
-                      position: "relative",
-                      cursor: "pointer",
-                      // Same 5 as DesignShimmer — the two sit side by side in
-                      // this grid while a batch is still landing, and a tile
-                      // that changed shape as it filled would read as a swap
-                      // rather than the same card resolving.
-                      borderRadius: 5,
-                      // No overflow:hidden: it would clip the canvas to this 5
-                      // and defeat the artwork's own tighter 2. Nothing inside
-                      // needs clipping — the copy below is padded text.
-                      background: "var(--color-surface)",
-                      // The selected green stays literal — it is a state colour,
-                      // not a theme one, and reads on both backgrounds.
-                      border: isSelected
-                        ? "2px solid #22c55e"
-                        : "1px solid var(--color-gray-200)",
-                    }}
-                  >
-
-                    {/* Card actions. Always shown below `lg` (no hover on a
+          return (
+            <div
+              key={v.id}
+              onClick={() => onToggleSelect(v)}
+              className="group border border-gray-200"
+              style={{
+                // The ✓ and ⋯ are pinned to THIS card's corners. Without
+                // it they resolved against the pane, and the ✓ sat in the
+                // pane's top-right corner instead of on the card.
+                position: "relative",
+                cursor: "pointer",
+                // Same 5 as DesignShimmer — the two sit side by side in
+                // this grid while a batch is still landing, and a tile
+                // that changed shape as it filled would read as a swap
+                // rather than the same card resolving.
+                borderRadius: 5,
+                // No overflow:hidden: it would clip the canvas to this 5
+                // and defeat the artwork's own tighter 2. Nothing inside
+                // needs clipping — the copy below is padded text.
+                background: "var(--color-surface)",
+                // The selected green stays literal — it is a state colour,
+                // not a theme one, and reads on both backgrounds.
+                border: isSelected
+                  ? "2px solid #22c55e"
+                  : "1px solid var(--color-gray-200)",
+              }}
+            >
+              {/* Card actions. Always shown below `lg` (no hover on a
                         phone), and kept on while its own menu is open. The
                         stopPropagation in openMenu keeps it from toggling the
                         card's selection. */}
-                    <button
-                      type="button"
-                      onClick={(e) => openMenu(v, e)}
-                      aria-label="Design actions"
-                      disabled={editingId === v.id}
-                      className={`absolute right-2 top-2 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-surface/90 text-gray-700 shadow transition-opacity hover:text-blue-600 ${
-                        menu?.variation?.id === v.id || editingId === v.id
-                          ? "opacity-100"
-                          : "opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
-                      }`}
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
+              <button
+                type="button"
+                onClick={(e) => openMenu(v, e)}
+                aria-label="Design actions"
+                disabled={editingId === v.id}
+                className={`absolute right-2 top-2 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-surface/90 text-gray-700 shadow transition-opacity hover:text-blue-600 ${
+                  menu?.variation?.id === v.id || editingId === v.id
+                    ? "opacity-100"
+                    : "opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                }`}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
 
-                    {/* Top-LEFT: the top-right corner belongs to the ⋯. */}
-                    {isSelected && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          zIndex: 10,
-                          top: 8,
-                          left: 8,
-                          width: 18,
-                          height: 18,
-                          borderRadius: "50%",
-                          background: "#22c55e",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#fff",
-                          fontSize: 12,
-                          fontWeight: 700,
-                        }}
-                      >
-                        ✓
-                      </div>
-                    )}
+              {/* Top-LEFT: the top-right corner belongs to the ⋯. */}
+              {isSelected && (
+                <div
+                  style={{
+                    position: "absolute",
+                    zIndex: 10,
+                    top: 8,
+                    left: 8,
+                    width: 18,
+                    height: 18,
+                    borderRadius: "50%",
+                    background: "#22c55e",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  ✓
+                </div>
+              )}
 
-                    {/* canvas */}
-                    <div
+              {/* canvas */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {/* A Magic Design video plays here as returned —
+                          DesignCanvas paints still frames only. */}
+                {v.kind === "video" ? (
+                  <video
+                    src={v.src}
+                    controls
+                    playsInline
+                    loop
+                    // Clicks on the player work its controls rather than
+                    // toggling the card's selection.
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      // Fit inside the pane, keeping its shape: full width
+                      // made a 9:16 clip taller than the screen.
+                      maxWidth: "100%",
+                      maxHeight: PREVIEW_MAX_HEIGHT,
+                      width: "auto",
+                      height: "auto",
+                      borderRadius: 2,
+                      boxShadow: "0 4px 24px rgba(0,0,0,0.10)",
+                      display: "block",
+                      background: "#000",
+                    }}
+                  />
+                ) : (
+                  <DesignCanvas variation={v} />
+                )}
+              </div>
+
+              {/* copy details */}
+              <div style={{ padding: "10px 11px 11px" }}>
+                {/* name + category row */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 6,
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: "var(--color-gray-900)",
+                      margin: 0,
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {v.name}
+                  </p>
+                  {/* Redesign results carry no category, so the pill
+                            only shows when one exists. */}
+                  {v.category && (
+                    <span
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
+                        fontSize: 8.5,
+                        fontWeight: 600,
+                        padding: "2px 7px",
+                        borderRadius: 20,
+                        background: "var(--color-gray-100)",
+                        color: "var(--color-gray-500)",
+                        whiteSpace: "nowrap",
+                        marginLeft: 6,
+                        flexShrink: 0,
                       }}
                     >
-                      {/* A Magic Design video plays here as returned —
-                          DesignCanvas paints still frames only. */}
-                      {v.kind === "video" ? (
-                        <video
-                          src={v.src}
-                          controls
-                          playsInline
-                          loop
-                          // Clicks on the player work its controls rather than
-                          // toggling the card's selection.
-                          onClick={(e) => e.stopPropagation()}
-                          style={{
-                            // Fit inside the pane, keeping its shape: full width
-                            // made a 9:16 clip taller than the screen.
-                            maxWidth: "100%",
-                            maxHeight: PREVIEW_MAX_HEIGHT,
-                            width: "auto",
-                            height: "auto",
-                            borderRadius: 2,
-                            boxShadow: "0 4px 24px rgba(0,0,0,0.10)",
-                            display: "block",
-                            background: "#000",
-                          }}
-                        />
-                      ) : (
-                        <DesignCanvas variation={v} />
-                      )}
-                    </div>
+                      {v.category}
+                    </span>
+                  )}
+                </div>
 
-                    {/* copy details */}
-                    <div style={{ padding: "10px 11px 11px" }}>
+                {/* headline */}
+                {v.copy?.headline && (
+                  <p
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "var(--color-gray-900)",
+                      margin: "0 0 2px",
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {v.copy.headline}
+                  </p>
+                )}
 
-                      {/* name + category row */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: "var(--color-gray-900)", margin: 0, lineHeight: 1.3 }}>
-                          {v.name}
-                        </p>
-                        {/* Redesign results carry no category, so the pill
-                            only shows when one exists. */}
-                        {v.category && (
-                          <span style={{
-                            fontSize: 8.5,
-                            fontWeight: 600,
-                            padding: "2px 7px",
-                            borderRadius: 20,
-                            background: "var(--color-gray-100)",
-                            color: "var(--color-gray-500)",
-                            whiteSpace: "nowrap",
-                            marginLeft: 6,
-                            flexShrink: 0,
-                          }}>
-                            {v.category}
-                          </span>
-                        )}
-                      </div>
+                {/* tagline */}
+                {v.copy?.tagline && (
+                  <p
+                    style={{
+                      fontSize: 9.5,
+                      color: "var(--color-gray-500)",
+                      margin: "0 0 6px",
+                      lineHeight: 1.4,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {v.copy.tagline}
+                  </p>
+                )}
 
-                      {/* headline */}
-                      {v.copy?.headline && (
-                        <p style={{ fontSize: 11, fontWeight: 700, color: "var(--color-gray-900)", margin: "0 0 2px", lineHeight: 1.35 }}>
-                          {v.copy.headline}
-                        </p>
-                      )}
+                {/* body */}
+                {v.copy?.body && (
+                  <p
+                    style={{
+                      fontSize: 9,
+                      color: "var(--color-gray-400)",
+                      margin: "0 0 8px",
+                      lineHeight: 1.55,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {v.copy.body}
+                  </p>
+                )}
 
-                      {/* tagline */}
-                      {v.copy?.tagline && (
-                        <p style={{ fontSize: 9.5, color: "var(--color-gray-500)", margin: "0 0 6px", lineHeight: 1.4, fontStyle: "italic" }}>
-                          {v.copy.tagline}
-                        </p>
-                      )}
-
-                      {/* body */}
-                      {v.copy?.body && (
-                        <p style={{
-                          fontSize: 9,
-                          color: "var(--color-gray-400)",
-                          margin: "0 0 8px",
-                          lineHeight: 1.55,
-                          display: "-webkit-box",
-                          WebkitLineClamp: 3,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                        }}>
-                          {v.copy.body}
-                        </p>
-                      )}
-
-                      {/* CTA + score row */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                        {v.copy?.cta && (
-                          // The CTA chip is deliberately the INVERSE of the
-                          // card it sits on, not a fixed near-black: gray-900
-                          // over surface keeps it dark-on-white in light and
-                          // flips to light-on-dark in dark, where a #0f172a
-                          // pill would have disappeared into the card.
-                          <span style={{
-                            fontSize: 8.5,
-                            fontWeight: 700,
-                            padding: "3px 9px",
-                            borderRadius: 20,
-                            background: "var(--color-gray-900)",
-                            color: "var(--color-surface)",
-                            whiteSpace: "nowrap",
-                          }}>
-                            {v.copy.cta}
-                          </span>
-                        )}
-                        {scoreNum && (
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 600,
-                              color: "#22c55e",
-                              whiteSpace: "nowrap",
-                              marginLeft: "auto",
-                            }}
-                            title={scoreLabel}
-                          >
-                            ★ {scoreNum}/100
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                {/* CTA + score row */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 6,
+                  }}
+                >
+                  {v.copy?.cta && (
+                    // The CTA chip is deliberately the INVERSE of the
+                    // card it sits on, not a fixed near-black: gray-900
+                    // over surface keeps it dark-on-white in light and
+                    // flips to light-on-dark in dark, where a #0f172a
+                    // pill would have disappeared into the card.
+                    <span
+                      style={{
+                        fontSize: 8.5,
+                        fontWeight: 700,
+                        padding: "3px 9px",
+                        borderRadius: 20,
+                        background: "var(--color-gray-900)",
+                        color: "var(--color-surface)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {v.copy.cta}
+                    </span>
+                  )}
+                  {scoreNum && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: "#22c55e",
+                        whiteSpace: "nowrap",
+                        marginLeft: "auto",
+                      }}
+                      title={scoreLabel}
+                    >
+                      ★ {scoreNum}/100
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
 
         {/* The designs still in flight, holding their place in the same grid.
             Each one is replaced by real artwork the moment its batch lands, so
@@ -1364,7 +1466,15 @@ function PreviewPanel({ result,
         {/* The count moved UP to the banner when that gained its done state —
             saying "4 designs ready" twice on one pane read as a stutter. The
             footer keeps the timing, which the banner has no room for. */}
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: "#22c55e",
+            display: "inline-block",
+          }}
+        />
         Generated in {time}
       </div>
 
@@ -1389,7 +1499,9 @@ function PreviewPanel({ result,
               <Lightbox
                 items={lightbox.items}
                 index={lightbox.index}
-                onIndexChange={(index) => setLightbox((lb) => lb && { ...lb, index })}
+                onIndexChange={(index) =>
+                  setLightbox((lb) => lb && { ...lb, index })
+                }
                 onClose={() => setLightbox(null)}
                 onDownload={(item) => handleDownload(item.variation)}
               />
@@ -1400,7 +1512,9 @@ function PreviewPanel({ result,
                 creative={publishCreative}
                 onClose={() => setPublishVariation(null)}
                 showToast={(message, type) =>
-                  type === "error" ? sonner.error(message) : sonner.success(message)
+                  type === "error"
+                    ? sonner.error(message)
+                    : sonner.success(message)
                 }
               />
             )}
@@ -1448,6 +1562,10 @@ export default function AiCreativeChatPage() {
     fetchChatSessions,
     fetchChatSession,
   } = useAuth();
+  // Pulled out so the send callbacks depend on the logo alone. Reading
+  // `activeBrand?.logo` inside them made the React Compiler infer the whole
+  // `activeBrand` as the dependency, disagree with the list, and skip them.
+  const activeBrandLogo = activeBrand?.logo;
 
   const creativeType = searchParams.get("creative") || "general";
   const config = CREATIVE_CONFIG[creativeType] || CREATIVE_CONFIG.general;
@@ -1478,6 +1596,27 @@ export default function AiCreativeChatPage() {
   const messagesEndRef = useRef(null);
   const hasInitialized = useRef(false);
   const [selectedDesigns, setSelectedDesigns] = useState([]);
+
+  /* ── "Use Magic Studio instead?" ────────────────────────────────────────────
+     When a Studio Designs reply finds no templates, the chat offers to build
+     it with Magic Studio instead. The offer holds the create reply it was made
+     for, so a yes runs THAT brief — nothing is re-asked.
+
+     State drives the quick-reply chips (render); the ref is what handleSend
+     reads, so it sees the live offer without re-creating the callback.
+     ⚠️ ANY reply closes the offer — yes, no, or a message about something
+     else — and so does switching chats, so a "yes" can never fire a brief
+     the user is no longer looking at. */
+  const [magicOffer, setMagicOffer] = useState(null); // { id, data }
+  const magicOfferRef = useRef(null);
+  const openMagicOffer = useCallback((offer) => {
+    magicOfferRef.current = offer;
+    setMagicOffer(offer);
+  }, []);
+  const closeMagicOffer = useCallback(() => {
+    magicOfferRef.current = null;
+    setMagicOffer(null);
+  }, []);
 
   // Chat | preview split. The width the user drags to is kept in localStorage,
   // so the layout they set up is still there after a refresh.
@@ -1673,71 +1812,12 @@ export default function AiCreativeChatPage() {
       setPreviewResult(null);
       setSelectedTemplate(null);
       setSelectedDesigns([]);
+      closeMagicOffer();
       if (!isDesktopSplit) setMobilePane("chat");
       return true;
     },
-    [fetchChatSession, isDesktopSplit],
+    [fetchChatSession, isDesktopSplit, closeMagicOffer],
   );
-
-  useEffect(() => {
-    if (hasInitialized.current) return;
-    // WAIT for the active brand before firing the opening send. `activeBrand`
-    // hydrates from localStorage, so on a fresh load (or a hard refresh onto
-    // this URL) it is still null for the first render(s) — sending then would
-    // be rejected for a missing brand_id even though the user has one selected.
-    // Not marking the effect as initialised yet is the point: it re-runs when
-    // brandsLoading flips and sends properly.
-    if (brandsLoading) return;
-    hasInitialized.current = true;
-
-    setPreviewResult(null);
-
-    // Opened from the home rail's Chat History tab (or any `?session=` link):
-    // load that thread instead of greeting. A failure falls through to the
-    // greeting rather than leaving an empty window — handleOpenSession has
-    // already told the user why on the toast.
-    if (sessionParam) {
-      (async () => {
-        const opened = await handleOpenSession(sessionParam);
-        if (opened) return;
-        setMessages([
-          {
-            role: "assistant",
-            content: config.greeting,
-            timestamp: new Date().toISOString(),
-          },
-        ]);
-      })();
-      return;
-    }
-
-    // The prompt and its images arrive as separate URL params (see the home
-    // page) and stay separate from here to the request body. Read inside the
-    // effect: getAll() builds a fresh array each call, so hoisting it would add
-    // an unstable value to the render scope for no gain — this runs once.
-    if (initialMessage.trim()) {
-      const initialImages = searchParams.getAll("image");
-      const userMsg = {
-        role: "user",
-        content: initialMessage,
-        images: initialImages,
-        timestamp: new Date().toISOString(),
-      };
-
-      setMessages([userMsg]);
-
-      handleInitialSend(initialMessage, initialImages);
-      return;
-    }
-
-    setMessages([
-      {
-        role: "assistant",
-        content: config.greeting,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-  }, [creativeType, initialMessage, sessionParam, brandsLoading]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1756,10 +1836,15 @@ export default function AiCreativeChatPage() {
    *
    * @param {string} content What went wrong, in the assistant's voice.
    */
-  const postAssistantNote = useCallback((content) => {
+  const postAssistantNote = useCallback((content, extra = {}) => {
     setMessages((prev) => [
       ...prev,
-      { role: "assistant", content, timestamp: new Date().toISOString() },
+      {
+        role: "assistant",
+        content,
+        timestamp: new Date().toISOString(),
+        ...extra,
+      },
     ]);
   }, []);
 
@@ -1833,7 +1918,9 @@ export default function AiCreativeChatPage() {
       const what = tool === "text_to_video" ? "video" : "design";
       const reportFailure = (message) => {
         sonner.dismiss();
-        sonner.error(`Couldn't make your ${what}: ${message}`, { duration: 8000 });
+        sonner.error(`Couldn't make your ${what}: ${message}`, {
+          duration: 8000,
+        });
         postAssistantNote(
           `I couldn't make this ${what} — Magic Studio reported: **${message}**\n\nTell me what to change and I'll try again.`,
         );
@@ -1923,16 +2010,21 @@ export default function AiCreativeChatPage() {
       const perPrompt = prompts.length > 1;
       const runValues = perPrompt ? { ...values, variations: 1 } : values;
       const expected = perPrompt ? prompts.length : values.variations;
-      console.log(`🪄 [chat] Magic Design → ${tool} × ${prompts.length} prompt(s)`, runValues);
+      console.log(
+        `🪄 [chat] Magic Design → ${tool} × ${prompts.length} prompt(s)`,
+        runValues,
+      );
 
       // "Instagram · Social Design" — where it's for, and what made it.
       const details = data?.brand_details || {};
       const name =
-        [details.platforms, MAGIC_CONFIGS[tool]?.title].filter(Boolean).join(" · ") ||
-        "Magic Design";
+        [details.platforms, MAGIC_CONFIGS[tool]?.title]
+          .filter(Boolean)
+          .join(" · ") || "Magic Design";
       const usable = (list) =>
         (list || []).filter(
-          (asset) => (asset.type === "image" || asset.type === "video") && asset.src,
+          (asset) =>
+            (asset.type === "image" || asset.type === "video") && asset.src,
         );
 
       // A previous run's cards would count as this run's landed versions.
@@ -1948,7 +2040,11 @@ export default function AiCreativeChatPage() {
           const startedAt = Date.now();
 
           // A run that never produced a result just leaves the ref empty.
-          await generate({ primaryInput: prompt, values: runValues, activeBrand });
+          await generate({
+            primaryInput: prompt,
+            values: runValues,
+            activeBrand,
+          });
 
           let assets = usable(magicResultRef.current?.assets);
           if (!assets.length) {
@@ -1961,7 +2057,8 @@ export default function AiCreativeChatPage() {
           const landed = await Promise.all(
             assets.map((asset, i) =>
               magicResultToVariation(asset, {
-                name: expected > 1 ? `${name} (${collected.length + i + 1})` : name,
+                name:
+                  expected > 1 ? `${name} (${collected.length + i + 1})` : name,
                 ratio: values.ratio,
                 tool,
                 run: startedAt,
@@ -1971,9 +2068,15 @@ export default function AiCreativeChatPage() {
           collected.push(...landed);
           // Each version shows as it lands; the stage stays "magic" so the
           // tiles still waiting keep shimmering beside it.
-          setPreviewResult({ type: "design", variations: [...collected], time: nowTime() });
+          setPreviewResult({
+            type: "design",
+            variations: [...collected],
+            time: nowTime(),
+          });
         }
-        console.log(`✅ [chat] ${collected.length} of ${expected} Magic Design(s) ready`);
+        console.log(
+          `✅ [chat] ${collected.length} of ${expected} Magic Design(s) ready`,
+        );
       } finally {
         setCreateStage(null);
       }
@@ -2059,7 +2162,10 @@ export default function AiCreativeChatPage() {
       // this page's — that one flag is the whole point of creativeEngine.js.
       let rawTemplates = [];
       if (CREATIVE_ENGINE === "redesign") {
-        console.log("🎨 [chat] create signal received, fetching templates:", query);
+        console.log(
+          "🎨 [chat] create signal received, fetching templates:",
+          query,
+        );
         setCreateStage("templates");
         // Put down one shimmer per design the conversation asked for.
         setExpectedCount(query.num_template || 1);
@@ -2071,7 +2177,10 @@ export default function AiCreativeChatPage() {
               "❌ [chat] template fetch failed:",
               res?.messageForDevs || res?.message,
             );
-            showToast(res?.message || "Couldn't load design templates.", "error");
+            showToast(
+              res?.message || "Couldn't load design templates.",
+              "error",
+            );
             postAssistantNote(
               "I couldn't reach the template library just now, so I wasn't able to build this. Ask me to try again in a moment.",
             );
@@ -2084,18 +2193,21 @@ export default function AiCreativeChatPage() {
           // Usable == has a layout we could paint. Checked with the normaliser
           // even though the raw rows are what gets sent, because a row Scraive
           // can't describe a layout for is one redesign can't build from either.
-          const usable = rawTemplates.filter((row) => normalizeDesignTemplate(row));
+          const usable = rawTemplates.filter((row) =>
+            normalizeDesignTemplate(row),
+          );
           if (!usable.length) {
             console.warn("⚠️ [chat] no usable templates for", query);
-            showToast(
-              `No templates found for ${query.category} at ${query.type_size}.`,
-              "error",
-            );
-            // Names the exact combination that came back empty, and suggests
-            // the move that actually helps — the library is stocked per
-            // format, so a different size or platform usually does have one.
+            // No error toast: this isn't a failure the user has to deal with,
+            // it's a question — the chat asks it, with a way forward attached.
+            // Names the exact combination that came back empty, and keeps the
+            // old advice (another size/platform usually IS stocked) as the
+            // alternative to saying yes.
+            const offerId = `magic-offer-${Date.now()}`;
+            openMagicOffer({ id: offerId, data });
             postAssistantNote(
-              `I couldn't find any ${query.category.replace(/_/g, " ")} templates at ${query.type_size}, so I wasn't able to build this one. Try a different size or platform and I'll have another go.`,
+              `I'm sorry, I looked everywhere but don't have any ${query.category.replace(/_/g, " ")} templates at ${query.type_size} yet, so I can't make this one as a Studio Design.\n\n But **Magic Studio** can create this for you from scratch, using everything you've already told me. Would you like me to do that?`,
+              { offerId },
             );
             setCreateStage(null);
             return;
@@ -2104,7 +2216,10 @@ export default function AiCreativeChatPage() {
           console.log(`✅ [chat] ${rawTemplates.length} template(s) ready`);
         } catch (err) {
           console.error("❌ [chat] template fetch threw:", err);
-          showToast("Couldn't load design templates. Please try again.", "error");
+          showToast(
+            "Couldn't load design templates. Please try again.",
+            "error",
+          );
           postAssistantNote(
             "Something went wrong reaching the template library, so I wasn't able to build this. Ask me to try again.",
           );
@@ -2189,6 +2304,7 @@ export default function AiCreativeChatPage() {
       creativeType,
       postAssistantNote,
       createWithMagic,
+      openMagicOffer,
     ],
   );
 
@@ -2205,6 +2321,39 @@ export default function AiCreativeChatPage() {
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
 
+      // An open "use Magic Studio instead?" offer gets first look at the reply.
+      // Yes/no are answered here, without the assistant: it never saw the
+      // offer (the template search runs client-side), so it couldn't make
+      // sense of a bare "yes". Anything else goes on to it as normal.
+      const offer = magicOfferRef.current;
+      if (offer) {
+        closeMagicOffer();
+        const answer = readMagicOfferAnswer(content);
+        if (answer === "yes") {
+          postAssistantNote(
+            "Wonderful, I'm on it! I'm creating your design with Magic Studio now. It can take a minute or two.",
+          );
+          try {
+            await createWithMagic(offer.data);
+          } catch (err) {
+            console.error("❌ [chat] Magic fallback failed:", err);
+            postAssistantNote(
+              "I'm really sorry, something went wrong while starting Magic Studio. Just ask me to try again and I'll give it another go.",
+            );
+          } finally {
+            setIsLoading(false);
+          }
+          return;
+        }
+        if (answer === "no") {
+          postAssistantNote(
+            "That's completely okay. Whenever you're ready, tell me a different size or platform and I'll gladly look for Studio templates again.",
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
+
       try {
         // Open the thread before saying anything into it, so this message
         // carries a real session_id rather than null.
@@ -2214,7 +2363,7 @@ export default function AiCreativeChatPage() {
           message: content,
           brandId: activeBrandId,
           images,
-          logo: activeBrand?.logo,
+          logo: activeBrandLogo,
           model,
           sessionId,
         });
@@ -2240,8 +2389,16 @@ export default function AiCreativeChatPage() {
         const designType = result.data?.type;
         const designVars = result.data?.variations;
 
-        if (designType === "design" && Array.isArray(designVars) && designVars.length) {
-          setPreviewResult({ type: "design", variations: designVars, time: nowTime() });
+        if (
+          designType === "design" &&
+          Array.isArray(designVars) &&
+          designVars.length
+        ) {
+          setPreviewResult({
+            type: "design",
+            variations: designVars,
+            time: nowTime(),
+          });
         }
 
         // The assistant has everything it needs → build the design.
@@ -2259,75 +2416,183 @@ export default function AiCreativeChatPage() {
         setIsLoading(false);
       }
     },
-    [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession, ensureSession]
+    [
+      creativeAiChat,
+      activeBrandId,
+      activeBrandLogo,
+      model,
+      maybeCreateDesign,
+      adoptSession,
+      ensureSession,
+      closeMagicOffer,
+      postAssistantNote,
+      createWithMagic,
+    ],
   );
 
-  const handleInitialSend = useCallback(async (content, images = []) => {
-    setIsLoading(true);
+  const handleInitialSend = useCallback(
+    async (content, images = []) => {
+      setIsLoading(true);
 
-    try {
-      // The opening message of a brand-new thread — this is the call that
-      // actually creates the session the whole conversation then lives in.
-      const sessionId = await ensureSession();
+      try {
+        // The opening message of a brand-new thread — this is the call that
+        // actually creates the session the whole conversation then lives in.
+        const sessionId = await ensureSession();
 
-      const result = await creativeAiChat({
-        message: content,
-        brandId: activeBrandId,
-        images,
-        logo: activeBrand?.logo,
-        model,
-        sessionId,
-      });
+        const result = await creativeAiChat({
+          message: content,
+          brandId: activeBrandId,
+          images,
+          logo: activeBrandLogo,
+          model,
+          sessionId,
+        });
 
-      const reply = result.ok
-        ? result.reply
-        : result.message || "Something went wrong.";
+        const reply = result.ok
+          ? result.reply
+          : result.message || "Something went wrong.";
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: reply,
-          image_url: result.data?.image_url || null,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: reply,
+            image_url: result.data?.image_url || null,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
 
-      // Name the thread in the URL before anything slow runs, so a refresh
-      // mid-generation still comes back to this conversation. Doing it here is
-      // what stops the opening prompt re-sending on every reload.
-      adoptSession(result.data);
+        // Name the thread in the URL before anything slow runs, so a refresh
+        // mid-generation still comes back to this conversation. Doing it here is
+        // what stops the opening prompt re-sending on every reload.
+        adoptSession(result.data);
 
-      const designType = result.data?.type;
-      const designVars = result.data?.variations;
+        const designType = result.data?.type;
+        const designVars = result.data?.variations;
 
-      if (designType === "design" && Array.isArray(designVars) && designVars.length) {
-        setPreviewResult({ type: "design", variations: designVars, time: nowTime() });
+        if (
+          designType === "design" &&
+          Array.isArray(designVars) &&
+          designVars.length
+        ) {
+          setPreviewResult({
+            type: "design",
+            variations: designVars,
+            time: nowTime(),
+          });
+        }
+
+        // The assistant has everything it needs → build the design.
+        await maybeCreateDesign(result.data, images);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "Oops! Something went wrong.",
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      } finally {
+        setIsLoading(false);
       }
+    },
+    [
+      creativeAiChat,
+      activeBrandId,
+      activeBrandLogo,
+      model,
+      maybeCreateDesign,
+      adoptSession,
+      ensureSession,
+    ],
+  );
 
-      // The assistant has everything it needs → build the design.
-      await maybeCreateDesign(result.data, images);
+  // Opening send / greeting. Declared BELOW handleInitialSend, which it calls,
+  // so the callback exists by name before this effect refers to it.
+  useEffect(() => {
+    if (hasInitialized.current) return;
+    // WAIT for the active brand before firing the opening send. `activeBrand`
+    // hydrates from localStorage, so on a fresh load (or a hard refresh onto
+    // this URL) it is still null for the first render(s) — sending then would
+    // be rejected for a missing brand_id even though the user has one selected.
+    // Not marking the effect as initialised yet is the point: it re-runs when
+    // brandsLoading flips and sends properly.
+    if (brandsLoading) return;
+    hasInitialized.current = true;
 
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Oops! Something went wrong.",
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
+    // Opened from the home rail's Chat History tab (or any `?session=` link):
+    // load that thread instead of greeting. A failure falls through to the
+    // greeting rather than leaving an empty window — handleOpenSession has
+    // already told the user why on the toast.
+    if (sessionParam) {
+      (async () => {
+        const opened = await handleOpenSession(sessionParam);
+        if (opened) return;
+        setMessages([
+          {
+            role: "assistant",
+            content: config.greeting,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      })();
+      return;
     }
-  }, [creativeAiChat, activeBrandId, activeBrand?.logo, model, maybeCreateDesign, adoptSession, ensureSession]);
+
+    // The prompt and its images arrive as separate URL params (see the home
+    // page) and stay separate from here to the request body. Read inside the
+    // effect: getAll() builds a fresh array each call, so hoisting it would add
+    // an unstable value to the render scope for no gain — this runs once.
+    if (initialMessage.trim()) {
+      const initialImages = searchParams.getAll("image");
+      const userMsg = {
+        role: "user",
+        content: initialMessage,
+        images: initialImages,
+        timestamp: new Date().toISOString(),
+      };
+
+      // ⚠️ Set here on purpose, not as useState's initial value. These are
+      // one-time, mount-only writes (hasInitialized), and the messages carry a
+      // `new Date()` timestamp that is rendered as a clock time — built during
+      // a server render it would format in the server's timezone and not match
+      // the browser's, a hydration error. One extra render on mount is cheaper.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMessages([userMsg]);
+
+      handleInitialSend(initialMessage, initialImages);
+      return;
+    }
+
+    setMessages([
+      {
+        role: "assistant",
+        content: config.greeting,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+    // The full list keeps the hook rules satisfied; it can't cause a re-send,
+    // because hasInitialized makes every run after the first return at once.
+  }, [
+    creativeType,
+    initialMessage,
+    sessionParam,
+    brandsLoading,
+    config.greeting,
+    handleInitialSend,
+    handleOpenSession,
+    searchParams,
+  ]);
 
   // Which template the user has picked from the fetched set.
   const handlePickTemplate = useCallback((template) => {
     setSelectedTemplate((current) =>
       current?.id === template.id ? null : template,
     );
-    console.log(`🖼️ [chat] template selected: ${template.name} (${template.id})`);
+    console.log(
+      `🖼️ [chat] template selected: ${template.name} (${template.id})`,
+    );
   }, []);
 
   const toggleDesignSelection = useCallback((design) => {
@@ -2342,14 +2607,13 @@ export default function AiCreativeChatPage() {
     });
   }, []);
 
-
-
   /* ── render ── */
   return (
     // No pb-nav here: `main` in (dashboard)/layout.js ends the scroll viewport
     // at the mobile bottom bar, so the composer already clears it. Adding it
     // again would leave a bar-height gap under the send button.
-    <div className="pt-header h-full"
+    <div
+      className="pt-header h-full"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -2387,8 +2651,10 @@ export default function AiCreativeChatPage() {
       {/* ── Body ── */}
       {/* splitRef measures the space the two panes share, so the drag can't push
           the chat panel past what the preview needs. */}
-      <div ref={splitRef} style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
-
+      <div
+        ref={splitRef}
+        style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}
+      >
         {/* ── Chat panel ── */}
         {/* chatPaneProps.style carries the dragged width (plus the min-width and
             the flex rules that stop the flexbox resizing it on its own). Drag it
@@ -2399,7 +2665,9 @@ export default function AiCreativeChatPage() {
             desktop setting survives a visit on a phone untouched. */}
         <div
           style={{
-            ...(isDesktopSplit ? chatPaneProps.style : { width: "100%", flex: 1, minWidth: 0 }),
+            ...(isDesktopSplit
+              ? chatPaneProps.style
+              : { width: "100%", flex: 1, minWidth: 0 }),
             display: isDesktopSplit || mobilePane === "chat" ? "flex" : "none",
             flexDirection: "column",
             background: "var(--color-surface)",
@@ -2408,7 +2676,8 @@ export default function AiCreativeChatPage() {
           }}
         >
           {/* ── Header ── */}
-          <header className="px-5"
+          <header
+            className="px-5"
             style={{
               height: 52,
               display: "flex",
@@ -2468,7 +2737,10 @@ export default function AiCreativeChatPage() {
                 flexShrink: 0,
               }}
             >
-              <Icon style={{ width: 14, height: 14, color }} strokeWidth={1.8} />
+              <Icon
+                style={{ width: 14, height: 14, color }}
+                strokeWidth={1.8}
+              />
             </div>
 
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -2483,7 +2755,13 @@ export default function AiCreativeChatPage() {
               >
                 {config.label}
               </p>
-              <p style={{ fontSize: 10, color: "var(--color-gray-400)", margin: 0 }}>
+              <p
+                style={{
+                  fontSize: 10,
+                  color: "var(--color-gray-400)",
+                  margin: 0,
+                }}
+              >
                 Powered by CreativeKlux AI
               </p>
             </div>
@@ -2545,7 +2823,9 @@ export default function AiCreativeChatPage() {
                   display: "inline-block",
                 }}
               />
-              <span style={{ fontSize: 10, color: "var(--color-gray-400)" }}>Online</span>
+              <span style={{ fontSize: 10, color: "var(--color-gray-400)" }}>
+                Online
+              </span>
             </div>
           </header>
 
@@ -2560,12 +2840,24 @@ export default function AiCreativeChatPage() {
               gap: 14,
               scrollbarWidth: "thin",
               // A black-alpha thumb is invisible on the dark panel; gray-300 tracks
-          // the theme and stays subtle in light.
-          scrollbarColor: "var(--color-gray-300) transparent",
+              // the theme and stays subtle in light.
+              scrollbarColor: "var(--color-gray-300) transparent",
             }}
           >
             {messages.map((msg, i) => (
-              <AiChatMessage key={i} message={msg} config={config} />
+              <AiChatMessage
+                key={i}
+                message={msg}
+                config={config}
+                // Only the OPEN offer gets chips — once answered (or replaced)
+                // they disappear rather than linger as dead buttons.
+                quickReplies={
+                  msg.offerId && msg.offerId === magicOffer?.id && !isLoading
+                    ? ["Yes, create it with Magic Studio", "No thanks"]
+                    : undefined
+                }
+                onQuickReply={(reply) => handleSend(reply)}
+              />
             ))}
             {/* One indicator for the whole wait. `isLoading` is cleared in the
                 send handler's `finally`, which runs AFTER maybeCreateDesign
@@ -2631,7 +2923,8 @@ export default function AiCreativeChatPage() {
           style={{
             flex: 1,
             minWidth: 0,
-            display: isDesktopSplit || mobilePane === "preview" ? "flex" : "none",
+            display:
+              isDesktopSplit || mobilePane === "preview" ? "flex" : "none",
             flexDirection: "column",
             // The recessed layer BEHIND the floating preview card, so it takes
             // --color-page (the app's page background) rather than a flat grey.
@@ -2700,8 +2993,6 @@ export default function AiCreativeChatPage() {
               overflow: "hidden",
             }}
           >
-
-
             <PreviewPanel
               result={previewResult}
               config={config}
@@ -2718,7 +3009,6 @@ export default function AiCreativeChatPage() {
               onPickTemplate={handlePickTemplate}
               selectedTemplateId={selectedTemplate?.id || null}
             />
-
           </div>
         </div>
       </div>
@@ -2727,11 +3017,8 @@ export default function AiCreativeChatPage() {
         message={toast.message}
         isOpen={toast.open}
         onClose={closeToast}
-         type={toast.type}
+        type={toast.type}
       />
-
     </div>
-
-
   );
 }

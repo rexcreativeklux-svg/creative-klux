@@ -137,7 +137,17 @@ function MessageContent({ content, color }) {
   );
 }
 
-export default function AiChatMessage({ message, config }) {
+/**
+ * @param {object} props
+ * @param {object} props.message
+ * @param {object} [props.config]
+ * @param {string[]} [props.quickReplies] One-tap answers shown under an
+ *   assistant bubble (e.g. a yes/no offer). Only pass them while the question
+ *   is still open — the caller drops them once it's answered.
+ * @param {(reply: string) => void} [props.onQuickReply] Sends the tapped reply
+ *   as if the user had typed it.
+ */
+export default function AiChatMessage({ message, config, quickReplies, onQuickReply }) {
   const isUser = message.role === "user";
   const color = config?.color || "#7c3aed";
   const colorRgb = config?.colorRgb || "124,58,237";
@@ -365,6 +375,34 @@ export default function AiChatMessage({ message, config }) {
               : ""}
           </span>
         </div>
+
+        {/* Quick replies sit INSIDE the bubble, under its text, so they read
+            as answers to this question rather than as page controls. */}
+        {!isUser && quickReplies?.length > 0 && onQuickReply && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 9 }}>
+            {quickReplies.map((reply, i) => (
+              <button
+                key={reply}
+                type="button"
+                onClick={() => onQuickReply(reply)}
+                className="hover:scale-95 transition-all duration-200"
+                style={{
+                  padding: "5px 11px",
+                  borderRadius: 20,
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  // The first reply is the suggested one, so it gets the accent.
+                  border: `1px solid ${i === 0 ? color : "var(--color-gray-300)"}`,
+                  background: i === 0 ? color : "var(--color-surface)",
+                  color: i === 0 ? "#fff" : "var(--color-gray-700)",
+                }}
+              >
+                {reply}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <style>{`

@@ -121,7 +121,66 @@ export function magicPromptsFrom(data) {
   if (!prompts.length && String(details.description || "").trim()) {
     prompts.push(details.description.trim());
   }
+  if (!prompts.length) {
+    const brief = briefFrom(details);
+    if (brief) prompts.push(brief);
+  }
   return prompts.map((p) => fitPrompt(p, PROMPT_MAX));
+}
+
+/**
+ * A prompt pieced together from the brief's own fields, for the one reply that
+ * reaches Magic without prompts or a description: a STUDIO Designs reply that
+ * was offered Magic because no templates matched (see the offer in page.jsx).
+ * Those replies were written for redesign, so they carry copy fields
+ * (headline, campaignGoal…) rather than a prompt.
+ */
+function briefFrom(details) {
+  const text = (v) => (typeof v === "string" ? v.trim() : "");
+  const platform = Array.isArray(details.platforms)
+    ? details.platforms.filter(Boolean).join(" / ")
+    : text(details.platforms);
+  const kind = text(details.create_sub_type).replace(/_/g, " ") || "design";
+  const brand = text(details.brandName);
+
+  const parts = [
+    `A ${platform ? `${platform} ` : ""}${kind}${brand ? ` for ${brand}` : ""}.`,
+    text(details.headline) && `Headline: "${text(details.headline)}".`,
+    text(details.tagline) && `Tagline: "${text(details.tagline)}".`,
+    text(details.campaignGoal) && `Goal: ${text(details.campaignGoal)}.`,
+    text(details.audience) && `Audience: ${text(details.audience)}.`,
+    text(details.visualStyle) && `Style: ${text(details.visualStyle)}.`,
+  ].filter(Boolean);
+
+  // The opening sentence alone says nothing about WHAT to show — without at
+  // least one real detail there's no brief, and Magic would invent one.
+  return parts.length > 1 ? parts.join(" ") : "";
+}
+
+/**
+ * How the user answered "use Magic Studio instead?" — "yes", "no", or null
+ * when the message is about something else (it then goes to the assistant
+ * as normal). Matched on the START of the message, so "yes please" and
+ * "sure, go ahead" agree.
+ *
+ * ⚠️ A "no" WITH MORE TO SAY IS NOT A NO. "No, make it 1080x1350" is the user
+ * steering the brief, and swallowing it here would drop the instruction — so
+ * only a bare refusal ("no", "no thanks", "nope.") counts; anything longer
+ * returns null and goes to the assistant.
+ */
+export function readMagicOfferAnswer(text) {
+  const t = String(text || "").trim().toLowerCase();
+  const refusal = t.match(/^(no|nope|nah|not now|not really|don'?t|cancel|skip)\b/);
+  if (refusal) {
+    const rest = t
+      .slice(refusal[0].length)
+      .replace(/\b(thanks|thank you|thx|please|for now|that'?s ok(ay)?)\b/g, "")
+      .replace(/[\s.,!]+/g, "");
+    return rest ? null : "no";
+  }
+  if (/^(y|ya|yes|yeah|yep|yup|sure|ok|okay|go ahead|please|do it|let'?s|use magic|try magic)\b/.test(t))
+    return "yes";
+  return null;
 }
 
 /**

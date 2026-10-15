@@ -2,7 +2,7 @@
  * wavenet-voice-labels.js
  * ─────────────────────────────────────────────────────────────────────────────
  * The HAND-MAINTAINED half of the hosted voice picker: a display name for every
- * Google Wavenet voice, and a display name for every locale.
+ * Google Wavenet voice.
  *
  * The other half — which voices exist and where each one's sample lives — is
  * GENERATED into wavenet-voice-samples.json by `npm run wavenet-samples`. The two
@@ -232,63 +232,4 @@ export const WAVENET_VOICE_NAMES = {
   "vi-VN-Wavenet-B": "Minh",
   "vi-VN-Wavenet-C": "Trang",
   "vi-VN-Wavenet-D": "Quang",
-};
-
-/**
- * Locale tag → the name the language picker shows.
- *
- * ⚠️ A TABLE RATHER THAN Intl.DisplayNames, for two reasons. Intl gets Google's
- * tags wrong — `ar-XA` comes out as "Arabic (Pseudo-Accents)", XA being the
- * pseudo-locale region code — and its wording ("American English", "Flemish")
- * differs between engines, so the server and the browser could disagree about a
- * label. Intl is still the fallback for a locale the vendor adds later.
- */
-export const WAVENET_LOCALE_LABELS = {
-  "am-ET": "Amharic",
-  "ar-XA": "Arabic",
-  "bn-IN": "Bengali",
-  "cmn-CN": "Mandarin (China)",
-  "cmn-TW": "Mandarin (Taiwan)",
-  "cs-CZ": "Czech",
-  "da-DK": "Danish",
-  "de-DE": "German",
-  "el-GR": "Greek",
-  "en-AU": "English (Australia)",
-  "en-GB": "English (UK)",
-  "en-IN": "English (India)",
-  "en-US": "English (US)",
-  "es-ES": "Spanish (Spain)",
-  "es-US": "Spanish (US)",
-  "fi-FI": "Finnish",
-  "fil-PH": "Filipino",
-  "fr-CA": "French (Canada)",
-  "fr-FR": "French (France)",
-  "gu-IN": "Gujarati",
-  "he-IL": "Hebrew",
-  "hi-IN": "Hindi",
-  "hu-HU": "Hungarian",
-  "id-ID": "Indonesian",
-  "it-IT": "Italian",
-  "ja-JP": "Japanese",
-  "kn-IN": "Kannada",
-  "ko-KR": "Korean",
-  "ml-IN": "Malayalam",
-  "mr-IN": "Marathi",
-  "ms-MY": "Malay",
-  "nb-NO": "Norwegian",
-  "nl-BE": "Dutch (Belgium)",
-  "nl-NL": "Dutch (Netherlands)",
-  "pa-IN": "Punjabi",
-  "pl-PL": "Polish",
-  "pt-BR": "Portuguese (Brazil)",
-  "pt-PT": "Portuguese (Portugal)",
-  "ro-RO": "Romanian",
-  "ru-RU": "Russian",
-  "sk-SK": "Slovak",
-  "sv-SE": "Swedish",
-  "ta-IN": "Tamil",
-  "tr-TR": "Turkish",
-  "uk-UA": "Ukrainian",
-  "ur-IN": "Urdu",
-  "vi-VN": "Vietnamese",
 };

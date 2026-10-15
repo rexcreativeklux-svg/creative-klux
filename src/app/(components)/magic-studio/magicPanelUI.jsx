@@ -21,11 +21,10 @@
  *   • TRANSCRIPT_DOWNLOADS — the TXT / SRT / VTT export menu items.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   Check,
-  Globe,
   Play,
   Pause,
   Loader2,
@@ -209,88 +208,8 @@ function TemplatePanelBody({ option, value, onSelect }) {
 }
 
 /**
- * Browser language base → the base the voice catalogue spells it with. Google's
- * tags use `cmn` for Mandarin and `fil` for Filipino; browsers report `zh` /
- * `tl`, and a few still send the legacy `iw` / `in` / `no`.
- */
-const BROWSER_LANGUAGE_ALIASES = { zh: "cmn", tl: "fil", iw: "he", in: "id", no: "nb" };
-
-/**
- * The languages a voice list covers, for the voices panel's picker — one entry
- * per locale, alphabetical. EMPTY for a list whose items carry no `language`
- * (Kokoro's), which is what keeps that panel exactly as it was.
- *
- * @param {Array<{language?: string, languageLabel?: string}>} items
- * @returns {Array<{value: string, label: string}>}
- */
-function voiceLanguages(items) {
-  const byTag = new Map();
-  for (const it of items) {
-    if (it.language && !byTag.has(it.language)) {
-      byTag.set(it.language, {
-        value: it.language,
-        label: it.languageLabel || it.language,
-      });
-    }
-  }
-  return [...byTag.values()].sort((a, b) => a.label.localeCompare(b.label, "en"));
-}
-
-/**
- * Which language the voices panel opens on.
- *
- *   1. A voice the user already picked → its language, so reopening shows it.
- *   2. The browser's languages, in preference order — an exact locale (en-GB),
- *      else the same base language: the default voice's locale when it shares
- *      that base (en → en-US), else the language's home country (fr → fr-FR,
- *      not fr-CA), else the first locale that shares it.
- *   3. The default voice's language, then the first on the list.
- *
- * ⚠️ READS `navigator`, so it runs in a useState initialiser — the panel mounts
- * only when someone opens it. Without `navigator` (a server render) it simply
- * skips step 2.
- *
- * @returns {string|null} A locale tag, or null when the items have none.
- */
-function initialVoiceLanguage(languages, items, value, defaultValue) {
-  if (languages.length === 0) return null;
-  const tags = new Set(languages.map((l) => l.value));
-  const languageOf = (id) => items.find((it) => it.value === id)?.language;
-
-  const picked = value !== defaultValue ? languageOf(value) : null;
-  if (picked && tags.has(picked)) return picked;
-
-  const fallback = languageOf(defaultValue);
-  const preferred =
-    typeof navigator === "undefined"
-      ? []
-      : navigator.languages?.length
-        ? navigator.languages
-        : [navigator.language];
-
-  for (const raw of preferred) {
-    if (!raw) continue;
-    const [rawBase, ...rest] = raw.toLowerCase().split("-");
-    const base = BROWSER_LANGUAGE_ALIASES[rawBase] || rawBase;
-    const want = [base, ...rest].join("-");
-    const sameBase = (tag) => tag.toLowerCase().split("-")[0] === base;
-
-    const exact = languages.find((l) => l.value.toLowerCase() === want);
-    if (exact) return exact.value;
-    if (fallback && sameBase(fallback)) return fallback;
-    const home = languages.find((l) => l.value.toLowerCase() === `${base}-${base}`);
-    if (home) return home.value;
-    const first = languages.find((l) => sameBase(l.value));
-    if (first) return first.value;
-  }
-  return fallback && tags.has(fallback) ? fallback : languages[0].value;
-}
-
-/**
  * The voices panel — a portrait, a name, and (where there is something to hear)
- * a ▶ per voice, grouped by accent + gender. When the voices carry a `language`
- * (the hosted catalogue: 161 voices, 47 locales) a language picker sits on top
- * and only that language's cards render.
+ * a ▶ per voice, grouped by accent + gender.
  *
  * Split out of OptionPanelBody for the same reason TemplatePanelBody was: it
  * owns an effect. The clips are probed once on open so the play buttons are
@@ -322,19 +241,8 @@ function VoicePanelBody({ option, value, onSelect, voicePreview }) {
     probe?.(items);
   }, [probe, items]);
 
-  // One language at a time — see initialVoiceLanguage. For a list with no
-  // languages `language` stays null and every card is visible, as before.
-  const languages = useMemo(() => voiceLanguages(items), [items]);
-  const [language, setLanguage] = useState(() =>
-    initialVoiceLanguage(languages, items, value, option.default),
-  );
-  const visible = useMemo(
-    () => (language ? items.filter((it) => it.language === language) : items),
-    [items, language],
-  );
-
   const groups = [];
-  for (const it of visible) {
+  for (const it of items) {
     const last = groups[groups.length - 1];
     if (last && last.name === it.group) last.items.push(it);
     else groups.push({ name: it.group, items: [it] });
@@ -343,31 +251,10 @@ function VoicePanelBody({ option, value, onSelect, voicePreview }) {
   // Only where there is something to tap — a voice with no clip and no engine
   // that could speak it has no ▶, and an instruction to press one would be a
   // dead end.
-  const anyPlayable = visible.some((it) => voicePreview?.canPlay?.(it));
+  const anyPlayable = items.some((it) => voicePreview?.canPlay?.(it));
 
   return (
     <div className="p-2 pb-3">
-      {languages.length > 1 && (
-        <label className="mx-2 mt-1 mb-2 flex items-center gap-2 rounded-xl border border-gray-200 bg-surface px-2.5 focus-within:border-blue-400">
-          <Globe className="w-3.5 h-3.5 shrink-0 text-gray-400" aria-hidden="true" />
-          <span className="sr-only">Voice language</span>
-          {/* The open list is drawn by the BROWSER: `.dark { color-scheme: dark }`
-              in globals.css is what turns it dark. The option colours pin it to
-              the panel's own surface and text tokens on top of that (white and
-              near-black in light mode, so light is unchanged). */}
-          <select
-            value={language || ""}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="h-8 min-w-0 flex-1 cursor-pointer bg-transparent text-xs font-semibold text-gray-900 focus:outline-none [&>option]:bg-surface [&>option]:text-gray-900"
-          >
-            {languages.map((l) => (
-              <option key={l.value} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
       {anyPlayable && (
         <p className="px-2 pt-1 pb-2 text-[11px] leading-snug text-gray-400">
           Tap <Play className="inline w-3 h-3 -mt-0.5" /> to hear a sample of

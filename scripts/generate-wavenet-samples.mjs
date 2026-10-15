@@ -22,10 +22,9 @@
 // that voice's ▶ for every user. They are uploaded as `<voice>.mp3`
 // (e.g. `en-US-Wavenet-C.mp3`) so they are easy to recognise there.
 //
-// ⚠️ EACH VOICE SPEAKS ITS OWN LANGUAGE. A ja-JP voice reading English is not a
-// fair preview of it, so the line is translated per language (SAMPLE_LINES). A
-// voice whose language has no line is SKIPPED with a warning rather than handed
-// English — add the language to SAMPLE_LINES and re-run.
+// ⚠️ EVERY VOICE SPEAKS THE SAME ENGLISH LINE (SAMPLE_LINE). Text to Audio
+// offers all of them for English text, so the sample is what a user will
+// actually hear — a ja-JP voice included, accent and all.
 //
 // Usage (reads .env through Node's built-in --env-file, no dotenv needed):
 //   npm run wavenet-samples -- --dry-run            list what WOULD happen, spend nothing
@@ -79,67 +78,21 @@ const ONLY = valueOf("--only")
 const LANGUAGE = valueOf("--language").trim();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE LINE EACH VOICE SPEAKS
+// THE LINE EVERY VOICE SPEAKS
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * One line, translated — "Hi! This is how I sound. Let's make something great
- * together." — the same words the Kokoro clips say, minus the name: Wavenet
- * voices are lettered (`…-Wavenet-C`), not named, and "Hi, I'm C" helps nobody.
+ * The line every voice speaks — the Kokoro clips' words minus the name, since
+ * Wavenet voices are lettered (`…-Wavenet-C`), not named.
  *
- * Keyed by BCP-47 base language, so en-US / en-GB / en-IN / en-AU share one
- * line. A full tag wins over its base — that is how Taiwanese Mandarin gets
- * Traditional characters while cmn-CN keeps Simplified.
+ * ⚠️ ENGLISH FOR EVERY VOICE, DELIBERATELY. The picker offers all of them for
+ * English text, so a sample in the voice's own language would preview
+ * something the user never gets to hear.
  *
- * ⚠️ CHANGING A LINE REGENERATES THAT LANGUAGE on the next run — each manifest
- * entry remembers the words it spoke, and a mismatch counts as missing.
+ * ⚠️ CHANGING IT REGENERATES EVERY SAMPLE on the next run — each manifest entry
+ * remembers the words it spoke, and a mismatch counts as missing.
  */
-const SAMPLE_LINES = {
-  am: "ሰላም! ድምፄ እንዲህ ይሰማል። አብረን አንድ ድንቅ ነገር እንፍጠር።",
-  ar: "مرحبًا! هكذا يبدو صوتي. لنصنع معًا شيئًا رائعًا.",
-  bn: "নমস্কার! আমার কণ্ঠস্বর এমন শোনায়। চলুন, একসাথে দারুণ কিছু তৈরি করি।",
-  cmn: "你好！这就是我的声音。让我们一起创造精彩的作品吧。",
-  "cmn-TW": "你好！這就是我的聲音。讓我們一起創造精彩的作品吧。",
-  cs: "Ahoj! Takhle zní můj hlas. Pojďme spolu vytvořit něco skvělého.",
-  da: "Hej! Sådan lyder min stemme. Lad os skabe noget fantastisk sammen.",
-  de: "Hallo! So klingt meine Stimme. Lass uns gemeinsam etwas Großartiges erschaffen.",
-  el: "Γεια σου! Έτσι ακούγεται η φωνή μου. Ας δημιουργήσουμε μαζί κάτι υπέροχο.",
-  en: "Hi! This is how I sound. Let's make something great together.",
-  es: "¡Hola! Así suena mi voz. Creemos algo increíble juntos.",
-  fi: "Hei! Tältä ääneni kuulostaa. Luodaan yhdessä jotain upeaa.",
-  fil: "Kumusta! Ganito ang tunog ng boses ko. Gumawa tayo ng isang bagay na kahanga-hanga nang magkasama.",
-  fr: "Bonjour ! Voici à quoi ressemble ma voix. Créons ensemble quelque chose de formidable.",
-  gu: "નમસ્તે! મારો અવાજ આવો સંભળાય છે. ચાલો, સાથે મળીને કંઈક શાનદાર બનાવીએ.",
-  he: "שלום! ככה נשמע הקול שלי. בואו ניצור יחד משהו נהדר.",
-  hi: "नमस्ते! मेरी आवाज़ ऐसी सुनाई देती है। आइए, साथ मिलकर कुछ शानदार बनाएँ।",
-  hu: "Szia! Így szól a hangom. Alkossunk együtt valami nagyszerűt!",
-  id: "Halo! Beginilah suara saya. Mari kita ciptakan sesuatu yang luar biasa bersama.",
-  it: "Ciao! Ecco come suona la mia voce. Creiamo insieme qualcosa di straordinario.",
-  ja: "こんにちは！これが私の声です。一緒に素晴らしいものを作りましょう。",
-  kn: "ನಮಸ್ಕಾರ! ನನ್ನ ಧ್ವನಿ ಹೀಗೆ ಕೇಳಿಸುತ್ತದೆ. ಬನ್ನಿ, ಒಟ್ಟಾಗಿ ಅದ್ಭುತವಾದುದನ್ನು ಸೃಷ್ಟಿಸೋಣ.",
-  ko: "안녕하세요! 제 목소리는 이렇게 들려요. 함께 멋진 것을 만들어 봐요.",
-  ml: "നമസ്കാരം! എന്റെ ശബ്ദം ഇങ്ങനെയാണ്. വരൂ, നമുക്ക് ഒരുമിച്ച് മികച്ച ഒന്ന് സൃഷ്ടിക്കാം.",
-  mr: "नमस्कार! माझा आवाज असा ऐकू येतो. चला, एकत्र मिळून काहीतरी छान घडवूया.",
-  ms: "Helo! Beginilah bunyi suara saya. Mari kita hasilkan sesuatu yang hebat bersama-sama.",
-  nb: "Hei! Slik høres stemmen min ut. La oss skape noe fantastisk sammen.",
-  nl: "Hallo! Zo klinkt mijn stem. Laten we samen iets geweldigs maken.",
-  pa: "ਸਤ ਸ੍ਰੀ ਅਕਾਲ! ਮੇਰੀ ਆਵਾਜ਼ ਇਸ ਤਰ੍ਹਾਂ ਸੁਣਾਈ ਦਿੰਦੀ ਹੈ। ਆਓ, ਮਿਲ ਕੇ ਕੁਝ ਸ਼ਾਨਦਾਰ ਬਣਾਈਏ।",
-  pl: "Cześć! Tak brzmi mój głos. Stwórzmy razem coś wspaniałego.",
-  pt: "Olá! É assim que a minha voz soa. Vamos criar algo incrível juntos.",
-  ro: "Bună! Așa sună vocea mea. Hai să creăm împreună ceva grozav.",
-  ru: "Привет! Вот так звучит мой голос. Давайте вместе создадим что-нибудь потрясающее.",
-  sk: "Ahoj! Takto znie môj hlas. Poďme spolu vytvoriť niečo skvelé.",
-  sv: "Hej! Så här låter min röst. Låt oss skapa något fantastiskt tillsammans.",
-  ta: "வணக்கம்! என் குரல் இப்படித்தான் ஒலிக்கும். வாருங்கள், சேர்ந்து அருமையான ஒன்றை உருவாக்குவோம்.",
-  tr: "Merhaba! Sesim böyle duyuluyor. Hadi birlikte harika bir şey yaratalım.",
-  uk: "Привіт! Ось так звучить мій голос. Створімо разом щось чудове.",
-  ur: "السلام علیکم! میری آواز ایسی سنائی دیتی ہے۔ آئیے، مل کر کچھ شاندار بنائیں۔",
-  vi: "Xin chào! Đây là giọng nói của tôi. Hãy cùng nhau tạo nên điều tuyệt vời nhé.",
-};
-
-/** The line for a locale tag, or null when no translation exists for it. */
-const lineFor = (language) =>
-  SAMPLE_LINES[language] || SAMPLE_LINES[String(language).split("-")[0]] || null;
+const SAMPLE_LINE = "Hi! This is how I sound. Let's make something great together.";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HTTP
@@ -403,18 +356,9 @@ async function main() {
       (ONLY.length === 0 || ONLY.includes(v.voice)) &&
       (!LANGUAGE || v.language === LANGUAGE || v.language.startsWith(`${LANGUAGE}-`)),
   );
-  const untranslated = wanted.filter((v) => !lineFor(v.language));
-  if (untranslated.length > 0) {
-    console.warn(
-      `⚠️  No sample line for ${[...new Set(untranslated.map((v) => v.language))].join(", ")} — ` +
-        `skipping ${untranslated.length} voice(s). Add the language to SAMPLE_LINES.`,
-    );
-  }
   const pending = wanted.filter((v) => {
-    const line = lineFor(v.language);
-    if (!line) return false;
     const have = samples.get(v.voice);
-    return FORCE || !have || have.line !== line;
+    return FORCE || !have || have.line !== SAMPLE_LINE;
   });
 
   if (pending.length === 0) {
@@ -449,11 +393,15 @@ async function main() {
 
   let made = 0;
   const failures = [];
+  // Clips a re-run replaces stay in the gallery until someone deletes them —
+  // listed at the end so nobody has to diff manifests to find them.
+  const replaced = [];
   // ⚠️ ONE AT A TIME, DELIBERATELY. These are paid calls on a shared key; a
   // parallel run turns one bad credential into 161 failures before the first
   // error is printed. Auth failures stop the run outright for the same reason.
   for (const [index, v] of pending.entries()) {
-    const line = lineFor(v.language);
+    const line = SAMPLE_LINE;
+    const previous = samples.get(v.voice);
     const tag = `[${String(index + 1).padStart(3)}/${pending.length}] ${v.voice.padEnd(22)}`;
     try {
       process.stdout.write(`⏳ ${tag} synthesising… `);
@@ -469,6 +417,7 @@ async function main() {
         line,
         generatedAt: new Date().toISOString(),
       });
+      if (previous?.galleryId != null) replaced.push(previous.galleryId);
       // After EVERY voice, so an interrupted run resumes where it stopped.
       writeManifest(catalogue, samples);
       made += 1;
@@ -488,6 +437,11 @@ async function main() {
     `\n🎉 ${made}/${pending.length} generated · ${samples.size}/${catalogue.voices.length} voices now have a sample.`,
   );
   console.log(`💾 Manifest: ${path.relative(root, MANIFEST_PATH)}`);
+  if (replaced.length > 0) {
+    console.log(
+      `🗑️  ${replaced.length} replaced clip(s) are now unused in the gallery — ids: ${replaced.join(", ")}`,
+    );
+  }
   if (failures.length > 0) {
     console.log(`⚠️  Failed (${failures.length}): ${failures.map(([id]) => id).join(", ")}`);
     console.log("   Re-run the same command — voices that succeeded are skipped.");

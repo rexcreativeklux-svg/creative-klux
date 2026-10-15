@@ -111,12 +111,10 @@ import {
 } from "@/(lib)/magic-studio-audio";
 
 /**
- * How many hosted voices, in how many languages, Text to Audio offers — read off
- * the generated catalogue so its intro copy cannot drift when the list changes.
+ * How many hosted voices Text to Audio offers — read off the generated catalogue
+ * so its intro copy cannot drift when the list changes.
  */
 const HOSTED_VOICE_COUNT = HOSTED_VOICE_ITEMS.length;
-const HOSTED_LANGUAGE_COUNT = new Set(HOSTED_VOICE_ITEMS.map((v) => v.language))
-  .size;
 
 // Pexels CDN helper (free license, stable URLs) for rich option-card thumbnails.
 const px = (id) =>
@@ -2321,7 +2319,7 @@ export const MAGIC_STUDIO_CONFIGS = {
     id: "text_to_audio",
     title: "Text to Audio",
     subtitle: usesBackend("text_to_audio")
-      ? `Turn text into natural speech in ${HOSTED_LANGUAGE_COUNT} languages.`
+      ? "Turn text into natural speech."
       : "Convert text into natural speech — on-device, private & free.",
     Icon: Music,
     color: "bg-indigo-100 text-indigo-600",

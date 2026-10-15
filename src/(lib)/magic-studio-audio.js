@@ -38,10 +38,7 @@ import { Mars, Venus } from "lucide-react";
 
 import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
 import WAVENET_MANIFEST from "@/(lib)/wavenet-voice-samples.json";
-import {
-  WAVENET_LOCALE_LABELS,
-  WAVENET_VOICE_NAMES,
-} from "@/(lib)/wavenet-voice-labels";
+import { WAVENET_VOICE_NAMES } from "@/(lib)/wavenet-voice-labels";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE SWITCH
@@ -190,32 +187,20 @@ export const voiceFace = (gender, index) => {
  * fail now. So a card must only ever offer an id from this list, and anything
  * else goes through backendVoiceId's safety net.
  *
- * ⚠️ THE NAMES AND LANGUAGE LABELS ARE OURS — see wavenet-voice-labels.js. A
- * voice that file has not caught up with shows as "Voice <letter>".
+ * ⚠️ EVERY VOICE IS OFFERED FOR ENGLISH. Each one can read English (a ja-JP
+ * voice with its accent), so the picker shows all of them with no language
+ * filter, and every sample speaks the same English line.
+ *
+ * ⚠️ THE NAMES ARE OURS — see wavenet-voice-labels.js. A voice that file has
+ * not caught up with shows as "Voice <letter>".
  *
  * ⚠️ ORDER IS WHAT GROUPS THEM. The voices panel groups CONSECUTIVE items that
- * share a `group`, after filtering to one language — so the cards are sorted
- * language → female first → name, which makes each language one female run then
- * one male run.
+ * share a `group`, so the cards are sorted female first, then A–Z by name —
+ * one "Female voices" run, then one "Male voices" run.
  */
 
 /** "en-US-Wavenet-C" → "C", the only part of the id that tells voices apart. */
 const voiceLetter = (id) => String(id).split("-").pop();
-
-/**
- * The display name for a locale tag: our table first, then Intl for a locale
- * the vendor added after the table was written, then the bare tag.
- */
-function localeLabel(tag) {
-  if (WAVENET_LOCALE_LABELS[tag]) return WAVENET_LOCALE_LABELS[tag];
-  try {
-    const name = new Intl.DisplayNames(["en"], { type: "language" }).of(tag);
-    if (name && name !== tag) return name;
-  } catch {
-    // Not a valid tag — show it as-is below.
-  }
-  return String(tag);
-}
 
 /** Voice cards for the "voices" panel, in the shape KOKORO_VOICE_ITEMS uses. */
 export const HOSTED_VOICE_ITEMS = (() => {
@@ -223,16 +208,14 @@ export const HOSTED_VOICE_ITEMS = (() => {
     .filter((v) => typeof v?.voice === "string" && v.voice)
     .map((v) => {
       const gender = v.gender === "male" ? "male" : "female";
-      const languageLabel = localeLabel(v.language);
       return {
         value: v.voice,
         label: WAVENET_VOICE_NAMES[v.voice] || `Voice ${voiceLetter(v.voice)}`,
-        desc: `${languageLabel} · ${gender}`,
         icon: gender === "female" ? Venus : Mars,
         gender,
-        // What the panel's language picker filters on, and what it shows.
+        // Not shown — kept so a stale Kokoro id can be mapped to the nearest
+        // accent (see resolveHostedVoice).
         language: v.language,
-        languageLabel,
         group: gender === "female" ? "Female voices" : "Male voices",
         // The vendor marks no flagship voices (every `verified` is false).
         top: false,
@@ -251,7 +234,6 @@ export const HOSTED_VOICE_ITEMS = (() => {
     })
     .sort(
       (a, b) =>
-        a.languageLabel.localeCompare(b.languageLabel, "en") ||
         (a.gender === b.gender ? 0 : a.gender === "female" ? -1 : 1) ||
         a.label.localeCompare(b.label, "en"),
     );
@@ -344,8 +326,10 @@ export const defaultVoiceFor = (toolId, kokoroDefault) =>
  */
 export function voiceLabelFor(toolId, voiceId) {
   if (usesBackend(toolId)) {
+    // The name alone, like Kokoro's — every hosted voice speaks English here, so
+    // naming its locale ("· Japanese") would describe a language you never hear.
     const card = HOSTED_VOICE_BY_ID.get(resolveHostedVoice(voiceId).id);
-    return card ? `${card.label} · ${card.languageLabel}` : "Hosted voice";
+    return card ? card.label : "Hosted voice";
   }
   return (
     KOKORO_TTS.voices.find((v) => v.id === voiceId)?.label || "Kokoro voice"

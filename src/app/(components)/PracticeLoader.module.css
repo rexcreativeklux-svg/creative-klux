@@ -1,0 +1,139 @@
+/* Styles for PracticeLoader. A CSS module rather than <style jsx>: with
+   reactCompiler on, the styled-jsx block stopped being applied and the loader
+   rendered unstyled in the top-left corner. */
+
+.loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  /* Light mode: Clean ice-blue to white background tint */
+  background: radial-gradient(
+    120% 90% at 50% 100%,
+    #eff6ff 0%,
+    #f8fafc 42%,
+    #ffffff 100%
+  );
+}
+.fixed {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+.sunWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sun {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  animation: pl-breathe 2.4s ease-in-out infinite;
+  filter: drop-shadow(0 8px 22px rgba(37, 99, 235, 0.25));
+  transform-origin: center;
+}
+.logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+/* Radiating pulse — matching corporate blue */
+.ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #2563eb;
+  transform-origin: center;
+  animation: pl-ring 2.4s ease-out infinite;
+}
+.ring2 {
+  animation-delay: 0.8s;
+}
+.ring3 {
+  animation-delay: 1.6s;
+}
+@keyframes pl-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+.label {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: #334155; /* Slate gray text for readability */
+}
+.dot {
+  animation: pl-dots 1.4s infinite;
+  opacity: 0.2;
+}
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes pl-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 8px 22px rgba(37, 99, 235, 0.2));
+  }
+  50% {
+    transform: scale(1.07);
+    filter: drop-shadow(0 12px 30px rgba(37, 99, 235, 0.45));
+  }
+}
+@keyframes pl-dots {
+  0%,
+  60%,
+  100% {
+    opacity: 0.2;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+/* Dark Mode: Deep slate and navy tones */
+:global(.dark) .loader {
+  background: radial-gradient(
+    120% 90% at 50% 100%,
+    #0f172a 0%,
+    /* Slate 900 background core */ #0b0f19 45%,
+    #030712 100%
+  );
+}
+:global(.dark) .label {
+  color: #94a3b8; /* Cool gray for dark text blend */
+}
+:global(.dark) .ring {
+  background: #1d4ed8; /* Darker blue ring pulse */
+}
+@media (prefers-reduced-motion: reduce) {
+  .sun,
+  .dot,
+  .ring {
+    animation: none;
+  }
+  .ring {
+    display: none;
+  }
+}

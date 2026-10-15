@@ -172,7 +172,7 @@ export function useVoicePreview(tts) {
    *
    * ⚠️ EXCEPT A CARD THAT SAYS `sampleKnown`. The hosted voices' clips are listed
    * in a generated manifest that recorded each upload, so they are already known
-   * to exist — probing 161 CDN URLs on every open would only confirm it.
+   * to exist — probing every CDN URL on every open would only confirm it.
    *
    * ⚠️ STABLE IDENTITY (useCallback with no deps) because the picker calls this
    * from an effect. A fresh function each render would re-run that effect on

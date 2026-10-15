@@ -3,9 +3,11 @@
 // the voice → CDN URL manifest the app reads (run: `npm run wavenet-samples`).
 //
 // Replaces generate-aura-samples.mjs. The hosted voices are no longer
-// Deepgram's 40 Aura-2 names — Ariziy's `GET /v1/voices` now answers with ~161
-// Google Wavenet voices across ~47 locales (`en-US-Wavenet-C`, `ja-JP-Wavenet-A`,
-// …), so the list is FETCHED here rather than re-typed by hand.
+// Deepgram's 40 Aura-2 names — Ariziy's `GET /v1/voices` now answers with Google
+// Wavenet voices (`en-US-Wavenet-C`, …). That list MOVES — 161 voices across 47
+// locales, then 27 English-only, both on 2026-10-15 — so it is FETCHED here
+// rather than re-typed by hand, and a re-run follows whatever it is today
+// (voices that left are dropped from the manifest and their clips listed).
 //
 //   1. GET  https://api.ariziy.com/v1/voices          the live catalogue
 //   2. POST https://api.ariziy.com/v1/text-to-speech  one sample per voice
@@ -24,7 +26,7 @@
 //
 // ⚠️ EVERY VOICE SPEAKS THE SAME ENGLISH LINE (SAMPLE_LINE). Text to Audio
 // offers all of them for English text, so the sample is what a user will
-// actually hear — a ja-JP voice included, accent and all.
+// actually hear.
 //
 // Usage (reads .env through Node's built-in --env-file, no dotenv needed):
 //   npm run wavenet-samples -- --dry-run            list what WOULD happen, spend nothing
@@ -397,8 +399,8 @@ async function main() {
   // listed at the end so nobody has to diff manifests to find them.
   const replaced = [];
   // ⚠️ ONE AT A TIME, DELIBERATELY. These are paid calls on a shared key; a
-  // parallel run turns one bad credential into 161 failures before the first
-  // error is printed. Auth failures stop the run outright for the same reason.
+  // parallel run turns one bad credential into a failure per voice before the
+  // first error is printed. Auth failures stop the run outright for the same reason.
   for (const [index, v] of pending.entries()) {
     const line = SAMPLE_LINE;
     const previous = samples.get(v.voice);

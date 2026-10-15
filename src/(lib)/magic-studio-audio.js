@@ -117,8 +117,8 @@ const face = (id) =>
  * in for "cinematic". That is why the cards never pair a face with a claim about
  * a person — no bios, no "recorded by", just a name and a portrait.
  *
- * ⚠️ FEWER PHOTOS THAN VOICES, DELIBERATELY. The hosted catalogue has 86
- * feminine and 75 masculine voices; nine of each here means a face repeats every
+ * ⚠️ FEWER PHOTOS THAN VOICES, DELIBERATELY. The hosted catalogue has 14
+ * feminine and 13 masculine voices; nine of each here means a face repeats every
  * ninth card of a gender.
  * That is better than the alternatives — a stock library search per voice
  * produces a wall of images nobody has looked at, and generated avatars read as
@@ -177,9 +177,11 @@ export const voiceFace = (gender, index) => {
  *
  * ⚠️ THE LIST IS GENERATED, NOT TYPED. wavenet-voice-samples.json is written by
  * `npm run wavenet-samples` straight from Ariziy's `GET /v1/voices` (Google
- * Wavenet — 161 voices across 47 locales on 2026-10-15), with a CDN clip per
- * voice. When the vendor's list changes, re-run the script; never hand-edit the
- * JSON.
+ * Wavenet — 27 English voices: en-US, en-GB, en-AU, en-IN), with a CDN clip
+ * per voice. The vendor's list DOES change — it went from 161 voices in 47
+ * locales to these 27 on 2026-10-15 — so re-probe and re-run the script when
+ * it does; never hand-edit the JSON. A voice the vendor drops disappears from
+ * the picker on the next run.
  *
  * ⚠️ THE BACKEND DOES NOT VALIDATE `voice`. It forwards whatever it is sent, and
  * a name the provider does not know comes back as `422 "Text to speech failed
@@ -187,9 +189,8 @@ export const voiceFace = (gender, index) => {
  * fail now. So a card must only ever offer an id from this list, and anything
  * else goes through backendVoiceId's safety net.
  *
- * ⚠️ EVERY VOICE IS OFFERED FOR ENGLISH. Each one can read English (a ja-JP
- * voice with its accent), so the picker shows all of them with no language
- * filter, and every sample speaks the same English line.
+ * ⚠️ ONE LIST, NO LANGUAGE FILTER. Every voice here is English, so the picker
+ * shows all of them at once and every sample speaks the same English line.
  *
  * ⚠️ THE NAMES ARE OURS — see wavenet-voice-labels.js. A voice that file has
  * not caught up with shows as "Voice <letter>".
@@ -222,7 +223,8 @@ export const HOSTED_VOICE_ITEMS = (() => {
         sample: v.sample?.url || null,
         // ⚠️ THE MANIFEST ALREADY PROVES THE CLIP EXISTS — the script uploaded it
         // and recorded the URL it got back — so useVoicePreview plays it without
-        // a HEAD probe first. 161 cross-origin HEADs per open would buy nothing.
+        // a HEAD probe first. A cross-origin HEAD per card per open would buy
+        // nothing.
         sampleKnown: Boolean(v.sample?.url),
         // No local engine can say "en-US-Wavenet-C" — Kokoro has never heard it.
         synth: false,

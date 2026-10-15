@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   Sparkles, ArrowLeft, Tv2, Share2, Palette, Wand2,
-  CheckCircle2, ImageIcon, History,
+  CheckCircle2, ImageIcon, History, MoreHorizontal, Eye, Pencil, Bookmark,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import AiChatMessage from "@/app/(components)/studio/AiChatMessage";
@@ -34,6 +35,23 @@ import {
   magicToolFor,
   magicValuesFrom,
 } from "./magicDesign";
+import {
+  downloadVariation,
+  galleryMetaFor,
+  hostedUrlOf,
+  isMagicVariation,
+  lightboxItemFor,
+  paintableDesign,
+  publishCategoryFor,
+  savedDesignId,
+  saveTypeFor,
+} from "./designActions";
+import ResultActionsMenu, {
+  buildResultActions,
+} from "@/app/(components)/product-studio/ResultActionsMenu";
+import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGallery";
+import Lightbox from "@/app/(components)/Lightbox";
+import PublishModal from "@/app/(components)/PublishModal";
 import Toast from "@/app/(components)/Toast";
 import ChatHistoryPanel from "./ChatHistoryPanel";
 import { normalizeSessionMessages } from "@/app/(components)/studio/chatSessions";
@@ -662,6 +680,204 @@ function PreviewPanel({ result,
   // toolbar, and nothing outside it needs to know the button is busy.
   const [saving, setSaving] = useState(false);
 
+  /* ── per-card ⋯ menu — same menu, lightbox and publish sheet as Magic
+     Studio's history tiles, for Magic Designs AND creatives alike (see
+     designActions.js for how the two differ). Declared above the early
+     returns below so the hook order never changes between renders. */
+  const router = useRouter();
+  const { uploadMedia, fetchDesigns } = useAuth();
+  // { variation, x, y, actions } — the actions are built in openMenu, an event
+  // handler, because they close over the refs below and React won't have refs
+  // read (or handed to closures) during render.
+  const [menu, setMenu] = useState(null);
+  // Held apart from `menu`: picking Publish closes the menu, and a sheet keyed
+  // off menu state would close with it.
+  const [publishVariation, setPublishVariation] = useState(null);
+  const [lightbox, setLightbox] = useState(null); // { items, index }
+  // Which card's Edit is saving, so a second click can't save it twice.
+  const [editingId, setEditingId] = useState(null);
+  // variation id → saved design id. Edit saves before it can open the editor;
+  // a second Edit on the same card reopens that row rather than adding another.
+  const savedIdsRef = useRef(new Map());
+  // variation id → painted Lightbox item, so re-opening Preview is instant.
+  const previewCacheRef = useRef(new Map());
+
+  // ⚠️ MEMOIZED ON PURPOSE — PublishModal seeds its caption in an effect keyed
+  // on `creative`, so a fresh object each render would wipe what the user typed.
+  const publishCreative = React.useMemo(() => {
+    const v = publishVariation;
+    if (!v) return null;
+    const design = paintableDesign(v);
+    return {
+      id: v.id,
+      name: v.name || "Design",
+      category: publishCategoryFor(v, creativeType),
+      // A Magic Design publishes its hosted file; a creative has none, so
+      // PublishModal paints canvas + elements and uploads that instead.
+      image: hostedUrlOf(v),
+      canvas: design.canvas,
+      elements: design.elements,
+      copy: v.copy || {},
+    };
+  }, [publishVariation, creativeType]);
+
+  const openMenu = (variation, event) => {
+    event.stopPropagation();
+    if (menu?.variation?.id === variation.id) {
+      setMenu(null);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setMenu({
+      variation,
+      // 208 = the menu's w-52, so it opens under the ⋯ inside the card.
+      x: rect.right - 208,
+      y: rect.bottom + 6,
+      actions: actionsFor(variation),
+    });
+  };
+
+  const handlePreview = async (variation) => {
+    const all = result?.type === "design" ? result.variations || [] : [];
+    const missing = all.filter((v) => !previewCacheRef.current.has(v.id));
+    const toastId = missing.some((v) => !isMagicVariation(v))
+      ? sonner.loading("Preparing preview…")
+      : null;
+    try {
+      await Promise.all(
+        missing.map(async (v) => {
+          const item = await lightboxItemFor(v);
+          if (item) previewCacheRef.current.set(v.id, item);
+        }),
+      );
+      const items = all
+        .map((v) => previewCacheRef.current.get(v.id))
+        .filter(Boolean);
+      const index = items.findIndex((item) => item.id === variation.id);
+      if (index < 0) throw new Error("Couldn't render this design.");
+      setLightbox({ items, index });
+      if (toastId) sonner.dismiss(toastId);
+    } catch (err) {
+      console.error("❌ [chat] preview failed:", err);
+      sonner.error(err?.message || "Couldn't open the preview", { id: toastId ?? undefined });
+    }
+  };
+
+  const handleDownload = async (variation) => {
+    const toastId = sonner.loading("Downloading…");
+    try {
+      await downloadVariation(variation);
+      sonner.success("Downloaded", { id: toastId });
+    } catch (err) {
+      console.error("❌ [chat] download failed:", err);
+      sonner.error(err?.message || "Couldn't download that design", { id: toastId });
+    }
+  };
+
+  /** Save one design to the brand's designs. Resolves to the saved row's id. */
+  const saveOne = async (variation) => {
+    const res = await saveDesign(activeBrandId, [variation], saveTypeFor(creativeType));
+    if (!res?.ok) throw new Error(res?.message || "Failed to save the design");
+    let id = savedDesignId(res.data);
+    if (id == null) {
+      // The save response's shape is unconfirmed (see savedDesignId), but the
+      // list is: GET /creative-designs is newest-first with a numeric `id`. So
+      // the row just written is among the first few — matched by name, highest
+      // id wins, since rows saved in the same second don't come back in id order.
+      const recent = await fetchDesigns?.(5, 1);
+      const name = variation.name || "Untitled Design";
+      const match = (recent?.data || [])
+        .filter((row) => row?.name === name && row?.id != null)
+        .sort((a, b) => Number(b.id) - Number(a.id))[0];
+      id = match?.id ?? null;
+    }
+    if (id != null) savedIdsRef.current.set(variation.id, id);
+    return id;
+  };
+
+  const handleSaveOne = async (variation) => {
+    const toastId = sonner.loading("Saving design…");
+    try {
+      await saveOne(variation);
+      sonner.success("Saved to your designs", { id: toastId });
+    } catch (err) {
+      console.error("❌ [chat] save failed:", err);
+      sonner.error(err?.message || "Couldn't save the design", { id: toastId });
+    }
+  };
+
+  /**
+   * Open a design in the editor. The editor only opens SAVED designs
+   * (/design/[id]), so a result that hasn't been saved yet is saved first.
+   */
+  const handleEdit = async (variation) => {
+    if (editingId) return;
+    const known = savedIdsRef.current.get(variation.id);
+    if (known != null) {
+      router.push(`/design/${known}`);
+      return;
+    }
+    setEditingId(variation.id);
+    const toastId = sonner.loading("Saving so it can open in the editor…");
+    try {
+      const id = await saveOne(variation);
+      if (id != null) {
+        sonner.success("Opening the editor…", { id: toastId });
+        router.push(`/design/${id}`);
+      } else {
+        // Saved, but the response didn't say which row — it's at the top of
+        // the designs list, so take the user there rather than nowhere.
+        sonner.success("Saved — open it from your designs", { id: toastId });
+        router.push("/creatives");
+      }
+    } catch (err) {
+      console.error("❌ [chat] edit (save first) failed:", err);
+      sonner.error(err?.message || "Couldn't open this design in the editor", { id: toastId });
+    } finally {
+      setEditingId(null);
+    }
+  };
+
+  const handleSaveToGallery = async (variation) => {
+    const toastId = sonner.loading("Saving to gallery…");
+    try {
+      const { ext, mime, category } = galleryMetaFor(variation);
+      await saveUrlToGallery(hostedUrlOf(variation), uploadMedia, {
+        filePrefix: "magic",
+        ext,
+        mime,
+        category,
+      });
+      sonner.success("Saved to gallery", { id: toastId });
+    } catch (err) {
+      console.error("❌ [chat] save to gallery failed:", err);
+      sonner.error(err?.message || "Couldn't save to gallery", { id: toastId });
+    }
+  };
+
+  const actionsFor = (variation) => {
+    const url = hostedUrlOf(variation);
+    return [
+      { label: "Preview", icon: Eye, onClick: () => handlePreview(variation) },
+      { label: "Edit", icon: Pencil, onClick: () => handleEdit(variation) },
+      // Publish / Download / Copy link / Save to gallery — the shared builder,
+      // so their order and icons match Magic Studio. The last two need a
+      // hosted file, which only a Magic Design has.
+      ...buildResultActions({
+        onPublish: () => setPublishVariation(variation),
+        onDownload: () => handleDownload(variation),
+        onCopyLink: url
+          ? () => {
+              navigator.clipboard.writeText(url);
+              sonner.success("Link copied!");
+            }
+          : undefined,
+        onSaveToGallery: url && uploadMedia ? () => handleSaveToGallery(variation) : undefined,
+      }),
+      { label: "Save design", icon: Bookmark, onClick: () => handleSaveOne(variation) },
+    ];
+  };
+
   // Designs already returned by this run, if any. During "designs" they arrive
   // in batches, so this grows while the stage is still running.
   const landed = result?.type === "design" ? result.variations || [] : [];
@@ -801,10 +1017,9 @@ function PreviewPanel({ result,
               try {
                 // Persist the real creative type so cards show the correct Ads/Social/Design/Magic badge.
                 // saveDesign strips the "_creative" suffix; "general" has no category so default it to "ads".
-                const saveType = !creativeType || creativeType === "general" ? "ads" : creativeType;
                 // Magic Design videos save through here too: they're designs
                 // with a still frame under a video layer (see magicDesign.js).
-                const res = await saveDesign(activeBrandId, selectedDesigns, saveType);
+                const res = await saveDesign(activeBrandId, selectedDesigns, saveTypeFor(creativeType));
 
                 if (res?.ok) {
                   setSelectedDesigns([]);
@@ -915,8 +1130,13 @@ function PreviewPanel({ result,
                   <div
                     key={v.id}
                     onClick={() => onToggleSelect(v)}
-                    className="border border-gray-200"
+                    className="group border border-gray-200"
                     style={{
+                      // The ✓ and ⋯ are pinned to THIS card's corners. Without
+                      // it they resolved against the pane, and the ✓ sat in the
+                      // pane's top-right corner instead of on the card.
+                      position: "relative",
+                      cursor: "pointer",
                       // Same 5 as DesignShimmer — the two sit side by side in
                       // this grid while a batch is still landing, and a tile
                       // that changed shape as it filled would read as a swap
@@ -934,12 +1154,32 @@ function PreviewPanel({ result,
                     }}
                   >
 
+                    {/* Card actions. Always shown below `lg` (no hover on a
+                        phone), and kept on while its own menu is open. The
+                        stopPropagation in openMenu keeps it from toggling the
+                        card's selection. */}
+                    <button
+                      type="button"
+                      onClick={(e) => openMenu(v, e)}
+                      aria-label="Design actions"
+                      disabled={editingId === v.id}
+                      className={`absolute right-2 top-2 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-surface/90 text-gray-700 shadow transition-opacity hover:text-blue-600 ${
+                        menu?.variation?.id === v.id || editingId === v.id
+                          ? "opacity-100"
+                          : "opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                      }`}
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+
+                    {/* Top-LEFT: the top-right corner belongs to the ⋯. */}
                     {isSelected && (
                       <div
                         style={{
                           position: "absolute",
+                          zIndex: 10,
                           top: 8,
-                          right: 8,
+                          left: 8,
                           width: 18,
                           height: 18,
                           borderRadius: "50%",
@@ -1127,6 +1367,46 @@ function PreviewPanel({ result,
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
         Generated in {time}
       </div>
+
+      {/* ⚠️ PORTALLED TO <body>. This pane's slide-in animation leaves a
+          `transform` on it (fill-mode both), and a transformed ancestor becomes
+          the containing block for `position: fixed` — the menu would be placed
+          against the pane, not the viewport, and land in the wrong spot. Out
+          here they also can't bubble a click into a card's select toggle. */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <>
+            {menu && (
+              <ResultActionsMenu
+                x={menu.x}
+                y={menu.y}
+                onClose={() => setMenu(null)}
+                actions={menu.actions}
+              />
+            )}
+
+            {lightbox && (
+              <Lightbox
+                items={lightbox.items}
+                index={lightbox.index}
+                onIndexChange={(index) => setLightbox((lb) => lb && { ...lb, index })}
+                onClose={() => setLightbox(null)}
+                onDownload={(item) => handleDownload(item.variation)}
+              />
+            )}
+
+            {publishCreative && (
+              <PublishModal
+                creative={publishCreative}
+                onClose={() => setPublishVariation(null)}
+                showToast={(message, type) =>
+                  type === "error" ? sonner.error(message) : sonner.success(message)
+                }
+              />
+            )}
+          </>,
+          document.body,
+        )}
 
       <style>{`
         @keyframes ck-slide-in {
@@ -1684,6 +1964,7 @@ export default function AiCreativeChatPage() {
                 name: expected > 1 ? `${name} (${collected.length + i + 1})` : name,
                 ratio: values.ratio,
                 tool,
+                run: startedAt,
               }),
             ),
           );

@@ -8,8 +8,8 @@
  * prototypes.
  *
  * The Current Subscription card is LIVE: it reads the signed-in user's active
- * package from GET /package, and re-reads it from POST /apply-promotion-code
- * after a license code is redeemed. Both payloads are mapped into the card's
+ * package from AuthContext (loaded from GET /package on sign-in), and writes the
+ * new package back there after POST /apply-promotion-code redeems a code. Both payloads are mapped into the card's
  * shape by `packageToSubscription` (see ./(components)/billing/billingData.js).
  *
  * Two ways to upgrade:
@@ -25,7 +25,7 @@
  * checkout-session endpoint exists.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { BadgeCheck, CalendarDays, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -33,7 +33,6 @@ import LicenseCodeCard from "@/app/(components)/billing/LicenseCodeCard";
 import PlanCard from "@/app/(components)/billing/PlanCard";
 import {
   BILLING_CYCLES,
-  SUBSCRIPTION_FALLBACK,
   packageToSubscription,
   PLANS,
 } from "@/app/(components)/billing/billingData";
@@ -48,32 +47,13 @@ const CYCLE_TABS = [
 ];
 
 export default function PlansAndBilling() {
-  const { user, token } = useAuth();
+  const { user, token, activePackage, setActivePackage } = useAuth();
 
   const [cycle, setCycle] = useState(BILLING_CYCLES.MONTHLY);
-  const [subscription, setSubscription] = useState(SUBSCRIPTION_FALLBACK);
 
   // ── ACTIVE PACKAGE ────────────────────────────────────
-  // Load the user's current package and map it into the subscription card.
-  useEffect(() => {
-    const fetchPackage = async () => {
-      try {
-        console.log("📡 Fetching active package…");
-        const res = await fetch(`${API_BASE}/package`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const payload = await res.json();
-        if (!res.ok || !payload?.success) {
-          throw new Error(payload?.message || "Failed to fetch package");
-        }
-        setSubscription(packageToSubscription(payload.data));
-        console.log("✅ Active package loaded:", payload.data?.name);
-      } catch (err) {
-        console.error("❌ Package not fetched:", err);
-      }
-    };
-    if (token) fetchPackage();
-  }, [token]);
+  // AuthContext loads the package on sign-in; we just map it into the card.
+  const subscription = packageToSubscription(activePackage);
 
   // The license-code entry is hidden until the user presses "Upgrade plan" — the
   // default view is just the subscription summary and the plans grid.
@@ -122,8 +102,9 @@ export default function PlansAndBilling() {
       );
     }
 
+    // Write it back to AuthContext so the sidebar updates along with this card.
+    setActivePackage(payload.data);
     const next = packageToSubscription(payload.data);
-    setSubscription(next);
     console.log("✅ Plan activated via license code:", next.planName);
     toast.success(`${next.planName} activated with your license code.`);
   };

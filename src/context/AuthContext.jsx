@@ -88,6 +88,11 @@ export function AuthProvider({ children }) {
   const [tutorialVideos, setTutorialVideos] = useState([]);
   const [tutorialVideosLoading, setTutorialVideosLoading] = useState(false);
   const [tutorialVideosError, setTutorialVideosError] = useState(null);
+
+  // The user's active package (raw GET /package `data`) — the one source of
+  // truth for "which plan am I on", read by the sidebar and the billing page.
+  const [activePackage, setActivePackage] = useState(null);
+  const [packageLoading, setPackageLoading] = useState(true);
   const activeBrandId = activeBrand?.id || null;
   const [brandsInitialized, setBrandsInitialized] = useState(false);
 
@@ -163,6 +168,7 @@ export function AuthProvider({ children }) {
   const SAVE_DESIGN_URL = `${BASE_URL}/creative-designs`;
   const FETCH_DESIGN_URL = `${BASE_URL}/creative-designs`;
   const API_INTEGRATIONS_URL = `${BASE_URL}/integrations`;
+  const API_PACKAGE_URL = `${BASE_URL}/package`;
 
   // Load token on mount and fetch profile and brands
   useEffect(() => {
@@ -178,6 +184,7 @@ export function AuthProvider({ children }) {
     } else {
       setLoading(false);
       setBrandsLoading(false);
+      setPackageLoading(false);
     }
   }, []);
 
@@ -252,6 +259,25 @@ export function AuthProvider({ children }) {
     }
     // ⚠️ No setLoading(false) here — the token effect's init() owns releasing
     // `loading`, because a FAILED profile read hasn't decided anything yet.
+  };
+
+  // Load the user's active package. A failed read keeps whatever package we
+  // already had rather than dropping the user to "Free plan" on a network blip.
+  const fetchPackage = async () => {
+    try {
+      const res = await authFetch(API_PACKAGE_URL, { method: "GET" });
+      const payload = await res.json();
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.message || "Failed to fetch package");
+      }
+      setActivePackage(payload.data ?? null);
+      console.log("✅ Active package loaded:", payload.data?.name);
+      return payload.data ?? null;
+    } catch (err) {
+      console.warn("Package fetch failed:", err.message);
+    } finally {
+      setPackageLoading(false);
+    }
   };
 
   // Update the current user's profile via the shared POST /profile endpoint
@@ -856,6 +882,8 @@ export function AuthProvider({ children }) {
     setBrands([]);
     setActiveBrandState(null);
     setBrandsLoading(false);
+    setActivePackage(null);
+    setPackageLoading(false);
   };
 
   const inviteTeamMember = async (email) => {
@@ -1274,7 +1302,12 @@ export function AuthProvider({ children }) {
       setLoading(false);
       setBrandsInitialized(true);
       
-      await Promise.all([fetchTeams(), fetchMyImages(), fetchTutorialVideos()]);
+      await Promise.all([
+        fetchTeams(),
+        fetchMyImages(),
+        fetchTutorialVideos(),
+        fetchPackage(),
+      ]);
     };
 
     init();
@@ -2927,15 +2960,22 @@ export function AuthProvider({ children }) {
         }
 
         if (!res.ok) {
-          const firstError = data?.errors
-            ? Object.values(data.errors)[0]?.[0]
-            : data?.error
-              ? Object.values(data.error)[0]?.[0]
-              : null;
+          // ⚠️ `error` COMES IN TWO SHAPES. A validation failure (422) sends a
+          // field map — {error: {brand_id: ["…required."]}} — but the plan limit
+          // (403) sends a plain string: {error: "Creative limit reached for this
+          // brand.", message: "You have 0 creative(s) left…"}. Object.values on
+          // that string is its characters, so the toast used to read just "C".
+          // The limit's `message` is the one that says what to do, so it wins.
+          const fieldMap =
+            data?.errors ||
+            (data?.error && typeof data.error === "object" ? data.error : null);
+          const firstError = fieldMap ? Object.values(fieldMap)[0]?.[0] : null;
+          const plainError = typeof data?.error === "string" ? data.error : null;
 
           return {
             ok: false,
-            message: firstError || data?.message || "Failed to save designs",
+            message:
+              firstError || data?.message || plainError || "Failed to save designs",
           };
         }
 
@@ -3080,7 +3120,10 @@ export function AuthProvider({ children }) {
 
       // Fallback: pull the brand's designs and find it locally.
       try {
-        const list = await fetchDesigns(50);
+        // fetchDesigns returns the paginator envelope, not a bare array — the
+        // rows are on `.data`. Checking the envelope itself for an array meant
+        // this fallback never found anything.
+        const list = (await fetchDesigns(50))?.data;
         if (Array.isArray(list)) {
           return list.find((d) => String(d.id) === String(id)) || null;
         }
@@ -4013,6 +4056,10 @@ export function AuthProvider({ children }) {
         tutorialVideosLoading,
         tutorialVideosError,
         fetchTutorialVideos,
+        activePackage,
+        packageLoading,
+        fetchPackage,
+        setActivePackage,
       }}
     >
       {children}

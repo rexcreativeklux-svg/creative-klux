@@ -32,6 +32,7 @@ import LogoutModal from "./LogoutModal";
 import ThemeSwitcher from "./ThemeSwitcher";
 import CopilotNavSections from "@/app/(dashboard)/(pages)/copilot/_components/CopilotNavSections";
 import RecentCopilots from "@/app/(dashboard)/(pages)/copilot/_components/RecentCopilots";
+import { packageToSubscription } from "@/app/(components)/billing/billingData";
 
 /**
  * Which app links get a permanent slot in the mobile bottom bar, in order.
@@ -100,7 +101,8 @@ const Sidebar = ({
 }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, activePackage, packageLoading } = useAuth();
+  const planName = packageToSubscription(activePackage).planName;
   // Overlay mode: hovering the collapsed strip expands the sidebar.
   const [hovered, setHovered] = useState(false);
   const isDrawer = variant === "drawer";
@@ -652,9 +654,15 @@ const Sidebar = ({
                 <p className="text-[13px] font-medium text-gray-900 truncate leading-4 capitalize">
                   {user.username}
                 </p>
-                <p className="text-[11px] text-blue-500 font-medium truncate leading-4">
-                  Pro Plan
-                </p>
+                {/* The shimmer keeps the line's 16px while the package loads, so
+                    the 32px stack described above doesn't shift. */}
+                {packageLoading ? (
+                  <span className="my-1 block h-2 w-16 animate-pulse rounded bg-gray-200" />
+                ) : (
+                  <p className="text-[11px] text-blue-500 font-medium truncate leading-4 capitalize">
+                    {planName}
+                  </p>
+                )}
               </div>
             )}
             {isOpen && (

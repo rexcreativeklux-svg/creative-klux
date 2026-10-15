@@ -351,10 +351,14 @@ function VoicePanelBody({ option, value, onSelect, voicePreview }) {
         <label className="mx-2 mt-1 mb-2 flex items-center gap-2 rounded-xl border border-gray-200 bg-surface px-2.5 focus-within:border-blue-400">
           <Globe className="w-3.5 h-3.5 shrink-0 text-gray-400" aria-hidden="true" />
           <span className="sr-only">Voice language</span>
+          {/* The open list is drawn by the BROWSER: `.dark { color-scheme: dark }`
+              in globals.css is what turns it dark. The option colours pin it to
+              the panel's own surface and text tokens on top of that (white and
+              near-black in light mode, so light is unchanged). */}
           <select
             value={language || ""}
             onChange={(e) => setLanguage(e.target.value)}
-            className="h-8 min-w-0 flex-1 cursor-pointer bg-transparent text-xs font-semibold text-gray-900 focus:outline-none"
+            className="h-8 min-w-0 flex-1 cursor-pointer bg-transparent text-xs font-semibold text-gray-900 focus:outline-none [&>option]:bg-surface [&>option]:text-gray-900"
           >
             {languages.map((l) => (
               <option key={l.value} value={l.value}>

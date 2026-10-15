@@ -31,8 +31,10 @@ import {
 
 // Short line each voice "introduces itself" with when auditioned in the picker.
 //
-// ⚠️ THE SAME WORDS EVERYWHERE — the committed clips (generate-voice-samples.mjs
-// and generate-aura-samples.mjs both speak this), and the generated previews
+// ⚠️ THE SAME WORDS EVERYWHERE — the committed Kokoro clips
+// (generate-voice-samples.mjs speaks this), the hosted Wavenet clips
+// (generate-wavenet-samples.mjs speaks it translated per language, minus the
+// name — Wavenet voices are lettered, not named), and the generated previews
 // below. Comparing two voices is only a fair comparison if they are saying the
 // same thing, and a sample that reads differently depending on how it was made
 // is one you cannot judge a voice by.

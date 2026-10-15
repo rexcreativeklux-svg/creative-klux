@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "models": "node scripts/download-models.mjs",
     "voice-samples": "node scripts/generate-voice-samples.mjs",
-    "aura-samples": "node scripts/generate-aura-samples.mjs",
+    "wavenet-samples": "node --env-file=.env scripts/generate-wavenet-samples.mjs",
     "og-image": "node scripts/generate-og-image.mjs"
   },
   "repository": {

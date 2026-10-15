@@ -66,11 +66,11 @@ export const usesBackend = (toolId) => AUDIO_ENGINE[toolId] === "backend";
  * never asked to keep. With this on, someone browsing the picker to find a voice
  * they like spends money before they have made anything.
  *
- * ⚠️ IT IS A BRIDGE, NOT THE DESTINATION. The intended answer is the static
- * clips under /public/voice-samples/aura/ — generated ONCE, committed, then free
- * and instant for everyone forever (see that folder's README, and
- * `npm run aura-samples`). Those files do not exist yet, and this is what gives
- * users a working ▶ in the meantime.
+ * ⚠️ IT IS A BRIDGE, NOT THE DESTINATION. The intended answer is pre-generated
+ * clips — made ONCE, hosted, then free and instant for everyone forever. No
+ * Aura-2 clip was ever made, so for the Aura cards below this switch IS the only
+ * ▶. The hosted Wavenet voices' clips now exist on the CDN instead
+ * (`npm run wavenet-samples` → src/(lib)/wavenet-voice-samples.json).
  *
  * ⚠️ TURNING IT OFF IS EDITING THIS ONE VALUE. The static-clip path is checked
  * FIRST and always has been, so a voice whose file has landed is already being
@@ -192,19 +192,16 @@ export const voiceFace = (gender, index) => {
  * that was never verified against the service. If a card's icon disagrees with
  * what you hear, this column is wrong — the name is always right.
  *
- * ⚠️ THEY ARE AUDITIONED FROM STATIC CLIPS, NEVER BY GENERATING. Kokoro's voices
- * can be synthesised locally for free; an Aura voice can only be heard by asking
- * the backend to generate, which bills a generation and files a history record
- * for a sample nobody asked to keep — so auditioning one is NOT wired to the
- * generate endpoint, and must not be. Each card instead points at a
- * pre-generated clip under /voice-samples/aura/, and the ▶ appears only once
- * that file actually answers (the picker HEAD-probes it; see useVoicePreview).
+ * ⚠️ AUDITIONING ONE CAN COST A GENERATION. Kokoro's voices can be synthesised
+ * locally for free; an Aura voice can only be heard by asking the backend to
+ * generate, which bills a generation and files a history record for a sample
+ * nobody asked to keep. useVoicePreview therefore tries the card's static clip
+ * (`sample`, HEAD-probed) FIRST, and only falls back to a billed generation when
+ * PREVIEW_BY_GENERATING is on — capped at MAX_GENERATED_PREVIEWS per session.
  *
- * ⚠️ SO THE FOLDER IS WHAT TURNS THIS ON, one voice at a time. Drop
- * `asteria.mp3` in and Asteria gets a ▶ on the next open; the other 39 stay
- * silent until their file lands. Nothing here needs editing to add one — the
- * path is derived from the voice name, which is also why the file has to be
- * named exactly as the API spells the voice.
+ * ⚠️ NO AURA CLIP WAS EVER MADE. `sample` still points at
+ * /voice-samples/aura/<id>.mp3, but that folder has been removed, so the probe
+ * 404s and every Aura ▶ is the billed path above.
  */
 const AURA_VOICES = [
   // Feminine

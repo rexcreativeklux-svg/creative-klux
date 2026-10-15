@@ -27,16 +27,21 @@
  * and the tool goes back to running in the browser.
  *
  * ⚠️ THE VOICES ARE THE BACKEND'S, NOT KOKORO'S. The backend synthesises through
- * Deepgram Aura-2 (`@cf/deepgram/aura-2-en`) and takes ITS voice names —
- * `voice: "thalia"` — which Kokoro has never heard of, and vice versa. So the
- * picker's cards swap with the engine: whichever engine will do the run is the
- * one whose voices you are choosing between. Anything else means clicking
- * "Bella" and hearing Luna.
+ * Ariziy → Google Wavenet (verified 2026-10-15; it was Deepgram Aura-2 before)
+ * and takes ITS voice ids — `voice: "en-US-Wavenet-C"` — which Kokoro has never
+ * heard of, and vice versa. So the picker's cards swap with the engine:
+ * whichever engine will do the run is the one whose voices you are choosing
+ * between. Anything else means clicking "Bella" and hearing someone else.
  */
 
 import { Mars, Venus } from "lucide-react";
 
 import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
+import WAVENET_MANIFEST from "@/(lib)/wavenet-voice-samples.json";
+import {
+  WAVENET_LOCALE_LABELS,
+  WAVENET_VOICE_NAMES,
+} from "@/(lib)/wavenet-voice-labels";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE SWITCH
@@ -60,30 +65,29 @@ export const usesBackend = (toolId) => AUDIO_ENGINE[toolId] === "backend";
 /**
  * May a hosted voice be auditioned by ASKING THE BACKEND TO SPEAK IT?
  *
- * ⚠️ TRUE MEANS EVERY FIRST TAP ON ▶ COSTS A GENERATION. There is no cheap way
- * to hear an Aura-2 voice: it exists only behind `POST /magic-studio/generate`,
- * so a preview is a real, billed run that also files a history record the user
- * never asked to keep. With this on, someone browsing the picker to find a voice
- * they like spends money before they have made anything.
+ * ⚠️ TRUE MEANS EVERY FIRST TAP ON ▶ COSTS A GENERATION. A hosted voice exists
+ * only behind `POST /magic-studio/generate`, so a generated preview is a real,
+ * billed run that also files a history record the user never asked to keep.
+ * With this on, someone browsing the picker spends money before they have made
+ * anything.
  *
- * ⚠️ IT IS A BRIDGE, NOT THE DESTINATION. The intended answer is pre-generated
- * clips — made ONCE, hosted, then free and instant for everyone forever. No
- * Aura-2 clip was ever made, so for the Aura cards below this switch IS the only
- * ▶. The hosted Wavenet voices' clips now exist on the CDN instead
- * (`npm run wavenet-samples` → src/(lib)/wavenet-voice-samples.json).
+ * ⚠️ OFF, BECAUSE EVERY HOSTED VOICE NOW HAS A CLIP. `npm run wavenet-samples`
+ * made one per voice — hosted on the CDN, listed in wavenet-voice-samples.json —
+ * so ▶ plays that, free and instant. The only voice this could still help is one
+ * the vendor adds before the samples are regenerated, and regenerating is the
+ * fix for that, not paying per tap.
  *
- * ⚠️ TURNING IT OFF IS EDITING THIS ONE VALUE. The static-clip path is checked
- * FIRST and always has been, so a voice whose file has landed is already being
- * played from disk rather than generated — flipping this to `false` only removes
- * the fallback for the ones still missing. Nothing else needs touching, and
- * deleting the feature is this constant plus the `generateSample` branch in
+ * ⚠️ TURNING IT BACK ON IS EDITING THIS ONE VALUE. The clip is checked FIRST
+ * either way, so a voice with a clip is never generated — `true` only adds the
+ * fallback for voices without one, capped by MAX_GENERATED_PREVIEWS. Deleting
+ * the feature is this constant plus the `generatePreview` branch in
  * useVoicePreview.
  *
  * The same switch shape as AUDIO_ENGINE above, and for the same reason: a
  * decision about money should be one obvious line, not a condition spread
  * through a component.
  */
-export const PREVIEW_BY_GENERATING = true;
+export const PREVIEW_BY_GENERATING = false;
 
 /**
  * How many voices one session may audition BY GENERATING before it stops.
@@ -116,8 +120,9 @@ const face = (id) =>
  * in for "cinematic". That is why the cards never pair a face with a claim about
  * a person — no bios, no "recorded by", just a name and a portrait.
  *
- * ⚠️ FEWER PHOTOS THAN VOICES, DELIBERATELY. Aura-2 has 24 feminine and 16
- * masculine voices; nine of each here means a face repeats every ninth card.
+ * ⚠️ FEWER PHOTOS THAN VOICES, DELIBERATELY. The hosted catalogue has 86
+ * feminine and 75 masculine voices; nine of each here means a face repeats every
+ * ninth card of a gender.
  * That is better than the alternatives — a stock library search per voice
  * produces a wall of images nobody has looked at, and generated avatars read as
  * placeholders. Assignment is BY INDEX, so a given voice keeps its face across
@@ -171,169 +176,164 @@ export const voiceFace = (gender, index) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Aura-2's voices — what the picker shows when the backend is the engine.
+ * The hosted voices — what the picker shows when the backend is the engine.
  *
- * ⚠️ THE NAMES CAME FROM THE API, NOT FROM DOCS. Posting an unknown voice makes
- * Aura-2 answer with the whole enum:
+ * ⚠️ THE LIST IS GENERATED, NOT TYPED. wavenet-voice-samples.json is written by
+ * `npm run wavenet-samples` straight from Ariziy's `GET /v1/voices` (Google
+ * Wavenet — 161 voices across 47 locales on 2026-10-15), with a CDN clip per
+ * voice. When the vendor's list changes, re-run the script; never hand-edit the
+ * JSON.
  *
- *   422 {"detail":"Unknown voice '…' for @cf/deepgram/aura-2-en.
- *        Available: amalthea, andromeda, apollo, …"}
+ * ⚠️ THE BACKEND DOES NOT VALIDATE `voice`. It forwards whatever it is sent, and
+ * a name the provider does not know comes back as `422 "Text to speech failed
+ * (HTTP 502)"` — which is exactly how the old Aura-2 names (asteria, luna, …)
+ * fail now. So a card must only ever offer an id from this list, and anything
+ * else goes through backendVoiceId's safety net.
  *
- * These 40 are that list, verbatim. If the backend ever reports an unknown
- * voice for a card shown here, this table has drifted from that enum and the
- * enum is right.
+ * ⚠️ THE NAMES AND LANGUAGE LABELS ARE OURS — see wavenet-voice-labels.js. A
+ * voice that file has not caught up with shows as "Voice <letter>".
  *
- * ⚠️ ALL 40 ARE US ENGLISH — the model is the `-en` build, so unlike Kokoro
- * there are no British voices to offer and the cards group by gender alone. The
- * picker groups by array order, so the feminine voices are one contiguous run.
- *
- * ⚠️ GENDER IS NOT SOMETHING THE API RETURNS. Only the names are. The genders
- * are transcribed from Deepgram's own Aura-2 listing, and are the one thing here
- * that was never verified against the service. If a card's icon disagrees with
- * what you hear, this column is wrong — the name is always right.
- *
- * ⚠️ AUDITIONING ONE CAN COST A GENERATION. Kokoro's voices can be synthesised
- * locally for free; an Aura voice can only be heard by asking the backend to
- * generate, which bills a generation and files a history record for a sample
- * nobody asked to keep. useVoicePreview therefore tries the card's static clip
- * (`sample`, HEAD-probed) FIRST, and only falls back to a billed generation when
- * PREVIEW_BY_GENERATING is on — capped at MAX_GENERATED_PREVIEWS per session.
- *
- * ⚠️ NO AURA CLIP WAS EVER MADE. `sample` still points at
- * /voice-samples/aura/<id>.mp3, but that folder has been removed, so the probe
- * 404s and every Aura ▶ is the billed path above.
+ * ⚠️ ORDER IS WHAT GROUPS THEM. The voices panel groups CONSECUTIVE items that
+ * share a `group`, after filtering to one language — so the cards are sorted
+ * language → female first → name, which makes each language one female run then
+ * one male run.
  */
-const AURA_VOICES = [
-  // Feminine
-  ["amalthea", "f"], ["andromeda", "f"], ["asteria", "f"], ["athena", "f"],
-  ["aurora", "f"], ["callista", "f"], ["cora", "f"], ["cordelia", "f"],
-  ["delia", "f"], ["electra", "f"], ["harmonia", "f"], ["helena", "f"],
-  ["hera", "f"], ["iris", "f"], ["janus", "f"], ["juno", "f"],
-  ["luna", "f"], ["minerva", "f"], ["ophelia", "f"], ["pandora", "f"],
-  ["phoebe", "f"], ["thalia", "f"], ["theia", "f"], ["vesta", "f"],
-  // Masculine
-  ["apollo", "m"], ["arcas", "m"], ["aries", "m"], ["atlas", "m"],
-  ["draco", "m"], ["hermes", "m"], ["hyperion", "m"], ["jupiter", "m"],
-  ["mars", "m"], ["neptune", "m"], ["odysseus", "m"], ["orion", "m"],
-  ["orpheus", "m"], ["pluto", "m"], ["saturn", "m"], ["zeus", "m"],
-];
 
-/** Deepgram's flagship voices — the ★ badge, same as Kokoro's A/B grades. */
-const AURA_TOP_VOICES = new Set([
-  "asteria",
-  "luna",
-  "athena",
-  "hera",
-  "apollo",
-  "arcas",
-  "orion",
-  "zeus",
-]);
-
-/** Voice cards for the "voices" panel, in the shape KOKORO_VOICE_ITEMS uses. */
-export const AURA_VOICE_ITEMS = (() => {
-  // Faces are handed out per gender, so the nth feminine voice gets the nth
-  // feminine portrait rather than the nth photo of the mixed list.
-  const seen = { female: 0, male: 0 };
-  return AURA_VOICES.map(([id, g]) => {
-    const gender = g === "f" ? "female" : "male";
-    return {
-      value: id,
-      label: `${id[0].toUpperCase()}${id.slice(1)}`,
-      desc: `US · ${gender}`,
-      icon: g === "f" ? Venus : Mars,
-      img: voiceFace(gender, seen[gender]++),
-      gender,
-      group: `US ${gender} voices`,
-      top: AURA_TOP_VOICES.has(id),
-      // The clip to audition, IF it has been generated and committed — see the
-      // warning above. Always tried first, and free when it is there.
-      sample: `/voice-samples/aura/${id}.mp3`,
-      // No local engine can say "asteria" — Kokoro has never heard the name.
-      synth: false,
-      // ⚠️ "THE BACKEND COULD SPEAK THIS", NOT "GO AHEAD AND ASK IT TO". Whether
-      // that actually happens is PREVIEW_BY_GENERATING's call, not this flag's:
-      // the card states what is technically possible for the voice, the switch
-      // states what we are willing to spend. Keeping them apart is what makes
-      // turning the cost off a one-line edit instead of forty.
-      generate: true,
-    };
-  });
-})();
-
-/** Aura-2's flagship female voice — what an unrecognised id falls back to. */
-const DEFAULT_AURA_VOICE = "asteria";
-
-/** Every Aura name, for telling one apart from a stale Kokoro id. */
-const AURA_VOICE_IDS = new Set(AURA_VOICES.map(([id]) => id));
+/** "en-US-Wavenet-C" → "C", the only part of the id that tells voices apart. */
+const voiceLetter = (id) => String(id).split("-").pop();
 
 /**
- * Kokoro voice id → nearest Aura-2 voice, same gender.
- *
- * ⚠️ A SAFETY NET, NOT THE PICKER'S PATH. With the cards swapped by
- * {@link voiceItemsFor}, `values.voice` is already an Aura name and needs no
- * translation. This catches the one case that would otherwise send a voice the
- * backend rejects: a composer still holding a Kokoro id from before the engine
- * was switched. Translating beats a 422, and beats silently falling through to
- * asteria.
- *
- * Accent does not survive — Aura-2 here is US-only, so the four British female
- * and four British male cards map to US voices.
+ * The display name for a locale tag: our table first, then Intl for a locale
+ * the vendor added after the table was written, then the bare tag.
  */
-const KOKORO_TO_AURA_VOICE = {
-  // US female
-  af_heart: "asteria",
-  af_bella: "luna",
-  af_nicole: "athena",
-  af_aoede: "aurora",
-  af_kore: "cora",
-  af_sarah: "callista",
-  af_alloy: "delia",
-  af_nova: "andromeda",
-  af_sky: "iris",
-  af_jessica: "juno",
-  af_river: "phoebe",
-  // US male
-  am_fenrir: "zeus",
-  am_michael: "apollo",
-  am_puck: "orion",
-  am_echo: "arcas",
-  am_eric: "atlas",
-  am_liam: "hermes",
-  am_onyx: "draco",
-  am_santa: "saturn",
-  am_adam: "mars",
-  // British female → nearest US female
-  bf_emma: "helena",
-  bf_isabella: "ophelia",
-  bf_alice: "cordelia",
-  bf_lily: "theia",
-  // British male → nearest US male
-  bm_george: "jupiter",
-  bm_fable: "orpheus",
-  bm_lewis: "neptune",
-  bm_daniel: "odysseus",
+function localeLabel(tag) {
+  if (WAVENET_LOCALE_LABELS[tag]) return WAVENET_LOCALE_LABELS[tag];
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "language" }).of(tag);
+    if (name && name !== tag) return name;
+  } catch {
+    // Not a valid tag — show it as-is below.
+  }
+  return String(tag);
+}
+
+/** Voice cards for the "voices" panel, in the shape KOKORO_VOICE_ITEMS uses. */
+export const HOSTED_VOICE_ITEMS = (() => {
+  const cards = (WAVENET_MANIFEST.voices || [])
+    .filter((v) => typeof v?.voice === "string" && v.voice)
+    .map((v) => {
+      const gender = v.gender === "male" ? "male" : "female";
+      const languageLabel = localeLabel(v.language);
+      return {
+        value: v.voice,
+        label: WAVENET_VOICE_NAMES[v.voice] || `Voice ${voiceLetter(v.voice)}`,
+        desc: `${languageLabel} · ${gender}`,
+        icon: gender === "female" ? Venus : Mars,
+        gender,
+        // What the panel's language picker filters on, and what it shows.
+        language: v.language,
+        languageLabel,
+        group: gender === "female" ? "Female voices" : "Male voices",
+        // The vendor marks no flagship voices (every `verified` is false).
+        top: false,
+        sample: v.sample?.url || null,
+        // ⚠️ THE MANIFEST ALREADY PROVES THE CLIP EXISTS — the script uploaded it
+        // and recorded the URL it got back — so useVoicePreview plays it without
+        // a HEAD probe first. 161 cross-origin HEADs per open would buy nothing.
+        sampleKnown: Boolean(v.sample?.url),
+        // No local engine can say "en-US-Wavenet-C" — Kokoro has never heard it.
+        synth: false,
+        // ⚠️ "THE BACKEND COULD SPEAK THIS", NOT "GO AHEAD AND ASK IT TO". Whether
+        // a preview is ever generated is PREVIEW_BY_GENERATING's call: the card
+        // states what is possible, the switch states what we will spend.
+        generate: true,
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.languageLabel.localeCompare(b.languageLabel, "en") ||
+        (a.gender === b.gender ? 0 : a.gender === "female" ? -1 : 1) ||
+        a.label.localeCompare(b.label, "en"),
+    );
+
+  // Faces are dealt per gender AFTER sorting, so the nth feminine card gets the
+  // nth feminine portrait and a voice keeps its face across reloads.
+  const seen = { female: 0, male: 0 };
+  return cards.map((card) => ({
+    ...card,
+    img: voiceFace(card.gender, seen[card.gender]++),
+  }));
+})();
+
+/** Every hosted card by id — for telling a real voice apart from a stale one. */
+const HOSTED_VOICE_BY_ID = new Map(HOSTED_VOICE_ITEMS.map((v) => [v.value, v]));
+
+/**
+ * The voice selected before anyone touches the picker: Ava, US English.
+ *
+ * ⚠️ NOT THE CATALOGUE'S OWN `default`. That names "en-US-Wavenet-X", which is
+ * not in its own list. Falls back to the first card if Ava ever leaves.
+ */
+const DEFAULT_HOSTED_VOICE = HOSTED_VOICE_BY_ID.has("en-US-Wavenet-C")
+  ? "en-US-Wavenet-C"
+  : HOSTED_VOICE_ITEMS[0]?.value;
+
+/**
+ * Kokoro voice-id prefix → the hosted locale and gender nearest it.
+ *
+ * Accent survives now — British Kokoro voices land on en-GB, where Aura-2 only
+ * ever had US voices to offer.
+ */
+const KOKORO_PREFIX_TO_HOSTED = {
+  af: ["en-US", "female"],
+  am: ["en-US", "male"],
+  bf: ["en-GB", "female"],
+  bm: ["en-GB", "male"],
 };
 
 /**
- * The voice name to send to the backend.
+ * Resolve any voice id to a hosted one, and say whether it had to be translated.
  *
- * Passes an Aura name straight through — the normal path. A Kokoro id only
- * turns up if the composer is holding one from before the switch, and gets
- * translated rather than rejected upstream.
+ * @param {string} voiceId
+ * @returns {{ id: string, translated: boolean }}
+ */
+function resolveHostedVoice(voiceId) {
+  if (HOSTED_VOICE_BY_ID.has(voiceId)) return { id: voiceId, translated: false };
+  const prefix = /^(af|am|bf|bm)_/.exec(String(voiceId))?.[1];
+  const [locale, gender] = KOKORO_PREFIX_TO_HOSTED[prefix] || [];
+  const nearest = locale
+    ? HOSTED_VOICE_ITEMS.find((v) => v.language === locale && v.gender === gender)
+    : null;
+  return { id: nearest?.value || DEFAULT_HOSTED_VOICE, translated: true };
+}
+
+/**
+ * The voice id to send to the backend.
+ *
+ * Passes a hosted id straight through — the normal path, since the cards only
+ * offer hosted ids. ⚠️ A SAFETY NET for anything else, because the backend
+ * forwards unknown names and they fail upstream (see above): a Kokoro id maps to
+ * the same accent and gender, and anything else — an Aura-2 name still held by a
+ * tab opened before this list changed — to the default. Logged, so a
+ * translation is never silent.
  */
 export function backendVoiceId(voiceId) {
-  if (AURA_VOICE_IDS.has(voiceId)) return voiceId;
-  return KOKORO_TO_AURA_VOICE[voiceId] || DEFAULT_AURA_VOICE;
+  const { id, translated } = resolveHostedVoice(voiceId);
+  if (translated) {
+    console.warn(
+      `⚠️ [magic-studio] "${voiceId}" is not a hosted voice — sending "${id}" instead`,
+    );
+  }
+  return id;
 }
 
 /** The voice cards this tool should show, for the engine that will run. */
 export const voiceItemsFor = (toolId, kokoroItems) =>
-  usesBackend(toolId) ? AURA_VOICE_ITEMS : kokoroItems;
+  usesBackend(toolId) ? HOSTED_VOICE_ITEMS : kokoroItems;
 
 /** The voice selected before anyone touches the picker. */
 export const defaultVoiceFor = (toolId, kokoroDefault) =>
-  usesBackend(toolId) ? DEFAULT_AURA_VOICE : kokoroDefault;
+  usesBackend(toolId) ? DEFAULT_HOSTED_VOICE : kokoroDefault;
 
 /**
  * What to call the voice that spoke, for the asset's caption.
@@ -344,8 +344,8 @@ export const defaultVoiceFor = (toolId, kokoroDefault) =>
  */
 export function voiceLabelFor(toolId, voiceId) {
   if (usesBackend(toolId)) {
-    const name = backendVoiceId(voiceId);
-    return `${name[0].toUpperCase()}${name.slice(1)} · US English`;
+    const card = HOSTED_VOICE_BY_ID.get(resolveHostedVoice(voiceId).id);
+    return card ? `${card.label} · ${card.languageLabel}` : "Hosted voice";
   }
   return (
     KOKORO_TTS.voices.find((v) => v.id === voiceId)?.label || "Kokoro voice"

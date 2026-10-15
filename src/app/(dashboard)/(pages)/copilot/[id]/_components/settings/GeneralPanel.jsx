@@ -19,8 +19,9 @@
  *   · models → (components)/studio/composerModel  (the same line-up the studio
  *     composer offers)
  *   · app areas → ../../../_data/surfaces  (the same surfaces a workflow runs in)
- *   · voices → (lib)/ai-engine/models KOKORO_TTS  (the same 28 voices Magic
- *     Studio speaks with, previewable from the same /voice-samples clips)
+ *   · voices → (lib)/ai-engine/models KOKORO_TTS  (Kokoro's 28 voices — Magic
+ *     Studio's ON-DEVICE set, previewable from the committed /voice-samples
+ *     clips. Magic Studio's hosted Wavenet voices are not offered here.)
  * A copilot that offers a model the studio cannot run, or a voice that does not
  * exist, is worse than one fewer option.
  *
@@ -99,7 +100,7 @@ const VOICE_OPTIONS = KOKORO_TTS.voices.map((v) => ({
   group: v.accent,
 }));
 
-/** Kokoro's best-graded voice, and Magic Studio's default too. */
+/** Kokoro's best-graded voice — also Magic Studio's default when it runs on-device. */
 const DEFAULT_VOICE = "af_heart";
 
 export default function GeneralPanel({ copilot, onClose }) {

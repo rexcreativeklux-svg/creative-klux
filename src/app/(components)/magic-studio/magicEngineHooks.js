@@ -69,9 +69,9 @@ const PREVIEW_FAILED = ["failed", "error", "errored", "cancelled", "canceled"];
  *
  * ⚠️ THIS IS A REAL, BILLED GENERATION — the identical endpoint a user's own
  * "Generate" press goes through, so it costs the same and files the same kind of
- * history record. It exists because there is no other way to hear an Aura-2
- * voice, and it is reached ONLY when PREVIEW_BY_GENERATING is on, the voice has
- * no committed clip, and the session's cap has not been spent. All three gates
+ * history record. It exists because a hosted voice without a clip has no other
+ * way to be heard, and it is reached ONLY when PREVIEW_BY_GENERATING is on, the
+ * voice has no clip, and the session's cap has not been spent. All three gates
  * are in `toggle` below.
  *
  * The response may carry the audio outright or name a job to wait on — the same
@@ -170,13 +170,22 @@ export function useVoicePreview(tts) {
    * `asteria.mp3` lights up Asteria's ▶ with no list to update alongside it and
    * no manifest to drift. Unknown URLs only — a second call is free.
    *
+   * ⚠️ EXCEPT A CARD THAT SAYS `sampleKnown`. The hosted voices' clips are listed
+   * in a generated manifest that recorded each upload, so they are already known
+   * to exist — probing 161 CDN URLs on every open would only confirm it.
+   *
    * ⚠️ STABLE IDENTITY (useCallback with no deps) because the picker calls this
    * from an effect. A fresh function each render would re-run that effect on
    * every keystroke elsewhere in the panel.
    */
   const probe = useCallback(async (items) => {
     const urls = [
-      ...new Set((items || []).map((it) => it?.sample).filter(Boolean)),
+      ...new Set(
+        (items || [])
+          .filter((it) => !it?.sampleKnown)
+          .map((it) => it?.sample)
+          .filter(Boolean),
+      ),
     ].filter((url) => !probedRef.current.has(url));
     if (urls.length === 0) return;
 
@@ -223,6 +232,7 @@ export function useVoicePreview(tts) {
   const canPlay = useCallback(
     (item) => {
       if (!item) return false;
+      if (item.sample && item.sampleKnown) return true;
       if (item.sample && samples[item.sample] === true) return true;
       if (item.synth) return true;
       return !!item.generate && PREVIEW_BY_GENERATING;
@@ -286,7 +296,9 @@ export function useVoicePreview(tts) {
       const staticUrl = voice.sample;
       let hasStatic = false;
       if (staticUrl) {
-        const known = probedRef.current.get(staticUrl);
+        const known = voice.sampleKnown
+          ? true // listed in the manifest — see the ⚠️ on `probe`
+          : probedRef.current.get(staticUrl);
         if (typeof known === "boolean") {
           hasStatic = known;
         } else {

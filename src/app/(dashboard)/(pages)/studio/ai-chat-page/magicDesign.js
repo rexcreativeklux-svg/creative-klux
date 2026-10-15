@@ -357,11 +357,17 @@ const RATIO_SIZE = {
  *           `kind: "video"` + `src` let the preview pane play it too.
  *
  * @param {{id: string, src: string, type: string}} asset A normalized Magic Studio asset.
- * @param {{name: string, ratio: string, tool: string}} meta
+ * ⚠️ `asset.id` IS ONLY UNIQUE WITHIN ONE RUN. When the backend item has no id,
+ * normalizeMagicResponse falls back to `magic-<type>-<index>`, and the chat
+ * sends one run per version — so five runs all hand back `magic-image-0`. The
+ * preview selects by id, so clicking one card selected all five. `run` (the
+ * run's start time) makes it unique across the runs.
+ *
+ * @param {{name: string, ratio: string, tool: string, run: string|number}} meta
  */
-export async function magicResultToVariation(asset, { name, ratio, tool }) {
+export async function magicResultToVariation(asset, { name, ratio, tool, run }) {
   const video = asset.type === "video";
-  const id = `magic-${asset.id}`;
+  const id = `magic-${run}-${asset.id}`;
   const fallback = RATIO_SIZE[ratio] || RATIO_SIZE.square;
   const layer = (type, src, size) => ({
     id: `${id}-${type}`,

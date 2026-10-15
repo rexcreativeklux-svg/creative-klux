@@ -2333,6 +2333,13 @@ export const MAGIC_STUDIO_CONFIGS = {
     // stored file is the one the user actually heard.
     onDevice: !usesBackend("text_to_audio"),
     engine: "tts", // which on-device engine `generate` wires into
+    /**
+     * ⚠️ NO MODEL MENU ON THIS TOOL — same reason as Text to Image. Speech is
+     * picked by `voice` (and `speaking_speed`); the payload has no field for a
+     * model, so the chip changed nothing. The preference itself is app-wide and
+     * untouched — delete this line and the chip is back.
+     */
+    model: false,
     historyTool: "text_to_audio",
     sample: {
       before:

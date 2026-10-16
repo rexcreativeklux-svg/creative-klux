@@ -2299,15 +2299,21 @@ export function AuthProvider({ children }) {
     // Pull templates + generatedAt out; everything else goes inside brand_details
     const { templates, generatedAt, ...rest } = formPayload || {};
 
-    // Chunk templates into batches of 9 (last batch may have fewer)
+    // Ten templates per request, sent sequentially (10, then 10, … then the
+    // rest) — each batch's designs stream back through onBatchResult as soon as
+    // its own request finishes.
+    const TEMPLATES_PER_BATCH = 10;
     const templateList = Array.isArray(templates) ? templates : [];
     const batches = [];
-    for (let i = 0; i < templateList.length; i += 9) {
-      batches.push(templateList.slice(i, i + 9));
+    for (let i = 0; i < templateList.length; i += TEMPLATES_PER_BATCH) {
+      batches.push(templateList.slice(i, i + TEMPLATES_PER_BATCH));
     }
     if (!batches.length) batches.push([]); // single empty batch fallback
 
     const aggregated = { variations: [], assets: [], raw: [] };
+    // A failed template is reported and skipped — the rest still go, the same
+    // way the chat's Magic Designs loop treats a failed run.
+    const failures = [];
 
     for (let i = 0; i < batches.length; i++) {
       const batchTemplates = batches[i];
@@ -2389,7 +2395,12 @@ export function AuthProvider({ children }) {
           batchIndex: i,
           totalBatches: batches.length,
         });
-        return { ...batchResult, data: aggregated };
+        failures.push({
+          ...batchResult,
+          batchIndex: i,
+          templateCount: batchTemplates.length,
+        });
+        continue;
       }
 
       // Success — data is the parsed JSON body
@@ -2416,7 +2427,14 @@ export function AuthProvider({ children }) {
       });
     }
 
-    return { ok: true, source: "success", data: aggregated };
+    // Every batch failed → the first failure, so callers show its message
+    // exactly as they did when one failure ended the run.
+    if (failures.length === batches.length) {
+      return { ...failures[0], failures, data: aggregated };
+    }
+
+    // Some (or all) landed. `failures` lets a caller say how many were skipped.
+    return { ok: true, source: "success", failures, data: aggregated };
   };
 
   // ── Generate a design via /design/generate-design/involk_llm (no Scraive templates) ──

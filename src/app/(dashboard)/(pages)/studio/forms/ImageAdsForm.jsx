@@ -552,7 +552,7 @@ const ImageAdsForm = ({
           return;
         }
 
-        // Use ALL templates — generateCustomCreative will batch them in pairs
+        // Use ALL templates — generateCustomCreative sends them 10 per request
         selectedTemplates = templates;
       }
 

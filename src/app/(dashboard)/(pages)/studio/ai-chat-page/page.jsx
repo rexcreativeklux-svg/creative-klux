@@ -67,7 +67,9 @@ import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGaller
 import Lightbox from "@/app/(components)/Lightbox";
 import PublishModal from "@/app/(components)/PublishModal";
 import Toast from "@/app/(components)/Toast";
+import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import ChatHistoryPanel from "./ChatHistoryPanel";
+import { useLeaveGuard } from "./useLeaveGuard";
 import { normalizeSessionMessages } from "@/app/(components)/studio/chatSessions";
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
 // so these previews match exactly what opens in the editor.
@@ -75,6 +77,9 @@ import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
 import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 
 /* ─── config ───────────────────────────────────────────────── */
+
+/** Marks where a run's waiting shimmers go in the preview grid. */
+const PENDING_SLOT = Symbol("pending");
 
 /** localStorage key for the chat pane's dragged width — see PaneResizer.jsx. */
 const CHAT_PANE_WIDTH_KEY = "ck.studio.chatPaneWidth";
@@ -1007,6 +1012,11 @@ function PreviewPanel({
   }
 
   const { variations, time } = result;
+  // This run's designs come first, then its shimmers, then earlier runs' —
+  // so new work stacks on top while it's still landing.
+  const freshCount = Math.min(result.freshCount ?? variations.length, variations.length);
+  const freshVariations = variations.slice(0, freshCount);
+  const earlierVariations = variations.slice(freshCount);
 
   return (
     <div
@@ -1035,8 +1045,8 @@ function PreviewPanel({
         config={config}
         message={stageMessage}
         complete={!stage}
-        done={variations.length}
-        total={Math.max(expectedCount, variations.length)}
+        done={stage ? freshCount : variations.length}
+        total={stage ? Math.max(expectedCount, freshCount) : variations.length}
       />
 
       {selectedDesigns?.length > 0 && (
@@ -1180,7 +1190,26 @@ function PreviewPanel({
           scrollbarColor: "var(--color-gray-300) transparent",
         }}
       >
-        {variations.map((v) => {
+        {[...freshVariations, PENDING_SLOT, ...earlierVariations].map((v) => {
+          // This run's still-building tiles, between the new and the earlier.
+          if (v === PENDING_SLOT) {
+            if (!stage) return null;
+            return (
+              <React.Fragment key="pending">
+                {Array.from({
+                  length: Math.max(0, expectedCount - freshCount),
+                }).map((_, i) => (
+                  <DesignShimmer
+                    key={`pending-${i}`}
+                    index={i}
+                    stage={stage}
+                    config={config}
+                    message={stageMessage}
+                  />
+                ))}
+              </React.Fragment>
+            );
+          }
           const score = String(v.copy?.performance_score ?? "");
           const scoreNum = score.split("/")[0];
           const scoreLabel = score.split("—")[1]?.trim() || "";
@@ -1431,23 +1460,6 @@ function PreviewPanel({
             </div>
           );
         })}
-
-        {/* The designs still in flight, holding their place in the same grid.
-            Each one is replaced by real artwork the moment its batch lands, so
-            the layout never jumps — the count is what's OUTSTANDING, not the
-            total. */}
-        {stage &&
-          Array.from({
-            length: Math.max(0, expectedCount - variations.length),
-          }).map((_, i) => (
-            <DesignShimmer
-              key={`pending-${i}`}
-              index={i}
-              stage={stage}
-              config={config}
-              message={stageMessage}
-            />
-          ))}
       </div>
 
       {/* ── footer ── */}
@@ -1578,6 +1590,40 @@ export default function AiCreativeChatPage() {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [previewResult, setPreviewResult] = useState(null);
+
+  /* ── New designs stack ON TOP of the ones already in the pane ────────────
+     A run captures what's showing when it starts (`earlierDesigns`) and every
+     batch it lands is painted above that (`showDesigns`). `freshCount` tells
+     the pane where this run's cards end, so its waiting shimmers sit between
+     the new designs and the earlier ones rather than under all of them. */
+  const previewRef = useRef(null);
+  useEffect(() => {
+    previewRef.current = previewResult;
+  }, [previewResult]);
+  const earlierDesigns = useCallback(
+    () =>
+      previewRef.current?.type === "design"
+        ? previewRef.current.variations || []
+        : [],
+    [],
+  );
+  const showDesigns = useCallback((fresh, earlier) => {
+    // A redesign's id is its TEMPLATE's id (2142…), so the same template in a
+    // later run would share a key and a selection with the earlier card.
+    // Re-keyed only on a clash, and the same way every call, so a card keeps
+    // its id while the run's later batches land.
+    const taken = new Set(earlier.map((v) => v.id));
+    const keyed = fresh.map((v) =>
+      taken.has(v.id) ? { ...v, id: `${v.id}-r${earlier.length}` } : v,
+    );
+    setPreviewResult({
+      type: "design",
+      variations: [...keyed, ...earlier],
+      freshCount: fresh.length,
+      time: nowTime(),
+    });
+  }, []);
+
   // Which half of the create flow is running: "templates" while Scraive is
   // being queried, "designs" while redesign is building, null when idle. ONE
   // value rather than a boolean per step, so the preview pane and the chat's
@@ -1596,6 +1642,19 @@ export default function AiCreativeChatPage() {
   const messagesEndRef = useRef(null);
   const hasInitialized = useRef(false);
   const [selectedDesigns, setSelectedDesigns] = useState([]);
+
+  /* ── "Your designs will be lost" ─────────────────────────────────────────
+     The pane lives in memory only, so while it holds designs (or a run is
+     still building them) a back or a refresh asks first. See useLeaveGuard
+     for what each path can and can't intercept. */
+  const hasPreview =
+    !!createStage ||
+    (previewResult?.type === "design" && previewResult.variations?.length > 0) ||
+    (previewResult?.type === "templates" && previewResult.templates?.length > 0);
+  const [leaveAttempt, setLeaveAttempt] = useState(null); // "back" | "reload" | null
+  const leavePage = useLeaveGuard(hasPreview, setLeaveAttempt, () =>
+    router.push("/studio"),
+  );
 
   /* ── "Use Magic Studio instead?" ────────────────────────────────────────────
      When a Studio Designs reply finds no templates, the chat offers to build
@@ -2027,8 +2086,8 @@ export default function AiCreativeChatPage() {
             (asset.type === "image" || asset.type === "video") && asset.src,
         );
 
-      // A previous run's cards would count as this run's landed versions.
-      setPreviewResult(null);
+      // Earlier designs stay, below this run's (see showDesigns).
+      const earlier = earlierDesigns();
       setCreateStage("magic");
       setExpectedCount(expected);
       const collected = [];
@@ -2068,11 +2127,7 @@ export default function AiCreativeChatPage() {
           collected.push(...landed);
           // Each version shows as it lands; the stage stays "magic" so the
           // tiles still waiting keep shimmering beside it.
-          setPreviewResult({
-            type: "design",
-            variations: [...collected],
-            time: nowTime(),
-          });
+          showDesigns(collected, earlier);
         }
         console.log(
           `✅ [chat] ${collected.length} of ${expected} Magic Design(s) ready`,
@@ -2089,6 +2144,8 @@ export default function AiCreativeChatPage() {
       activeBrand,
       postAssistantNote,
       recoverMagicRun,
+      earlierDesigns,
+      showDesigns,
     ],
   );
 
@@ -2240,11 +2297,13 @@ export default function AiCreativeChatPage() {
       });
 
       console.log("🚀 [chat] redesigning", rawTemplates.length, "template(s)");
+      // Earlier designs stay, below this run's (see showDesigns).
+      const earlier = earlierDesigns();
       setCreateStage("designs");
       try {
-        // Batches stream back (redesign chunks templates by 9). Each one is
-        // appended so a long set fills the pane as it arrives rather than
-        // sitting on the spinner until the last design lands.
+        // Batches stream back (redesign takes 10 templates per request). Each
+        // one is appended so a long set fills the pane as it arrives rather
+        // than sitting on the spinner until the last design lands.
         const collected = [];
         let painted = false;
 
@@ -2260,11 +2319,7 @@ export default function AiCreativeChatPage() {
             // First designs are in. The stage stays "designs" so the tiles
             // still waiting keep shimmering beside the ones that landed.
           }
-          setPreviewResult({
-            type: "design",
-            variations: [...collected],
-            time: nowTime(),
-          });
+          showDesigns(collected, earlier);
         });
 
         if (!result?.ok) {
@@ -2283,6 +2338,23 @@ export default function AiCreativeChatPage() {
             "The design came back empty — nothing was generated. Ask me to try again and I'll rerun it.",
           );
           return;
+        }
+
+        // Some batches failed but the rest landed — say so, like Magic does.
+        // Counted in designs, not requests: one failed batch is up to 10.
+        const skipped = (result.failures || []).reduce(
+          (sum, f) => sum + (f.templateCount || 1),
+          0,
+        );
+        if (skipped) {
+          console.warn(`⚠️ [chat] ${skipped} redesign request(s) failed:`, result.failures);
+          showToast(
+            `${skipped} of ${skipped + collected.length} designs couldn't be built.`,
+            "error",
+          );
+          postAssistantNote(
+            `${collected.length} design${collected.length === 1 ? " is" : "s are"} ready, but ${skipped} couldn't be built${result.failures[0]?.message ? ` (${result.failures[0].message})` : ""}. Ask me to try again for more.`,
+          );
         }
 
         console.log(`✅ [chat] ${collected.length} design(s) ready`);
@@ -2305,6 +2377,8 @@ export default function AiCreativeChatPage() {
       postAssistantNote,
       createWithMagic,
       openMagicOffer,
+      earlierDesigns,
+      showDesigns,
     ],
   );
 
@@ -2394,11 +2468,7 @@ export default function AiCreativeChatPage() {
           Array.isArray(designVars) &&
           designVars.length
         ) {
-          setPreviewResult({
-            type: "design",
-            variations: designVars,
-            time: nowTime(),
-          });
+          showDesigns(designVars, earlierDesigns());
         }
 
         // The assistant has everything it needs → build the design.
@@ -2427,6 +2497,8 @@ export default function AiCreativeChatPage() {
       closeMagicOffer,
       postAssistantNote,
       createWithMagic,
+      earlierDesigns,
+      showDesigns,
     ],
   );
 
@@ -2475,11 +2547,7 @@ export default function AiCreativeChatPage() {
           Array.isArray(designVars) &&
           designVars.length
         ) {
-          setPreviewResult({
-            type: "design",
-            variations: designVars,
-            time: nowTime(),
-          });
+          showDesigns(designVars, earlierDesigns());
         }
 
         // The assistant has everything it needs → build the design.
@@ -2505,6 +2573,8 @@ export default function AiCreativeChatPage() {
       maybeCreateDesign,
       adoptSession,
       ensureSession,
+      earlierDesigns,
+      showDesigns,
     ],
   );
 
@@ -2655,6 +2725,20 @@ export default function AiCreativeChatPage() {
         ref={splitRef}
         style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}
       >
+        <ConfirmDialog
+          open={!!leaveAttempt}
+          title={leaveAttempt === "reload" ? "Refresh this page?" : "Leave this page?"}
+          message="Your designs will be lost if you continue. Save the ones you want to keep first."
+          confirmLabel={leaveAttempt === "reload" ? "Refresh" : "Leave"}
+          variant="danger"
+          onCancel={() => setLeaveAttempt(null)}
+          onConfirm={() => {
+            const kind = leaveAttempt;
+            setLeaveAttempt(null);
+            leavePage(kind);
+          }}
+        />
+
         {/* ── Chat panel ── */}
         {/* chatPaneProps.style carries the dragged width (plus the min-width and
             the flex rules that stop the flexbox resizing it on its own). Drag it

@@ -26,9 +26,12 @@
 // ("ads" / "social" / "designer"). Omitting it returns templates across all
 // axes, filtered by size and sub-category alone.
 
-/** The endpoint accepts between 1 and 9 templates per request. */
+/**
+ * How many templates one create may fetch. Scraive returns as many as asked
+ * (30 confirmed live); redesign then takes them 10 per request.
+ */
 export const MIN_TEMPLATES = 1;
-export const MAX_TEMPLATES = 9;
+export const MAX_TEMPLATES = 30;
 
 /** First non-empty value across a list of candidates. */
 const firstOf = (...values) =>

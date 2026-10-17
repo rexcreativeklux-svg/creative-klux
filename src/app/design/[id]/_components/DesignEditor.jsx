@@ -10,11 +10,12 @@ import React, {
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import useDesignEditor from "./useDesignEditor";
+import { replaceSrcPatch } from "./panels/image/imageQuickActions";
 import EditorTopBar from "./EditorTopBar";
 import KluxLogoIcon from "./panels/klux/KluxLogoIcon";
 import EditorSidebar from "./EditorSidebar";
 import EditorContextBar from "./EditorContextBar";
-import EditorElement from "./EditorElement";
+import EditorElement, { carriesImage, draggedImageUrl } from "./EditorElement";
 import SelectionChrome from "./SelectionChrome";
 import useStageViewport from "./useStageViewport";
 import { Timer as TimerIcon, NotebookPen } from "lucide-react";
@@ -1057,25 +1058,102 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
   const endEdit = useCallback(() => setEditingId(null), []);
   const focusCell = useCallback((id, r, c) => setActiveCell({ id, r, c }), []);
 
+  // ── Drag an image onto an image ───────────────────────────────────────
+  // Moving one picture (alone) over another lights the other up, and letting go
+  // there swaps the moving picture INTO it: the target keeps its box, rotation,
+  // look and place in the stack, and the one that was dragged is gone — its
+  // picture now lives in the target. Canva's drag-to-replace, for pictures that
+  // are already on the page (files dropped from outside go through
+  // replaceImage instead).
+  const [swapTargetId, setSwapTargetId] = useState(null);
+
+  /** The canvas point under a drag's pointer (mouse or touch), or null. */
+  const dragPoint = useCallback(
+    (e) => {
+      const p = e?.changedTouches?.[0] || e?.touches?.[0] || e;
+      const rect = stageInnerRef.current?.getBoundingClientRect();
+      if (!rect || !Number.isFinite(p?.clientX)) return null;
+      return { x: (p.clientX - rect.left) / zoom, y: (p.clientY - rect.top) / zoom };
+    },
+    [zoom],
+  );
+
+  /** The topmost picture under a canvas point, other than `excludeId`. */
+  const imageAt = (pt, excludeId) => {
+    if (!pt) return null;
+    const list = elementsRef.current;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const el = list[i];
+      if (el.id === excludeId || el.type !== "image" || !el.src || el.locked || el.hidden) continue;
+      // Into the element's own unrotated frame, so a turned picture is hit
+      // where it's drawn rather than where its unturned box would be.
+      const a = (-(el.rotation || 0) * Math.PI) / 180;
+      const dx = pt.x - (el.x + el.width / 2);
+      const dy = pt.y - (el.y + el.height / 2);
+      const lx = dx * Math.cos(a) - dy * Math.sin(a);
+      const ly = dx * Math.sin(a) + dy * Math.cos(a);
+      if (Math.abs(lx) <= el.width / 2 && Math.abs(ly) <= el.height / 2) return el;
+    }
+    return null;
+  };
+
   const handleDragMove = useCallback(
-    (id, d) => {
+    (id, d, e) => {
       const drag = dragRef.current;
       if (!drag || drag.id !== id) return;
       drag.moved = true;
       paintDragShift(d.x - drag.ox, d.y - drag.oy);
+
+      // Only a lone picture swaps — a multi-selection moves as a layout.
+      if (drag.others.length) return;
+      const self = elementsRef.current.find((el) => el.id === id);
+      if (self?.type !== "image" || !self.src) return;
+      const target = imageAt(dragPoint(e), id)?.id ?? null;
+      // One render when the target changes, none in between.
+      if (target !== drag.swapTargetId) {
+        drag.swapTargetId = target;
+        setSwapTargetId(target);
+      }
     },
-    [paintDragShift],
+    // imageAt reads only refs.
+    [paintDragShift, dragPoint],
   );
 
   const handleDragEnd = useCallback(
-    (id, d) => {
+    (id, d, e) => {
       const drag = dragRef.current;
       dragRef.current = null;
       setDraggingId(null);
+      setSwapTargetId(null);
       // Cleared BEFORE the state write: the transform and the new coordinates
       // would otherwise both be applied for one frame and everything would jump
       // by twice the distance it was dragged before settling back.
       clearDragShift();
+
+      // Let go over another picture: swap this one into it. Delete first — that
+      // records the pre-swap snapshot — then patch without recording, so one
+      // undo puts both back.
+      if (drag?.id === id && drag.swapTargetId && !drag.others.length) {
+        const source = elementsRef.current.find((el) => el.id === id);
+        const target = imageAt(dragPoint(e), id);
+        if (source?.src && target) {
+          removeElements([id]);
+          updateElement(
+            target.id,
+            {
+              src: source.src,
+              originalSrc: source.originalSrc || source.src,
+              backgroundRemoved: !!source.backgroundRemoved,
+              crop: null,
+              natW: source.natW,
+              natH: source.natH,
+            },
+            { record: false },
+          );
+          selectElement(target.id);
+          return;
+        }
+      }
 
       // Not one of ours (an unselected element, or the selection changed
       // mid-gesture) — commit the one element react-rnd moved.
@@ -1101,7 +1179,8 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
         { record: true },
       );
     },
-    [updateElement, updateElements, clearDragShift],
+    // imageAt reads only refs.
+    [updateElement, updateElements, clearDragShift, removeElements, selectElement, dragPoint],
   );
 
   // ── Marquee (drag-to-select) ──────────────────────────────────────────
@@ -1594,11 +1673,13 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
    * a fraction of the artboard while keeping its own aspect.
    *
    * @param {string} src Image URL.
-   * @param {{ offsetIndex?: number }} [opts] `offsetIndex` cascades the placement
-   *   by a small step so a batch (e.g. four Magic Studio results inserted at
-   *   once) lands as a readable stagger instead of one perfectly hidden pile.
+   * @param {{ offsetIndex?: number, at?: {x: number, y: number} }} [opts]
+   *   `offsetIndex` cascades the placement by a small step so a batch (e.g.
+   *   four Magic Studio results inserted at once) lands as a readable stagger
+   *   instead of one perfectly hidden pile. `at` centres it on that canvas point
+   *   instead of the page's middle — where an image was dropped.
    */
-  const insertImageUrl = (src, { offsetIndex = 0 } = {}) => {
+  const insertImageUrl = (src, { offsetIndex = 0, at } = {}) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
     // ~3% of the artboard's short side — visible on a 1080px canvas, still
@@ -1612,8 +1693,8 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
       addElement({
         type: "image",
         src,
-        x: cx() - w / 2 + step,
-        y: cy() - h / 2 + step,
+        x: (at?.x ?? cx()) - w / 2 + step,
+        y: (at?.y ?? cy()) - h / 2 + step,
         width: w,
         height: h,
       });
@@ -1759,6 +1840,36 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     }
   };
 
+  /**
+   * Swap the picture in an image by dropping another onto it — Canva's
+   * drag-to-replace. The element keeps its box, rotation, look and place in the
+   * stack; only what described the OLD picture resets (crop, cutout, cached
+   * size — replaceSrcPatch, the same reset the Replace tool makes), and the new
+   * one cover-fits the box it inherits.
+   *
+   * `source` is a File dropped from the desktop — shown at once from the local
+   * file, its durable URL swapped in once the upload lands, outside the history
+   * — or the URL of a hosted image dragged from the Uploads panel.
+   */
+  const replaceImage = useCallback(
+    async (id, source) => {
+      const isFile = typeof File !== "undefined" && source instanceof File;
+      const src = isFile ? URL.createObjectURL(source) : source;
+      if (!src) return;
+      updateElement(id, replaceSrcPatch(src), { record: true });
+      if (!isFile) return;
+      try {
+        const res = await uploadMedia(source);
+        const url =
+          res?.url || res?.data?.url || res?.image_url || res?.data?.image_url;
+        if (url) updateElement(id, { src: url, originalSrc: url }, { record: false });
+      } catch {
+        toast.error("Image upload failed — it won't persist after save.");
+      }
+    },
+    [updateElement, uploadMedia],
+  );
+
   // Insert a decorative graphic, sized to its aspect (like insertShape).
   const insertGraphic = (graphicKey) => {
     const [vw, vh] = graphicDef(graphicKey).viewBox || [100, 100];
@@ -1834,7 +1945,8 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
     }
   };
 
-  const handleAddImage = async (file) => {
+  // `at` centres the image on that canvas point (a drop) instead of the page.
+  const handleAddImage = async (file, { at } = {}) => {
     const localUrl = URL.createObjectURL(file);
     const img = new Image();
     img.onload = async () => {
@@ -1845,8 +1957,8 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
       const id = addElement({
         type: "image",
         src: localUrl,
-        x: cx() - w / 2,
-        y: cy() - h / 2,
+        x: (at?.x ?? cx()) - w / 2,
+        y: (at?.y ?? cy()) - h / 2,
         width: w,
         height: h,
       });
@@ -1861,6 +1973,36 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
       }
     };
     img.src = localUrl;
+  };
+
+  // ── Dropping images onto the page ─────────────────────────────────────
+  // An image dragged from the desktop or the Uploads panel lands centred where
+  // it's let go. One dropped onto an existing image never reaches here — the
+  // image takes it and swaps its picture instead (see replaceImage).
+  const onPageDragOver = (e) => {
+    if (!carriesImage(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+  const onPageDrop = (e) => {
+    // A frame filled by this drop has already handled it.
+    if (e.defaultPrevented) return;
+    const files = Array.from(e.dataTransfer?.files || []).filter((f) =>
+      f.type?.startsWith("image/"),
+    );
+    const url = files.length ? null : draggedImageUrl(e);
+    if (!files.length && !url) return;
+    e.preventDefault();
+    const at = canvasPoint(e);
+    if (url) {
+      insertImageUrl(url, { at });
+      return;
+    }
+    // Several files at once cascade a little, so none hides another.
+    const step = Math.round(Math.min(canvas.width, canvas.height) * 0.03);
+    files.forEach((file, i) =>
+      handleAddImage(file, { at: { x: at.x + step * i, y: at.y + step * i } }),
+    );
   };
 
   // ── Background removal ────────────────────────────────────────────────
@@ -2372,6 +2514,8 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
               sits over it — see the sibling below. */}
           <div
             className="group/page"
+            onDragOver={onPageDragOver}
+            onDrop={onPageDrop}
             style={{
               position: "relative",
               width: canvas.width * zoom,
@@ -2446,6 +2590,9 @@ export default function DesignEditor({ design, onSave, onBack, initialPanel }) {
                     onCellFocus={focusCell}
                     onFrameFill={fillFrame}
                     onGridCellFill={fillGridCell}
+                    onImageReplace={replaceImage}
+                    swapTarget={el.id === swapTargetId}
+                    swapSource={!!swapTargetId && el.id === draggingId}
                     animateToken={animateToken}
                     suppressChrome={el.id === croppingId || el.id === erasingId}
                     entered={el.id === enteredGroupId}

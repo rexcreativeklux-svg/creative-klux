@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Rnd } from "react-rnd";
 import { ImagePlus } from "lucide-react";
 import ShapeSVG from "./ShapeSVG";
@@ -68,14 +68,21 @@ function EditorElement({
   // has to travel with it, and does so by transform rather than by re-rendering.
   coDragging = false,
   onDragBegin, // (id) => void         — a drag gesture started on this element
-  onDragMove, // (id, {x, y}) => void  — live position, for dragging the others
-  onDragEnd, // (id, {x, y}) => void   — commits; falls back to onChange
+  onDragMove, // (id, {x, y}, event) => void — live position, for dragging the others
+  onDragEnd, // (id, {x, y}, event) => void  — commits; falls back to onChange
   onStartEdit,
   onEndEdit,
   onCurveAddPoint,
   activeCell,
   onFrameFill,
   onGridCellFill,
+  onImageReplace, // (id, File | url) => void — an image dropped onto this image
+  // True while another image on the page is being moved over this one: letting
+  // go swaps its picture in here (see DesignEditor's handleDragEnd).
+  swapTarget = false,
+  // True for the picture being dragged while it's over such a target — faded,
+  // so the target's highlight shows through it.
+  swapSource = false,
   animateToken = 0,
   suppressChrome = false,
   // Group entry. `entered` is set only once the group itself is selected, which
@@ -88,6 +95,36 @@ function EditorElement({
 }) {
   const locked = !!el.locked;
   const textRef = useRef(null);
+
+  // Drag-to-replace: an image dragged over a picture lights it up, and dropping
+  // swaps the picture while the element keeps its place, size and look.
+  const replaceable = el.type === "image" && !!el.src && !locked && !!onImageReplace;
+  const [dropHover, setDropHover] = useState(false);
+  const dropProps = replaceable
+    ? {
+        onDragOver: (e) => {
+          if (!carriesImage(e)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = "copy";
+          if (!dropHover) setDropHover(true);
+        },
+        onDragLeave: (e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) setDropHover(false);
+        },
+        onDrop: (e) => {
+          setDropHover(false);
+          const file = Array.from(e.dataTransfer?.files || []).find((f) =>
+            f.type?.startsWith("image/"),
+          );
+          const source = file || draggedImageUrl(e);
+          if (!source) return;
+          e.preventDefault();
+          e.stopPropagation();
+          onImageReplace(el.id, source);
+        },
+      }
+    : null;
 
   // Re-bound to this element, so everything below — including the frame, grid
   // and table renderers this is threaded down to — keeps the plain
@@ -215,13 +252,13 @@ function EditorElement({
       }}
       onMouseDown={(e) => onSelect(el.id, e)}
       onContextMenu={(e) => onContextMenu?.(el.id, e)}
-      onDrag={(e, d) => onDragMove?.(el.id, d)}
+      onDrag={(e, d) => onDragMove?.(el.id, d, e)}
       onDragStop={(e, d) => {
-        if (onDragEnd) onDragEnd(el.id, d);
+        if (onDragEnd) onDragEnd(el.id, d, e);
         else onChange({ x: d.x, y: d.y }, { record: true });
       }}
       style={{
-        opacity: el.opacity ?? 1,
+        opacity: (el.opacity ?? 1) * (swapSource ? 0.45 : 1),
         // Stacking follows DOM/array order so bring-to-front / send-to-back work.
         // Only lift the element while it's actively selected+editing so its
         // resize handles stay reachable, without overriding the layer order.
@@ -243,9 +280,11 @@ function EditorElement({
           re-render — see paintDragShift in DesignEditor. Translate before
           rotate, so a turned element still travels along the page's axes. */}
       <div
+        {...dropProps}
         style={{
           width: "100%",
           height: "100%",
+          ...(el.type === "image" ? { position: "relative" } : null),
           transform:
             [
               coDragging
@@ -287,6 +326,19 @@ function EditorElement({
             onChildGestureBegin,
           })}
         </div>
+        {(dropHover || swapTarget) && (
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "rgba(37, 99, 235, 0.18)",
+              outline: `${2 / (zoom || 1)}px solid #2563eb`,
+              borderRadius: radiusToCss(el.borderRadius),
+              pointerEvents: "none",
+            }}
+          />
+        )}
       </div>
 
     </Rnd>
@@ -1036,8 +1088,20 @@ function FrameInner({ el, onFrameFill, onChange }) {
   );
 }
 
+// Whether a drag in progress carries an image — a file from the desktop, or an
+// Uploads-panel tile. (The data itself can only be read on drop.) A layer row
+// dragged from the Layers list carries plain text only, so it doesn't qualify.
+export function carriesImage(e) {
+  const types = Array.from(e.dataTransfer?.types || []);
+  return (
+    types.includes("Files") ||
+    types.includes("application/x-ck-image") ||
+    types.includes("text/uri-list")
+  );
+}
+
 // Extract a usable image URL from a drag (Uploads-panel tile sets these).
-function draggedImageUrl(e) {
+export function draggedImageUrl(e) {
   const dt = e.dataTransfer;
   if (!dt) return null;
   const raw =

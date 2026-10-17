@@ -12,7 +12,11 @@ import { classifyResult } from "@/utils/errorHelper";
 import { throwClassifiedAuthError } from "@/utils/authErrors";
 import { clearImpersonating } from "@/utils/impersonation";
 import api from "@/app/api/axios";
-import { CREATIVE_ENGINE, usesTemplates } from "@/(lib)/design/creativeEngine";
+import {
+  CREATIVE_ENGINE,
+  DEFAULT_DESIGN_COUNT,
+  usesTemplates,
+} from "@/(lib)/design/creativeEngine";
 import { renderDesignToDataUrl } from "@/(lib)/design/renderDesign";
 import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 
@@ -2205,7 +2209,6 @@ export function AuthProvider({ children }) {
   const generateCustomCreative = async (
     { creativeType, categoryType, ...formPayload },
     onBatchResult,
-    opts = {},
   ) => {
     if (!token) {
       console.error("No auth token found.");
@@ -2221,9 +2224,8 @@ export function AuthProvider({ children }) {
     // templates, plus `brand_details.variations` = how many designs to build,
     // and gets them back in one response. Both answer in the same
     // { variations: [{ id, name, canvas, elements }] } shape, so everything
-    // below is shared. `opts.forceEngine` lets a caller pin a backend regardless
-    // of the flag — create-from-url's ?engine= override and the chat use it.
-    const engine = opts.forceEngine || CREATIVE_ENGINE;
+    // below is shared. CREATIVE_ENGINE alone decides which one runs.
+    const engine = CREATIVE_ENGINE;
     const withTemplates = usesTemplates(engine);
     const url = `${BASE_URL}/creatives/${withTemplates ? "redesign" : "create-design"}`;
 
@@ -2237,7 +2239,8 @@ export function AuthProvider({ children }) {
     // Requests go out sequentially and each one's designs stream back through
     // onBatchResult as soon as it finishes. redesign: ten templates per request
     // (10, then 10, … then the rest). create-design: the requested count
-    // (`variations`, default 1) five per request, so 12 → 5, 5, 2.
+    // (`variations`, default DEFAULT_DESIGN_COUNT) five per request, so
+    // 12 → 5, 5, 2.
     const TEMPLATES_PER_BATCH = 10;
     const DESIGNS_PER_BATCH = 5;
     const batches = [];
@@ -2248,7 +2251,10 @@ export function AuthProvider({ children }) {
       }
       if (!batches.length) batches.push([]); // single empty batch fallback
     } else {
-      const requested = Math.max(1, Number.parseInt(rest.variations, 10) || 1);
+      const requested = Math.max(
+        1,
+        Number.parseInt(rest.variations, 10) || DEFAULT_DESIGN_COUNT,
+      );
       for (let left = requested; left > 0; left -= DESIGNS_PER_BATCH) {
         batches.push(Math.min(DESIGNS_PER_BATCH, left));
       }

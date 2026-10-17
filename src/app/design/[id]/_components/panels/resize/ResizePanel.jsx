@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Check } from "lucide-react";
+import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import { RESIZE_GROUPS } from "./resizePresets";
 
 /**
@@ -18,11 +19,31 @@ export default function ResizePanel({ editor }) {
   const [customW, setCustomW] = useState("");
   const [customH, setCustomH] = useState("");
 
-  const apply = (w, h) => {
+  // The size waiting on the confirm dialog: { w, h, label }.
+  const [pending, setPending] = useState(null);
+
+  /** "Instagram Post (1080 × 1080)", or "Custom size (…)" when no preset matches. */
+  const sizeName = (w, h, label) => {
+    const name =
+      label ||
+      RESIZE_GROUPS.flatMap((g) => g.items).find((it) => it.w === w && it.h === h)?.label ||
+      "Custom size";
+    return `${name} (${w} × ${h})`;
+  };
+
+  // Picking a size asks first — resizing re-fits every element on the page.
+  const apply = (w, h, label) => {
     const nw = Math.round(Number(w));
     const nh = Math.round(Number(h));
     if (!nw || !nh || nw < 1 || nh < 1) return;
-    resizeCanvas(nw, nh);
+    if (nw === canvas.width && nh === canvas.height) return;
+    setPending({ w: nw, h: nh, label });
+  };
+
+  const confirmResize = () => {
+    if (!pending) return;
+    resizeCanvas(pending.w, pending.h);
+    setPending(null);
   };
 
   const q = query.trim().toLowerCase();
@@ -95,7 +116,7 @@ export default function ResizePanel({ editor }) {
                 return (
                   <button
                     key={it.id}
-                    onClick={() => apply(it.w, it.h)}
+                    onClick={() => apply(it.w, it.h, it.label)}
                     className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition cursor-pointer border ${
                       active
                         ? "border-blue-200 bg-blue-50"
@@ -145,6 +166,18 @@ export default function ResizePanel({ editor }) {
           </p>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!pending}
+        title="Resize design?"
+        message={
+          pending &&
+          `Resize from ${sizeName(canvas.width, canvas.height)} to ${sizeName(pending.w, pending.h, pending.label)}? Everything on the page is re-fitted to the new size. You can undo it with Ctrl+Z.`
+        }
+        confirmLabel="Resize"
+        onConfirm={confirmResize}
+        onCancel={() => setPending(null)}
+      />
     </div>
   );
 }

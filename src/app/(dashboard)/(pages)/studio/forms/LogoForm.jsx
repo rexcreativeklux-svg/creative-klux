@@ -11,7 +11,7 @@ import { FloatingAnimation, FloatingElements } from "@/app/(components)/Floating
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
-import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import { usesTemplates } from "@/(lib)/design/creativeEngine";
 import OptionChip from "./OptionChip";
 
 // ── Designer Creative theme color ─────────────────────────────────────────────
@@ -340,10 +340,10 @@ const LogoForm = ({
 
     try {
       // 1. FETCH DESIGN TEMPLATES FIRST (redesign engine only).
-      // Scraive templates are only needed by the "redesign" engine; involk
-      // generates from scratch, so skip the fetch for that engine.
+      // Scraive templates are only needed by the "redesign" engine;
+      // create-design generates without them, so skip the fetch for that one.
       let selectedTemplates = [];
-      if (CREATIVE_ENGINE === "redesign") {
+      if (usesTemplates()) {
         const templateRes = await fetchDesignTemplates({
           type: "image",
           category: "Meta Square",

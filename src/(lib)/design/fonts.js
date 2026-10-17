@@ -13,6 +13,8 @@
  * specific families it needs are actually ready.
  */
 
+import { TEXT_TEMPLATE_FONTS } from "./textTemplateFonts";
+
 const sans = (name, google = name) => ({
   name,
   google,
@@ -130,18 +132,35 @@ function googleFontsHref() {
   return `https://fonts.googleapis.com/css2?${fams}&display=swap`;
 }
 
-let injected = false;
-/** Inject the combined fonts stylesheet once (idempotent). */
-export function ensureEditorFontsLoaded() {
-  if (injected || typeof document === "undefined") return;
-  injected = true;
-  const id = "ck-editor-fonts";
+/**
+ * The Text panel's templates and effects: their families WITH the cuts they
+ * use (Montserrat 800, Playfair 700 italic…). Asked of Google's legacy css API,
+ * which — unlike css2 — skips a cut a family doesn't ship instead of failing the
+ * whole request. Only the faces a page actually uses are downloaded.
+ */
+function templateFontsHref() {
+  const fams = TEXT_TEMPLATE_FONTS.map(
+    ([name, cuts]) => `${name.replace(/ /g, "+")}:${cuts.join(",")}`,
+  ).join("|");
+  return `https://fonts.googleapis.com/css?family=${fams}&display=swap`;
+}
+
+function injectStylesheet(id, href) {
   if (document.getElementById(id)) return;
   const link = document.createElement("link");
   link.id = id;
   link.rel = "stylesheet";
-  link.href = googleFontsHref();
+  link.href = href;
   document.head.appendChild(link);
+}
+
+let injected = false;
+/** Inject the combined fonts stylesheets once (idempotent). */
+export function ensureEditorFontsLoaded() {
+  if (injected || typeof document === "undefined") return;
+  injected = true;
+  injectStylesheet("ck-editor-fonts", googleFontsHref());
+  injectStylesheet("ck-text-template-fonts", templateFontsHref());
 }
 
 /**
@@ -154,7 +173,9 @@ export async function waitForFonts(families, sizes = [16, 700]) {
   const uniq = [...new Set(families.filter(Boolean))];
   await Promise.all(
     uniq.flatMap((fam) =>
-      [400, 700].map((w) =>
+      // Every cut the templates use, not just regular and bold — canvas text
+      // drawn before its face has loaded falls back without a word.
+      [300, 400, 500, 600, 700, 800, 900].map((w) =>
         document.fonts.load(`${w} 24px ${fam}`).catch(() => {}),
       ),
     ),

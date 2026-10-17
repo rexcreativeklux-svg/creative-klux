@@ -32,7 +32,11 @@ import {
   buildRedesignPayload,
   normalizeDesignTemplate,
 } from "@/app/(components)/studio/designTemplates";
-import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import { usesTemplates } from "@/(lib)/design/creativeEngine";
+
+// The chat builds with create-design whatever CREATIVE_ENGINE says — the
+// forms still follow that flag.
+const CHAT_ENGINE = "create-design";
 // Magic Designs run on Magic Studio's own tools and generation watch, unchanged.
 import useMagicGenerate from "@/app/(components)/magic-studio/useMagicGenerate";
 import { getMagicConfig } from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
@@ -2154,16 +2158,15 @@ export default function AiCreativeChatPage() {
    * needs (`type: "create"`), build the design end to end and show it.
    *
    * THE WHOLE FLOW, with no clicks in the middle:
-   *   1. Scraive  → /design-templates/public-fetch for layouts matching the
-   *      platform + size the assistant settled on.
-   *   2. Redesign → /creatives/redesign turns those layouts into real designs
-   *      carrying the brand's copy, colours and images.
-   *   3. The finished variations land in the preview pane on the right.
+   *   1. CHAT_ENGINE (create-design) → /creatives/create-design builds designs
+   *      carrying the brand's copy, colours and images, 5 per request.
+   *      (Were it "redesign", Scraive layouts would be fetched first.)
+   *   2. The finished variations land in the preview pane on the right as each
+   *      request finishes.
    *
    * HOW MANY comes from the conversation: buildTemplateQuery reads the reply's
-   * `num_variations` into `num_template`, Scraive returns that many layouts, and
-   * redesign produces one design per layout — so "make me 3 versions" yields 3
-   * without the count being threaded separately.
+   * `num_variations` into `num_template`, which is sent as `variations` — so
+   * "make me 12 versions" yields 12 (requests of 5, 5, 2). No upper cap.
    *
    * Declared ahead of the send handlers because both call it. Every failure
    * surfaces on the toast and leaves the pane on its previous state: a design
@@ -2213,19 +2216,18 @@ export default function AiCreativeChatPage() {
       // normalizeDesignTemplate — that shape is only for painting a preview.
       //
       // Templates are fetched ONLY for the redesign engine, exactly as the
-      // studio forms do it: involk generates from scratch, and handing it an
-      // empty template list would block it with a "no templates" error for a
-      // step it never needed. Which engine runs is CREATIVE_ENGINE's call, not
-      // this page's — that one flag is the whole point of creativeEngine.js.
+      // studio forms do it: create-design generates without them, and handing
+      // it an empty template list would block it with a "no templates" error
+      // for a step it never needed.
       let rawTemplates = [];
-      if (CREATIVE_ENGINE === "redesign") {
+      // Put down one shimmer per design the conversation asked for.
+      setExpectedCount(query.num_template || 1);
+      if (usesTemplates(CHAT_ENGINE)) {
         console.log(
           "🎨 [chat] create signal received, fetching templates:",
           query,
         );
         setCreateStage("templates");
-        // Put down one shimmer per design the conversation asked for.
-        setExpectedCount(query.num_template || 1);
         try {
           const res = await fetchDesignTemplates(query);
 
@@ -2285,42 +2287,46 @@ export default function AiCreativeChatPage() {
         }
       }
 
-      // ── 2. Straight into redesign, no template-picking step ────────────────
-      const payload = buildRedesignPayload({
-        data,
-        query,
-        templates: rawTemplates,
-        brand: activeBrand,
-        brandId: activeBrandId,
-        creativeType,
-        images,
-      });
+      // ── 2. Straight into generation, no template-picking step ──────────────
+      const payload = {
+        ...buildRedesignPayload({
+          data,
+          query,
+          templates: rawTemplates,
+          brand: activeBrand,
+          brandId: activeBrandId,
+          creativeType,
+          images,
+        }),
+        // create-design builds as many as asked (redesign: one per template).
+        ...(usesTemplates(CHAT_ENGINE) ? {} : { variations: query.num_template }),
+      };
 
-      console.log("🚀 [chat] redesigning", rawTemplates.length, "template(s)");
+      console.log(`🚀 [chat] ${CHAT_ENGINE}: ${query.num_template} design(s)`);
       // Earlier designs stay, below this run's (see showDesigns).
       const earlier = earlierDesigns();
       setCreateStage("designs");
       try {
-        // Batches stream back (redesign takes 10 templates per request). Each
-        // one is appended so a long set fills the pane as it arrives rather
-        // than sitting on the spinner until the last design lands.
+        // Batches stream back (create-design builds 5 per request). Each one
+        // is appended so a long set fills the pane as it arrives rather than
+        // sitting on the spinner until the last design lands.
         const collected = [];
         let painted = false;
 
-        // No `forceEngine` override: generateCustomCreative reads
-        // CREATIVE_ENGINE itself, so flipping that one line reroutes this page
-        // along with every form. Pinning it here would have quietly exempted
-        // the chat from the switch.
-        const result = await generateCustomCreative(payload, (batch) => {
-          if (!batch.ok || !batch.variations?.length) return;
-          collected.push(...batch.variations);
-          if (!painted) {
-            painted = true;
-            // First designs are in. The stage stays "designs" so the tiles
-            // still waiting keep shimmering beside the ones that landed.
-          }
-          showDesigns(collected, earlier);
-        });
+        const result = await generateCustomCreative(
+          payload,
+          (batch) => {
+            if (!batch.ok || !batch.variations?.length) return;
+            collected.push(...batch.variations);
+            if (!painted) {
+              painted = true;
+              // First designs are in. The stage stays "designs" so the tiles
+              // still waiting keep shimmering beside the ones that landed.
+            }
+            showDesigns(collected, earlier);
+          },
+          { forceEngine: CHAT_ENGINE },
+        );
 
         if (!result?.ok) {
           console.error("❌ [chat] redesign failed:", result?.message);
@@ -2341,7 +2347,7 @@ export default function AiCreativeChatPage() {
         }
 
         // Some batches failed but the rest landed — say so, like Magic does.
-        // Counted in designs, not requests: one failed batch is up to 10.
+        // Counted in designs, not requests: one failed batch is up to 5.
         const skipped = (result.failures || []).reduce(
           (sum, f) => sum + (f.templateCount || 1),
           0,

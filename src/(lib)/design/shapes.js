@@ -19,6 +19,8 @@
  * kind: 'fill' | 'stroke'  (stroke shapes use `fill` as the stroke color)
  */
 
+import { TEXT_TEMPLATE_SHAPES } from "./textTemplateShapes";
+
 export const SHAPES = {
   // ── Basic ──────────────────────────────────────────────────────────────
   rect: { label: "Square", category: "basic", render: "rect", kind: "fill", viewBox: [100, 100] },
@@ -164,6 +166,14 @@ const BADGES = [
 ];
 for (const [key, label, path] of BADGES) {
   SHAPES[key] = { label, category: "badges", render: "path", kind: "fill", viewBox: [100, 100], path };
+}
+
+// ── Text-template ornaments ────────────────────────────────────────────────
+// The shapes the Text panel's templates are drawn with (crowns, banners,
+// sparkles, icons). Registered so they render on canvas and in the export like
+// any shape; `hidden` keeps them out of the Elements panel's browse and search.
+for (const [key, { label, path }] of Object.entries(TEXT_TEMPLATE_SHAPES)) {
+  SHAPES[key] = { label, category: "text-templates", hidden: true, render: "path", kind: "fill", viewBox: [100, 100], path };
 }
 
 /** Ordered categories for the Elements panel (mirrors Canva's grouping). */

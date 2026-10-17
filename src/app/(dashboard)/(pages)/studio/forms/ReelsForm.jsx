@@ -12,7 +12,7 @@ import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 import { useAuth } from "@/context/AuthContext";
-import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import { usesTemplates } from "@/(lib)/design/creativeEngine";
 import {
   MAX_IMAGES,
   withinImageBounds,
@@ -423,7 +423,7 @@ const ReelsForm = ({
 
       // 1. FETCH DESIGN TEMPLATES FIRST (redesign engine only)
       let selectedTemplates = [];
-      if (CREATIVE_ENGINE === "redesign") {
+      if (usesTemplates()) {
         const templateRes = await fetchDesignTemplates?.({
           type: "video",
           category: sizeLabel,

@@ -2,13 +2,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Single switch for which backend generates creatives across the whole app.
 //
-//   "involk"   → POST /design/generate-design/involk_llm   (LLM, from scratch)
-//   "redesign" → POST /creatives/redesign                  (Scraive templates)
+//   "redesign"      → POST /creatives/redesign       (Scraive templates)
+//   "create-design" → POST /creatives/create-design  (same payload, no templates)
 //
 // Every creative form goes through AuthContext.generateCustomCreative, which
 // reads this flag and routes accordingly. create-from-url defaults its engine
 // to this flag too (its ?engine= query param still overrides per-visit).
 //
-// To send EVERYTHING back to the Scraive template pipeline, flip this one line
-// to "redesign" — no other code needs to change.
+// Flip this one line to switch every form — no other code needs to change.
 export const CREATIVE_ENGINE = "redesign";
+
+/** Engines that build from Scraive templates (fetched before generating). */
+export const usesTemplates = (engine = CREATIVE_ENGINE) => engine === "redesign";

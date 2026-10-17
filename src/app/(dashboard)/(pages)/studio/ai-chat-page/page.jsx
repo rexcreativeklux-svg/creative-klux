@@ -32,11 +32,7 @@ import {
   buildRedesignPayload,
   normalizeDesignTemplate,
 } from "@/app/(components)/studio/designTemplates";
-import { usesTemplates } from "@/(lib)/design/creativeEngine";
-
-// The chat builds with create-design whatever CREATIVE_ENGINE says — the
-// forms still follow that flag.
-const CHAT_ENGINE = "create-design";
+import { CREATIVE_ENGINE, usesTemplates } from "@/(lib)/design/creativeEngine";
 
 // Designs pane: at most 3 columns, each at least 280px — so a narrow pane drops
 // to 2 or 1, and auto-fit still stretches a lone design to full width. The
@@ -757,6 +753,17 @@ function PreviewPanel({
   // variation id → painted Lightbox item, so re-opening Preview is instant.
   const previewCacheRef = useRef(new Map());
 
+  // A new run's designs and shimmers go at the BOTTOM of the grid, under the
+  // ones already there — so when a run starts, scroll down to where it's
+  // landing rather than leave its shimmers out of sight below a long list.
+  const designGridRef = useRef(null);
+  const runActive = Boolean(stage);
+  useEffect(() => {
+    if (!runActive) return;
+    const grid = designGridRef.current;
+    grid?.scrollTo({ top: grid.scrollHeight, behavior: "smooth" });
+  }, [runActive]);
+
   // ⚠️ MEMOIZED ON PURPOSE — PublishModal seeds its caption in an effect keyed
   // on `creative`, so a fresh object each render would wipe what the user typed.
   const publishCreative = React.useMemo(() => {
@@ -1022,11 +1029,11 @@ function PreviewPanel({
   }
 
   const { variations, time } = result;
-  // This run's designs come first, then its shimmers, then earlier runs' —
-  // so new work stacks on top while it's still landing.
+  // Earlier runs' designs come first, then this run's, then its shimmers —
+  // so new work lands at the bottom, after what's already there.
   const freshCount = Math.min(result.freshCount ?? variations.length, variations.length);
-  const freshVariations = variations.slice(0, freshCount);
-  const earlierVariations = variations.slice(freshCount);
+  const earlierVariations = variations.slice(0, variations.length - freshCount);
+  const freshVariations = variations.slice(variations.length - freshCount);
 
   return (
     <div
@@ -1186,6 +1193,7 @@ function PreviewPanel({
 
       {/* ── responsive grid: 1 design = full width, 2–3 = boxes side by side ── */}
       <div
+        ref={designGridRef}
         style={{
           flex: 1,
           overflowY: "auto",
@@ -1200,8 +1208,8 @@ function PreviewPanel({
           scrollbarColor: "var(--color-gray-300) transparent",
         }}
       >
-        {[...freshVariations, PENDING_SLOT, ...earlierVariations].map((v) => {
-          // This run's still-building tiles, between the new and the earlier.
+        {[...earlierVariations, ...freshVariations, PENDING_SLOT].map((v) => {
+          // This run's still-building tiles, after everything that's landed.
           if (v === PENDING_SLOT) {
             if (!stage) return null;
             return (
@@ -1601,11 +1609,11 @@ export default function AiCreativeChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [previewResult, setPreviewResult] = useState(null);
 
-  /* ── New designs stack ON TOP of the ones already in the pane ────────────
+  /* ── New designs go UNDER the ones already in the pane ───────────────────
      A run captures what's showing when it starts (`earlierDesigns`) and every
-     batch it lands is painted above that (`showDesigns`). `freshCount` tells
-     the pane where this run's cards end, so its waiting shimmers sit between
-     the new designs and the earlier ones rather than under all of them. */
+     batch it lands is painted below that (`showDesigns`). `freshCount` tells
+     the pane how many of the last cards are this run's, so its waiting
+     shimmers follow them at the very end. */
   const previewRef = useRef(null);
   useEffect(() => {
     previewRef.current = previewResult;
@@ -1628,7 +1636,7 @@ export default function AiCreativeChatPage() {
     );
     setPreviewResult({
       type: "design",
-      variations: [...keyed, ...earlier],
+      variations: [...earlier, ...keyed],
       freshCount: fresh.length,
       time: nowTime(),
     });
@@ -2164,8 +2172,8 @@ export default function AiCreativeChatPage() {
    * needs (`type: "create"`), build the design end to end and show it.
    *
    * THE WHOLE FLOW, with no clicks in the middle:
-   *   1. CHAT_ENGINE (create-design) → /creatives/create-design builds designs
-   *      carrying the brand's copy, colours and images, 5 per request.
+   *   1. CREATIVE_ENGINE (create-design) → /creatives/create-design builds
+   *      designs carrying the brand's copy, colours and images, 5 per request.
    *      (Were it "redesign", Scraive layouts would be fetched first.)
    *   2. The finished variations land in the preview pane on the right as each
    *      request finishes.
@@ -2228,7 +2236,7 @@ export default function AiCreativeChatPage() {
       let rawTemplates = [];
       // Put down one shimmer per design the conversation asked for.
       setExpectedCount(query.num_template || 1);
-      if (usesTemplates(CHAT_ENGINE)) {
+      if (usesTemplates()) {
         console.log(
           "🎨 [chat] create signal received, fetching templates:",
           query,
@@ -2305,11 +2313,11 @@ export default function AiCreativeChatPage() {
           images,
         }),
         // create-design builds as many as asked (redesign: one per template).
-        ...(usesTemplates(CHAT_ENGINE) ? {} : { variations: query.num_template }),
+        ...(usesTemplates() ? {} : { variations: query.num_template }),
       };
 
-      console.log(`🚀 [chat] ${CHAT_ENGINE}: ${query.num_template} design(s)`);
-      // Earlier designs stay, below this run's (see showDesigns).
+      console.log(`🚀 [chat] ${CREATIVE_ENGINE}: ${query.num_template} design(s)`);
+      // Earlier designs stay, above this run's (see showDesigns).
       const earlier = earlierDesigns();
       setCreateStage("designs");
       try {
@@ -2331,7 +2339,6 @@ export default function AiCreativeChatPage() {
             }
             showDesigns(collected, earlier);
           },
-          { forceEngine: CHAT_ENGINE },
         );
 
         if (!result?.ok) {

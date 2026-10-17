@@ -24,7 +24,10 @@ import FullOverlayLoader from "@/app/(components)/loaders/full-overlay-loader";
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
-import { CREATIVE_ENGINE, usesTemplates } from "@/(lib)/design/creativeEngine";
+import {
+  DEFAULT_DESIGN_COUNT,
+  usesTemplates,
+} from "@/(lib)/design/creativeEngine";
 import {
   MIN_IMAGES,
   MAX_IMAGES,
@@ -187,16 +190,6 @@ export default function CreateFromUrl() {
 
   const [step, setStep] = useState(1);
   const [creationType, setCreationType] = useState(null);
-
-  // Which generation backend to use. Defaults to the app-wide CREATIVE_ENGINE
-  // flag; a ?engine=redesign|create-design query param overrides it for this
-  // visit.
-  const [engine, setEngine] = useState(CREATIVE_ENGINE);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const q = params.get("engine");
-    if (q === "redesign" || q === "create-design") setEngine(q);
-  }, []);
 
   // Step 1
   const [urlInput, setUrlInput] = useState("");
@@ -682,7 +675,7 @@ export default function CreateFromUrl() {
       } = await prepare();
 
       let templates = [];
-      if (usesTemplates(engine)) {
+      if (usesTemplates()) {
         const templateRes = await fetchDesignTemplates({
           type: isVideo ? "video" : "image",
           category: selectedSizeLabel,
@@ -703,11 +696,9 @@ export default function CreateFromUrl() {
       }
 
       const payload = { ...base, templates };
-      // create-design has no templates to count — one design per request.
-      const expectedCount = templates.length || 1;
+      // create-design has no templates to count — it builds the default count.
+      const expectedCount = templates.length || DEFAULT_DESIGN_COUNT;
       let isFirstBatch = true;
-      // Pinned to this page's engine so the ?engine= override wins over the
-      // app-wide CREATIVE_ENGINE flag.
       const res = await generateCustomCreative(
         payload,
         (batch) => {
@@ -746,7 +737,6 @@ export default function CreateFromUrl() {
           });
         }
         },
-        { forceEngine: engine },
       );
 
       if (!res.ok) {

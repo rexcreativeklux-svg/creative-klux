@@ -37,6 +37,12 @@ import { usesTemplates } from "@/(lib)/design/creativeEngine";
 // The chat builds with create-design whatever CREATIVE_ENGINE says — the
 // forms still follow that flag.
 const CHAT_ENGINE = "create-design";
+
+// Designs pane: at most 3 columns, each at least 280px — so a narrow pane drops
+// to 2 or 1, and auto-fit still stretches a lone design to full width. The
+// 20px is the two 10px gaps between three columns.
+const DESIGN_GRID_COLUMNS =
+  "repeat(auto-fit, minmax(max(280px, calc((100% - 20px) / 3)), 1fr))";
 // Magic Designs run on Magic Studio's own tools and generation watch, unchanged.
 import useMagicGenerate from "@/app/(components)/magic-studio/useMagicGenerate";
 import { getMagicConfig } from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
@@ -980,7 +986,7 @@ function PreviewPanel({
             overflowY: "auto",
             padding: 12,
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gridTemplateColumns: DESIGN_GRID_COLUMNS,
             gap: 10,
             alignItems: "start",
           }}
@@ -1185,7 +1191,7 @@ function PreviewPanel({
           overflowY: "auto",
           padding: 12,
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gridTemplateColumns: DESIGN_GRID_COLUMNS,
           gap: 10,
           alignItems: "start",
           scrollbarWidth: "thin",

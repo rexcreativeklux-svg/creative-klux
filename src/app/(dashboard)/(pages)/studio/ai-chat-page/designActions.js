@@ -6,7 +6,7 @@
 //   · Magic Designs carry a hosted file (the image layer's src, or `v.src` for
 //     a video), so they are downloaded / previewed / published from that URL,
 //     exactly like a Magic Studio history tile.
-//   · Creatives (redesign / involk) are only a { canvas, elements } layout.
+//   · Creatives (redesign / create-design) are only a { canvas, elements } layout.
 //     There is no file until one is painted, so each action renders it first —
 //     with the Scraive text conversion, the same way DesignCanvas paints it.
 

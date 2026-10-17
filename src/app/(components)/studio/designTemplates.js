@@ -27,18 +27,18 @@
 // axes, filtered by size and sub-category alone.
 
 /**
- * How many templates one create may fetch. Scraive returns as many as asked
- * (30 confirmed live); redesign then takes them 10 per request.
+ * The fewest designs one create asks for. There is no ceiling: the backend
+ * builds however many the user asked for, and generateCustomCreative splits
+ * the count into requests (create-design 5 per request, redesign 10 templates).
  */
 export const MIN_TEMPLATES = 1;
-export const MAX_TEMPLATES = 30;
 
 /** First non-empty value across a list of candidates. */
 const firstOf = (...values) =>
   values.find((value) => value !== undefined && value !== null && value !== "") ?? null;
 
 /**
- * Clamp the user's requested variation count into the endpoint's 1–9 window.
+ * The user's requested variation count, at least MIN_TEMPLATES.
  * Non-numeric input falls back to the minimum rather than throwing.
  *
  * @param {unknown} value
@@ -47,7 +47,7 @@ const firstOf = (...values) =>
 export function clampTemplateCount(value) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) return MIN_TEMPLATES;
-  return Math.min(MAX_TEMPLATES, Math.max(MIN_TEMPLATES, parsed));
+  return Math.max(MIN_TEMPLATES, parsed);
 }
 
 /**

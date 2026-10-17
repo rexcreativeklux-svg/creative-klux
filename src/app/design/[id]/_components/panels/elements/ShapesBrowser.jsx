@@ -24,8 +24,9 @@ export default function ShapesBrowser({ insert, onOpenGroup }) {
     if (!q) return null;
     return Object.keys(SHAPES).filter(
       (k) =>
-        SHAPES[k].label.toLowerCase().includes(q) ||
-        SHAPES[k].category.toLowerCase().includes(q),
+        !SHAPES[k].hidden &&
+        (SHAPES[k].label.toLowerCase().includes(q) ||
+          SHAPES[k].category.toLowerCase().includes(q)),
     );
   }, [q]);
 

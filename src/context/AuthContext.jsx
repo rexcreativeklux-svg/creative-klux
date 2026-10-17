@@ -12,7 +12,7 @@ import { classifyResult } from "@/utils/errorHelper";
 import { throwClassifiedAuthError } from "@/utils/authErrors";
 import { clearImpersonating } from "@/utils/impersonation";
 import api from "@/app/api/axios";
-import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import { CREATIVE_ENGINE, usesTemplates } from "@/(lib)/design/creativeEngine";
 import { renderDesignToDataUrl } from "@/(lib)/design/renderDesign";
 import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 
@@ -2216,81 +2216,16 @@ export function AuthProvider({ children }) {
     }
 
     // ── Engine switch ────────────────────────────────────────────────────────
-    // Route to Involk's single-shot LLM endpoint when selected, adapting its
-    // response into the same streamed-batch contract the forms already consume
-    // (one batch: { ok, variations, assets, data }). `opts.forceEngine` lets a
-    // caller pin a backend regardless of the flag — create-from-url's explicit
-    // Scraive path passes "redesign" so it never gets redirected. Flip
-    // CREATIVE_ENGINE back to "redesign" to send every form down the code below.
+    // "redesign" sends Scraive templates to /creatives/redesign; "create-design"
+    // sends the same brand_details to /creatives/create-design with no
+    // templates, plus `brand_details.variations` = how many designs to build,
+    // and gets them back in one response. Both answer in the same
+    // { variations: [{ id, name, canvas, elements }] } shape, so everything
+    // below is shared. `opts.forceEngine` lets a caller pin a backend regardless
+    // of the flag — create-from-url's ?engine= override and the chat use it.
     const engine = opts.forceEngine || CREATIVE_ENGINE;
-    if (engine === "involk") {
-      const result = await createDesign({
-        creativeType,
-        categoryType,
-        ...formPayload,
-      });
-
-      if (!result?.ok) {
-        onBatchResult?.({ ...result, batchIndex: 0, totalBatches: 1 });
-        return { ...result, data: { variations: [], assets: [], raw: [] } };
-      }
-
-      // involk_llm returns `canvas` and `copy` as JSON STRINGS per variation;
-      // `canvas` decodes to { canvas, elements }. Normalize to the object shape
-      // AdPreview + saveDesign expect (parsed copy, guaranteed id/name/category).
-      const parseMaybe = (val) => {
-        if (typeof val !== "string") return val;
-        try {
-          return JSON.parse(val);
-        } catch {
-          return null;
-        }
-      };
-      const data = result.raw || result.data || {};
-      const shortType = creativeType?.replace("_creative", "") || creativeType;
-      const brandName = formPayload?.brandName;
-      const normalize = (v, i) => {
-        const design = parseMaybe(v?.canvas) || {};
-        const copy = parseMaybe(v?.copy) || {};
-        return {
-          id: v?.id || `cd-${Date.now()}-${i}`,
-          name: copy?.headline || v?.name || brandName || "Generated Design",
-          category: v?.category || v?.sub_type || categoryType || shortType,
-          canvas: design.canvas || design || null,
-          elements: Array.isArray(design.elements)
-            ? design.elements
-            : Array.isArray(v?.elements)
-              ? v.elements
-              : [],
-          copy,
-        };
-      };
-
-      let variations = Array.isArray(data.variations)
-        ? data.variations.map(normalize)
-        : [];
-      if (!variations.length && data.design) {
-        variations = [normalize({ canvas: data.design, copy: data.copy }, 0)];
-      }
-      const assets = Array.isArray(data.assets) ? data.assets : [];
-
-      onBatchResult?.({
-        ok: true,
-        source: "success",
-        batchIndex: 0,
-        totalBatches: 1,
-        variations,
-        assets,
-        data,
-      });
-      return {
-        ok: true,
-        source: "success",
-        data: { variations, assets, raw: [data] },
-      };
-    }
-
-    const url = `${BASE_URL}/creatives/redesign`;
+    const withTemplates = usesTemplates(engine);
+    const url = `${BASE_URL}/creatives/${withTemplates ? "redesign" : "create-design"}`;
 
     // "ads_creative" -> "ads"
     const creativeTypeShort =
@@ -2299,16 +2234,25 @@ export function AuthProvider({ children }) {
     // Pull templates + generatedAt out; everything else goes inside brand_details
     const { templates, generatedAt, ...rest } = formPayload || {};
 
-    // Ten templates per request, sent sequentially (10, then 10, … then the
-    // rest) — each batch's designs stream back through onBatchResult as soon as
-    // its own request finishes.
+    // Requests go out sequentially and each one's designs stream back through
+    // onBatchResult as soon as it finishes. redesign: ten templates per request
+    // (10, then 10, … then the rest). create-design: the requested count
+    // (`variations`, default 1) five per request, so 12 → 5, 5, 2.
     const TEMPLATES_PER_BATCH = 10;
-    const templateList = Array.isArray(templates) ? templates : [];
+    const DESIGNS_PER_BATCH = 5;
     const batches = [];
-    for (let i = 0; i < templateList.length; i += TEMPLATES_PER_BATCH) {
-      batches.push(templateList.slice(i, i + TEMPLATES_PER_BATCH));
+    if (withTemplates) {
+      const templateList = Array.isArray(templates) ? templates : [];
+      for (let i = 0; i < templateList.length; i += TEMPLATES_PER_BATCH) {
+        batches.push(templateList.slice(i, i + TEMPLATES_PER_BATCH));
+      }
+      if (!batches.length) batches.push([]); // single empty batch fallback
+    } else {
+      const requested = Math.max(1, Number.parseInt(rest.variations, 10) || 1);
+      for (let left = requested; left > 0; left -= DESIGNS_PER_BATCH) {
+        batches.push(Math.min(DESIGNS_PER_BATCH, left));
+      }
     }
-    if (!batches.length) batches.push([]); // single empty batch fallback
 
     const aggregated = { variations: [], assets: [], raw: [] };
     // A failed template is reported and skipped — the rest still go, the same
@@ -2316,15 +2260,18 @@ export function AuthProvider({ children }) {
     const failures = [];
 
     for (let i = 0; i < batches.length; i++) {
-      const batchTemplates = batches[i];
+      // redesign: this request's templates. create-design: its design count.
+      const batch = batches[i];
+      const designCount = withTemplates ? batch.length : batch;
 
       const generation_data = {
         brand_details: {
           creative_type: creativeTypeShort,
           create_sub_type: categoryType,
           ...rest,
+          ...(withTemplates ? {} : { variations: batch }),
         },
-        templates: batchTemplates,
+        ...(withTemplates ? { templates: batch } : {}),
         generatedAt,
       };
 
@@ -2387,7 +2334,7 @@ export function AuthProvider({ children }) {
 
       if (!batchResult.ok) {
         console.warn(
-          `[${batchResult.source}] redesign batch ${i + 1}:`,
+          `[${batchResult.source}] ${engine} batch ${i + 1}:`,
           batchResult.messageForDevs,
         );
         onBatchResult?.({
@@ -2398,16 +2345,17 @@ export function AuthProvider({ children }) {
         failures.push({
           ...batchResult,
           batchIndex: i,
-          templateCount: batchTemplates.length,
+          templateCount: designCount,
         });
         continue;
       }
 
       // Success — data is the parsed JSON body
       const data = batchResult.raw || batchResult.data;
-      // Tagged because a redesign is a Scraive layout, and `{type:"text"}` reads
-      // the same in both formats — renderers and saveDesign use this to lay its
-      // text out the Scraive way (see scraiveCompat).
+      // Tagged because both engines answer in Scraive's layout format, and
+      // `{type:"text"}` reads the same in both formats — renderers and
+      // saveDesign use this to lay its text out the Scraive way (see
+      // scraiveCompat).
       const batchVariations = Array.isArray(data?.variations)
         ? data.variations.map((v) => ({ ...v, source: "scraive" }))
         : [];
@@ -2436,63 +2384,6 @@ export function AuthProvider({ children }) {
     // Some (or all) landed. `failures` lets a caller say how many were skipped.
     return { ok: true, source: "success", failures, data: aggregated };
   };
-
-  // ── Generate a design via /design/generate-design/involk_llm (no Scraive templates) ──
-  // Backend generates from scratch — we send brand_details only, no templates.
-  // Used by create-from-url to bypass Scraive + /creatives/redesign.
-  const createDesign = useCallback(
-    async ({ creativeType, categoryType, ...formPayload }) => {
-      if (!token) {
-        console.error("createDesign: no auth token.");
-        return { ok: false, message: "Not authenticated" };
-      }
-
-      const url = `${BASE_URL}/design/generate-design/involk_llm`;
-
-      // "ads_creative" -> "ads"
-      const creativeTypeShort =
-        creativeType?.replace("_creative", "") || creativeType;
-
-      // Drop `templates` (createdesign generates the design itself);
-      const { templates, generatedAt, ...rest } = formPayload || {};
-
-      const generation_data = {
-        brand_details: {
-          creative_type: creativeTypeShort,
-          create_sub_type: categoryType,
-          ...rest,
-        },
-        generatedAt,
-      };
-
-      console.log("createDesign PAYLOAD:", generation_data);
-
-      let response;
-      let result;
-      try {
-        response = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          credentials: "include",
-          body: JSON.stringify({ generation_data }),
-        });
-        result = await classifyResult({ response });
-      } catch (error) {
-        result = await classifyResult({ error });
-      }
-
-      // 🔎 Log the raw createdesign output for testing
-      console.log(" createDesign RESULT:", result);
-      console.log("createDesign RAW DATA:", result?.raw || result?.data);
-
-      return result;
-    },
-    [token],
-  );
 
   /**
    * Creative AI chat → POST /creatives/ai-chat.
@@ -2911,7 +2802,7 @@ export function AuthProvider({ children }) {
       // saved from the editor afterwards. The backend decodes the data URL,
       // stores the image itself, and returns `thumbnail` as a CDN URL.
       // Normalize the canvas shape (string / nested) like the on-screen
-      // DesignCanvas so involk + redesign variations both render.
+      // DesignCanvas so every variation renders.
       const creativedesigns = await Promise.all(
         variations.map(async (v) => {
           let design = v.canvas;
@@ -4022,7 +3913,6 @@ export function AuthProvider({ children }) {
         activeBrandId,
         brandsLoading,
         generateCustomCreative,
-        createDesign,
         creativeAiChat,
         fetchChatSessions,
         fetchChatSession,

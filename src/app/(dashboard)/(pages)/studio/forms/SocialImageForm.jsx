@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import FullOverlayLoader from "@/app/(components)/loaders/full-overlay-loader";
 import { useAuth } from "@/context/AuthContext";
-import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import { usesTemplates } from "@/(lib)/design/creativeEngine";
 import {
   MIN_IMAGES,
   MAX_IMAGES,
@@ -511,7 +511,7 @@ const SocialImageForm = ({
 
     const validImages = croppedImages.filter(Boolean);
 
-    // Gate: involk generation needs at least MIN_IMAGES images selected.
+    // Gate: generation needs at least MIN_IMAGES images selected.
     if (!meetsImageMinimum(validImages.length)) {
       const msg = imageGateMessage(validImages.length);
       setError(msg);
@@ -530,10 +530,10 @@ const SocialImageForm = ({
       const templateCategory = activeSize?.category || formData.size;
 
       // 1. FETCH DESIGN TEMPLATES FIRST (redesign engine only)
-      // Involk generates from scratch, so skip the fetch + gate entirely —
-      // otherwise an empty template list wrongly blocks it with "No templates".
+      // create-design generates without templates, so skip the fetch + gate
+      // entirely — otherwise an empty template list wrongly blocks it.
       let selectedTemplates = [];
-      if (CREATIVE_ENGINE === "redesign") {
+      if (usesTemplates()) {
         const templateRes = await fetchDesignTemplates({
           type: "image",
           category: templateCategory,
@@ -668,7 +668,7 @@ const SocialImageForm = ({
             type: "design",
             variations,
             assets,
-            // Involk has no templates — fall back to the returned count.
+            // create-design has no templates — fall back to the returned count.
             expectedCount: expectedCount || variations.length,
             done: false,
             reply: batch.data?.reply || "",

@@ -102,7 +102,7 @@ const withCategory = (sizes) =>
  * The four kinds of image, in tag-row order.
  *
  * ⚠️ `subType` IS THE BACKEND CONTRACT AND MUST NOT BECOME "image". It is sent
- * as `create_sub_type` (see createDesign in AuthContext), which is what tells
+ * as `create_sub_type` (see generateCustomCreative in AuthContext), which is what tells
  * the generator it is making a channel cover rather than a feed post — a real
  * difference in output. The TAB the user clicked is now "image" for all four, so
  * the sub-type comes from here instead. These strings are the ids the old

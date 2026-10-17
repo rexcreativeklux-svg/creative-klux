@@ -24,7 +24,7 @@ import FullOverlayLoader from "@/app/(components)/loaders/full-overlay-loader";
 import ImageCropperModal from "@/app/(components)/ImageCropperModal";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
-import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import { CREATIVE_ENGINE, usesTemplates } from "@/(lib)/design/creativeEngine";
 import {
   MIN_IMAGES,
   MAX_IMAGES,
@@ -179,7 +179,6 @@ export default function CreateFromUrl() {
   const {
     sendUrl,
     generateCustomCreative,
-    createDesign,
     saveDesign,
     activeBrandId,
     uploadMedia,
@@ -190,13 +189,13 @@ export default function CreateFromUrl() {
   const [creationType, setCreationType] = useState(null);
 
   // Which generation backend to use. Defaults to the app-wide CREATIVE_ENGINE
-  // flag; a ?engine=involk|redesign query param overrides it for this visit
-  // (e.g. the "Create using Involk" entry point passes ?engine=involk).
+  // flag; a ?engine=redesign|create-design query param overrides it for this
+  // visit.
   const [engine, setEngine] = useState(CREATIVE_ENGINE);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const q = params.get("engine");
-    if (q === "involk" || q === "redesign") setEngine(q);
+    if (q === "redesign" || q === "create-design") setEngine(q);
   }, []);
 
   // Step 1
@@ -670,8 +669,9 @@ export default function CreateFromUrl() {
     return { selectedSize, selectedSizeLabel, isVideo, payload };
   };
 
-  // ═══ OPTION A — Scraive templates → POST /creatives/redesign (streamed batches) ═══
-  const generateViaRedesign = async () => {
+  // ═══ Generate — redesign (Scraive templates, streamed batches) or
+  //     create-design (no templates, one response) ═══
+  const generate = async () => {
     setGenerating(true);
     try {
       const {
@@ -681,29 +681,33 @@ export default function CreateFromUrl() {
         payload: base,
       } = await prepare();
 
-      const templateRes = await fetchDesignTemplates({
-        type: isVideo ? "video" : "image",
-        category: selectedSizeLabel,
-        type_size: selectedSize,
-        design_type: isAds ? "ads" : "social",
-      });
-      if (!templateRes?.ok) {
-        toast.error(templateRes?.message || "Failed to fetch templates");
-        setGenerating(false);
-        return;
-      }
-      const templates = Array.isArray(templateRes.data) ? templateRes.data : [];
-      if (!templates.length) {
-        toast.error("No templates found for this size");
-        setGenerating(false);
-        return;
+      let templates = [];
+      if (usesTemplates(engine)) {
+        const templateRes = await fetchDesignTemplates({
+          type: isVideo ? "video" : "image",
+          category: selectedSizeLabel,
+          type_size: selectedSize,
+          design_type: isAds ? "ads" : "social",
+        });
+        if (!templateRes?.ok) {
+          toast.error(templateRes?.message || "Failed to fetch templates");
+          setGenerating(false);
+          return;
+        }
+        templates = Array.isArray(templateRes.data) ? templateRes.data : [];
+        if (!templates.length) {
+          toast.error("No templates found for this size");
+          setGenerating(false);
+          return;
+        }
       }
 
       const payload = { ...base, templates };
-      const expectedCount = templates.length;
+      // create-design has no templates to count — one design per request.
+      const expectedCount = templates.length || 1;
       let isFirstBatch = true;
-      // Force the real Scraive endpoint here — this path is the explicit
-      // "redesign" branch and must not be redirected by the CREATIVE_ENGINE flag.
+      // Pinned to this page's engine so the ?engine= override wins over the
+      // app-wide CREATIVE_ENGINE flag.
       const res = await generateCustomCreative(
         payload,
         (batch) => {
@@ -742,7 +746,7 @@ export default function CreateFromUrl() {
           });
         }
         },
-        { forceEngine: "redesign" },
+        { forceEngine: engine },
       );
 
       if (!res.ok) {
@@ -761,81 +765,6 @@ export default function CreateFromUrl() {
     }
   };
 
-  // ═══ OPTION B — POST /design/generate-design/involk_llm (no Scraive, single design) ═══
-  const generateViaLLM = async () => {
-    setGenerating(true);
-    try {
-      const { isVideo, payload } = await prepare();
-
-      // Keep the overlay up for the whole involk_llm request (single call, no streaming).
-      const createRes = await createDesign(payload);
-      console.log("🎨 createDesign output (create-from-url):", createRes);
-      if (!createRes?.ok) {
-        throw new Error(createRes?.message || "Generation failed");
-      }
-
-      // ADAPTER: involk_llm → { design: {canvas, elements}, copy } (single) OR
-      // { variations: [...] }. Wrap a single design as one variation.
-      const data = createRes.raw || createRes.data || {};
-
-      // involk_llm returns each variation with `canvas` and `copy` as JSON STRINGS.
-      // `canvas` decodes to { canvas: {width,height,background}, elements: [...] }.
-      // DesignCanvas, the preview cards, and saveDesign all expect parsed objects
-      // with a top-level `elements` array (the single-design branch below already
-      // emits that shape) — so normalize each streamed variation the same way.
-      const parseMaybe = (val) => {
-        if (typeof val !== "string") return val;
-        try {
-          return JSON.parse(val);
-        } catch {
-          return null;
-        }
-      };
-      const normalizeVariation = (v) => {
-        const design = parseMaybe(v?.canvas) || {};
-        return {
-          ...v,
-          canvas: design.canvas || design || null,
-          elements: Array.isArray(design.elements) ? design.elements : [],
-          copy: parseMaybe(v?.copy) || {},
-          category: v?.category || v?.sub_type || (isAds ? adSubType : "posts"),
-        };
-      };
-
-      let variations = Array.isArray(data.variations)
-        ? data.variations.map(normalizeVariation)
-        : [];
-      const assets = Array.isArray(data.assets) ? data.assets : [];
-      if (!variations.length && data.design) {
-        variations = [
-          {
-            id: `cd-${Date.now()}`,
-            name: data.copy?.headline || brandName || "Generated Design",
-            category: isAds ? adSubType : "posts",
-            canvas: data.design.canvas,
-            elements: data.design.elements || [],
-            copy: data.copy || {},
-          },
-        ];
-      }
-      if (!variations.length && !assets.length) {
-        throw new Error("No results returned from generation");
-      }
-      setResult({
-        type: "design",
-        variations,
-        assets,
-        expectedCount: variations.length || assets.length || 1,
-        done: true,
-      });
-    } catch (err) {
-      toast.error(err.message || "Generation failed. Please try again.");
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  // ── Generate — pick the backend by uncommenting ONE line ───────────────────
   const handleGenerate = async () => {
     if (!brandName.trim()) {
       toast.error("Please enter a brand name");
@@ -850,9 +779,7 @@ export default function CreateFromUrl() {
       return;
     }
 
-    if (engine === "involk")
-      await generateViaLLM(); // /design/generate-design/involk_llm
-    else await generateViaRedesign(); // Scraive → /creatives/redesign
+    await generate();
   };
 
   // ── RESULT VIEW ───────────────────────────────────────────────────────────

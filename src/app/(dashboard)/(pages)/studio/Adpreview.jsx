@@ -30,9 +30,8 @@ function DesignCanvas({ variation, scraive = variation?.source === "scraive" }) 
     const canvas = canvasRef.current;
     if (!canvas || !variation) return;
 
-    // The involk_llm backend returns `canvas` as a JSON STRING that itself wraps
-    // { canvas: {width,height,background}, elements: [...] }. Other callers pass an
-    // already-parsed canvas object with a top-level `elements` array. Support both.
+    // `canvas` is normally a parsed object beside a top-level `elements` array,
+    // but tolerate a JSON STRING wrapping { canvas, elements } too.
     let design = variation.canvas;
     if (typeof design === "string") {
       try {
@@ -42,8 +41,8 @@ function DesignCanvas({ variation, scraive = variation?.source === "scraive" }) 
       }
     }
     const canvasSpec = design?.canvas || design;
-    // Scraive layouts (fetched templates, redesigns) take Scraive's top-aligned
-    // text; involk variations are already ours and stay centred.
+    // Scraive layouts (fetched templates, generated designs) take Scraive's
+    // top-aligned text; anything already in our format stays centred.
     const elements = fromScraiveElements(
       Array.isArray(variation.elements)
         ? variation.elements
@@ -220,7 +219,7 @@ function DesignResultPanel({
           </div>
 
           {/* Result / Design tabs — only when there were templates to compare
-              against (involk sends none). */}
+              against (create-design sends none). */}
           {templates.length > 0 && (
             <div
               style={{

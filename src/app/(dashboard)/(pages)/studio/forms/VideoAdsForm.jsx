@@ -23,7 +23,7 @@ import ImportedBrandImagesSection from "@/app/(components)/ImportedBrandImagesSe
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import BrandImagesStrip from "@/app/(components)/BrandImagesStrip";
 import { useAuth } from "@/context/AuthContext";
-import { CREATIVE_ENGINE } from "@/(lib)/design/creativeEngine";
+import { usesTemplates } from "@/(lib)/design/creativeEngine";
 import {
   MIN_IMAGES,
   MAX_IMAGES,
@@ -539,7 +539,7 @@ const VideoAdsForm = ({
   const handleGenerate = async () => {
     const validMedia = croppedImages.filter(Boolean);
 
-    // Gate: involk generation needs at least MIN_IMAGES media items selected.
+    // Gate: generation needs at least MIN_IMAGES media items selected.
     if (!meetsImageMinimum(validMedia.length)) {
       const msg = imageGateMessage(validMedia.length);
       setError(msg);
@@ -563,11 +563,11 @@ const VideoAdsForm = ({
         .replace(/\s+/g, "_");
 
       // 1) Scraive templates first (redesign engine only)
-      // Templates are only needed by the "redesign" engine. Involk generates
-      // from scratch, so skip the fetch + gate entirely — otherwise an empty
-      // template list wrongly blocks Involk with "No templates found".
+      // Templates are only needed by the "redesign" engine. create-design
+      // generates without them, so skip the fetch + gate entirely — otherwise
+      // an empty template list wrongly blocks it with "No templates found".
       let selectedTemplates = [];
-      if (CREATIVE_ENGINE === "redesign") {
+      if (usesTemplates()) {
         const templateRes = await fetchDesignTemplates?.({
           type: "video",
           category: selectedSizeLabel,
@@ -670,7 +670,7 @@ const VideoAdsForm = ({
             type: "design",
             variations,
             assets,
-            // Involk has no templates — fall back to the returned variation count.
+            // create-design has no templates — fall back to the returned count.
             expectedCount: expectedCount || variations.length,
             done: false,
             reply: batch.data?.reply || "",

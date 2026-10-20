@@ -676,6 +676,8 @@ export default function PublishModal({
   const [adBudget, setAdBudget] = useState("");
   const [adDays, setAdDays] = useState("7");
   const [adCountry, setAdCountry] = useState("NG");
+  const [adAgeMin, setAdAgeMin] = useState("18");
+  const [adAgeMax, setAdAgeMax] = useState("65");
   // Pinterest board picker (only used when selected === "pinterest")
 
   const order = useMemo(
@@ -814,19 +816,23 @@ export default function PublishModal({
           // Nothing is checked here — a missing budget, link or anything the
           // network refuses comes back as the API's own message in the toast.
           const text = caption.trim();
-          const firstLine =
-            text.split("\n")[0]?.trim() || creative?.name || "";
+          const [firstLine = "", ...rest] = text.split("\n");
           const ad = await publishAd({
             platform: selected,
             name: creative?.name,
             image_url: imageUrl,
             link: activeBrand?.url || undefined,
             text: cap,
-            headline: firstLine,
+            headline: firstLine.trim() || creative?.name || "",
+            description: rest.join(" ").trim() || firstLine.trim(),
             goal: adGoal,
             daily_budget: adBudget,
             days: adDays,
             country: adCountry,
+            age_min: adAgeMin,
+            age_max: adAgeMax,
+            business_name: activeBrand?.name,
+            logo_url: activeBrand?.logo || undefined,
           });
           successMessage = `Ad created${
             ad.status === "ACTIVE" ? " and live" : " — paused, resume it from Ads"
@@ -929,6 +935,8 @@ export default function PublishModal({
       adBudget,
       adDays,
       adCountry,
+      adAgeMin,
+      adAgeMax,
     ],
   );
 
@@ -1201,22 +1209,34 @@ export default function PublishModal({
                       </select>
                     </label>
 
-                  <p className="text-[10px] text-gray-400">
-                    {selected === "meta_ads" ? (
-                      <>
-                        Creates a <b>paused</b> campaign, ad set and ad on Meta,
-                        run as your connected Facebook Page. Resume it from the
-                        Ads page to start spending.
-                      </>
-                    ) : (
-                      <>
-                        Full ad creation on {PLATFORMS[selected]?.label} isn’t
-                        available yet — you’ll see its message if it can’t be
-                        created.
-                      </>
-                    )}{" "}
-                    Sends clicks to {activeBrand?.url || "your brand website"}.
-                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                        Min age
+                      </span>
+                      <input
+                        type="number"
+                        min="18"
+                        max="65"
+                        value={adAgeMin}
+                        onChange={(e) => setAdAgeMin(e.target.value)}
+                        className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                        Max age
+                      </span>
+                      <input
+                        type="number"
+                        min="18"
+                        max="65"
+                        value={adAgeMax}
+                        onChange={(e) => setAdAgeMax(e.target.value)}
+                        className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </label>
+                  </div>
                 </div>
               )}
 

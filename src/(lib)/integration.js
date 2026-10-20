@@ -839,7 +839,13 @@ const adDate = (offsetDays = 0) => {
  *  - country       ISO-2 code to target (or `countries` for several)
  *  - link          where the ad sends people — required by the API
  *  - goal          'awareness' | 'traffic' | 'engagement' → the network's objective
- *  - days          run length; sent as start/end dates
+ *  - days          run length; sent as start/end dates (7 when not given)
+ *  - age_min/max   13–65 (Google: 18–65)
+ *  - business_name, logo_url   the brand's; Google shows them on the ad
+ *
+ * Google's responsive display ad also needs a 1:1 image beside the landscape
+ * one, so a square copy of `image_url` is made here and sent as
+ * `square_image_url`. Headline/description are cut to Google's 30/90.
  *
  * Nothing is checked here — whatever is missing or refused comes back as the
  * API's (or the network's) own sentence. Only Meta builds a full ad today; the
@@ -862,8 +868,14 @@ export async function publishAd({
   country,
   countries,
   call_to_action,
+  age_min,
+  age_max,
+  business_name,
+  logo_url,
 }) {
-  const runDays = Number(days) > 0 ? Number(days) : null;
+  const runDays = Number(days) > 0 ? Number(days) : 7;
+  const isGoogle = platform === "google_ads";
+  const age = (v) => (v == null || v === "" ? undefined : Number(v));
   const ad = await createAd({
     platform,
     name: (name || "Creative Klux Ad").slice(0, 200),
@@ -875,14 +887,56 @@ export async function publishAd({
     video_url,
     link,
     text: text?.slice(0, 2000),
-    headline: headline?.slice(0, 255),
-    description: description?.slice(0, 500),
+    headline: headline?.trim().slice(0, isGoogle ? 30 : 255),
+    description: (description || (isGoogle ? text : ""))
+      ?.trim()
+      .slice(0, isGoogle ? 90 : 500),
     call_to_action,
-    ...(runDays ? { start_date: adDate(0), end_date: adDate(runDays) } : {}),
+    start_date: adDate(0),
+    end_date: adDate(runDays),
+    age_min: age(age_min),
+    age_max: age(age_max),
+    business_name: (business_name || name)?.trim().slice(0, 25),
+    logo_url,
+    ...(isGoogle && image_url
+      ? { square_image_url: await squareImageFor(image_url) }
+      : {}),
   });
 
   // Rows on the Ads pages are campaigns, so that is the id they key on.
   return { ...ad, post_id: ad?.campaign_id ?? ad?.ad_id ?? null };
+}
+
+// A 1200×1200 copy of the image, the whole design fitted on white (nothing
+// cropped), hosted through the gallery upload. Undefined if the image can't be
+// read (CORS) — the API then answers with Google's own refusal.
+async function squareImageFor(url) {
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.crossOrigin = "anonymous";
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = url;
+    });
+    const SIZE = 1200;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = SIZE;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    const scale = Math.min(SIZE / img.naturalWidth, SIZE / img.naturalHeight);
+    const w = img.naturalWidth * scale;
+    const h = img.naturalHeight * scale;
+    ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
+    return await uploadForPublish(
+      new File([blob], "square.png", { type: "image/png" }),
+    );
+  } catch (err) {
+    console.warn("Couldn't make the square ad image:", err);
+    return undefined;
+  }
 }
 
 // A real video File/Blob is hosted through the gallery upload to get the

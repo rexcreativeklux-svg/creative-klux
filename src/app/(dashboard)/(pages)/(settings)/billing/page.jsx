@@ -26,7 +26,7 @@
  */
 
 import { useRef, useState } from "react";
-import { BadgeCheck, CalendarDays, Sparkles } from "lucide-react";
+import { BadgeCheck, CalendarDays, Coins, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import LicenseCodeCard from "@/app/(components)/billing/LicenseCodeCard";
@@ -78,6 +78,15 @@ export default function PlansAndBilling() {
   const handleUpgrade = (plan) => {
     console.log("💳 Starting Stripe checkout for plan:", plan.id, "cycle:", cycle);
     toast.info("Secure checkout with Stripe is coming soon.");
+  };
+
+  // ── TOKEN TOP-UP ──────────────────────────────────────
+  // One-off AI token packs on top of the plan allowance. Like plan checkout this
+  // will hand off to Stripe; placeholder until the endpoint exists.
+  // TODO(endpoint): POST /billing/token-checkout { pack } → redirect to Stripe.
+  const handleBuyTokens = () => {
+    console.log("🪙 Starting token purchase");
+    toast.info("Token purchases are coming soon.");
   };
 
   // ── LICENSE CODE ──────────────────────────────────────
@@ -177,14 +186,24 @@ export default function PlansAndBilling() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={startUpgrade}
-            className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#155dfc] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0d44b3]"
-          >
-            Upgrade plan
-            <Sparkles className="h-4 w-4" />
-          </button>
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleBuyTokens}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#155dfc] bg-surface px-4 py-2.5 text-sm font-semibold text-[#155dfc] transition-colors hover:bg-blue-50"
+            >
+              Buy tokens
+              <Coins className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={startUpgrade}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#155dfc] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0d44b3]"
+            >
+              Upgrade plan
+              <Sparkles className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 

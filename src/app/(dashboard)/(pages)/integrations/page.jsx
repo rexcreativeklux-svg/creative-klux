@@ -305,6 +305,8 @@ const IntegrationsPage = () => {
           onClose={chooser.onClose}
           loading={chooser.loadingPageId}
           selectedPageId={null}
+          onDisconnect={chooser.onDisconnect}
+          disconnecting={chooser.disconnecting}
         />
       )}
     </div>

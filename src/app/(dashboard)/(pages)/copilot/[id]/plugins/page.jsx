@@ -291,6 +291,8 @@ export default function CopilotPlugins() {
           onClose={pageModal.onClose}
           loading={pageModal.loadingPageId}
           selectedPageId={null}
+          onDisconnect={pageModal.onDisconnect}
+          disconnecting={pageModal.disconnecting}
         />
       )}
     </div>

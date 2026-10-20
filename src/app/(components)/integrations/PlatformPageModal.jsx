@@ -14,10 +14,13 @@ import { Check, X, AlertTriangle } from "lucide-react";
  * read-only ad account is still useful for reporting, and refusing the choice
  * without explaining it would be worse.
  *
- * Props: { pages, message, onSelect, onClose, loading, selectedPageId }
+ * Props: { pages, message, onSelect, onClose, loading, selectedPageId,
+ *          onDisconnect, disconnecting }
  *   pages    [{ id, name, avatar?, warning? }]
  *   message  why the list is empty, in the server's words (shown instead of it)
  *   loading  id of the account being saved, if any
+ *   onDisconnect  drops the half-finished connection — the way out when the
+ *                 approved login has nothing to pick, so another can be used
  */
 export default function PlatformPageModal({
   pages = [],
@@ -26,7 +29,10 @@ export default function PlatformPageModal({
   onClose,
   loading,
   selectedPageId,
+  onDisconnect,
+  disconnecting = false,
 }) {
+  const busy = !!loading || disconnecting;
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -69,7 +75,7 @@ export default function PlatformPageModal({
               <button
                 key={page.id}
                 onClick={() => onSelect(page)}
-                disabled={!!loading}
+                disabled={busy}
                 className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border text-left transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                   isSelected
                     ? "border-blue-500 bg-blue-50"
@@ -123,11 +129,20 @@ export default function PlatformPageModal({
         </div>
 
         {/* Footer */}
-        <div className="px-4 pb-4 pt-2">
+        <div className="px-4 pb-4 pt-2 flex items-center gap-2">
+          {onDisconnect && (
+            <button
+              onClick={onDisconnect}
+              disabled={busy}
+              className="flex-1 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
+            >
+              {disconnecting ? "Disconnecting…" : "Disconnect"}
+            </button>
+          )}
           <button
             onClick={onClose}
-            disabled={!!loading}
-            className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-40"
+            disabled={busy}
+            className="flex-1 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-40"
           >
             Cancel
           </button>

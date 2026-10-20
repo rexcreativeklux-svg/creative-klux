@@ -449,6 +449,7 @@ export default function HistoryLattice({
         // by the tool that made it.
         category: "all",
         image: publishItem.url,
+        isVideo: publishItem.type === "video",
         copy: {},
       },
     [publishItem],

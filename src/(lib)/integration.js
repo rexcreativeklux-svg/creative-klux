@@ -766,6 +766,7 @@ export async function publishPost({ platform, brand_id, image_url, caption }) {
  */
 export async function publishToFacebook({
   image_url,
+  video_url,
   caption,
   link,
   scheduled_publish_time, // unix seconds — not supported by the publishing API yet
@@ -782,6 +783,7 @@ export async function publishToFacebook({
     brand_id,
     text: caption,
     image_url,
+    video_url,
     link,
   });
 }
@@ -789,8 +791,13 @@ export async function publishToFacebook({
 /**
  * Publish to Instagram Business account
  */
-export async function publishToInstagram({ image_url, caption, brand_id }) {
-  return publishToPlatform("instagram", { brand_id, text: caption, image_url });
+export async function publishToInstagram({ image_url, video_url, caption, brand_id }) {
+  return publishToPlatform("instagram", {
+    brand_id,
+    text: caption,
+    image_url,
+    video_url,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1002,6 +1009,7 @@ export async function publishToYouTube({
   title,
   description,
   image_url,
+  video_url: hostedVideoUrl,
   video,
   privacyStatus = "public",
   publishAt,
@@ -1014,7 +1022,8 @@ export async function publishToYouTube({
       "Scheduling isn't available yet — the publishing API can only post now.",
     );
   }
-  const video_url = video ? await hostedVideoFor(video) : undefined;
+  const video_url =
+    hostedVideoUrl || (video ? await hostedVideoFor(video) : undefined);
   const res = await publishToPlatform("youtube", {
     brand_id,
     title: (title || "Untitled").slice(0, 100),
@@ -1037,8 +1046,13 @@ export async function publishToYouTube({
 // Posted by the API (POST creatives/publish, platform `x`).
 
 /** Post to X (Twitter): `text`, plus an optional public `image_url`. */
-export async function publishToTwitter({ text, image_url, brand_id }) {
-  const res = await publishToPlatform("twitter", { brand_id, text, image_url });
+export async function publishToTwitter({ text, image_url, video_url, brand_id }) {
+  const res = await publishToPlatform("twitter", {
+    brand_id,
+    text,
+    image_url,
+    video_url,
+  });
   return {
     ...res,
     url: res.post_id ? `https://x.com/i/web/status/${res.post_id}` : undefined,
@@ -1052,8 +1066,13 @@ export async function publishToTwitter({ text, image_url, brand_id }) {
 // Posted by the API (POST creatives/publish).
 
 /** Post to LinkedIn: `text`, plus an optional public `image_url`. */
-export async function publishToLinkedIn({ text, image_url, brand_id }) {
-  const res = await publishToPlatform("linkedin", { brand_id, text, image_url });
+export async function publishToLinkedIn({ text, image_url, video_url, brand_id }) {
+  const res = await publishToPlatform("linkedin", {
+    brand_id,
+    text,
+    image_url,
+    video_url,
+  });
   return {
     ...res,
     url: res.post_id
@@ -1075,6 +1094,7 @@ export async function publishToPinterest({
   title,
   description,
   image_url,
+  video_url,
   link,
   brand_id,
 }) {
@@ -1084,6 +1104,7 @@ export async function publishToPinterest({
     title,
     text: description,
     image_url,
+    video_url,
     link,
   });
 }
@@ -1105,14 +1126,16 @@ export async function publishToTikTok({
   title,
   description,
   image_url,
+  video_url: hostedVideoUrl,
   video,
   privacy_level,
   brand_id,
 }) {
   // The creative goes to the API as it is: an image is sent as `image_url`
-  // (the server posts it to TikTok itself). Only a real video is uploaded for a
-  // `video_url` — nothing is converted in the browser.
-  const video_url = video ? await hostedVideoFor(video) : undefined;
+  // (the server posts it to TikTok itself). An already-hosted clip goes as its
+  // `video_url`; a video File is uploaded for one — nothing is converted.
+  const video_url =
+    hostedVideoUrl || (video ? await hostedVideoFor(video) : undefined);
   // `draft_only` on the result: with video.upload alone TikTok takes it as a
   // draft the creator finishes in the app — callers should say so.
   return publishToPlatform("tiktok", {

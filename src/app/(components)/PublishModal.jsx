@@ -282,7 +282,19 @@ function DesignCanvas({ canvas, elements }) {
   );
 }
 
-const DesignVisual = ({ image, canvas, elements, className = "" }) => {
+const DesignVisual = ({ image, video, canvas, elements, className = "" }) => {
+  // A Magic Studio clip arrives as `image` (its hosted URL) — an <img> can't
+  // decode an MP4 and fails silently, leaving the preview empty.
+  if (image && video)
+    return (
+      <video
+        src={image}
+        className={`w-full object-cover bg-black ${className}`}
+        controls
+        playsInline
+        preload="metadata"
+      />
+    );
   if (image)
     return (
       <img src={image} alt="" className={`w-full object-cover ${className}`} />
@@ -484,6 +496,7 @@ const FacebookPreview = ({
   onCaptionChange,
   caps,
   image,
+  video,
   canvas,
   elements,
 }) => (
@@ -507,6 +520,7 @@ const FacebookPreview = ({
     />
     <DesignVisual
       image={image}
+      video={video}
       canvas={canvas}
       elements={elements}
       className="max-h-72"
@@ -532,6 +546,7 @@ const InstagramPreview = ({
   onCaptionChange,
   caps,
   image,
+  video,
   canvas,
   elements,
 }) => (
@@ -543,6 +558,7 @@ const InstagramPreview = ({
     </div>
     <DesignVisual
       image={image}
+      video={video}
       canvas={canvas}
       elements={elements}
       className="aspect-square"
@@ -576,6 +592,7 @@ const GenericPreview = ({
   onCaptionChange,
   caps,
   image,
+  video,
   canvas,
   elements,
 }) => {
@@ -599,6 +616,7 @@ const GenericPreview = ({
       />
       <DesignVisual
         image={image}
+        video={video}
         canvas={canvas}
         elements={elements}
         className="max-h-72"
@@ -794,20 +812,26 @@ export default function PublishModal({
             );
         }
 
+        // A clip (Magic Studio video) is already hosted — it goes out as
+        // `video_url`; YouTube and TikTok refuse anything sent as `image_url`.
+        const media = creative.isVideo
+          ? { video_url: imageUrl }
+          : { image_url: imageUrl };
+
         // Social platforms publish through the API (POST creatives/publish): the
         // server holds the tokens and talks to the network; nothing here reads
         // one. Each helper throws the platform's own error, which the toast shows.
         if (selected === "facebook") {
           await publishToFacebook({
             brand_id: brandId,
-            image_url: imageUrl,
+            ...media,
             caption: cap,
             scheduled_publish_time: scheduledUnix || undefined,
           });
         } else if (selected === "instagram") {
           await publishToInstagram({
             brand_id: brandId,
-            image_url: imageUrl,
+            ...media,
             caption: cap,
           });
         } else if (AD_PLATFORMS.includes(selected)) {
@@ -820,7 +844,7 @@ export default function PublishModal({
           const ad = await publishAd({
             platform: selected,
             name: creative?.name,
-            image_url: imageUrl,
+            ...media,
             link: activeBrand?.url || undefined,
             text: cap,
             headline: firstLine.trim() || creative?.name || "",
@@ -845,7 +869,7 @@ export default function PublishModal({
             brand_id: brandId,
             title: (firstLine || creative?.name || "").slice(0, 100),
             description: text,
-            image_url: imageUrl,
+            ...media,
             link: activeBrand?.url || undefined,
           });
         } else if (selected === "linkedin") {
@@ -854,7 +878,7 @@ export default function PublishModal({
           await publishToLinkedIn({
             brand_id: brandId,
             text: cap,
-            image_url: imageUrl,
+            ...media,
           });
         } else if (selected === "twitter") {
           // NOTE: posting (text or image) needs an X API plan with write credits — a
@@ -862,11 +886,11 @@ export default function PublishModal({
           await publishToTwitter({
             brand_id: brandId,
             text: cap,
-            image_url: imageUrl,
+            ...media,
           });
         } else if (selected === "youtube") {
-          // The image goes to the API as it is — nothing is converted to video
-          // here. Title = first line of the caption.
+          // Sent as it is (`media`); what YouTube can't take — an image — is
+          // refused by the API in its own words. Title = first line of the caption.
           const text = caption.trim();
           const firstLine = text.split("\n")[0]?.trim();
           await publishToYouTube({
@@ -876,7 +900,7 @@ export default function PublishModal({
               100,
             ),
             description: text,
-            image_url: imageUrl,
+            ...media,
             // Scheduled → YouTube needs an ISO publishAt (it forces the video private
             // until then); immediate → public.
             privacyStatus: scheduledUnix ? "private" : "public",
@@ -893,7 +917,7 @@ export default function PublishModal({
             brand_id: brandId,
             title: (firstLine || creative?.name || "").slice(0, 90),
             description: cap,
-            image_url: imageUrl,
+            ...media,
           });
           // With video.upload only, TikTok takes it as a draft the creator
           // finishes in the app — say so rather than claiming it went live.
@@ -1259,6 +1283,7 @@ export default function PublishModal({
                   onCaptionChange={setCaption}
                   caps={capsHeadline}
                   image={creative?.image || null}
+                  video={!!creative?.isVideo}
                   canvas={creative?.canvas || null}
                   elements={creative?.elements || []}
                 />

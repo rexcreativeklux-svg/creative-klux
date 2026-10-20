@@ -389,6 +389,7 @@ export default function MagicHistoryGrid({
             // so Magic Studio media can go out as a post or an ad.
             category: "all",
             image: publishItem.url,
+            isVideo: publishItem.type === "video",
             copy: {},
           }}
           onClose={() => setPublishItem(null)}

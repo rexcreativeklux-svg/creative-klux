@@ -227,6 +227,13 @@ export function useIntegrationCatalogue({ notify } = {}) {
     [disconnectIntegrationPlatform, activeBrandId, refresh, say],
   );
 
+  // Drop the connection the chooser is for — the way out when the login that
+  // was approved has nothing to pick (e.g. a Google account with no ad account).
+  const disconnectFromChooser = useCallback(async () => {
+    if (!picker) return;
+    if (await disconnect(picker.platformId)) setPicker(null);
+  }, [picker, disconnect]);
+
   return {
     entries,
     byPlatform,
@@ -246,6 +253,8 @@ export function useIntegrationCatalogue({ notify } = {}) {
       loadingPageId: picker?.loadingId || null,
       onSelect: pickAccount,
       onClose: closeChooser,
+      onDisconnect: disconnectFromChooser,
+      disconnecting: !!picker && disconnectingId === picker.platformId,
     },
   };
 }

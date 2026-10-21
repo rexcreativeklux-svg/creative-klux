@@ -498,8 +498,9 @@
 
 /**
  * Integrations store.
- * Connected accounts are now stored in the backend (fetched via fetchIntegrations()).
- * localStorage is only used for published posts tracking.
+ * Connected accounts, posts, campaigns and their metrics all live in the
+ * backend — nothing here is cached in the browser. The backend is the only
+ * source of truth.
  *
  * Backend integration shape:
  * {
@@ -530,223 +531,29 @@ import {
   uploadForPublish,
 } from "./creativesApi";
 
-// Posts are stored per brand — `${POSTS_KEY_PREFIX}${brandId}`. The un-suffixed
-// key below is the legacy single bucket that predates brand scoping; it is
-// migrated once into the first brand that reads it (see migrateLegacyPosts).
-const POSTS_KEY_PREFIX = "creativeklux_published_posts_";
-const LEGACY_POSTS_KEY = "creativeklux_published_posts";
-// Deliberately outside the POSTS_KEY_PREFIX namespace, so it can never be
-// mistaken for the bucket of a brand literally named after it.
-const LEGACY_MIGRATED_KEY = "creativeklux_posts_brand_migration_done";
-
 // ─────────────────────────────────────────────────────────────
 // Meta API Versioning
 // ─────────────────────────────────────────────────────────────
 
 const META_API_VERSION = "v23.0";
 
-const META_GRAPH_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
-
 const META_OAUTH_BASE = `https://www.facebook.com/${META_API_VERSION}`;
-
-// ─────────────────────────────────────────────────────────────
-// Published / Scheduled Posts (localStorage)
-// ─────────────────────────────────────────────────────────────
-
-function postsKey(brandId) {
-  return `${POSTS_KEY_PREFIX}${brandId}`;
-}
-
-/**
- * One-time move of the pre-brand-scoping bucket into `brandId`.
- *
- * The legacy blob carries no brand of its own, so there is nothing to split it
- * by — the whole thing lands in the first brand that reads after this ships,
- * which is the right answer for the single-brand case and a recoverable guess
- * otherwise (published posts on connected platforms come back via Fetch Live
- * Posts regardless). The flag makes it happen once, so a later brand switch
- * doesn't drag the same posts into a second brand.
- */
-function migrateLegacyPosts(brandId) {
-  try {
-    if (localStorage.getItem(LEGACY_MIGRATED_KEY)) return;
-
-    const legacy = localStorage.getItem(LEGACY_POSTS_KEY);
-    localStorage.setItem(LEGACY_MIGRATED_KEY, "1");
-    if (!legacy) return;
-
-    // Never clobber a brand bucket that already has posts.
-    if (!localStorage.getItem(postsKey(brandId)))
-      localStorage.setItem(postsKey(brandId), legacy);
-
-    localStorage.removeItem(LEGACY_POSTS_KEY);
-  } catch {
-    // Storage unavailable — nothing to migrate, and the reads below handle it.
-  }
-}
-
-export function getPublishedPosts(brandId) {
-  // No active brand yet (still loading, or none selected) — there is no bucket
-  // to read, and guessing one would show another brand's posts.
-  if (!brandId) return [];
-
-  try {
-    migrateLegacyPosts(brandId);
-    return JSON.parse(localStorage.getItem(postsKey(brandId)) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-/** Replace a brand's whole list — used by the live-merge in the content pages. */
-export function setPublishedPosts(brandId, posts) {
-  if (!brandId) return;
-
-  try {
-    localStorage.setItem(postsKey(brandId), JSON.stringify(posts));
-  } catch {
-    // Quota or a blocked store — the in-memory list still renders this session.
-  }
-}
-
-export function savePublishedPost(brandId, post) {
-  if (!brandId) {
-    console.warn("savePublishedPost: no active brand — post not saved");
-    return null;
-  }
-
-  const posts = getPublishedPosts(brandId);
-
-  const existing = posts.findIndex((p) => p.id === post.id);
-
-  if (existing >= 0) {
-    posts[existing] = post;
-  } else {
-    posts.unshift({
-      ...post,
-      id: post.id || `post_${Date.now()}`,
-    });
-  }
-
-  setPublishedPosts(brandId, posts);
-
-  return posts.find((p) => p.id === post.id);
-}
-
-export function deletePublishedPost(brandId, id) {
-  setPublishedPosts(
-    brandId,
-    getPublishedPosts(brandId).filter((p) => p.id !== id),
-  );
-}
-
-export function updatePostStats(brandId, id, stats) {
-  const posts = getPublishedPosts(brandId);
-
-  const idx = posts.findIndex((p) => p.id === id);
-
-  if (idx >= 0) {
-    posts[idx].stats = {
-      ...posts[idx].stats,
-      ...stats,
-      last_updated: new Date().toISOString(),
-    };
-
-    setPublishedPosts(brandId, posts);
-  }
-}
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────
 
-// function buildAccountsMap(integrations) {
-//   const map = {};
-
-//   integrations.forEach((i) => {
-//     map[i.platform] = {
-//       access_token: i.int_token,
-
-//       // NOTE:
-//       // This is still temporary architecture.
-//       // Eventually store dedicated IDs in backend.
-//       page_id: i.int_id,
-//       ig_user_id: i.int_id,
-//       ad_account_id: i.int_id,
-//     };
-//   });
-
-//   return map;
-// }
-
-function buildAccountsMap(integrations) {
-  const map = {};
-
-  integrations.forEach((i) => {
-    const base = {
-      access_token: i.int_token,
-    };
-
-    switch (i.platform) {
-      case "facebook":
-        map.facebook = {
-          ...base,
-          page_id: i.int_id,
-        };
-        break;
-
-      case "instagram":
-        map.instagram = {
-          ...base,
-          ig_user_id: i.int_id,
-        };
-        break;
-
-      case "meta_ads":
-        map.meta_ads = {
-          ...base,
-          ad_account_id: i.int_id,
-        };
-        break;
-
-      case "youtube":
-        map.youtube = {
-          ...base,
-          channel_id: i.int_id,
-        };
-        break;
-
-      default:
-        map[i.platform] = base;
-    }
-  });
-
-  return map;
-}
-
 /**
- * Fetch Facebook Pages from a user token.
+ * A fresh list from the backend, with the metrics this session already pulled
+ * for the same rows carried over. Metrics are a separate backend call per row,
+ * so a refetch of the list shouldn't blank them — but nothing is kept beyond
+ * the page's own memory.
  */
-export async function fetchFacebookPageId(userAccessToken) {
-  try {
-    const res = await fetch(
-      `${META_GRAPH_BASE}/me/accounts?access_token=${userAccessToken}&fields=id,name,access_token`,
-    );
-
-    const data = await res.json();
-
-    if (data.error || !data.data?.length) {
-      return null;
-    }
-
-    return {
-      page_id: data.data[0].id,
-      page_access_token: data.data[0].access_token,
-      page_name: data.data[0].name,
-    };
-  } catch {
-    return null;
-  }
+export function carryStats(prevRows, nextRows) {
+  const prev = new Map(prevRows.map((r) => [r.id, r.stats]));
+  return nextRows.map((r) =>
+    prev.get(r.id) ? { ...r, stats: prev.get(r.id) } : r,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1295,8 +1102,6 @@ function normalizeLivePosts(platform, data) {
 export async function fetchLivePostsFromConnectedAccounts(
   integrations = [],
 ) {
-  const accounts = buildAccountsMap(integrations);
-
   const livePosts = [];
 
   // ── Social platforms — read through the API (creatives/posts) ────────────
@@ -1329,8 +1134,9 @@ export async function fetchLivePostsFromConnectedAccounts(
 
   // ── Ad platforms — campaigns through the API (creatives/campaigns) ───────
   // One call per connected ad platform; the list comes back normalised. Each
-  // campaign is a row (type:'ad'): ACTIVE is "published", anything else
-  // (paused) is "scheduled" so it still lands on a calendar day.
+  // campaign is a row (type:'ad') carrying the network's own status as it
+  // came back ("ACTIVE", "PAUSED", …) — nothing is mapped or guessed. Its only
+  // date is when it was created.
   const connectedAds = SERVER_AD_PLATFORMS.filter((p) =>
     integrations.some((i) => i.platform === p),
   );
@@ -1339,31 +1145,21 @@ export async function fetchLivePostsFromConnectedAccounts(
       try {
         const campaigns = await fetchCampaigns({ platform, limit: 25 });
         return campaigns.map((c) => {
-          const when = c.created_time
-            ? new Date(c.created_time).toISOString()
-            : null;
+          const created = c.created_time ? new Date(c.created_time) : null;
           return {
             id: `${platform}_campaign_${c.id}`,
             project_id: null,
             project_title: c.name || `${platform} campaign`,
-            caption: [
-              c.objective ? `Objective: ${c.objective}` : null,
-              `Status: ${c.status || "N/A"}`,
-              c.daily_budget != null ? `Daily budget: ${c.daily_budget}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · "),
+            caption: c.objective ? `Objective: ${c.objective}` : "",
             image_url: null,
             platform,
             type: "ad",
-            status: c.status === "ACTIVE" ? "published" : "scheduled",
-            campaign_status: c.status || null,
-            published_at: when,
-            // Campaigns have no separate schedule time — use created_time so
-            // paused ones still land on a calendar day.
-            scheduled_at: when,
+            status: c.status || "UNKNOWN",
+            created_at:
+              created && !Number.isNaN(created.getTime())
+                ? created.toISOString()
+                : null,
             post_id: String(c.id),
-            live: true,
             stats: {},
           };
         });
@@ -1380,132 +1176,32 @@ export async function fetchLivePostsFromConnectedAccounts(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Delete / Update
+// Delete
 // ─────────────────────────────────────────────────────────────
 
 /**
- * DELETE a node on the Graph API. fetch() does not reject on 4xx and Graph
- * reports failures in the body, so both have to be inspected — otherwise a
- * refused delete looks identical to a successful one and the post gets dropped
- * locally while it's still live on the platform.
- */
-async function deleteMetaNode(nodeId, token) {
-  const res = await fetch(`${META_GRAPH_BASE}/${nodeId}?access_token=${token}`, {
-    method: "DELETE",
-  });
-  const data = await res.json().catch(() => ({}));
-
-  if (data.error) {
-    // Subcode 33 = the node isn't there (already deleted on the platform, most
-    // often by hand). Nothing left to delete, so let the local removal proceed —
-    // throwing here would strand the row with no way to clear it.
-    if (data.error.error_subcode === 33) return;
-    throw new Error(data.error.message);
-  }
-  if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
-}
-
-/**
- * Whether a delete here also removes the post from the platform. Instagram has
- * no delete API for published media, and the rest are publish-only integrations,
- * so those are local-only removals — the confirm copy says so.
+ * Whether the backend can delete this platform's posts. Nothing else can be
+ * deleted from here — there is no local list to drop a row from, so the pages
+ * only offer delete where this is true. Ads have no delete endpoint at all; a
+ * campaign is paused instead (or removed in the network's own Ads Manager).
  */
 export function platformSupportsDelete(platform) {
   return SERVER_DELETE_PLATFORMS.includes(platform);
 }
 
 /**
- * Remove a post from the platform, then from local storage.
- *
- * Throws if the platform refuses the delete — the caller surfaces that and the
- * post stays in the list, because it still exists on the platform. Platforms
- * outside platformSupportsDelete() are removed locally only.
+ * Delete a post through the backend. Throws with the backend's own words when
+ * it refuses — the post is still on the platform, so the caller keeps the row.
  */
-export async function deletePostFromPlatform(post, integrations = [], brandId) {
-  if (SERVER_DELETE_PLATFORMS.includes(post.platform) && post.post_id) {
-    // Social posts are deleted by the API, with the id stored at publish time.
-    await deletePlatformPost({
-      brand_id: brandId,
-      platform: post.platform,
-      post_id: post.post_id,
-    });
+export async function deletePostFromPlatform(post, brandId) {
+  if (!platformSupportsDelete(post.platform) || !post.post_id) {
+    throw new Error(`${post.platform} posts can't be deleted from here.`);
   }
-  // Ads: the API exposes no delete — a campaign is removed in the network's
-  // own Ads Manager, so this only clears our row.
-
-  deletePublishedPost(brandId, post.id);
-}
-
-export async function updatePostCaptionOnPlatform(
-  post,
-  newCaption,
-  integrations = [],
-) {
-  const accounts = buildAccountsMap(integrations);
-
-  if (post.platform === "facebook" && post.post_id) {
-    const token = post._page_access_token || accounts.facebook?.access_token;
-
-    if (token) {
-      const res = await fetch(
-        `${META_GRAPH_BASE}/${post.post_id}?access_token=${token}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message: newCaption,
-          }),
-        },
-      );
-
-      const data = await res.json();
-
-      if (data.error) {
-        throw new Error(data.error.message);
-      }
-    }
-  } else if (post.platform === "youtube" && post.post_id) {
-    // post.post_id is the YouTube video id. "Caption" maps to the video description.
-    const token = accounts.youtube?.access_token;
-    if (!token) {
-      throw new Error("No access token — reconnect your YouTube account.");
-    }
-    const res = await fetch("/api/youtube/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        access_token: token,
-        video_id: post.post_id,
-        title: post.project_title,
-        description: newCaption,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data.error) {
-      throw new Error(data.error || "YouTube update failed.");
-    }
-  } else if (post.platform === "pinterest" && post.post_id) {
-    // post.post_id is the Pinterest pin id. "Caption" maps to the pin description.
-    const token = accounts.pinterest?.access_token;
-    if (!token) {
-      throw new Error("No access token — reconnect Pinterest.");
-    }
-    const res = await fetch("/api/pinterest/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        access_token: token,
-        pin_id: post.post_id,
-        description: newCaption,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data.error) {
-      throw new Error(data.error || "Pinterest update failed.");
-    }
-  }
+  await deletePlatformPost({
+    brand_id: brandId,
+    platform: post.platform,
+    post_id: post.post_id,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -14,7 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import DashboardStats from "@/app/(components)/DashboardStats";
 import ActivityChart from "@/app/(components)/ActivityChart";
 import { SkeletonChart } from "@/app/(components)/skeletons/PageSkeleton";
-import { getPublishedPosts } from "@/(lib)/integration";
+import { fetchLivePostsFromConnectedAccounts } from "@/(lib)/integration";
 
 export default function Statistics() {
   const {
@@ -60,7 +60,9 @@ export default function Statistics() {
 
   useEffect(() => { loadDesigns(); }, [loadDesigns]);
 
-  /* ── connected platforms: count unique platforms from integrations ── */
+  /* ── connected platforms (unique, from integrations) and published posts
+        (the social posts the backend lists for them — the same source the
+        publishing pages read) ── */
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -69,20 +71,19 @@ export default function Statistics() {
       const arr = Array.isArray(data) ? data : [];
       const unique = new Set(arr.map((i) => i?.platform).filter(Boolean));
       setPlatformCount(unique.size);
+      try {
+        const rows = await fetchLivePostsFromConnectedAccounts(arr);
+        if (!alive) return;
+        setPublishedCount(
+          rows.filter((p) => p.type === "social" && p.status === "published")
+            .length,
+        );
+      } catch {
+        if (alive) setPublishedCount(0);
+      }
     })();
     return () => { alive = false; };
-  }, [fetchIntegrations]);
-
-  /* ── published posts: count "published" entries (localStorage-backed, same
-        source the social/ads publishing pages read) ── */
-  useEffect(() => {
-    try {
-      const posts = getPublishedPosts(activeBrandId) || [];
-      setPublishedCount(posts.filter((p) => p?.status === "published").length);
-    } catch {
-      setPublishedCount(0);
-    }
-  }, [activeBrandId]);
+  }, [fetchIntegrations, activeBrandId]);
 
   /* ── stats derived from designs ── */
   const statsByCategory = {

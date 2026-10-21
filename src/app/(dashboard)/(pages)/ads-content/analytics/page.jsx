@@ -1,42 +1,30 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
   Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import {
   Eye,
   MousePointer,
   Users,
-  Heart,
-  Share2,
+  Target,
   TrendingUp,
   RefreshCw,
-  AlertCircle,
   CheckCircle2,
-  Clock,
+  PauseCircle,
   BarChart3,
 } from "lucide-react";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import {
-  getPublishedPosts,
-  setPublishedPosts,
-  savePublishedPost,
-  getFacebookPostStats,
-  getInstagramPostStats,
   fetchLivePostsFromConnectedAccounts,
   getAdCampaignStats,
 } from "../../../../../(lib)/integration";
@@ -114,7 +102,7 @@ const AD_COLUMNS = [
   { key: "impressions", header: "Impressions", align: "center", cell: (p) => num(p.stats?.impressions) },
   { key: "reach", header: "Reach", align: "center", cell: (p) => num(p.stats?.reach) },
   { key: "clicks", header: "Clicks", align: "center", cell: (p) => num(p.stats?.clicks) },
-  { key: "likes", header: "Likes", align: "center", cell: (p) => num(p.stats?.likes) },
+  { key: "conversions", header: "Conversions", align: "center", cell: (p) => num(p.stats?.conversions) },
   {
     key: "ctr",
     header: "CTR",
@@ -176,14 +164,13 @@ const CUSTOM_TOOLTIP_STYLE = {
 
 export default function AdsAnalytics() {
   const [allPosts, setAllPosts] = useState([]);
-  const [refreshingAll, setRefreshingAll] = useState(false);
   const [fetchingLive, setFetchingLive] = useState(false);
   const { fetchIntegrations, activeBrandId } = useAuth();
 
   const [integrations, setIntegrations] = useState([]);
-  // This page loads in two hops — integrations, then live posts and per-ad
-  // stats — and only the second one produces numbers. Both are tracked so the
-  // KPI tiles never render a page of zeroes on the way there.
+  // This page loads in two hops — integrations, then campaigns and their
+  // metrics — and only the second one produces numbers. Both are tracked so
+  // the KPI tiles never render a page of zeroes on the way there.
   const [integrationsReady, setIntegrationsReady] = useState(false);
   const [statsLoaded, setStatsLoaded] = useState(false);
 
@@ -203,132 +190,71 @@ export default function AdsAnalytics() {
     loadIntegrations();
   }, [fetchIntegrations, activeBrandId]);
 
-  const reload = useCallback(
-    () => setAllPosts(getPublishedPosts(activeBrandId)),
-    [activeBrandId],
-  );
-
-  // A brand switch means a different set of ads and a different set of stats.
-  // Seed from the new brand's bucket and put the KPI tiles back into their
-  // loading state, so they never present the previous brand's numbers as final.
+  // A brand switch means a different set of campaigns. Clear them and put the
+  // KPI tiles back into their loading state until the backend answers.
   useEffect(() => {
-    setAllPosts(getPublishedPosts(activeBrandId));
+    setAllPosts([]);
     setStatsLoaded(false);
   }, [activeBrandId]);
 
-  const fetchLive = useCallback(
+  // Every campaign the backend lists, each with its last-30-days metrics from
+  // the backend. Paused campaigns are included — they may well have run this
+  // month. Nothing is kept beyond this page's memory.
+  const loadCampaigns = useCallback(
     async (silent = false) => {
       setFetchingLive(true);
       try {
-        const livePosts = await fetchLivePostsFromConnectedAccounts(
-          integrations);
-        const local = getPublishedPosts(activeBrandId);
-        const localIds = new Set(local.map((p) => p.id));
-        const newPosts = livePosts.filter((lp) => !localIds.has(lp.id));
-        const merged = [...newPosts, ...local];
-        setPublishedPosts(activeBrandId, merged);
-        setAllPosts(merged);
-        if (!silent) {
-          toast.success(
-            newPosts.length > 0
-              ? `Synced ${newPosts.length} live post(s)`
-              : "Already up to date",
+        const rows = await fetchLivePostsFromConnectedAccounts(integrations);
+        if (rows.errors?.length) toast.error(rows.errors.join(" · "));
+
+        const failed = [];
+        const campaigns = await Promise.all(
+          rows
+            .filter((p) => p.type === "ad")
+            .map(async (p) => {
+              try {
+                const stats = await getAdCampaignStats({
+                  platform: p.platform,
+                  campaign_id: p.post_id,
+                  days: 30,
+                });
+                return {
+                  ...p,
+                  stats: { ...stats, last_updated: new Date().toISOString() },
+                };
+              } catch (err) {
+                failed.push(`${p.project_title}: ${err.message}`);
+                return p;
+              }
+            }),
+        );
+        setAllPosts(campaigns);
+
+        // A campaign whose metrics the backend refused: say so, with its words.
+        if (failed.length) {
+          console.warn("Campaign metrics failed:", failed);
+          toast.error(
+            `Couldn't load stats for ${failed.length} campaign${failed.length === 1 ? "" : "s"} — ${failed[0]}`,
           );
         }
-      } catch {
-        if (!silent) toast.error("Failed to fetch live posts");
-        else reload();
+        if (!silent)
+          toast.success(
+            `Loaded ${campaigns.length} campaign${campaigns.length === 1 ? "" : "s"}`,
+          );
+      } catch (err) {
+        toast.error(err.message || "Couldn't load campaigns");
       } finally {
         setFetchingLive(false);
+        setStatsLoaded(true);
       }
     },
-    [reload, integrations, activeBrandId],
+    [integrations],
   );
-
-  const accountsMap = useCallback(() => {
-    const map = {};
-    integrations.forEach((i) => {
-      map[i.platform] = {
-        access_token: i.int_token,
-        page_id: i.int_id,
-        ig_user_id: i.int_id,
-        ad_account_id: i.int_id,
-      };
-    });
-    return map;
-  }, [integrations]);
 
   useEffect(() => {
     if (!integrationsReady || !integrations.length) return;
-
-    const initializeAnalytics = async () => {
-      await fetchLive(true);
-
-      setRefreshingAll(true);
-      try {
-        const accounts = accountsMap();
-        const localPosts = getPublishedPosts(activeBrandId);
-        const adPosts = localPosts.filter(
-          (p) => p.type === "ad" && p.status === "published",
-        );
-
-        let updated = 0;
-        for (const post of adPosts) {
-          if (!post.post_id) continue;
-          try {
-            let newStats = null;
-            if (post.platform === "facebook" && accounts.facebook) {
-              newStats = await getFacebookPostStats({
-                access_token: accounts.facebook.access_token,
-                post_id: post.post_id,
-              });
-            }
-            if (post.platform === "instagram" && accounts.instagram) {
-              newStats = await getInstagramPostStats({
-                access_token: accounts.instagram.access_token,
-                post_id: post.post_id,
-              });
-            }
-
-            // Campaign metrics come from the API for every connected ad network.
-            if (post.platform.endsWith("_ads") && accounts[post.platform]) {
-              newStats = await getAdCampaignStats({
-                platform: post.platform,
-                campaign_id: post.post_id,
-                days: 30,
-              });
-            }
-
-            if (newStats) {
-              savePublishedPost(activeBrandId, {
-                ...post,
-                stats: {
-                  ...post.stats,
-                  ...newStats,
-                  last_updated: new Date().toISOString(),
-                },
-              });
-              updated++;
-            }
-          } catch (err) {
-            console.warn(`Failed stats refresh for ${post.id}`, err);
-          }
-        }
-
-        reload();
-        if (updated > 0) {
-          toast.success(`Loaded analytics for ${updated} ad(s)`);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setRefreshingAll(false);
-        setStatsLoaded(true);
-      }
-    };
-
-    initializeAnalytics();
-  }, [integrationsReady, integrations, fetchLive, accountsMap, reload]);
+    loadCampaigns(true);
+  }, [integrationsReady, integrations, loadCampaigns]);
 
   // Derived rather than a third state flag, so the "no connected accounts" case
   // needs no effect to resolve it: with nothing to fetch, the page is already in
@@ -336,41 +262,29 @@ export default function AdsAnalytics() {
   const initializing =
     !integrationsReady || (integrations.length > 0 && !statsLoaded);
 
-  const posts = allPosts.filter((p) => p.type === "ad");
-  const connectedPlatforms = new Set(integrations.map((i) => i.platform));
+  const campaigns = allPosts.filter((p) => p.type === "ad");
 
-  const publishedPosts =
-    integrations.length === 0
-      ? []
-      : posts.filter(
-          (p) =>
-            p.status === "published" &&
-            (!p.live || connectedPlatforms.has(p.platform)),
-        );
-
-  const totals = publishedPosts.reduce(
+  // Only the numbers campaign metrics actually carry. Spend isn't totalled —
+  // each ad account reports it in its own currency.
+  const totals = campaigns.reduce(
     (acc, p) => {
       const s = p.stats || {};
       acc.impressions += s.impressions || 0;
       acc.reach += s.reach || 0;
       acc.clicks += s.clicks || 0;
-      acc.likes += s.likes || 0;
-      acc.shares += s.shares || 0;
-      acc.comments += s.comments || 0;
+      acc.conversions += s.conversions || 0;
       return acc;
     },
-    { impressions: 0, reach: 0, clicks: 0, likes: 0, shares: 0, comments: 0 },
+    { impressions: 0, reach: 0, clicks: 0, conversions: 0 },
   );
 
-  const avgCTR = publishedPosts.length
-    ? (
-        publishedPosts.reduce((a, p) => a + (p.stats?.ctr || 0), 0) /
-        publishedPosts.length
-      ).toFixed(2)
+  // Clicks over impressions across every campaign, not an average of averages.
+  const overallCTR = totals.impressions
+    ? ((totals.clicks / totals.impressions) * 100).toFixed(2)
     : "0.00";
 
   const platformMap = {};
-  publishedPosts.forEach((p) => {
+  campaigns.forEach((p) => {
     const pm = PLATFORM_META[p.platform] || {
       label: p.platform,
       color: "#888",
@@ -381,103 +295,14 @@ export default function AdsAnalytics() {
         color: pm.color,
         impressions: 0,
         clicks: 0,
-        likes: 0,
         posts: 0,
       };
     }
     platformMap[p.platform].impressions += p.stats?.impressions || 0;
     platformMap[p.platform].clicks += p.stats?.clicks || 0;
-    platformMap[p.platform].likes += p.stats?.likes || 0;
     platformMap[p.platform].posts += 1;
   });
   const platformData = Object.values(platformMap);
-
-  function isSameDay(a, b) {
-    return format(a, "yyyy-MM-dd") === format(b, "yyyy-MM-dd");
-  }
-
-  const timelineData = Array.from({ length: 14 }, (_, i) => {
-    const day = subDays(new Date(), 13 - i);
-    const label = format(day, "MMM d");
-    const dayPosts = publishedPosts.filter(
-      (p) => p.published_at && isSameDay(new Date(p.published_at), day),
-    );
-    return {
-      date: label,
-      impressions: dayPosts.reduce(
-        (a, p) => a + (p.stats?.impressions || 0),
-        0,
-      ),
-      clicks: dayPosts.reduce((a, p) => a + (p.stats?.clicks || 0), 0),
-      likes: dayPosts.reduce((a, p) => a + (p.stats?.likes || 0), 0),
-    };
-  });
-
-  const engagementPie = [
-    { name: "Likes", value: totals.likes, color: "#ec4899" },
-    { name: "Shares", value: totals.shares, color: "#8b5cf6" },
-    { name: "Comments", value: totals.comments, color: "#f59e0b" },
-    { name: "Clicks", value: totals.clicks, color: "#22c55e" },
-  ].filter((e) => e.value > 0);
-
-  const handleRefreshAll = async () => {
-    setRefreshingAll(true);
-    const accounts = accountsMap();
-    let updated = 0;
-
-    for (const post of publishedPosts) {
-      if (!post.post_id) continue;
-      try {
-        let newStats = null;
-        if (post.platform === "facebook" && accounts.facebook) {
-          newStats = await getFacebookPostStats({
-            access_token: accounts.facebook.access_token,
-            post_id: post.post_id,
-          });
-        }
-        if (post.platform === "instagram" && accounts.instagram) {
-          newStats = await getInstagramPostStats({
-            access_token: accounts.instagram.access_token,
-            post_id: post.post_id,
-          });
-        }
-
-        if (post.platform.endsWith("_ads") && accounts[post.platform]) {
-          newStats = await getAdCampaignStats({
-            platform: post.platform,
-            campaign_id: post.post_id,
-            days: 30,
-          });
-        }
-
-        if (newStats) {
-          savePublishedPost(activeBrandId, {
-            ...post,
-            stats: {
-              ...post.stats,
-              ...newStats,
-              last_updated: new Date().toISOString(),
-            },
-          });
-          updated++;
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-
-    reload();
-    setRefreshingAll(false);
-    toast.success(
-      updated > 0
-        ? `Refreshed stats for ${updated} ad(s)`
-        : "No live stats available — connect Facebook or Instagram first",
-    );
-  };
-
-  const hasAnyStats = publishedPosts.some(
-    (p) => p.stats && Object.keys(p.stats).length > 0,
-  );
   // Shared by every chart here — see the matching note in social-content/analytics.
   const chart = useChartDensity();
   const xAxisProps = {
@@ -508,42 +333,32 @@ export default function AdsAnalytics() {
             Ads Analytics
           </h1>
           <p className="text-gray-500 text-sm">
-            Aggregated ads performance across platforms
+            Last 30 days, per campaign, as each ad network reports it
           </p>
         </div>
         <div className="flex gap-2">
           <button
-            className="inline-flex items-center cursor-pointer hover:scale-95 gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-surface text-sm text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50 transition-all duration-200"
-            onClick={() => fetchLive(false)}
+            className="inline-flex items-center cursor-pointer hover:scale-95 gap-2 px-3 py-2 rounded-lg border text-sm font-medium  disabled:opacity-50 transition-all duration-200 text-white"
+            style={{ background: "#003dda", borderColor: "#003dda" }}
+            onClick={() => loadCampaigns(false)}
             disabled={fetchingLive}
           >
             <RefreshCw
               className={"w-3.5 h-3.5 " + (fetchingLive ? "animate-spin" : "")}
             />
-            {fetchingLive ? "Syncing..." : "Sync Live Posts"}
-          </button>
-          <button
-            className="inline-flex items-center cursor-pointer hover:scale-95 gap-2 px-3 py-2 rounded-lg border text-sm font-medium  disabled:opacity-50 transition-all duration-200 text-white"
-            style={{ background: "#003dda", borderColor: "#003dda" }}
-            onClick={handleRefreshAll}
-            disabled={refreshingAll}
-          >
-            <RefreshCw
-              className={"w-3.5 h-3.5 " + (refreshingAll ? "animate-spin" : "")}
-            />
-            {refreshingAll ? "Fetching stats..." : "Refresh Stats"}
+            {fetchingLive ? "Refreshing..." : "Refresh"}
           </button>
         </div>
       </div>
 
-      {publishedPosts.length === 0 ? (
+      {campaigns.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-gray-200 bg-surface p-16 text-center">
           <BarChart3 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-800 font-semibold mb-1">
-            No published ads yet
+            No campaigns yet
           </p>
           <p className="text-gray-400 text-sm">
-            Publish content from Creatives to start seeing analytics.
+            Create an ad from Creatives to start seeing analytics.
           </p>
         </div>
       ) : (
@@ -568,83 +383,34 @@ export default function AdsAnalytics() {
             />
             <StatCard
               icon={TrendingUp}
-              label="Avg. CTR"
-              value={`${avgCTR}%`}
+              label="CTR"
+              value={`${overallCTR}%`}
               accent
             />
             <StatCard
-              icon={Heart}
-              label="Total Likes"
-              value={totals.likes.toLocaleString()}
+              icon={Target}
+              label="Conversions"
+              value={totals.conversions.toLocaleString()}
             />
             <StatCard
-              icon={Share2}
-              label="Total Shares"
-              value={totals.shares.toLocaleString()}
+              icon={BarChart3}
+              label="Campaigns"
+              value={campaigns.length}
             />
             <StatCard
               icon={CheckCircle2}
-              label="Published Ads"
-              value={publishedPosts.length}
+              label="Active"
+              value={campaigns.filter((p) => p.status === "ACTIVE").length}
               accent
             />
             <StatCard
-              icon={Clock}
-              label="Scheduled"
-              value={posts.filter((p) => p.status === "scheduled").length}
+              icon={PauseCircle}
+              label="Paused"
+              value={campaigns.filter((p) => p.status === "PAUSED").length}
             />
           </div>
 
-          {!hasAnyStats && (
-            <div className="flex items-start gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-700">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              No stats fetched yet. Click{" "}
-              <strong className="mx-1">Refresh Stats</strong> to pull live
-              metrics from connected Facebook / Instagram accounts.
-            </div>
-          )}
-
-          {/* Timeline chart */}
-          <div className="rounded-xl bg-surface border border-gray-200 p-5 ">
-            <h3 className="font-semibold text-gray-800 text-sm mb-4">
-              Performance — Last 14 Days
-            </h3>
-            <ChartFrame size="md"><ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={timelineData}
-                margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                <XAxis dataKey="date" {...xAxisProps} />
-                <YAxis {...yAxisProps} />
-                <Tooltip {...CUSTOM_TOOLTIP_STYLE} />
-                <Legend wrapperStyle={{ fontSize: 11, color: "#6b7280" }} />
-                <Line
-                  type="monotone"
-                  dataKey="impressions"
-                  stroke="#003dda"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="clicks"
-                  stroke="#22c55e"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="likes"
-                  stroke="#ec4899"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer></ChartFrame>
-          </div>
-
-          {/* Platform breakdown + Engagement pie */}
+          {/* Platform breakdown */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-xl bg-surface border border-gray-200 p-5 ">
               <h3 className="font-semibold text-gray-800 text-sm mb-4">
@@ -676,31 +442,28 @@ export default function AdsAnalytics() {
 
             <div className="rounded-xl bg-surface border border-gray-200 p-5 ">
               <h3 className="font-semibold text-gray-800 text-sm mb-4">
-                Engagement Breakdown
+                Clicks by Platform
               </h3>
-              {engagementPie.length === 0 ? (
+              {platformData.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-8">
-                  No engagement data yet
+                  No data
                 </p>
               ) : (
                 <ChartFrame size="sm"><ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={engagementPie}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={80}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {engagementPie.map((entry, i) => (
+                  <BarChart
+                    data={platformData}
+                    margin={{ top: 0, right: 8, left: -20, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <XAxis dataKey="platform" {...xAxisProps} />
+                    <YAxis {...yAxisProps} />
+                    <Tooltip {...CUSTOM_TOOLTIP_STYLE} />
+                    <Bar dataKey="clicks" radius={[4, 4, 0, 0]}>
+                      {platformData.map((entry, i) => (
                         <Cell key={i} fill={entry.color} />
                       ))}
-                    </Pie>
-                    <Tooltip {...CUSTOM_TOOLTIP_STYLE} />
-                    <Legend wrapperStyle={{ fontSize: 11, color: "#6b7280" }} />
-                  </PieChart>
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer></ChartFrame>
               )}
             </div>
@@ -717,7 +480,7 @@ export default function AdsAnalytics() {
                 phone. <ResponsiveTable> keeps the table from `md` up and stacks
                 each row into a labelled card below it, from one column config. */}
             <ResponsiveTable
-              rows={publishedPosts}
+              rows={campaigns}
               rowKey={(post) => post.id}
               columns={AD_COLUMNS}
               className="border-0 rounded-none"

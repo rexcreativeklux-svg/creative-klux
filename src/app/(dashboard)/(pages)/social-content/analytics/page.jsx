@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -32,13 +32,16 @@ import {
 import { format, subDays } from "date-fns";
 import { toast } from "sonner";
 import {
-  getPublishedPosts,
-  setPublishedPosts,
-  savePublishedPost,
   getFacebookPostStats,
   getInstagramPostStats,
   fetchLivePostsFromConnectedAccounts,
 } from "../../../../../(lib)/integration";
+
+// Per-post metrics the backend serves today.
+const STATS_FETCHERS = {
+  facebook: getFacebookPostStats,
+  instagram: getInstagramPostStats,
+};
 import { useAuth } from "@/context/AuthContext";
 import ResponsiveTable from "@/app/(components)/ui/ResponsiveTable";
 import { ChartFrame, useChartDensity } from "@/app/(components)/ui/ResponsiveChart";
@@ -175,10 +178,8 @@ const CUSTOM_TOOLTIP_STYLE = {
 
 export default function SocialAnalytics() {
   const [allPosts, setAllPosts] = useState([]);
-  const [refreshingAll, setRefreshingAll] = useState(false);
   const [fetchingLive, setFetchingLive] = useState(false);
   const { fetchIntegrations, activeBrandId } = useAuth();
-  const initializedRef = useRef(false);
 
   const [integrations, setIntegrations] = useState([]);
   // This page loads in two hops — integrations, then live posts and per-post
@@ -203,141 +204,73 @@ export default function SocialAnalytics() {
     loadIntegrations();
   }, [fetchIntegrations, activeBrandId]);
 
-  const reload = useCallback(
-    () => setAllPosts(getPublishedPosts(activeBrandId)),
-    [activeBrandId],
-  );
-
-  // A brand switch means a different set of posts and a different set of stats.
-  // Seed from the new brand's bucket and put the KPI tiles back into their
-  // loading state, so they never present the previous brand's numbers as final.
+  // A brand switch means a different set of posts. Clear them and put the KPI
+  // tiles back into their loading state until the backend answers.
   useEffect(() => {
-    setAllPosts(getPublishedPosts(activeBrandId));
+    setAllPosts([]);
     setStatsLoaded(false);
   }, [activeBrandId]);
 
-  const fetchLive = useCallback(
+  // Every post the backend lists, and — for the platforms the backend serves
+  // per-post metrics for — those metrics from the backend. Nothing is kept
+  // beyond this page's memory.
+  const loadPosts = useCallback(
     async (silent = false) => {
       setFetchingLive(true);
       try {
-        const livePosts = await fetchLivePostsFromConnectedAccounts(
-          integrations);
+        const rows = await fetchLivePostsFromConnectedAccounts(integrations);
+        if (rows.errors?.length) toast.error(rows.errors.join(" · "));
 
-        const local = getPublishedPosts(activeBrandId);
-        const localIds = new Set(local.map((p) => p.id));
+        const failed = [];
+        const social = await Promise.all(
+          rows
+            .filter((p) => p.type === "social")
+            .map(async (p) => {
+              if (p.status !== "published" || !p.post_id) return p;
+              const getStats = STATS_FETCHERS[p.platform];
+              if (!getStats) return p;
+              try {
+                const stats = await getStats({
+                  brand_id: activeBrandId,
+                  post_id: p.post_id,
+                });
+                return {
+                  ...p,
+                  stats: { ...stats, last_updated: new Date().toISOString() },
+                };
+              } catch (err) {
+                failed.push(`${p.platform}: ${err.message}`);
+                return p;
+              }
+            }),
+        );
+        setAllPosts(social);
 
-        const newPosts = livePosts.filter((lp) => !localIds.has(lp.id));
-        const merged = [...newPosts, ...local];
-
-        setPublishedPosts(activeBrandId, merged);
-        setAllPosts(merged);
-
-        if (!silent) {
-          toast.success(
-            newPosts.length > 0
-              ? `Synced ${newPosts.length} live post(s)`
-              : "Already up to date",
+        // A post whose metrics the backend refused: say so, with its words.
+        if (failed.length) {
+          console.warn("Post metrics failed:", failed);
+          toast.error(
+            `Couldn't load stats for ${failed.length} post${failed.length === 1 ? "" : "s"} — ${failed[0]}`,
           );
         }
-      } catch {
-        if (!silent) toast.error("Failed to fetch live posts");
-        else reload();
+        if (!silent)
+          toast.success(
+            `Loaded ${social.length} post${social.length === 1 ? "" : "s"}`,
+          );
+      } catch (err) {
+        toast.error(err.message || "Couldn't load posts");
       } finally {
         setFetchingLive(false);
+        setStatsLoaded(true);
       }
     },
-    [reload, integrations, activeBrandId],
+    [integrations, activeBrandId],
   );
-
-  const accountsMap = useCallback(() => {
-    const map = {};
-
-    integrations.forEach((i) => {
-      map[i.platform] = {
-        access_token: i.int_token,
-        page_id: i.int_id,
-        ig_user_id: i.int_id,
-        ad_account_id: i.int_id,
-      };
-    });
-
-    return map;
-  }, [integrations]);
 
   useEffect(() => {
     if (!integrationsReady || !integrations.length) return;
-
-    const initializeAnalytics = async () => {
-      // sync latest live posts first
-      await fetchLive(true);
-
-      // auto-fetch stats
-      setRefreshingAll(true);
-
-      try {
-        const accounts = accountsMap();
-        const localPosts = getPublishedPosts(activeBrandId);
-
-        const socialPosts = localPosts.filter(
-          (p) => p.type === "social" && p.status === "published",
-        );
-
-        let updated = 0;
-
-        for (const post of socialPosts) {
-          if (!post.post_id) continue;
-
-          try {
-            let newStats = null;
-
-            // FACEBOOK
-            if (post.platform === "facebook" && accounts.facebook) {
-              newStats = await getFacebookPostStats({
-                access_token: accounts.facebook.access_token,
-                post_id: post.post_id,
-              });
-            }
-
-            // INSTAGRAM
-            if (post.platform === "instagram" && accounts.instagram) {
-              newStats = await getInstagramPostStats({
-                access_token: accounts.instagram.access_token,
-                post_id: post.post_id,
-              });
-            }
-
-            if (newStats) {
-              savePublishedPost(activeBrandId, {
-                ...post,
-                stats: {
-                  ...post.stats,
-                  ...newStats,
-                  last_updated: new Date().toISOString(),
-                },
-              });
-
-              updated++;
-            }
-          } catch (err) {
-            console.warn(`Failed stats refresh for ${post.id}`, err);
-          }
-        }
-
-        reload();
-
-        if (updated > 0) {
-          toast.success(`Loaded analytics for ${updated} post(s)`);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setRefreshingAll(false);
-        setStatsLoaded(true);
-      }
-    };
-
-    initializeAnalytics();
-  }, [integrationsReady, integrations, fetchLive, accountsMap, reload]);
+    loadPosts(true);
+  }, [integrationsReady, integrations, loadPosts]);
 
   // Derived rather than a third state flag, so the "no connected accounts" case
   // needs no effect to resolve it: with nothing to fetch, the page is already in
@@ -346,16 +279,7 @@ export default function SocialAnalytics() {
     !integrationsReady || (integrations.length > 0 && !statsLoaded);
 
   const posts = allPosts.filter((p) => p.type === "social");
-  const connectedPlatforms = new Set(integrations.map((i) => i.platform));
-
-  const publishedPosts =
-    integrations.length === 0
-      ? []
-      : posts.filter(
-          (p) =>
-            p.status === "published" &&
-            (!p.live || connectedPlatforms.has(p.platform)),
-        );
+  const publishedPosts = posts.filter((p) => p.status === "published");
 
   const totals = publishedPosts.reduce(
     (acc, p) => {
@@ -371,11 +295,9 @@ export default function SocialAnalytics() {
     { impressions: 0, reach: 0, clicks: 0, likes: 0, shares: 0, comments: 0 },
   );
 
-  const avgCTR = publishedPosts.length
-    ? (
-        publishedPosts.reduce((a, p) => a + (p.stats?.ctr || 0), 0) /
-        publishedPosts.length
-      ).toFixed(2)
+  // Clicks over impressions across every post, not an average of averages.
+  const avgCTR = totals.impressions
+    ? ((totals.clicks / totals.impressions) * 100).toFixed(2)
     : "0.00";
 
   const platformMap = {};
@@ -429,59 +351,6 @@ export default function SocialAnalytics() {
     { name: "Clicks", value: totals.clicks, color: "#22c55e" },
   ].filter((e) => e.value > 0);
 
-  const handleRefreshAll = async () => {
-    setRefreshingAll(true);
-
-    const accounts = accountsMap();
-    let updated = 0;
-
-    for (const post of publishedPosts) {
-      if (!post.post_id) continue;
-
-      try {
-        let newStats = null;
-
-        if (post.platform === "facebook" && accounts.facebook) {
-          newStats = await getFacebookPostStats({
-            access_token: accounts.facebook.access_token, // already a page token
-            post_id: post.post_id,
-          });
-        }
-
-        if (post.platform === "instagram" && accounts.instagram) {
-          newStats = await getInstagramPostStats({
-            access_token: accounts.instagram.access_token,
-            post_id: post.post_id,
-          });
-        }
-
-        if (newStats) {
-          savePublishedPost(activeBrandId, {
-            ...post,
-            stats: {
-              ...post.stats,
-              ...newStats,
-              last_updated: new Date().toISOString(),
-            },
-          });
-
-          updated++;
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-
-    reload();
-    setRefreshingAll(false);
-
-    toast.success(
-      updated > 0
-        ? `Refreshed stats for ${updated} post(s)`
-        : "No live stats available — connect Facebook or Instagram first",
-    );
-  };
-
   const hasAnyStats = publishedPosts.some(
     (p) => p.stats && Object.keys(p.stats).length > 0,
   );
@@ -525,25 +394,15 @@ export default function SocialAnalytics() {
         </div>
         <div className="flex gap-2">
           <button
-            className="inline-flex items-center cursor-pointer hover:scale-95 gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-surface text-sm text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50 transition-all duration-200"
-            onClick={() => fetchLive(false)}
+            className="inline-flex items-center cursor-pointer hover:scale-95 gap-2 px-3 py-2 rounded-lg border text-sm font-medium  disabled:opacity-50 transition-all duration-200 text-white"
+            style={{ background: "#003dda", borderColor: "#003dda" }}
+            onClick={() => loadPosts(false)}
             disabled={fetchingLive}
           >
             <RefreshCw
               className={"w-3.5 h-3.5 " + (fetchingLive ? "animate-spin" : "")}
             />
-            {fetchingLive ? "Syncing..." : "Sync Live Posts"}
-          </button>
-          <button
-            className="inline-flex items-center cursor-pointer hover:scale-95 gap-2 px-3 py-2 rounded-lg border text-sm font-medium  disabled:opacity-50 transition-all duration-200 text-white"
-            style={{ background: "#003dda", borderColor: "#003dda" }}
-            onClick={handleRefreshAll}
-            disabled={refreshingAll}
-          >
-            <RefreshCw
-              className={"w-3.5 h-3.5 " + (refreshingAll ? "animate-spin" : "")}
-            />
-            {refreshingAll ? "Fetching stats..." : "Refresh Stats"}
+            {fetchingLive ? "Refreshing..." : "Refresh"}
           </button>
         </div>
       </div>
@@ -580,7 +439,7 @@ export default function SocialAnalytics() {
             />
             <StatCard
               icon={TrendingUp}
-              label="Avg. CTR"
+              label="CTR"
               value={`${avgCTR}%`}
               accent
             />
@@ -610,16 +469,15 @@ export default function SocialAnalytics() {
           {!hasAnyStats && (
             <div className="flex items-start gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-700">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              No stats fetched yet. Click{" "}
-              <strong className="mx-1">Refresh Stats</strong> to pull live
-              metrics from connected Facebook / Instagram accounts.
+              The backend returned no metrics for these posts. Per-post metrics
+              are served for Facebook and Instagram only.
             </div>
           )}
 
-          {/* Timeline chart */}
+          {/* Timeline chart — each post's totals on the day it was published */}
           <div className="rounded-xl bg-surface border border-gray-200 p-5 ">
             <h3 className="font-semibold text-gray-800 text-sm mb-4">
-              Performance — Last 14 Days
+              Posts published in the last 14 days — their totals, by publish day
             </h3>
             <ChartFrame size="md"><ResponsiveContainer width="100%" height="100%">
               <LineChart

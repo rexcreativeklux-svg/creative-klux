@@ -3,10 +3,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   BarChart3,
-  Calendar,
   CheckCircle2,
-  Clock,
-  Trash2,
+  PauseCircle,
   RefreshCw,
   Eye,
   MousePointer,
@@ -14,11 +12,10 @@ import {
   Heart,
   Share2,
   TrendingUp,
-  AlertCircle,
-  Send,
+  CircleDot,
+  Calendar,
   Pause,
   Play,
-  Edit2,
   X,
   Search,
   ChevronLeft,
@@ -27,19 +24,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  getPublishedPosts,
-  setPublishedPosts,
-  savePublishedPost,
-  getFacebookPostStats,
-  getInstagramPostStats,
-  publishPost,
-  publishAd,
   getAdCampaignStats,
   setAdCampaignStatus,
   fetchLivePostsFromConnectedAccounts,
-  deletePostFromPlatform,
-  platformSupportsDelete,
-  updatePostCaptionOnPlatform,
+  carryStats,
 } from "../../../../../(lib)/integration";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -63,26 +51,10 @@ function formatDate(iso) {
     })
   );
 }
-function isAfterNow(iso) {
-  return iso && new Date() > new Date(iso);
-}
 
-// Says what a delete actually does for this ad. The API can't delete a campaign
-// (that is done in the network's own Ads Manager), so an ad is only dropped
-// from this list.
-const isAdPlatform = (platform) => platform?.endsWith("_ads");
-function deleteMessage(post) {
-  const title = post.project_title || "Untitled";
-  const label = PLATFORM_META[post.platform]?.label || post.platform;
-
-  if (!post.post_id)
-    return `“${title}” will be removed from your publishing list. This can't be undone.`;
-
-  if (platformSupportsDelete(post.platform))
-    return `“${title}” will be deleted from ${label} and removed from your publishing list. This can't be undone.`;
-
-  return `“${title}” will be removed from your publishing list, but ${label} has no delete API — the ad stays live there.`;
-}
+// The network's status word, as the backend returned it ("ACTIVE" → "Active").
+const statusLabel = (s) =>
+  s ? s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ") : "Unknown";
 
 /* ─── Platform config ─── */
 const PLATFORM_META = {
@@ -171,10 +143,10 @@ const ADS_PLATFORMS = Object.entries(PLATFORM_META)
   .map(([k, v]) => ({ id: k, ...v }));
 
 const TABLE_COLS = [
-  { label: "Creative", align: "left" },
+  { label: "Campaign", align: "left" },
   { label: "Platform", align: "left" },
   { label: "Status", align: "left" },
-  { label: "Date", align: "left" },
+  { label: "Created", align: "left" },
   { label: "Impr.", align: "center", Icon: Eye },
   { label: "Reach", align: "center", Icon: Users },
   { label: "Clicks", align: "center", Icon: MousePointer },
@@ -184,11 +156,12 @@ const TABLE_COLS = [
   { label: "Actions", align: "right" },
 ];
 
+// Keyed on the network's own status words. Any other status the backend sends
+// still shows under All, with its own word on the badge.
 const TABS = [
   { key: "all", label: "All" },
-  { key: "published", label: "Published" },
-  { key: "scheduled", label: "Scheduled" },
-  { key: "failed", label: "Failed" },
+  { key: "ACTIVE", label: "Active" },
+  { key: "PAUSED", label: "Paused" },
 ];
 
 /* ─── Sub-components ─── */
@@ -203,37 +176,26 @@ function StatCell({ value }) {
 }
 
 function StatusBadge({ post }) {
-  if (post.status === "published") {
+  if (post.status === "ACTIVE") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
         <CheckCircle2 className="w-2.5 h-2.5" />
-        Published
+        Active
       </span>
     );
   }
-  if (post.status === "scheduled") {
-    if (isAfterNow(post.scheduled_at)) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-          <Clock className="w-2.5 h-2.5" />
-          Pending
-        </span>
-      );
-    }
+  if (post.status === "PAUSED") {
     return (
-      <span
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 border border-blue-200"
-        style={{ color: BRAND }}
-      >
-        <Clock className="w-2.5 h-2.5" />
-        Scheduled
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+        <PauseCircle className="w-2.5 h-2.5" />
+        Paused
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200">
-      <AlertCircle className="w-2.5 h-2.5" />
-      Failed
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-50 text-gray-600 border border-gray-200">
+      <CircleDot className="w-2.5 h-2.5" />
+      {statusLabel(post.status)}
     </span>
   );
 }
@@ -264,12 +226,6 @@ export default function AdsPublishing() {
   const [allPosts, setAllPosts] = useState([]);
   const [refreshing, setRefreshing] = useState(null);
   const [fetchingLive, setFetchingLive] = useState(false);
-  const [editingCaption, setEditingCaption] = useState(null);
-  const [captionDraft, setCaptionDraft] = useState("");
-  const [publishingNow, setPublishingNow] = useState(null);
-  // The ad the trash icon armed — deleting is irreversible, so it waits on a confirm.
-  const [pendingDelete, setPendingDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
   // Resuming a campaign starts spending, so it waits on a confirm; pausing doesn't.
   const [pendingResume, setPendingResume] = useState(null);
   const [togglingStatus, setTogglingStatus] = useState(null);
@@ -285,11 +241,10 @@ export default function AdsPublishing() {
   // First load only — see the skeleton guard below the hooks.
   const [loading, setLoading] = useState(true);
 
-  // Show this brand's saved posts immediately — even before integrations resolve,
-  // or if there are none. Re-runs on a brand switch, so the previous brand's rows
-  // are replaced rather than left on screen while the live merge catches up.
+  // A brand switch clears the previous brand's campaigns and holds the skeleton
+  // until the backend answers for the new one.
   useEffect(() => {
-    setAllPosts(getPublishedPosts(activeBrandId));
+    setAllPosts([]);
     setLoading(true);
   }, [activeBrandId]);
 
@@ -311,68 +266,36 @@ export default function AdsPublishing() {
     loadIntegrations();
   }, [fetchIntegrations, activeBrandId]);
 
-  // 2. Live (Facebook/Meta) is authoritative for status. Keep a local post ONLY when it's
-  //    no longer reported live, and never trust a local 'scheduled'. Persist published only.
-  const mergeLiveIntoLocal = useCallback(
+  // 2. The campaigns, exactly as the backend lists them. Nothing is kept in the
+  //    browser, so what's on screen is always the backend's answer.
+  const loadCampaigns = useCallback(
     async (silent = false) => {
       setFetchingLive(true);
       try {
-        const livePosts = await fetchLivePostsFromConnectedAccounts(
-          integrations);
-
-        const liveIds = new Set(livePosts.map((p) => p.id));
-        const local = getPublishedPosts(activeBrandId);
-        const prevIds = new Set(local.map((p) => p.id));
-        const localOnly = local.filter(
-          (p) => !liveIds.has(p.id) && p.status !== "scheduled",
-        );
-
-        const byId = new Map();
-        [...livePosts, ...localOnly].forEach((p) => {
-          if (!byId.has(p.id)) byId.set(p.id, p);
-        });
-        const all = [...byId.values()];
-
-        setPublishedPosts(
-          activeBrandId,
-          all.filter((p) => p.status !== "scheduled"),
-        );
-        setAllPosts(all);
-
-        const newCount = livePosts.filter(
-          (p) => p.status !== "scheduled" && !prevIds.has(p.id),
-        ).length;
-        // A platform the API couldn't read: show its own error, not silence.
-        if (!silent && livePosts.errors?.length)
-          toast.error(livePosts.errors.join(" · "));
-        if (!silent && newCount > 0)
-          toast.success(
-            `Fetched ${newCount} live post(s) from connected accounts`,
-          );
-        else if (!silent)
-          toast.info("No new posts found from connected accounts");
-      } catch {
-        if (!silent) toast.error("Failed to fetch live posts");
-        setAllPosts(getPublishedPosts(activeBrandId));
+        const rows = await fetchLivePostsFromConnectedAccounts(integrations);
+        setAllPosts((prev) => carryStats(prev, rows));
+        // A platform the backend couldn't read: show its own error, always.
+        if (rows.errors?.length) toast.error(rows.errors.join(" · "));
+        if (!silent) {
+          const count = rows.filter((p) => p.type === matchType).length;
+          toast.success(`Loaded ${count} campaign${count === 1 ? "" : "s"}`);
+        }
+      } catch (err) {
+        toast.error(err.message || "Couldn't load campaigns");
       } finally {
         setFetchingLive(false);
         setLoading(false);
       }
     },
-    [integrations, activeBrandId],
+    [integrations],
   );
 
-  // 3. Auto-fetch once integrations have resolved — even if there are none,
-  //    so saved localStorage posts still load (was previously a dead path).
+  // 3. Load once integrations have resolved.
   useEffect(() => {
     if (!integrationsReady) return;
-    mergeLiveIntoLocal(true);
-  }, [integrationsReady, integrations, mergeLiveIntoLocal]);
+    loadCampaigns(true);
+  }, [integrationsReady, integrations, loadCampaigns]);
 
-  const reload = useCallback(
-    () => setAllPosts(getPublishedPosts(activeBrandId)),
-    [activeBrandId],
-  );
   const posts = allPosts.filter((p) => p.type === matchType);
 
   const filteredPosts = useMemo(() => {
@@ -389,13 +312,8 @@ export default function AdsPublishing() {
           (p.caption || "").toLowerCase().includes(q),
       );
     }
-    // Newest → oldest by the relevant date (scheduled uses scheduled_at, else published_at).
-    const dateOf = (p) =>
-      new Date(
-        p.status === "scheduled"
-          ? p.scheduled_at
-          : p.published_at || p.scheduled_at,
-      ).getTime() || 0;
+    // Newest → oldest by creation date.
+    const dateOf = (p) => new Date(p.created_at).getTime() || 0;
     return [...result].sort((a, b) => dateOf(b) - dateOf(a));
   }, [posts, statusFilter, platformFilter, search]);
 
@@ -418,138 +336,30 @@ export default function AdsPublishing() {
     setPage(1);
   }, [statusFilter, platformFilter, search]);
 
-  const handleDelete = async () => {
-    const post = pendingDelete;
-    if (!post) return;
-    setDeleting(true);
-    try {
-      await deletePostFromPlatform(post, integrations, activeBrandId);
-      reload();
-      toast.success("Ad removed");
-    } catch (err) {
-      toast.error(err.message || "Failed to remove ad");
-    } finally {
-      setDeleting(false);
-      setPendingDelete(null);
-    }
-  };
-
-  const handleEditCaption = (post) => {
-    setEditingCaption(post.id);
-    setCaptionDraft(post.caption || "");
-  };
-
-  const handleSaveCaption = async (post) => {
-    try {
-      await updatePostCaptionOnPlatform(post, captionDraft, integrations);
-    } catch {}
-    savePublishedPost(activeBrandId, { ...post, caption: captionDraft });
-    setEditingCaption(null);
-    reload();
-    toast.success("Caption updated");
-  };
-
-  const handlePublishNow = async (post) => {
-    setPublishingNow(post.id);
-    const account = integrationsMap[post.platform];
-
-    if (!account) {
-      toast.error(`No connected account for ${post.platform}`);
-      setPublishingNow(null);
-      return;
-    }
-    try {
-      // Everything goes to the API as it is — ads to creatives/ads, posts to
-      // creatives/publish. A refusal is thrown with the API's own words and
-      // toasted below.
-      const r = isAdPlatform(post.platform)
-        ? await publishAd({
-            platform: post.platform,
-            name: post.project_title,
-            image_url: post.image_url,
-            text: post.caption,
-          })
-        : await publishPost({
-            platform: post.platform,
-            brand_id: activeBrandId,
-            image_url: post.image_url,
-            caption: post.caption,
-          });
-      const postId = r.post_id;
-      savePublishedPost(activeBrandId, {
-        ...post,
-        status: "published",
-        published_at: new Date().toISOString(),
-        scheduled_at: null,
-        post_id: postId || null,
-      });
-      await mergeLiveIntoLocal(true); // re-sync (reload() would drop live posts)
-      toast.success(`Published to ${post.platform}!`);
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setPublishingNow(null);
-    }
-  };
-
+  // Campaign spend / impressions / clicks over the last 30 days, held only for
+  // this page's lifetime.
   const handleRefreshStats = async (post) => {
     setRefreshing(post.id);
     try {
-      let newStats = null;
-      if (
-        post.platform === "facebook" &&
-        integrationsMap.facebook &&
-        post.post_id
-      ) {
-        newStats = await getFacebookPostStats({
-          brand_id: activeBrandId,
-          post_id: post.post_id,
-        });
-      } else if (
-        post.platform === "instagram" &&
-        integrationsMap.instagram &&
-        post.post_id
-      ) {
-        newStats = await getInstagramPostStats({
-          brand_id: activeBrandId,
-          post_id: post.post_id,
-        });
-      } else if (isAdPlatform(post.platform) && post.post_id) {
-        // Campaign spend / impressions / clicks over the last 30 days.
-        newStats = await getAdCampaignStats({
-          platform: post.platform,
-          campaign_id: post.post_id,
-          days: 30,
-        });
-      }
-      if (newStats) {
-        const stats = {
-          ...post.stats,
-          ...newStats,
-          last_updated: new Date().toISOString(),
-        };
-        // Paused campaigns aren't persisted, so update the row on screen too.
-        const all = getPublishedPosts(activeBrandId);
-        const idx = all.findIndex((p) => p.id === post.id);
-        if (idx >= 0) {
-          all[idx].stats = stats;
-          setPublishedPosts(activeBrandId, all);
-        }
-        setAllPosts((rows) =>
-          rows.map((p) => (p.id === post.id ? { ...p, stats } : p)),
-        );
-        toast.success("Stats refreshed from platform");
-      } else {
-        toast.info("Stats aren't available for this item.");
-      }
+      const newStats = await getAdCampaignStats({
+        platform: post.platform,
+        campaign_id: post.post_id,
+        days: 30,
+      });
+      const stats = { ...newStats, last_updated: new Date().toISOString() };
+      setAllPosts((rows) =>
+        rows.map((p) => (p.id === post.id ? { ...p, stats } : p)),
+      );
+      toast.success("Stats loaded");
     } catch (err) {
-      toast.error(`Failed to refresh stats: ${err.message}`);
+      toast.error(`Couldn't load stats: ${err.message}`);
     } finally {
       setRefreshing(null);
     }
   };
 
-  // Pause or resume a campaign on its network, then re-read the live list.
+  // Pause or resume a campaign on its network, then re-read the list so the
+  // status shown is the one the backend now reports.
   const handleCampaignStatus = async (post, status) => {
     setTogglingStatus(post.id);
     try {
@@ -558,7 +368,7 @@ export default function AdsPublishing() {
         campaign_id: post.post_id,
         status,
       });
-      await mergeLiveIntoLocal(true);
+      await loadCampaigns(true);
       toast.success(status === "ACTIVE" ? "Campaign resumed" : "Campaign paused");
     } catch (err) {
       toast.error(err.message || "Couldn't update the campaign");
@@ -572,16 +382,13 @@ export default function AdsPublishing() {
 
   const TAB_COUNTS = {
     all: posts.length,
-    published: posts.filter((p) => p.status === "published").length,
-    scheduled: posts.filter((p) => p.status === "scheduled").length,
-    failed: posts.filter((p) => p.status === "failed").length,
+    ACTIVE: posts.filter((p) => p.status === "ACTIVE").length,
+    PAUSED: posts.filter((p) => p.status === "PAUSED").length,
   };
 
-  // Only when there is nothing to show yet. Ads restored from localStorage paint
-  // on the first frame and stay up while the live merge runs behind them — the
-  // skeleton is here for the cold case, where the alternative is the "no ads
-  // yet" empty state flashing at someone who does have ads.
-  if (loading && posts.length === 0) return <PublishingSkeleton />;
+  // Held until the backend's first answer, so the "no ads yet" empty state
+  // never flashes at someone who does have campaigns.
+  if (loading) return <PublishingSkeleton />;
 
   return (
     <div className="pb-5">
@@ -592,21 +399,20 @@ export default function AdsPublishing() {
             {typeLabel} Publishing
           </h1>
           <p className="text-gray-500 text-sm">
-            Track your {typeLabel.toLowerCase()} published and scheduled
-            creatives.
+            Your campaigns on each connected ad network.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {hasConnections && (
             <button
               className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-surface text-gray-700 hover:bg-gray-50 shadow-sm transition-colors disabled:opacity-50"
-              onClick={() => mergeLiveIntoLocal(false)}
+              onClick={() => loadCampaigns(false)}
               disabled={fetchingLive}
             >
               <RefreshCw
                 className={`w-3.5 h-3.5 mr-2 text-gray-500 ${fetchingLive ? "animate-spin" : ""}`}
               />
-              {fetchingLive ? "Fetching…" : "Fetch Live Posts"}
+              {fetchingLive ? "Refreshing…" : "Refresh"}
             </button>
           )}
           {!hasConnections && (
@@ -630,20 +436,26 @@ export default function AdsPublishing() {
             Icon={BarChart3}
           />
           <SummaryCard
-            label="Published"
-            value={TAB_COUNTS.published}
+            label="Active"
+            value={TAB_COUNTS.ACTIVE}
             Icon={CheckCircle2}
           />
           <SummaryCard
-            label="Scheduled"
-            value={TAB_COUNTS.scheduled}
-            Icon={Calendar}
+            label="Paused"
+            value={TAB_COUNTS.PAUSED}
+            Icon={PauseCircle}
           />
           <SummaryCard
-            label="Total Impressions"
-            value={posts
-              .reduce((s, p) => s + (p.stats?.impressions || 0), 0)
-              .toLocaleString()}
+            label="Impressions (loaded rows)"
+            // A dash until some row's stats are loaded — a 0 would claim no
+            // impressions when they simply haven't been asked for.
+            value={
+              posts.some((p) => p.stats?.impressions != null)
+                ? posts
+                    .reduce((s, p) => s + (p.stats?.impressions || 0), 0)
+                    .toLocaleString()
+                : "—"
+            }
             Icon={Eye}
           />
         </div>
@@ -764,7 +576,7 @@ export default function AdsPublishing() {
             <Calendar className="w-7 h-7" style={{ color: BRAND }} />
           </div>
           <p className="text-gray-900 font-semibold mb-1">
-            No published or scheduled ads yet
+            No campaigns yet
           </p>
           <p className="text-gray-400 text-sm mb-5">
             Go to your Creatives, hover a card, and click{" "}
@@ -860,9 +672,7 @@ export default function AdsPublishing() {
                         <StatusBadge post={post} />
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                        {post.status === "scheduled" && post.scheduled_at
-                          ? formatDate(post.scheduled_at)
-                          : formatDate(post.published_at)}
+                        {formatDate(post.created_at)}
                       </td>
                       <td className="px-3 py-3 text-center">
                         <StatCell value={stats.impressions} />
@@ -890,96 +700,45 @@ export default function AdsPublishing() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          {isAdPlatform(post.platform) && post.live && (
+                          {/* Only the two states the backend can switch between. */}
+                          {(post.status === "ACTIVE" ||
+                            post.status === "PAUSED") && (
                             <button
                               className="h-7 w-7 rounded-md flex items-center justify-center text-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-40"
                               onClick={() =>
-                                post.status === "published"
+                                post.status === "ACTIVE"
                                   ? handleCampaignStatus(post, "PAUSED")
                                   : setPendingResume(post)
                               }
                               disabled={togglingStatus === post.id}
                               title={
-                                post.status === "published"
+                                post.status === "ACTIVE"
                                   ? "Pause campaign"
                                   : "Resume campaign"
                               }
                             >
                               {togglingStatus === post.id ? (
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                              ) : post.status === "published" ? (
+                              ) : post.status === "ACTIVE" ? (
                                 <Pause className="w-3.5 h-3.5" />
                               ) : (
                                 <Play className="w-3.5 h-3.5" />
                               )}
                             </button>
                           )}
-                          {post.status === "scheduled" && !post.live && (
-                            <button
-                              className="h-7 w-7 rounded-md flex items-center justify-center text-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-40"
-                              onClick={() => handlePublishNow(post)}
-                              disabled={publishingNow === post.id}
-                              title="Publish now"
-                            >
-                              {publishingNow === post.id ? (
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Send className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          )}
-                          <button
-                            className="h-7 w-7 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                            onClick={() =>
-                              editingCaption === post.id
-                                ? setEditingCaption(null)
-                                : handleEditCaption(post)
-                            }
-                            title="Edit caption"
-                          >
-                            {editingCaption === post.id ? (
-                              <X className="w-3.5 h-3.5" />
-                            ) : (
-                              <Edit2 className="w-3.5 h-3.5" />
-                            )}
-                          </button>
                           {post.post_id && (
                             <button
                               className="h-7 w-7 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-40"
                               onClick={() => handleRefreshStats(post)}
                               disabled={refreshing === post.id}
-                              title="Refresh stats"
+                              title="Load stats"
                             >
                               <RefreshCw
                                 className={`w-3.5 h-3.5 ${refreshing === post.id ? "animate-spin" : ""}`}
                               />
                             </button>
                           )}
-                          <button
-                            className="h-7 w-7 rounded-md flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            onClick={() => setPendingDelete(post)}
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
                         </div>
-                        {editingCaption === post.id && (
-                          <div className="mt-2 space-y-1.5">
-                            <textarea
-                              value={captionDraft}
-                              onChange={(e) => setCaptionDraft(e.target.value)}
-                              rows={2}
-                              className="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 resize-none text-gray-800 outline-none focus:border-[#003dda] transition-colors"
-                            />
-                            <button
-                              className="h-6 px-3 rounded text-[10px] font-semibold text-white hover:opacity-90 transition-opacity"
-                              style={{ backgroundColor: BRAND }}
-                              onClick={() => handleSaveCaption(post)}
-                            >
-                              Save
-                            </button>
-                          </div>
-                        )}
                       </td>
                     </tr>
                   );
@@ -1043,17 +802,6 @@ export default function AdsPublishing() {
           </div>
         </div>
       )}
-
-      <ConfirmDialog
-        open={!!pendingDelete}
-        title="Delete this ad?"
-        message={pendingDelete ? deleteMessage(pendingDelete) : ""}
-        confirmLabel={deleting ? "Deleting…" : "Delete"}
-        variant="danger"
-        busy={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setPendingDelete(null)}
-      />
 
       <ConfirmDialog
         open={!!pendingResume}

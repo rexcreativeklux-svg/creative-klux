@@ -25,8 +25,6 @@ import {
   subMonths,
 } from "date-fns";
 import {
-  getPublishedPosts,
-  setPublishedPosts,
   deletePostFromPlatform,
   platformSupportsDelete,
   fetchLivePostsFromConnectedAccounts,
@@ -52,38 +50,31 @@ const PLATFORM_META = {
   pinterest: { label: "PIN", name: "Pinterest", emoji: "📌" },
 };
 
-// Says what a delete actually does for this post — Facebook posts come down for
-// real, a platform without a delete API can only be dropped from the calendar.
+// Delete is only offered where the backend can really delete the post.
 function deleteMessage(post) {
   const title = post.project_title || "Untitled";
   const name = PLATFORM_META[post.platform]?.name || post.platform;
-
-  if (!post.post_id)
-    return `“${title}” will be removed from your calendar. This can't be undone.`;
-
-  if (platformSupportsDelete(post.platform))
-    return `“${title}” will be deleted from ${name} and removed from your calendar. This can't be undone.`;
-
-  return `“${title}” will be removed from your calendar, but ${name} has no delete API — the post stays live there.`;
+  return `“${title}” will be deleted from ${name}. This can't be undone.`;
 }
+
+const canDelete = (post) =>
+  !!post.post_id && platformSupportsDelete(post.platform);
 
 const STATUS_BORDER = {
   published: "border-l-green-500",
   scheduled: "border-l-blue-500",
-  failed: "border-l-red-500",
 };
 
 const STATUS_BADGE = {
   published: "bg-green-100 text-green-700",
   scheduled: "bg-blue-100 text-blue-700",
-  failed: "bg-red-100 text-red-600",
 };
 
+// "Scheduled" is a post the platform itself reports as scheduled.
 const STATUS_TABS = [
   { key: "all", label: "All" },
   { key: "published", label: "Published" },
   { key: "scheduled", label: "Scheduled" },
-  { key: "failed", label: "Failed" },
 ];
 
 function PostPill({ post, onDelete }) {
@@ -103,15 +94,17 @@ function PostPill({ post, onDelete }) {
       <span className="text-gray-700 truncate flex-1 min-w-0">
         {post.project_title}
       </span>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        className="opacity-0 cursor-pointer group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity ml-auto shrink-0"
-      >
-        <Trash2 className="w-2.5 h-2.5" />
-      </button>
+      {canDelete(post) && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="opacity-0 cursor-pointer group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity ml-auto shrink-0"
+        >
+          <Trash2 className="w-2.5 h-2.5" />
+        </button>
+      )}
     </div>
   );
 }
@@ -122,7 +115,6 @@ export default function SocialContentCalendar() {
   const matchType = "social";
 
   const { fetchIntegrations, activeBrandId } = useAuth();
-  const [integrations, setIntegrations] = useState([]);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [allPosts, setAllPosts] = useState([]);
@@ -137,64 +129,35 @@ export default function SocialContentCalendar() {
   const [platformFilter, setPlatformFilter] = useState("all");
   const [search, setSearch] = useState("");
 
-  // First platform fetch only. An empty month grid is indistinguishable from a
-  // month with nothing scheduled, so the page holds a skeleton until we know
-  // which of the two it is. Later refetches (after a delete) keep the grid up.
+  // An empty month grid is indistinguishable from a month with nothing posted,
+  // so the page holds a skeleton until the backend has answered. Later
+  // refetches (after a delete) keep the grid up.
   const [loading, setLoading] = useState(true);
 
-  const reload = useCallback(
-    () => setAllPosts(getPublishedPosts(activeBrandId)),
-    [activeBrandId],
-  );
-
-  // A brand switch swaps the whole calendar: seed from the new brand's stored
-  // posts right away and hold the skeleton until its live fetch lands, rather
-  // than leaving the previous brand's month on screen.
+  // A brand switch clears the previous brand's month and holds the skeleton
+  // until the backend answers for the new one.
   useEffect(() => {
-    setAllPosts(getPublishedPosts(activeBrandId));
+    setAllPosts([]);
     setLoading(true);
   }, [activeBrandId]);
 
+  // The posts, exactly as the backend lists them — nothing kept locally.
   const fetchLive = useCallback(async () => {
     try {
-      // Held in state as well — delete needs the tokens to remove the post from
-      // the platform, not just from localStorage.
       const ints = (await fetchIntegrations()) || [];
-      setIntegrations(ints);
-      const livePosts = await fetchLivePostsFromConnectedAccounts(ints);
-
-      // Facebook is authoritative for status. Keep a local post ONLY when FB no longer
-      // reports it, and never trust a local 'scheduled' — otherwise a stale local
-      // scheduled entry (persisted by an earlier bug) shadows the now-published post.
-      const liveIds = new Set(livePosts.map((p) => p.id));
-      const local = getPublishedPosts(activeBrandId);
-      const localOnly = local.filter(
-        (p) => !liveIds.has(p.id) && p.status !== "scheduled",
-      );
-
-      // livePosts lists published before scheduled, so dedupe-by-id prefers the published copy.
-      const byId = new Map();
-      [...livePosts, ...localOnly].forEach((p) => {
-        if (!byId.has(p.id)) byId.set(p.id, p);
-      });
-      const all = [...byId.values()];
-
-      // Persist published only — scheduled stays live-only.
-      setPublishedPosts(
-        activeBrandId,
-        all.filter((p) => p.status !== "scheduled"),
-      );
-      setAllPosts(all);
-    } catch {
-      reload();
+      const rows = await fetchLivePostsFromConnectedAccounts(ints);
+      setAllPosts(rows);
+      if (rows.errors?.length) toast.error(rows.errors.join(" · "));
+    } catch (err) {
+      toast.error(err.message || "Couldn't load posts");
     } finally {
       setLoading(false);
     }
-  }, [reload, fetchIntegrations, activeBrandId]);
+  }, [fetchIntegrations]);
 
   useEffect(() => {
     fetchLive();
-  }, [fetchLive]);
+  }, [fetchLive, activeBrandId]);
 
   const posts = allPosts.filter((p) => p.type === matchType);
 
@@ -210,7 +173,6 @@ export default function SocialContentCalendar() {
       all: posts.length,
       published: posts.filter((p) => p.status === "published").length,
       scheduled: posts.filter((p) => p.status === "scheduled").length,
-      failed: posts.filter((p) => p.status === "failed").length,
     }),
     [posts],
   );
@@ -238,11 +200,11 @@ export default function SocialContentCalendar() {
     if (!post) return;
     setDeleting(true);
     try {
-      await deletePostFromPlatform(post, integrations, activeBrandId);
-      await fetchLive(); // re-fetch (keeps live scheduled posts; reload() would drop them)
-      toast.success("Post removed");
+      await deletePostFromPlatform(post, activeBrandId);
+      await fetchLive();
+      toast.success("Post deleted");
     } catch (err) {
-      toast.error(err.message || "Failed to remove post");
+      toast.error(err.message || "Couldn't delete the post");
     } finally {
       setDeleting(false);
       setPendingDelete(null);
@@ -291,8 +253,6 @@ export default function SocialContentCalendar() {
             Published
             <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block ml-2" />{" "}
             Scheduled
-            <span className="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block ml-2" />{" "}
-            Failed
           </div>
           <Link href="/creatives">
             <button
@@ -549,12 +509,14 @@ export default function SocialContentCalendar() {
                                 </p>
                               )}
                             </div>
-                            <button
-                              onClick={() => setPendingDelete(post)}
-                              className="text-red-300 hover:text-red-500 shrink-0 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {canDelete(post) && (
+                              <button
+                                onClick={() => setPendingDelete(post)}
+                                className="text-red-300 hover:text-red-500 shrink-0 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                           <div className="flex items-center justify-between">
                             <span

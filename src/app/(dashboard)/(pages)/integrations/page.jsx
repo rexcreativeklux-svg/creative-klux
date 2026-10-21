@@ -2,9 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Info, AlertCircle, Check, Loader2, Plug } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 import Toast from "@/app/(components)/Toast";
-import { getPublishedPosts, setPublishedPosts } from "@/(lib)/integration";
 import {
   SOCIAL_PLATFORMS,
   AD_PLATFORMS,
@@ -125,8 +123,6 @@ const SectionHeader = ({ title }) => (
 // the API's server-side OAuth (see useIntegrationCatalogue). Nothing here
 // handles a token.
 const IntegrationsPage = () => {
-  const { activeBrandId } = useAuth();
-
   const [toast, setToast] = useState({
     isOpen: false,
     message: "",
@@ -150,24 +146,6 @@ const IntegrationsPage = () => {
     openChooser,
     chooser,
   } = useIntegrationCatalogue({ notify: showToast });
-
-  // Disconnecting also drops that platform's live posts from this brand's local
-  // list — they belonged to the connection that is going away.
-  const handleDisconnect = useCallback(
-    async (platformId) => {
-      const done = await disconnect(platformId);
-      if (!done) return;
-      try {
-        const cleaned = getPublishedPosts(activeBrandId).filter(
-          (p) => !(p.live && p.platform === platformId),
-        );
-        setPublishedPosts(activeBrandId, cleaned);
-      } catch (e) {
-        console.warn("Failed to clean localStorage posts:", e);
-      }
-    },
-    [disconnect, activeBrandId],
-  );
 
   // A section's rows: its known platforms, each named by the catalogue when the
   // catalogue has it.
@@ -267,7 +245,7 @@ const IntegrationsPage = () => {
                       row={byPlatform.get(platform.id)}
                       onConnect={connect}
                       onFinish={openChooser}
-                      onDisconnect={handleDisconnect}
+                      onDisconnect={disconnect}
                       connectingId={connectingId}
                       disconnectingId={disconnectingId}
                     />

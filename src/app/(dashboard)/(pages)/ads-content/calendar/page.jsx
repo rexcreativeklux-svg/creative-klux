@@ -6,7 +6,6 @@ import {
   ChevronRight,
   CalendarDays,
   Plus,
-  Trash2,
   Filter,
   Search,
   X,
@@ -24,21 +23,13 @@ import {
   addMonths,
   subMonths,
 } from "date-fns";
-import {
-  getPublishedPosts,
-  setPublishedPosts,
-  deletePostFromPlatform,
-  platformSupportsDelete,
-  fetchLivePostsFromConnectedAccounts,
-} from "../../../../../(lib)/integration";
+import { fetchLivePostsFromConnectedAccounts } from "../../../../../(lib)/integration";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import Link from "next/link";
-import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import { CalendarSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
-// `label` is the abbreviation the dense calendar pills use; `name` is the full
-// one, for prose like the delete confirmation.
+// `label` is the abbreviation the dense calendar pills use; `name` is the full one.
 const PLATFORM_META = {
   facebook: { label: "FB", name: "Facebook", emoji: "🔵" },
   instagram: { label: "IG", name: "Instagram", emoji: "📸" },
@@ -55,41 +46,25 @@ const PLATFORM_META = {
   snapchat_ads: { label: "Snap.Ads", name: "Snapchat Ads", emoji: "💥" },
 };
 
-// Says what a delete actually does for this ad — Meta Ads creatives come down for
-// real, a platform without a delete API can only be dropped from the calendar.
-function deleteMessage(post) {
-  const title = post.project_title || "Untitled";
-  const name = PLATFORM_META[post.platform]?.name || post.platform;
-
-  if (!post.post_id)
-    return `“${title}” will be removed from your calendar. This can't be undone.`;
-
-  if (platformSupportsDelete(post.platform))
-    return `“${title}” will be deleted from ${name} and removed from your calendar. This can't be undone.`;
-
-  return `“${title}” will be removed from your calendar, but ${name} has no delete API — the ad stays live there.`;
-}
-
+// Keyed on the network's own status words, as the backend returns them. Any
+// other status gets a neutral colour and its own word.
 const STATUS_BORDER = {
-  published: "border-l-green-500",
-  scheduled: "border-l-blue-500",
-  failed: "border-l-red-500",
+  ACTIVE: "border-l-green-500",
+  PAUSED: "border-l-amber-500",
 };
 
 const STATUS_BADGE = {
-  published: "bg-green-100 text-green-700",
-  scheduled: "bg-blue-100 text-blue-700",
-  failed: "bg-red-100 text-red-600",
+  ACTIVE: "bg-green-100 text-green-700",
+  PAUSED: "bg-amber-100 text-amber-700",
 };
 
 const STATUS_TABS = [
   { key: "all", label: "All" },
-  { key: "published", label: "Published" },
-  { key: "scheduled", label: "Scheduled" },
-  { key: "failed", label: "Failed" },
+  { key: "ACTIVE", label: "Active" },
+  { key: "PAUSED", label: "Paused" },
 ];
 
-function PostPill({ post, onDelete }) {
+function PostPill({ post }) {
   const meta = PLATFORM_META[post.platform] || {
     label: post.platform,
     emoji: "🌐",
@@ -106,15 +81,6 @@ function PostPill({ post, onDelete }) {
       <span className="text-gray-700 truncate flex-1 min-w-0">
         {post.project_title}
       </span>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        className="opacity-0 cursor-pointer group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity ml-auto shrink-0"
-      >
-        <Trash2 className="w-2.5 h-2.5" />
-      </button>
     </div>
   );
 }
@@ -123,77 +89,45 @@ export default function AdsContentCalendar() {
   const typeLabel = "Ads";
   const matchType = "ad";
 
-  // AuthContext does NOT expose `integrations` — fetch them ourselves (the old
-  // `const { integrations } = useAuth()` was always undefined → no live ads ever).
   const { fetchIntegrations, activeBrandId } = useAuth();
-  const [integrations, setIntegrations] = useState([]);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [allPosts, setAllPosts] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
-
-  // The ad the trash icon armed — deleting is irreversible, so it waits on a confirm.
-  const [pendingDelete, setPendingDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
   // Filters (mirror the Publishing page): status / platform / free-text search.
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [search, setSearch] = useState("");
 
-  // First platform fetch only. An empty month grid is indistinguishable from a
-  // month with nothing scheduled, so the page holds a skeleton until we know
-  // which of the two it is. Later refetches (after a delete) keep the grid up.
+  // An empty month grid is indistinguishable from a month with no campaigns,
+  // so the page holds a skeleton until the backend has answered.
   const [loading, setLoading] = useState(true);
 
-  const reload = useCallback(
-    () => setAllPosts(getPublishedPosts(activeBrandId)),
-    [activeBrandId],
-  );
-
-  // A brand switch swaps the whole calendar: seed from the new brand's stored
-  // posts right away and hold the skeleton until its live fetch lands, rather
-  // than leaving the previous brand's month on screen.
+  // A brand switch clears the previous brand's month and holds the skeleton
+  // until the backend answers for the new one.
   useEffect(() => {
-    setAllPosts(getPublishedPosts(activeBrandId));
+    setAllPosts([]);
     setLoading(true);
   }, [activeBrandId]);
 
+  // The campaigns, exactly as the backend lists them — nothing kept locally.
   const fetchLive = useCallback(async () => {
     try {
       const ints = (await fetchIntegrations()) || [];
-      setIntegrations(ints);
-      const livePosts = await fetchLivePostsFromConnectedAccounts(ints);
-
-      // Live (Facebook/Meta) is authoritative for status. Keep a local post ONLY when
-      // it's no longer reported live, and never trust a local 'scheduled'.
-      const liveIds = new Set(livePosts.map((p) => p.id));
-      const local = getPublishedPosts(activeBrandId);
-      const localOnly = local.filter(
-        (p) => !liveIds.has(p.id) && p.status !== "scheduled",
-      );
-
-      const byId = new Map();
-      [...livePosts, ...localOnly].forEach((p) => {
-        if (!byId.has(p.id)) byId.set(p.id, p);
-      });
-      const all = [...byId.values()];
-
-      setPublishedPosts(
-        activeBrandId,
-        all.filter((p) => p.status !== "scheduled"),
-      );
-      setAllPosts(all);
-    } catch {
-      reload();
+      const rows = await fetchLivePostsFromConnectedAccounts(ints);
+      setAllPosts(rows);
+      if (rows.errors?.length) toast.error(rows.errors.join(" · "));
+    } catch (err) {
+      toast.error(err.message || "Couldn't load campaigns");
     } finally {
       setLoading(false);
     }
-  }, [fetchIntegrations, reload, activeBrandId]);
+  }, [fetchIntegrations]);
 
   useEffect(() => {
     fetchLive();
-  }, [fetchLive]);
+  }, [fetchLive, activeBrandId]);
 
   const posts = allPosts.filter((p) => p.type === matchType);
 
@@ -207,9 +141,8 @@ export default function AdsContentCalendar() {
   const statusCounts = useMemo(
     () => ({
       all: posts.length,
-      published: posts.filter((p) => p.status === "published").length,
-      scheduled: posts.filter((p) => p.status === "scheduled").length,
-      failed: posts.filter((p) => p.status === "failed").length,
+      ACTIVE: posts.filter((p) => p.status === "ACTIVE").length,
+      PAUSED: posts.filter((p) => p.status === "PAUSED").length,
     }),
     [posts],
   );
@@ -232,41 +165,21 @@ export default function AdsContentCalendar() {
     return result;
   }, [posts, statusFilter, platformFilter, search]);
 
-  const handleDelete = async () => {
-    const post = pendingDelete;
-    if (!post) return;
-    setDeleting(true);
-    try {
-      await deletePostFromPlatform(post, integrations ?? [], activeBrandId);
-      await fetchLive(); // re-fetch (keeps live posts; reload() would drop them)
-      toast.success("Ad removed");
-    } catch (err) {
-      toast.error(err.message || "Failed to remove ad");
-    } finally {
-      setDeleting(false);
-      setPendingDelete(null);
-    }
-  };
-
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
   const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: calStart, end: calEnd });
 
+  // A campaign sits on the day it was created — the only date the backend gives.
   const getPostsForDay = (day) =>
-    filteredPosts.filter((p) => {
-      const d = p.status === "scheduled" ? p.scheduled_at : p.published_at;
-      return d && isSameDay(new Date(d), day);
-    });
+    filteredPosts.filter(
+      (p) => p.created_at && isSameDay(new Date(p.created_at), day),
+    );
 
   const selectedDayPosts = selectedDay ? getPostsForDay(selectedDay) : [];
-  const totalScheduled = filteredPosts.filter(
-    (p) => p.status === "scheduled",
-  ).length;
-  const totalPublished = filteredPosts.filter(
-    (p) => p.status === "published",
-  ).length;
+  const totalActive = filteredPosts.filter((p) => p.status === "ACTIVE").length;
+  const totalPaused = filteredPosts.filter((p) => p.status === "PAUSED").length;
 
   // Match the number of week rows the real grid is about to draw, so the page
   // doesn't grow by a row's height when the ads land.
@@ -281,17 +194,16 @@ export default function AdsContentCalendar() {
             {typeLabel} Calendar
           </h1>
           <p className="text-gray-500 text-sm">
-            {totalScheduled} scheduled · {totalPublished} published
+            {totalActive} active · {totalPaused} paused · shown on the day each
+            campaign was created
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <span className="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block" />{" "}
-            Published
-            <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block ml-2" />{" "}
-            Scheduled
-            <span className="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block ml-2" />{" "}
-            Failed
+            Active
+            <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block ml-2" />{" "}
+            Paused
           </div>
           <Link href="/creatives">
             <button
@@ -467,11 +379,7 @@ export default function AdsContentCalendar() {
                     </div>
                     <div className="space-y-0.5">
                       {dayPosts.slice(0, 3).map((post) => (
-                        <PostPill
-                          key={post.id}
-                          post={post}
-                          onDelete={() => setPendingDelete(post)}
-                        />
+                        <PostPill key={post.id} post={post} />
                       ))}
                       {dayPosts.length > 3 && (
                         <p className="text-[9px] text-gray-400 px-1">
@@ -505,7 +413,7 @@ export default function AdsContentCalendar() {
                     <p className="text-xs text-gray-400">No ads on this day</p>
                     <Link href="/creatives">
                       <button className="mt-3 inline-flex cursor-pointer items-center gap-1 px-3 py-1.5 rounded-md border border-gray-200 text-xs text-gray-600 bg-surface hover:bg-gray-50 transition-colors">
-                        <Plus className="w-3 h-3" /> Schedule an ad
+                        <Plus className="w-3 h-3" /> Create an ad
                       </button>
                     </Link>
                   </div>
@@ -516,10 +424,7 @@ export default function AdsContentCalendar() {
                         emoji: "🌐",
                         label: post.platform,
                       };
-                      const dateStr =
-                        post.status === "scheduled"
-                          ? post.scheduled_at
-                          : post.published_at;
+                      const dateStr = post.created_at;
                       const badge =
                         STATUS_BADGE[post.status] ||
                         "bg-gray-100 text-gray-600";
@@ -546,12 +451,6 @@ export default function AdsContentCalendar() {
                                 </p>
                               )}
                             </div>
-                            <button
-                              onClick={() => setPendingDelete(post)}
-                              className="text-red-300 hover:text-red-500 shrink-0 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
                           </div>
                           <div className="flex items-center justify-between">
                             <span
@@ -560,7 +459,8 @@ export default function AdsContentCalendar() {
                                 badge
                               }
                             >
-                              {post.status}
+                              {post.status.charAt(0) +
+                                post.status.slice(1).toLowerCase()}
                             </span>
                             <span className="text-[10px] text-gray-400 flex items-center gap-1">
                               {meta.emoji}
@@ -585,16 +485,6 @@ export default function AdsContentCalendar() {
         </div>
       </div>
 
-      <ConfirmDialog
-        open={!!pendingDelete}
-        title="Delete this ad?"
-        message={pendingDelete ? deleteMessage(pendingDelete) : ""}
-        confirmLabel={deleting ? "Deleting…" : "Delete"}
-        variant="danger"
-        busy={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setPendingDelete(null)}
-      />
     </div>
   );
 }

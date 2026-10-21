@@ -14,9 +14,6 @@ import {
   Heart,
   Share2,
   TrendingUp,
-  AlertCircle,
-  Send,
-  Edit2,
   X,
   Search,
   ChevronLeft,
@@ -25,19 +22,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  getPublishedPosts,
-  setPublishedPosts,
-  savePublishedPost,
   getFacebookPostStats,
   getInstagramPostStats,
-  publishPost,
   fetchLivePostsFromConnectedAccounts,
   deletePostFromPlatform,
   platformSupportsDelete,
+  carryStats,
 } from "../../../../../(lib)/integration";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import EditPostModal from "./_components/EditPostModal";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
@@ -58,24 +51,15 @@ function formatDate(iso) {
     })
   );
 }
-function isAfterNow(iso) {
-  return iso && new Date() > new Date(iso);
-}
-
-// Says what a delete actually does for this post — Facebook posts come down for
-// real, a platform without a delete API can only be dropped from this list.
+// Delete is only offered where the backend can really delete the post.
 function deleteMessage(post) {
   const title = post.project_title || "Untitled";
   const label = PLATFORM_META[post.platform]?.label || post.platform;
-
-  if (!post.post_id)
-    return `“${title}” will be removed from your publishing list. This can't be undone.`;
-
-  if (platformSupportsDelete(post.platform))
-    return `“${title}” will be deleted from ${label} and removed from your publishing list. This can't be undone.`;
-
-  return `“${title}” will be removed from your publishing list, but ${label} has no delete API — the post stays live there.`;
+  return `“${title}” will be deleted from ${label}. This can't be undone.`;
 }
+
+// Per-post metrics the backend serves today.
+const STATS_PLATFORMS = ["facebook", "instagram"];
 
 /* ─── Platform config ─── */
 const PLATFORM_META = {
@@ -180,11 +164,11 @@ const TABLE_COLS = [
   { label: "Actions", align: "right" },
 ];
 
+// "Scheduled" is a post the platform itself reports as scheduled.
 const TABS = [
   { key: "all", label: "All" },
   { key: "published", label: "Published" },
   { key: "scheduled", label: "Scheduled" },
-  { key: "failed", label: "Failed" },
 ];
 
 /* ─── Sub-components ─── */
@@ -207,31 +191,13 @@ function StatusBadge({ post }) {
       </span>
     );
   }
-  if (post.status === "scheduled") {
-    // Future publish time → still scheduled (matches the calendar's wording).
-    if (isAfterNow(post.scheduled_at)) {
-      return (
-        <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 border border-blue-200"
-          style={{ color: BRAND }}
-        >
-          <Clock className="w-2.5 h-2.5" />
-          Scheduled
-        </span>
-      );
-    }
-    // Time has passed but we still have it as scheduled → it's going live now.
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-        <Clock className="w-2.5 h-2.5" />
-        Publishing…
-      </span>
-    );
-  }
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200">
-      <AlertCircle className="w-2.5 h-2.5" />
-      Failed
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 border border-blue-200"
+      style={{ color: BRAND }}
+    >
+      <Clock className="w-2.5 h-2.5" />
+      Scheduled
     </span>
   );
 }
@@ -262,8 +228,6 @@ export default function SocialPublishing() {
   const [allPosts, setAllPosts] = useState([]);
   const [refreshing, setRefreshing] = useState(null);
   const [fetchingLive, setFetchingLive] = useState(false);
-  const [editingPost, setEditingPost] = useState(null);
-  const [publishingNow, setPublishingNow] = useState(null);
   // The post the trash icon armed — deleting is irreversible, so it waits on a confirm.
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -279,11 +243,10 @@ export default function SocialPublishing() {
   // First load only — see the skeleton guard below the hooks.
   const [loading, setLoading] = useState(true);
 
-  // Show this brand's saved posts immediately — even before integrations resolve,
-  // or if there are none. Re-runs on a brand switch, so the previous brand's rows
-  // are replaced rather than left on screen while the live merge catches up.
+  // A brand switch clears the previous brand's posts and holds the skeleton
+  // until the backend answers for the new one.
   useEffect(() => {
-    setAllPosts(getPublishedPosts(activeBrandId));
+    setAllPosts([]);
     setLoading(true);
   }, [activeBrandId]);
 
@@ -305,70 +268,36 @@ export default function SocialPublishing() {
     loadIntegrations();
   }, [fetchIntegrations, activeBrandId]);
 
-  // 2. Fix the stale closure by adding integrations to deps
-  const mergeLiveIntoLocal = useCallback(
+  // 2. The posts, exactly as the backend lists them. Nothing is kept in the
+  //    browser, so what's on screen is always the backend's answer.
+  const loadPosts = useCallback(
     async (silent = false) => {
       setFetchingLive(true);
       try {
-        const livePosts = await fetchLivePostsFromConnectedAccounts(
-          integrations);
-
-        // Facebook is authoritative for status. Keep a local post ONLY when FB no longer
-        // reports it, and never trust a local 'scheduled' — otherwise a stale local
-        // scheduled entry shadows the now-published post and the status never flips.
-        const liveIds = new Set(livePosts.map((p) => p.id));
-        const local = getPublishedPosts(activeBrandId);
-        const prevIds = new Set(local.map((p) => p.id));
-        const localOnly = local.filter(
-          (p) => !liveIds.has(p.id) && p.status !== "scheduled",
-        );
-
-        // livePosts lists published before scheduled, so dedupe-by-id prefers the published copy.
-        const byId = new Map();
-        [...livePosts, ...localOnly].forEach((p) => {
-          if (!byId.has(p.id)) byId.set(p.id, p);
-        });
-        const all = [...byId.values()];
-
-        // Persist published only — scheduled stays live-only.
-        setPublishedPosts(
-          activeBrandId,
-          all.filter((p) => p.status !== "scheduled"),
-        );
-        setAllPosts(all);
-
-        const newCount = livePosts.filter(
-          (p) => p.status !== "scheduled" && !prevIds.has(p.id),
-        ).length;
-        // A platform the API couldn't read: show its own error, not silence.
-        if (!silent && livePosts.errors?.length)
-          toast.error(livePosts.errors.join(" · "));
-        if (!silent && newCount > 0)
-          toast.success(`Fetched ${newCount} live post(s)`);
-        else if (!silent)
-          toast.info("No new posts found from connected accounts");
-      } catch {
-        if (!silent) toast.error("Failed to fetch live posts");
-        setAllPosts(getPublishedPosts(activeBrandId));
+        const rows = await fetchLivePostsFromConnectedAccounts(integrations);
+        setAllPosts((prev) => carryStats(prev, rows));
+        // A platform the backend couldn't read: show its own error, always.
+        if (rows.errors?.length) toast.error(rows.errors.join(" · "));
+        if (!silent) {
+          const count = rows.filter((p) => p.type === matchType).length;
+          toast.success(`Loaded ${count} post${count === 1 ? "" : "s"}`);
+        }
+      } catch (err) {
+        toast.error(err.message || "Couldn't load posts");
       } finally {
         setFetchingLive(false);
         setLoading(false);
       }
     },
-    [integrations, activeBrandId],
+    [integrations],
   );
 
-  // 3. Auto-fetch once integrations have resolved — even if there are none,
-  //    so saved localStorage posts still load (was previously a dead path).
+  // 3. Load once integrations have resolved.
   useEffect(() => {
     if (!integrationsReady) return;
-    mergeLiveIntoLocal(true);
-  }, [integrationsReady, integrations, mergeLiveIntoLocal]);
+    loadPosts(true);
+  }, [integrationsReady, integrations, loadPosts]);
 
-  const reload = useCallback(
-    () => setAllPosts(getPublishedPosts(activeBrandId)),
-    [activeBrandId],
-  );
   const posts = allPosts.filter((p) => p.type === matchType);
 
   const filteredPosts = useMemo(() => {
@@ -419,96 +348,36 @@ export default function SocialPublishing() {
     if (!post) return;
     setDeleting(true);
     try {
-      await deletePostFromPlatform(post, integrations, activeBrandId);
-      reload();
-      toast.success("Post removed");
+      await deletePostFromPlatform(post, activeBrandId);
+      await loadPosts(true);
+      toast.success("Post deleted");
     } catch (err) {
-      toast.error(err.message || "Failed to remove post");
+      toast.error(err.message || "Couldn't delete the post");
     } finally {
       setDeleting(false);
       setPendingDelete(null);
     }
   };
 
-  const handlePublishNow = async (post) => {
-    setPublishingNow(post.id);
-    const account = integrationsMap[post.platform];
-
-    if (!account) {
-      toast.error(`No connected account for ${post.platform}`);
-      setPublishingNow(null);
-      return;
-    }
-    try {
-      // Every platform goes to the API as it is; a refusal is thrown with the
-      // platform's own words and toasted below.
-      const r = await publishPost({
-        platform: post.platform,
-        brand_id: activeBrandId,
-        image_url: post.image_url,
-        caption: post.caption,
-      });
-      const postId = r.post_id;
-      savePublishedPost(activeBrandId, {
-        ...post,
-        status: "published",
-        published_at: new Date().toISOString(),
-        scheduled_at: null,
-        post_id: postId || null,
-      });
-      reload();
-      toast.success(`Published to ${post.platform}!`);
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setPublishingNow(null);
-    }
-  };
-
+  // The post's metrics from the backend, held only for this page's lifetime.
   const handleRefreshStats = async (post) => {
     setRefreshing(post.id);
     try {
-      let newStats = null;
-      if (
-        post.platform === "facebook" &&
-        integrationsMap.facebook &&
-        post.post_id
-      ) {
-        newStats = await getFacebookPostStats({
-          brand_id: activeBrandId,
-          post_id: post.post_id,
-        });
-      } else if (
-        post.platform === "instagram" &&
-        integrationsMap.instagram &&
-        post.post_id
-      ) {
-        newStats = await getInstagramPostStats({
-          brand_id: activeBrandId,
-          post_id: post.post_id,
-        });
-      }
-
-      if (newStats) {
-        const all = getPublishedPosts(activeBrandId);
-        const idx = all.findIndex((p) => p.id === post.id);
-        if (idx >= 0) {
-          all[idx].stats = {
-            ...all[idx].stats,
-            ...newStats,
-            last_updated: new Date().toISOString(),
-          };
-          setPublishedPosts(activeBrandId, all);
-          reload();
-          toast.success("Stats refreshed from platform");
-        }
-      } else {
-        toast.info(
-          "Real-time stats are only available for connected Facebook/Instagram posts.",
-        );
-      }
+      const getStats =
+        post.platform === "facebook"
+          ? getFacebookPostStats
+          : getInstagramPostStats;
+      const newStats = await getStats({
+        brand_id: activeBrandId,
+        post_id: post.post_id,
+      });
+      const stats = { ...newStats, last_updated: new Date().toISOString() };
+      setAllPosts((rows) =>
+        rows.map((p) => (p.id === post.id ? { ...p, stats } : p)),
+      );
+      toast.success("Stats loaded");
     } catch (err) {
-      toast.error(`Failed to refresh stats: ${err.message}`);
+      toast.error(`Couldn't load stats: ${err.message}`);
     } finally {
       setRefreshing(null);
     }
@@ -520,14 +389,11 @@ export default function SocialPublishing() {
     all: posts.length,
     published: posts.filter((p) => p.status === "published").length,
     scheduled: posts.filter((p) => p.status === "scheduled").length,
-    failed: posts.filter((p) => p.status === "failed").length,
   };
 
-  // Only when there is nothing to show yet. Posts restored from localStorage
-  // paint on the first frame and stay up while the live merge runs behind them —
-  // the skeleton is here for the cold case, where the alternative is the "no
-  // posts yet" empty state flashing at someone who does have posts.
-  if (loading && posts.length === 0) return <PublishingSkeleton />;
+  // Held until the backend's first answer, so the "no posts yet" empty state
+  // never flashes at someone who does have posts.
+  if (loading) return <PublishingSkeleton />;
 
   return (
     <div className="pb-5">
@@ -538,21 +404,20 @@ export default function SocialPublishing() {
             {typeLabel} Publishing
           </h1>
           <p className="text-gray-500 text-sm">
-            Track your {typeLabel.toLowerCase()} published and scheduled
-            creatives.
+            Your posts on each connected account.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {hasConnections && (
             <button
               className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-surface text-gray-700 hover:bg-gray-50 shadow-sm transition-colors disabled:opacity-50"
-              onClick={() => mergeLiveIntoLocal(false)}
+              onClick={() => loadPosts(false)}
               disabled={fetchingLive}
             >
               <RefreshCw
                 className={`w-3.5 h-3.5 mr-2 text-gray-500 ${fetchingLive ? "animate-spin" : ""}`}
               />
-              {fetchingLive ? "Fetching…" : "Fetch Live Posts"}
+              {fetchingLive ? "Refreshing…" : "Refresh"}
             </button>
           )}
           {!hasConnections && (
@@ -586,10 +451,16 @@ export default function SocialPublishing() {
             Icon={Calendar}
           />
           <SummaryCard
-            label="Total Impressions"
-            value={posts
-              .reduce((s, p) => s + (p.stats?.impressions || 0), 0)
-              .toLocaleString()}
+            label="Impressions (loaded rows)"
+            // A dash until some row's stats are loaded — a 0 would claim no
+            // impressions when they simply haven't been asked for.
+            value={
+              posts.some((p) => p.stats?.impressions != null)
+                ? posts
+                    .reduce((s, p) => s + (p.stats?.impressions || 0), 0)
+                    .toLocaleString()
+                : "—"
+            }
             Icon={Eye}
           />
         </div>
@@ -836,46 +707,29 @@ export default function SocialPublishing() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          {post.status === "scheduled" && (
-                            <button
-                              className="h-7 w-7 rounded-md flex items-center justify-center text-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-40"
-                              onClick={() => handlePublishNow(post)}
-                              disabled={publishingNow === post.id}
-                              title="Publish now"
-                            >
-                              {publishingNow === post.id ? (
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Send className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          )}
-                          <button
-                            className="h-7 w-7 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                            onClick={() => setEditingPost(post)}
-                            title="Edit post"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          {post.post_id && (
+                          {post.post_id &&
+                            STATS_PLATFORMS.includes(post.platform) && (
                             <button
                               className="h-7 w-7 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-40"
                               onClick={() => handleRefreshStats(post)}
                               disabled={refreshing === post.id}
-                              title="Refresh stats"
+                              title="Load stats"
                             >
                               <RefreshCw
                                 className={`w-3.5 h-3.5 ${refreshing === post.id ? "animate-spin" : ""}`}
                               />
                             </button>
                           )}
-                          <button
-                            className="h-7 w-7 rounded-md flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            onClick={() => setPendingDelete(post)}
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {post.post_id &&
+                            platformSupportsDelete(post.platform) && (
+                            <button
+                              className="h-7 w-7 rounded-md flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              onClick={() => setPendingDelete(post)}
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -939,17 +793,6 @@ export default function SocialPublishing() {
             )}
           </div>
         </div>
-      )}
-
-      {editingPost && (
-        <EditPostModal
-          post={editingPost}
-          brandId={activeBrandId}
-          integrations={integrations}
-          integrationsMap={integrationsMap}
-          onClose={() => setEditingPost(null)}
-          onSaved={reload}
-        />
       )}
 
       <ConfirmDialog

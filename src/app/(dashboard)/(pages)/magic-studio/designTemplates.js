@@ -736,10 +736,10 @@ export const SOCIAL_CATALOG = [
   },
   {
     id: "social-customer-story",
-    pexelsId: 39598425,
-    width: 3648,
-    height: 5472,
-    credit: "Elka Elias",
+    pexelsId: 3801373,
+    width: 3933,
+    height: 5900,
+    credit: "Andrea Piacquadio",
     design: {
       format: "portrait",
       layout: "bottom",
@@ -751,7 +751,7 @@ export const SOCIAL_CATALOG = [
       body: "Read the full story →",
     },
     prompt:
-      "Vertical 9:16 story for a service business. A woman in a denim jacket smiling warmly outdoors at night. Yellow caps 'CUSTOMER STORIES', a bold white headline '“They made it feel easy.”' and the line 'Read the full story →' over a dark fade at the bottom. Genuine, warm, human.",
+      "Vertical 9:16 story for a service business. A woman in an apron smiling warmly, arms crossed, on a sunny city street. Yellow caps 'CUSTOMER STORIES', a bold white headline '“They made it feel easy.”' and the line 'Read the full story →' over a dark fade at the bottom. Genuine, warm, human.",
   },
   {
     id: "social-mixologist",

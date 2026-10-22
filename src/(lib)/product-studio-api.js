@@ -68,6 +68,15 @@ export const TOOL_SAVE_ENUM = {
  */
 export const REFERENCE_IMAGE_KEY = "reference_image_url";
 
+/**
+ * Exact / Similar switch on Virtual Model, Product Staging, Product Poster and
+ * AI POD. The mode itself is NOT sent: "exact" adds the selected template's
+ * image (Virtual Model: the selected model's photo) under TEMPLATE_URL_KEY so
+ * the backend reproduces it; "similar" sends the normal payload unchanged.
+ */
+export const TEMPLATE_URL_KEY = "template_url";
+export const MATCH_MODE_ENUM = { exact: "exact", similar: "similar" };
+
 // Get the active brand id from local storage (if any) and include it in the request payload. This is used to apply the brand style to the generated product photo.
 // export function getBrandIdFromLocalStorage() {
 //   try {

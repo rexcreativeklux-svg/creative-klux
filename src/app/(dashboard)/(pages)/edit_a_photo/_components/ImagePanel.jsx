@@ -167,6 +167,10 @@ export default function ImagePanel({
   openCutout,
   fileInputRef,
   layerReplaceRef,
+  // Replace for the base image — the editor decides where it goes (the image
+  // picker on a template slot, the file chooser otherwise). Falls back to the
+  // file chooser when absent.
+  onReplaceBase,
   expandedPanel,
   togglePanel,
   setExpandedPanel,
@@ -725,6 +729,7 @@ export default function ImagePanel({
                       onClick={() => {
                         if (activeImageKind === "layer")
                           layerReplaceRef.current?.click();
+                        else if (onReplaceBase) onReplaceBase();
                         else fileInputRef.current?.click();
                       }}
                     >

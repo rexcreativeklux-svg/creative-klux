@@ -2063,7 +2063,14 @@ export function AuthProvider({ children }) {
       }
 
       await fetchMyImages();
-      // Caller expects the raw response shape (image_url/url/data.image_url)
+      // Caller expects the raw response shape (image_url/url/data.image_url).
+      // ⚠️ The gallery now answers {success, message, file: {image_url, …}} —
+      // the URL one level down under `file`, where none of the ~20 callers
+      // look. Lifted to `image_url` here, once, so every one of them finds it
+      // instead of keeping the local blob: URL (gone on reload).
+      if (data && !data.image_url && data.file?.image_url) {
+        return { ...data, image_url: data.file.image_url };
+      }
       return data;
     },
     [token, fetchMyImages],

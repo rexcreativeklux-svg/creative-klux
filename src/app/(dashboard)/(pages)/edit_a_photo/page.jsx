@@ -13,11 +13,15 @@ function EditAPhoto() {
   const params = useSearchParams();
   const image = params.get("image");
   const mode = params.get("mode") || "start";
+  // A Product Studio preset tile's id (product-studio/studioPresets.js) — the
+  // editor opens laid out as that tile.
+  const preset = params.get("preset");
 
   return (
     <PhotoEditor
       mode={mode}
       initialImageUrl={image || null}
+      initialPreset={preset || null}
       onClose={() => router.push("/product-studio")}
     />
   );

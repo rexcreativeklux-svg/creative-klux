@@ -104,4 +104,15 @@ export const FILTERS = [
     label: "Sepia",
     css: "sepia(0.78) contrast(1.05) brightness(1.02)",
   },
+  // Photoroom's Low key / High key (Product Studio's Photo Editing Classics).
+  {
+    id: "lowkey",
+    label: "Low key",
+    css: "grayscale(1) brightness(0.6) contrast(1.45)",
+  },
+  {
+    id: "highkey",
+    label: "High key",
+    css: "grayscale(1) brightness(1.3) contrast(0.85)",
+  },
 ];

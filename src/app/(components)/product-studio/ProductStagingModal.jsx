@@ -3,6 +3,8 @@ import {
   generateProductPhoto,
   TOOL_ENUM,
   QUALITY_ENUM,
+  TEMPLATE_URL_KEY,
+  MATCH_MODE_ENUM,
 } from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
@@ -16,6 +18,7 @@ import {
 } from "./stagingTemplates";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import QualityDropdown from "./QualityDropdown";
+import MatchModeSwitch from "./MatchModeSwitch";
 import SizeDropdown from "./SizeDropdown";
 import ProductHistoryGrid from "./ProductHistoryGrid";
 import ToolModalMobileHeader from "./ToolModalMobileHeader";
@@ -70,6 +73,7 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
   const [selectedTemplate, setSelectedTemplate] = useState(
     STAGING_TEMPLATES[0].id,
   );
+  const [matchMode, setMatchMode] = useState(MATCH_MODE_ENUM.exact);
   const [quality, setQuality] = useState("Standard");
   const [size, setSize] = useState("square");
   const [applyBrandStyle, setApplyBrandStyle] = useState(true);
@@ -176,6 +180,11 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
         prompt: promptToSend, // scene context + optional user refinement
         // workspace_id omitted for now (confirm source with backend).
       };
+      // Exact: the selected scene's image is the template to reproduce.
+      if (matchMode === MATCH_MODE_ENUM.exact) {
+        const tile = TEMPLATE_TILES.find((t) => t.id === selectedTemplate);
+        if (tile?.poster) payload[TEMPLATE_URL_KEY] = tile.poster;
+      }
 
       const result = await generateProductPhoto(payload);
 
@@ -383,6 +392,9 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
 
             {/* Option rows — light gray cards (Photoroom style) */}
             <div className="px-4 pt-3 pb-3 space-y-2.5">
+              {/* Exact / Similar */}
+              <MatchModeSwitch value={matchMode} onChange={setMatchMode} />
+
               {/* Quality */}
               <button
                 ref={qualityRef}

@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { isImpersonating } from "@/utils/impersonation";
 import { useBreakpoint } from "@/utils/useMediaQuery";
 import Header from "../(components)/Header";
+import Footer from "../(components)/Footer";
 import { SecondarySidebarProvider } from "@/context/SecondarySidebarContext";
 import Home from "./page";
 import ModalPage from "../(components)/ModalPage";
@@ -386,17 +387,31 @@ export default function DashboardLayout({ children }) {
                             its bottom padding sits above the overflow on any
                             page taller than the viewport); `main` reserves the
                             bar's height for every route instead. */}
+                        {/* Padded pages end with the copyright <Footer>. The
+                            column layout keeps it at the bottom of a short page
+                            and after the content of a long one. Full-bleed routes
+                            (noPadding) own their scroll panes, so they don't get
+                            one. The page's bottom padding lives on the content
+                            box, not here, so the footer sits flush with the
+                            bottom of the viewport. */}
                         <div
                             className={`h-full ${noPadding
                                 ? ""
-                                : "px-gutter pt-[calc(var(--spacing-header)+var(--spacing-page-y))] pb-page-y"
+                                : "flex flex-col px-gutter pt-[calc(var(--spacing-header)+var(--spacing-page-y))]"
                                 }`}
                         >
                             <SecondarySidebarProvider
                                 value={{ isOpen: secondaryOpen, toggle: toggleSecondary }}
                             >
-                                {children || <Home />}
+                                {noPadding ? (
+                                    children || <Home />
+                                ) : (
+                                    <div className="flex-1 shrink-0 pb-page-y">
+                                        {children || <Home />}
+                                    </div>
+                                )}
                             </SecondarySidebarProvider>
+                            {!noPadding && <Footer />}
                         </div>
                     </div>
                 </main>

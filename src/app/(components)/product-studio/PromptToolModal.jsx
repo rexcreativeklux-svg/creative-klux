@@ -29,6 +29,8 @@ import { useState, useRef } from "react";
 import {
   generateProductPhoto,
   QUALITY_ENUM,
+  TEMPLATE_URL_KEY,
+  MATCH_MODE_ENUM,
 } from "@/(lib)/product-studio-api";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
@@ -37,6 +39,7 @@ import { toast } from "sonner";
 import { pxsq, QUALITY_RES, SIZES, stockQueryForTool } from "./constants";
 import ToolSwitcherDropdown from "./ToolSwitcherDropdown";
 import QualityDropdown from "./QualityDropdown";
+import MatchModeSwitch from "./MatchModeSwitch";
 import SizeDropdown from "./SizeDropdown";
 import ProductHistoryGrid from "./ProductHistoryGrid";
 import ToolModalMobileHeader from "./ToolModalMobileHeader";
@@ -97,6 +100,8 @@ export default function PromptToolModal({ config, onClose, onSwitchTool }) {
   const [selectedTemplate, setSelectedTemplate] = useState(firstTemplate.id);
   const [prompt, setPrompt] = useState(firstTemplate.prompt);
 
+  // Exact / Similar — only used when the config opts in (`matchMode: true`).
+  const [matchMode, setMatchMode] = useState(MATCH_MODE_ENUM.exact);
   const [quality, setQuality] = useState("Standard");
   const [size, setSize] = useState(config.defaultSize);
   const [applyBrandStyle, setApplyBrandStyle] = useState(true);
@@ -270,6 +275,11 @@ export default function PromptToolModal({ config, onClose, onSwitchTool }) {
         apply_brand_style: applyBrandStyle,
         prompt: promptToSend,
       };
+      // Exact: the selected preset's image is the template to reproduce.
+      if (config.matchMode && matchMode === MATCH_MODE_ENUM.exact) {
+        const tile = templateTiles.find((t) => t.id === selectedTemplate);
+        if (tile?.poster) payload[TEMPLATE_URL_KEY] = tile.poster;
+      }
       if (referenceUrl && config.reference) {
         payload[config.reference.payloadKey] = referenceUrl;
       }
@@ -496,6 +506,11 @@ export default function PromptToolModal({ config, onClose, onSwitchTool }) {
 
             {/* Option rows — light gray cards (Photoroom style) */}
             <div className="px-4 pt-3 pb-3 space-y-2.5">
+              {/* Exact / Similar — Product Poster and AI POD only */}
+              {config.matchMode && (
+                <MatchModeSwitch value={matchMode} onChange={setMatchMode} />
+              )}
+
               {/* Quality */}
               <button
                 ref={qualityRef}

@@ -15,6 +15,7 @@ import BackgroundCategoryPanel from "./BackgroundCategoryPanel";
 import InfinitePexelsGrid from "./InfinitePexelsGrid";
 import ColorBackgroundPanel from "./ColorBackgroundPanel";
 import MagicEraserOverlay from "./quicktools/MagicEraserOverlay";
+import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import {
   removeBackground as engineRemoveBackground,
   disposeSegmentationWorker,
@@ -58,6 +59,8 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { brandedFileName } from "@/utils/downloadName";
+import { studioPresetById } from "../../product-studio/studioPresets";
+import { productBounds, cropToBounds } from "../../product-studio/trimCutout";
 
 const topTools = [
   { id: "insert", label: "Insert", icon: Plus },
@@ -76,6 +79,15 @@ const topTools = [
 const CANVAS_W = 520;
 const CANVAS_H = 440;
 const EXPORT_SCALE = 2;
+
+// Fit real target dims into the preview box (cap ≈ CANVAS_W) keeping ratio.
+const fitPreviewBox = (w, h) => {
+  const cap = 520;
+  const r = w / h;
+  return r >= 1
+    ? { w: cap, h: Math.round(cap / r) }
+    : { w: Math.round(cap * r), h: cap };
+};
 
 // Shadow colour swatches for the Photoroom-style shadow panel.
 // hex (#rgb / #rrggbb) → rgba() string at the given alpha. Lets the shadow take an
@@ -2147,7 +2159,11 @@ async function computeRenderSrc(srcUrl, p) {
   return src;
 }
 
-export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
+export default function PhotoEditor({ mode, onClose, initialImageUrl, initialPreset }) {
+  // Product Studio preset this editor was opened from (?preset=<id>) — see
+  // product-studio/studioPresets.js and applyStudioPreset below.
+  const studioPreset = studioPresetById(initialPreset);
+  const sizePreset = studioPreset?.mode === "size" ? studioPreset : null;
   const { uploadMedia, myImages = [], activeBrand, sendUrl, user } = useAuth();
   // Avatar initial from the signed-in user's name (falls back to email).
   const userInitial = (user?.name || user?.email || "?")
@@ -2254,11 +2270,18 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     }
   }, []);
 
-  // Canvas background (behind the cut-out) + canvas size (Resize).
-  const [canvasBg, setCanvasBg] = useState({ type: "none" }); // {type:'color',value} | {type:'gradient',from,to} | {type:'image',src}
-  const [canvasSize, setCanvasSize] = useState({ w: CANVAS_W, h: CANVAS_H });
+  // Canvas background (behind the cut-out) + canvas size (Resize). A Product
+  // Studio size tile opens on its own empty white canvas.
+  const [canvasBg, setCanvasBg] = useState(
+    sizePreset ? { type: "color", value: "#ffffff" } : { type: "none" },
+  ); // {type:'color',value} | {type:'gradient',from,to} | {type:'image',src,filter?}
+  const [canvasSize, setCanvasSize] = useState(
+    sizePreset ? fitPreviewBox(sizePreset.w, sizePreset.h) : { w: CANVAS_W, h: CANVAS_H },
+  );
   const [canvasRound, setCanvasRound] = useState(false); // circular clip (Profile Pics)
-  const [exportSize, setExportSize] = useState(null); // real output dims {w,h} (Resize); null = 2× preview
+  const [exportSize, setExportSize] = useState(
+    sizePreset ? { w: sizePreset.w, h: sizePreset.h } : null,
+  ); // real output dims {w,h} (Resize); null = 2× preview
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false); // Download format dropdown (PNG/JPEG)
   const [templateQuery, setTemplateQuery] = useState("");
   const [templateCat, setTemplateCat] = useState(null); // open group title (See all)
@@ -2303,12 +2326,39 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   const [brushSize, setBrushSize] = useState(40);
   const cutoutCanvasRef = useRef(null);
   const cutoutDrawing = useRef(false);
-  const [originalUrl, setOriginalUrl] = useState(initialImageUrl || null);
+  // A photo that arrives WITH a preset isn't shown as-is: the preset decides
+  // where it goes (openPhoto / fillSlot, from the mount effects below).
+  const [originalUrl, setOriginalUrl] = useState(
+    studioPreset ? null : initialImageUrl || null,
+  );
+  const presetAppliedRef = useRef(false); // a photo preset goes on once — see openPhoto
+  // The product slot of a template / size preset: {cx, cy, s, box}. While set,
+  // a new photo (Replace, upload) is cut out and fitted INTO the slot instead
+  // of resizing the canvas to itself — Photoroom's Replace. `box` is the
+  // canvas's preview size, kept here so a fill straight after the layout isn't
+  // measured against a canvas size that hasn't rendered yet. A size canvas has
+  // its slot from the start (centred, nearly full); a template sets its own.
+  // Replace on a slot canvas opens the image picker (uploads, library, stock),
+  // like Photoroom's — not just the file chooser.
+  const [slotPickerOpen, setSlotPickerOpen] = useState(false);
+  // True while a template's slot still holds its SAMPLE product: the canvas
+  // then shows a big Replace button on it, as Photoroom does.
+  const [slotHasSample, setSlotHasSample] = useState(false);
+  const slotRef = useRef(
+    sizePreset
+      ? {
+          cx: 0.5,
+          cy: 0.5,
+          s: sizePreset.listing ? 0.84 : 0.9,
+          box: fitPreviewBox(sizePreset.w, sizePreset.h),
+        }
+      : null,
+  );
   const [processedUrl, setProcessedUrl] = useState(null);
   const [removeBg, setRemoveBg] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
-  const [selected, setSelected] = useState(!!initialImageUrl);
+  const [selected, setSelected] = useState(!!initialImageUrl && !studioPreset);
   const [aiPrompt, setAiPrompt] = useState("");
   const [applyingAi, setApplyingAi] = useState(false);
   const [expandedPanel, setExpandedPanel] = useState(null);
@@ -3019,6 +3069,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     if (a.size) setCanvasSize(a.size);
     if (a.round !== undefined) setCanvasRound(a.round);
     if (a.removeBg === false) setRemoveBg(false);
+    if (a.shadow) setToggles((p) => ({ ...p, shadows: true }));
     if (a.filter !== undefined) {
       setSelectedFilter(a.filter);
       setToggles((p) => ({ ...p, filter: !!a.filter && a.filter !== "none" }));
@@ -3119,13 +3170,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
 
   // ── Resize helpers ────────────────────────────────────────────────────
   // Fit real target dims into the preview box (cap ≈ CANVAS_W) keeping ratio.
-  const fitPreview = (w, h) => {
-    const cap = 520;
-    const r = w / h;
-    return r >= 1
-      ? { w: cap, h: Math.round(cap / r) }
-      : { w: Math.round(cap * r), h: cap };
-  };
+  const fitPreview = fitPreviewBox;
   const pushRecent = (item) =>
     setRecentSizes((prev) => {
       const next = [
@@ -4125,6 +4170,8 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
   };
 
   useEffect(() => {
+    // Template and size presets open on their own canvas — no file prompt.
+    if (studioPreset && studioPreset.mode !== "photo") return;
     if (!initialImageUrl) {
       // Clear the timer on cleanup so React StrictMode's double-mount in dev
       // doesn't fire .click() twice (which reopens the picker after the first pick).
@@ -4132,6 +4179,167 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
       return () => clearTimeout(t);
     }
   }, []);
+
+  /**
+   * Put a product of natural size {w, h} into a slot on a canvas of `box`
+   * (preview px): as large as fits in `slot.s` of the canvas, centred on
+   * (cx, cy). Position is the editor's offset-from-centre model.
+   */
+  const placeInSlot = (subject, slot, box) => {
+    const k = Math.min((box.w * slot.s) / subject.w, (box.h * slot.s) / subject.h);
+    const w = Math.round(subject.w * k);
+    const h = Math.round(subject.h * k);
+    imgFitRef.current = { w, h };
+    setImgW(w);
+    setImgH(h);
+    setImgCrop(null);
+    setScale(100);
+    setPosX(Math.round((slot.cx - 0.5) * box.w));
+    setPosY(Math.round((slot.cy - 0.5) * box.h));
+  };
+
+  /**
+   * Apply a Product Studio preset (studioPresets.js) to the editor: canvas,
+   * background, crop, product filter, shadow, product placement and text.
+   *
+   * @param {object} p   the preset
+   * @param {object} ctx
+   * @param {string} [ctx.originalUrl] the user's photo — a `bg.type:"photo"`
+   *   look puts it behind its own cutout
+   * @param {{w:number,h:number}} [ctx.subject] the product's natural size, for
+   *   template placement
+   */
+  const applyStudioPreset = (p, { originalUrl: photoUrl, subject } = {}) => {
+    let box = canvasSize;
+    if (p.canvas) {
+      box = fitPreview(p.canvas.w, p.canvas.h);
+      setCanvasSize(box);
+      setExportSize({ w: p.canvas.w, h: p.canvas.h });
+    }
+
+    const bg = p.bg || { type: "none" };
+    setCanvasBg(
+      bg.type === "photo"
+        ? { type: "image", src: photoUrl, filter: bg.filter }
+        : bg,
+    );
+    setCanvasRound(!!p.round);
+
+    if (p.removeBg === false) {
+      setRemoveBg(false);
+      setProcessedUrl(null);
+    }
+
+    setSelectedFilter(p.filter || "none");
+    const sh = p.shadow;
+    if (sh) {
+      setShadowMode(sh.mode || "drop");
+      if (sh.opacity != null) setShadowOpacity(sh.opacity);
+      if (sh.blur != null) setShadowBlur(sh.blur);
+      if (sh.shortness != null) setShadowShortness(sh.shortness);
+      setShadowX(Math.round((sh.x || 0) * box.w));
+      setShadowY(Math.round((sh.y || 0) * box.w));
+    }
+    setToggles((t) => ({ ...t, filter: !!p.filter, shadows: !!sh }));
+
+    if (p.slot) {
+      slotRef.current = { ...p.slot, box };
+      if (subject) placeInSlot(subject, p.slot, box);
+    }
+
+    if (p.texts?.length) {
+      p.texts.forEach((t) => t.font && loadWebFont(t.font));
+      setLayers((prev) => [
+        ...prev,
+        ...p.texts.map((t, i) => {
+          const fontSize = Math.round(t.size * box.h);
+          const w = Math.round((t.w || 0.86) * box.w);
+          // Rough wrap count (≈0.55em per glyph) so a long line gets a box
+          // tall enough for its lines.
+          const lines = Math.max(1, Math.ceil((t.text.length * fontSize * 0.55) / w));
+          return {
+            id: `${genId()}_${i}`,
+            type: "text",
+            text: t.text,
+            color: t.color,
+            fontWeight: t.weight,
+            fontFamily: t.font,
+            align: t.align || "center",
+            fontSize,
+            letterSpacing: t.spacing,
+            bgColor: t.bg,
+            radius: t.radius,
+            x: Math.round(t.cx * box.w),
+            y: Math.round(t.cy * box.h),
+            w,
+            h: Math.round(fontSize * 1.4 * lines),
+            rotation: 0,
+          };
+        }),
+      ]);
+    }
+  };
+
+  /**
+   * Crop a cutout (and the photo it came from) to the product's own bounds —
+   * the transparent margin around it would otherwise count toward the slot and
+   * leave the product small. Returns local URLs and the trimmed size.
+   *
+   * @param {Blob} cutBlob transparent PNG
+   * @param {string} origSrc the photo, same framing as the cutout
+   */
+  const trimToProduct = async (cutBlob, origSrc) => {
+    const cut = await createImageBitmap(cutBlob);
+    const b = productBounds(cut);
+    if (!b) return null; // nothing kept — leave it to the caller
+    const orig = await loadImageEl(origSrc);
+    return {
+      cutUrl: await cropToBounds(cut, b),
+      // The cutout can come back smaller than the photo (RAM cap) — scale the
+      // same window onto the photo so both crops frame the same product.
+      origUrl: await cropToBounds(orig, b, (orig.naturalWidth || b.W) / b.W),
+      w: b.w,
+      h: b.h,
+    };
+  };
+
+  /**
+   * A photo into the active slot (Replace / upload on a template or size
+   * canvas): cut out, trimmed to the product, fitted into the slot. The canvas
+   * and everything else on it stay as they are.
+   *
+   * @param {File|string} source the picked file, or a photo URL that arrived
+   *   with the preset
+   */
+  const fillSlot = async (source) => {
+    const isUrl = typeof source === "string";
+    const photoUrl = isUrl ? proxiedSrc(source) : URL.createObjectURL(source);
+    setProcessing(true);
+    setProcessingProgress(0);
+    try {
+      const { blob } = await engineRemoveBackground(isUrl ? photoUrl : source, {
+        onProgress: ({ pct }) => setProcessingProgress(pct || 0),
+      });
+      const trimmed = await trimToProduct(blob, photoUrl);
+      if (!trimmed) throw new Error("No product found in that photo");
+      setOriginalUrl(trimmed.origUrl);
+      setProcessedUrl(trimmed.cutUrl);
+      setRemoveBg(true);
+      setSubjectRemoved(false);
+      setSelected(true);
+      const slot = slotRef.current;
+      placeInSlot({ w: trimmed.w, h: trimmed.h }, slot, slot.box || canvasSize);
+      setSlotHasSample(false);
+      toast.success("Photo replaced");
+    } catch (err) {
+      console.error("Slot fill error:", err);
+      toast.error(err?.message || "Couldn't place that photo");
+    } finally {
+      setProcessing(false);
+      setProcessingProgress(0);
+    }
+  };
+
 
   // ── Edit Cutout (brush eraser) ────────────────────────────────────────
   const openCutout = () => {
@@ -4263,10 +4471,37 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     }
   };
 
+  /**
+   * Replace the base photo. On a template / size canvas this opens the image
+   * picker (Upload, My Library, stock) and the choice goes into the slot —
+   * Photoroom's Replace. Anywhere else it's the plain file chooser, as before.
+   */
+  const openReplace = () => {
+    if (slotRef.current) setSlotPickerOpen(true);
+    else fileInputRef.current?.click();
+  };
+
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
+    e.target.value = ""; // picking the same file again still fires onChange
+    // A template / size canvas: the photo goes into the product slot.
+    if (slotRef.current) {
+      await fillSlot(file);
+      return;
+    }
+    await openPhoto(URL.createObjectURL(file));
+  };
+
+  /**
+   * Open a photo as the base image: refit the canvas to it, remove its
+   * background, and — opened from a Product Studio photo tile (Classic, Photo
+   * Editing Classics) — put that tile's look on. Used by the file picker and
+   * by a photo that arrives with a preset (?image=…&preset=…).
+   *
+   * @param {string} url
+   */
+  const openPhoto = async (url) => {
     setOriginalUrl(url);
     setProcessedUrl(null);
     setRemoveBg(false);
@@ -4278,9 +4513,66 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
     setPosY(0);
     setScale(100);
 
-    // Every opened image gets its background removed first.
-    await runBgRemoval(url);
+    // Every opened image gets its background removed first — except under a
+    // preset that keeps the photo whole (Original Image), which would only
+    // throw the cutout away.
+    const keepsPhoto =
+      studioPreset?.mode === "photo" &&
+      studioPreset.removeBg === false &&
+      !presetAppliedRef.current;
+    if (!keepsPhoto) await runBgRemoval(url);
+
+    // The photo tile's look goes on now, over the fresh cutout — once, for the
+    // first photo only, so swapping the photo later doesn't reset what the
+    // user has changed since.
+    if (studioPreset?.mode === "photo" && !presetAppliedRef.current) {
+      presetAppliedRef.current = true;
+      applyStudioPreset(studioPreset, { originalUrl: url });
+      toast.success(`${studioPreset.label} applied`);
+    }
   };
+
+  // Opening on a preset:
+  //   template → laid out with its sample product already in the slot (a
+  //              ready-made cutout, so no model run) — or, when a photo came
+  //              with it ("Pick a style"), that photo goes straight in
+  //   photo    → a photo that came with it is opened and the look applied
+  //   size     → nothing to do unless a photo came with it: the canvas is set
+  //              from the start
+  useEffect(() => {
+    const p = studioPreset;
+    if (!p) return;
+    let alive = true;
+    if (p.mode === "template") {
+      loadImageEl(p.sample)
+        .then((img) => {
+          if (!alive) return;
+          setOriginalUrl(p.sample);
+          setProcessedUrl(p.sample);
+          setRemoveBg(true);
+          setSubjectRemoved(false);
+          setSelected(true);
+          applyStudioPreset(p, {
+            subject: { w: img.naturalWidth, h: img.naturalHeight },
+          });
+          if (initialImageUrl) fillSlot(initialImageUrl);
+          else setSlotHasSample(true);
+        })
+        .catch(() => toast.error("Couldn't load this template"));
+    } else if (initialImageUrl) {
+      // Proxied: background removal reads the pixels, which a cross-origin
+      // library image would refuse. Started from a callback, like the template
+      // branch, rather than setting state in the effect body itself.
+      Promise.resolve().then(() => {
+        if (!alive) return;
+        if (p.mode === "photo") openPhoto(proxiedSrc(initialImageUrl));
+        else fillSlot(initialImageUrl);
+      });
+    }
+    return () => {
+      alive = false;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Delete the subject: keep the (image-sized) canvas as a transparent surface
   // and drop the selection so the Background panel shows.
@@ -4795,7 +5087,18 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
           dh = W / ir;
           dy = (H - dh) / 2;
         }
+        // A preset's treated backdrop (Blur / Color Splash / Motion — see
+        // product-studio/studioPresets.js). Its blur is written in preview px, so
+        // it scales with the export like everything else.
+        if (canvasBg.filter) {
+          ctx.save();
+          ctx.filter = canvasBg.filter.replace(
+            /blur\(([\d.]+)px\)/g,
+            (_, px) => `blur(${Number(px) * sc}px)`,
+          );
+        }
         ctx.drawImage(bg, dx, dy, dw, dh);
+        if (canvasBg.filter) ctx.restore();
       } catch {
         /* ignore bg load failure */
       }
@@ -5154,6 +5457,27 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
           />
         )}
 
+        {/* Replace's image picker (slot canvases — see openReplace). Wrapped
+            in its own layer: the picker sits at z-50, under this full-screen
+            editor's z-100, without one. */}
+        {slotPickerOpen && (
+          <div className="relative" style={{ zIndex: 300 }} onClick={(e) => e.stopPropagation()}>
+            <MediaPickerModal
+              isOpen
+              onClose={() => setSlotPickerOpen(false)}
+              onCancel={() => setSlotPickerOpen(false)}
+              maxSelectable={1}
+              initialTab="library"
+              onApply={(images) => {
+                setSlotPickerOpen(false);
+                const first = images?.[0];
+                const url = first?.large || first?.src;
+                if (url) fillSlot(url);
+              }}
+            />
+          </div>
+        )}
+
         {magicEraserOpen && (
           <MagicEraserOverlay
             src={displayImage}
@@ -5182,7 +5506,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
               onClick={(e) => {
                 if (!displayImage && !subjectRemoved) {
                   e.stopPropagation();
-                  fileInputRef.current?.click();
+                  openReplace();
                 }
               }}
             >
@@ -5191,7 +5515,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                   src={canvasBg.src}
                   alt=""
                   className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-                  style={{ zIndex: 0 }}
+                  style={{ zIndex: 0, filter: canvasBg.filter || undefined }}
                 />
               )}
               {!displayImage && !processing && !subjectRemoved ? (
@@ -5494,6 +5818,35 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                     })()
                   )}
                 </div>
+              )}
+
+              {/* Photoroom's Replace button: on a template whose slot still
+                  holds the sample product, a big button sits on the product.
+                  Above the text layers (z-index), since a design's headline
+                  can overlap the product. */}
+              {slotHasSample && !processing && displayImage && imgW != null && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openReplace();
+                  }}
+                  className="absolute flex flex-col items-center gap-1 cursor-pointer"
+                  style={{
+                    left: canvasSize.w / 2 + posX,
+                    top: canvasSize.h / 2 + posY,
+                    transform: "translate(-50%, -50%)",
+                    zIndex: 80,
+                  }}
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-600 text-white shadow-lg ring-4 ring-white/50 transition hover:bg-violet-700">
+                    <ImageIcon className="h-5 w-5" />
+                  </span>
+                  <span className="rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
+                    Replace
+                  </span>
+                </button>
               )}
 
               {/* Overlay layers (Insert) */}
@@ -6024,7 +6377,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                           ? () => {
                               layerReplaceRef.current?.click();
                             }
-                          : () => fileInputRef.current?.click()
+                          : openReplace
                       }
                       onEditCutout={openCutout}
                       onRetouch={() => toast("Retouch — coming soon")}
@@ -6263,7 +6616,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                fileInputRef.current?.click();
+                                openReplace();
                               }}
                               className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer text-xs font-medium"
                               title="Replace"
@@ -7373,6 +7726,7 @@ export default function PhotoEditor({ mode, onClose, initialImageUrl }) {
                 handleRemoveBgToggle={handleRemoveBgToggle}
                 openCutout={openCutout}
                 fileInputRef={fileInputRef}
+                onReplaceBase={openReplace}
                 layerReplaceRef={layerReplaceRef}
                 expandedPanel={expandedPanel}
                 togglePanel={togglePanel}

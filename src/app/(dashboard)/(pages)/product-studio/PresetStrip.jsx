@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 // The preset rows on the Product Studio landing page: a horizontally scrolling
-// strip of tiles, plus the tile variants those rows are made of.
+// strip of tiles, plus the Photo Editing Classics treatment tile. The other
+// tiles are drawn from their presets by StudioPresetTile.
 
 /**
  * A horizontal strip with chevrons.
@@ -116,42 +117,6 @@ export function PresetStrip({ children, className = "", onOverflowChange }) {
 }
 
 /**
- * A backdrop swatch: the sample product composited onto the tile's own colour.
- * `isolate` keeps the multiply contained to this tile — without it the blend
- * reaches whatever is painted behind the row. `blend={false}` is for artwork
- * already shot on the backdrop it is selling.
- */
-export function PresetTile({ img, blend = true, className = "", style }) {
-  return (
-    <div
-      className={`isolate overflow-hidden flex items-center justify-center ${className}`}
-      style={style}
-    >
-      <img
-        src={img}
-        alt=""
-        loading="lazy"
-        className={`w-full h-full object-cover ${blend ? "mix-blend-multiply" : ""}`}
-      />
-    </div>
-  );
-}
-
-/** Plain artwork tile — Trending, Marble & Wood. No compositing to do. */
-export function PhotoTile({ img, className = "" }) {
-  return (
-    <div className={`overflow-hidden bg-gray-100 ${className}`}>
-      <img
-        src={img}
-        alt=""
-        loading="lazy"
-        className="w-full h-full object-cover"
-      />
-    </div>
-  );
-}
-
-/**
  * One Photo Editing Classics tile. Most treatments are a single CSS filter;
  * two are not, and are composited here instead:
  *  • motion — three copies offset along x, which is the only way to get a
@@ -220,23 +185,3 @@ export function FilterTile({ img, filter, kind, className = "" }) {
   );
 }
 
-/**
- * Profile Pics tile — the headshot inset in a colour ring. Deliberately NOT
- * blended: multiply over a saturated colour tints the face, which is the one
- * thing a profile picture cannot afford.
- */
-export function AvatarTile({ img, color, className = "" }) {
-  return (
-    <div
-      className={`rounded-full flex items-center justify-center ${className}`}
-      style={{ backgroundColor: color }}
-    >
-      <img
-        src={img}
-        alt=""
-        loading="lazy"
-        className="w-[78%] h-[78%] object-cover rounded-full"
-      />
-    </div>
-  );
-}

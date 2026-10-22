@@ -41,6 +41,7 @@
  * @property {Record<string, object>} templatesById Same catalog keyed by id.
  * @property {string[]} categories Tabs in the "See all" browser.
  * @property {{label: string, payloadKey: string, stockQuery: string}|null} reference
+ * @property {boolean} [matchMode] Show the Exact / Similar switch and send it.
  * @property {string} angleInstruction Appended for the "Other angles" action.
  * @property {string} defaultSize Initial aspect-ratio id.
  * @property {string} aspectClass Tile aspect ratio in the history grid.
@@ -127,6 +128,7 @@ export const PROMPT_TOOLS = {
     // A poster is driven entirely by its prompt — there is no second image to
     // reference, so this tool renders a single image slot.
     reference: null,
+    matchMode: true,
     angleInstruction:
       "Rework this poster with a different composition and camera angle, keeping the same product, colour palette, atmosphere and space for the headline.",
     // Posters are read tall — a 4:5 default matches the social placements these
@@ -167,6 +169,7 @@ export const PROMPT_TOOLS = {
       payloadKey: REFERENCE_IMAGE_KEY,
       stockQuery: TOOL_REFERENCE_STOCK_QUERIES.pod,
     },
+    matchMode: true,
     angleInstruction:
       "Show the same printed product from a different camera angle, keeping the identical pattern, colours, material and lighting.",
     defaultSize: "square",

@@ -3,7 +3,10 @@ import {
   generateProductPhoto,
   TOOL_ENUM,
   QUALITY_ENUM,
+  TEMPLATE_URL_KEY,
+  MATCH_MODE_ENUM,
 } from "@/(lib)/product-studio-api";
+import MatchModeSwitch from "./MatchModeSwitch";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import { useAuth } from "@/context/AuthContext";
 import { X, Plus, Upload, Loader2, ChevronDown } from "lucide-react";
@@ -181,6 +184,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL_ID);
   // const [selectedPose, setSelectedPose] = useState('3_4_turn');
+  const [matchMode, setMatchMode] = useState(MATCH_MODE_ENUM.exact);
   const [quality, setQuality] = useState("Standard");
   const [background, setBackground] = useState("concrete_studio");
   const [size, setSize] = useState("portrait_2_3");
@@ -406,6 +410,10 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
         prompt: promptToSend || "",
         // workspace_id omitted for now (confirm source with backend).
       };
+      // Exact: the model photo is the template to reproduce.
+      if (matchMode === MATCH_MODE_ENUM.exact && payload.model_image_url) {
+        payload[TEMPLATE_URL_KEY] = payload.model_image_url;
+      }
 
       const result = await generateProductPhoto(payload);
 
@@ -581,6 +589,9 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
 
             {/* Option rows — light gray cards (Photoroom style) */}
             <div className="px-4 pt-3 pb-3 space-y-2.5">
+              {/* Exact / Similar */}
+              <MatchModeSwitch value={matchMode} onChange={setMatchMode} />
+
               {/* Quality */}
               <button
                 ref={qualityRef}

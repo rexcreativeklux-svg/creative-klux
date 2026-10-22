@@ -49,28 +49,21 @@ import ToolHistoryModal from "@/app/(components)/product-studio/ToolHistoryModal
 import { downloadImageUrl } from "@/app/(components)/product-studio/saveToGallery";
 import Lightbox from "@/app/(components)/Lightbox";
 import { useAuth } from "@/context/AuthContext";
-import {
-  PresetStrip,
-  PresetTile,
-  PhotoTile,
-  FilterTile,
-  AvatarTile,
-} from "./PresetStrip";
-import {
-  PRESET_SNEAKER,
-  PRESET_TEE,
-  PRESET_PORTRAIT,
-  PRESET_HEADSHOT,
-  getStarted,
-  classics,
-  studioColors,
-  essentialColors,
-  professionalColors,
-  photoFilters,
-  trending,
-  marbleAndWood,
-  avatarColors,
-} from "./presetSections";
+import { PresetStrip } from "./PresetStrip";
+import { getStarted } from "./presetSections";
+import { STUDIO_SECTIONS, presetHref } from "./studioPresets";
+import StudioPresetTile, { useStudioPresetFonts } from "./StudioPresetTile";
+import CustomSizeDialog from "./CustomSizeDialog";
+import StylePickerModal from "./StylePickerModal";
+
+/** Rails whose tiles carry a name under them, as on Photoroom. */
+const LABELLED_SECTIONS = new Set([
+  "classic",
+  "photo-classics",
+  "marketplaces",
+  "social",
+  "blank",
+]);
 
 // Product Staging now has its own dedicated modal (ProductStagingModal) with the
 // gallery picker + structured Generate payload, matching Virtual Model. Beautifier
@@ -191,6 +184,7 @@ export default function ProductPhotos() {
   const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/flatlay)
   const [promptToolId, setPromptToolId] = useState(null); // shared prompt-tool modal (reshaping/poster/pod)
   const [showMorePresets, setShowMorePresets] = useState(false); // "Show more" — appends the rest of the preset rows
+  useStudioPresetFonts(); // the Trending / fashion designs' typefaces, for their tiles
 
   // ── Your work: one shelf per tool, above the preset rows ───────────────────
   // History is an authenticated endpoint, so a logged-out visitor never fetches
@@ -231,6 +225,20 @@ export default function ProductPhotos() {
   // PhotoEditor pop the file chooser on mount, so the click costs one step
   // instead of two — and the library is still reachable from inside the editor.
   const openPhotoEditor = () => router.push("/edit_a_photo?mode=start");
+
+  // A preset tile (studioPresets.js) opens the editor on that preset — a photo
+  // tile asks for the photo there, a template opens with its sample product, a
+  // size opens an empty canvas. "Custom size" asks for W×H here first.
+  const [customSizeOpen, setCustomSizeOpen] = useState(false);
+  // The photo picked in Edit a photo, while "Pick a style" is showing it.
+  const [stylePickerUrl, setStylePickerUrl] = useState(null);
+  const openPreset = (item) => {
+    if (item.custom) {
+      setCustomSizeOpen(true);
+      return;
+    }
+    router.push(presetHref(item.id));
+  };
 
   // Central tool router — used by the tool grid AND the in-modal tool switcher.
   // `opts.initialImageUrl` lets a result's "Generate video" preselect that image
@@ -402,6 +410,28 @@ export default function ProductPhotos() {
           }}
         />
       )}
+      {stylePickerUrl && (
+        <StylePickerModal
+          imageUrl={stylePickerUrl}
+          onClose={() => setStylePickerUrl(null)}
+          onPlainEditor={() =>
+            router.push(`/edit_a_photo?mode=start&image=${encodeURIComponent(stylePickerUrl)}`)
+          }
+          onPick={(item) =>
+            router.push(`${presetHref(item.id)}&image=${encodeURIComponent(stylePickerUrl)}`)
+          }
+        />
+      )}
+      {customSizeOpen && (
+        <CustomSizeDialog
+          onCancel={() => setCustomSizeOpen(false)}
+          onCreate={(w, h) => {
+            setCustomSizeOpen(false);
+            router.push(presetHref(`size-custom-${w}x${h}`));
+          }}
+        />
+      )}
+
       <MediaPickerModal
         isOpen={addImagesOpen}
         onClose={() => setAddImagesOpen(false)}
@@ -416,9 +446,8 @@ export default function ProductPhotos() {
           const first = images?.[0];
           const url = first?.large || first?.src;
           if (!url) return;
-          router.push(
-            `/edit_a_photo?mode=start&image=${encodeURIComponent(url)}`,
-          );
+          // Photoroom's Start from a photo: every style, with this photo in it.
+          setStylePickerUrl(url);
         }}
         comingSoonTabs={[
           { id: "shopify", label: "Shopify products", icon: ShoppingBag },
@@ -531,192 +560,31 @@ export default function ProductPhotos() {
           </>
         )}
 
-        {/* ── Classics ── */}
-        {showPresets && (
-          <>
-            <h2 className="text-base font-semibold text-gray-900 mb-4">
-              Classics
-            </h2>
-            <PresetStrip className="mb-8">
-              {classics.map((c, i) => (
-                <button
-                  key={i}
-                  onClick={openPhotoEditor}
-                  className="flex shrink-0 flex-col items-center gap-2 cursor-pointer"
-                >
-                  {/* 128px on desktop: the tile has to show what the backdrop
-                      does to a product, and the difference between white,
-                      transparent and the original is not legible at 80px. */}
-                  <PresetTile
-                    img={c.img}
-                    blend={c.blend !== false}
-                    className={`w-24 h-24 sm:w-32 sm:h-32 rounded-xl border-2 transition-all hover:border-blue-400 ${
-                      c.active ? "border-blue-500" : "border-gray-200"
-                    } ${c.bg}`}
-                  />
-                  <span className="text-xs sm:text-sm text-gray-600">
-                    {c.label}
-                  </span>
-                </button>
-              ))}
-            </PresetStrip>
-          </>
-        )}
-
-        {/* ── Studio ── */}
-        {showPresets && (
-          <>
-            <h2 className="text-base font-semibold text-gray-900 mb-4">
-              Studio
-            </h2>
-            <PresetStrip className="mb-8">
-              {studioColors.map((color, i) => (
-                <button
-                  key={i}
-                  onClick={openPhotoEditor}
-                  className="shrink-0 cursor-pointer"
-                >
-                  <PresetTile
-                    img={PRESET_SNEAKER}
-                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
-                    style={{ backgroundColor: color }}
-                  />
-                </button>
-              ))}
-            </PresetStrip>
-          </>
-        )}
-
-        {/* ── Essentials ── the plain-backdrop ramp, white through charcoal. */}
-        {showPresets && (
-          <>
-            <h2 className="text-base font-semibold text-gray-900 mb-4">
-              Essentials
-            </h2>
-            <PresetStrip className="mb-8">
-              {essentialColors.map((color, i) => (
-                <button
-                  key={i}
-                  onClick={openPhotoEditor}
-                  className="shrink-0 cursor-pointer"
-                >
-                  <PresetTile
-                    img={PRESET_TEE}
-                    className="w-28 h-32 sm:w-32 sm:h-40 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
-                    style={{ backgroundColor: color }}
-                  />
-                </button>
-              ))}
-            </PresetStrip>
-          </>
-        )}
-
-        {/* ── "Show more" rows ──
-            Everything below the fold on first load. These are browsing rows,
-            not tools: holding them back keeps the page one screen of decisions
-            while leaving the full catalogue one click away. */}
-        {showPresets && showMorePresets && (
-          <>
-            {/* Photo Editing Classics — one portrait, seven treatments, each
-                rendered in CSS so the tile previews the real effect. */}
-            <h2 className="text-base font-semibold text-gray-900 mb-4">
-              Photo Editing Classics
-            </h2>
-            <PresetStrip className="mb-8">
-              {photoFilters.map((f) => (
-                <button
-                  key={f.label}
-                  onClick={openPhotoEditor}
-                  className="flex shrink-0 flex-col items-center gap-2 cursor-pointer"
-                >
-                  <FilterTile
-                    img={PRESET_PORTRAIT}
-                    filter={f.filter}
-                    kind={f.kind}
-                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
-                  />
-                  <span className="text-xs sm:text-sm text-gray-600">
-                    {f.label}
-                  </span>
-                </button>
-              ))}
-            </PresetStrip>
-
-            <h2 className="text-base font-semibold text-gray-900 mb-4">
-              Trending
-            </h2>
-            <PresetStrip className="mb-8">
-              {trending.map((img, i) => (
-                <button
-                  key={i}
-                  onClick={openPhotoEditor}
-                  className="shrink-0 cursor-pointer"
-                >
-                  <PhotoTile
-                    img={img}
-                    className="w-28 h-36 sm:w-32 sm:h-40 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
-                  />
-                </button>
-              ))}
-            </PresetStrip>
-
-            <h2 className="text-base font-semibold text-gray-900 mb-4">
-              Marble &amp; Wood 🪵
-            </h2>
-            <PresetStrip className="mb-8">
-              {marbleAndWood.map((img, i) => (
-                <button
-                  key={i}
-                  onClick={openPhotoEditor}
-                  className="shrink-0 cursor-pointer"
-                >
-                  <PhotoTile
-                    img={img}
-                    className="w-28 h-32 sm:w-32 sm:h-32 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
-                  />
-                </button>
-              ))}
-            </PresetStrip>
-
-            <h2 className="text-base font-semibold text-gray-900 mb-4">
-              Professional Product Imagery
-            </h2>
-            <PresetStrip className="mb-8">
-              {professionalColors.map((color, i) => (
-                <button
-                  key={i}
-                  onClick={openPhotoEditor}
-                  className="shrink-0 cursor-pointer"
-                >
-                  <PresetTile
-                    img={PRESET_TEE}
-                    className="w-28 h-32 sm:w-32 sm:h-40 rounded-xl border border-gray-200 hover:border-blue-400 transition-all"
-                    style={{ backgroundColor: color }}
-                  />
-                </button>
-              ))}
-            </PresetStrip>
-
-            <h2 className="text-base font-semibold text-gray-900 mb-4">
-              Profile Pics
-            </h2>
-            <PresetStrip className="mb-8">
-              {avatarColors.map((color, i) => (
-                <button
-                  key={i}
-                  onClick={openPhotoEditor}
-                  className="shrink-0 cursor-pointer"
-                >
-                  <AvatarTile
-                    img={PRESET_HEADSHOT}
-                    color={color}
-                    className="w-24 h-24 sm:w-32 sm:h-32 hover:opacity-90 transition-opacity"
-                  />
-                </button>
-              ))}
-            </PresetStrip>
-          </>
-        )}
+        {/* ── Preset rails ──
+            Photoroom's home rails, from the catalogue in studioPresets.js — the
+            tile is drawn from the same preset the editor applies. Rails marked
+            `fold` wait behind "Show more": browsing rows, not tools, so the
+            page stays one screen of decisions with the rest a click away. */}
+        {showPresets &&
+          STUDIO_SECTIONS.filter((section) => showMorePresets || !section.fold).map(
+            (section) => (
+              <section key={section.id}>
+                <h2 className="text-base font-semibold text-gray-900 mb-4">
+                  {section.title}
+                </h2>
+                <PresetStrip className="mb-8">
+                  {section.items.map((item) => (
+                    <StudioPresetTile
+                      key={item.id}
+                      preset={{ ...item, mode: section.mode }}
+                      showLabel={LABELLED_SECTIONS.has(section.id)}
+                      onClick={() => openPreset(item)}
+                    />
+                  ))}
+                </PresetStrip>
+              </section>
+            ),
+          )}
 
         {/* One-way reveal: the button is spent once the rows are out. Offering
             "Show less" would scroll the page out from under someone who is

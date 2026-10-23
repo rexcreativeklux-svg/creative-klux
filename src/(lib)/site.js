@@ -25,18 +25,20 @@ export const SITE = {
   sameAs: [],
 };
 
-// public/creativeklux-seo-image.jpg — the "design team in WhatsApp" card,
-// resized to 1200×630 baseline JPEG (~65KB). WhatsApp needs an absolute https
-// JPEG/PNG, ideally under 300KB, with explicit dimensions; metadataBase turns
-// the path into an absolute URL. Scrapers cache previews by URL, so give a
-// replacement a NEW filename.
-// (public/og-image.jpg from `npm run og-image` is the old branded card.)
+// public/creativeklux-seo-brief.jpg — the "Brief it once" card. The source is
+// a ~2.7:1 banner, so it's fitted to 1200 wide and its blue background extended
+// top and bottom to 1200×630 (baseline JPEG, ~90KB) rather than cropped.
+// WhatsApp needs an absolute https JPEG/PNG, ideally under 300KB, with explicit
+// dimensions; metadataBase turns the path into an absolute URL. Scrapers cache
+// previews by URL, so give a replacement a NEW filename.
+// (public/creativeklux-seo-image.jpg is the previous "design team in WhatsApp"
+// card; public/og-image.jpg from `npm run og-image` is the old branded card.)
 export const OG_IMAGE = {
-  url: "/creativeklux-seo-image.jpg",
+  url: "/creativeklux-seo-brief.jpg",
   width: 1200,
   height: 630,
   type: "image/jpeg",
-  alt: "Creative Klux — your design team now lives in WhatsApp. Create, publish and manage ads and social designs from a message.",
+  alt: "Creative Klux — brief it once. It designs, posts and monitors itself: ads, social creatives and product shots designed in your brand, scored before you spend and posted when you approve.",
 };
 
 /**

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.creativeklux.app",
+      "sha256_cert_fingerprints": [
+        "F9:F9:8C:54:FD:25:71:83:C5:86:12:3C:5D:72:DE:11:1F:E0:8C:43:44:97:55:27:9D:10:C1:7A:EE:3F:A8:8B"
+      ]
+    }
+  }
+]

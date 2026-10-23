@@ -18,17 +18,128 @@
  * full figures stay intact, which is what a virtual-model reference needs.
  *
  * ── Adding a model ─────────────────────────────────────────────────────────
- * Add an entry with a unique `id`, the Pexels photo id, a short `desc` for the
- * tile caption, and a `prompt` describing that exact person. It shows up in the
- * picker automatically.
+ * Clothing models live in MODEL_CATALOG below with a baked `prompt`. Every other
+ * category has its own file in ./virtual-models/<category>.js, whose entries
+ * carry a unique `id`, `name`, a short `desc` for the tile caption, the Pexels
+ * id and a raw `description` of that exact person/shot; the category's prompt
+ * wording is wrapped around it here. Ids must be unique across ALL files.
  *
  * Photos are Pexels (free commercial license, no attribution required).
  */
 
 import { px } from "./constants";
+import handheld from "./virtual-models/handheld";
+import beauty from "./virtual-models/beauty";
+import jewelry from "./virtual-models/jewelry";
+import footwear from "./virtual-models/footwear";
+import bags from "./virtual-models/bags";
+import eyewear from "./virtual-models/eyewear";
+import headwear from "./virtual-models/headwear";
+import tech from "./virtual-models/tech";
+import food from "./virtual-models/food";
+
+/** Non-clothing rosters, keyed by MODEL_CATEGORIES id. */
+const CATEGORY_CATALOGS = {
+  handheld,
+  beauty,
+  jewelry,
+  footwear,
+  bags,
+  eyewear,
+  headwear,
+  tech,
+  food,
+};
 
 /** Reference photo URL for a model. Height-only resize keeps the full figure. */
 export const modelImage = (pexelsId) => px(pexelsId);
+
+const clean = (description) => String(description).trim().replace(/\.$/, "");
+
+/**
+ * Model categories — what kind of product a model's photo suits. Clothing needs
+ * a full figure, but a serum wants a face, a ring wants a hand and a sneaker
+ * wants feet, so each category frames its sentence for that shot.
+ */
+export const MODEL_CATEGORIES = [
+  {
+    id: "apparel",
+    label: "Clothing",
+    buildPrompt: (d) =>
+      `Show the product worn by ${clean(d)}. ` +
+      `Full-body e-commerce fashion photograph, natural proportions, photorealistic.`,
+  },
+  {
+    id: "handheld",
+    label: "Holding",
+    buildPrompt: (d) =>
+      `Show the product held in the hand of ${clean(d)}, with the product clearly visible and facing the camera. ` +
+      `E-commerce lifestyle product photograph, natural hands and proportions, photorealistic.`,
+  },
+  {
+    id: "beauty",
+    label: "Beauty",
+    buildPrompt: (d) =>
+      `Show the product with ${clean(d)}, held near the face or being applied. ` +
+      `Close-up beauty and skincare photograph, natural skin texture, photorealistic.`,
+  },
+  {
+    id: "jewelry",
+    label: "Jewelry",
+    buildPrompt: (d) =>
+      `Show the jewelry or watch worn by ${clean(d)}. ` +
+      `Close-up jewelry detail photograph with the piece in sharp focus, natural skin texture, photorealistic.`,
+  },
+  {
+    id: "footwear",
+    label: "Shoes",
+    buildPrompt: (d) =>
+      `Show the shoes worn by ${clean(d)}. ` +
+      `Close-up footwear photograph framed on the legs and feet with the shoes in sharp focus, photorealistic.`,
+  },
+  {
+    id: "bags",
+    label: "Bags",
+    buildPrompt: (d) =>
+      `Show the bag carried by ${clean(d)}, with the bag clearly visible. ` +
+      `E-commerce accessories photograph, natural proportions, photorealistic.`,
+  },
+  {
+    id: "eyewear",
+    label: "Eyewear",
+    buildPrompt: (d) =>
+      `Show the glasses or sunglasses worn by ${clean(d)}, fitted naturally on the face. ` +
+      `Eyewear portrait photograph with the frames in sharp focus, natural skin texture, photorealistic.`,
+  },
+  {
+    id: "headwear",
+    label: "Hats",
+    buildPrompt: (d) =>
+      `Show the hat or headwear worn by ${clean(d)}, sitting naturally on the head. ` +
+      `Head-and-shoulders accessories photograph with the headwear in sharp focus, photorealistic.`,
+  },
+  {
+    id: "tech",
+    label: "Tech",
+    buildPrompt: (d) =>
+      `Show the device being used by ${clean(d)}, with the device clearly visible. ` +
+      `Consumer-tech lifestyle photograph, natural hands and proportions, photorealistic.`,
+  },
+  {
+    id: "food",
+    label: "Food & Drink",
+    buildPrompt: (d) =>
+      `Show the food or drink product with ${clean(d)}, held or being enjoyed with the packaging clearly visible. ` +
+      `Food and beverage lifestyle photograph, appetising and natural, photorealistic.`,
+  },
+];
+
+const CATEGORIES_BY_ID = Object.fromEntries(
+  MODEL_CATEGORIES.map((c) => [c.id, c]),
+);
+
+/** Category a model belongs to when its entry doesn't say. */
+export const DEFAULT_CATEGORY_ID = "apparel";
 
 /**
  * Wraps a model/appearance description into the instruction the generator gets.
@@ -37,11 +148,13 @@ export const modelImage = (pexelsId) => px(pexelsId);
  * paths send the same shape of sentence.
  *
  * @param {string} description Free-text description of the person.
+ * @param {string} [category] A MODEL_CATEGORIES id; defaults to clothing.
  * @returns {string}
  */
-export const buildModelPrompt = (description) =>
-  `Show the product worn by ${String(description).trim().replace(/\.$/, "")}. ` +
-  `Full-body e-commerce fashion photograph, natural proportions, photorealistic.`;
+export const buildModelPrompt = (description, category = DEFAULT_CATEGORY_ID) =>
+  (CATEGORIES_BY_ID[category] || CATEGORIES_BY_ID[DEFAULT_CATEGORY_ID]).buildPrompt(
+    description,
+  );
 
 const MODEL_CATALOG = [
   // ── Women ────────────────────────────────────────────────────────────────
@@ -378,10 +491,18 @@ const MODEL_CATALOG = [
  * component so a re-render never rebuilds the list (and a user's own model,
  * which carries its own `img`, stays the same shape as a built-in one).
  */
-export const VIRTUAL_MODELS = MODEL_CATALOG.map((m) => ({
-  ...m,
-  img: modelImage(m.pexelsId),
-}));
+export const VIRTUAL_MODELS = [
+  ...MODEL_CATALOG.map((m) => ({ ...m, category: DEFAULT_CATEGORY_ID })),
+  // Every other category lives in its own data file; the prompt is built here
+  // so each entry only carries its raw description.
+  ...Object.entries(CATEGORY_CATALOGS).flatMap(([category, list]) =>
+    list.map((m) => ({
+      ...m,
+      category,
+      prompt: buildModelPrompt(m.description, category),
+    })),
+  ),
+].map((m) => ({ ...m, img: modelImage(m.pexelsId) }));
 
 /** Lookup by id — the modal resolves the selected model on every render. */
 export const VIRTUAL_MODELS_BY_ID = Object.fromEntries(

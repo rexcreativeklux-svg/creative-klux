@@ -16,6 +16,7 @@ import {
   VIRTUAL_MODELS,
   VIRTUAL_MODELS_BY_ID,
   DEFAULT_MODEL_ID,
+  MODEL_CATEGORIES,
   buildModelPrompt,
 } from "./virtualModels";
 import { FloatingPanel } from "./FloatingPanels";
@@ -183,6 +184,10 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL_ID);
+  // Which category tab the model picker shows. A custom model joins this one.
+  const [modelCategory, setModelCategory] = useState(
+    VIRTUAL_MODELS_BY_ID[DEFAULT_MODEL_ID].category,
+  );
   // const [selectedPose, setSelectedPose] = useState('3_4_turn');
   const [matchMode, setMatchMode] = useState(MATCH_MODE_ENUM.exact);
   const [quality, setQuality] = useState("Standard");
@@ -335,7 +340,8 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
       desc: description,
       emoji: "👤",
       isCustom: true,
-      prompt: buildModelPrompt(description),
+      category: modelCategory,
+      prompt: buildModelPrompt(description, modelCategory),
     };
     setCustomModels((prev) => [...prev, customModel]);
     selectModel(customModel);
@@ -443,6 +449,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
   const allModels = [...VIRTUAL_MODELS, ...customModels];
 
   const modelObj = allModels.find((m) => m.id === selectedModel);
+  const categoryModels = allModels.filter((m) => m.category === modelCategory);
   // const poseObj = POSES.find(p => p.id === selectedPose);
   const bgObj = BACKGROUNDS.find((b) => b.id === background);
   const sizeObj = SIZES.find((s) => s.id === size);
@@ -556,7 +563,10 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                 {/* Model button */}
                 <button
                   ref={modelRef}
-                  onClick={() => toggle("model")}
+                  onClick={() => {
+                    if (modelObj?.category) setModelCategory(modelObj.category);
+                    toggle("model");
+                  }}
                   className={`w-full flex flex-col items-center p-2.5 rounded-2xl transition-all ${openDropdown === "model" ? "bg-blue-50 ring-2 ring-blue-500" : "bg-gray-100/70 hover:bg-gray-100"}`}
                 >
                   <div className="w-full h-40 rounded-xl overflow-hidden mb-2.5 bg-surface">
@@ -806,15 +816,28 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
       {openDropdown === "model" && (
         <FloatingPanel
           anchorRef={modelRef}
-          width={310}
+          width={360}
           title="Model"
           subtitle={modelObj?.name}
           onClose={() => setOpenDropdown(null)}
         >
-          <p className="px-3 pt-3 text-[11px] text-gray-500">
+          {/* Category tabs — clothing needs a full figure, but a serum, ring
+              or sneaker reads better on a face, hand or feet shot. */}
+          <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+            {MODEL_CATEGORIES.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setModelCategory(c.id)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${modelCategory === c.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <p className="px-3 pt-2 text-[11px] text-gray-500">
             Pick a model — their description replaces the prompt below.
           </p>
-          <div className="grid grid-cols-4 gap-2 p-3 max-h-[70vh] overflow-y-auto">
+          <div className="grid grid-cols-4 gap-2 p-3 max-h-[60vh] overflow-y-auto">
             <button
               onClick={() => {
                 setPickerMode("model");
@@ -826,7 +849,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
             >
               <Plus className="w-5 h-5" />
             </button>
-            {allModels.map((m) => (
+            {categoryModels.map((m) => (
               <button
                 key={m.id}
                 onClick={() => selectModel(m)}
@@ -967,7 +990,7 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
                 </h3>
                 <p className="text-xs text-gray-500 mt-1 leading-relaxed">
                   Your photo shows us the look — the description tells the AI who
-                  is wearing your product. Both get sent.
+                  is modelling your product. Both get sent.
                 </p>
               </div>
               <button

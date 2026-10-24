@@ -46,8 +46,8 @@
  * flag day for the other six.
  */
 
-import { useMemo, useState } from "react";
-import { notFound, useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { notFound, useParams, useRouter } from "next/navigation";
 import { History, LayoutTemplate, Loader2, Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import HistoryLattice from "../HistoryLattice";
@@ -139,6 +139,39 @@ function MagicToolScreen({ tool, user }) {
   // A prompt pushed back into the composer by the in-flight tile's pencil.
   // { text, nonce } — see the prop's note in StudioComposer for the nonce.
   const [refill, setRefill] = useState(null);
+
+  // ── Handed a picture by another tool ───────────────────────────────────────
+  // "Generate video" on an image result lands here as `?image=<hosted url>`:
+  // the picture goes into the composer as the source and the canvas switches
+  // to Create, so the clip is made — and lands — right here. Nothing runs until
+  // Generate is pressed; the motion, duration and ratio are still the user's
+  // to choose. The param is stripped once read so a reload doesn't re-seed it.
+  const router = useRouter();
+  useEffect(() => {
+    if (getMagicConfig(tool.id)?.input !== "image") return undefined;
+    const image = new URLSearchParams(window.location.search).get("image");
+    if (!image) return undefined;
+    const id = requestAnimationFrame(() => {
+      console.log(`🎬 [magic-studio] ${tool.id} opened with a source image`);
+      setRefill({ text: "", image, nonce: Date.now() });
+      setView("create");
+      router.replace(`/magic-studio/${tool.slug}`, { scroll: false });
+    });
+    return () => cancelAnimationFrame(id);
+    // Mount-only: reads the URL the page landed with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Send an image result on to Image to Video, which starts from it.
+  const sendToImageToVideo = (url) =>
+    router.push(`/magic-studio/image-to-video?image=${encodeURIComponent(url)}`);
+
+  // Send an image result to Creative Comparison, where it lands as Creative A
+  // (named after this tool) and the other slot is left for its rival.
+  const sendToComparison = (item) =>
+    router.push(
+      `/ad-intelligence/creative-comparison?image=${encodeURIComponent(item.url)}&label=${encodeURIComponent(tool.label)}`,
+    );
 
   // Only backend tools persist anything. Audio to Text and Text to Audio run
   // entirely on-device, so there is nothing to ask the server for.
@@ -415,6 +448,8 @@ function MagicToolScreen({ tool, user }) {
               })
             }
             onDelete={remove}
+            onGenerateVideo={sendToImageToVideo}
+            onCompare={sendToComparison}
             removingId={removingId}
             emptyHint={
               creating

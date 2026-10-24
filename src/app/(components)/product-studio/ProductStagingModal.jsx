@@ -57,12 +57,32 @@ const toTile = (t) => ({
 const TEMPLATE_TILES = STAGING_TEMPLATES.map(toTile);
 
 
-export default function ProductStagingModal({ onClose, onSwitchTool }) {
+/**
+ * @param {object} props
+ * @param {() => void} props.onClose
+ * @param {(id: string, opts?: object) => void} [props.onSwitchTool]
+ * @param {string} [props.initialPresetId] A STAGING_TEMPLATES id to open on
+ *   (the Product Studio page's scene shelf) instead of the first scene.
+ * @param {boolean} [props.autoStart] Open the image picker straight away and
+ *   generate as soon as the first product photo is picked.
+ */
+export default function ProductStagingModal({
+  onClose,
+  onSwitchTool,
+  initialPresetId = null,
+  autoStart = false,
+}) {
   const { activeBrand, uploadMedia, token } = useAuth();
   const isLoggedIn = !!token;
   const qualityRef = useRef(null);
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
+  const initialTemplate =
+    STAGING_TEMPLATES_BY_ID[initialPresetId] || STAGING_TEMPLATES[0];
+  // Armed by `autoStart`: the FIRST product photo picked generates straight
+  // away. Closing the picker without one disarms it, so a later pick is an
+  // ordinary pick that waits for the Generate button.
+  const autoRunRef = useRef(autoStart);
 
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -70,26 +90,29 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
   // The selected staging template drives the prompt: its scene description
   // seeds the prompt box (first template preselected) and re-seeding it on
   // every pick (see selectTemplate). The user can still edit the prompt freely.
-  const [selectedTemplate, setSelectedTemplate] = useState(
-    STAGING_TEMPLATES[0].id,
-  );
+  const [selectedTemplate, setSelectedTemplate] = useState(initialTemplate.id);
   const [matchMode, setMatchMode] = useState(MATCH_MODE_ENUM.exact);
   const [quality, setQuality] = useState("Standard");
   const [size, setSize] = useState("square");
   const [applyBrandStyle, setApplyBrandStyle] = useState(true);
-  const [prompt, setPrompt] = useState(STAGING_TEMPLATES[0].prompt);
+  const [prompt, setPrompt] = useState(initialTemplate.prompt);
   const [generating, setGenerating] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [toolMenuOpen, setToolMenuOpen] = useState(false); // header tool switcher
   // Which half is on screen below `lg` ("setup" | "result") — see
   // ToolModalMobileHeader. Ignored above it, where both are side by side.
   const [mobileView, setMobileView] = useState("setup");
-  const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
+  const [pickerOpen, setPickerOpen] = useState(autoStart); // gallery media picker
   const [seeAllOpen, setSeeAllOpen] = useState(false); // full template browser
   // A scene picked in the "See all" browser usually isn't among the shelf's
   // first twelve, so it gets pinned to the front of the row — otherwise the
-  // browser closes and nothing on screen shows what was chosen.
-  const [pinnedTemplate, setPinnedTemplate] = useState(null);
+  // browser closes and nothing on screen shows what was chosen. A preset the
+  // modal was opened on is pinned the same way.
+  const [pinnedTemplate, setPinnedTemplate] = useState(() =>
+    initialPresetId
+      ? TEMPLATE_TILES.find((t) => t.id === initialPresetId) || null
+      : null,
+  );
 
   // Past generations for this tool. History REPLACES a session-only results list:
   // after each successful generate we refresh it and the new item shows up
@@ -114,17 +137,28 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
   const handleApplyFromPicker = (images = []) => {
     const item = images[0];
     if (!item) return;
+    const autoRun = autoRunRef.current;
+    autoRunRef.current = false;
     if (item.file instanceof File) {
       setUploadedFile(item.file);
       setUploadedImage(item.src || URL.createObjectURL(item.file));
       setUploadedFileUrl(null); // resolve a hosted URL on generate
+      setPickerOpen(false);
+      // State isn't committed yet, so hand the pick to generate directly.
+      if (autoRun) handleGenerate({ fileOverride: item.file });
     } else {
       const url = item.large || item.src || null;
       if (!url) return;
       setUploadedFile(null);
       setUploadedImage(url);
       setUploadedFileUrl(url); // already hosted
+      setPickerOpen(false);
+      if (autoRun) handleGenerate({ imageUrlOverride: url });
     }
+  };
+
+  const closePicker = () => {
+    autoRunRef.current = false;
     setPickerOpen(false);
   };
 
@@ -133,8 +167,15 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
   //   • promptOverride   — send this prompt instead of the sidebar's.
   //   • imageUrlOverride — use this hosted image as the input (e.g. "Other
   //     angles" regenerates from the result's OWN output image).
-  const handleGenerate = async ({ promptOverride, imageUrlOverride } = {}) => {
-    if (!imageUrlOverride && !uploadedFile && !uploadedImage) {
+  //   • fileOverride     — a just-picked local File, used before its state
+  //     lands (the auto-run after a preset launch).
+  const handleGenerate = async ({
+    promptOverride,
+    imageUrlOverride,
+    fileOverride,
+  } = {}) => {
+    const file = fileOverride || uploadedFile;
+    if (!imageUrlOverride && !file && !uploadedImage) {
       toast.error("Please select a product image first");
       return;
     }
@@ -148,9 +189,9 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
       // Resolve the ONE image URL to send. An override (a past result) is used
       // as-is; otherwise gallery picks already have a hosted URL, and a fresh
       // local upload gets uploaded here to obtain one.
-      let imageUrl = imageUrlOverride || uploadedFileUrl;
-      if (!imageUrl && uploadedFile) {
-        const uploaded = await uploadMedia(uploadedFile);
+      let imageUrl = imageUrlOverride || (fileOverride ? null : uploadedFileUrl);
+      if (!imageUrl && file) {
+        const uploaded = await uploadMedia(file);
         console.log("🖼️ [staging] upload response ←", uploaded);
         imageUrl =
           uploaded?.url ||
@@ -636,8 +677,8 @@ export default function ProductStagingModal({ onClose, onSwitchTool }) {
       {/* Gallery media picker — pick ONE image (My Library / Search / Upload) */}
       <MediaPickerModal
         isOpen={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        onCancel={() => setPickerOpen(false)}
+        onClose={closePicker}
+        onCancel={closePicker}
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
         maxSelectable={1}

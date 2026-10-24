@@ -46,7 +46,7 @@ const TOOL_LIST = [
   },
   {
     id: "bgremove",
-    name: "Background Remover",
+    name: "Instant Backdrop",
     Icon: Scissors,
     color: "bg-red-100 text-red-600",
     img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=240&q=80",

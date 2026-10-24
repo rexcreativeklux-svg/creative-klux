@@ -79,12 +79,22 @@ const TEMPLATE_TILES = PRODUCT_VIDEO_TEMPLATES.map(toTile);
  * @param {(id: string, opts?: object) => void} [props.onSwitchTool]
  * @param {string|null} [props.initialImageUrl] Preselect this hosted image (from a
  *   result's "Generate video") so the user can generate straight away.
+ * @param {string} [props.initialPresetId] A PRODUCT_VIDEO_TEMPLATES id to open
+ *   on (the Product Studio page's clip shelf).
+ * @param {boolean} [props.autoStart] Open the image picker straight away and
+ *   start rendering as soon as the first photos are picked.
  */
 export default function ProductVideoModal({
   onClose,
   onSwitchTool,
   initialImageUrl = null,
+  initialPresetId = null,
+  autoStart = false,
 }) {
+  const initialTemplate = PRODUCT_VIDEO_TEMPLATES_BY_ID[initialPresetId] || null;
+  // Armed by `autoStart`: the FIRST pick starts a render straight away.
+  // Closing the picker without one disarms it.
+  const autoRunRef = useRef(autoStart);
   const { activeBrand, uploadMedia, token } = useAuth();
   const isLoggedIn = !!token;
   const sizeRef = useRef(null);
@@ -114,13 +124,19 @@ export default function ProductVideoModal({
   // meaningless without a scene, so seeding one there is a favour; here the
   // prompt is genuinely optional — "just animate my photo" is a valid request —
   // and pre-filling it would silently commit every user to one specific look.
-  const [selectedTemplate, setSelectedTemplate] = useState("none");
+  // A clip preset from the Product Studio page overrides that: the user chose a
+  // look, so it is selected and its prompt seeded.
+  const [selectedTemplate, setSelectedTemplate] = useState(
+    initialTemplate?.id ?? "none",
+  );
   // A template picked in the "See all" browser usually isn't among the shelf's
   // first twelve, so it gets pinned to the front of the row — otherwise the
   // browser closes and nothing on screen shows what was chosen.
-  const [pinnedTemplate, setPinnedTemplate] = useState(null);
+  const [pinnedTemplate, setPinnedTemplate] = useState(() =>
+    initialTemplate ? toTile(initialTemplate) : null,
+  );
   const [size, setSize] = useState("square");
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(initialTemplate?.prompt ?? "");
   const [generating, setGenerating] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
@@ -128,7 +144,7 @@ export default function ProductVideoModal({
   // ToolModalMobileHeader. Ignored above it, where both are side by side.
   const [mobileView, setMobileView] = useState("setup");
   const [seeAllOpen, setSeeAllOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
+  const [pickerOpen, setPickerOpen] = useState(autoStart && !initialImageUrl); // gallery media picker
 
   // Past renders for this tool. History REPLACES a session-only results list:
   // after each successful generate we refresh it and the new clip shows up
@@ -203,36 +219,46 @@ export default function ProductVideoModal({
   // can send straight through. Appends to the current set, capped at MAX_IMAGES.
   const handleApplyFromPicker = (images = []) => {
     setPickerOpen(false);
+    const autoRun = autoRunRef.current;
+    autoRunRef.current = false;
     if (!Array.isArray(images) || images.length === 0) return;
 
-    setUploadedImages((prev) => {
-      const remaining = MAX_IMAGES - prev.length;
-      if (remaining <= 0) return prev;
+    // Computed from the current set rather than inside a state updater, so the
+    // auto-run below can hand the exact same list to generate.
+    const remaining = MAX_IMAGES - uploadedImages.length;
+    if (remaining <= 0) return;
 
-      const mapped = images
-        .slice(0, remaining)
-        .map((image, i) => {
-          const id = image.id ?? `img-${Date.now()}-${i}`;
-          if (image.file instanceof File) {
-            return {
-              id,
-              preview: image.src || URL.createObjectURL(image.file),
-              file: image.file,
-              url: null, // resolve a hosted URL on generate
-            };
-          }
-          const url = image.large || image.src || null;
-          return url ? { id, preview: url, file: null, url } : null;
-        })
-        .filter(Boolean);
+    const mapped = images
+      .slice(0, remaining)
+      .map((image, i) => {
+        const id = image.id ?? `img-${Date.now()}-${i}`;
+        if (image.file instanceof File) {
+          return {
+            id,
+            preview: image.src || URL.createObjectURL(image.file),
+            file: image.file,
+            url: null, // resolve a hosted URL on generate
+          };
+        }
+        const url = image.large || image.src || null;
+        return url ? { id, preview: url, file: null, url } : null;
+      })
+      .filter(Boolean);
 
-      if (images.length > remaining) {
-        toast.error(
-          `Only ${remaining} more image${remaining === 1 ? "" : "s"} added — the max is ${MAX_IMAGES}.`,
-        );
-      }
-      return [...prev, ...mapped];
-    });
+    if (images.length > remaining) {
+      toast.error(
+        `Only ${remaining} more image${remaining === 1 ? "" : "s"} added — the max is ${MAX_IMAGES}.`,
+      );
+    }
+    const next = [...uploadedImages, ...mapped];
+    setUploadedImages(next);
+    // State isn't committed yet, so hand the set to generate directly.
+    if (autoRun && mapped.length) handleGenerate({ imagesOverride: next });
+  };
+
+  const closePicker = () => {
+    autoRunRef.current = false;
+    setPickerOpen(false);
   };
 
   // Picking a template REPLACES the prompt with that clip's shot description
@@ -251,8 +277,11 @@ export default function ProductVideoModal({
   const removeImage = (id) =>
     setUploadedImages((prev) => prev.filter((img) => img.id !== id));
 
-  const handleGenerate = async () => {
-    if (uploadedImages.length === 0) {
+  // `imagesOverride` — a just-picked set, used before its state lands (the
+  // auto-run after a preset launch).
+  const handleGenerate = async ({ imagesOverride } = {}) => {
+    const sourceImages = imagesOverride || uploadedImages;
+    if (sourceImages.length === 0) {
       toast.error("Please select a product image first");
       return;
     }
@@ -266,7 +295,7 @@ export default function ProductVideoModal({
       // fresh local uploads are uploaded here to obtain one. We upload sequentially
       // so a failure is easy to attribute, and cache resolved URLs back into state
       // so a retry doesn't re-upload the same file.
-      const nextImages = [...uploadedImages];
+      const nextImages = [...sourceImages];
       const imageUrls = [];
       for (let i = 0; i < nextImages.length; i++) {
         const img = nextImages[i];
@@ -758,8 +787,8 @@ export default function ProductVideoModal({
       {/* ── Gallery media picker (My Library / Search / Upload) ── */}
       <MediaPickerModal
         isOpen={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        onCancel={() => setPickerOpen(false)}
+        onClose={closePicker}
+        onCancel={closePicker}
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
         maxSelectable={Math.max(1, MAX_IMAGES - uploadedImages.length)}

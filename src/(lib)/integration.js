@@ -769,6 +769,12 @@ async function hostedVideoFor(video) {
  * creatives/post-metrics passes through whatever the platform returns, so the
  * shape differs per network — pull the numbers the UI shows from wherever they
  * are (flat fields, or a `public_metrics` / `metrics` / `insights` object).
+ * Facebook sends `likes`/`shares`; YouTube sends camelCase strings
+ * (`viewCount`, `likeCount`, …).
+ *
+ * A metric the platform did not send stays `undefined` (shown as "—"), never
+ * 0: Facebook reports no impressions for a post, and a 0 would claim it had
+ * none.
  */
 function normalizeMetrics(data) {
   const src = {
@@ -787,16 +793,22 @@ function normalizeMetrics(data) {
       if (v && typeof v === "object" && typeof v.count === "number")
         return v.count;
     }
-    return 0;
+    return undefined;
   };
   return {
-    impressions: num("impressions", "impression_count", "views", "view_count"),
+    impressions: num(
+      "impressions",
+      "impression_count",
+      "views",
+      "view_count",
+      "viewCount",
+    ),
     reach: num("reach"),
     clicks: num("clicks", "link_clicks"),
-    likes: num("likes", "like_count", "reactions"),
-    comments: num("comments", "comment_count", "reply_count"),
+    likes: num("likes", "like_count", "likeCount", "reactions"),
+    comments: num("comments", "comment_count", "commentCount", "reply_count"),
     shares: num("shares", "share_count", "retweet_count"),
-    saves: num("saves", "saved", "bookmark_count"),
+    saves: num("saves", "saved", "bookmark_count", "favoriteCount"),
   };
 }
 
@@ -969,6 +981,53 @@ export async function getInstagramPostStats({ post_id, brand_id }) {
   return normalizeMetrics(
     await fetchPostMetrics({ brand_id, platform: "instagram", post_id }),
   );
+}
+
+/** Platforms creatives/post-metrics answers for. */
+export const POST_STATS_PLATFORMS = ["facebook", "instagram", "youtube"];
+
+/** One post's metrics on any of POST_STATS_PLATFORMS. */
+export async function getPostStats({ platform, post_id, brand_id }) {
+  return normalizeMetrics(
+    await fetchPostMetrics({ brand_id, platform, post_id }),
+  );
+}
+
+/**
+ * Load metrics for many rows at once, a few requests at a time. Resolves to
+ * `{ stats: { [rowId]: stats }, errors: { [platform]: message } }` — each
+ * platform's failure is kept once, in the server's own words, so a page can
+ * report "Instagram: no permission" a single time rather than per row.
+ *
+ * @param {Array} rows Rows with `id`, `platform`, `post_id`.
+ * @param {(row) => Promise<object>} load Fetches one row's stats.
+ * @param {number} [concurrency=4]
+ */
+export async function loadStatsForRows(rows, load, concurrency = 4) {
+  const stats = {};
+  const errors = {};
+  const failures = {};
+  const queue = [...rows];
+  const worker = async () => {
+    while (queue.length) {
+      const row = queue.shift();
+      // A platform that has refused twice (e.g. missing permission) will
+      // refuse every row the same way — stop spending a request per row on it.
+      // One failure alone may just be that post, so the rest still load.
+      if ((failures[row.platform] || 0) >= 2) continue;
+      try {
+        stats[row.id] = {
+          ...(await load(row)),
+          last_updated: new Date().toISOString(),
+        };
+      } catch (err) {
+        failures[row.platform] = (failures[row.platform] || 0) + 1;
+        errors[row.platform] ??= err?.message || "Couldn't load stats";
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return { stats, errors };
 }
 
 /**

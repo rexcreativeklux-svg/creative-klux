@@ -341,6 +341,10 @@ function AudioTile({ item, index, onDownload, onOpenMenu }) {
  * @param {() => void} [props.onEditGenerating] Put `generatingPrompt` back in
  *   the composer to be reworded.
  * @param {(id: string|number) => void} [props.onDelete]
+ * @param {(url: string) => void} [props.onGenerateVideo] Send an image result
+ *   on to Image to Video. Offered on image results only.
+ * @param {(item: object) => void} [props.onCompare] Send an image result to
+ *   Creative Comparison. Offered on image results only.
  * @param {string|number|null} [props.removingId]
  * @param {string} [props.emptyHint] One quiet line dropped into the first cell
  *   when there is no history at all — omit it for a completely bare lattice.
@@ -357,6 +361,8 @@ export default function HistoryLattice({
   onDismissGenerating,
   onEditGenerating,
   onDelete,
+  onGenerateVideo,
+  onCompare,
   removingId = null,
   emptyHint,
 }) {
@@ -462,6 +468,17 @@ export default function HistoryLattice({
 
   const actionsFor = (item) =>
     buildResultActions({
+      // A still with a hosted file behind it — that URL is what Image to Video
+      // starts from. A clip or a voice take has nothing to animate.
+      onGenerateVideo:
+        onGenerateVideo && item.type === "image" && item.url
+          ? () => onGenerateVideo(item.url)
+          : undefined,
+      // Creative Comparison scores stills, so the same gate as above.
+      onCompare:
+        onCompare && item.type === "image" && item.url
+          ? () => onCompare(item)
+          : undefined,
       onPublish: canPublish(item) ? () => setPublishItem(item) : undefined,
       onDownload: item.url ? () => handleDownload(item) : undefined,
       onCopyLink: item.url

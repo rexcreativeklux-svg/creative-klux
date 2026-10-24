@@ -22,6 +22,69 @@ import {
   Clock,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import useMagicImageResults from "./useMagicImageResults";
+import { fetchHostedBlob } from "@/app/(components)/product-studio/saveToGallery";
+
+/**
+ * A creative picked by URL (a Magic Studio result) as an uploadable File.
+ *
+ * ⚠️ THE ENDPOINT ONLY TAKES FILES. runComparison falls back to sending
+ * `image_url_a/b` when there is no file, but the backend rejects that with
+ * "Both image_a and image_b are required" — so a hosted pick is fetched and
+ * sent as `image_a/b` like an upload. Creatives that already carry a file
+ * (uploads, rendered designs) pass through untouched.
+ */
+async function withFile(creative) {
+  if (!creative.file && !creative.url) return creative;
+  const base = (creative.label || "creative").replace(/\W+/g, "-");
+  let file = creative.file;
+  if (!file) {
+    const blob = await fetchHostedBlob(creative.url);
+    const ext = (blob.type.split("/")[1] || "png").replace("jpeg", "jpg");
+    file = new File([blob], `${base}.${ext}`, { type: blob.type || "image/png" });
+  }
+  return { ...creative, file: await fitUploadLimit(file, base) };
+}
+
+// The comparison endpoint rejects images over 2MB ("The uploaded image exceeds
+// 2MB"). Magic Studio renders and phone photos are routinely bigger, so a file
+// over the line is re-encoded here — just under it, to leave room for headers.
+const UPLOAD_LIMIT = 2 * 1024 * 1024;
+const TARGET = UPLOAD_LIMIT * 0.95;
+const MAX_SIDE = 2048; // plenty for scoring a creative
+
+/**
+ * A file the endpoint will accept: unchanged when already under the limit,
+ * otherwise scaled to at most MAX_SIDE and re-encoded as JPEG at the highest
+ * quality that fits.
+ */
+async function fitUploadLimit(file, base) {
+  if (file.size <= TARGET) return file;
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  // JPEG has no alpha — a transparent PNG would otherwise go black behind it.
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+
+  for (const quality of [0.92, 0.85, 0.75, 0.6, 0.45]) {
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", quality),
+    );
+    if (blob && blob.size <= TARGET) {
+      console.log(
+        `🗜️ [comparison] ${base}: ${(file.size / 1048576).toFixed(1)}MB → ${(blob.size / 1048576).toFixed(1)}MB`,
+      );
+      return new File([blob], `${base}.jpg`, { type: "image/jpeg" });
+    }
+  }
+  throw new Error("That image is too large to compare, even after compressing it.");
+}
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint
 // and export, so previews and the exported PNG match what opens in the editor.
 import {
@@ -569,7 +632,18 @@ function CreativePickerCard({ design: c, selected, onSelect }) {
 }
 
 // ── CreativeUpload (updated with tabs) ────────────────────────────────────────
-function CreativeUpload({ label, value, onChange, designs, loadingDesigns }) {
+function CreativeUpload({
+  label,
+  value,
+  onChange,
+  designs,
+  loadingDesigns,
+  magicItems = [],
+  loadingMagic = false,
+  // "projects" | "magic" | "upload" — the Compare shortcut from Magic Studio
+  // opens slot A on "magic" with its picture already chosen.
+  initialTab = "projects",
+}) {
   const fileRef = useRef();
   const [dragging, setDragging] = useState(false);
   // ⚠️ OPENS ON "From Creatives". Comparing two of your OWN creatives is what
@@ -580,8 +654,16 @@ function CreativeUpload({ label, value, onChange, designs, loadingDesigns }) {
   // The list is fetched by the page, not here — see the note on that effect.
   // A load that hung off this tab's click handler would leave the default view
   // permanently empty, since nobody has to click it any more.
-  const [activeTab, setActiveTab] = useState("projects"); // "upload" | "projects"
+  const [activeTab, setActiveTab] = useState(initialTab); // "upload" | "projects" | "magic"
   const [selectedDesignId, setSelectedDesignId] = useState(null);
+
+  // A Magic Studio result is already a hosted image, and the comparison endpoint
+  // takes a URL (`image_url_a/b`) when there is no file — so picking one passes
+  // the URL straight through, with nothing to render or upload.
+  const selectMagicItem = (item) => {
+    setSelectedDesignId(null);
+    onChange({ ...value, label: item.label, url: item.url, file: null, design: null });
+  };
 
   const acceptFile = (f) => {
     if (!f) return;
@@ -682,6 +764,12 @@ function CreativeUpload({ label, value, onChange, designs, loadingDesigns }) {
           <LayoutGrid className="w-3 h-3" /> From Creatives
         </button>
         <button
+          onClick={() => setActiveTab("magic")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === "magic" ? "bg-surface text-gray-800 " : "text-gray-500 hover:text-gray-700"}`}
+        >
+          <Wand2 className="w-3 h-3" /> Magic Studio
+        </button>
+        <button
           onClick={() => setActiveTab("upload")}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === "upload" ? "bg-surface text-gray-800 " : "text-gray-500 hover:text-gray-700"}`}
         >
@@ -738,6 +826,71 @@ function CreativeUpload({ label, value, onChange, designs, loadingDesigns }) {
             </button>
           </div>
         ))}
+
+      {/* ── Magic Studio tab ── recent pictures from the Magic Studio image
+          tools, newest first (useMagicImageResults). */}
+      {activeTab === "magic" && (
+        <div className="flex-1 flex flex-col min-h-0">
+          {loadingMagic ? (
+            <div className="flex-1 flex items-center justify-center">
+              <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" />
+            </div>
+          ) : magicItems.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8">
+              <Wand2 className="w-8 h-8 text-gray-200" />
+              <p className="text-xs text-gray-400 text-center">
+                No Magic Studio images yet
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-y-auto flex-1" style={{ maxHeight: 340 }}>
+              <div className="grid grid-cols-3 gap-2">
+                {magicItems.map((item) => {
+                  const selected = value.url === item.url;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => selectMagicItem(item)}
+                      title={item.label}
+                      className={`relative aspect-square rounded-xl overflow-hidden border-2 bg-gray-100 transition-colors cursor-pointer ${selected ? "border-indigo-500" : "border-transparent hover:border-indigo-200"}`}
+                    >
+                      <img
+                        src={item.url}
+                        alt={item.label}
+                        loading="lazy"
+                        className="w-full h-full object-cover"
+                      />
+                      <span className="absolute inset-x-0 bottom-0 px-1.5 pb-1 pt-3 bg-linear-to-t from-black/60 to-transparent text-[9px] font-medium text-white truncate text-left">
+                        {item.label}
+                      </span>
+                      {selected && (
+                        <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center">
+                          <Check className="w-3 h-3 text-white" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {value.url && magicItems.some((m) => m.url === value.url) && (
+            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-xl">
+              <Check className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+              <p className="text-xs font-semibold text-indigo-700 flex-1 truncate">
+                {value.label}
+              </p>
+              <button
+                onClick={clear}
+                className="text-indigo-400 hover:text-indigo-600 cursor-pointer transition"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Projects tab ── */}
       {activeTab === "projects" && (
@@ -976,7 +1129,13 @@ function ResultsPanel({ result, onReset }) {
 
 /* ─── Main Page ───────────────────────────────────────────────── */
 export default function Comparison() {
-  const { runComparison, fetchDesigns } = useAuth();
+  const { runComparison, fetchDesigns, token } = useAuth();
+
+  // Magic Studio pictures — fetched here for BOTH panels, for the same reason
+  // as the designs below.
+  const { items: magicItems, loading: loadingMagic } = useMagicImageResults({
+    enabled: !!token,
+  });
 
   // ── Your creatives, fetched once for BOTH panels ─────────────────────────
   // ⚠️ IT LIVES UP HERE, not inside CreativeUpload, because there are two of
@@ -1025,6 +1184,37 @@ export default function Comparison() {
     label: "Creative B",
   });
 
+  // Handed a picture by Magic Studio's "Compare": `?image=<hosted url>&label=`
+  // seeds Creative A and opens its panel on the Magic Studio tab, leaving B for
+  // whatever it is up against. The params are stripped once read, so a reload
+  // starts clean. `seededA` also remounts panel A so it opens on that tab.
+  const [seededA, setSeededA] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const image = params.get("image");
+    if (!image) return undefined;
+    const id = requestAnimationFrame(() => {
+      console.log("🆚 [comparison] opened with a Magic Studio image as Creative A");
+      setCreativeA({
+        url: image,
+        file: null,
+        label: params.get("label") || "Creative A",
+      });
+      setSeededA(true);
+      window.history.replaceState(null, "", window.location.pathname);
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // The tab a panel opens on. The pickers unmount while a run is in flight, so
+  // after an error (or "Compare again") a panel would otherwise come back on
+  // From Creatives with its Magic Studio pick out of sight.
+  const tabFor = (creative, seeded = false) =>
+    seeded ||
+    (creative.url && !creative.file && magicItems.some((m) => m.url === creative.url))
+      ? "magic"
+      : "projects";
+
   // Websites
   const [urlA, setUrlA] = useState("");
   const [urlB, setUrlB] = useState("");
@@ -1039,10 +1229,25 @@ export default function Comparison() {
     setError("");
     setResult(null);
 
+    let sendA = creativeA;
+    let sendB = creativeB;
+    if (mode === "creatives") {
+      try {
+        [sendA, sendB] = await Promise.all([
+          withFile(creativeA),
+          withFile(creativeB),
+        ]);
+      } catch (err) {
+        setError(err?.message || "Couldn't load one of the images.");
+        setLoading(false);
+        return;
+      }
+    }
+
     const response = await runComparison({
       mode,
-      creativeA,
-      creativeB,
+      creativeA: sendA,
+      creativeB: sendB,
       urlA,
       urlB,
     });
@@ -1131,11 +1336,15 @@ export default function Comparison() {
             {mode === "creatives" ? (
               <>
                 <CreativeUpload
+                  key={seededA ? "seeded" : "fresh"}
                   label="Creative A"
                   value={creativeA}
                   onChange={setCreativeA}
                   designs={designs}
                   loadingDesigns={loadingDesigns}
+                  magicItems={magicItems}
+                  loadingMagic={loadingMagic}
+                  initialTab={tabFor(creativeA, seededA)}
                 />
                 <div className="flex items-center justify-center">
                   <div className="w-11 h-11 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 font-bold text-xs bg-surface ">
@@ -1148,6 +1357,9 @@ export default function Comparison() {
                   onChange={setCreativeB}
                   designs={designs}
                   loadingDesigns={loadingDesigns}
+                  magicItems={magicItems}
+                  loadingMagic={loadingMagic}
+                  initialTab={tabFor(creativeB)}
                 />
               </>
             ) : (

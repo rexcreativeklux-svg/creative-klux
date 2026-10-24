@@ -28,6 +28,7 @@ import {
   setAdCampaignStatus,
   fetchLivePostsFromConnectedAccounts,
   carryStats,
+  loadStatsForRows,
 } from "../../../../../(lib)/integration";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -268,11 +269,34 @@ export default function AdsPublishing() {
 
   // 2. The campaigns, exactly as the backend lists them. Nothing is kept in the
   //    browser, so what's on screen is always the backend's answer.
+  // Every campaign's last-30-days numbers, fetched after the list so the table
+  // can render first. Each network's refusal is reported once.
+  const loadAllStats = useCallback(async (rows) => {
+    const targets = rows.filter((p) => p.type === matchType && p.post_id);
+    if (!targets.length) return;
+    const { stats, errors } = await loadStatsForRows(targets, (row) =>
+      getAdCampaignStats({
+        platform: row.platform,
+        campaign_id: row.post_id,
+        days: 30,
+      }),
+    );
+    setAllPosts((current) =>
+      current.map((p) => (stats[p.id] ? { ...p, stats: stats[p.id] } : p)),
+    );
+    Object.entries(errors).forEach(([platform, message]) =>
+      toast.error(
+        `${PLATFORM_META[platform]?.label || platform} stats: ${message}`,
+      ),
+    );
+  }, []);
+
   const loadCampaigns = useCallback(
     async (silent = false) => {
       setFetchingLive(true);
+      let rows = [];
       try {
-        const rows = await fetchLivePostsFromConnectedAccounts(integrations);
+        rows = await fetchLivePostsFromConnectedAccounts(integrations);
         setAllPosts((prev) => carryStats(prev, rows));
         // A platform the backend couldn't read: show its own error, always.
         if (rows.errors?.length) toast.error(rows.errors.join(" · "));
@@ -286,8 +310,10 @@ export default function AdsPublishing() {
         setFetchingLive(false);
         setLoading(false);
       }
+      // After the table is up — the numbers fill in as they arrive.
+      if (rows.length) loadAllStats(rows);
     },
-    [integrations],
+    [integrations, loadAllStats],
   );
 
   // 3. Load once integrations have resolved.

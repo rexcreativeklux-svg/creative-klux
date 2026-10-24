@@ -73,16 +73,30 @@ const toTile = (t) => ({
  * @param {import("./promptToolConfigs").PromptToolConfig} props.config
  * @param {() => void} props.onClose
  * @param {(id: string, opts?: object) => void} [props.onSwitchTool]
+ * @param {string} [props.initialPresetId] A template id from `config.templates`
+ *   to open on (the Product Studio page's preset shelf) instead of the first.
+ * @param {boolean} [props.autoStart] Open the product-image picker straight away
+ *   and generate as soon as the first product photo is picked.
  */
-export default function PromptToolModal({ config, onClose, onSwitchTool }) {
+export default function PromptToolModal({
+  config,
+  onClose,
+  onSwitchTool,
+  initialPresetId = null,
+  autoStart = false,
+}) {
   const { activeBrand, uploadMedia, token } = useAuth();
   const isLoggedIn = !!token;
   const qualityRef = useRef(null);
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
+  // Armed by `autoStart`: the FIRST product photo picked generates straight
+  // away. Closing the picker without one disarms it.
+  const autoRunRef = useRef(autoStart);
 
   const templateTiles = config.templates.map(toTile);
-  const firstTemplate = config.templates[0];
+  const firstTemplate =
+    config.templatesById[initialPresetId] || config.templates[0];
 
   // ── Product image (required) ──
   const [uploadedImage, setUploadedImage] = useState(null); // preview src
@@ -114,12 +128,19 @@ export default function PromptToolModal({ config, onClose, onSwitchTool }) {
   // Which slot the gallery picker is filling ("product" | "reference" | null).
   // One picker serves both slots; this is what tells its onApply where to put
   // the image, so a reference pick can never overwrite the product image.
-  const [pickerTarget, setPickerTarget] = useState(null);
+  const [pickerTarget, setPickerTarget] = useState(
+    autoStart ? "product" : null,
+  );
   const [seeAllOpen, setSeeAllOpen] = useState(false); // full preset browser
   // A pick from the "See all" browser usually isn't among the shelf's first
   // twelve, so it gets pinned to the front of the row — otherwise the browser
-  // closes and nothing on screen shows what was chosen.
-  const [pinnedTemplate, setPinnedTemplate] = useState(null);
+  // closes and nothing on screen shows what was chosen. A preset the modal was
+  // opened on is pinned the same way.
+  const [pinnedTemplate, setPinnedTemplate] = useState(() =>
+    initialPresetId
+      ? templateTiles.find((t) => t.id === initialPresetId) || null
+      : null,
+  );
 
   // Past generations for this tool. History REPLACES a session-only results
   // list: after each successful generate we refresh it and the new item shows
@@ -156,18 +177,30 @@ export default function PromptToolModal({ config, onClose, onSwitchTool }) {
     const setPreview = isReference ? setReferenceImage : setUploadedImage;
     const setFile = isReference ? setReferenceFile : setUploadedFile;
     const setUrl = isReference ? setReferenceFileUrl : setUploadedFileUrl;
+    // Only a PRODUCT pick fires the preset auto-run — a reference image is an
+    // optional extra, never the thing that was being waited for.
+    const autoRun = !isReference && autoRunRef.current;
+    if (!isReference) autoRunRef.current = false;
 
     if (item.file instanceof File) {
       setFile(item.file);
       setPreview(item.src || URL.createObjectURL(item.file));
       setUrl(null); // resolve a hosted URL on generate
+      // State isn't committed yet, so hand the pick to generate directly.
+      if (autoRun) handleGenerate({ fileOverride: item.file });
     } else {
       const url = item.large || item.src || null;
       if (!url) return;
       setFile(null);
       setPreview(url);
       setUrl(url); // already hosted
+      if (autoRun) handleGenerate({ imageUrlOverride: url });
     }
+  };
+
+  const closePicker = () => {
+    autoRunRef.current = false;
+    setPickerTarget(null);
   };
 
   /**
@@ -194,8 +227,14 @@ export default function PromptToolModal({ config, onClose, onSwitchTool }) {
   //   • promptOverride   — send this prompt instead of the sidebar's.
   //   • imageUrlOverride — use this hosted image as the input (e.g. "Other
   //     angles" regenerates from the result's OWN output image).
-  const handleGenerate = async ({ promptOverride, imageUrlOverride } = {}) => {
-    if (!imageUrlOverride && !uploadedFile && !uploadedImage) {
+  //   • fileOverride     — a just-picked local File, used before its state
+  //     lands (the auto-run after a preset launch).
+  const handleGenerate = async ({
+    promptOverride,
+    imageUrlOverride,
+    fileOverride,
+  } = {}) => {
+    if (!imageUrlOverride && !fileOverride && !uploadedFile && !uploadedImage) {
       toast.error("Please select a product image first");
       return;
     }
@@ -212,8 +251,8 @@ export default function PromptToolModal({ config, onClose, onSwitchTool }) {
       const imageUrl =
         imageUrlOverride ||
         (await resolveHostedUrl(
-          uploadedFileUrl,
-          uploadedFile,
+          fileOverride ? null : uploadedFileUrl,
+          fileOverride || uploadedFile,
           "product",
           setUploadedFileUrl,
         ));
@@ -751,8 +790,8 @@ export default function PromptToolModal({ config, onClose, onSwitchTool }) {
           config names (a room, or a pattern — never a packshot). */}
       <MediaPickerModal
         isOpen={pickerTarget !== null}
-        onClose={() => setPickerTarget(null)}
-        onCancel={() => setPickerTarget(null)}
+        onClose={closePicker}
+        onCancel={closePicker}
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
         maxSelectable={1}

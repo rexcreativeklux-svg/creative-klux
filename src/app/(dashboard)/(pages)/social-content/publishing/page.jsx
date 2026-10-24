@@ -22,8 +22,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  getFacebookPostStats,
-  getInstagramPostStats,
+  getPostStats,
+  POST_STATS_PLATFORMS,
+  loadStatsForRows,
   fetchLivePostsFromConnectedAccounts,
   deletePostFromPlatform,
   platformSupportsDelete,
@@ -59,7 +60,9 @@ function deleteMessage(post) {
 }
 
 // Per-post metrics the backend serves today.
-const STATS_PLATFORMS = ["facebook", "instagram"];
+const STATS_PLATFORMS = POST_STATS_PLATFORMS;
+
+const PLATFORM_LABEL = (platform) => PLATFORM_META[platform]?.label || platform;
 
 /* ─── Platform config ─── */
 const PLATFORM_META = {
@@ -268,13 +271,40 @@ export default function SocialPublishing() {
     loadIntegrations();
   }, [fetchIntegrations, activeBrandId]);
 
+  // Every row's metrics, fetched after the list so the table can render first.
+  // Each platform's refusal is reported once, in the server's words.
+  const loadAllStats = useCallback(
+    async (rows) => {
+      const targets = rows.filter(
+        (p) =>
+          p.type === matchType && p.post_id && STATS_PLATFORMS.includes(p.platform),
+      );
+      if (!targets.length) return;
+      const { stats, errors } = await loadStatsForRows(targets, (row) =>
+        getPostStats({
+          platform: row.platform,
+          post_id: row.post_id,
+          brand_id: activeBrandId,
+        }),
+      );
+      setAllPosts((current) =>
+        current.map((p) => (stats[p.id] ? { ...p, stats: stats[p.id] } : p)),
+      );
+      Object.entries(errors).forEach(([platform, message]) =>
+        toast.error(`${PLATFORM_LABEL(platform)} stats: ${message}`),
+      );
+    },
+    [activeBrandId],
+  );
+
   // 2. The posts, exactly as the backend lists them. Nothing is kept in the
   //    browser, so what's on screen is always the backend's answer.
   const loadPosts = useCallback(
     async (silent = false) => {
       setFetchingLive(true);
+      let rows = [];
       try {
-        const rows = await fetchLivePostsFromConnectedAccounts(integrations);
+        rows = await fetchLivePostsFromConnectedAccounts(integrations);
         setAllPosts((prev) => carryStats(prev, rows));
         // A platform the backend couldn't read: show its own error, always.
         if (rows.errors?.length) toast.error(rows.errors.join(" · "));
@@ -288,8 +318,10 @@ export default function SocialPublishing() {
         setFetchingLive(false);
         setLoading(false);
       }
+      // After the table is up — the numbers fill in as they arrive.
+      if (rows.length) loadAllStats(rows);
     },
-    [integrations],
+    [integrations, loadAllStats],
   );
 
   // 3. Load once integrations have resolved.
@@ -363,11 +395,8 @@ export default function SocialPublishing() {
   const handleRefreshStats = async (post) => {
     setRefreshing(post.id);
     try {
-      const getStats =
-        post.platform === "facebook"
-          ? getFacebookPostStats
-          : getInstagramPostStats;
-      const newStats = await getStats({
+      const newStats = await getPostStats({
+        platform: post.platform,
         brand_id: activeBrandId,
         post_id: post.post_id,
       });

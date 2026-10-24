@@ -171,9 +171,28 @@ const RANDOM_MODEL_NAMES = [
   "Zoe",
 ];
 
-export default function VirtualModelModal({ onClose, onSwitchTool }) {
+/**
+ * @param {object} props
+ * @param {() => void} props.onClose
+ * @param {(id: string, opts?: object) => void} [props.onSwitchTool]
+ * @param {string} [props.initialPresetId] A VIRTUAL_MODELS id to open on (the
+ *   Product Studio page's model shelf) instead of the default model.
+ * @param {boolean} [props.autoStart] Open the product-image picker straight
+ *   away and generate as soon as the first product photo is picked.
+ */
+export default function VirtualModelModal({
+  onClose,
+  onSwitchTool,
+  initialPresetId = null,
+  autoStart = false,
+}) {
   const { activeBrand, uploadMedia, token } = useAuth();
   const isLoggedIn = !!token;
+  const initialModel =
+    VIRTUAL_MODELS_BY_ID[initialPresetId] || VIRTUAL_MODELS_BY_ID[DEFAULT_MODEL_ID];
+  // Armed by `autoStart`: the FIRST product photo picked generates straight
+  // away. Closing the picker without one disarms it.
+  const autoRunRef = useRef(autoStart);
   const qualityRef = useRef(null);
   const backgroundRef = useRef(null);
   const sizeRef = useRef(null);
@@ -183,11 +202,9 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
 
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL_ID);
+  const [selectedModel, setSelectedModel] = useState(initialModel.id);
   // Which category tab the model picker shows. A custom model joins this one.
-  const [modelCategory, setModelCategory] = useState(
-    VIRTUAL_MODELS_BY_ID[DEFAULT_MODEL_ID].category,
-  );
+  const [modelCategory, setModelCategory] = useState(initialModel.category);
   // const [selectedPose, setSelectedPose] = useState('3_4_turn');
   const [matchMode, setMatchMode] = useState(MATCH_MODE_ENUM.exact);
   const [quality, setQuality] = useState("Standard");
@@ -197,14 +214,12 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
   // Seeded from the default model's description, exactly like the staging
   // template picker seeds its scene: the box opens with a usable prompt the
   // user can send as-is or edit. Every model pick rewrites it.
-  const [prompt, setPrompt] = useState(
-    VIRTUAL_MODELS_BY_ID[DEFAULT_MODEL_ID].prompt,
-  );
+  const [prompt, setPrompt] = useState(initialModel.prompt);
   const [generating, setGenerating] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState(null); // gallery/cloud URL of the picked image
   const [toolMenuOpen, setToolMenuOpen] = useState(false); // header tool switcher
-  const [pickerOpen, setPickerOpen] = useState(false); // gallery media picker
+  const [pickerOpen, setPickerOpen] = useState(autoStart); // gallery media picker
   const [pickerMode, setPickerMode] = useState("product");
   // values: "product" | "model"
   const [customModels, setCustomModels] = useState([]);
@@ -293,6 +308,9 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
     // PRODUCT IMAGE (existing behaviour)
     // ----------------------------
 
+    const autoRun = autoRunRef.current;
+    autoRunRef.current = false;
+
     if (item.file instanceof File) {
       setUploadedFile(item.file);
       setUploadedImage(previewUrl);
@@ -305,6 +323,21 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
 
     setPickerOpen(false);
     setPickerMode("product");
+
+    // Opened from a model preset: generate now. State isn't committed yet, so
+    // the pick is handed to generate directly.
+    if (autoRun) {
+      handleGenerate(
+        item.file instanceof File
+          ? { fileOverride: item.file }
+          : { imageUrlOverride: imageUrl },
+      );
+    }
+  };
+
+  const closePicker = () => {
+    autoRunRef.current = false;
+    setPickerOpen(false);
   };
 
   // Minimum useful description. A couple of words ("a man") tells the generator
@@ -356,13 +389,17 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
   //     angles" regenerates from the result's OWN output image).
   //   • modelName / modelImageUrl — reuse the model a past result was generated
   //     with (carried in its history record) instead of the sidebar selection.
+  //   • fileOverride — a just-picked local File, used before its state lands
+  //     (the auto-run after a preset launch).
   const handleGenerate = async ({
     promptOverride,
     imageUrlOverride,
     modelName,
     modelImageUrl,
+    fileOverride,
   } = {}) => {
-    if (!imageUrlOverride && !uploadedFile && !uploadedImage) {
+    const file = fileOverride || uploadedFile;
+    if (!imageUrlOverride && !file && !uploadedImage) {
       toast.error("Please select a product image first");
       return;
     }
@@ -384,9 +421,9 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
       // Resolve the ONE image URL to send. An override (a past result) is used
       // as-is; otherwise gallery picks already have a hosted URL, and a fresh
       // local upload gets uploaded here to obtain one.
-      let imageUrl = imageUrlOverride || uploadedFileUrl;
-      if (!imageUrl && uploadedFile) {
-        const uploaded = await uploadMedia(uploadedFile);
+      let imageUrl = imageUrlOverride || (fileOverride ? null : uploadedFileUrl);
+      if (!imageUrl && file) {
+        const uploaded = await uploadMedia(file);
         console.log("🖼️ [virtual-model] upload response ←", uploaded);
         imageUrl =
           uploaded?.url ||
@@ -1050,8 +1087,8 @@ export default function VirtualModelModal({ onClose, onSwitchTool }) {
       <MediaPickerModal
         maxSelectable={10}
         isOpen={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        onCancel={() => setPickerOpen(false)}
+        onClose={closePicker}
+        onCancel={closePicker}
         onApply={handleApplyFromPicker}
         activeBrand={activeBrand}
         // Open Search on garment/product shots — this tool dresses a model in

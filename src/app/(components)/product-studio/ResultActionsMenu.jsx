@@ -32,6 +32,7 @@ import {
   Copy,
   Bookmark,
   Trash2,
+  GitCompareArrows,
 } from "lucide-react";
 
 const MENU_WIDTH = 208; // matches w-52
@@ -44,6 +45,7 @@ const MENU_WIDTH = 208; // matches w-52
  * @param {() => void} [cb.onChangeSomething] Focus the prompt to describe a change.
  * @param {() => void} [cb.onOtherAngles]     Regenerate from a different angle.
  * @param {() => void} [cb.onGenerateVideo]   Send this image to the video tool.
+ * @param {() => void} [cb.onCompare]         Send this image to Creative Comparison.
  * @param {() => void} [cb.onPublish]         Publish the asset to a platform.
  * @param {() => void} [cb.onDownload]        Download the asset.
  * @param {() => void} [cb.onCopyLink]        Copy the asset's hosted URL.
@@ -56,6 +58,7 @@ export function buildResultActions({
   onChangeSomething,
   onOtherAngles,
   onGenerateVideo,
+  onCompare,
   onPublish,
   onDownload,
   onCopyLink,
@@ -81,6 +84,12 @@ export function buildResultActions({
       label: "Generate video",
       icon: Video,
       onClick: onGenerateVideo,
+    });
+  if (onCompare)
+    items.push({
+      label: "Compare",
+      icon: GitCompareArrows,
+      onClick: onCompare,
     });
   if (onPublish)
     items.push({ label: "Publish", icon: Send, onClick: onPublish });

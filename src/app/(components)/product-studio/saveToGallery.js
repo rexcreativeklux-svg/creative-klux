@@ -56,10 +56,11 @@ export function galleryFileMeta(url, type = "image") {
 
 /**
  * Fetch a remote image as a Blob, tolerating hosts without CORS headers.
+ * Also used by Creative Comparison, whose endpoint only accepts uploaded files.
  * @param {string} url
  * @returns {Promise<Blob>}
  */
-async function fetchHostedBlob(url) {
+export async function fetchHostedBlob(url) {
   try {
     const res = await fetch(url, { mode: "cors" });
     if (res.ok) return await res.blob();

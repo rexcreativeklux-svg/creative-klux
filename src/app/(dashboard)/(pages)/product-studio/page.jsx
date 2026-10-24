@@ -39,16 +39,10 @@ import {
   PROMPT_TOOLS,
   PROMPT_TOOL_IDS,
 } from "@/app/(components)/product-studio/promptToolConfigs";
-import {
-  HISTORY_TOOLS,
-  stockQueryForTool,
-} from "@/app/(components)/product-studio/constants";
-import useToolHistories from "@/app/(components)/product-studio/useToolHistories";
-import ToolHistoryRow from "@/app/(components)/product-studio/ToolHistoryRow";
-import ToolHistoryModal from "@/app/(components)/product-studio/ToolHistoryModal";
-import { downloadImageUrl } from "@/app/(components)/product-studio/saveToGallery";
-import Lightbox from "@/app/(components)/Lightbox";
-import { useAuth } from "@/context/AuthContext";
+import { stockQueryForTool } from "@/app/(components)/product-studio/constants";
+import { TOOL_PRESET_SHELVES } from "@/app/(components)/product-studio/toolPresets";
+import ToolPresetRow from "@/app/(components)/product-studio/ToolPresetRow";
+import TemplateBrowserModal from "@/app/(components)/product-studio/TemplateBrowserModal";
 import { PresetStrip } from "./PresetStrip";
 import { getStarted } from "./presetSections";
 import { STUDIO_SECTIONS, presetHref } from "./studioPresets";
@@ -95,7 +89,7 @@ const tools = [
     // Routing id stays `bgremove` (openTool, the batch page and the in-modal
     // switcher all key off it); only the label is user-facing.
     id: "bgremove",
-    label: "Auto Design",
+    label: "Instant Backdrop",
     Icon: Scissors,
     color: "bg-red-100 text-red-600",
   },
@@ -186,34 +180,18 @@ export default function ProductPhotos() {
   const [showMorePresets, setShowMorePresets] = useState(false); // "Show more" — appends the rest of the preset rows
   useStudioPresetFonts(); // the Trending / fashion designs' typefaces, for their tiles
 
-  // ── Your work: one shelf per tool, above the preset rows ───────────────────
-  // History is an authenticated endpoint, so a logged-out visitor never fetches
-  // and simply sees no shelves — the tools themselves still work.
-  const { uploadMedia, token } = useAuth();
-  const {
-    byTool: historyByTool,
-    isEmpty: historyEmpty,
-    remove: removeHistoryItem,
-  } = useToolHistories(HISTORY_TOOLS, { enabled: !!token });
-  /** Which tool's "See more" overlay is open — an entry of HISTORY_TOOLS. */
-  const [historyModalTool, setHistoryModalTool] = useState(null);
-  /** The full-size viewer opened from a shelf — { tool, index }. */
-  const [historyViewer, setHistoryViewer] = useState(null);
-
-  const handleHistoryDownload = async (item) => {
-    const t = toast.loading("Downloading…");
-    try {
-      await downloadImageUrl(item.url, {
-        filePrefix: "klux",
-        // A clip downloaded as .png is a file the OS refuses to open — the
-        // helper's image default is wrong for the one tool that makes motion.
-        ext: item.type === "video" ? "mp4" : "png",
-      });
-      toast.success("Downloaded", { id: t });
-    } catch (err) {
-      console.error("❌ [product-studio] history download failed:", err);
-      toast.error(err?.message || "Couldn't download that result", { id: t });
-    }
+  // ── Preset shelves: one per tool, at the foot of the page ──────────────────
+  /** Which tool's "See all" catalog is open — an entry of TOOL_PRESET_SHELVES. */
+  const [presetBrowserShelf, setPresetBrowserShelf] = useState(null);
+  /**
+   * The preset the open tool was launched on, and whether to auto-run it —
+   * `{ presetId, autoStart }`, or null for a tool opened any other way. Read by
+   * every tool modal as `initialPresetId` / `autoStart`.
+   */
+  const [presetLaunch, setPresetLaunch] = useState(null);
+  const launchProps = {
+    initialPresetId: presetLaunch?.presetId ?? null,
+    autoStart: !!presetLaunch?.autoStart,
   };
 
   // The "Edit a photo" flow opens the Photoroom-style Add images picker first;
@@ -242,8 +220,14 @@ export default function ProductPhotos() {
 
   // Central tool router — used by the tool grid AND the in-modal tool switcher.
   // `opts.initialImageUrl` lets a result's "Generate video" preselect that image
-  // in Product Video (see VirtualModel/Staging result menus).
+  // in Product Video (see VirtualModel/Staging result menus). `opts.presetId`
+  // (from a preset shelf) opens the tool on that preset, picker up, auto-run on.
   const openTool = (id, opts = {}) => {
+    // Every open sets this, so a tool reached any other way — the grid, the
+    // in-modal switcher — never inherits the last shelf's preset.
+    setPresetLaunch(
+      opts.presetId ? { presetId: opts.presetId, autoStart: true } : null,
+    );
     if (id === "virtual") {
       setVirtualModelOpen(true);
       return;
@@ -340,6 +324,7 @@ export default function ProductPhotos() {
     <div>
       {virtualModelOpen && (
         <VirtualModelModal
+          {...launchProps}
           onClose={() => setVirtualModelOpen(false)}
           onSwitchTool={(id, opts) => {
             setVirtualModelOpen(false);
@@ -349,6 +334,7 @@ export default function ProductPhotos() {
       )}
       {stagingOpen && (
         <ProductStagingModal
+          {...launchProps}
           onClose={() => setStagingOpen(false)}
           onSwitchTool={(id, opts) => {
             setStagingOpen(false);
@@ -377,6 +363,7 @@ export default function ProductPhotos() {
           // and preset selection would survive into the next one.
           key={promptToolId}
           config={PROMPT_TOOLS[promptToolId]}
+          {...launchProps}
           onClose={() => setPromptToolId(null)}
           onSwitchTool={(id, opts) => {
             setPromptToolId(null);
@@ -386,6 +373,7 @@ export default function ProductPhotos() {
       )}
       {productVideoOpen && (
         <ProductVideoModal
+          {...launchProps}
           initialImageUrl={productVideoInitialImage}
           onClose={() => {
             setProductVideoOpen(false);
@@ -399,7 +387,10 @@ export default function ProductPhotos() {
         />
       )}
       {bgRemoverOpen && (
-        <BackgroundRemoverModal onClose={() => setBgRemoverOpen(false)} />
+        <BackgroundRemoverModal
+          {...launchProps}
+          onClose={() => setBgRemoverOpen(false)}
+        />
       )}
       {mannequinOpen && (
         <GhostMannequinModal
@@ -600,29 +591,25 @@ export default function ProductPhotos() {
           </div>
         )}
 
-        {/* ── Your work ──
-            One shelf per tool that has made something, at the FOOT of the page:
-            everything above is a way to start something new, and this is what
-            you have already finished — so it reads as the archive it is rather
-            than pushing the tools down the page.
+        {/* ── Start from a preset ──
+            One shelf per tool with a preset catalog — its models, scenes,
+            styles or clips (toolPresets.js). A tile opens the tool on that
+            preset with the image picker up, and the first photo picked
+            generates straight away. Past results live in each tool's own
+            History panel, not here.
 
-            ⚠️ HIDDEN WHILE SEARCHING: the search box filters TEMPLATES, and a
-            row of your own past results has nothing to do with the query — it
-            would sit there unfiltered, looking like a result that ignored what
-            you typed. Same rule the preset rows follow (`showPresets`). */}
-        {showPresets && !historyEmpty && (
+            ⚠️ HIDDEN WHILE SEARCHING, like the preset rows above: the search
+            box filters tools and Get started, and these shelves would sit
+            there unfiltered, looking like results that ignored the query. */}
+        {showPresets && (
           <div className="mt-4 border-t border-gray-100 pt-8">
-            <h2 className="text-base font-semibold text-gray-900 mb-4">
-              Your work
-            </h2>
-            {HISTORY_TOOLS.map((tool) => (
-              <ToolHistoryRow
-                key={tool.tool}
-                tool={tool}
-                items={historyByTool[tool.tool] || []}
-                onOpenItem={(index) => setHistoryViewer({ tool, index })}
-                onSeeMore={() => setHistoryModalTool(tool)}
-                onOpenTool={() => openTool(tool.id)}
+            {TOOL_PRESET_SHELVES.map((shelf) => (
+              <ToolPresetRow
+                key={shelf.id}
+                shelf={shelf}
+                onPick={(tile) => openTool(shelf.id, { presetId: tile.id })}
+                onSeeAll={() => setPresetBrowserShelf(shelf)}
+                onOpenTool={() => openTool(shelf.id)}
               />
             ))}
           </div>
@@ -643,35 +630,20 @@ export default function ProductPhotos() {
         )}
       </div>
 
-      {/* Everything one tool has made — the shelves' "See more". */}
-      {historyModalTool && (
-        <ToolHistoryModal
-          tool={historyModalTool}
-          items={historyByTool[historyModalTool.tool] || []}
-          uploadMedia={uploadMedia}
-          onDelete={(id) => removeHistoryItem(historyModalTool.tool, id)}
-          onOpenTool={() => {
-            // Closed first: the tool opens its own modal, and stacking one over
-            // this overlay would leave a scrim nobody can reach behind it.
-            const { id } = historyModalTool;
-            setHistoryModalTool(null);
-            openTool(id);
-          }}
-          onClose={() => setHistoryModalTool(null)}
-        />
-      )}
-
-      {/* Full size, straight from a shelf tile — the shared viewer the tool
-          modals use, so a result looks the same wherever you open it from. */}
-      {historyViewer && (
-        <Lightbox
-          items={historyByTool[historyViewer.tool.tool] || []}
-          index={historyViewer.index}
-          onIndexChange={(index) =>
-            setHistoryViewer((prev) => (prev ? { ...prev, index } : prev))
+      {/* A shelf's "See all" — the tool's whole catalog, by category. Picking
+          closes the browser (TemplateBrowserModal does that) and launches the
+          tool on the preset, exactly like a shelf tile. */}
+      {presetBrowserShelf && (
+        <TemplateBrowserModal
+          title={presetBrowserShelf.name}
+          categories={presetBrowserShelf.categories}
+          staticItems={presetBrowserShelf.tiles}
+          objectPosition={presetBrowserShelf.objectPosition}
+          applyLabel="Use with my photo"
+          onSelect={(tile) =>
+            openTool(presetBrowserShelf.id, { presetId: tile.id })
           }
-          onClose={() => setHistoryViewer(null)}
-          onDownload={handleHistoryDownload}
+          onClose={() => setPresetBrowserShelf(null)}
         />
       )}
     </div>

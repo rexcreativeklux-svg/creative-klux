@@ -1129,7 +1129,7 @@ function ResultsPanel({ result, onReset }) {
 
 /* ─── Main Page ───────────────────────────────────────────────── */
 export default function Comparison() {
-  const { runComparison, fetchDesigns, token } = useAuth();
+  const { runComparison, fetchDesigns, token, activeBrandId } = useAuth();
 
   // Magic Studio pictures — fetched here for BOTH panels, for the same reason
   // as the designs below.
@@ -1149,7 +1149,12 @@ export default function Comparison() {
   // than inside the effect also keeps the effect free of a synchronous setState.
   const [loadingDesigns, setLoadingDesigns] = useState(true);
 
+  // ⚠️ WAITS FOR THE ACTIVE BRAND. It arrives asynchronously after a refresh
+  // (localStorage hydrate → fetchBrands), and calling fetchDesigns() before it
+  // only earns a null and a console.error — the dev overlay's "1 Issue" badge.
+  // The effect re-runs when the brand lands; until then the spinner stays up.
   useEffect(() => {
+    if (!token || !activeBrandId) return undefined;
     let alive = true;
     (async () => {
       const data = await fetchDesigns(20);
@@ -1165,7 +1170,7 @@ export default function Comparison() {
     return () => {
       alive = false;
     };
-  }, [fetchDesigns]);
+  }, [fetchDesigns, token, activeBrandId]);
 
   const [mode, setMode] = useState("creatives");
   const [loading, setLoading] = useState(false);
@@ -1341,7 +1346,7 @@ export default function Comparison() {
                   value={creativeA}
                   onChange={setCreativeA}
                   designs={designs}
-                  loadingDesigns={loadingDesigns}
+                  loadingDesigns={!!token && loadingDesigns}
                   magicItems={magicItems}
                   loadingMagic={loadingMagic}
                   initialTab={tabFor(creativeA, seededA)}
@@ -1356,7 +1361,7 @@ export default function Comparison() {
                   value={creativeB}
                   onChange={setCreativeB}
                   designs={designs}
-                  loadingDesigns={loadingDesigns}
+                  loadingDesigns={!!token && loadingDesigns}
                   magicItems={magicItems}
                   loadingMagic={loadingMagic}
                   initialTab={tabFor(creativeB)}

@@ -184,9 +184,10 @@ export default function ProductPhotos() {
   /** Which tool's "See all" catalog is open — an entry of TOOL_PRESET_SHELVES. */
   const [presetBrowserShelf, setPresetBrowserShelf] = useState(null);
   /**
-   * The preset the open tool was launched on, and whether to auto-run it —
-   * `{ presetId, autoStart }`, or null for a tool opened any other way. Read by
-   * every tool modal as `initialPresetId` / `autoStart`.
+   * The preset the open tool was launched on, and whether to open its image
+   * picker — `{ presetId, autoStart }`, or null for a tool opened any other way.
+   * Read by every tool modal as `initialPresetId` / `autoStart`. Generating
+   * always waits for the tool's own Generate button.
    */
   const [presetLaunch, setPresetLaunch] = useState(null);
   const launchProps = {
@@ -221,7 +222,7 @@ export default function ProductPhotos() {
   // Central tool router — used by the tool grid AND the in-modal tool switcher.
   // `opts.initialImageUrl` lets a result's "Generate video" preselect that image
   // in Product Video (see VirtualModel/Staging result menus). `opts.presetId`
-  // (from a preset shelf) opens the tool on that preset, picker up, auto-run on.
+  // (from a preset shelf) opens the tool on that preset with the picker up.
   const openTool = (id, opts = {}) => {
     // Every open sets this, so a tool reached any other way — the grid, the
     // in-modal switcher — never inherits the last shelf's preset.
@@ -594,8 +595,8 @@ export default function ProductPhotos() {
         {/* ── Start from a preset ──
             One shelf per tool with a preset catalog — its models, scenes,
             styles or clips (toolPresets.js). A tile opens the tool on that
-            preset with the image picker up, and the first photo picked
-            generates straight away. Past results live in each tool's own
+            preset with the image picker up; the user then clicks Generate
+            themselves. Past results live in each tool's own
             History panel, not here.
 
             ⚠️ HIDDEN WHILE SEARCHING, like the preset rows above: the search

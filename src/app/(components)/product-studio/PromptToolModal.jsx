@@ -75,8 +75,8 @@ const toTile = (t) => ({
  * @param {(id: string, opts?: object) => void} [props.onSwitchTool]
  * @param {string} [props.initialPresetId] A template id from `config.templates`
  *   to open on (the Product Studio page's preset shelf) instead of the first.
- * @param {boolean} [props.autoStart] Open the product-image picker straight away
- *   and generate as soon as the first product photo is picked.
+ * @param {boolean} [props.autoStart] Open the product-image picker straight
+ *   away. The pick only fills the slot — generating waits for the button.
  */
 export default function PromptToolModal({
   config,
@@ -90,9 +90,6 @@ export default function PromptToolModal({
   const qualityRef = useRef(null);
   const sizeRef = useRef(null);
   const headerRef = useRef(null);
-  // Armed by `autoStart`: the FIRST product photo picked generates straight
-  // away. Closing the picker without one disarms it.
-  const autoRunRef = useRef(autoStart);
 
   const templateTiles = config.templates.map(toTile);
   const firstTemplate =
@@ -177,29 +174,21 @@ export default function PromptToolModal({
     const setPreview = isReference ? setReferenceImage : setUploadedImage;
     const setFile = isReference ? setReferenceFile : setUploadedFile;
     const setUrl = isReference ? setReferenceFileUrl : setUploadedFileUrl;
-    // Only a PRODUCT pick fires the preset auto-run — a reference image is an
-    // optional extra, never the thing that was being waited for.
-    const autoRun = !isReference && autoRunRef.current;
-    if (!isReference) autoRunRef.current = false;
 
     if (item.file instanceof File) {
       setFile(item.file);
       setPreview(item.src || URL.createObjectURL(item.file));
       setUrl(null); // resolve a hosted URL on generate
-      // State isn't committed yet, so hand the pick to generate directly.
-      if (autoRun) handleGenerate({ fileOverride: item.file });
     } else {
       const url = item.large || item.src || null;
       if (!url) return;
       setFile(null);
       setPreview(url);
       setUrl(url); // already hosted
-      if (autoRun) handleGenerate({ imageUrlOverride: url });
     }
   };
 
   const closePicker = () => {
-    autoRunRef.current = false;
     setPickerTarget(null);
   };
 
@@ -227,14 +216,8 @@ export default function PromptToolModal({
   //   • promptOverride   — send this prompt instead of the sidebar's.
   //   • imageUrlOverride — use this hosted image as the input (e.g. "Other
   //     angles" regenerates from the result's OWN output image).
-  //   • fileOverride     — a just-picked local File, used before its state
-  //     lands (the auto-run after a preset launch).
-  const handleGenerate = async ({
-    promptOverride,
-    imageUrlOverride,
-    fileOverride,
-  } = {}) => {
-    if (!imageUrlOverride && !fileOverride && !uploadedFile && !uploadedImage) {
+  const handleGenerate = async ({ promptOverride, imageUrlOverride } = {}) => {
+    if (!imageUrlOverride && !uploadedFile && !uploadedImage) {
       toast.error("Please select a product image first");
       return;
     }
@@ -251,8 +234,8 @@ export default function PromptToolModal({
       const imageUrl =
         imageUrlOverride ||
         (await resolveHostedUrl(
-          fileOverride ? null : uploadedFileUrl,
-          fileOverride || uploadedFile,
+          uploadedFileUrl,
+          uploadedFile,
           "product",
           setUploadedFileUrl,
         ));

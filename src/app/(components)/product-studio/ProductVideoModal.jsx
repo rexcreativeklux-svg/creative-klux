@@ -81,8 +81,8 @@ const TEMPLATE_TILES = PRODUCT_VIDEO_TEMPLATES.map(toTile);
  *   result's "Generate video") so the user can generate straight away.
  * @param {string} [props.initialPresetId] A PRODUCT_VIDEO_TEMPLATES id to open
  *   on (the Product Studio page's clip shelf).
- * @param {boolean} [props.autoStart] Open the image picker straight away and
- *   start rendering as soon as the first photos are picked.
+ * @param {boolean} [props.autoStart] Open the image picker straight away. The
+ *   pick only fills the slots — rendering waits for the button.
  */
 export default function ProductVideoModal({
   onClose,
@@ -92,9 +92,6 @@ export default function ProductVideoModal({
   autoStart = false,
 }) {
   const initialTemplate = PRODUCT_VIDEO_TEMPLATES_BY_ID[initialPresetId] || null;
-  // Armed by `autoStart`: the FIRST pick starts a render straight away.
-  // Closing the picker without one disarms it.
-  const autoRunRef = useRef(autoStart);
   const { activeBrand, uploadMedia, token } = useAuth();
   const isLoggedIn = !!token;
   const sizeRef = useRef(null);
@@ -219,12 +216,8 @@ export default function ProductVideoModal({
   // can send straight through. Appends to the current set, capped at MAX_IMAGES.
   const handleApplyFromPicker = (images = []) => {
     setPickerOpen(false);
-    const autoRun = autoRunRef.current;
-    autoRunRef.current = false;
     if (!Array.isArray(images) || images.length === 0) return;
 
-    // Computed from the current set rather than inside a state updater, so the
-    // auto-run below can hand the exact same list to generate.
     const remaining = MAX_IMAGES - uploadedImages.length;
     if (remaining <= 0) return;
 
@@ -250,14 +243,10 @@ export default function ProductVideoModal({
         `Only ${remaining} more image${remaining === 1 ? "" : "s"} added — the max is ${MAX_IMAGES}.`,
       );
     }
-    const next = [...uploadedImages, ...mapped];
-    setUploadedImages(next);
-    // State isn't committed yet, so hand the set to generate directly.
-    if (autoRun && mapped.length) handleGenerate({ imagesOverride: next });
+    setUploadedImages([...uploadedImages, ...mapped]);
   };
 
   const closePicker = () => {
-    autoRunRef.current = false;
     setPickerOpen(false);
   };
 
@@ -277,10 +266,8 @@ export default function ProductVideoModal({
   const removeImage = (id) =>
     setUploadedImages((prev) => prev.filter((img) => img.id !== id));
 
-  // `imagesOverride` — a just-picked set, used before its state lands (the
-  // auto-run after a preset launch).
-  const handleGenerate = async ({ imagesOverride } = {}) => {
-    const sourceImages = imagesOverride || uploadedImages;
+  const handleGenerate = async () => {
+    const sourceImages = uploadedImages;
     if (sourceImages.length === 0) {
       toast.error("Please select a product image first");
       return;

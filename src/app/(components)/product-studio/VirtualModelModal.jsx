@@ -178,7 +178,7 @@ const RANDOM_MODEL_NAMES = [
  * @param {string} [props.initialPresetId] A VIRTUAL_MODELS id to open on (the
  *   Product Studio page's model shelf) instead of the default model.
  * @param {boolean} [props.autoStart] Open the product-image picker straight
- *   away and generate as soon as the first product photo is picked.
+ *   away. The pick only fills the slot — generating waits for the button.
  */
 export default function VirtualModelModal({
   onClose,
@@ -190,9 +190,6 @@ export default function VirtualModelModal({
   const isLoggedIn = !!token;
   const initialModel =
     VIRTUAL_MODELS_BY_ID[initialPresetId] || VIRTUAL_MODELS_BY_ID[DEFAULT_MODEL_ID];
-  // Armed by `autoStart`: the FIRST product photo picked generates straight
-  // away. Closing the picker without one disarms it.
-  const autoRunRef = useRef(autoStart);
   const qualityRef = useRef(null);
   const backgroundRef = useRef(null);
   const sizeRef = useRef(null);
@@ -308,9 +305,6 @@ export default function VirtualModelModal({
     // PRODUCT IMAGE (existing behaviour)
     // ----------------------------
 
-    const autoRun = autoRunRef.current;
-    autoRunRef.current = false;
-
     if (item.file instanceof File) {
       setUploadedFile(item.file);
       setUploadedImage(previewUrl);
@@ -323,20 +317,9 @@ export default function VirtualModelModal({
 
     setPickerOpen(false);
     setPickerMode("product");
-
-    // Opened from a model preset: generate now. State isn't committed yet, so
-    // the pick is handed to generate directly.
-    if (autoRun) {
-      handleGenerate(
-        item.file instanceof File
-          ? { fileOverride: item.file }
-          : { imageUrlOverride: imageUrl },
-      );
-    }
   };
 
   const closePicker = () => {
-    autoRunRef.current = false;
     setPickerOpen(false);
   };
 
@@ -389,16 +372,13 @@ export default function VirtualModelModal({
   //     angles" regenerates from the result's OWN output image).
   //   • modelName / modelImageUrl — reuse the model a past result was generated
   //     with (carried in its history record) instead of the sidebar selection.
-  //   • fileOverride — a just-picked local File, used before its state lands
-  //     (the auto-run after a preset launch).
   const handleGenerate = async ({
     promptOverride,
     imageUrlOverride,
     modelName,
     modelImageUrl,
-    fileOverride,
   } = {}) => {
-    const file = fileOverride || uploadedFile;
+    const file = uploadedFile;
     if (!imageUrlOverride && !file && !uploadedImage) {
       toast.error("Please select a product image first");
       return;
@@ -421,7 +401,7 @@ export default function VirtualModelModal({
       // Resolve the ONE image URL to send. An override (a past result) is used
       // as-is; otherwise gallery picks already have a hosted URL, and a fresh
       // local upload gets uploaded here to obtain one.
-      let imageUrl = imageUrlOverride || (fileOverride ? null : uploadedFileUrl);
+      let imageUrl = imageUrlOverride || uploadedFileUrl;
       if (!imageUrl && file) {
         const uploaded = await uploadMedia(file);
         console.log("🖼️ [virtual-model] upload response ←", uploaded);

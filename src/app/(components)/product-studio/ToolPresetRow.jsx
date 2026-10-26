@@ -6,7 +6,7 @@
  * full catalog.
  *
  * A tile is a way to START: clicking it opens the tool on that preset with the
- * image picker already up, and the first photo picked generates straight away.
+ * image picker already up. Nothing is generated until the user clicks Generate.
  * The shelf shows a preview of the catalog; "See all" is the whole thing.
  *
  * Built on the same {@link PresetStrip} as the Classics / Studio rows above it,

@@ -9,6 +9,7 @@ import {
   useRef,
 } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   X,
   Send,
@@ -728,8 +729,12 @@ export default function PublishModal({
             setShowSchedule(true);
           }
         }
-      } catch {
-        if (alive) setIntegrations([]);
+      } catch (err) {
+        // The backend's own words.
+        if (alive) {
+          toast.error(err.message);
+          setIntegrations([]);
+        }
       } finally {
         if (alive) setFetching(false);
       }

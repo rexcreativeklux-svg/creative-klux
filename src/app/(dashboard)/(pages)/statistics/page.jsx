@@ -9,6 +9,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 
 import DashboardStats from "@/app/(components)/DashboardStats";
@@ -66,7 +67,13 @@ export default function Statistics() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const data = await fetchIntegrations?.();
+      let data;
+      try {
+        data = await fetchIntegrations?.();
+      } catch (err) {
+        if (alive) toast.error(err.message);
+        return;
+      }
       if (!alive) return;
       const arr = Array.isArray(data) ? data : [];
       const unique = new Set(arr.map((i) => i?.platform).filter(Boolean));

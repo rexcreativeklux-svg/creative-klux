@@ -194,7 +194,7 @@ export default function SocialAnalytics() {
         const data = await fetchIntegrations();
         setIntegrations(data || []);
       } catch (err) {
-        console.error("Failed to load integrations", err);
+        toast.error(err.message);
         setIntegrations([]);
       } finally {
         setIntegrationsReady(true);

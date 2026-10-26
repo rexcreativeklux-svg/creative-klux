@@ -260,9 +260,11 @@ export default function SocialPublishing() {
       try {
         const data = await fetchIntegrations();
         setIntegrations(data || []);
-      } catch {
-        // A failed lookup still has to unblock step 3 — otherwise the page waits
-        // on a flag that will never flip and the skeleton never resolves.
+      } catch (err) {
+        // The backend's own words. A failed lookup still has to unblock step 3 —
+        // otherwise the page waits on a flag that will never flip and the
+        // skeleton never resolves.
+        toast.error(err.message);
         setIntegrations([]);
       } finally {
         setIntegrationsReady(true);

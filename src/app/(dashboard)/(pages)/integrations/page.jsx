@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Info, AlertCircle, Check, Loader2, Plug } from "lucide-react";
+import { toast as sonnerToast } from "sonner";
 import Toast from "@/app/(components)/Toast";
 import {
   SOCIAL_PLATFORMS,
@@ -147,6 +148,15 @@ const IntegrationsPage = () => {
     chooser,
   } = useIntegrationCatalogue({ notify: showToast });
 
+  // The catalogue couldn't be read — say why, in the server's words. The rows
+  // still render (as not connected) so the page isn't blank. A fixed id keeps a
+  // repeat of the same failure from stacking toasts.
+  useEffect(() => {
+    if (!loading && error) {
+      sonnerToast.error(error, { id: "integrations-catalogue-error" });
+    }
+  }, [loading, error]);
+
   // A section's rows: its known platforms, each named by the catalogue when the
   // catalogue has it.
   const rowsFor = (platforms) =>
@@ -210,20 +220,6 @@ const IntegrationsPage = () => {
             connection is saved to your active brand.
           </p>
         </div>
-
-        {/* The catalogue couldn't be read — say why, in the server's words. The
-            rows below still render (as not connected) so the page isn't blank. */}
-        {!loading && error && (
-          <div className="mb-6 flex gap-3 items-start bg-red-50 border border-red-200 rounded-xl px-4 py-3.5">
-            <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700 leading-relaxed">
-              <span className="font-semibold">
-                Couldn&apos;t load your connections:{" "}
-              </span>
-              {error}
-            </p>
-          </div>
-        )}
 
         {loading ? (
           /* The platform rows themselves, greyed out — the list is a known set

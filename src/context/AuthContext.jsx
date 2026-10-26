@@ -3513,47 +3513,57 @@ export function AuthProvider({ children }) {
     [token],
   );
 
+  // Throws with the server's own message when the lookup fails, so a broken
+  // endpoint is never mistaken for "no accounts connected".
   const fetchIntegrations = useCallback(async () => {
     if (!token) return null;
 
+    let res;
     try {
-      const res = await authFetch(API_INTEGRATIONS_URL, {
+      res = await authFetch(API_INTEGRATIONS_URL, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
       });
-
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        return null;
-      }
-      // console.log("fetch: ", data);
-      if (!res.ok) return null;
-
-      // Normalize: expects array or { data: [...] }
-      const rows = Array.isArray(data)
-        ? data
-        : Array.isArray(data.data)
-          ? data.data
-          : null;
-      if (!rows) return data;
-      // The API calls X `x`; the app's id for it is `twitter`. And a row at
-      // status 0 is a connection still waiting for its account to be chosen —
-      // not connected, so it must not surface as a publish target.
-      return rows
-        .filter((row) => Number(row?.status) !== 0)
-        .map((row) =>
-          row?.platform === "x" ? { ...row, platform: "twitter" } : row,
-        );
     } catch (err) {
       console.error("fetchIntegrations error:", err);
-      return null;
+      throw new Error(err?.message || "Couldn't reach the integrations endpoint");
     }
+
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(
+        `Couldn't load connected accounts (HTTP ${res.status})`,
+      );
+    }
+    if (!res.ok) {
+      throw new Error(
+        data?.message ||
+          data?.error ||
+          `Couldn't load connected accounts (HTTP ${res.status})`,
+      );
+    }
+
+    // Normalize: expects array or { data: [...] }
+    const rows = Array.isArray(data)
+      ? data
+      : Array.isArray(data.data)
+        ? data.data
+        : null;
+    if (!rows) return data;
+    // The API calls X `x`; the app's id for it is `twitter`. And a row at
+    // status 0 is a connection still waiting for its account to be chosen —
+    // not connected, so it must not surface as a publish target.
+    return rows
+      .filter((row) => Number(row?.status) !== 0)
+      .map((row) =>
+        row?.platform === "x" ? { ...row, platform: "twitter" } : row,
+      );
   }, [token]);
 
   // ── Connecting accounts — server-side OAuth for EVERY platform ───────────────

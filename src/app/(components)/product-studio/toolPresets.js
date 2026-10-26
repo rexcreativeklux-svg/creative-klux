@@ -3,7 +3,7 @@
  * rows: one shelf per tool that has a preset catalog, listing those presets.
  *
  * Picking a tile opens that tool on the preset with its image picker already
- * open, and the first photo picked generates straight away (see each modal's
+ * open; generating waits for the tool's Generate button (see each modal's
  * `initialPresetId` / `autoStart`). Tools with no catalog — Beautifier, Flat
  * lay, Ghost Mannequin, Batch — have no shelf; the tool grid still opens them.
  *

@@ -63,8 +63,8 @@ const TEMPLATE_TILES = STAGING_TEMPLATES.map(toTile);
  * @param {(id: string, opts?: object) => void} [props.onSwitchTool]
  * @param {string} [props.initialPresetId] A STAGING_TEMPLATES id to open on
  *   (the Product Studio page's scene shelf) instead of the first scene.
- * @param {boolean} [props.autoStart] Open the image picker straight away and
- *   generate as soon as the first product photo is picked.
+ * @param {boolean} [props.autoStart] Open the image picker straight away. The
+ *   pick only fills the slot — generating waits for the button.
  */
 export default function ProductStagingModal({
   onClose,
@@ -79,10 +79,6 @@ export default function ProductStagingModal({
   const headerRef = useRef(null);
   const initialTemplate =
     STAGING_TEMPLATES_BY_ID[initialPresetId] || STAGING_TEMPLATES[0];
-  // Armed by `autoStart`: the FIRST product photo picked generates straight
-  // away. Closing the picker without one disarms it, so a later pick is an
-  // ordinary pick that waits for the Generate button.
-  const autoRunRef = useRef(autoStart);
 
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -137,15 +133,11 @@ export default function ProductStagingModal({
   const handleApplyFromPicker = (images = []) => {
     const item = images[0];
     if (!item) return;
-    const autoRun = autoRunRef.current;
-    autoRunRef.current = false;
     if (item.file instanceof File) {
       setUploadedFile(item.file);
       setUploadedImage(item.src || URL.createObjectURL(item.file));
       setUploadedFileUrl(null); // resolve a hosted URL on generate
       setPickerOpen(false);
-      // State isn't committed yet, so hand the pick to generate directly.
-      if (autoRun) handleGenerate({ fileOverride: item.file });
     } else {
       const url = item.large || item.src || null;
       if (!url) return;
@@ -153,12 +145,10 @@ export default function ProductStagingModal({
       setUploadedImage(url);
       setUploadedFileUrl(url); // already hosted
       setPickerOpen(false);
-      if (autoRun) handleGenerate({ imageUrlOverride: url });
     }
   };
 
   const closePicker = () => {
-    autoRunRef.current = false;
     setPickerOpen(false);
   };
 
@@ -167,14 +157,8 @@ export default function ProductStagingModal({
   //   • promptOverride   — send this prompt instead of the sidebar's.
   //   • imageUrlOverride — use this hosted image as the input (e.g. "Other
   //     angles" regenerates from the result's OWN output image).
-  //   • fileOverride     — a just-picked local File, used before its state
-  //     lands (the auto-run after a preset launch).
-  const handleGenerate = async ({
-    promptOverride,
-    imageUrlOverride,
-    fileOverride,
-  } = {}) => {
-    const file = fileOverride || uploadedFile;
+  const handleGenerate = async ({ promptOverride, imageUrlOverride } = {}) => {
+    const file = uploadedFile;
     if (!imageUrlOverride && !file && !uploadedImage) {
       toast.error("Please select a product image first");
       return;
@@ -189,7 +173,7 @@ export default function ProductStagingModal({
       // Resolve the ONE image URL to send. An override (a past result) is used
       // as-is; otherwise gallery picks already have a hosted URL, and a fresh
       // local upload gets uploaded here to obtain one.
-      let imageUrl = imageUrlOverride || (fileOverride ? null : uploadedFileUrl);
+      let imageUrl = imageUrlOverride || uploadedFileUrl;
       if (!imageUrl && file) {
         const uploaded = await uploadMedia(file);
         console.log("🖼️ [staging] upload response ←", uploaded);

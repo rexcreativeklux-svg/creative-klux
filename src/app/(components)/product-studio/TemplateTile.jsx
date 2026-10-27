@@ -72,7 +72,7 @@ export default function TemplateTile({
       type="button"
       onClick={() => onSelect?.(template)}
       aria-pressed={selected}
-      className={`group relative overflow-hidden rounded-xl border-2 transition-colors cursor-pointer ${
+      className={`group/tile relative overflow-hidden rounded-xl border-2 transition-[border-color,transform] duration-200 cursor-pointer ${
         selected ? "border-blue-500" : "border-transparent hover:border-gray-200"
       } ${className}`}
     >
@@ -106,9 +106,13 @@ export default function TemplateTile({
           themed surface — only ever on this scrim, which is black in both
           themes — so `bg-surface`/`text-gray-900` would flip it to dark-on-dark
           the moment the dark theme is on (see the same trap noted in
-          TemplateBrowserModal's tabs). */}
+          TemplateBrowserModal's tabs).
+
+          A NAMED group (`group/tile`): rows sit in a PresetStrip, which is a
+          plain `group` itself, so a bare `group-hover` here would light up
+          every tile in the row at once. */}
       {applyLabel && (
-        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity duration-200 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100">
           {/* `max-w` + wrapping, not a fixed pill: the same component renders at
               96px wide in the sidebar shelf and ~200px in the "See all" grid.
               At the shelf size a one-line "Apply Template" is wider than the

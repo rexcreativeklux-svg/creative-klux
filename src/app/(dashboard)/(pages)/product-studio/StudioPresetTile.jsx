@@ -124,13 +124,14 @@ function PhotoPresetPreview({ preset, height, photo }) {
       bw: "grayscale(1) contrast(1.1)",
     }[preset.preview];
     return (
-      // h-32 = TILE_H.
-      <FilterTile
-        img={photo?.original || PRESET_PORTRAIT}
-        filter={filter}
-        kind={kind}
-        className="h-32 w-32"
-      />
+      <div style={{ width: height, height }}>
+        <FilterTile
+          img={photo?.original || PRESET_PORTRAIT}
+          filter={filter}
+          kind={kind}
+          className="h-full w-full"
+        />
+      </div>
     );
   }
   const original = preset.removeBg === false;
@@ -189,9 +190,16 @@ function SizePreview({ preset, height }) {
  *   photo and its cutout — "Pick a style" previews every tile with it in place
  *   of the sample product
  * @param {() => void} props.onClick
+ * @param {number} [props.width] draw the tile this wide (its height follows the
+ *   preset's aspect) instead of TILE_H tall — the "See all" grid fills its
+ *   columns with it
  */
-export default function StudioPresetTile({ preset, showLabel, photo, onClick }) {
-  const height = TILE_H;
+export default function StudioPresetTile({ preset, showLabel, photo, onClick, width }) {
+  const height = !width
+    ? TILE_H
+    : preset.mode === "template"
+      ? Math.round((width * preset.canvas.h) / preset.canvas.w)
+      : width;
   const preview =
     preset.mode === "template" ? (
       <TemplatePreview preset={preset} height={height} photo={photo} />
@@ -206,17 +214,22 @@ export default function StudioPresetTile({ preset, showLabel, photo, onClick }) 
       type="button"
       onClick={onClick}
       title={preset.label}
-      className="group flex shrink-0 flex-col gap-2 text-left cursor-pointer"
+      // A NAMED group: the tile sits in a PresetStrip, itself a plain `group`,
+      // so a bare `group-hover` would light up every tile in the row at once.
+      className="group/tile relative flex shrink-0 flex-col gap-2 text-left cursor-pointer hover:z-10"
     >
       <div
-        className={`overflow-hidden border border-gray-200 transition-all group-hover:border-blue-400 group-hover:shadow-md ${
+        className={`overflow-hidden border border-gray-200 transition-all duration-200 group-hover/tile:scale-105 group-hover/tile:border-blue-400 group-hover/tile:shadow-md ${
           preset.round ? "rounded-full" : "rounded-xl"
         }`}
       >
         {preview}
       </div>
       {showLabel && (
-        <span className="max-w-32 truncate text-xs text-gray-600 sm:text-sm">
+        <span
+          className="max-w-32 truncate text-xs text-gray-600 sm:text-sm"
+          style={width ? { maxWidth: width } : undefined}
+        >
           {preset.label}
         </span>
       )}

@@ -73,7 +73,7 @@ export default function ToolPresetRow({ shelf, onPick, onSeeAll, onOpenTool }) {
             label={tile.name}
             applyLabel="Use with my photo"
             objectPosition={shelf.objectPosition}
-            className="shrink-0 w-24 h-32 sm:w-28 sm:h-36 bg-gray-100"
+            className="shrink-0 w-24 h-32 sm:w-28 sm:h-36 bg-gray-100 hover:scale-105 hover:z-10"
           />
         ))}
       </PresetStrip>

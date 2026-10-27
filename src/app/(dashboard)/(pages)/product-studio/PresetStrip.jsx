@@ -82,7 +82,9 @@ export function PresetStrip({ children, className = "", onOverflowChange }) {
     <div className={`group relative ${className}`}>
       <div
         ref={ref}
-        className="flex gap-3 overflow-x-auto hide-scrollbar -mx-gutter px-gutter lg:mx-0 lg:px-0"
+        // -my/py and lg:-mx/px: room for a hovered tile to scale up without
+        // the scroller (which clips on both axes) shaving its edges.
+        className="flex gap-3 overflow-x-auto hide-scrollbar -mx-gutter px-gutter -my-2 py-2 lg:-mx-2 lg:px-2"
       >
         {children}
       </div>

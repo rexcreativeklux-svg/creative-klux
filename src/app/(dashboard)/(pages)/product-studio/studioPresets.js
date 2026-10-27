@@ -658,23 +658,23 @@ const blank = {
 };
 
 /**
- * The landing page's rails in order. `fold: true` rails sit behind "Show more",
- * like Photoroom's.
+ * The preset rails in order. The landing page shows only the first three, as
+ * one Backgrounds row; its "See all" lists them all.
  */
 export const STUDIO_SECTIONS = [
   classic,
   studio,
   essentials,
-  { ...photoClassics, fold: true },
-  { ...trending, fold: true },
-  { ...marbleWood, fold: true },
-  { ...professional, fold: true },
-  { ...profile, fold: true },
-  { ...marketplaces, fold: true },
-  { ...social, fold: true },
-  { ...blank, fold: true },
-  { ...minimalShop, fold: true },
-  { ...simpleFashion, fold: true },
+  photoClassics,
+  trending,
+  marbleWood,
+  professional,
+  profile,
+  marketplaces,
+  social,
+  blank,
+  minimalShop,
+  simpleFashion,
 ];
 
 const BY_ID = new Map(

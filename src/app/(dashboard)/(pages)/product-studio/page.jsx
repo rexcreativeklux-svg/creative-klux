@@ -62,7 +62,7 @@ const LABELLED_SECTIONS = new Set([
 
 // Classic, Studio and Essentials are all backdrops for the product, so the
 // landing page shows them as ONE "Backgrounds" row; its "See all" lists them
-// apart again under their own names.
+// apart again under their own names, followed by every other rail.
 const BACKGROUND_SECTION_IDS = new Set(["classic", "studio", "essentials"]);
 const BACKGROUND_SECTIONS = STUDIO_SECTIONS.filter((s) =>
   BACKGROUND_SECTION_IDS.has(s.id),
@@ -186,8 +186,7 @@ export default function ProductPhotos() {
   const [mannequinOpen, setMannequinOpen] = useState(false); // API-only Ghost Mannequin modal
   const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/flatlay)
   const [promptToolId, setPromptToolId] = useState(null); // shared prompt-tool modal (reshaping/poster/pod)
-  const [showMorePresets, setShowMorePresets] = useState(false); // "Show more" — appends the rest of the preset rows
-  const [backgroundsOpen, setBackgroundsOpen] = useState(false); // the Backgrounds row's "See all"
+  const [backgroundsOpen, setBackgroundsOpen] = useState(false); // the Backgrounds row's "See all" — every preset rail
   useStudioPresetFonts(); // the Trending / fashion designs' typefaces, for their tiles
 
   // ── Preset shelves: one per tool, at the foot of the page ──────────────────
@@ -564,11 +563,10 @@ export default function ProductPhotos() {
 
         {/* ── Preset rails ──
             Photoroom's home rails, from the catalogue in studioPresets.js — the
-            tile is drawn from the same preset the editor applies. Rails marked
-            `fold` wait behind "Show more": browsing rows, not tools, so the
-            page stays one screen of decisions with the rest a click away.
-            Classic, Studio and Essentials come first, merged into one
-            Backgrounds row. */}
+            tile is drawn from the same preset the editor applies. Only
+            Classic, Studio and Essentials sit on the page, merged into one
+            Backgrounds row; its "See all" lists every rail (Photo Editing
+            Classics, Trending and the rest) under its own heading. */}
         {showPresets && (
           <section>
             <div className="flex items-center justify-between gap-3 mb-4">
@@ -596,45 +594,6 @@ export default function ProductPhotos() {
             </PresetStrip>
           </section>
         )}
-        {showPresets &&
-          STUDIO_SECTIONS.filter(
-            (section) =>
-              !BACKGROUND_SECTION_IDS.has(section.id) &&
-              (showMorePresets || !section.fold),
-          ).map(
-            (section) => (
-              <section key={section.id}>
-                <h2 className="text-base font-semibold text-gray-900 mb-4">
-                  {section.title}
-                </h2>
-                <PresetStrip className="mb-8">
-                  {section.items.map((item) => (
-                    <StudioPresetTile
-                      key={item.id}
-                      preset={{ ...item, mode: section.mode }}
-                      showLabel={LABELLED_SECTIONS.has(section.id)}
-                      onClick={() => openPreset(item)}
-                    />
-                  ))}
-                </PresetStrip>
-              </section>
-            ),
-          )}
-
-        {/* One-way reveal: the button is spent once the rows are out. Offering
-            "Show less" would scroll the page out from under someone who is
-            already reading the rows it collapses. */}
-        {showPresets && !showMorePresets && (
-          <div className="flex justify-center mt-2 mb-4">
-            <button
-              onClick={() => setShowMorePresets(true)}
-              className="px-4 py-2 rounded-lg border border-gray-200 bg-surface text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer"
-            >
-              Show more
-            </button>
-          </div>
-        )}
-
         {/* ── Start from a preset ──
             One shelf per tool with a preset catalog — its models, scenes,
             styles or clips (toolPresets.js). A tile opens the tool on that
@@ -676,7 +635,7 @@ export default function ProductPhotos() {
 
       {backgroundsOpen && (
         <BackgroundsBrowserModal
-          sections={BACKGROUND_SECTIONS}
+          sections={STUDIO_SECTIONS}
           labelled={LABELLED_SECTIONS}
           onPick={openPreset}
           onClose={() => setBackgroundsOpen(false)}

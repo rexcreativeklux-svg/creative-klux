@@ -1067,7 +1067,7 @@ export default function PublishModal({
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end justify-center z-[80] sm:items-center sm:px-4">
-      <div className="bg-surface rounded-t-2xl shadow-2xl w-full flex flex-col max-h-[92dvh] sm:rounded-2xl sm:max-w-lg sm:max-h-[90dvh]">
+      <div className="bg-surface rounded-t-2xl shadow-2xl w-full flex flex-col max-h-[92dvh] sm:rounded-2xl sm:max-w-xl sm:max-h-[90dvh]">
         {/* Header */}
         <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 shrink-0">
           {view === "compose" && (

@@ -27,6 +27,7 @@ import {
   ThumbsUp,
   Globe,
   MoreHorizontal,
+  Sparkles,
 } from "lucide-react";
 import {
   FaFacebook,
@@ -1018,6 +1019,9 @@ export default function PublishModal({
 
   const isAdForm = AD_PLATFORMS.includes(selected);
 
+  // AI fill isn't built on the backend yet — the button says so.
+  const aiFill = () => toast.info("AI fill is coming soon");
+
   // ── Scheduling (Facebook + YouTube — both schedule natively) ──────────────────
   // FB holds an unpublished post; YouTube uploads private with a publishAt. IG/X have
   // no native API scheduling, so they're excluded.
@@ -1067,7 +1071,13 @@ export default function PublishModal({
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end justify-center z-[80] sm:items-center sm:px-4">
-      <div className="bg-surface rounded-t-2xl shadow-2xl w-full flex flex-col max-h-[92dvh] sm:rounded-2xl sm:max-w-xl sm:max-h-[90dvh]">
+      {/* The ad form widens so its fields sit two to a row; every other view
+          keeps the narrow card. */}
+      <div
+        className={`bg-surface rounded-t-2xl shadow-2xl w-full flex flex-col max-h-[92dvh] sm:rounded-2xl sm:max-h-[90dvh] ${
+          view === "compose" && isAdForm ? "sm:max-w-3xl" : "sm:max-w-xl"
+        }`}
+      >
         {/* Header */}
         <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 shrink-0">
           {view === "compose" && (
@@ -1189,12 +1199,29 @@ export default function PublishModal({
                     Preview only
                   </span>
                 )}
+                <button
+                  type="button"
+                  onClick={aiFill}
+                  title={
+                    isAdForm
+                      ? "Write the caption and fill the ad settings with AI"
+                      : "Write the caption with AI"
+                  }
+                  className={`flex items-center gap-1.5 text-xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded-lg px-2.5 py-1.5 hover:bg-violet-100 transition cursor-pointer ${
+                    PLATFORMS[selected]?.real ? "ml-auto" : ""
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {isAdForm ? "Auto-fill with AI" : "Write with AI"}
+                </button>
               </div>
 
               {/* For ads: form first (the main task), preview second (secondary). */}
               {isAdForm && (
-                <div className="rounded-xl border border-gray-200 p-3 flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
+                // Two fields to a row from `sm`; the date and budget pairs
+                // turn `sm:contents` so each of their fields takes a cell.
+                <div className="rounded-xl border border-gray-200 p-3 grid gap-3 sm:grid-cols-2">
+                  <div className="flex items-center gap-2 sm:col-span-2">
                     <Megaphone className="w-3.5 h-3.5 text-blue-600" />
                     <span className="text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
                       Ad settings
@@ -1291,7 +1318,7 @@ export default function PublishModal({
                   {/* No day before today can be picked; the end can't come
                       before the start. Moving the start past the end drags the
                       end along. */}
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:contents">
                     <label className="flex flex-col gap-1">
                       <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                         Start date
@@ -1322,7 +1349,7 @@ export default function PublishModal({
                     </label>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:contents">
                     <label className="flex flex-col gap-1">
                       <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                         Daily budget

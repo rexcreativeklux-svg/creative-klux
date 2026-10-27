@@ -1210,7 +1210,9 @@ export async function fetchLivePostsFromConnectedAccounts(
             project_id: null,
             project_title: c.name || `${platform} campaign`,
             caption: c.objective ? `Objective: ${c.objective}` : "",
-            image_url: null,
+            // The ad's own creative image, when the network gives one (Meta
+            // does; Google sends null).
+            image_url: c.thumbnail || null,
             platform,
             type: "ad",
             status: c.status || "UNKNOWN",

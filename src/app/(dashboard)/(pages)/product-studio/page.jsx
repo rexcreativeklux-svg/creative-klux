@@ -49,6 +49,7 @@ import { STUDIO_SECTIONS, presetHref } from "./studioPresets";
 import StudioPresetTile, { useStudioPresetFonts } from "./StudioPresetTile";
 import CustomSizeDialog from "./CustomSizeDialog";
 import StylePickerModal from "./StylePickerModal";
+import BackgroundsBrowserModal from "./BackgroundsBrowserModal";
 
 /** Rails whose tiles carry a name under them, as on Photoroom. */
 const LABELLED_SECTIONS = new Set([
@@ -58,6 +59,14 @@ const LABELLED_SECTIONS = new Set([
   "social",
   "blank",
 ]);
+
+// Classic, Studio and Essentials are all backdrops for the product, so the
+// landing page shows them as ONE "Backgrounds" row; its "See all" lists them
+// apart again under their own names.
+const BACKGROUND_SECTION_IDS = new Set(["classic", "studio", "essentials"]);
+const BACKGROUND_SECTIONS = STUDIO_SECTIONS.filter((s) =>
+  BACKGROUND_SECTION_IDS.has(s.id),
+);
 
 // Product Staging now has its own dedicated modal (ProductStagingModal) with the
 // gallery picker + structured Generate payload, matching Virtual Model. Beautifier
@@ -178,6 +187,7 @@ export default function ProductPhotos() {
   const [onDeviceToolId, setOnDeviceToolId] = useState(null); // on-device modal (beautifier/flatlay)
   const [promptToolId, setPromptToolId] = useState(null); // shared prompt-tool modal (reshaping/poster/pod)
   const [showMorePresets, setShowMorePresets] = useState(false); // "Show more" — appends the rest of the preset rows
+  const [backgroundsOpen, setBackgroundsOpen] = useState(false); // the Backgrounds row's "See all"
   useStudioPresetFonts(); // the Trending / fashion designs' typefaces, for their tiles
 
   // ── Preset shelves: one per tool, at the foot of the page ──────────────────
@@ -556,9 +566,42 @@ export default function ProductPhotos() {
             Photoroom's home rails, from the catalogue in studioPresets.js — the
             tile is drawn from the same preset the editor applies. Rails marked
             `fold` wait behind "Show more": browsing rows, not tools, so the
-            page stays one screen of decisions with the rest a click away. */}
+            page stays one screen of decisions with the rest a click away.
+            Classic, Studio and Essentials come first, merged into one
+            Backgrounds row. */}
+        {showPresets && (
+          <section>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="text-base font-semibold text-gray-900">
+                Backgrounds
+              </h2>
+              <button
+                onClick={() => setBackgroundsOpen(true)}
+                className="text-sm text-gray-500 hover:text-gray-900 shrink-0 cursor-pointer transition-colors"
+              >
+                See all
+              </button>
+            </div>
+            <PresetStrip className="mb-8">
+              {BACKGROUND_SECTIONS.flatMap((section) =>
+                section.items.map((item) => (
+                  <StudioPresetTile
+                    key={item.id}
+                    preset={{ ...item, mode: section.mode }}
+                    showLabel={LABELLED_SECTIONS.has(section.id)}
+                    onClick={() => openPreset(item)}
+                  />
+                )),
+              )}
+            </PresetStrip>
+          </section>
+        )}
         {showPresets &&
-          STUDIO_SECTIONS.filter((section) => showMorePresets || !section.fold).map(
+          STUDIO_SECTIONS.filter(
+            (section) =>
+              !BACKGROUND_SECTION_IDS.has(section.id) &&
+              (showMorePresets || !section.fold),
+          ).map(
             (section) => (
               <section key={section.id}>
                 <h2 className="text-base font-semibold text-gray-900 mb-4">
@@ -630,6 +673,15 @@ export default function ProductPhotos() {
           </div>
         )}
       </div>
+
+      {backgroundsOpen && (
+        <BackgroundsBrowserModal
+          sections={BACKGROUND_SECTIONS}
+          labelled={LABELLED_SECTIONS}
+          onPick={openPreset}
+          onClose={() => setBackgroundsOpen(false)}
+        />
+      )}
 
       {/* A shelf's "See all" — the tool's whole catalog, by category. Picking
           closes the browser (TemplateBrowserModal does that) and launches the

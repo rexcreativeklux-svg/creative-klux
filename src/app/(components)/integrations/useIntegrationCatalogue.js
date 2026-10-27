@@ -120,6 +120,9 @@ export function useIntegrationCatalogue({ notify } = {}) {
    * Open the account chooser for a platform: fetch what can be picked. An empty
    * list arrives with a `message` saying why (no Pages, a personal Instagram
    * account, no ad accounts shared) — the chooser shows that instead of nothing.
+   * A refused lookup opens it too, with the server's error as the message, so
+   * Disconnect is still reachable however the backend chooses to say "nothing
+   * to pick".
    */
   const openChooser = useCallback(
     async (platformId) => {
@@ -129,6 +132,12 @@ export function useIntegrationCatalogue({ notify } = {}) {
       );
       if (!res.ok) {
         say(res.message, "error");
+        setPicker({
+          platformId,
+          accounts: [],
+          message: res.message,
+          loadingId: null,
+        });
         return;
       }
       setPicker({

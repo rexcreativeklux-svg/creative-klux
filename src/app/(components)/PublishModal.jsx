@@ -49,6 +49,10 @@ import {
   publishToLinkedIn,
   publishToPinterest,
   publishToTikTok,
+  AD_OBJECTIVE_OPTIONS,
+  AD_CALLS_TO_ACTION,
+  defaultAdObjective,
+  adDate,
 } from "@/(lib)/integration";
 import { LINKEDIN_POSTING_ENABLED } from "@/(lib)/linkedinConfig";
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint
@@ -168,11 +172,9 @@ const ADS_ORDER = [
   "pinterest_ads",
 ]; // "linkedin_ads" disabled — re-add here to restore
 
-// Minimal Meta-ad form options.
-const AD_GOALS = [
-  { value: "awareness", label: "Awareness — more people see it" },
-  { value: "traffic", label: "Traffic — visit your website" },
-  { value: "engagement", label: "Engagement — likes / comments / messages" },
+const AD_STATUSES = [
+  { value: "PAUSED", label: "Paused — review it before it spends" },
+  { value: "ACTIVE", label: "Active — starts spending right away" },
 ];
 // The ad networks the API can create on (POST creatives/ads).
 const AD_PLATFORMS = ["meta_ads", "google_ads", "tiktok_ads", "pinterest_ads", "snapchat_ads"];
@@ -691,12 +693,31 @@ export default function PublishModal({
   const [showSchedule, setShowSchedule] = useState(false); // schedule picker visible
   const [scheduleAt, setScheduleAt] = useState(""); // datetime-local value
   // Meta-ad form (only used when selected === "meta_ads")
-  const [adGoal, setAdGoal] = useState("traffic");
+  // The network's own objective — one of its suggestions or anything typed —
+  // kept with the network it was set for, so each network opens on its own
+  // default (see adObjectiveValue below).
+  const [adObjective, setAdObjective] = useState(null); // { platform, value }
   const [adBudget, setAdBudget] = useState("");
-  const [adDays, setAdDays] = useState("7");
+  // YYYY-MM-DD. The pickers refuse a past day, and handlePublish checks again.
+  const [adStart, setAdStart] = useState(() => adDate(0));
+  const [adEnd, setAdEnd] = useState(() => adDate(7));
+  const [adStatus, setAdStatus] = useState("PAUSED");
+  const [adCta, setAdCta] = useState("");
+  // Null until edited — the creative's / brand's name stands in until then.
+  const [adName, setAdName] = useState(null);
+  const [adBusinessName, setAdBusinessName] = useState(null);
   const [adCountry, setAdCountry] = useState("NG");
   const [adAgeMin, setAdAgeMin] = useState("18");
   const [adAgeMax, setAdAgeMax] = useState("65");
+  // What the ad form shows and sends. An objective set for one network is
+  // meaningless on another, so switching networks falls back to its default.
+  const adObjectiveOptions = AD_OBJECTIVE_OPTIONS[selected] || [];
+  const adObjectiveValue =
+    adObjective?.platform === selected
+      ? adObjective.value
+      : defaultAdObjective(selected);
+  const adNameValue = adName ?? creative?.name ?? "";
+  const adBusinessNameValue = adBusinessName ?? activeBrand?.name ?? "";
   // Pinterest board picker (only used when selected === "pinterest")
 
   const order = useMemo(
@@ -844,23 +865,33 @@ export default function PublishModal({
           // the ad-account token and builds the whole campaign, PAUSED.
           // Nothing is checked here — a missing budget, link or anything the
           // network refuses comes back as the API's own message in the toast.
+          // The one thing checked here: no ad may be set to run in the past.
+          const today = adDate(0);
+          if (!adStart || adStart < today)
+            throw new Error("The start date can't be in the past.");
+          if (!adEnd || adEnd < adStart)
+            throw new Error("The end date can't be before the start date.");
+
           const text = caption.trim();
           const [firstLine = "", ...rest] = text.split("\n");
           const ad = await publishAd({
             platform: selected,
-            name: creative?.name,
+            name: adNameValue.trim() || creative?.name,
             ...media,
             link: activeBrand?.url || undefined,
             text: cap,
             headline: firstLine.trim() || creative?.name || "",
             description: rest.join(" ").trim() || firstLine.trim(),
-            goal: adGoal,
+            objective: adObjectiveValue.trim(),
             daily_budget: adBudget,
-            days: adDays,
+            start_date: adStart,
+            end_date: adEnd,
+            status: adStatus,
+            call_to_action: adCta.trim(),
             country: adCountry,
             age_min: adAgeMin,
             age_max: adAgeMax,
-            business_name: activeBrand?.name,
+            business_name: adBusinessNameValue.trim() || activeBrand?.name,
             logo_url: activeBrand?.logo || undefined,
           });
           successMessage = `Ad created${
@@ -960,9 +991,14 @@ export default function PublishModal({
       uploadMedia,
       activeBrand,
       brandId,
-      adGoal,
+      adObjectiveValue,
       adBudget,
-      adDays,
+      adStart,
+      adEnd,
+      adStatus,
+      adCta,
+      adNameValue,
+      adBusinessNameValue,
       adCountry,
       adAgeMin,
       adAgeMax,
@@ -1163,30 +1199,128 @@ export default function PublishModal({
                     <span className="text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
                       Ad settings
                     </span>
-                    <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 ml-auto">
-                      Created paused
-                    </span>
+                    {adStatus === "ACTIVE" ? (
+                      <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 ml-auto">
+                        Goes live
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 ml-auto">
+                        Created paused
+                      </span>
+                    )}
                   </div>
 
-                  {/* Goal → the network's own objective (Google Ads has none: an image is a Display ad). */}
-                  {selected !== "google_ads" && (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                      Campaign name
+                    </span>
+                    <input
+                      type="text"
+                      maxLength={200}
+                      value={adNameValue}
+                      onChange={(e) => setAdName(e.target.value)}
+                      placeholder="e.g. Summer sale"
+                      className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                      Business name
+                    </span>
+                    <input
+                      type="text"
+                      maxLength={25}
+                      value={adBusinessNameValue}
+                      onChange={(e) => setAdBusinessName(e.target.value)}
+                      placeholder="Shown on the ad"
+                      className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                    <span className="text-[10px] text-gray-400">
+                      Up to 25 characters
+                    </span>
+                  </label>
+
+                  {/* Objective and call to action: pick a suggestion or type
+                      your own. Either way the text is sent exactly as it
+                      stands, and the network says if it doesn't know it. */}
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                      Objective
+                    </span>
+                    <input
+                      type="text"
+                      list="ad-objective-options"
+                      value={adObjectiveValue}
+                      onChange={(e) =>
+                        setAdObjective({ platform: selected, value: e.target.value })
+                      }
+                      placeholder="Pick one or type your own"
+                      className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                    <datalist id="ad-objective-options">
+                      {adObjectiveOptions.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </datalist>
+                  </label>
+
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                      Call to action
+                    </span>
+                    <input
+                      type="text"
+                      list="ad-cta-options"
+                      value={adCta}
+                      onChange={(e) => setAdCta(e.target.value)}
+                      placeholder="Network default — pick one or type your own"
+                      className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                    <datalist id="ad-cta-options">
+                      {AD_CALLS_TO_ACTION.filter((c) => c.value).map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </datalist>
+                  </label>
+
+                  {/* No day before today can be picked; the end can't come
+                      before the start. Moving the start past the end drags the
+                      end along. */}
+                  <div className="grid grid-cols-2 gap-2">
                     <label className="flex flex-col gap-1">
                       <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                        Goal
+                        Start date
                       </span>
-                      <select
-                        value={adGoal}
-                        onChange={(e) => setAdGoal(e.target.value)}
+                      <input
+                        type="date"
+                        min={adDate(0)}
+                        value={adStart}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setAdStart(next);
+                          if (next && adEnd < next) setAdEnd(next);
+                        }}
                         className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      >
-                        {AD_GOALS.map((g) => (
-                          <option key={g.value} value={g.value}>
-                            {g.label}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </label>
-                  )}
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                        End date
+                      </span>
+                      <input
+                        type="date"
+                        min={adStart > adDate(0) ? adStart : adDate(0)}
+                        value={adEnd}
+                        onChange={(e) => setAdEnd(e.target.value)}
+                        className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </label>
+                  </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <label className="flex flex-col gap-1">
@@ -1206,18 +1340,22 @@ export default function PublishModal({
                         In your ad account’s currency
                       </span>
                     </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                          Run for (days)
-                        </span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={adDays}
-                          onChange={(e) => setAdDays(e.target.value)}
-                          className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        />
-                      </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                        Status
+                      </span>
+                      <select
+                        value={adStatus}
+                        onChange={(e) => setAdStatus(e.target.value)}
+                        className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      >
+                        {AD_STATUSES.map((s) => (
+                          <option key={s.value} value={s.value}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
 
                   {/* Country: required by the API for every network. */}

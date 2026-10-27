@@ -97,7 +97,7 @@ export default function TemplateBrowserModal({
           reads as that panel expanding rather than as a second, smaller dialog,
           and the extra width goes straight into tile size. */}
       <div
-        className="bg-surface shadow-2xl flex flex-col overflow-hidden w-full h-[100dvh] lg:h-[92dvh] lg:w-[95vw] lg:max-w-[1400px] lg:rounded-2xl"
+        className="bg-surface shadow-2xl flex flex-col overflow-hidden w-full h-[100dvh] lg:h-[92dvh] lg:w-[92vw] lg:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 pt-6 pb-4">

@@ -616,27 +616,57 @@ export async function publishToInstagram({ image_url, video_url, caption, brand_
 // here reads a token or an ad account id. The brand is the signed-in user's
 // active brand, resolved server-side.
 
-// The form's goal → each network's own objective vocabulary. A goal a network
-// has no word for is left to the API's default. Google's "objective" is the
-// channel type; an image creative is a Display ad.
-const AD_OBJECTIVES = {
-  meta_ads: {
-    awareness: "OUTCOME_AWARENESS",
-    traffic: "OUTCOME_TRAFFIC",
-    engagement: "OUTCOME_ENGAGEMENT",
-  },
-  tiktok_ads: { awareness: "REACH", traffic: "TRAFFIC", engagement: "ENGAGEMENT" },
-  snapchat_ads: {
-    awareness: "AWARENESS",
-    traffic: "WEB_VIEW",
-    engagement: "ENGAGEMENT",
-  },
-  pinterest_ads: { awareness: "AWARENESS", traffic: "CONSIDERATION" },
-  google_ads: { awareness: "DISPLAY", traffic: "DISPLAY", engagement: "DISPLAY" },
+// Each network's objectives, in its own vocabulary — the value is sent to the
+// API as-is. `default` marks the one the form starts on. Google's "objective"
+// is the campaign channel type.
+export const AD_OBJECTIVE_OPTIONS = {
+  meta_ads: [
+    { value: "OUTCOME_AWARENESS", label: "Awareness — more people see it" },
+    { value: "OUTCOME_TRAFFIC", label: "Traffic — visit your website", default: true },
+    { value: "OUTCOME_ENGAGEMENT", label: "Engagement — likes / comments / messages" },
+  ],
+  google_ads: [
+    { value: "DISPLAY", label: "Display — image ads across Google's sites", default: true },
+    { value: "DEMAND_GEN", label: "Demand Gen — YouTube, Discover and Gmail" },
+  ],
+  tiktok_ads: [
+    { value: "REACH", label: "Reach — more people see it" },
+    { value: "TRAFFIC", label: "Traffic — visit your website", default: true },
+    { value: "ENGAGEMENT", label: "Engagement — likes / comments / follows" },
+  ],
+  snapchat_ads: [
+    { value: "AWARENESS", label: "Awareness — more people see it" },
+    { value: "WEB_VIEW", label: "Traffic — visit your website", default: true },
+    { value: "ENGAGEMENT", label: "Engagement — swipes / views" },
+  ],
+  pinterest_ads: [
+    { value: "AWARENESS", label: "Awareness — more people see it" },
+    { value: "CONSIDERATION", label: "Consideration — visit your website", default: true },
+  ],
 };
 
+/** The objective a network's form starts on. */
+export const defaultAdObjective = (platform) => {
+  const options = AD_OBJECTIVE_OPTIONS[platform] || [];
+  return (options.find((o) => o.default) || options[0])?.value ?? "";
+};
+
+// The ad's button. An empty value leaves it to the network's default.
+export const AD_CALLS_TO_ACTION = [
+  { value: "", label: "Network default" },
+  { value: "LEARN_MORE", label: "Learn more" },
+  { value: "SHOP_NOW", label: "Shop now" },
+  { value: "SIGN_UP", label: "Sign up" },
+  { value: "CONTACT_US", label: "Contact us" },
+  { value: "BOOK_NOW", label: "Book now" },
+  { value: "APPLY_NOW", label: "Apply now" },
+  { value: "GET_OFFER", label: "Get offer" },
+  { value: "DOWNLOAD", label: "Download" },
+  { value: "SUBSCRIBE", label: "Subscribe" },
+];
+
 // YYYY-MM-DD in the user's own timezone, `offsetDays` from today.
-const adDate = (offsetDays = 0) => {
+export const adDate = (offsetDays = 0) => {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
   const pad = (n) => String(n).padStart(2, "0");
@@ -644,16 +674,18 @@ const adDate = (offsetDays = 0) => {
 };
 
 /**
- * Create an ad on one network. Created PAUSED (the API's default) so targeting
- * can be checked before any money is spent — it is resumed from the Ads page.
+ * Create an ad on one network. Created PAUSED unless `status` is "ACTIVE" —
+ * a paused ad spends nothing until it is resumed from the Ads page.
  *
  *  - platform      meta_ads | google_ads | tiktok_ads | snapchat_ads | pinterest_ads
  *  - name          campaign / ad name
  *  - daily_budget  whole units of the AD ACCOUNT'S currency (not dollars)
  *  - country       ISO-2 code to target (or `countries` for several)
  *  - link          where the ad sends people — required by the API
- *  - goal          'awareness' | 'traffic' | 'engagement' → the network's objective
- *  - days          run length; sent as start/end dates (7 when not given)
+ *  - objective     the network's own objective (AD_OBJECTIVE_OPTIONS)
+ *  - start_date / end_date   YYYY-MM-DD (today → a week out when not given)
+ *  - status        "PAUSED" | "ACTIVE"
+ *  - call_to_action  AD_CALLS_TO_ACTION value; empty → the network's default
  *  - age_min/max   13–65 (Google: 18–65)
  *  - business_name, logo_url   the brand's; Google shows them on the ad
  *
@@ -676,9 +708,11 @@ export async function publishAd({
   text,
   headline,
   description,
-  goal,
+  objective,
   daily_budget,
-  days,
+  start_date,
+  end_date,
+  status,
   country,
   countries,
   call_to_action,
@@ -687,13 +721,13 @@ export async function publishAd({
   business_name,
   logo_url,
 }) {
-  const runDays = Number(days) > 0 ? Number(days) : 7;
   const isGoogle = platform === "google_ads";
   const age = (v) => (v == null || v === "" ? undefined : Number(v));
   const ad = await createAd({
     platform,
     name: (name || "Creative Klux Ad").slice(0, 200),
-    objective: AD_OBJECTIVES[platform]?.[goal],
+    objective: objective || defaultAdObjective(platform) || undefined,
+    status: status || undefined,
     daily_budget:
       daily_budget == null || daily_budget === "" ? undefined : Number(daily_budget),
     countries: countries?.length ? countries : country ? [country] : [],
@@ -705,9 +739,9 @@ export async function publishAd({
     description: (description || (isGoogle ? text : ""))
       ?.trim()
       .slice(0, isGoogle ? 90 : 500),
-    call_to_action,
-    start_date: adDate(0),
-    end_date: adDate(runDays),
+    call_to_action: call_to_action || undefined,
+    start_date: start_date || adDate(0),
+    end_date: end_date || adDate(7),
     age_min: age(age_min),
     age_max: age(age_max),
     business_name: (business_name || name)?.trim().slice(0, 25),

@@ -21,11 +21,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   getAdCampaignStats,
   setAdCampaignStatus,
+  deleteAdCampaign,
   fetchLivePostsFromConnectedAccounts,
   carryStats,
   loadStatsForRows,
@@ -230,6 +232,8 @@ export default function AdsPublishing() {
   // Resuming a campaign starts spending, so it waits on a confirm; pausing doesn't.
   const [pendingResume, setPendingResume] = useState(null);
   const [togglingStatus, setTogglingStatus] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -403,6 +407,27 @@ export default function AdsPublishing() {
     } finally {
       setTogglingStatus(null);
       setPendingResume(null);
+    }
+  };
+
+  // Delete a campaign on its network, then re-read the list. A refusal keeps
+  // the row — the campaign is still there.
+  const handleDelete = async () => {
+    const post = pendingDelete;
+    if (!post) return;
+    setDeleting(true);
+    try {
+      await deleteAdCampaign({
+        platform: post.platform,
+        campaign_id: post.post_id,
+      });
+      await loadCampaigns(true);
+      toast.success("Campaign deleted");
+    } catch (err) {
+      toast.error(err.message || "Couldn't delete the campaign");
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
     }
   };
 
@@ -766,6 +791,15 @@ export default function AdsPublishing() {
                               />
                             </button>
                           )}
+                          {post.post_id && (
+                            <button
+                              className="h-7 w-7 rounded-md flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              onClick={() => setPendingDelete(post)}
+                              title="Delete campaign"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -846,6 +880,24 @@ export default function AdsPublishing() {
         busy={!!togglingStatus}
         onConfirm={() => handleCampaignStatus(pendingResume, "ACTIVE")}
         onCancel={() => setPendingResume(null)}
+      />
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete this campaign?"
+        message={
+          pendingDelete
+            ? `“${pendingDelete.project_title || "Untitled"}” and its ads will be deleted from ${
+                PLATFORM_META[pendingDelete.platform]?.label ||
+                pendingDelete.platform
+              }. This can't be undone.`
+            : ""
+        }
+        confirmLabel={deleting ? "Deleting…" : "Delete"}
+        variant="danger"
+        busy={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setPendingDelete(null)}
       />
     </div>
   );

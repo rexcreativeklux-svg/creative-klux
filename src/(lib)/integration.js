@@ -521,6 +521,7 @@ import {
   SERVER_DELETE_PLATFORMS,
   SERVER_PUBLISH_PLATFORMS,
   createAd,
+  deleteCampaign,
   deletePlatformPost,
   fetchCampaignMetrics,
   fetchCampaigns,
@@ -1100,6 +1101,11 @@ export async function setAdCampaignStatus({ platform, campaign_id, status }) {
   return setCampaignStatus({ platform, campaign_id, status });
 }
 
+/** Delete a campaign on its network. Irreversible — the caller confirms first. */
+export async function deleteAdCampaign({ platform, campaign_id }) {
+  return deleteCampaign({ platform, campaign_id });
+}
+
 // ─────────────────────────────────────────────────────────────
 // Fetch Live Posts
 // ─────────────────────────────────────────────────────────────
@@ -1277,13 +1283,12 @@ export async function fetchLivePostsFromConnectedAccounts(
 /**
  * Whether the backend can delete this platform's posts. Nothing else can be
  * deleted from here — there is no local list to drop a row from, so the pages
- * only offer delete where this is true. Ads have no delete endpoint at all; a
- * campaign is paused instead (or removed in the network's own Ads Manager).
+ * only offer delete where this is true. Ad campaigns are deleted separately,
+ * through deleteAdCampaign.
  */
 export function platformSupportsDelete(platform) {
   return SERVER_DELETE_PLATFORMS.includes(platform);
 }
-
 /**
  * Delete a post through the backend. Throws with the backend's own words when
  * it refuses — the post is still on the platform, so the caller keeps the row.

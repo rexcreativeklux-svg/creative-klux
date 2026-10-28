@@ -33,13 +33,21 @@ export const SERVER_PUBLISH_PLATFORMS = [
   "tiktok",
 ];
 
-/** Instagram and TikTok have no delete endpoint — the post is removed in the app. */
+/**
+ * Platforms whose posts get a delete button. Instagram and TikTok are asked
+ * too, even though their APIs don't allow it: the backend answers with its own
+ * reason (Instagram, 2026-10-28: 422 "Instagram does not allow deleting posts
+ * through its API — it has to be done in the Instagram app."), and that
+ * answer is shown to the user as it comes.
+ */
 export const SERVER_DELETE_PLATFORMS = [
   "facebook",
+  "instagram",
   "twitter",
   "linkedin",
   "youtube",
   "pinterest",
+  "tiktok",
 ];
 
 /**
@@ -196,6 +204,7 @@ export async function deletePlatformPost({ brand_id, platform, post_id }) {
 //   GET    creatives/campaigns         campaigns on one ad platform
 //   GET    creatives/campaign-metrics  spend / impressions / clicks for one campaign
 //   PATCH  creatives/campaign-status   pause or resume a campaign
+//   DELETE creatives/campaign          delete a campaign
 //
 // The brand is read server-side from the signed-in user's `active_brand_id` —
 // these calls take no `brand_id`.
@@ -279,6 +288,27 @@ export async function setCampaignStatus({ platform, campaign_id, status }) {
     return res.data?.data ?? res.data;
   } catch (error) {
     throw new Error(serverMessage(error, "Couldn't update the campaign"));
+  }
+}
+
+/**
+ * Delete a campaign (and with it, on the network, its ad sets and ads).
+ * Irreversible — confirm with the user first.
+ *
+ * ⚠️ THE BODY IS PROVISIONAL. The route exists, but on 2026-10-28 it answered
+ * 500 "CreativePublishController::campaignDestroy does not exist" — the
+ * controller method was never written, so no request has been validated yet.
+ * `{ platform, campaign_id }` mirrors campaign-status, its closest sibling.
+ */
+export async function deleteCampaign({ platform, campaign_id }) {
+  try {
+    const res = await api.delete(`${BASE}/creatives/campaign`, {
+      data: { platform, campaign_id },
+    });
+    console.log(`📡 [creatives/campaign DELETE ${platform}] ←`, res.data);
+    return res.data?.data ?? res.data;
+  } catch (error) {
+    throw new Error(serverMessage(error, "Couldn't delete the campaign"));
   }
 }
 

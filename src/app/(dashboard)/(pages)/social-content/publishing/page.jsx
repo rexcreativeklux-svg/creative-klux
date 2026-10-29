@@ -12,6 +12,8 @@ import {
   MousePointer,
   Users,
   Heart,
+  MessageCircle,
+  ExternalLink,
   Share2,
   TrendingUp,
   X,
@@ -162,6 +164,7 @@ const TABLE_COLS = [
   { label: "Reach", align: "center", Icon: Users },
   { label: "Clicks", align: "center", Icon: MousePointer },
   { label: "Likes", align: "center", Icon: Heart },
+  { label: "Comments", align: "center", Icon: MessageCircle },
   { label: "Shares", align: "center", Icon: Share2 },
   { label: "CTR", align: "center", Icon: TrendingUp },
   { label: "Actions", align: "right" },
@@ -691,6 +694,16 @@ export default function SocialPublishing() {
                                 {post.caption}
                               </p>
                             )}
+                            {/* The platform answered but sent no numbers — its
+                                own reason, so the dashes aren't read as zeros. */}
+                            {stats.unavailable_reason && (
+                              <p
+                                className="text-[10px] text-amber-600 truncate max-w-[180px] mt-0.5"
+                                title={stats.unavailable_reason}
+                              >
+                                {stats.unavailable_reason}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -703,6 +716,12 @@ export default function SocialPublishing() {
                         >
                           {meta.icon} {meta.label}
                         </span>
+                        {post.media_type && (
+                          <p className="text-[10px] text-gray-400 mt-1 whitespace-nowrap">
+                            {post.media_type.charAt(0) +
+                              post.media_type.slice(1).toLowerCase().replace(/_/g, " ")}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge post={post} />
@@ -725,6 +744,9 @@ export default function SocialPublishing() {
                         <StatCell value={stats.likes} />
                       </td>
                       <td className="px-3 py-3 text-center">
+                        <StatCell value={stats.comments} />
+                      </td>
+                      <td className="px-3 py-3 text-center">
                         <StatCell value={stats.shares} />
                       </td>
                       <td className="px-3 py-3 text-center">
@@ -738,6 +760,17 @@ export default function SocialPublishing() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
+                          {post.permalink_url && (
+                            <a
+                              href={post.permalink_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="h-7 w-7 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                              title={`View on ${meta.label}`}
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
                           {post.post_id &&
                             STATS_PLATFORMS.includes(post.platform) && (
                             <button

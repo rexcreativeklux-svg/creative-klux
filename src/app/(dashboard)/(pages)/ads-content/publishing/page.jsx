@@ -22,6 +22,10 @@ import {
   ChevronRight,
   Filter,
   Trash2,
+  Wallet,
+  Coins,
+  Banknote,
+  Target,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -54,6 +58,16 @@ function formatDate(iso) {
     })
   );
 }
+
+// A money figure as the backend sent it, to two places. No currency symbol —
+// the backend doesn't say which currency the account is in.
+const money = (v) =>
+  v == null || v === "" || Number.isNaN(Number(v))
+    ? undefined
+    : Number(v).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
 
 // The network's status word, as the backend returned it ("ACTIVE" → "Active").
 const statusLabel = (s) =>
@@ -150,12 +164,16 @@ const TABLE_COLS = [
   { label: "Platform", align: "left" },
   { label: "Status", align: "left" },
   { label: "Created", align: "left" },
+  { label: "Budget", align: "center", Icon: Wallet },
   { label: "Impr.", align: "center", Icon: Eye },
   { label: "Reach", align: "center", Icon: Users },
   { label: "Clicks", align: "center", Icon: MousePointer },
   { label: "Likes", align: "center", Icon: Heart },
   { label: "Shares", align: "center", Icon: Share2 },
   { label: "CTR", align: "center", Icon: TrendingUp },
+  { label: "CPC", align: "center", Icon: Coins },
+  { label: "Spend", align: "center", Icon: Banknote },
+  { label: "Conv.", align: "center", Icon: Target },
   { label: "Actions", align: "right" },
 ];
 
@@ -727,6 +745,18 @@ export default function AdsPublishing() {
                       <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                         {formatDate(post.created_at)}
                       </td>
+                      <td className="px-3 py-3 text-center whitespace-nowrap">
+                        {/* The campaign's own budget, as the network sent it. */}
+                        <StatCell
+                          value={
+                            money(post.daily_budget) != null
+                              ? `${money(post.daily_budget)}/day`
+                              : money(post.lifetime_budget) != null
+                                ? `${money(post.lifetime_budget)} total`
+                                : undefined
+                          }
+                        />
+                      </td>
                       <td className="px-3 py-3 text-center">
                         <StatCell value={stats.impressions} />
                       </td>
@@ -745,11 +775,20 @@ export default function AdsPublishing() {
                       <td className="px-3 py-3 text-center">
                         <StatCell
                           value={
-                            stats.ctr
+                            stats.ctr != null
                               ? `${Number(stats.ctr).toFixed(2)}%`
                               : undefined
                           }
                         />
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <StatCell value={money(stats.cpc)} />
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <StatCell value={money(stats.spend)} />
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <StatCell value={stats.conversions} />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">

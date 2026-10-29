@@ -844,6 +844,8 @@ function normalizeMetrics(data) {
     comments: num("comments", "comment_count", "commentCount", "reply_count"),
     shares: num("shares", "share_count", "retweet_count"),
     saves: num("saves", "saved", "bookmark_count", "favoriteCount"),
+    // Instagram answers `metrics: null, unavailable: true` with its reason.
+    unavailable_reason: data?.unavailable ? data.reason || "No numbers returned" : undefined,
   };
 }
 
@@ -1069,6 +1071,9 @@ export async function loadStatsForRows(rows, load, concurrency = 4) {
  * Spend / impressions / clicks for one campaign (GET creatives/campaign-metrics).
  * `metrics` comes back as one object or as rows (per day / per breakdown), with
  * only the numbers the network reports — rows are summed.
+ *
+ * A metric no row carries stays `undefined` (shown as "—"), never 0: Google
+ * sends no reach and Meta can send no rows at all, and a 0 would claim none.
  */
 export async function getAdCampaignStats({ platform, campaign_id, days = 7 }) {
   const data = await fetchCampaignMetrics({ platform, campaign_id, days });
@@ -1079,19 +1084,29 @@ export async function getAdCampaignStats({ platform, campaign_id, days = 7 }) {
       for (const k of keys) {
         const v = Number(row?.[k]);
         if (row?.[k] != null && row[k] !== "" && !Number.isNaN(v))
-          return total + v;
+          return (total ?? 0) + v;
       }
       return total;
-    }, 0);
+    }, undefined);
 
   const impressions = sum("impressions");
   const clicks = sum("clicks", "link_clicks", "swipes");
+  const spend = sum("spend", "cost");
   return {
     impressions,
     reach: sum("reach"),
     clicks,
-    ctr: impressions ? (clicks / impressions) * 100 : 0,
-    spend: sum("spend", "cost"),
+    ctr:
+      impressions && clicks != null ? (clicks / impressions) * 100 : undefined,
+    spend,
+    // One object: the network's own cost per click. Rows: spend over clicks,
+    // since per-row CPCs can't be summed.
+    cpc:
+      rows.length === 1
+        ? sum("cpc")
+        : spend != null && clicks
+          ? spend / clicks
+          : undefined,
     conversions: sum("conversions"),
   };
 }
@@ -1171,6 +1186,8 @@ function normalizeLivePosts(platform, data) {
           post.media?.images?.["600x"]?.url ||
           null,
         platform,
+        // Instagram's own kind of post (IMAGE, VIDEO, CAROUSEL_ALBUM).
+        media_type: post.media_type || null,
         type: "social",
         status: scheduledAt ? "scheduled" : "published",
         published_at: scheduledAt
@@ -1253,6 +1270,10 @@ export async function fetchLivePostsFromConnectedAccounts(
             // The ad's own creative image, when the network gives one (Meta
             // does; Google sends null).
             image_url: c.thumbnail || null,
+            // As the network sent them — Meta in its minor currency unit (as
+            // a string), Google as a plain number. Null when not set.
+            daily_budget: c.daily_budget ?? null,
+            lifetime_budget: c.lifetime_budget ?? null,
             platform,
             type: "ad",
             status: c.status || "UNKNOWN",

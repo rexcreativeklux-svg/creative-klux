@@ -28,11 +28,13 @@ export default function ProtectedRoute({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Check if token exists in localStorage as fallback
-  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token');
-
+  // Once loading has settled, no user means no session — even if a token is
+  // still in storage. The dashboard reads `user.something` all over (the
+  // Sidebar's avatar first), so rendering it with a token but no user — an
+  // expired token whose first request came back 401 — crashed into Next's
+  // "This page couldn't load" screen instead of reaching /login.
   useEffect(() => {
-    if (!loading && !user && !hasToken) {
+    if (!loading && !user) {
       // Carry where they were headed through the login round-trip, the way the
       // invite and product-studio flows already do. It matters most for shared
       // template links (`/?template=<slug>&…`): without it the query is dropped
@@ -46,7 +48,7 @@ export default function ProtectedRoute({ children }) {
       console.log('🔒 Not signed in → /login, returning to:', target);
       router.push(`/login?returnTo=${encodeURIComponent(target)}`);
     }
-  }, [user, loading, hasToken, router, pathname]);
+  }, [user, loading, router, pathname]);
 
   if (loading) {
     // The home page is full-bleed and paints its own hero, so it takes no page
@@ -59,7 +61,7 @@ export default function ProtectedRoute({ children }) {
     );
   }
 
-  if (!user && !hasToken) {
+  if (!user) {
     return null;
   }
 

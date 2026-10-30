@@ -642,7 +642,7 @@ const Sidebar = ({
     `}
           >
             <div className="h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-sm">
-              {user.username.charAt(0).toUpperCase()}
+              {(user?.username || "?").charAt(0).toUpperCase()}
             </div>
             {isOpen && (
               /* leading-4 on both lines, not leading-tight: it pins this stack
@@ -652,7 +652,7 @@ const Sidebar = ({
                  enough to knock the rail's hairlines off the sidebar's. */
               <div className="flex-1 text-left overflow-hidden">
                 <p className="text-[13px] font-medium text-gray-900 truncate leading-4 capitalize">
-                  {user.username}
+                  {user?.username}
                 </p>
                 {/* The shimmer keeps the line's 16px while the package loads, so
                     the 32px stack described above doesn't shift. */}

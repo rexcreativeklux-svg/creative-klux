@@ -35,10 +35,11 @@ import {
 import { CREATIVE_ENGINE, usesTemplates } from "@/(lib)/design/creativeEngine";
 
 // Designs pane: at most 3 columns, each at least 280px — so a narrow pane drops
-// to 2 or 1, and auto-fit still stretches a lone design to full width. The
-// 20px is the two 10px gaps between three columns.
+// to 2 or 1. auto-fill (not auto-fit) keeps the empty column slots, so a lone
+// design holds one column on the left and the next ones fill in beside it,
+// three to a row. The 20px is the two 10px gaps between three columns.
 const DESIGN_GRID_COLUMNS =
-  "repeat(auto-fit, minmax(max(280px, calc((100% - 20px) / 3)), 1fr))";
+  "repeat(auto-fill, minmax(max(280px, calc((100% - 20px) / 3)), 1fr))";
 // Magic Designs run on Magic Studio's own tools and generation watch, unchanged.
 import useMagicGenerate from "@/app/(components)/magic-studio/useMagicGenerate";
 import { getMagicConfig } from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
@@ -1191,7 +1192,7 @@ function PreviewPanel({
         </div>
       )}
 
-      {/* ── responsive grid: 1 design = full width, 2–3 = boxes side by side ── */}
+      {/* ── responsive grid: left to right, 3 per row, then the next row ── */}
       <div
         ref={designGridRef}
         style={{

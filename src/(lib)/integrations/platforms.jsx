@@ -4,6 +4,8 @@
 // brand icons. Shared by the Integrations page and the brand-create wizard so
 // both surfaces offer the exact same platforms and connect the exact same way.
 
+import { Inbox, Reply } from "lucide-react";
+
 // ── SVG brand icons (white fill, meant to sit on a coloured iconBg) ───────────
 export const FacebookIcon = () => (
   <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
@@ -200,14 +202,33 @@ export const AD_PLATFORMS = [
 // own provider id. WHICH rows appear, their names and their connected state all
 // come from GET integrations/catalogue (see the Integrations page) — so a
 // provider the backend adds or renames needs no change here.
-export const PRODUCTIVITY_PLATFORMS = [
+//
+// Gmail is two grants, Read and Reply, so a brand can let Copilot read its
+// inbox without also letting it send as them. The catalogue still serves one
+// `gmail` provider, so the page shows these two in its place, marked
+// `comingSoon` (Connect does nothing yet). Drop the flag once the catalogue
+// serves `gmail_read` / `gmail_reply`.
+export const GMAIL_SPLIT_PLATFORMS = [
   {
-    id: "gmail",
-    name: "Gmail",
-    description: "Read and send email from your Gmail account.",
-    Icon: GmailIcon,
+    id: "gmail_read",
+    name: "Gmail (Read)",
+    description: "Read your inbox and the replies your leads send back.",
+    Icon: () => <Inbox className="w-5 h-5 text-white" />,
     iconBg: "linear-gradient(135deg, #EA4335, #C5221F)",
+    comingSoon: true,
   },
+  {
+    id: "gmail_reply",
+    name: "Gmail (Reply)",
+    description: "Reply and send from your own Google address.",
+    Icon: () => <Reply className="w-5 h-5 text-white" />,
+    iconBg: "linear-gradient(135deg, #EA4335, #C5221F)",
+    comingSoon: true,
+  },
+];
+
+export const PRODUCTIVITY_PLATFORMS = [
+  ...GMAIL_SPLIT_PLATFORMS,
   {
     id: "google_drive",
     name: "Google Drive",

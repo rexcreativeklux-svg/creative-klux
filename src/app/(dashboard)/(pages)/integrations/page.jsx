@@ -8,6 +8,7 @@ import {
   SOCIAL_PLATFORMS,
   AD_PLATFORMS,
   PRODUCTIVITY_PLATFORMS,
+  GMAIL_SPLIT_PLATFORMS,
 } from "@/(lib)/integrations/platforms";
 import IntegrationsSkeleton from "@/app/(components)/integrations/IntegrationsSkeleton";
 import PlatformPageModal from "@/app/(components)/integrations/PlatformPageModal";
@@ -169,15 +170,26 @@ const IntegrationsPage = () => {
   // order and under its labels — so a provider the backend adds or renames shows
   // up without a frontend change (with a generic mark until it has an icon).
   // If the catalogue couldn't be read, the local list stands in.
+  // The single `gmail` row is shown as its Read and Reply split.
   const productivityEntries = entries.filter((e) => !SECTIONED_IDS.has(e.id));
   const productivityRows = productivityEntries.length
-    ? productivityEntries.map((entry) => ({
-        ...(PRODUCTIVITY_PLATFORMS.find((p) => p.id === entry.id) ||
-          GENERIC_APP),
-        id: entry.id,
-        name: entry.label,
-      }))
+    ? productivityEntries.flatMap((entry) =>
+        entry.id === "gmail"
+          ? GMAIL_SPLIT_PLATFORMS
+          : [
+              {
+                ...(PRODUCTIVITY_PLATFORMS.find((p) => p.id === entry.id) ||
+                  GENERIC_APP),
+                id: entry.id,
+                name: entry.label,
+              },
+            ],
+      )
     : PRODUCTIVITY_PLATFORMS;
+
+  // A row the backend doesn't serve yet: Connect only says so.
+  const comingSoon = (platform) => () =>
+    sonnerToast.info(`${platform.name} is coming soon.`);
 
   const sections = [
     { title: "Social Media", rows: rowsFor(SOCIAL_PLATFORMS) },
@@ -239,7 +251,9 @@ const IntegrationsPage = () => {
                       key={platform.id}
                       platform={platform}
                       row={byPlatform.get(platform.id)}
-                      onConnect={connect}
+                      onConnect={
+                        platform.comingSoon ? comingSoon(platform) : connect
+                      }
                       onFinish={openChooser}
                       onDisconnect={disconnect}
                       connectingId={connectingId}

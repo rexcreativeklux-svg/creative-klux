@@ -33,6 +33,8 @@ import {
   Bookmark,
   Trash2,
   GitCompareArrows,
+  Mail,
+  HardDrive,
 } from "lucide-react";
 
 const MENU_WIDTH = 208; // matches w-52
@@ -47,10 +49,12 @@ const MENU_WIDTH = 208; // matches w-52
  * @param {() => void} [cb.onGenerateVideo]   Send this image to the video tool.
  * @param {() => void} [cb.onCompare]         Send this image to Creative Comparison.
  * @param {() => void} [cb.onPublish]         Publish the asset to a platform.
+ * @param {() => void} [cb.onEmailToClient]   Email the asset to a client.
  * @param {() => void} [cb.onDownload]        Download the asset.
  * @param {() => void} [cb.onCopyLink]        Copy the asset's hosted URL.
  * @param {() => void} [cb.onCopy]            Copy the asset's text content.
  * @param {() => void} [cb.onSaveToGallery]   Save the asset to the user's gallery.
+ * @param {() => void} [cb.onSaveToDrive]     Save the asset to the user's Google Drive.
  * @param {() => void} [cb.onDelete]          Remove the asset from the results.
  * @returns {Array<{ label: string, icon: object, onClick: () => void, danger?: boolean }>}
  */
@@ -60,10 +64,12 @@ export function buildResultActions({
   onGenerateVideo,
   onCompare,
   onPublish,
+  onEmailToClient,
   onDownload,
   onCopyLink,
   onCopy,
   onSaveToGallery,
+  onSaveToDrive,
   onDelete,
 } = {}) {
   const items = [];
@@ -93,6 +99,12 @@ export function buildResultActions({
     });
   if (onPublish)
     items.push({ label: "Publish", icon: Send, onClick: onPublish });
+  if (onEmailToClient)
+    items.push({
+      label: "Email to client",
+      icon: Mail,
+      onClick: onEmailToClient,
+    });
   if (onDownload)
     items.push({ label: "Download", icon: Download, onClick: onDownload });
   if (onCopyLink)
@@ -103,6 +115,12 @@ export function buildResultActions({
       label: "Save to gallery",
       icon: Bookmark,
       onClick: onSaveToGallery,
+    });
+  if (onSaveToDrive)
+    items.push({
+      label: "Save to Drive",
+      icon: HardDrive,
+      onClick: onSaveToDrive,
     });
   if (onDelete)
     items.push({

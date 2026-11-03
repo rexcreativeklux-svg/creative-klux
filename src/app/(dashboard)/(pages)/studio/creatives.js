@@ -10,7 +10,6 @@ import {
   Share2,
   Layers,
   LayoutTemplate,
-  Sparkles,
 } from "lucide-react";
 
 export const CREATIVES = [
@@ -68,23 +67,6 @@ export const CREATIVES = [
       { id: "presentation_decks", label: "Presentation Decks" },
       { id: "packaging", label: "Packaging Mockups" },
       { id: "digital_biz_cards", label: "Digital Business Cards" },
-    ],
-  },
-  {
-    id: "magic_studio",
-    label: "Magic Studio",
-    desc: "Magic Studio",
-    inner: "Generate images, videos, variations, voiceovers, & more",
-    icon: Sparkles,
-    color: "#db2777",       // pink
-    categories: [
-      { id: "text_to_image", label: "Text to Image" },
-      { id: "text_to_video", label: "Text to Video" },
-      { id: "image_to_variations", label: "Image to Variations" },
-      { id: "script_to_voiceover", label: "Script to Voiceover to Video" },
-      { id: "audio_to_text", label: "Audio to Text" },
-      { id: "persona_generator", label: "Persona-based Generator" },
-      { id: "text_to_audio", label: "Text to Audio" },
     ],
   },
 ];

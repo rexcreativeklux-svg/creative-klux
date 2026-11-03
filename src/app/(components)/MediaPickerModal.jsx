@@ -1,5 +1,7 @@
 // components/MediaPickerModal.jsx
-// Unified media picker — Search | Library | Magic Studio | Upload
+// Unified media picker — Search | Library | Brand Images | Generate Stock Images.
+// Every caller gets the same tabs and media types: what a tool does with a pick
+// is for its own endpoint to accept or refuse.
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -7,7 +9,9 @@ import {
   AudioLines,
   FileSearch,
   FolderOpen,
+  Images,
   Sparkles,
+  Wand2,
   FileUp,
   Loader2,
   X,
@@ -25,14 +29,17 @@ import MediaTypeTabs from "./gallery/MediaTypeTabs";
 import MediaCard from "./gallery/MediaCard";
 import MasonryGrid from "./gallery/MasonryGrid";
 import GallerySkeleton from "./gallery/GallerySkeleton";
-import { galleryGridClass } from "./gallery/mediaTypes";
+import {
+  MEDIA_TYPES,
+  classifyMediaType,
+  galleryGridClass,
+} from "./gallery/mediaTypes";
 import { downloadGalleryItem } from "./gallery/downloadMedia";
 
-// ── Magic Studio tab — config-driven panel that reuses the standalone Magic
-//    Studio "machine" (magicStudioConfigs + magic-studio-api + on-device engines
-//    + backend history). Replaces the old per-tool old-studio pages. ──
+// ── Generate Stock Images tab — config-driven panel that reuses the standalone
+//    Magic Studio "machine" (magicStudioConfigs + magic-studio-api + backend
+//    history). ──
 import MagicTabPanel from "./magic-studio/MagicTabPanel";
-import { MAGIC_SUBTABS, configIdForLabel } from "./magic-studio/subtabs";
 import {
   FILE_LIMITS,
   getFileCategory,
@@ -45,10 +52,17 @@ import {
 const MAIN_TABS = [
   { id: "search", label: "Search Media", icon: FileSearch },
   { id: "library", label: "My Library", icon: FolderOpen },
-  { id: "magic", label: "Magic Studio", icon: Sparkles },
+  { id: "brand", label: "Brand Images", icon: Images },
+  { id: "stock", label: "Generate Stock Images", icon: Wand2 },
 ];
 
 const MAX_SELECT = 5;
+
+const ALL_MEDIA_TYPES = MEDIA_TYPES.map((t) => t.id);
+const BRAND_IMAGE_TYPES = ["image"];
+
+/** The Magic Studio config behind the Generate Stock Images tab. */
+const STOCK_IMAGE_TOOL = "image-design";
 
 // ── "You can make one" ───────────────────────────────────────────────────────
 // Audio is the one media type a user can't shoot on a phone or find on a stock
@@ -57,43 +71,23 @@ const MAX_SELECT = 5;
 // straight to this gallery, so the answer is a tab away — this is what points at
 // it, from inside the view where the gap is discovered.
 
-/** The sub-tab this CTA opens, by its label in MAGIC_SUBTABS. */
-const TEXT_TO_AUDIO_LABEL = "Text to Audio";
-/** Where it lives on its own, for pickers that don't show the Magic tab. */
+/** Where the tool that makes a voice track lives. */
 const TEXT_TO_AUDIO_HREF = "/magic-studio/text-to-audio";
 
 /**
  * Points someone with no voice track at the tool that makes one.
  *
- * ⚠️ IT PREFERS THE TAB IT IS ALREADY IN. This modal usually carries Magic
- * Studio as a tab, and Text to Audio runs entirely in the browser — so the whole
- * round trip (write words → generate → saved to gallery → pick it) happens
- * without leaving the picker, and without losing whatever the caller had already
- * set up behind it. Navigating away is the fallback for the callers that show a
- * Library tab only.
- *
  * @param {object} props
  * @param {"empty"|"tile"} props.variant An empty library gets the full pitch; a
  *   library that already has takes gets a quiet card at the head of the grid.
- * @param {(() => void)|null} props.onOpenHere Switch to the Magic tab, or null
- *   when this picker has none.
  */
-function TextToAudioCta({ variant, onOpenHere }) {
+function TextToAudioCta({ variant }) {
   const copy =
     variant === "empty"
       ? "No audio in your library yet — write a script and Text to Audio will voice it, save it here, and it's ready to use."
       : "Need a different take? Text to Audio writes one into your library.";
 
-  const action = onOpenHere ? (
-    <button
-      type="button"
-      onClick={onOpenHere}
-      className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700 cursor-pointer"
-    >
-      <Sparkles className="h-3.5 w-3.5" />
-      Generate audio
-    </button>
-  ) : (
+  const action = (
     <Link
       href={TEXT_TO_AUDIO_HREF}
       className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
@@ -136,27 +130,24 @@ function TextToAudioCta({ variant, onOpenHere }) {
  *   already has handleApplySelected — just pass selected state up.
  * onCancel        () => void
  *
- * postData        object    — forwarded to Magic tabs
- * activeBrand     object    — forwarded to Magic tabs
+ * postData        object    — seeds the Search tab's brand fallback
+ * activeBrand     object    — the brand for Brand Images and stock generation
  * myImages        array     — already-in-library images (for "Add to Brand" dedup)
  * onAddToBrand    (img) => void
  * showToast       (msg) => void   — optional; falls back to internal toast
  *
- * initialTab      "search" | "library" | "magic" | "upload"
+ * initialTab      "search" | "library" | "brand" | "stock"
  * defaultSearchQuery string — seeds the Search tab so the stock photos a caller
  *   lands on already match what that caller needs (e.g. the Ghost Mannequin tool
  *   opens on "shirt on hanger" instead of the generic brand fallback). It is
  *   pre-filled into the search box on open, so the user can see it and edit it;
  *   clearing the box falls back to this term, then to the brand fallback.
- * allowedTypes    string[]  — which gallery media types the caller can SELECT in
- *   the Library tab: subset of ["image","video","audio","document"]. Defaults to
- *   ["image"] so existing callers behave exactly as before (image-only, single
- *   list, no type tabs). Pass more to let a form pick other media types too — the
- *   consuming form should still validate what it receives.
- * tabs            string[]  — which MAIN tabs to show: subset of
- *   ["search","library","magic"]. null/absent → all three (unchanged callers).
- *   Non-image pickers pass ["library"] — Search is Pexels images and Magic is
- *   the legacy generator, neither makes sense for audio/video/docs.
+ * initialMediaType "image" | "video" | "audio" | "document" — which media type
+ *   the Library tab opens on. It doesn't restrict what can be picked.
+ * nonImagesAsMedia boolean — hand picked videos, audio and documents back in the
+ *   second onApply argument (as URLs) instead of the first. For forms that crop
+ *   everything in the first: a cropper can't open them, and this way the file
+ *   still reaches the form and its endpoint decides.
  */
 export default function MediaPickerModal({
   isOpen,
@@ -171,8 +162,8 @@ export default function MediaPickerModal({
   initialTab = "search",
   defaultSearchQuery = "",
   maxSelectable = MAX_SELECT,
-  allowedTypes = ["image",],
-  tabs = null,
+  initialMediaType = "image",
+  nonImagesAsMedia = false,
   // Extra tabs rendered as disabled "Coming soon" placeholders. Opt-in — absent
   // for existing callers. Shape: [{ id, label, icon }]. Clicking one shows a
   // placeholder instead of any picker; nothing is selectable in these tabs.
@@ -182,36 +173,19 @@ export default function MediaPickerModal({
   const effectiveCap = Math.max(0, Math.min(maxSelectable, MAX_SELECT));
   // ── tab state ──────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [activeMagicTab, setActiveMagicTab] = useState(MAGIC_SUBTABS[0].label);
 
-  // Main tabs this caller shows; the active tab is clamped into the visible set
-  // during render (same pattern as useGalleryMedia's type clamp) so a stale or
-  // hidden tab can never render.
-  const visibleTabs = tabs?.length
-    ? MAIN_TABS.filter((t) => tabs.includes(t.id))
-    : MAIN_TABS;
   // Coming-soon tabs are selectable (so the placeholder shows) but hold no
-  // picker. Treat their ids as valid active tabs alongside the real ones.
+  // picker. Treat their ids as valid active tabs alongside the real ones; the
+  // active tab is clamped into that set during render so a stale one can never
+  // render.
   const allTabIds = [
-    ...visibleTabs.map((t) => t.id),
+    ...MAIN_TABS.map((t) => t.id),
     ...comingSoonTabs.map((t) => t.id),
   ];
   const activeTabSafe = allTabIds.includes(activeTab)
     ? activeTab
-    : visibleTabs[0]?.id || "search";
+    : MAIN_TABS[0].id;
   const isComingSoon = comingSoonTabs.some((t) => t.id === activeTabSafe);
-
-  // Open Text to Audio in THIS modal, when the caller shows the Magic tab —
-  // null when it doesn't, which is what makes the CTA fall back to a link out
-  // to the tool's own route. See TextToAudioCta.
-  const canOpenTextToAudioHere = visibleTabs.some((t) => t.id === "magic");
-  const openTextToAudioTab = canOpenTextToAudioHere
-    ? () => {
-        console.log("🎙️ [media-picker] opening Text to Audio from the library");
-        setActiveMagicTab(TEXT_TO_AUDIO_LABEL);
-        setActiveTab("magic");
-      }
-    : null;
 
   // ── selection ──────────────────────────────────────────────────────────────
   const [selectedImages, setSelectedImages] = useState([]); // search / library
@@ -243,11 +217,10 @@ export default function MediaPickerModal({
   );
 
   // ── auth context (library) ─────────────────────────────────────────────────
-  const { uploadMedia, deleteImage } = useAuth();
+  const { uploadMedia, deleteImage, activeBrand: activeBrandCtx } = useAuth();
 
-  // Gallery media for the Library tab. Restricted to the caller's allowedTypes
-  // and only fetched while the Library tab is open. Default allowedTypes is
-  // ["image"], so existing callers get the exact same single image list.
+  // Gallery media for the Library tab — every type, only fetched while the
+  // Library tab is open.
   const {
     tabs: galleryTabs,
     activeType: galleryType,
@@ -261,7 +234,7 @@ export default function MediaPickerModal({
     loadMore: loadMoreGallery,
     refresh: refreshGallery,
   } = useGalleryMedia({
-    allowedTypes,
+    allowedTypes: ALL_MEDIA_TYPES,
     enabled: isOpen && activeTabSafe === "library",
   });
 
@@ -271,6 +244,30 @@ export default function MediaPickerModal({
     onLoadMore: loadMoreGallery,
     hasMore: galleryHasMore,
     loading: galleryLoadingMore,
+  });
+
+  // Images for the Brand Images tab. A brand has no image list of its own and
+  // GET /gallery ignores `brand_id`, so the rows are filtered on the `brand_id`
+  // each one carries. A page with no matches leaves the sentinel in view, which
+  // loads the next page.
+  const brand = activeBrand || activeBrandCtx;
+  const {
+    items: brandGalleryItems,
+    loading: brandLoading,
+    loadingMore: brandLoadingMore,
+    hasMore: brandHasMore,
+    loadMore: loadMoreBrand,
+  } = useGalleryMedia({
+    allowedTypes: BRAND_IMAGE_TYPES,
+    enabled: isOpen && activeTabSafe === "brand",
+  });
+  const brandItems = brandGalleryItems.filter(
+    (item) => Number(item.brandId) === Number(brand?.id),
+  );
+  const brandSentinelRef = useInfiniteScroll({
+    onLoadMore: loadMoreBrand,
+    hasMore: brandHasMore,
+    loading: brandLoadingMore,
   });
 
   // Shared library-card actions — used by both the image masonry and the
@@ -300,13 +297,14 @@ export default function MediaPickerModal({
   useEffect(() => {
     if (isOpen) {
       setActiveTab(initialTab);
+      setGalleryType(initialMediaType);
       setSelectedImages([]);
       setSelectedMedia([]);
       // Re-seed rather than blank: each caller opens on its own stock topic.
       setSearchQuery(defaultSearchQuery);
       setUploadedFiles([]);
     }
-  }, [isOpen, initialTab, defaultSearchQuery]);
+  }, [isOpen, initialTab, initialMediaType, defaultSearchQuery, setGalleryType]);
 
   // Library media is fetched by useGalleryMedia (gated to the Library tab).
 
@@ -410,11 +408,20 @@ export default function MediaPickerModal({
       ...selectedImages.map((src) => {
         const found =
           searchResults.find((r) => r.src === src) ||
-          allGalleryItems.find((g) => g.src === src);
+          allGalleryItems.find((g) => g.src === src) ||
+          brandItems.find((g) => g.src === src);
         return found || { src };
       }),
       ...uploadedFiles,
     ];
+    if (nonImagesAsMedia) {
+      const isImage = (item) => classifyMediaType(item) === "image";
+      onApply(combined.filter(isImage), [
+        ...selectedMedia,
+        ...combined.filter((item) => !isImage(item)).map((item) => item.src),
+      ]);
+      return;
+    }
     onApply(combined, selectedMedia);
   };
 
@@ -540,7 +547,7 @@ export default function MediaPickerModal({
           under the browser chrome; `100%` height on a phone because a picker
           wants every pixel it can get. */}
       <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 sm:items-center sm:p-4">
-        <div className="bg-surface rounded-t-2xl w-full h-[92dvh] flex flex-col overflow-hidden shadow-2xl sm:rounded-2xl sm:max-w-6xl sm:h-[90dvh]">
+        <div className="bg-surface rounded-t-2xl w-full h-[92dvh] flex flex-col overflow-hidden shadow-2xl sm:rounded-2xl sm:max-w-[96rem] sm:h-[90dvh]">
           {/* ── Header ───────────────────────────────────────────────────── */}
           <div className="flex items-center justify-between px-4 sm:px-6 pt-5 pb-0 shrink-0">
             <h2 className="text-lg font-semibold text-gray-900">Add Media</h2>
@@ -558,7 +565,7 @@ export default function MediaPickerModal({
               sideways when they don't all fit, instead of wrapping the labels
               onto a second line the way it used to on a phone. */}
           <div className="flex gap-1 px-4 sm:px-6 pt-4 border-b border-gray-100 shrink-0 overflow-x-auto hide-scrollbar">
-            {visibleTabs.map(({ id, label, icon: Icon }) => (
+            {MAIN_TABS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
@@ -756,10 +763,7 @@ export default function MediaPickerModal({
                     // Audio gets a way OUT of its empty state rather than a
                     // statement of it — see TextToAudioCta.
                     galleryType === "audio" ? (
-                      <TextToAudioCta
-                        variant="empty"
-                        onOpenHere={openTextToAudioTab}
-                      />
+                      <TextToAudioCta variant="empty" />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-3">
                         <FolderOpen className="w-12 h-12 text-gray-200" />
@@ -805,10 +809,7 @@ export default function MediaPickerModal({
                           more thing to select. */}
                       {galleryType === "audio" && (
                         <div className="mb-3">
-                          <TextToAudioCta
-                            variant="tile"
-                            onOpenHere={openTextToAudioTab}
-                          />
+                          <TextToAudioCta variant="tile" />
                         </div>
                       )}
                       <div className={galleryGridClass(galleryType)}>
@@ -838,56 +839,61 @@ export default function MediaPickerModal({
               </div>
             )}
 
-            {/* ══ MAGIC TAB ═════════════════════════════════════════════════ */}
-            {activeTabSafe === "magic" && (
-              <div className="flex flex-col flex-1 min-h-0">
-                {/* Magic sub-tabs — same one-line-and-scroll rule as the main
-                    tab bar (without `shrink-0` the labels get squeezed instead
-                    of scrolling). */}
-                <div className="flex px-4 sm:px-6 overflow-x-auto hide-scrollbar border-b border-gray-100 shrink-0 gap-0.5">
-                  {MAGIC_SUBTABS.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveMagicTab(tab.label)}
-                      className={`shrink-0 px-3 sm:px-4 py-3 text-xs font-medium whitespace-nowrap transition cursor-pointer border-b-2 ${
-                        activeMagicTab === tab.label
-                          ? "text-blue-600 border-blue-600"
-                          : "text-gray-500 border-transparent hover:text-gray-800"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-                {/* Magic content — the config-driven panel, remounted per sub-tab
-                    so each tool resets cleanly and releases its engines/URLs. */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-                  {(() => {
-                    const magicId = configIdForLabel(activeMagicTab);
-                    return magicId ? (
-                      <MagicTabPanel
-                        key={magicId}
-                        categoryId={magicId}
-                        // Selected across BOTH buckets so the ring shows
-                        // regardless of which bucket a result was routed into.
-                        selectedMedia={[...selectedImages, ...selectedMedia]}
-                        // Route by type: image results go into the images bucket
-                        // (Applied + cropped as images); video/audio into media.
-                        onSelectMedia={(src, type) =>
-                          type === "image"
-                            ? toggleImage(src)
-                            : toggleMedia(src)
-                        }
-                        allowedTypes={allowedTypes}
-                        activeBrand={activeBrand}
-                      />
-                    ) : (
-                      <p className="text-sm text-gray-400 p-4">
-                        Select a tab above.
-                      </p>
-                    );
-                  })()}
-                </div>
+            {/* ══ BRAND IMAGES TAB ══════════════════════════════════════════ */}
+            {activeTabSafe === "brand" && (
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 sm:px-6 pt-4 pb-2">
+                {brandLoading ? (
+                  <div className="flex justify-center items-center h-48">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                  </div>
+                ) : brandItems.length === 0 && !brandHasMore ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-3">
+                    <Images className="w-12 h-12 text-gray-200" />
+                    <p className="text-sm">
+                      No images for {brand?.name || "this brand"} yet.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <MasonryGrid
+                      items={brandItems}
+                      getKey={(item) => item.id}
+                      loadingMore={brandLoadingMore}
+                      renderItem={(item, i) => (
+                        <MediaCard
+                          item={item}
+                          index={i}
+                          selectable
+                          selected={selectedImages.includes(item.src)}
+                          onToggleSelect={(it) => toggleImage(it.src)}
+                          onDownload={handleLibraryDownload}
+                        />
+                      )}
+                    />
+                    {brandHasMore && (
+                      <div ref={brandSentinelRef} className="h-px w-full" />
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ══ GENERATE STOCK IMAGES TAB ═════════════════════════════════ */}
+            {activeTabSafe === "stock" && (
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:overflow-hidden">
+                <MagicTabPanel
+                  categoryId={STOCK_IMAGE_TOOL}
+                  // Selected across BOTH buckets so the ring shows regardless of
+                  // which bucket a result was routed into.
+                  selectedMedia={[...selectedImages, ...selectedMedia]}
+                  // Route by type: image results go into the images bucket;
+                  // anything else into media.
+                  onSelectMedia={(src, type) =>
+                    type === "image" ? toggleImage(src) : toggleMedia(src)
+                  }
+                  allowedTypes={ALL_MEDIA_TYPES}
+                  activeBrand={activeBrand}
+                />
               </div>
             )}
 

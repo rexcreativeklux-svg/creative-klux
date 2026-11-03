@@ -299,19 +299,8 @@ export default function AiChatInput({
           }}
         />
 
-        {/* The gallery, as the /gallery page presents it: your media plus a
-            stock search, and nothing else. Magic Studio is deliberately left
-            out — /gallery has no such tab, and generating a new image is a
-            different intent from attaching one you already have.
-
-            `allowedTypes` covers every category the gallery holds, so the
-            Videos / Audio / Docs tabs appear here exactly as they do on
-            /gallery. Whether the chat endpoint accepts a video is the
-            endpoint's call to make and to report — see CHAT_MEDIA_CATEGORIES.
-
-            `allowedTypes` stays images-only: the chat API's `images` array is
-            the only channel an attachment has, so a video or PDF would have
-            nowhere to go (see attachmentUrls.js).
+        {/* Whether the chat endpoint accepts a video is the endpoint's call to
+            make and to report — see CHAT_MEDIA_CATEGORIES.
 
             The cap is what's LEFT of the chat's allowance, so the picker can't
             hand back more than the composer is able to hold. */}
@@ -321,8 +310,6 @@ export default function AiChatInput({
           onCancel={() => setPickerOpen(false)}
           onApply={handlePickerApply}
           initialTab="library"
-          tabs={["library", "search"]}
-          allowedTypes={CHAT_MEDIA_CATEGORIES}
           maxSelectable={Math.max(0, MAX_CHAT_IMAGES - attachments.length)}
           myImages={myImages}
           activeBrand={activeBrand}

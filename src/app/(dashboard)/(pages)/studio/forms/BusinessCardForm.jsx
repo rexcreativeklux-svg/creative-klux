@@ -935,6 +935,7 @@ const BusinessCardForm = ({
         onClose={() => setMediaPickerOpen(false)}
         onCancel={() => setMediaPickerOpen(false)}
         onApply={handleApplyFromPicker}
+        nonImagesAsMedia
         postData={formData}
         activeBrand={activeBrand}
         showToast={showToast}

@@ -1626,6 +1626,7 @@ export default function CreateFromUrl() {
         onClose={() => setMediaPickerOpen(false)}
         onCancel={() => setMediaPickerOpen(false)}
         onApply={handleApplyFromPicker}
+        nonImagesAsMedia
         maxSelectable={Math.max(0, MAX_IMAGES - croppedImages.length)}
         postData={{
           brandName,

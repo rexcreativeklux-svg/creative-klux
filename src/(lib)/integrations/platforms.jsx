@@ -4,7 +4,7 @@
 // brand icons. Shared by the Integrations page and the brand-create wizard so
 // both surfaces offer the exact same platforms and connect the exact same way.
 
-import { Inbox, Reply } from "lucide-react";
+import { Send } from "lucide-react";
 
 // ── SVG brand icons (white fill, meant to sit on a coloured iconBg) ───────────
 export const FacebookIcon = () => (
@@ -81,16 +81,6 @@ export const GoogleDriveIcon = () => (
 export const GoogleSlidesIcon = () => (
   <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
     <path d="M14.727 0H4.909C4.005 0 3.273.732 3.273 1.636v20.728c0 .904.732 1.636 1.636 1.636h14.182c.904 0 1.636-.732 1.636-1.636V6.545L14.727 0zM17.455 17.455H6.545V10.91h10.91v6.545zM14.727 6.545V0l6 6.545h-6z" />
-  </svg>
-);
-export const GoogleCalendarIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
-    <path d="M19 3h-1V1h-2v2H8V1H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H5V9h14v10zM7 11h5v5H7v-5z" />
-  </svg>
-);
-export const GoogleAnalyticsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
-    <path d="M19.5 2A2.5 2.5 0 0 0 17 4.5v15a2.5 2.5 0 0 0 5 0v-15A2.5 2.5 0 0 0 19.5 2zM12 9a2.5 2.5 0 0 0-2.5 2.5v8a2.5 2.5 0 0 0 5 0v-8A2.5 2.5 0 0 0 12 9zm-7.5 7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" />
   </svg>
 );
 // The four-colour Microsoft mark (keeps its own colours on a dark iconBg).
@@ -203,32 +193,25 @@ export const AD_PLATFORMS = [
 // come from GET integrations/catalogue (see the Integrations page) — so a
 // provider the backend adds or renames needs no change here.
 //
-// Gmail is two grants, Read and Reply, so a brand can let Copilot read its
-// inbox without also letting it send as them. The catalogue still serves one
-// `gmail` provider, so the page shows these two in its place, marked
-// `comingSoon` (Connect does nothing yet). Drop the flag once the catalogue
-// serves `gmail_read` / `gmail_reply`.
-export const GMAIL_SPLIT_PLATFORMS = [
-  {
-    id: "gmail_read",
-    name: "Gmail (Read)",
-    description: "Read your inbox and the replies your leads send back.",
-    Icon: () => <Inbox className="w-5 h-5 text-white" />,
-    iconBg: "linear-gradient(135deg, #EA4335, #C5221F)",
-    comingSoon: true,
-  },
-  {
-    id: "gmail_reply",
-    name: "Gmail (Reply)",
-    description: "Reply and send from your own Google address.",
-    Icon: () => <Reply className="w-5 h-5 text-white" />,
-    iconBg: "linear-gradient(135deg, #EA4335, #C5221F)",
-    comingSoon: true,
-  },
-];
+// The catalogue's one `gmail` provider is offered as Gmail (Send), and connects
+// and disconnects as `gmail`. The name stays ours rather than the catalogue's
+// label.
+export const GMAIL_SEND_PLATFORM = {
+  id: "gmail",
+  name: "Gmail (Send)",
+  description: "Send from your own Google address.",
+  Icon: () => <Send className="w-5 h-5 text-white" />,
+  iconBg: "linear-gradient(135deg, #EA4335, #C5221F)",
+};
+
+// Providers the catalogue serves that the app doesn't offer.
+export const HIDDEN_PROVIDER_IDS = new Set([
+  "google_calendar",
+  "google_analytics",
+]);
 
 export const PRODUCTIVITY_PLATFORMS = [
-  ...GMAIL_SPLIT_PLATFORMS,
+  GMAIL_SEND_PLATFORM,
   {
     id: "google_drive",
     name: "Google Drive",
@@ -256,20 +239,6 @@ export const PRODUCTIVITY_PLATFORMS = [
     description: "Create presentations in your Google Drive.",
     Icon: GoogleSlidesIcon,
     iconBg: "linear-gradient(135deg, #F4B400, #E37400)",
-  },
-  {
-    id: "google_calendar",
-    name: "Google Calendar",
-    description: "List and create events on your Google Calendar.",
-    Icon: GoogleCalendarIcon,
-    iconBg: "linear-gradient(135deg, #4285F4, #1967D2)",
-  },
-  {
-    id: "google_analytics",
-    name: "Google Analytics",
-    description: "Pull reporting from your Google Analytics properties.",
-    Icon: GoogleAnalyticsIcon,
-    iconBg: "linear-gradient(135deg, #F9AB00, #E37400)",
   },
   {
     id: "outlook",

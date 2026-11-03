@@ -8,10 +8,8 @@
 // it is declared once, here.
 //
 // ⚠️ THE SLUGS ARE WRITTEN OUT, not derived from the label. A URL is a contract:
-// renaming "Persona-based Generator" in creatives.js must not quietly break
-// every link to /magic-studio/persona-generator that anyone has bookmarked.
-// The check at the bottom of this file catches the opposite mistake — a category
-// added to creatives.js and forgotten here.
+// renaming "Persona-based Generator" must not quietly break every link to
+// /magic-studio/persona-generator that anyone has bookmarked.
 //
 // `backend: false` marks the two tools that run ENTIRELY ON-DEVICE
 // (audio_to_text via Whisper, text_to_audio via Kokoro — see
@@ -37,10 +35,6 @@ import {
   WandSparkles,
 } from "lucide-react";
 import { usesBackend } from "@/(lib)/magic-studio-audio";
-import { getCreativeById } from "../studio/creatives";
-
-/** The creative these categories belong to, in studio/creatives.js. */
-const CREATIVE_ID = "magic_studio";
 
 /**
  * @typedef {object} MagicTool
@@ -273,32 +267,3 @@ export const toolBySlug = (slug) =>
 
 /** The tool a category id names, or null. */
 export const toolById = (id) => MAGIC_TOOLS.find((tool) => tool.id === id) || null;
-
-// ── Drift check ──────────────────────────────────────────────────────────────
-// creatives.js owns the category list; this file owns their URLs. Adding a
-// category there and not here would leave a tool with no nav item and no route,
-// which is invisible until someone goes looking for it. Dev-only: it costs a
-// module-load loop that production has no use for.
-//
-// ⚠️ IT ONLY RUNS ONE WAY, AND THE FIVE VIDEO TOOLS ARE DELIBERATELY OUTSIDE IT.
-// This checks for categories in creatives.js with no route here; a tool listed
-// here and NOT there is silent, which is exactly what the video tools are. That
-// list feeds one consumer — /studio, the older per-category form flow — and a
-// category there with no form of its own renders a "Coming soon" card. These
-// tools are not coming soon; they are live at their own routes. Listing them
-// would advertise them as unavailable on the one page that can't run them, so
-// they are reachable through the Magic Studio sidebar and the Add Media picker
-// instead. Add them to creatives.js only alongside a real form in studio/forms.
-if (process.env.NODE_ENV !== "production") {
-  const declared = new Set(MAGIC_TOOLS.map((tool) => tool.id));
-  const missing = (getCreativeById(CREATIVE_ID)?.categories || [])
-    .map((category) => category.id)
-    .filter((id) => !declared.has(id));
-
-  if (missing.length > 0) {
-    console.warn(
-      `⚠️ [magic-studio] no route declared for: ${missing.join(", ")} — ` +
-        "add them to MAGIC_TOOLS in magicTools.js",
-    );
-  }
-}

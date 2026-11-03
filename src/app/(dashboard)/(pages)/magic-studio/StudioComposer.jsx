@@ -438,12 +438,12 @@ export default function StudioComposer({
    *
    * ⚠️ "logo" IS THE ONE TARGET THAT ISN'T A MEDIA TYPE. It picks an image like
    * "image" does and differs only in where the URL lands — which is why
-   * `pickerMedia` below translates it back before the picker is told what may be
-   * chosen. Passing the target straight through would ask the gallery for
-   * files of type "logo" and return nothing.
+   * `pickerMedia` below translates it back before the picker is told what to open
+   * on. Passing the target straight through would ask the gallery for files of
+   * type "logo" and return nothing.
    */
   const [pickerTarget, setPickerTarget] = useState(null);
-  /** What the picker may actually show for that target. */
+  /** The media type the picker's Library opens on for that target. */
   const pickerMedia = pickerTarget === "logo" ? "image" : pickerTarget;
 
   // ── The brand, for the tools that ask for one (config.brand) ───────────────
@@ -1699,20 +1699,12 @@ export default function StudioComposer({
       {/* The app's own media picker rather than a device file dialog — which is
           what the config's helper has always promised ("from your library, the
           web, or upload one"): Pexels search, the user's gallery, and an upload
-          button inside the Library tab, all in one place.
-          Its Magic Studio tab is left out. You are already in Magic Studio, and
-          offering the tools again inside the picker only invites the question of
-          which one you are actually using. */}
+          button inside the Library tab, all in one place. */}
       {pickerTarget && (
         <MediaPickerModal
           isOpen
           initialTab="library"
-          // ⚠️ NO SEARCH TAB FOR VIDEO OR AUDIO. That tab is a Pexels IMAGE
-          // search, so on those it would offer results that can never be picked.
-          // The Library tab is also where a clip or a voice track gets uploaded,
-          // which is the only route either has into these tools.
-          tabs={pickerMedia === "image" ? ["search", "library"] : ["library"]}
-          allowedTypes={[pickerMedia]}
+          initialMediaType={pickerMedia}
           maxSelectable={1}
           activeBrand={activeBrand}
           onClose={() => setPickerTarget(null)}

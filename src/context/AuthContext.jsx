@@ -32,6 +32,7 @@ const GALLERY_PER_PAGE = 10;
 const normalizeGalleryItem = (m) => ({
   id: m.id,
   type: m.type,
+  brandId: m.brand_id,
   src: m.image_url, // ← the hosted URL field the backend returns
   alt: m.image_name,
   filename: m.image_name,

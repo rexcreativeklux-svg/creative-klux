@@ -23,7 +23,8 @@
 // "Route app for a delivery driver", which described a website builder rather
 // than Creative Klux; a chip that asks for something the app doesn't produce is
 // worse than no chip at all. The catalogue these are drawn from is CREATIVES in
-// (pages)/studio/creatives.js — ads, social, designer, Magic Studio — and the
+// (pages)/studio/creatives.js — ads, social, designer — plus Magic Studio's
+// tools in (pages)/magic-studio/magicTools.js, and the
 // platform names come from forms/social/socialSizes.js, so a chip never invents
 // a format the studios can't fulfil.
 //

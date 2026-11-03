@@ -34,8 +34,14 @@ import TemplateDesign from "./TemplateDesign";
  *   with a `video` (the video tools) plays its clip while it is on screen.
  *   mediaTemplates.js documents the fields the Image and Video tools add.
  * @param {(template: object) => void} props.onUse  Put its prompt in the composer.
+ * @param {string} [props.columnsClassName] Column counts past the base two — a
+ *   narrow container wants fewer than the full canvas.
  */
-export default function TemplateGallery({ templates: catalog, onUse }) {
+export default function TemplateGallery({
+  templates: catalog,
+  onUse,
+  columnsClassName = "sm:columns-3 lg:columns-4",
+}) {
   const [openIndex, setOpenIndex] = useState(null);
   const templates = useShuffled(catalog);
 
@@ -45,7 +51,7 @@ export default function TemplateGallery({ templates: catalog, onUse }) {
 
   return (
     <>
-      <div className="columns-2 gap-3 p-3 sm:columns-3 lg:columns-4">
+      <div className={`columns-2 gap-3 p-3 ${columnsClassName}`}>
         {templates.map((template, index) => (
           <div
             key={template.id}

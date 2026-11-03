@@ -480,6 +480,9 @@ export default function HistoryLattice({
           ? () => onCompare(item)
           : undefined,
       onPublish: canPublish(item) ? () => setPublishItem(item) : undefined,
+      onEmailToClient: item.url
+        ? () => toast.info("Email to client is coming soon.")
+        : undefined,
       onDownload: item.url ? () => handleDownload(item) : undefined,
       onCopyLink: item.url
         ? () => {
@@ -498,6 +501,9 @@ export default function HistoryLattice({
       // to put it.
       onSaveToGallery:
         item.url && uploadMedia ? () => handleSaveToGallery(item) : undefined,
+      onSaveToDrive: item.url
+        ? () => toast.info("Save to Drive is coming soon.")
+        : undefined,
       onDelete: onDelete ? () => onDelete(item.id) : undefined,
     });
 

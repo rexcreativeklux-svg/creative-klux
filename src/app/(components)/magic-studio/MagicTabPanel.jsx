@@ -3,9 +3,8 @@
 /**
  * MagicTabPanel.jsx
  * ─────────────────────────────────────────────────────────────────────────────
- * A single Magic Studio tool, rendered inside the "Add Media" picker's Magic
- * Studio tab. Config-driven: one component serves all seven tools — the media
- * picker mounts it keyed by the active sub-tab's config id (see subtabs.js).
+ * A single Magic Studio tool, rendered inside the "Add Media" picker's Generate
+ * Stock Images tab. Config-driven: it renders whichever tool `categoryId` names.
  *
  * It REUSES the standalone Magic Studio "machine" — the same per-tool configs
  * (magicStudioConfigs), generate + video-poll APIs (magic-studio-api), backend
@@ -13,13 +12,18 @@
  * (useTextToSpeech / useSpeechToText) that power the /magic-studio page. Only the
  * presentation differs: a single, narrow column tuned for the picker.
  *
- * Layout (top → bottom):
- *   1. Collapsible History (backend tools only; collapsed by default, auto-opens
- *      while/after a generation so the new result is visible). Selecting a media
- *      result there Applies it back into the parent form via onSelectMedia.
- *   2. The input form + inline option rows + Generate button.
- *   3. On-device processing state / session result (Audio-to-Text transcript,
- *      Text-to-Audio audio) — these two tools persist no server history.
+ * Layout, two columns from `lg` up, each scrolling on its own:
+ *   Left:
+ *     1. The input form + inline option rows + Generate button.
+ *     2. On-device processing state / session result (Audio-to-Text transcript,
+ *        Text-to-Audio audio) — these two tools persist no server history.
+ *     3. The tool's templates, where it has them. Use fills in the form.
+ *   Right:
+ *     History (backend tools only). Selecting a media result there Applies it
+ *     back into the parent form via onSelectMedia.
+ *
+ * Below `lg` the columns stack, with History first in a short scrolling box so a
+ * new result stays in view.
  *
  * Image / audio inputs use a DIRECT device file input (no second modal on top of
  * the already-open picker). Image-to-Variations needs a hosted `source_image`,
@@ -54,6 +58,8 @@ import { useAuth } from "@/context/AuthContext";
 import { getMagicConfig } from "@/app/(dashboard)/(pages)/magic-studio/magicStudioConfigs";
 import useMagicHistory from "@/app/(dashboard)/(pages)/magic-studio/useMagicHistory";
 import MagicHistoryGrid from "@/app/(dashboard)/(pages)/magic-studio/MagicHistoryGrid";
+import TemplateGallery from "@/app/(dashboard)/(pages)/magic-studio/TemplateGallery";
+import { useToolTemplates } from "@/app/(dashboard)/(pages)/magic-studio/mediaTemplates";
 import useTextToSpeech from "@/(lib)/ai-engine/hooks/useTextToSpeech";
 import useSpeechToText from "@/(lib)/ai-engine/hooks/useSpeechToText";
 import {
@@ -189,7 +195,6 @@ export default function MagicTabPanel({
   const toggleOption = (key) =>
     setOpenOption((prev) => (prev === key ? null : key));
   const closeOption = () => setOpenOption(null);
-  const [historyOpen, setHistoryOpen] = useState(false); // collapsed by default
   const [result, setResult] = useState(null); // on-device session result
   const [copied, setCopied] = useState(false);
   // On-device audio result → hosted URL once saved for selection (id → url).
@@ -198,6 +203,17 @@ export default function MagicTabPanel({
   const imageFileRef = useRef(null);
   const audioFileRef = useRef(null);
   const voiceFileRef = useRef(null);
+  const formColumnRef = useRef(null);
+
+  const templates = useToolTemplates(categoryId);
+
+  // Use on a template: its prompt and any option values that suit it go into the
+  // form, then back to the top of the column so the filled-in form is in view.
+  const applyTemplate = (template) => {
+    setTextInput(template.prompt);
+    if (template.values) setValues((prev) => ({ ...prev, ...template.values }));
+    formColumnRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   // Revoke object URLs on unmount (also fires on sub-tab switch — the panel is
   // remounted per category by the picker).
@@ -356,7 +372,6 @@ export default function MagicTabPanel({
   };
 
   const handleGenerate = () => {
-    if (usesHistory) setHistoryOpen(true); // reveal the result as it lands
     generate({
       primaryInput,
       // On a describable tool the box holds a note about the source, not the
@@ -519,58 +534,15 @@ export default function MagicTabPanel({
     (extraAudio && config.extraInput.required && !voiceTrack?.url);
 
   return (
-    <div className="flex flex-col gap-4 mx-auto">
-      {/* ── 1. Collapsible History (backend tools) ── */}
-      {usesHistory && (
-        <div className="rounded-2xl border border-gray-200 overflow-hidden">
-          <button
-            onClick={() => setHistoryOpen((o) => !o)}
-            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-          >
-            <span className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-              <HistoryIcon className="w-4 h-4 text-gray-500" />
-              History
-              {history.items.length > 0 && (
-                <span className="text-xs font-medium text-gray-400">
-                  ({history.items.length})
-                </span>
-              )}
-              {waiting && (
-                <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
-              )}
-            </span>
-            <ChevronDown
-              className={`w-4 h-4 text-gray-400 transition-transform ${historyOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-          {historyOpen && (
-            <div className="border-t border-gray-100 p-4 max-h-[46vh] overflow-y-auto">
-              {!waiting && !history.loading && history.items.length === 0 ? (
-                <p className="text-center text-xs text-gray-400 py-6">
-                  Nothing generated yet — your results will appear here.
-                </p>
-              ) : (
-                <MagicHistoryGrid
-                  items={history.items}
-                  loading={history.loading}
-                  generating={waiting}
-                  generatingLabel={`Generating your ${config.title.toLowerCase()}…`}
-                  resultType={resultType}
-                  onDelete={history.remove}
-                  removingId={history.removingId}
-                  uploadMedia={uploadMedia}
-                  filePrefix={`magic-${categoryId}`}
-                  selectableTypes={allowedTypes}
-                  selectedUrls={selectedMedia}
-                  onToggleSelect={toggleHistorySelect}
-                />
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── 2. Input form ── */}
+    <div
+      className={`grid grid-cols-1 gap-6 lg:h-full lg:grid-rows-[minmax(0,1fr)] ${usesHistory ? "lg:grid-cols-2" : ""}`}
+    >
+      {/* ── Left column ── */}
+      <div
+        ref={formColumnRef}
+        className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto lg:pr-1"
+      >
+      {/* ── Input form ── */}
       <div className="rounded-2xl border border-gray-200 p-4 space-y-4">
         {/* Primary input */}
         {["prompt", "script", "text"].includes(config.input) && (
@@ -1213,6 +1185,61 @@ export default function MagicTabPanel({
           <p className="text-xs text-gray-400">
             Your result will appear here after you generate.
           </p>
+        </div>
+      )}
+
+      {/* ── Templates ── */}
+      {templates?.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500">
+            Start from a template
+          </p>
+          <TemplateGallery
+            templates={templates}
+            onUse={applyTemplate}
+            columnsClassName="xl:columns-3"
+          />
+        </div>
+      )}
+      </div>
+
+      {/* ── Right column: History (backend tools) ── */}
+      {usesHistory && (
+        <div className="order-first flex min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-200 lg:order-none">
+          <div className="flex shrink-0 items-center gap-2 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800">
+            <HistoryIcon className="w-4 h-4 text-gray-500" />
+            History
+            {history.items.length > 0 && (
+              <span className="text-xs font-medium text-gray-400">
+                ({history.items.length})
+              </span>
+            )}
+            {waiting && (
+              <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
+            )}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto border-t border-gray-100 p-4 max-lg:max-h-[40dvh]">
+            {!waiting && !history.loading && history.items.length === 0 ? (
+              <p className="text-center text-xs text-gray-400 py-6">
+                Nothing generated yet — your results will appear here.
+              </p>
+            ) : (
+              <MagicHistoryGrid
+                items={history.items}
+                loading={history.loading}
+                generating={waiting}
+                generatingLabel={`Generating your ${config.title.toLowerCase()}…`}
+                resultType={resultType}
+                onDelete={history.remove}
+                removingId={history.removingId}
+                uploadMedia={uploadMedia}
+                filePrefix={`magic-${categoryId}`}
+                selectableTypes={allowedTypes}
+                selectedUrls={selectedMedia}
+                onToggleSelect={toggleHistorySelect}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>

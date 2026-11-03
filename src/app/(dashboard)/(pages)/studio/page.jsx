@@ -20,13 +20,6 @@ import ReelsForm from "./forms/ReelsForm";
 import LogoForm from "./forms/LogoForm";
 import BusinessCardForm from "./forms/BusinessCardForm";
 import BannersPrintDigitalForm from "./forms/BannersPrintDigitalForm";
-import TextToImageForm from "./forms/TextToImageForm";
-import TextToVideoForm from "./forms/TextToVideoForm";
-import ImageToVariationsForm from "./forms/ImageToVariationForm";
-import ScriptToVoiceoverForm from "./forms/ScriptToVoiceOverForm";
-import AudioToTextForm from "./forms/AudioToTextForm";
-import PersonaBasedGeneratorForm from "./forms/PersonaBasedGeneratorForm";
-import TextToAudioForm from "./forms/TextToAudioForm";
 import FlyerForm from "./forms/FlyerForm";
 import BrochuresForm from "./forms/BrochureForm";
 import PosterForm from "./forms/PosterForm";
@@ -201,17 +194,6 @@ const StudioInner = () => {
       if (selectedCategory === "presentation_decks") return <PresentationDeckForm {...commonProps} />;
       if (selectedCategory === "packaging") return <PackagingForm {...commonProps} />;
       if (selectedCategory === "digital_biz_cards") return <DigitalBusinessCardForm {...commonProps} />;
-      return <ComingSoon creative={creative} category={category} />;
-    }
-
-    if (selectedCreative === "magic_studio") {
-      if (selectedCategory === "text_to_image") return <TextToImageForm {...commonProps} />;
-      if (selectedCategory === "text_to_video") return <TextToVideoForm {...commonProps} />;
-      if (selectedCategory === "image_to_variations") return <ImageToVariationsForm {...commonProps} />;
-      if (selectedCategory === "script_to_voiceover") return <ScriptToVoiceoverForm {...commonProps} />;
-      if (selectedCategory === "audio_to_text") return <AudioToTextForm {...commonProps} />;
-      if (selectedCategory === "persona_generator") return <PersonaBasedGeneratorForm {...commonProps} />;
-      if (selectedCategory === "text_to_audio") return <TextToAudioForm {...commonProps} />;
       return <ComingSoon creative={creative} category={category} />;
     }
 

@@ -34,6 +34,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  bulkDeleteMagicHistoryItems,
   getMagicHistory,
   deleteMagicHistoryItem,
 } from "@/(lib)/magic-studio-api";
@@ -51,7 +52,7 @@ import {
  * @param {string|number} id
  * @returns {string}
  */
-const generationIdOf = (id) => String(id).split(":")[0];
+export const generationIdOf = (id) => String(id).split(":")[0];
 
 /**
  * @param {string|null} tool Backend tool enum (e.g. "text_to_image"), or null.
@@ -65,6 +66,7 @@ const generationIdOf = (id) => String(id).split(":")[0];
  *   removingId: (string|number|null),
  *   refresh: (opts?: {quiet?: boolean}) => Promise<void>,
  *   remove: (id: string|number) => Promise<void>,
+ *   removeMany: (ids: Array<string|number>) => Promise<{failed: number, deleted: number, message?: string}>,
  * }}
  */
 export default function useMagicHistory(tool, { enabled = true } = {}) {
@@ -219,5 +221,42 @@ export default function useMagicHistory(tool, { enabled = true } = {}) {
     [records, removingId, refresh],
   );
 
-  return { items, pending, loading, error, removingId, refresh, remove };
+  /**
+   * Delete several generations in one request. Not optimistic like `remove`:
+   * the caller holds a dialog open on it, and the answer can be partial, so the
+   * list only changes once the server has said which ones went. `missing` counts
+   * as gone — it isn't there, whoever got to it first. Throws if the request
+   * itself fails; the api layer has already toasted why.
+   */
+  const removeMany = useCallback(
+    async (ids) => {
+      const generationIds = [...new Set(ids.map(generationIdOf))]
+        .map(Number)
+        .filter(Number.isInteger);
+      if (generationIds.length === 0) return { failed: 0, deleted: 0 };
+
+      const result = await bulkDeleteMagicHistoryItems(generationIds);
+      const failed = new Set(
+        (result?.failed || []).map((entry) => String(entry?.id ?? entry)),
+      );
+      const asked = new Set(generationIds.map(String));
+      if (mountedRef.current) {
+        setRecords((list) =>
+          list.filter((record) => {
+            const generationId = generationIdOf(record.id);
+            return !asked.has(generationId) || failed.has(generationId);
+          }),
+        );
+      }
+      refresh({ quiet: true });
+      return {
+        failed: failed.size,
+        deleted: result?.deleted_count,
+        message: result?.message,
+      };
+    },
+    [refresh],
+  );
+
+  return { items, pending, loading, error, removingId, refresh, remove, removeMany };
 }

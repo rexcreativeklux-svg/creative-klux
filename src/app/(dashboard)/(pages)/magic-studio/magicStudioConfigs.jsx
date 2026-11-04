@@ -750,6 +750,25 @@ const brandFields = (name, logo) => {
 };
 
 /**
+ * The `image_url` field for a tool whose real input is something else — a prompt
+ * or a persona — and which will also take a picture to work from.
+ *
+ * ⚠️ OPTIONAL, AND OMITTED WHEN EMPTY — the same rule as descriptionField's, so a
+ * run with no picture posts the payload it always did.
+ *
+ * ⚠️ `image_url` IS CONFIRMED ON THE IMAGE TOOLS, NOT YET ON THESE. If a 422
+ * appears only when a picture is attached, or the picture has no effect on the
+ * result, this tool's endpoint contract is the thing to check first.
+ *
+ * A tool opts in by declaring `referenceImage: true`, which is what puts the
+ * control on each surface; this is what puts the picture into the payload.
+ */
+const referenceImageField = (url) => {
+  const image_url = typeof url === "string" ? url.trim() : "";
+  return image_url ? { image_url } : {};
+};
+
+/**
  * The `prompt` field for a payload — absent unless something was written.
  *
  * ⚠️ NOT THE SAME AS {@link descriptionField}, and the difference is the wire
@@ -1475,6 +1494,8 @@ export const MAGIC_STUDIO_CONFIGS = {
      * the payload as `brand_name` and `logo_url`; see {@link brandFields}.
      */
     brand: true,
+    // Takes an optional picture alongside the prompt — see referenceImageField.
+    referenceImage: true,
     /**
      * ⚠️ NO MODEL MENU ON THIS TOOL. Which model paints the image is the
      * backend's choice here — the payload it validates has no field for one, so
@@ -1562,6 +1583,7 @@ export const MAGIC_STUDIO_CONFIGS = {
         // The brand this is for, and its mark where one was picked. Both are
         // optional and absent unless filled in — see brandFields.
         ...brandFields(values.brandName, values.brandLogo),
+        ...referenceImageField(values.referenceImage),
         prompt: input.trim(),
       };
       // May answer with the finished images or with a job to wait on — the
@@ -1590,6 +1612,8 @@ export const MAGIC_STUDIO_CONFIGS = {
     // multi-variation request with several jobs, only the first is followed and
     // the rest land silently in history whenever they finish.
     variations: true,
+    // Takes an optional picture alongside the prompt — see referenceImageField.
+    referenceImage: true,
     sample: {
       before:
         "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400&q=80",
@@ -1653,6 +1677,7 @@ export const MAGIC_STUDIO_CONFIGS = {
         duration: values.duration,
         purpose: values.purpose,
         variations: values.variations,
+        ...referenceImageField(values.referenceImage),
         prompt: input.trim(),
       };
       // Async on the backend → returns a finished result or a { pending, jobId }
@@ -1811,6 +1836,8 @@ export const MAGIC_STUDIO_CONFIGS = {
     // See the ⚠️ on text_to_image, and the cost/polling warning on
     // text_to_video — this tool renders video too and shares both.
     variations: true,
+    // Takes an optional picture alongside the script — see referenceImageField.
+    referenceImage: true,
     sample: {
       before:
         "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=400&q=80",
@@ -1963,6 +1990,7 @@ export const MAGIC_STUDIO_CONFIGS = {
         export_format: values.format,
         purpose: values.purpose,
         variations: values.variations,
+        ...referenceImageField(values.referenceImage),
         prompt: input.trim(),
       };
       // Async on the backend → returns a finished result or a { pending, jobId }
@@ -2155,6 +2183,8 @@ export const MAGIC_STUDIO_CONFIGS = {
     // descriptionField. Who you are talking to is only half a brief; the four
     // fields have no room for what you are talking to them ABOUT.
     describable: true,
+    // Takes an optional picture alongside the form — see referenceImageField.
+    referenceImage: true,
     sample: {
       before:
         "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80",
@@ -2294,6 +2324,7 @@ export const MAGIC_STUDIO_CONFIGS = {
         variations: values.variations,
         // Absent unless something was typed — see descriptionField.
         ...descriptionField(values.description),
+        ...referenceImageField(values.referenceImage),
       };
       // The chosen content type decides how the canvas renders the result — and
       // it has to be settled BEFORE the request, because a run that comes back

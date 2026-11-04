@@ -793,6 +793,7 @@ export default function VirtualModelModal({
               generating={generating}
               generatingLabel="Generating your virtual model…"
               onDelete={history.remove}
+              removeMany={history.removeMany}
               removingId={history.removingId}
               uploadMedia={uploadMedia}
               filePrefix="virtual-model"

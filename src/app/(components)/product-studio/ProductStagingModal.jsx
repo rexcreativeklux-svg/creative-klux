@@ -582,6 +582,7 @@ export default function ProductStagingModal({
               generating={generating}
               generatingLabel="Staging your product…"
               onDelete={history.remove}
+              removeMany={history.removeMany}
               removingId={history.removingId}
               uploadMedia={uploadMedia}
               filePrefix="product-staged"

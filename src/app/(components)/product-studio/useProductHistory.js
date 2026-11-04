@@ -31,6 +31,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  bulkDeleteProductHistoryItems,
   getProductHistory,
   deleteProductHistoryItem,
 } from "@/(lib)/product-studio-api";
@@ -56,6 +57,7 @@ import {
  *   removingId: (string|number|null),
  *   refresh: (opts?: {quiet?: boolean}) => Promise<void>,
  *   remove: (id: string|number) => Promise<void>,
+ *   removeMany: (ids: Array<string|number>) => Promise<{failed: number, deleted: number, message?: string}>,
  * }}
  */
 export default function useProductHistory(tool, { enabled = true } = {}) {
@@ -201,5 +203,37 @@ export default function useProductHistory(tool, { enabled = true } = {}) {
     [records, removingId, refresh],
   );
 
-  return { items, pending, loading, error, removingId, refresh, remove };
+  /**
+   * Delete several items in one request. Not optimistic like `remove`: the caller
+   * holds a dialog open on it, and the answer can be partial, so the list only
+   * changes once the server has said which ones went. `missing` counts as gone —
+   * it isn't there, whoever got to it first. Throws if the request itself fails;
+   * the api layer has already toasted why.
+   */
+  const removeMany = useCallback(
+    async (ids) => {
+      const result = await bulkDeleteProductHistoryItems(ids.map(Number));
+      const failed = new Set(
+        (result?.failed || []).map((entry) => String(entry?.id ?? entry)),
+      );
+      const asked = new Set(ids.map(String));
+      if (mountedRef.current) {
+        setRecords((list) =>
+          list.filter((record) => {
+            const id = String(record.id);
+            return !asked.has(id) || failed.has(id);
+          }),
+        );
+      }
+      refresh({ quiet: true });
+      return {
+        failed: failed.size,
+        deleted: result?.deleted_count,
+        message: result?.message,
+      };
+    },
+    [refresh],
+  );
+
+  return { items, pending, loading, error, removingId, refresh, remove, removeMany };
 }

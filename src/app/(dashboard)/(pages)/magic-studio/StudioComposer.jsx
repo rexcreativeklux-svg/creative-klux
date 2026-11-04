@@ -402,6 +402,12 @@ export default function StudioComposer({
   // is whatever renders fastest in the strip. No object URLs: every image now
   // arrives from the picker already hosted, or is uploaded on the way in.
   const [image, setImage] = useState(null);
+  // A prompt or persona tool that also takes a picture. Shares the `image` slot
+  // and picker with the image tools, but goes up through `values` because the
+  // words stay the primary input — see referenceImageField in the configs.
+  const takesReference = config?.referenceImage === true;
+  const takesImage = kind === "image" || takesReference;
+  const imageNoun = takesReference ? "reference image" : "source image";
   const [audio, setAudio] = useState(null); // File
   const [audioPreview, setAudioPreview] = useState(null); // object URL
   /**
@@ -832,6 +838,7 @@ export default function StudioComposer({
         // same way; the config's `generate` decides what it is called on the
         // wire (`audio_url` on Digital Human).
         ...(extraAudio ? { audioUrl: voiceTrack?.url || null } : {}),
+        ...(takesReference ? { referenceImage: image?.url || "" } : {}),
         // ⚠️ `description` IS THE COMPOSER'S NAME FOR THIS BOX, NOT THE WIRE
         // NAME. It is simply "whatever was typed in the secondary textarea";
         // each config's `generate` decides what to call it on the way out —
@@ -873,21 +880,21 @@ export default function StudioComposer({
       {/* The picked source, when this tool starts from one. A strip above the
           toolbar rather than a separate step, so what you are working from stays
           in view while you set the options that act on it. */}
-      {kind === "image" && image && (
+      {takesImage && image && (
         <div className="flex items-center gap-3 border-b border-gray-100 px-4 pb-3 pt-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={image.preview}
-            alt="Source"
+            alt={takesReference ? "Reference" : "Source"}
             className="h-12 w-12 shrink-0 rounded-lg object-cover"
           />
           <span className="min-w-0 flex-1 truncate text-xs text-gray-500">
-            Source image ready
+            {takesReference ? "Reference image ready" : "Source image ready"}
           </span>
           <button
             type="button"
             onClick={clearImage}
-            aria-label="Remove source image"
+            aria-label={`Remove ${imageNoun}`}
             className="shrink-0 cursor-pointer rounded p-1 text-gray-400 transition-colors hover:text-red-600"
           >
             <X className="h-4 w-4" />
@@ -1137,12 +1144,12 @@ export default function StudioComposer({
             picker hands back is used as-is rather than copied to the gallery
             first, so there is nothing to wait on between Apply and the strip
             filling. */}
-        {kind === "image" && (
+        {takesImage && (
           <button
             type="button"
             onClick={() => setPickerTarget("image")}
-            aria-label={image ? "Replace source image" : "Choose a source image"}
-            title={image ? "Replace source image" : "Choose a source image"}
+            aria-label={image ? `Replace ${imageNoun}` : `Choose a ${imageNoun}`}
+            title={image ? `Replace ${imageNoun}` : `Choose a ${imageNoun}`}
             className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg px-1.5 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
           >
             <ImagePlus className="h-4 w-4 shrink-0" />

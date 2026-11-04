@@ -1652,6 +1652,17 @@ export default function AiCreativeChatPage() {
   // tiles and swap each one for the real thing as it lands. Comes from the
   // conversation via buildTemplateQuery's num_template.
   const [expectedCount, setExpectedCount] = useState(0);
+  // Every run starts here. ⚠️ `freshCount` HAS TO GO BACK TO ZERO WITH IT: the
+  // pane draws `expectedCount - freshCount` shimmers, and until this run's first
+  // design lands that count is still the LAST run's. Two designs showing and two
+  // more asked for came to 2 - 2 = no shimmers at all, so a repeat generation
+  // looked like nothing was happening until the designs simply appeared.
+  const beginRun = useCallback((count) => {
+    setExpectedCount(count);
+    setPreviewResult((current) =>
+      current?.type === "design" ? { ...current, freshCount: 0 } : current,
+    );
+  }, []);
   // The template the user picked from the fetched set (null = none yet).
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   // The rotating stage line. Held HERE, at the one point above both the chat
@@ -2108,7 +2119,7 @@ export default function AiCreativeChatPage() {
       // Earlier designs stay, below this run's (see showDesigns).
       const earlier = earlierDesigns();
       setCreateStage("magic");
-      setExpectedCount(expected);
+      beginRun(expected);
       const collected = [];
 
       try {
@@ -2165,6 +2176,7 @@ export default function AiCreativeChatPage() {
       recoverMagicRun,
       earlierDesigns,
       showDesigns,
+      beginRun,
     ],
   );
 
@@ -2236,7 +2248,7 @@ export default function AiCreativeChatPage() {
       // for a step it never needed.
       let rawTemplates = [];
       // Put down one shimmer per design the conversation asked for.
-      setExpectedCount(query.num_template || 1);
+      beginRun(query.num_template || 1);
       if (usesTemplates()) {
         console.log(
           "🎨 [chat] create signal received, fetching templates:",
@@ -2399,6 +2411,7 @@ export default function AiCreativeChatPage() {
       openMagicOffer,
       earlierDesigns,
       showDesigns,
+      beginRun,
     ],
   );
 

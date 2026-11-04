@@ -690,6 +690,7 @@ export default function PromptToolModal({
               generating={generating}
               generatingLabel={config.generatingLabel}
               onDelete={history.remove}
+              removeMany={history.removeMany}
               removingId={history.removingId}
               uploadMedia={uploadMedia}
               filePrefix={config.filePrefix}

@@ -22,7 +22,7 @@
  * one, and the grid visibly thickens in the middle.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Copy,
   Download,
@@ -35,9 +35,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import AudioCard from "@/app/(components)/gallery/AudioCard";
+import SelectionMark from "@/app/(components)/bulk/SelectionMark";
+import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import Lightbox from "@/app/(components)/Lightbox";
 import ResultActionsMenu, {
   buildResultActions,
+  withMenuGroups,
 } from "@/app/(components)/product-studio/ResultActionsMenu";
 import {
   downloadImageUrl,
@@ -48,6 +51,7 @@ import { useAuth } from "@/context/AuthContext";
 import PublishModal from "@/app/(components)/PublishModal";
 import GeneratingArt from "./GeneratingArt";
 import { toolById } from "./magicTools";
+import { generationIdOf } from "./useMagicHistory";
 
 /** Width of ResultActionsMenu (its `w-52`), so the menu opens inside the cell. */
 const MENU_WIDTH = 208;
@@ -348,6 +352,9 @@ function AudioTile({ item, index, onDownload, onOpenMenu }) {
  * @param {string|number|null} [props.removingId]
  * @param {string} [props.emptyHint] One quiet line dropped into the first cell
  *   when there is no history at all — omit it for a completely bare lattice.
+ * @param {ReturnType<import("@/app/(components)/bulk/useBulkSelection").default>} [props.selection]
+ *   Gives the tiles a tick box. Omitted where there's nothing on the server to
+ *   act on in bulk — the on-device tools.
  */
 export default function HistoryLattice({
   items,
@@ -365,6 +372,7 @@ export default function HistoryLattice({
   onCompare,
   removingId = null,
   emptyHint,
+  selection = null,
 }) {
   // The gallery uploader, for Save to gallery. Read from context rather than
   // taken as a prop: this lattice is rendered by the tool page AND is about to
@@ -380,6 +388,51 @@ export default function HistoryLattice({
   // A text result open for reading. Its own viewer rather than the Lightbox,
   // which handles media and has no notion of a wall of prose.
   const [reading, setReading] = useState(null);
+  // The result awaiting a yes on its Delete. Deleting can't be undone, so the ⋯
+  // asks the same way the bulk bar does.
+  const [deleteItem, setDeleteItem] = useState(null);
+  // ConfirmDialog answers Enter on the window AND its focused button clicks, so
+  // one key press arrives twice — and a second DELETE of the same record 404s,
+  // which would put a deleted tile back with an error.
+  const deleteLock = useRef(false);
+  useEffect(() => {
+    if (deleteItem) deleteLock.current = false;
+  }, [deleteItem]);
+
+  // ⚠️ DELETE TAKES THE GENERATION, so the rest of its set goes too — say so.
+  const deleteAlongside = deleteItem
+    ? items.filter(
+        (item) =>
+          item.id !== deleteItem.id &&
+          generationIdOf(item.id) === generationIdOf(deleteItem.id),
+      ).length
+    : 0;
+
+  const confirmDelete = () => {
+    if (deleteLock.current) return;
+    deleteLock.current = true;
+    onDelete(deleteItem.id);
+    setDeleteItem(null);
+  };
+
+  // Once anything is ticked a click on a tile toggles it, and the ⋯ steps aside
+  // so the bar is the one place actions come from. Closing an open menu here
+  // covers Ctrl+A landing while it's up.
+  const picking = !!selection?.picking;
+  if (picking && menu) setMenu(null);
+
+  const markFor = (item) =>
+    selection && (
+      <SelectionMark
+        selected={selection.isSelected(item.id)}
+        picking={picking}
+        label={item.prompt || "this result"}
+        // On an audio card it sits squarely over the icon rather than clipping
+        // its corner — the card's own padding puts that icon further in.
+        position={item.type === "audio" ? "left-5 top-5" : "left-2 top-2"}
+        onToggle={(range) => selection.toggle(item.id, { range })}
+      />
+    );
 
   // The lightbox only handles images and video, so it is keyed off that subset —
   // arrowing through the grid then skips a persona's text result instead of
@@ -467,7 +520,7 @@ export default function HistoryLattice({
     (item.type === "image" || item.type === "video");
 
   const actionsFor = (item) =>
-    buildResultActions({
+    withMenuGroups(buildResultActions({
       // A still with a hosted file behind it — that URL is what Image to Video
       // starts from. A clip or a voice take has nothing to animate.
       onGenerateVideo:
@@ -504,8 +557,8 @@ export default function HistoryLattice({
       onSaveToDrive: item.url
         ? () => toast.info("Save to Drive is coming soon.")
         : undefined,
-      onDelete: onDelete ? () => onDelete(item.id) : undefined,
-    });
+      onDelete: onDelete ? () => setDeleteItem(item) : undefined,
+    }));
 
   // Anchored to the ⋯ button rather than the pointer, so the menu opens tucked
   // under it inside the cell instead of wherever the click happened to land.
@@ -573,7 +626,7 @@ export default function HistoryLattice({
                 // cell gets small — see the container queries in AudioCard's
                 // fill mode, which is what makes a full player survive a ~190px
                 // cell on a phone.
-                className={`flex ${CELL_SHAPE} min-w-0 border-b border-r border-gray-200 bg-gray-50 p-2`}
+                className={`group relative flex ${CELL_SHAPE} min-w-0 border-b border-r border-gray-200 bg-gray-50 p-2`}
               >
                 <div className="min-w-0 flex-1">
                   <AudioTile
@@ -583,6 +636,20 @@ export default function HistoryLattice({
                     onOpenMenu={(_asset, event) => openMenu(item, event)}
                   />
                 </div>
+                {/* While picking the whole cell toggles, over the transport —
+                    the same click means the same thing on every tile. */}
+                {picking && (
+                  <button
+                    type="button"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    onClick={(event) =>
+                      selection.toggle(item.id, { range: event.shiftKey })
+                    }
+                    className="absolute inset-0 z-10 cursor-pointer"
+                  />
+                )}
+                {markFor(item)}
               </div>
             );
           }
@@ -594,15 +661,17 @@ export default function HistoryLattice({
             >
               <button
                 type="button"
-                onClick={() => {
-                  if (isMedia) openLightbox(item);
+                aria-pressed={picking ? selection.isSelected(item.id) : undefined}
+                onClick={(event) => {
+                  if (picking) selection.toggle(item.id, { range: event.shiftKey });
+                  else if (isMedia) openLightbox(item);
                   // A transcript is the whole point of Audio to Text, and five
                   // clamped lines in a square tile is not somewhere you can
                   // read one — so a text tile opens into a reader.
                   else if (item.type === "text" && item.content) setReading(item);
                 }}
                 className={`block h-full w-full overflow-hidden text-left ${
-                  isMedia || (item.type === "text" && item.content)
+                  picking || isMedia || (item.type === "text" && item.content)
                     ? "cursor-pointer"
                     : "cursor-default"
                 }`}
@@ -653,9 +722,12 @@ export default function HistoryLattice({
               {/* Which tool made it — the whole point of a MERGED grid is that
                   the answer isn't implied by the page you're on. Media tiles get
                   a scrim behind it; the flat text and audio tiles don't need one. */}
-              {tool && (
+              {/* Beside the ⋯ where tiles have a tick box, which takes this corner. */}
+              {tool && !picking && (
                 <span
-                  className={`pointer-events-none absolute left-2 top-2 flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium ${
+                  className={`pointer-events-none absolute top-2 flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium ${
+                    selection ? "right-12" : "left-2"
+                  } ${
                     isMedia
                       ? "bg-black/55 text-white backdrop-blur-sm"
                       : "bg-gray-100 text-gray-600"
@@ -670,18 +742,22 @@ export default function HistoryLattice({
                   hiding it there puts Download and Delete out of reach entirely.
                   It also stays on while ITS menu is open, so moving the pointer
                   from the trigger to the menu doesn't make the trigger vanish. */}
-              <button
-                type="button"
-                onClick={(event) => openMenu(item, event)}
-                aria-label="Result actions"
-                className={`absolute right-2 top-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-surface/90 text-gray-700 shadow transition-opacity hover:text-blue-600 ${
-                  menuOpen
-                    ? "opacity-100"
-                    : "opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
-                }`}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
+              {!picking && (
+                <button
+                  type="button"
+                  onClick={(event) => openMenu(item, event)}
+                  aria-label="Result actions"
+                  className={`absolute right-2 top-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-surface/90 text-gray-700 shadow transition-opacity hover:text-blue-600 ${
+                    menuOpen
+                      ? "opacity-100"
+                      : "opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                  }`}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              )}
+
+              {markFor(item)}
 
               {item.prompt && isMedia && (
                 <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
@@ -752,6 +828,25 @@ export default function HistoryLattice({
       )}
 
       {reading && <TextReader item={reading} onClose={() => setReading(null)} />}
+
+      <ConfirmDialog
+        open={!!deleteItem}
+        title={
+          deleteAlongside > 0
+            ? `Delete ${deleteAlongside + 1} results?`
+            : "Delete this result?"
+        }
+        message={
+          deleteAlongside > 0
+            ? `${deleteAlongside + 1} results will be permanently deleted, because they were made in the same run and can only be deleted together.`
+            : "This result will be permanently deleted."
+        }
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteItem(null)}
+      />
 
       {/* Publishing — the shared PublishModal, with the generation wrapped as a
           minimal creative whose `image` is its hosted URL (see publishCreative).

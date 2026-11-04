@@ -411,6 +411,7 @@ export default function GhostMannequinModal({ onClose, onSwitchTool }) {
               generating={generating}
               generatingLabel="Building your ghost mannequin…"
               onDelete={history.remove}
+              removeMany={history.removeMany}
               removingId={history.removingId}
               uploadMedia={uploadMedia}
               filePrefix="ghost-mannequin"

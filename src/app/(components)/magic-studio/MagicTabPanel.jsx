@@ -10,19 +10,20 @@
  * (magicStudioConfigs), generate + video-poll APIs (magic-studio-api), backend
  * history (useMagicHistory / MagicHistoryGrid) and on-device engines
  * (useTextToSpeech / useSpeechToText) that power the /magic-studio page. Only the
- * presentation differs: a single, narrow column tuned for the picker.
+ * presentation differs: a split pane tuned for the picker.
  *
- * Layout, two columns from `lg` up, each scrolling on its own:
- *   Left:
- *     1. The input form + inline option rows + Generate button.
+ * Layout, two panes from `lg` up:
+ *   Left, a narrow rail:
+ *     1. The input form + inline option rows, scrolling on their own.
  *     2. On-device processing state / session result (Audio-to-Text transcript,
  *        Text-to-Audio audio) — these two tools persist no server history.
- *     3. The tool's templates, where it has them. Use fills in the form.
- *   Right:
+ *     3. Generate, pinned under them so it is never scrolled away.
+ *   Right, the canvas, one view at a time:
+ *     Templates, where the tool has them. Use fills in the form.
  *     History (backend tools only). Selecting a media result there Applies it
  *     back into the parent form via onSelectMedia.
  *
- * Below `lg` the columns stack, with History first in a short scrolling box so a
+ * Below `lg` the panes stack, with the canvas first in a short scrolling box so a
  * new result stays in view.
  *
  * Image / audio inputs use a DIRECT device file input (no second modal on top of
@@ -51,6 +52,7 @@ import {
   Type,
   ImageOff,
   PlusCircle,
+  LayoutTemplate,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -70,6 +72,7 @@ import {
 import { pickHostedUrl } from "@/(lib)/magic-studio-api";
 import { FILE_LIMITS } from "@/utils/helpers";
 import AudioCard, { formatClock } from "@/app/(components)/gallery/AudioCard";
+import MediaTypeTabs from "@/app/(components)/gallery/MediaTypeTabs";
 
 import { useVoicePreview, useMicRecorder } from "./magicEngineHooks";
 import {
@@ -134,6 +137,11 @@ export default function MagicTabPanel({
 
   /** Either kind of secondary box — what decides the textarea renders. */
   const promptable = describable || requiresPrompt;
+
+  // A prompt or persona tool that also takes a picture. Uses the same image input
+  // as the image tools, but goes up through `values` because the words stay the
+  // primary input — see referenceImageField in the configs.
+  const takesReference = config?.referenceImage === true;
 
   // ── On-device engines (idle until their tool runs; same shared engines the
   //    standalone modal uses). ──
@@ -207,12 +215,22 @@ export default function MagicTabPanel({
 
   const templates = useToolTemplates(categoryId);
 
+  // What the canvas shows, once someone has chosen. Null until then, when it opens
+  // on templates unless a run is still going — that wait lives in history.
+  const [canvasView, setCanvasView] = useState(null);
+
   // Use on a template: its prompt and any option values that suit it go into the
-  // form, then back to the top of the column so the filled-in form is in view.
+  // form, then back to the top of the rail so the filled-in form is in view.
+  // scrollIntoView is for the stacked layout, where the form is below the canvas
+  // that was just tapped; side by side it is already visible and this does nothing.
   const applyTemplate = (template) => {
     setTextInput(template.prompt);
     if (template.values) setValues((prev) => ({ ...prev, ...template.values }));
     formColumnRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    formColumnRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
   };
 
   // Revoke object URLs on unmount (also fires on sub-tab switch — the panel is
@@ -372,6 +390,8 @@ export default function MagicTabPanel({
   };
 
   const handleGenerate = () => {
+    // The wait and the result both land in History, so go where they'll appear.
+    setCanvasView("history");
     generate({
       primaryInput,
       // On a describable tool the box holds a note about the source, not the
@@ -386,6 +406,7 @@ export default function MagicTabPanel({
         // The second media input, where a tool declares one. Same key the
         // composer sends it under, so one `generate` reads both surfaces.
         ...(extraAudio ? { audioUrl: voiceTrack?.url || null } : {}),
+        ...(takesReference ? { referenceImage: imageInput?.url || "" } : {}),
       },
       activeBrand,
     });
@@ -533,45 +554,69 @@ export default function MagicTabPanel({
     uploadingVoice ||
     (extraAudio && config.extraInput.required && !voiceTrack?.url);
 
+  const hasTemplates = templates?.length > 0;
+  const hasCanvas = usesHistory || hasTemplates;
+  const activeCanvas = !usesHistory
+    ? "templates"
+    : !hasTemplates
+      ? "history"
+      : canvasView || (waiting ? "history" : "templates");
+  const canvasTabs = [
+    ...(hasTemplates
+      ? [{ id: "templates", label: "Templates", icon: LayoutTemplate }]
+      : []),
+    ...(usesHistory
+      ? [{ id: "history", label: "History", icon: HistoryIcon }]
+      : []),
+  ];
+
   return (
     <div
-      className={`grid grid-cols-1 gap-6 lg:h-full lg:grid-rows-[minmax(0,1fr)] ${usesHistory ? "lg:grid-cols-2" : ""}`}
+      className={`grid grid-cols-1 lg:h-full lg:grid-rows-[minmax(0,1fr)] ${hasCanvas ? "lg:grid-cols-[minmax(20rem,25rem)_minmax(0,1fr)]" : ""}`}
     >
-      {/* ── Left column ── */}
+      {/* ── Left rail ── */}
+      <div className="flex min-h-0 flex-col border-gray-100 lg:border-r">
       <div
         ref={formColumnRef}
-        className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto lg:pr-1"
+        className="hide-scrollbar min-h-0 flex-1 space-y-4 p-4 sm:px-6 lg:overflow-y-auto"
       >
       {/* ── Input form ── */}
-      <div className="rounded-2xl border border-gray-200 p-4 space-y-4">
+      <div className="space-y-4">
         {/* Primary input */}
         {["prompt", "script", "text"].includes(config.input) && (
           <div>
             <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
               {ic.label}
             </label>
-            <div className="relative">
+            {/* The box and its toolbar are one field, so a long prompt scrolls
+                above Inspire me and the counter instead of running under them. */}
+            <div className="rounded-2xl border border-gray-200 bg-surface transition-colors focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
               <textarea
                 value={textInput}
                 onChange={(e) => setTextInput(e.target.value)}
                 placeholder={ic.placeholder}
-                rows={5}
+                rows={6}
                 maxLength={ic.maxLength}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-2xl text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder:text-xs placeholder:text-gray-400"
+                className="block w-full resize-none rounded-t-2xl bg-transparent px-3.5 pt-3 pb-1 text-sm focus:outline-none placeholder:text-gray-400"
               />
-              {ic.inspire?.length > 0 && (
-                <button
-                  onClick={handleInspire}
-                  className="absolute bottom-3 left-3 text-xs font-semibold bg-surface border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 px-3 py-1 rounded-lg cursor-pointer transition-all"
-                >
-                  ✨ Inspire me
-                </button>
-              )}
-              {ic.maxLength && (
-                <span className="absolute bottom-3 right-3 text-[10px] text-gray-400">
-                  {textInput.length}/{ic.maxLength}
-                </span>
-              )}
+              <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5">
+                {ic.inspire?.length > 0 ? (
+                  <button
+                    onClick={handleInspire}
+                    className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Inspire me
+                  </button>
+                ) : (
+                  <span />
+                )}
+                {ic.maxLength && (
+                  <span className="pr-1 text-[10px] tabular-nums text-gray-400">
+                    {textInput.length}/{ic.maxLength}
+                  </span>
+                )}
+              </div>
             </div>
             {ic.showReadTime && textInput.trim() && (
               <p className="text-[10px] font-medium text-blue-500 mt-1.5">
@@ -582,10 +627,17 @@ export default function MagicTabPanel({
         )}
 
         {/* Image input — device pick only */}
-        {config.input === "image" && (
+        {(config.input === "image" || takesReference) && (
           <div>
             <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
-              {ic.label}
+              {takesReference ? (
+                <>
+                  Reference image{" "}
+                  <span className="font-medium text-gray-400">(optional)</span>
+                </>
+              ) : (
+                ic.label
+              )}
             </label>
             <input
               ref={imageFileRef}
@@ -968,35 +1020,35 @@ export default function MagicTabPanel({
           </div>
         )}
 
-        {/* Inline option rows — two columns; each expands in place (no floating
-            panel) and independently of the others (items-start keeps an open
-            row from stretching its neighbour). */}
+        {/* Inline option rows — one settings list; each row expands in place
+            (no floating panel). */}
         {config.options?.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
+          <div className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200">
             {config.options.map((option) => {
               const open = openOption === option.key;
               return (
-                <div
-                  key={option.key}
-                  className="rounded-2xl bg-gray-100 overflow-hidden"
-                >
+                <div key={option.key}>
                   <button
                     onClick={() => toggleOption(option.key)}
-                    className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-200/70 transition-colors cursor-pointer"
+                    aria-expanded={open}
+                    className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-sm transition-colors hover:bg-gray-50 cursor-pointer"
                   >
-                    <span className="text-gray-900 font-medium">
+                    <span className="shrink-0 text-gray-500">
                       {option.label}
                     </span>
-                    <span className="text-blue-600 font-semibold flex items-center gap-1.5">
-                      {summarize(option, values[option.key])}
+                    <span className="flex min-w-0 items-center gap-1.5 font-medium text-gray-900">
+                      <span className="truncate">
+                        {summarize(option, values[option.key])}
+                      </span>
                       <ChevronDown
-                        className={`w-3.5 h-3.5 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+                        className={`w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
                       />
                     </span>
                   </button>
                   {open && (
-                    <div className="bg-surface border-t border-gray-200 max-h-72 overflow-y-auto">
+                    <div className="bg-surface border-t border-gray-100">
                       <OptionPanelBody
+                        narrow
                         option={option}
                         value={values[option.key]}
                         voicePreview={voicePreview}
@@ -1039,37 +1091,9 @@ export default function MagicTabPanel({
             })}
           </div>
         )}
-
-        {error && (
-          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-            {error}
-          </p>
-        )}
-
-        {/* Generate */}
-        <button
-          onClick={handleGenerate}
-          disabled={generateDisabled}
-          className="w-full py-3 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
-        >
-          {generating ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" /> Generating…
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4" /> {config.generateLabel}
-            </>
-          )}
-        </button>
-        {config.onDevice && (
-          <p className="text-center text-[11px] text-gray-400">
-            Runs on your device — private, free, and unlimited.
-          </p>
-        )}
       </div>
 
-      {/* ── 3. On-device processing + session result ── */}
+      {/* ── On-device processing + session result ── */}
       {config.onDevice && generating && (
         <ProcessingState
           config={config}
@@ -1188,58 +1212,101 @@ export default function MagicTabPanel({
         </div>
       )}
 
-      {/* ── Templates ── */}
-      {templates?.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-gray-500">
-            Start from a template
-          </p>
-          <TemplateGallery
-            templates={templates}
-            onUse={applyTemplate}
-            columnsClassName="xl:columns-3"
-          />
-        </div>
-      )}
       </div>
 
-      {/* ── Right column: History (backend tools) ── */}
-      {usesHistory && (
-        <div className="order-first flex min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-200 lg:order-none">
-          <div className="flex shrink-0 items-center gap-2 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800">
-            <HistoryIcon className="w-4 h-4 text-gray-500" />
-            History
-            {history.items.length > 0 && (
-              <span className="text-xs font-medium text-gray-400">
-                ({history.items.length})
-              </span>
-            )}
-            {waiting && (
-              <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
-            )}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto border-t border-gray-100 p-4 max-lg:max-h-[40dvh]">
-            {!waiting && !history.loading && history.items.length === 0 ? (
-              <p className="text-center text-xs text-gray-400 py-6">
-                Nothing generated yet — your results will appear here.
-              </p>
-            ) : (
-              <MagicHistoryGrid
-                items={history.items}
-                loading={history.loading}
-                generating={waiting}
-                generatingLabel={`Generating your ${config.title.toLowerCase()}…`}
-                resultType={resultType}
-                onDelete={history.remove}
-                removingId={history.removingId}
-                uploadMedia={uploadMedia}
-                filePrefix={`magic-${categoryId}`}
-                selectableTypes={allowedTypes}
-                selectedUrls={selectedMedia}
-                onToggleSelect={toggleHistorySelect}
+      {/* ── Generate — pinned to the foot of the rail ── */}
+      <div className="shrink-0 space-y-2 border-t border-gray-100 p-4 sm:px-6">
+        {error && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+            {error}
+          </p>
+        )}
+        <button
+          onClick={handleGenerate}
+          disabled={generateDisabled}
+          className="w-full py-3 rounded-2xl text-sm cursor-pointer font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed bg-linear-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+        >
+          {generating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" /> Generating…
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" /> {config.generateLabel}
+            </>
+          )}
+        </button>
+        {config.onDevice && (
+          <p className="text-center text-[11px] text-gray-400">
+            Runs on your device — private, free, and unlimited.
+          </p>
+        )}
+      </div>
+      </div>
+
+      {/* ── Canvas: History and Templates ── */}
+      {hasCanvas && (
+        <div className="order-first flex min-h-0 flex-col border-b border-gray-100 lg:order-0 lg:border-b-0">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 sm:px-6">
+            <div className="flex items-center gap-2">
+              <MediaTypeTabs
+                tabs={canvasTabs}
+                active={activeCanvas}
+                onChange={setCanvasView}
+                counts={{ history: history.items.length }}
+                variant="pill"
               />
-            )}
+              {waiting && (
+                <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
+              )}
+            </div>
+            <p className="text-xs text-gray-400">
+              {activeCanvas === "history"
+                ? "Click a result to select it · Deleted after 30 days"
+                : "Use a template to fill in your prompt"}
+            </p>
           </div>
+
+          {/* Each view keeps its own scroll box and stays mounted while hidden,
+              so switching back keeps your place and doesn't reshuffle the
+              templates (TemplateGallery shuffles once per mount). */}
+          {usesHistory && (
+            <div
+              className={`min-h-0 flex-1 overflow-y-auto p-4 sm:px-6 max-lg:max-h-[50dvh] ${activeCanvas === "history" ? "" : "hidden"}`}
+            >
+              {!waiting && !history.loading && history.items.length === 0 ? (
+                <p className="text-center text-xs text-gray-400 py-6">
+                  Nothing generated yet — your results will appear here.
+                </p>
+              ) : (
+                <MagicHistoryGrid
+                  items={history.items}
+                  loading={history.loading}
+                  generating={waiting}
+                  generatingLabel={`Generating your ${config.title.toLowerCase()}…`}
+                  resultType={resultType}
+                  onDelete={history.remove}
+                  removingId={history.removingId}
+                  uploadMedia={uploadMedia}
+                  filePrefix={`magic-${categoryId}`}
+                  selectableTypes={allowedTypes}
+                  selectedUrls={selectedMedia}
+                  onToggleSelect={toggleHistorySelect}
+                />
+              )}
+            </div>
+          )}
+          {hasTemplates && (
+            <div
+              className={`min-h-0 flex-1 overflow-y-auto px-1 py-1 sm:px-3 max-lg:max-h-[50dvh] ${activeCanvas === "templates" ? "" : "hidden"}`}
+            >
+              <TemplateGallery
+                templates={templates}
+                onUse={applyTemplate}
+                columnsClassName="sm:columns-3 xl:columns-4"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

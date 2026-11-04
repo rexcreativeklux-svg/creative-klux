@@ -50,7 +50,11 @@ function MenuItem({ icon: Icon, label, onClick, danger }) {
  * @param {number} [props.index]          Position (audio fallback title).
  * @param {boolean} [props.selectable]    Show the select affordance.
  * @param {boolean} [props.selected]      Whether this item is selected.
- * @param {(item: object) => void} [props.onToggleSelect]
+ * @param {boolean} [props.picking]      For a page where selecting is optional:
+ *   whether anything is ticked yet. False leaves the card behaving as normal with
+ *   the tick box on hover; true makes a click anywhere on it toggle. Omitted (the
+ *   picker, where selecting is the whole job) keeps click-to-select throughout.
+ * @param {(item: object, opts: {range: boolean}) => void} [props.onToggleSelect]
  * @param {(item: object) => void} [props.onDownload]
  * @param {(item: object) => void} [props.onCopyLink]
  * @param {(item: object) => void} [props.onDelete]
@@ -63,6 +67,7 @@ export default function MediaCard({
   index = 0,
   selectable = false,
   selected = false,
+  picking,
   onToggleSelect,
   onDownload,
   onCopyLink,
@@ -90,17 +95,39 @@ export default function MediaCard({
   const hasMenu = !!(onDownload || onCopyLink || onDelete || extraActions.length);
   const toggleSelect = (e) => {
     e?.stopPropagation?.();
-    onToggleSelect?.(item);
+    onToggleSelect?.(item, { range: !!e?.shiftKey });
   };
 
   // Image & document cards select on whole-card click; audio & video keep their
   // controls clickable, so those only toggle via the corner checkbox.
-  const clickToSelect = selectable && (type === "image" || type === "document");
+  const clickToSelect =
+    selectable && picking !== false && (type === "image" || type === "document");
   const onCardClick = clickToSelect
     ? toggleSelect
-    : !selectable && type === "document"
+    : (!selectable || picking === false) && type === "document"
       ? () => window.open(item.src, "_blank", "noopener,noreferrer")
       : undefined;
+
+  // …except once a page is mid-selection (`picking`), where a click has to mean
+  // the same thing on every card — so this covers the player until it's done.
+  const pickOverlay = picking && (type === "audio" || type === "video") && (
+    <button
+      type="button"
+      aria-hidden="true"
+      tabIndex={-1}
+      onClick={toggleSelect}
+      className="absolute inset-0 z-10 cursor-pointer"
+    />
+  );
+
+  // On a page where ticking is optional there's no hover below `lg` to find the
+  // box with, so it stays on there — and everywhere once something is ticked.
+  const hiddenUntilHover =
+    picking === undefined
+      ? "opacity-0 group-hover:opacity-100"
+      : picking
+        ? ""
+        : "lg:opacity-0 lg:group-hover:opacity-100";
 
   // ── Shared overlay controls (rendered on top of every media body) ──
   const selectControl = selectable && (
@@ -110,7 +137,7 @@ export default function MediaCard({
       className={`absolute top-2 left-2 z-20 w-6 h-6 rounded-full flex items-center justify-center shadow transition-all cursor-pointer ${
         selected
           ? "bg-blue-600 text-white"
-          : "bg-white/85 text-transparent border border-white/70 opacity-0 group-hover:opacity-100"
+          : `bg-white/85 text-transparent border border-white/70 ${hiddenUntilHover}`
       }`}
     >
       <Check className="w-4 h-4" />
@@ -196,6 +223,7 @@ export default function MediaCard({
             index={index}
           />
         </div>
+        {pickOverlay}
         {selectControl}
         {menuControl}
       </div>
@@ -216,6 +244,7 @@ export default function MediaCard({
             className="w-full h-full object-contain"
           />
         </div>
+        {pickOverlay}
         {selectionRing}
         {selectControl}
         {menuControl}

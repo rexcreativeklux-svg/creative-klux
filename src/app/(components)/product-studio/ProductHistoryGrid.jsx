@@ -21,10 +21,17 @@
  * the modal (they need modal state / the history refresh).
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, MoreHorizontal, Play } from "lucide-react";
 import { toast } from "sonner";
-import ResultActionsMenu, { buildResultActions } from "./ResultActionsMenu";
+import ResultsBulkBar from "@/app/(components)/bulk/ResultsBulkBar";
+import SelectionMark from "@/app/(components)/bulk/SelectionMark";
+import useBulkSelection from "@/app/(components)/bulk/useBulkSelection";
+import ConfirmDialog from "@/app/(components)/ConfirmDialog";
+import ResultActionsMenu, {
+  buildResultActions,
+  withMenuGroups,
+} from "./ResultActionsMenu";
 import {
   galleryFileMeta,
   saveUrlToGallery,
@@ -59,6 +66,9 @@ const isVideoItem = (item) => item?.type === "video" || !!item?.videoSrc;
  * @param {boolean} [props.generating] Show a leading "generating" tile.
  * @param {string} [props.generatingLabel] Copy under the generating spinner.
  * @param {(id: string|number) => void} props.onDelete Delete an item (modal refreshes history).
+ * @param {(ids: Array<string|number>) => Promise<object>} [props.removeMany] Delete
+ *   several at once — useProductHistory's. Gives the tiles a tick box and the pane
+ *   a bulk bar.
  * @param {(string|number|null)} [props.removingId] Item currently being deleted.
  * @param {(file: File) => Promise<unknown>} props.uploadMedia Auth uploader (for Save to gallery).
  * @param {string} props.filePrefix File-name prefix for downloads / saves.
@@ -76,6 +86,7 @@ export default function ProductHistoryGrid({
   generating = false,
   generatingLabel = "Generating your image…",
   onDelete,
+  removeMany,
   removingId = null,
   uploadMedia,
   filePrefix = "klux",
@@ -87,6 +98,31 @@ export default function ProductHistoryGrid({
 }) {
   const [imageMenu, setImageMenu] = useState(null); // { item, x, y }
   const [lightboxIndex, setLightboxIndex] = useState(null); // index into items
+
+  const selection = useBulkSelection(items, { enabled: !!removeMany });
+  // Once anything is ticked a click on a tile toggles it, and the ⋯ steps aside
+  // so the bar is the one place actions come from. Closing an open menu here
+  // covers Ctrl+A landing while it's up.
+  const { picking } = selection;
+  if (picking && imageMenu) setImageMenu(null);
+
+  // The result awaiting a yes on its Delete. Deleting can't be undone, so the ⋯
+  // asks the same way the bulk bar does.
+  const [deleteItem, setDeleteItem] = useState(null);
+  // ConfirmDialog answers Enter on the window AND its focused button clicks, so
+  // one key press arrives twice — and a second DELETE of the same record 404s,
+  // which would put a deleted tile back with an error.
+  const deleteLock = useRef(false);
+  useEffect(() => {
+    if (deleteItem) deleteLock.current = false;
+  }, [deleteItem]);
+
+  const confirmDelete = () => {
+    if (deleteLock.current) return;
+    deleteLock.current = true;
+    onDelete?.(deleteItem.id);
+    setDeleteItem(null);
+  };
 
   const handleDownload = async (item) => {
     const t = toast.loading("Downloading…");
@@ -163,7 +199,11 @@ export default function ProductHistoryGrid({
           return (
             <button
               key={item.id ?? item.url}
-              onClick={() => setLightboxIndex(i)}
+              aria-pressed={picking ? selection.isSelected(item.id) : undefined}
+              onClick={(e) => {
+                if (picking) selection.toggle(item.id, { range: e.shiftKey });
+                else setLightboxIndex(i);
+              }}
               className={`relative rounded-xl overflow-hidden group ${isVideo ? "aspect-video bg-black" : `${aspectClass} bg-gray-100`} cursor-pointer text-left`}
             >
               {isVideo ? (
@@ -197,22 +237,34 @@ export default function ProductHistoryGrid({
                   <Loader2 className="w-6 h-6 text-white animate-spin" />
                 </div>
               )}
-              <span
-                role="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setImageMenu((p) =>
-                    p?.item?.id === item.id
-                      ? null
-                      : { item, x: e.clientX, y: e.clientY },
-                  );
-                }}
-                // Always visible below `lg`: there is no hover on a phone, so
-                // hiding it there put Download / Save / Delete out of reach.
-                className="absolute top-2 right-2 w-8 h-8 bg-surface/90 rounded-full flex items-center justify-center shadow opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity cursor-pointer"
-              >
-                <MoreHorizontal className="w-4 h-4 text-gray-500" />
-              </span>
+              {!picking && (
+                <span
+                  role="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImageMenu((p) =>
+                      p?.item?.id === item.id
+                        ? null
+                        : { item, x: e.clientX, y: e.clientY },
+                    );
+                  }}
+                  // Always visible below `lg`: there is no hover on a phone, so
+                  // hiding it there put Download / Save / Delete out of reach.
+                  className="absolute top-2 right-2 w-8 h-8 bg-surface/90 rounded-full flex items-center justify-center shadow opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity cursor-pointer"
+                >
+                  <MoreHorizontal className="w-4 h-4 text-gray-500" />
+                </span>
+              )}
+              {removeMany && (
+                <SelectionMark
+                  selected={selection.isSelected(item.id)}
+                  picking={picking}
+                  onToggle={(range) => selection.toggle(item.id, { range })}
+                  // A span: the whole tile is a <button>, as with the ⋯ above.
+                  as="span"
+                  ring="rounded-xl"
+                />
+              )}
             </button>
           );
         })}
@@ -223,7 +275,7 @@ export default function ProductHistoryGrid({
           x={imageMenu.x}
           y={imageMenu.y}
           onClose={() => setImageMenu(null)}
-          actions={buildResultActions({
+          actions={withMenuGroups(buildResultActions({
             // ── Still-only actions ──
             // A clip has no "other angle" to re-render and can't be handed to
             // the video tool as a source frame — offering either on a video
@@ -248,15 +300,43 @@ export default function ProductHistoryGrid({
                 ? () => onGenerateVideo(imageMenu.item.url)
                 : undefined,
             // ── Shared by both media types ──
+            onEmailToClient: () => toast.info("Email to client is coming soon."),
             onSaveToGallery: () => handleSaveToGallery(imageMenu.item),
+            onSaveToDrive: () => toast.info("Save to Drive is coming soon."),
             onDownload: () => handleDownload(imageMenu.item),
             onCopyLink: () => {
               navigator.clipboard.writeText(imageMenu.item.url);
               toast.success("Link copied!");
             },
-            onDelete: () => onDelete?.(imageMenu.item.id),
-          })}
+            onDelete: () => setDeleteItem(imageMenu.item),
+          }))}
         />
+      )}
+
+      <ConfirmDialog
+        open={!!deleteItem}
+        title="Delete this result?"
+        message="This result will be permanently deleted."
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteItem(null)}
+      />
+
+      {/* Sticky inside this scroller, so it stays over the history pane and clear
+          of the tool's own controls beside it. */}
+      {picking && (
+        <div className="pointer-events-none sticky bottom-0 z-30 mt-4 flex justify-center">
+          <div className="pointer-events-auto w-full max-w-4xl">
+            <ResultsBulkBar
+              filePrefix={filePrefix}
+              items={items}
+              selection={selection}
+              removeMany={removeMany}
+            />
+          </div>
+        </div>
       )}
 
       {lightboxIndex != null && items[lightboxIndex] && (

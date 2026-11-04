@@ -19,8 +19,9 @@
  */
 
 import { useState } from "react";
-import { Loader2, MoreHorizontal, Play, CheckCircle2 } from "lucide-react";
+import { Loader2, MoreHorizontal, Play, Check } from "lucide-react";
 import { toast } from "sonner";
+import MasonryGrid from "@/app/(components)/gallery/MasonryGrid";
 import ResultActionsMenu, {
   buildResultActions,
 } from "@/app/(components)/product-studio/ResultActionsMenu";
@@ -47,6 +48,31 @@ function extFromUrl(url, fallback) {
   return m ? m[1].toLowerCase() : fallback;
 }
 
+// Stands in for the in-flight generation as the masonry's first item.
+const GENERATING_ITEM = { id: "__generating", type: "generating" };
+
+// The picker's selection mark, the same as My Library's (see MediaCard): an empty
+// circle on hover that says the tile can be picked, a filled check and ring once
+// it has been.
+function SelectionMark({ selected }) {
+  return (
+    <>
+      {selected && (
+        <span className="absolute inset-0 z-10 rounded-2xl ring-2 ring-inset ring-blue-600 pointer-events-none" />
+      )}
+      <span
+        className={`absolute top-2 left-2 z-20 flex h-6 w-6 items-center justify-center rounded-full shadow transition-opacity ${
+          selected
+            ? "bg-blue-600 text-white"
+            : "border border-white/70 bg-white/85 text-transparent opacity-0 group-hover:opacity-100"
+        }`}
+      >
+        <Check className="h-4 w-4" />
+      </span>
+    </>
+  );
+}
+
 /**
  * @param {object} props
  * @param {Array} props.items History items from useMagicHistory.
@@ -54,7 +80,7 @@ function extFromUrl(url, fallback) {
  * @param {boolean} [props.generating] Show a leading "generating" tile.
  * @param {string} [props.generatingLabel] Copy under the generating spinner.
  * @param {string} [props.resultType="image"] The tool's primary result type — drives
- *   the grid column count and the shape of the generating tile.
+ *   the shape of the generating tile.
  * @param {(id: string|number) => void} props.onDelete Delete an item (modal refreshes history).
  * @param {(string|number|null)} [props.removingId] Item currently being deleted.
  * @param {(file: File) => Promise<unknown>} props.uploadMedia Auth uploader (Save to gallery).
@@ -199,35 +225,31 @@ export default function MagicHistoryGrid({
     );
   }
 
-  // Videos read better two-up; everything else fits a denser grid.
-  const gridCols =
-    resultType === "video"
-      ? "grid-cols-1 sm:grid-cols-2"
-      : "grid-cols-2 lg:grid-cols-3";
   // The generating placeholder tile matches the result shape.
   const genTileAspect = resultType === "video" ? "aspect-video" : "aspect-square";
 
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-4">
-        <h3 className="text-base font-semibold text-gray-900">History</h3>
-        <p className="text-xs text-gray-500">Automatically deleted in 30 days</p>
-      </div>
+      {/* Masonry rather than square cells: a design's copy runs to its edges, and
+          cropping it to fit hides the very thing you're choosing between. */}
+      <MasonryGrid
+        items={generating ? [GENERATING_ITEM, ...items] : items}
+        getKey={(item, i) => item.id ?? item.url ?? item.content ?? i}
+        renderItem={(item) => {
+          // Leading generating tile — keeps the in-flight generation visible.
+          if (item === GENERATING_ITEM) {
+            return (
+              <div
+                className={`relative rounded-2xl overflow-hidden ${genTileAspect} bg-gray-100 flex flex-col items-center justify-center gap-2 text-center px-2`}
+              >
+                <Loader2 className="w-7 h-7 text-blue-500 animate-spin" />
+                <span className="text-[11px] text-gray-500 leading-tight">
+                  {generatingLabel}
+                </span>
+              </div>
+            );
+          }
 
-      <div className={`grid ${gridCols} gap-3`}>
-        {/* Leading generating tile — keeps the in-flight generation visible. */}
-        {generating && (
-          <div
-            className={`relative rounded-2xl overflow-hidden ${genTileAspect} bg-gray-100 flex flex-col items-center justify-center gap-2 text-center px-2`}
-          >
-            <Loader2 className="w-7 h-7 text-blue-500 animate-spin" />
-            <span className="text-[11px] text-gray-500 leading-tight">
-              {generatingLabel}
-            </span>
-          </div>
-        )}
-
-        {items.map((item) => {
           const isRemoving = removingId != null && item.id === removingId;
           // Keep this item's ⋯ trigger visible while its menu is open, so
           // clicking ⋯ (and moving to the menu) doesn't make the trigger vanish.
@@ -275,7 +297,7 @@ export default function MagicHistoryGrid({
                 onClick={() =>
                   canSel ? onToggleSelect?.(item) : openLightbox(item)
                 }
-                className="relative group rounded-2xl overflow-hidden bg-black aspect-video cursor-pointer text-left"
+                className="relative group block w-full rounded-2xl overflow-hidden bg-black aspect-video cursor-pointer text-left"
               >
                 <video
                   src={item.videoSrc || item.url}
@@ -291,14 +313,7 @@ export default function MagicHistoryGrid({
                     <Play className="w-5 h-5 text-white fill-white ml-0.5" />
                   </span>
                 </span>
-                {isSel && (
-                  <>
-                    <span className="absolute inset-0 ring-4 ring-blue-600 ring-inset rounded-2xl pointer-events-none" />
-                    <span className="absolute top-2 left-2 bg-blue-600 text-white rounded-full p-1 shadow z-10">
-                      <CheckCircle2 className="w-4 h-4" />
-                    </span>
-                  </>
-                )}
+                {canSel && <SelectionMark selected={isSel} />}
                 {isRemoving && (
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     <Loader2 className="w-6 h-6 text-white animate-spin" />
@@ -326,21 +341,16 @@ export default function MagicHistoryGrid({
               onClick={() =>
                 canSelImg ? onToggleSelect?.(item) : openLightbox(item)
               }
-              className="relative group rounded-2xl overflow-hidden bg-gray-100 aspect-square cursor-pointer text-left"
+              className="relative group block w-full rounded-2xl overflow-hidden bg-gray-100 cursor-pointer text-left"
             >
+              {/* min-h holds a tile open until its image arrives and sets the
+                  real height. */}
               <img
                 src={item.url}
                 alt="generation"
-                className="w-full h-full object-cover"
+                className="block w-full h-auto min-h-24 transition-transform duration-300 group-hover:scale-[1.03]"
               />
-              {isSelImg && (
-                <>
-                  <span className="absolute inset-0 ring-4 ring-blue-600 ring-inset rounded-2xl pointer-events-none" />
-                  <span className="absolute top-2 left-2 bg-blue-600 text-white rounded-full p-1 shadow z-10">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </span>
-                </>
-              )}
+              {canSelImg && <SelectionMark selected={isSelImg} />}
               {isRemoving && (
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                   <Loader2 className="w-6 h-6 text-white animate-spin" />
@@ -356,8 +366,8 @@ export default function MagicHistoryGrid({
               </span>
             </button>
           );
-        })}
-      </div>
+        }}
+      />
 
       {menu && (
         <ResultActionsMenu

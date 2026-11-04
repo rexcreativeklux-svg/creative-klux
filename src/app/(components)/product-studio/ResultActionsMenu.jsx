@@ -132,6 +132,22 @@ export function buildResultActions({
   return items;
 }
 
+/** Where a result menu breaks into groups: what it does, where it goes, Delete. */
+const MENU_GROUP_STARTS = new Set(["Email to client", "Delete"]);
+
+/**
+ * Draw the dividers between a {@link buildResultActions} list's groups.
+ *
+ * @param {Array} actions
+ * @returns {Array}
+ */
+export const withMenuGroups = (actions) =>
+  actions.flatMap((action, index) =>
+    index > 0 && MENU_GROUP_STARTS.has(action.label)
+      ? [{ separator: true }, action]
+      : [action],
+  );
+
 /**
  * @param {object} props
  * @param {number} props.x        Viewport x (usually the ⋯ click's clientX).

@@ -363,9 +363,19 @@ function VoicePanelBody({ option, value, onSelect, voicePreview }) {
  *   open — it comes from the controls that fire continuously (a colour drag, a
  *   hex being typed) rather than once. A surface that never closes can ignore it.
  * @param {object} [props.voicePreview]
+ * @param {boolean} [props.narrow] Two cards to a row at every window width — for a
+ *   narrow pane in a wide window, where the `sm:` breakpoint would fit three cards
+ *   too tight for their labels.
  */
-export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
+export function OptionPanelBody({
+  option,
+  value,
+  onSelect,
+  voicePreview,
+  narrow = false,
+}) {
   const { panel, items } = option;
+  const cardGrid = `p-2 grid grid-cols-2 gap-2 ${narrow ? "" : "sm:grid-cols-3"}`;
 
   // A number picked off a continuous range (Duration).
   //
@@ -463,7 +473,7 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
   // Image cards: thumbnail + label + description (Visual style).
   if (panel === "cards") {
     return (
-      <div className="p-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+      <div className={cardGrid}>
         {items.map((it) => {
           const active = value === it.value;
           const Icon = it.icon;
@@ -714,7 +724,7 @@ export function OptionPanelBody({ option, value, onSelect, voicePreview }) {
 
   // Default — icon + label + desc cards, three across (list: quality, duration…).
   return (
-    <div className="p-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+    <div className={cardGrid}>
       {items.map((it) => {
         const active = value === it.value;
         const Icon = it.icon;

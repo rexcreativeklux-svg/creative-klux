@@ -50,10 +50,12 @@ import { useEffect, useMemo, useState } from "react";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { History, LayoutTemplate, Loader2, Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import ResultsBulkBar from "@/app/(components)/bulk/ResultsBulkBar";
+import useBulkSelection from "@/app/(components)/bulk/useBulkSelection";
 import HistoryLattice from "../HistoryLattice";
 import StudioComposer from "../StudioComposer";
 import TemplateGallery, { TemplateGallerySkeleton } from "../TemplateGallery";
-import useMagicHistory from "../useMagicHistory";
+import useMagicHistory, { generationIdOf } from "../useMagicHistory";
 import { getMagicConfig } from "../magicStudioConfigs";
 import { toolBySlug } from "../magicTools";
 import { hasTemplates, useToolTemplates } from "../mediaTemplates";
@@ -332,6 +334,12 @@ function MagicToolScreen({ tool, user }) {
       ? [...sessionItems, ...items]
       : items;
 
+  // Backend tools only: an on-device result was never stored, so there is
+  // nothing on the server for a bulk delete to reach.
+  const selection = useBulkSelection(visible, {
+    enabled: tool.backend && !!user && !browsing,
+  });
+
   return (
     <div className="relative flex h-full flex-col">
       {/* Which tool you are in, and the two canvases. The secondary sidebar
@@ -451,6 +459,7 @@ function MagicToolScreen({ tool, user }) {
             onGenerateVideo={sendToImageToVideo}
             onCompare={sendToComparison}
             removingId={removingId}
+            selection={tool.backend && user ? selection : null}
             emptyHint={
               creating
                 ? `Describe what you want below. Everything you make lands here.`
@@ -483,7 +492,14 @@ function MagicToolScreen({ tool, user }) {
               which is too narrow to write in, and half of a smaller canvas runs
               into the problem max-w-4xl was raised to fix: the options row on
               the five-option tools scrolling before anything is typed. */}
-          <div className="pointer-events-auto w-full max-w-4xl 2xl:w-1/2 2xl:max-w-none">
+          {/* ⚠️ HIDDEN, NOT UNMOUNTED, while the bulk bar has this spot. The
+              composer holds the typed prompt, the options and any run in flight,
+              and ticking a tile shouldn't cost you any of them. */}
+          <div
+            className={`pointer-events-auto w-full max-w-4xl 2xl:w-1/2 2xl:max-w-none ${
+              selection.picking ? "hidden" : ""
+            }`}
+          >
             <StudioComposer
               tool={tool}
               history={history}
@@ -492,6 +508,17 @@ function MagicToolScreen({ tool, user }) {
               onStatusChange={setStatus}
             />
           </div>
+          {selection.picking && (
+            <div className="pointer-events-auto w-full max-w-4xl">
+              <ResultsBulkBar
+                filePrefix={tool.slug}
+                items={visible}
+                selection={selection}
+                removeMany={history.removeMany}
+                groupOf={generationIdOf}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

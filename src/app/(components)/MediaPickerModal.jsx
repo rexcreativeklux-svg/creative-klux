@@ -880,7 +880,7 @@ export default function MediaPickerModal({
 
             {/* ══ GENERATE STOCK IMAGES TAB ═════════════════════════════════ */}
             {activeTabSafe === "stock" && (
-              <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
                 <MagicTabPanel
                   categoryId={STOCK_IMAGE_TOOL}
                   // Selected across BOTH buckets so the ring shows regardless of

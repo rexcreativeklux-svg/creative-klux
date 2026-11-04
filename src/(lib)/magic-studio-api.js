@@ -41,6 +41,7 @@
 
 import api from "@/app/api/axios";
 import { toast } from "sonner";
+import { backendErrorMessage } from "@/utils/errorHelper";
 
 const BASE_URL = "https://api.creativeklux.com/api/creativeklux-userend";
 
@@ -375,6 +376,33 @@ export async function deleteMagicHistoryItem(id) {
       message: err?.message,
     });
     toast.error(serverMsg || "Couldn't delete that item. Please try again.");
+    throw err;
+  }
+}
+
+/**
+ * Delete several generations at once. A 200 is not "they all went": the answer
+ * says `0 of 2 deleted` with `success: true`, and sorts the ids into `deleted`,
+ * `failed` and `missing`, so the caller has to read those.
+ *
+ * @param {number[]} ids Generation ids — integers, or the backend answers 422.
+ * @returns {Promise<{deleted: Array, deleted_count: number, failed: Array, missing: Array}>}
+ */
+export async function bulkDeleteMagicHistoryItems(ids) {
+  console.log("📡 [magic-studio/bulk-delete] request → ids:", ids);
+  try {
+    const { data } = await api.delete(`${BASE_URL}/magic-studio/bulk`, {
+      data: { ids },
+    });
+    console.log("🗑️ [magic-studio/bulk-delete] response ←", data);
+    return data;
+  } catch (err) {
+    console.error("❌ [magic-studio/bulk-delete] failed:", {
+      status: err?.response?.status,
+      data: err?.response?.data,
+      message: err?.message,
+    });
+    toast.error(backendErrorMessage(err), { duration: 10000 });
     throw err;
   }
 }

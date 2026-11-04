@@ -179,6 +179,9 @@ export default function MagicToolTab({ toolId, insert, editor }) {
   }
 
   const ic = config.inputConfig || {};
+  // A prompt or persona tool that also takes a picture — see referenceImageField
+  // in the configs.
+  const takesReference = config.referenceImage === true;
   // Showing a wait for a run this panel started, OR one history says is still
   // going — a generation outlives the panel that asked for it, so closing the
   // sidebar or reloading the editor mid-run should find the wait still there.
@@ -297,7 +300,14 @@ export default function MagicToolTab({ toolId, insert, editor }) {
   const handleGenerate = () => {
     if (busy) return;
     console.log(`✨ [magic:${toolId}] generating…`);
-    magic.generate({ primaryInput, values, activeBrand });
+    magic.generate({
+      primaryInput,
+      values: {
+        ...values,
+        ...(takesReference ? { referenceImage: imageInput?.url || "" } : {}),
+      },
+      activeBrand,
+    });
   };
 
   return (
@@ -374,10 +384,17 @@ export default function MagicToolTab({ toolId, insert, editor }) {
             </div>
           )}
 
-          {config.input === "image" && (
+          {(config.input === "image" || takesReference) && (
             <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-gray-500">
-                {ic.label}
+                {takesReference ? (
+                  <>
+                    Reference image{" "}
+                    <span className="font-medium text-gray-400">(optional)</span>
+                  </>
+                ) : (
+                  ic.label
+                )}
               </label>
               <input
                 ref={fileRef}

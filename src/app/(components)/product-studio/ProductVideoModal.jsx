@@ -707,6 +707,7 @@ export default function ProductVideoModal({
               generating={waiting}
               generatingLabel="Rendering your video…"
               onDelete={history.remove}
+              removeMany={history.removeMany}
               removingId={history.removingId}
               uploadMedia={uploadMedia}
               filePrefix="product-video"

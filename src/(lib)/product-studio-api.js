@@ -20,6 +20,7 @@
 import api from "@/app/api/axios";
 import { toast } from "sonner";
 import { readableProviderError } from "@/(lib)/providerErrors";
+import { backendErrorMessage } from "@/utils/errorHelper";
 
 /** UI tool ids → backend `tool` enum values. */
 export const TOOL_ENUM = {
@@ -323,6 +324,33 @@ export async function deleteProductHistoryItem(id) {
       message: err?.message,
     });
     toast.error(serverMsg || "Couldn't delete that item. Please try again.");
+    throw err;
+  }
+}
+
+/**
+ * Delete several history items at once. A 200 is not "they all went": the answer
+ * says `0 of 2 deleted` with `success: true`, and sorts the ids into `deleted`,
+ * `failed` and `missing`, so the caller has to read those.
+ *
+ * @param {number[]} ids Record ids — integers, or the backend answers 422.
+ * @returns {Promise<{message: string, deleted: Array, deleted_count: number, failed: Array, missing: Array}>}
+ */
+export async function bulkDeleteProductHistoryItems(ids) {
+  console.log("📡 [product-studio/bulk-delete] request → ids:", ids);
+  try {
+    const { data } = await api.delete(`${BASE_URL}/product-studio/bulk`, {
+      data: { ids },
+    });
+    console.log("🗑️ [product-studio/bulk-delete] response ←", data);
+    return data;
+  } catch (err) {
+    console.error("❌ [product-studio/bulk-delete] failed:", {
+      status: err?.response?.status,
+      data: err?.response?.data,
+      message: err?.message,
+    });
+    toast.error(backendErrorMessage(err), { duration: 10000 });
     throw err;
   }
 }

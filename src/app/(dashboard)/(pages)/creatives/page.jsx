@@ -14,19 +14,18 @@ import {
   Star,
   Trash2,
   Plus,
-  Check,
   Clock,
   ChevronLeft,
   ChevronDown,
   Wand2,
   RefreshCw,
-  CheckSquare,
-  Square,
   AlertTriangle,
   Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import SelectionMark from "@/app/(components)/bulk/SelectionMark";
+import useBulkSelection from "@/app/(components)/bulk/useBulkSelection";
 import Toast from "@/app/(components)/Toast";
 import PublishModal from "@/app/(components)/PublishModal";
 // The app's edge-anchored panel primitive — the same one the mobile nav uses.
@@ -46,9 +45,8 @@ import DesignDetailsPanel, {
   EditCopyModal,
   TYPE_COLOR,
   normalizeDesign,
-  renderDesignToPngBlob,
-  toProxiedSrc,
 } from "@/app/(components)/creatives/DesignDetailsPanel";
+import CreativesBulkBar, { designToBlob } from "./CreativesBulkBar";
 // Shared branded download helper — names files creativeklux-<word>-<time>.<ext>,
 // the same naming used by the photo editor (edit_a_photo/PhotoEditor).
 import { downloadBlob } from "@/utils/downloadName";
@@ -456,8 +454,6 @@ export default function CreativesPage() {
   const [copied, setCopied] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [page, setPage] = useState(1);
-  const [bulkSelected, setBulkSelected] = useState([]);
-  const [isBulkMode, setIsBulkMode] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [publishTarget, setPublishTarget] = useState(null);
   const [publishStartSchedule, setPublishStartSchedule] = useState(false);
@@ -587,28 +583,15 @@ export default function CreativesPage() {
     [deleteDesignById, selectedId],
   );
 
-  const bulkDeleteDesignsLocal = useCallback(
+  // Throws the backend's own error for the bulk bar to show. Taking the designs
+  // off the list is also what clears them from the selection.
+  const removeDesigns = useCallback(
     async (ids) => {
-      setActionLoading(true);
-      try {
-        const res = await bulkDeleteDesigns(ids);
-        if (!res.ok) throw new Error(res.message);
-        setCreatives((prev) => prev.filter((c) => !ids.includes(c.id)));
-        setBulkSelected([]);
-        setIsBulkMode(false);
-        if (ids.includes(selectedId)) setSelectedId(null);
-        showToast(
-          `${ids.length} design${ids.length > 1 ? "s" : ""} deleted`,
-          "success",
-        );
-      } catch {
-        showToast("Failed to delete designs", "error");
-      } finally {
-        setActionLoading(false);
-        setDeleteConfirm(null);
-      }
+      const res = await bulkDeleteDesigns(ids);
+      if (!res.ok) throw new Error(res.message);
+      setCreatives((prev) => prev.filter((c) => !ids.includes(c.id)));
     },
-    [bulkDeleteDesigns, selectedId],
+    [bulkDeleteDesigns],
   );
 
   // ── Edit copy modal state ────────────────────────────────────────────────────
@@ -697,6 +680,12 @@ export default function CreativesPage() {
   const paginated = filtered.slice((page - 1) * fetchCount, page * fetchCount);
   const selected = creatives.find((c) => c.id === selectedId) || null;
 
+  // Over the page on screen, so "Select all" means what you can see, and moving
+  // to another page (or filter) lets go of what was ticked on this one.
+  const selection = useBulkSelection(paginated, { enabled: !loading });
+  // The detail drawer is about one design; ticking several means you've moved on.
+  if (selection.picking && selectedId) setSelectedId(null);
+
   /* The detail drawer stays mounted for its 200ms exit animation, but
      `selectedId` is cleared the instant it's dismissed — so the panel would
      slide away blank. Remembering the last id keeps its contents on screen
@@ -712,11 +701,9 @@ export default function CreativesPage() {
     setPage(1); // a narrower search usually has fewer pages
   };
 
-  const handleSelect = (id) => {
-    if (isBulkMode) {
-      setBulkSelected((prev) =>
-        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-      );
+  const handleSelect = (id, event) => {
+    if (selection.picking) {
+      selection.toggle(id, { range: event?.shiftKey });
     } else {
       setSelectedId((prev) => (prev === id ? null : id));
     }
@@ -734,16 +721,7 @@ export default function CreativesPage() {
 
   const handleDownloadDesign = async (c) => {
     try {
-      let blob;
-      if (c.canvas && c.elements?.length) {
-        blob = await renderDesignToPngBlob(c);
-      } else if (c.image) {
-        const res = await fetch(toProxiedSrc(c.image));
-        if (!res.ok) throw new Error("Could not fetch the image.");
-        blob = await res.blob();
-      } else {
-        throw new Error("This design has nothing to download.");
-      }
+      const blob = await designToBlob(c);
 
       const ext = blob.type?.includes("jpeg") ? "jpg" : "png";
       // Reusable branded download — creativeklux-<word>-<time>.<ext>.
@@ -753,13 +731,6 @@ export default function CreativesPage() {
       showToast(err?.message || "Download failed. Please try again.", "error");
     }
   };
-
-  const toggleBulkMode = () => {
-    setIsBulkMode((v) => !v);
-    setBulkSelected([]);
-  };
-  const selectAll = () => setBulkSelected(paginated.map((c) => c.id));
-  const deselectAll = () => setBulkSelected([]);
 
   // ── Brand still resolving → full-page shimmer ────────────────────────────────
   // While the active brand hydrates (from localStorage / fetchBrands) we don't
@@ -832,37 +803,6 @@ export default function CreativesPage() {
         </div>
       </div>
 
-      {/* ── Bulk action bar ──
-          `flex-wrap`: four labels plus the delete button is wider than a 360px
-          phone, and without it the row overflowed the page sideways. */}
-      {isBulkMode && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl mb-2 shrink-0 sm:py-2.5 sm:mb-3">
-          <span className="text-xs font-semibold text-blue-700">
-            {bulkSelected.length} selected
-          </span>
-          <button
-            onClick={selectAll}
-            className="text-xs text-blue-500 hover:text-blue-700 cursor-pointer transition"
-          >
-            Select all on page
-          </button>
-          <button
-            onClick={deselectAll}
-            className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer transition"
-          >
-            Deselect all
-          </button>
-          {bulkSelected.length > 0 && (
-            <button
-              onClick={() => setDeleteConfirm("bulk")}
-              className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-red-500 border border-red-200 bg-surface px-3 py-1.5 rounded-lg hover:bg-red-50 cursor-pointer transition"
-            >
-              <Trash2 className="w-3.5 h-3.5" /> Delete {bulkSelected.length}
-            </button>
-          )}
-        </div>
-      )}
-
       {/* ── Toolbar ──
           Two lines on a phone, one wrapping line from `sm` up — the `order-*`
           swap is what does it, so both layouts come out of the same markup:
@@ -895,25 +835,9 @@ export default function CreativesPage() {
         </div>
 
         {/* ── List controls ──
-            Bulk-select, page size and (from `md`) the view switcher, kept in
-            one cluster so they share a line at every width. The select toggle
-            used to sit on its own row above the grid, where it was a whole row
-            of height for one 32px button. */}
+            Page size and (from `md`) the view switcher, kept in one cluster so
+            they share a line at every width. */}
         <div className="order-2 flex shrink-0 items-center gap-1.5 sm:order-3 sm:ml-auto sm:gap-2">
-          <button
-            onClick={toggleBulkMode}
-            title={isBulkMode ? "Exit select mode" : "Select multiple"}
-            aria-label={isBulkMode ? "Exit select mode" : "Select multiple"}
-            aria-pressed={isBulkMode}
-            className={`ck-tap flex items-center justify-center p-2 rounded-xl transition-all cursor-pointer ${isBulkMode ? "bg-blue-50 text-blue-600 ring-1 ring-blue-200" : "bg-gray-100 text-gray-500 hover:text-gray-700"}`}
-          >
-            {isBulkMode ? (
-              <CheckSquare className="w-4 h-4" />
-            ) : (
-              <Square className="w-4 h-4" />
-            )}
-          </button>
-
           {/* Quantity — pick a preset or type a custom amount (persisted). */}
           <LoadCountSelect
             value={fetchCount}
@@ -995,8 +919,7 @@ export default function CreativesPage() {
           <GridView
             creatives={paginated}
             selectedId={selectedId}
-            bulkSelected={bulkSelected}
-            isBulkMode={isBulkMode}
+            selection={selection}
             onSelect={handleSelect}
             onToggleFavorite={toggleFavorite}
             onDeleteRequest={setDeleteConfirm}
@@ -1005,14 +928,26 @@ export default function CreativesPage() {
           <TableView
             creatives={paginated}
             selectedId={selectedId}
-            bulkSelected={bulkSelected}
-            isBulkMode={isBulkMode}
+            selection={selection}
             onSelect={handleSelect}
             onToggleFavorite={toggleFavorite}
             onDeleteRequest={setDeleteConfirm}
           />
         )}
       </div>
+
+      {/* ⚠️ A SIBLING OF THE GRID'S BOX, NOT INSIDE IT. Whether that box or the
+          page around it does the scrolling depends on the screen height, and a
+          sticky element only sticks to its nearest scroll container — inside the
+          box, it sat at the bottom of an unscrolled grid, below the fold. Out
+          here it holds to the bottom of whichever one is moving, above the pager. */}
+      {selection.picking && (
+        <div className="pointer-events-none sticky bottom-2 z-30 mt-2 flex shrink-0 justify-center">
+          <div className="pointer-events-auto w-full max-w-4xl">
+            <CreativesBulkBar selection={selection} removeMany={removeDesigns} />
+          </div>
+        </div>
+      )}
 
       {/* ── Pagination ──
           The page's last row, and the page is a full-height column, so this
@@ -1157,9 +1092,7 @@ export default function CreativesPage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-60">
           <div className="bg-surface rounded-2xl p-6 w-full max-w-sm shadow-xl mx-4">
             <h3 className="text-base font-semibold text-gray-900 mb-1">
-              {deleteConfirm === "bulk"
-                ? `Delete ${bulkSelected.length} design${bulkSelected.length > 1 ? "s" : ""}?`
-                : "Delete design?"}
+              Delete design?
             </h3>
             <p className="text-sm text-gray-500 mb-5">
               This action cannot be undone.
@@ -1173,11 +1106,7 @@ export default function CreativesPage() {
                 Cancel
               </button>
               <button
-                onClick={() =>
-                  deleteConfirm === "bulk"
-                    ? bulkDeleteDesignsLocal(bulkSelected)
-                    : deleteDesign(deleteConfirm)
-                }
+                onClick={() => deleteDesign(deleteConfirm)}
                 disabled={actionLoading}
                 className="px-4 py-2 text-sm text-white bg-red-500 rounded-lg hover:bg-red-600 cursor-pointer transition flex items-center gap-2"
               >
@@ -1270,8 +1199,7 @@ const CreativesPageSkeleton = () => (
 const GridView = ({
   creatives,
   selectedId,
-  bulkSelected,
-  isBulkMode,
+  selection,
   onSelect,
   onToggleFavorite,
   onDeleteRequest,
@@ -1282,9 +1210,10 @@ const GridView = ({
         key={c.id}
         creative={c}
         selected={selectedId === c.id}
-        bulkChecked={bulkSelected.includes(c.id)}
-        isBulkMode={isBulkMode}
-        onSelect={() => onSelect(c.id)}
+        bulkChecked={selection.isSelected(c.id)}
+        picking={selection.picking}
+        onToggleBulk={(range) => selection.toggle(c.id, { range })}
+        onSelect={(event) => onSelect(c.id, event)}
         onToggleFavorite={onToggleFavorite}
         onDeleteRequest={onDeleteRequest}
       />
@@ -1384,7 +1313,8 @@ const CreativeCard = ({
   creative: c,
   selected,
   bulkChecked,
-  isBulkMode,
+  picking,
+  onToggleBulk,
   onSelect,
   onToggleFavorite,
   onDeleteRequest,
@@ -1395,16 +1325,17 @@ const CreativeCard = ({
   return (
     <div
       onClick={onSelect}
-      className={`group bg-surface rounded-lg border-2 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 flex flex-col relative ${isBulkMode && bulkChecked ? "border-blue-500 shadow-lg shadow-blue-100/60" : selected ? "border-blue-500 shadow-lg shadow-blue-100/60" : "border-gray-100 hover:border-gray-200"}`}
+      className={`group bg-surface rounded-lg border-2 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 flex flex-col relative ${bulkChecked || selected ? "border-blue-500 shadow-lg shadow-blue-100/60" : "border-gray-100 hover:border-gray-200"}`}
     >
-      {/* Bulk checkbox */}
-      {isBulkMode && (
-        <div
-          className={`absolute top-2.5 left-2.5 z-10 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${bulkChecked ? "bg-blue-600 border-blue-600" : "bg-surface/80 border-gray-300"}`}
-        >
-          {bulkChecked && <Check className="w-3 h-3 text-white" />}
-        </div>
-      )}
+      {/* The card's blue border is what says it's ticked, as it says "open". */}
+      <SelectionMark
+        selected={bulkChecked}
+        picking={picking}
+        onToggle={onToggleBulk}
+        label={c.name}
+        position="left-1.5 top-1.5 sm:left-2.5 sm:top-2.5"
+        ring={false}
+      />
 
       {/* Canvas / image preview area.
           The 120px floor is a `sm`-and-up rule now. Two cards across on a phone
@@ -1420,8 +1351,13 @@ const CreativeCard = ({
         <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
         {/* Type badge — top left. Tighter inset on a phone so it doesn't sit
-            across a third of a 160px-wide preview. */}
-        <div className="absolute top-1.5 left-1.5 sm:top-2.5 sm:left-2.5">
+            across a third of a 160px-wide preview. It steps aside for the tick
+            box wherever that's showing: always below `lg`, on hover above it. */}
+        <div
+          className={`absolute top-1.5 left-9 transition-[left] duration-150 sm:top-2.5 sm:left-10 ${
+            picking ? "" : "lg:left-2.5 lg:group-hover:left-10"
+          }`}
+        >
           <span
             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-2xs font-bold border backdrop-blur-sm bg-surface/90 ${tc.text} ${tc.border} capitalize sm:gap-1.5 sm:px-2`}
           >
@@ -1475,7 +1411,11 @@ const CreativeCard = ({
             <Clock className="w-3 h-3 text-gray-300 shrink-0" />
             <span className="text-2xs text-gray-400 truncate">{c.date}</span>
           </div>
-          <div className="flex items-center gap-0.5 shrink-0">
+          {/* `invisible` rather than gone while picking, so the card keeps its
+              height and the grid doesn't shift under the pointer. */}
+          <div
+            className={`flex items-center gap-0.5 shrink-0 ${picking ? "invisible" : ""}`}
+          >
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -1507,8 +1447,7 @@ const CreativeCard = ({
 const TableView = ({
   creatives,
   selectedId,
-  bulkSelected,
-  isBulkMode,
+  selection,
   onSelect,
   onToggleFavorite,
   onDeleteRequest,
@@ -1517,7 +1456,7 @@ const TableView = ({
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-gray-100 bg-gray-50/60">
-          {isBulkMode && <th className="w-10 px-4 py-3" />}
+          <th className="w-10 px-4 py-3" />
           <th className="text-left px-5 py-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
             Creative
           </th>
@@ -1542,20 +1481,19 @@ const TableView = ({
           return (
             <tr
               key={c.id}
-              onClick={() => onSelect(c.id)}
-              className={`cursor-pointer transition-colors ${isBulkMode && bulkSelected.includes(c.id) ? "bg-blue-50" : selectedId === c.id ? "bg-blue-50" : "hover:bg-gray-50/80"}`}
+              onClick={(event) => onSelect(c.id, event)}
+              className={`group cursor-pointer transition-colors ${selection.isSelected(c.id) || selectedId === c.id ? "bg-blue-50" : "hover:bg-gray-50/80"}`}
             >
-              {isBulkMode && (
-                <td className="px-4 py-3">
-                  <div
-                    className={`w-4 h-4 rounded border-2 flex items-center justify-center ${bulkSelected.includes(c.id) ? "bg-blue-600 border-blue-600" : "border-gray-300"}`}
-                  >
-                    {bulkSelected.includes(c.id) && (
-                      <Check className="w-2.5 h-2.5 text-white" />
-                    )}
-                  </div>
-                </td>
-              )}
+              <td className="relative w-10 px-4 py-3">
+                <SelectionMark
+                  selected={selection.isSelected(c.id)}
+                  picking={selection.picking}
+                  onToggle={(range) => selection.toggle(c.id, { range })}
+                  label={c.name}
+                  position="left-2 top-1/2 -translate-y-1/2"
+                  ring={false}
+                />
+              </td>
               <td className="px-5 py-3">
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-10 rounded-lg overflow-hidden bg-gray-100 shrink-0 border border-gray-100 flex items-center justify-center">
@@ -1608,7 +1546,9 @@ const TableView = ({
               </td>
               <td className="px-4 py-3 text-gray-400 text-xs">{c.date}</td>
               <td className="px-4 py-3">
-                <div className="flex items-center gap-1">
+                <div
+                  className={`flex items-center gap-1 ${selection.picking ? "invisible" : ""}`}
+                >
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

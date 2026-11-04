@@ -8,7 +8,7 @@ import {
   useCallback,
 } from "react";
 import { toast } from "sonner";
-import { classifyResult } from "@/utils/errorHelper";
+import { backendErrorMessage, classifyResult } from "@/utils/errorHelper";
 import { throwClassifiedAuthError } from "@/utils/authErrors";
 import { clearImpersonating } from "@/utils/impersonation";
 import api from "@/app/api/axios";
@@ -2104,6 +2104,28 @@ export function AuthProvider({ children }) {
     [token],
   );
 
+  const bulkDeleteGalleryItems = useCallback(
+    async (ids) => {
+      if (!token) throw new Error("Not authenticated");
+      if (!Array.isArray(ids) || ids.length === 0)
+        throw new Error("No IDs provided");
+
+      try {
+        const { data } = await api.delete(`${BASE_URL}/gallery/bulk-upload`, {
+          data: { ids },
+        });
+        return data;
+      } catch (err) {
+        console.error("❌ Gallery bulk delete failed:", {
+          status: err?.response?.status,
+          body: err?.response?.data,
+        });
+        throw new Error(backendErrorMessage(err));
+      }
+    },
+    [token],
+  );
+
   const fetchTutorialVideos = useCallback(async () => {
     if (!token) {
       setTutorialVideos([]);
@@ -3127,7 +3149,10 @@ export function AuthProvider({ children }) {
         if (!res.ok) {
           return {
             ok: false,
-            message: data?.message || `Bulk delete failed (${res.status})`,
+            message: backendErrorMessage({
+              response: { status: res.status, data },
+              message: `Bulk delete failed (${res.status})`,
+            }),
           };
         }
 
@@ -3979,6 +4004,7 @@ export function AuthProvider({ children }) {
         fetchGalleryPage,
         uploadMedia,
         deleteImage,
+        bulkDeleteGalleryItems,
         verifyEmail,
         resendVerificationEmail,
         sendVerificationCode,

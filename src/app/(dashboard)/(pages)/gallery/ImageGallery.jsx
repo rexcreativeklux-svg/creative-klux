@@ -7,7 +7,7 @@
 // The library, and Pexels results, both render through the shared <MediaCard> so
 // every gallery surface in the app looks and behaves the same.
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   Search,
   Image as ImageIcon,
@@ -16,9 +16,13 @@ import {
   Loader2,
   FolderPlus,
   ArrowLeft,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import BulkActionBar from "@/app/(components)/bulk/BulkActionBar";
+import useBulkSelection from "@/app/(components)/bulk/useBulkSelection";
+import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import NotificationModal from "@/app/(components)/NotificationModal";
 import useGalleryMedia from "@/app/(components)/gallery/useGalleryMedia";
 import useInfiniteScroll from "@/app/(components)/gallery/useInfiniteScroll";
@@ -33,7 +37,7 @@ import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGaller
 import { FILE_LIMITS, getFileCategory, describeSupportedTypes } from "@/utils/helpers";
 
 export default function ImageGallery() {
-  const { uploadMedia, deleteImage } = useAuth();
+  const { uploadMedia, deleteImage, bulkDeleteGalleryItems } = useAuth();
   const {
     tabs,
     activeType,
@@ -103,6 +107,61 @@ export default function ImageGallery() {
       );
     }
   };
+
+  // ── Bulk delete ──────────────────────────────────────────────────────────
+  // Over the current tab's loaded items, so "Select all" means what's been
+  // scrolled into view rather than every file in the library.
+  const selection = useBulkSelection(items, { enabled: !searchMode });
+  const [bulkConfirming, setBulkConfirming] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  // ConfirmDialog answers Enter on the window AND its focused button clicks, so
+  // one key press arrives here twice. State wouldn't have updated by the second.
+  const bulkLock = useRef(false);
+  const bulkNoun = `${selection.count} file${selection.count === 1 ? "" : "s"}`;
+
+  const handleBulkDelete = async () => {
+    if (bulkLock.current) return;
+    bulkLock.current = true;
+    setBulkDeleting(true);
+    try {
+      const result = await bulkDeleteGalleryItems(
+        selection.selectedItems.map((item) => item.id),
+      );
+      // A 200 can still be partial, so the server's own count is what gets said
+      // when anything was left behind.
+      if (result?.failed?.length > 0 || result?.deleted_count === 0) {
+        toast.warning(result.message || "Some files couldn't be deleted");
+      } else {
+        toast.success(`Deleted ${bulkNoun}`);
+      }
+      setBulkConfirming(false);
+      await refresh?.();
+    } catch (err) {
+      // The backend's actual error, unsoftened, with time to read it. The dialog
+      // stays up with the selection intact so trying again is one click.
+      toast.error(err.message, { duration: 10000 });
+    } finally {
+      bulkLock.current = false;
+      setBulkDeleting(false);
+    }
+  };
+
+  // What each library card needs. The ⋮ menu steps aside mid-selection so the
+  // bar is the one place actions come from.
+  const libraryCardProps = (item) => ({
+    selectable: true,
+    picking: selection.picking,
+    selected: selection.isSelected(item.id),
+    onToggleSelect: (picked, { range }) =>
+      selection.toggle(picked.id, { range }),
+    ...(selection.picking
+      ? {}
+      : {
+          onDownload: downloadItem,
+          onCopyLink: copyLink,
+          onDelete: deleteItem,
+        }),
+  });
 
   // ── Upload (images) ──────────────────────────────────────────────────────
   const handleFileUpload = useCallback(
@@ -460,9 +519,7 @@ export default function ImageGallery() {
                       <MediaCard
                         item={item}
                         index={i}
-                        onDownload={downloadItem}
-                        onCopyLink={copyLink}
-                        onDelete={deleteItem}
+                        {...libraryCardProps(item)}
                       />
                     )}
                   />
@@ -474,9 +531,7 @@ export default function ImageGallery() {
                         key={item.id}
                         item={item}
                         index={i}
-                        onDownload={downloadItem}
-                        onCopyLink={copyLink}
-                        onDelete={deleteItem}
+                        {...libraryCardProps(item)}
                       />
                     ))}
                     {loadingMore && (
@@ -490,7 +545,42 @@ export default function ImageGallery() {
             )}
           </div>
         )}
+
+        {/* Sticky rather than fixed, so it centers on the page's content and not
+            on a viewport that has the sidebar in it. */}
+        {selection.picking && (
+          <div className="pointer-events-none sticky bottom-4 z-40 mt-4 flex justify-center">
+            <div className="pointer-events-auto w-full max-w-xl">
+              <BulkActionBar
+                count={selection.count}
+                allSelected={selection.allSelected}
+                onSelectAll={selection.selectAll}
+                onClear={selection.clear}
+                actions={[
+                  {
+                    label: "Delete",
+                    icon: Trash2,
+                    danger: true,
+                    onClick: () => setBulkConfirming(true),
+                  },
+                ]}
+              />
+            </div>
+          </div>
+        )}
       </div>
+
+      <ConfirmDialog
+        open={bulkConfirming}
+        title={`Delete ${bulkNoun}?`}
+        message={`${bulkNoun} will be permanently deleted from your gallery.`}
+        confirmLabel="Delete"
+        cancelLabel="Keep them"
+        variant="danger"
+        busy={bulkDeleting}
+        onConfirm={handleBulkDelete}
+        onCancel={() => setBulkConfirming(false)}
+      />
 
       <UploadMediaModal
         isOpen={uploadOpen}

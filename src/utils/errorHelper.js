@@ -15,6 +15,30 @@
 //   status?: number,            // HTTP status if a response came back
 // }
 
+/**
+ * The backend's own error for a failed axios call, whole and unsoftened, for the
+ * places that show it as it is. Its errors come as { message } and { errors }, but
+ * also as { error, details } and { error: { field: [..] } }, and `details` is often
+ * where the actual cause is.
+ *
+ * @param {any} err An axios error.
+ * @returns {string} e.g. "500 — Failed to delete file: No query results for…"
+ */
+export function backendErrorMessage(err) {
+  const body = err?.response?.data;
+  const status = err?.response?.status;
+  const error =
+    body?.error && typeof body.error === "object"
+      ? Object.values(body.error).flat().join(" ")
+      : body?.error;
+  const message =
+    [body?.message || error, body?.details].filter(Boolean).join(": ") ||
+    (typeof body === "string" && body) ||
+    err?.message ||
+    "Request failed";
+  return status ? `${status} — ${message}` : message;
+}
+
 const GENERIC_USER_MESSAGES = {
   network: "Connection problem. Please try again.",
   validation: "Please check the form fields.",

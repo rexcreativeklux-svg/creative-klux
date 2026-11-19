@@ -133,6 +133,12 @@
    (bg-white → bg-surface, applied in components).
    ───────────────────────────────────────────────────────────────────────────── */
 .dark {
+  /* Native controls the BROWSER draws — a <select>'s open list, default
+     scrollbars, checkboxes, date pickers, autofill — ignore every token below
+     and paint themselves light unless told the page is dark. Without this, a
+     dark-mode dropdown opened as near-white text on a white list. Skins'
+     dark variants hang off `.dark` too, so this covers them as well. */
+  color-scheme: dark;
   --color-page:     #0e0e11;   /* main content background — the darkest layer */
   --color-surface:  #1c1c20;   /* cards / panels (was white) — sits clearly above the page */
   --color-gray-50:  #0e0e11;   /* page-level background (was lightest) */

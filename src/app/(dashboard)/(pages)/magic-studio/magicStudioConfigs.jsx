@@ -103,11 +103,18 @@ import { KOKORO_TTS } from "@/(lib)/ai-engine/models";
 import {
   backendVoiceId,
   defaultVoiceFor,
+  HOSTED_VOICE_ITEMS,
   usesBackend,
   voiceFace,
   voiceItemsFor,
   voiceLabelFor,
 } from "@/(lib)/magic-studio-audio";
+
+/**
+ * How many hosted voices Text to Audio offers — read off the generated catalogue
+ * so its intro copy cannot drift when the list changes.
+ */
+const HOSTED_VOICE_COUNT = HOSTED_VOICE_ITEMS.length;
 
 // Pexels CDN helper (free license, stable URLs) for rich option-card thumbnails.
 const px = (id) =>
@@ -1996,7 +2003,11 @@ export const MAGIC_STUDIO_CONFIGS = {
   audio_to_text: {
     id: "audio_to_text",
     title: "Audio to Text",
-    subtitle: "Transcribe speech into clean text — on-device, private & free.",
+    // The copy follows AUDIO_ENGINE, like Text to Audio's — "on your device" is
+    // only true on the on-device path.
+    subtitle: usesBackend("audio_to_text")
+      ? "Transcribe speech into clean text."
+      : "Transcribe speech into clean text — on-device, private & free.",
     Icon: AudioLines,
     color: "bg-amber-100 text-amber-600",
     input: "audio",
@@ -2015,8 +2026,9 @@ export const MAGIC_STUDIO_CONFIGS = {
       after:
         "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&q=80",
       headline: "Accurate transcripts in a click",
-      subtext:
-        "Pick audio from your gallery or record it, choose a language and format — get clean, ready-to-use text, transcribed on your device.",
+      subtext: usesBackend("audio_to_text")
+        ? "Pick audio from your gallery or record it, choose a language and format — get clean, ready-to-use text."
+        : "Pick audio from your gallery or record it, choose a language and format — get clean, ready-to-use text, transcribed on your device.",
     },
     inputConfig: {
       label: "Audio",
@@ -2328,15 +2340,18 @@ export const MAGIC_STUDIO_CONFIGS = {
     },
   },
 
-  // ── TEXT → AUDIO (fully ON-DEVICE — Kokoro-82M in a Web Worker) ─────────────
-  // Unlike the other categories this never calls the backend: speech is
-  // synthesized locally by the AI engine (see src/(lib)/ai-engine). The modal
-  // passes its `tts` engine (useTextToSpeech) into `generate`, which reports
-  // real progress (engine download → voice → synthesis → polish).
+  // ── TEXT → AUDIO (backend OR on-device — see AUDIO_ENGINE) ──────────────────
+  // Backend: POST /magic-studio/generate, spoken by Google Wavenet through
+  // Ariziy. On-device: Kokoro-82M in a Web Worker (src/(lib)/ai-engine) — the
+  // modal passes its `tts` engine (useTextToSpeech) into `generate`, which
+  // reports real progress (engine download → voice → synthesis → polish). The
+  // copy, voice cards and default all follow the switch.
   text_to_audio: {
     id: "text_to_audio",
     title: "Text to Audio",
-    subtitle: "Convert text into natural speech — on-device, private & free.",
+    subtitle: usesBackend("text_to_audio")
+      ? "Turn text into natural speech."
+      : "Convert text into natural speech — on-device, private & free.",
     Icon: Music,
     color: "bg-indigo-100 text-indigo-600",
     input: "text",
@@ -2349,6 +2364,13 @@ export const MAGIC_STUDIO_CONFIGS = {
     // stored file is the one the user actually heard.
     onDevice: !usesBackend("text_to_audio"),
     engine: "tts", // which on-device engine `generate` wires into
+    /**
+     * ⚠️ NO MODEL MENU ON THIS TOOL — same reason as Text to Image. Speech is
+     * picked by `voice` (and `speaking_speed`); the payload has no field for a
+     * model, so the chip changed nothing. The preference itself is app-wide and
+     * untouched — delete this line and the chip is back.
+     */
+    model: false,
     historyTool: "text_to_audio",
     sample: {
       before:
@@ -2356,8 +2378,9 @@ export const MAGIC_STUDIO_CONFIGS = {
       after:
         "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80",
       headline: "Give your words a voice",
-      subtext:
-        "Pick one of 28 lifelike voices, set speed, format and quality — speech is generated on your device, private and unlimited.",
+      subtext: usesBackend("text_to_audio")
+        ? `Pick one of ${HOSTED_VOICE_COUNT} voices, set the speed, and generate.`
+        : "Pick one of 28 lifelike voices, set speed, format and quality — speech is generated on your device, private and unlimited.",
     },
     inputConfig: {
       label: "Text to convert",
@@ -2380,11 +2403,11 @@ export const MAGIC_STUDIO_CONFIGS = {
         label: "Voice",
         panel: "voices",
         width: 360,
-        // ⚠️ THE CARDS FOLLOW THE ENGINE — see AUDIO_ENGINE. Kokoro and Aura-2
-        // share no voice names, so a fixed set of cards would mean clicking
-        // "Bella" and hearing Aura-2's Luna. Both the list and the default swap
-        // together; swapping only one leaves the composer holding an id the
-        // other engine has never heard of.
+        // ⚠️ THE CARDS FOLLOW THE ENGINE — see AUDIO_ENGINE. Kokoro and the
+        // hosted Wavenet voices share no voice ids, so a fixed set of cards
+        // would mean clicking "Bella" and hearing someone else. Both the list
+        // and the default swap together; swapping only one leaves the composer
+        // holding an id the other engine has never heard of.
         default: defaultVoiceFor("text_to_audio", "af_heart"), // best-graded Kokoro voice
         items: voiceItemsFor("text_to_audio", KOKORO_VOICE_ITEMS),
       },
@@ -2479,8 +2502,9 @@ export const MAGIC_STUDIO_CONFIGS = {
 
       // ── Backend ────────────────────────────────────────────────────────────
       // ⚠️ FIELDS AT THE TOP LEVEL, NOT UNDER `options` — this tool's payload is
-      // flat, unlike the website tools'. And `voice` is an Aura-2 name, which is
-      // why the picker offers Aura's voices rather than Kokoro's.
+      // flat, unlike the website tools'. And `voice` is a hosted Wavenet id
+      // (`en-US-Wavenet-C`), which is why the picker offers those rather than
+      // Kokoro's — the backend forwards it unchecked, so an unknown one fails.
       if (usesBackend("text_to_audio")) {
         return startGeneration(
           {

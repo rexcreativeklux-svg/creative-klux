@@ -248,9 +248,9 @@ function VoicePanelBody({ option, value, onSelect, voicePreview }) {
     else groups.push({ name: it.group, items: [it] });
   }
 
-  // Only where there is something to tap. Hosted voices are auditioned from
-  // pre-generated clips, so until those files exist there is no ▶ anywhere and
-  // an instruction to press one would be a dead end.
+  // Only where there is something to tap — a voice with no clip and no engine
+  // that could speak it has no ▶, and an instruction to press one would be a
+  // dead end.
   const anyPlayable = items.some((it) => voicePreview?.canPlay?.(it));
 
   return (

@@ -9,8 +9,6 @@ import {
   Eye,
   MousePointer,
   Users,
-  Heart,
-  Share2,
   TrendingUp,
   CircleDot,
   Calendar,
@@ -39,6 +37,7 @@ import {
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
+import ContentDetailsModal from "@/app/(components)/content/ContentDetailsModal";
 import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
 const BRAND = "#003dda";
@@ -168,8 +167,8 @@ const TABLE_COLS = [
   { label: "Impr.", align: "center", Icon: Eye },
   { label: "Reach", align: "center", Icon: Users },
   { label: "Clicks", align: "center", Icon: MousePointer },
-  { label: "Likes", align: "center", Icon: Heart },
-  { label: "Shares", align: "center", Icon: Share2 },
+  // No Likes / Shares: campaign-metrics never reports them (see
+  // getAdCampaignStats), so those columns could only ever show dashes.
   { label: "CTR", align: "center", Icon: TrendingUp },
   { label: "CPC", align: "center", Icon: Coins },
   { label: "Spend", align: "center", Icon: Banknote },
@@ -185,8 +184,18 @@ const TABS = [
   { key: "PAUSED", label: "Paused" },
 ];
 
+/** CTR as the network-derived number, formatted; undefined when not reported. */
+const ctrText = (stats) =>
+  stats?.ctr != null ? `${Number(stats.ctr).toFixed(2)}%` : undefined;
+
 /* ─── Sub-components ─── */
-function StatCell({ value }) {
+// `loading`: the row's stats are still on their way — a shimmer, so a dash is
+// only ever "the network sent no number", never "not asked yet".
+function StatCell({ value, loading = false }) {
+  if ((value === undefined || value === null) && loading)
+    return (
+      <span className="mx-auto block h-3 w-6 animate-pulse rounded bg-gray-200" />
+    );
   if (value === undefined || value === null)
     return <span className="text-gray-300 text-xs">—</span>;
   return (
@@ -247,6 +256,11 @@ export default function AdsPublishing() {
   const [allPosts, setAllPosts] = useState([]);
   const [refreshing, setRefreshing] = useState(null);
   const [fetchingLive, setFetchingLive] = useState(false);
+  // True while the background stats pass runs — empty cells shimmer meanwhile.
+  const [statsLoading, setStatsLoading] = useState(false);
+  // The row opened in the details pop-up (kept after close for the exit animation).
+  const [detailsPost, setDetailsPost] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   // Resuming a campaign starts spending, so it waits on a confirm; pausing doesn't.
   const [pendingResume, setPendingResume] = useState(null);
   const [togglingStatus, setTogglingStatus] = useState(null);
@@ -298,13 +312,20 @@ export default function AdsPublishing() {
   const loadAllStats = useCallback(async (rows) => {
     const targets = rows.filter((p) => p.type === matchType && p.post_id);
     if (!targets.length) return;
-    const { stats, errors } = await loadStatsForRows(targets, (row) =>
-      getAdCampaignStats({
-        platform: row.platform,
-        campaign_id: row.post_id,
-        days: 30,
-      }),
-    );
+    setStatsLoading(true);
+    let result;
+    try {
+      result = await loadStatsForRows(targets, (row) =>
+        getAdCampaignStats({
+          platform: row.platform,
+          campaign_id: row.post_id,
+          days: 30,
+        }),
+      );
+    } finally {
+      setStatsLoading(false);
+    }
+    const { stats, errors } = result;
     setAllPosts((current) =>
       current.map((p) => (stats[p.id] ? { ...p, stats: stats[p.id] } : p)),
     );
@@ -701,10 +722,16 @@ export default function AdsPublishing() {
                     cls: "bg-gray-50 text-gray-700 border border-gray-200",
                   };
                   const stats = post.stats || {};
+                  const cellLoading =
+                    statsLoading && !post.stats?.last_updated && !!post.post_id;
                   return (
                     <tr
                       key={post.id}
-                      className={`border-b border-gray-100 transition-colors hover:bg-blue-50/40 ${i % 2 === 0 ? "bg-surface" : "bg-gray-50/50"}`}
+                      onClick={() => {
+                        setDetailsPost(post);
+                        setDetailsOpen(true);
+                      }}
+                      className={`cursor-pointer border-b border-gray-100 transition-colors hover:bg-blue-50/40 ${i % 2 === 0 ? "bg-surface" : "bg-gray-50/50"}`}
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -758,39 +785,28 @@ export default function AdsPublishing() {
                         />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.impressions} />
+                        <StatCell value={stats.impressions} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.reach} />
+                        <StatCell value={stats.reach} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.clicks} />
+                        <StatCell value={stats.clicks} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.likes} />
+                        <StatCell value={ctrText(stats)} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.shares} />
+                        <StatCell value={money(stats.cpc)} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell
-                          value={
-                            stats.ctr != null
-                              ? `${Number(stats.ctr).toFixed(2)}%`
-                              : undefined
-                          }
-                        />
+                        <StatCell value={money(stats.spend)} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={money(stats.cpc)} />
+                        <StatCell value={stats.conversions} loading={cellLoading} />
                       </td>
-                      <td className="px-3 py-3 text-center">
-                        <StatCell value={money(stats.spend)} />
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.conversions} />
-                      </td>
-                      <td className="px-4 py-3">
+                      {/* Actions don't also open the details pop-up. */}
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           {/* Only the two states the backend can switch between. */}
                           {(post.status === "ACTIVE" ||
@@ -903,6 +919,47 @@ export default function AdsPublishing() {
           </div>
         </div>
       )}
+
+      {(() => {
+        // The live row, so stats landing while it's open fill it in.
+        const post =
+          (detailsPost && allPosts.find((p) => p.id === detailsPost.id)) ||
+          detailsPost;
+        if (!post) return null;
+        const meta = PLATFORM_META[post.platform] || { label: post.platform, icon: "🌐" };
+        const s = post.stats || {};
+        const budget =
+          money(post.daily_budget) != null
+            ? `${money(post.daily_budget)}/day`
+            : money(post.lifetime_budget) != null
+              ? `${money(post.lifetime_budget)} total`
+              : undefined;
+        return (
+          <ContentDetailsModal
+            isOpen={detailsOpen}
+            onClose={() => setDetailsOpen(false)}
+            item={post}
+            title="Campaign details"
+            platformLabel={meta.label}
+            platformIcon={meta.icon}
+            badge={<StatusBadge post={post} />}
+            dateLabel={
+              post.created_at ? `Created ${formatDate(post.created_at)}` : undefined
+            }
+            statsLoading={statsLoading && !s.last_updated}
+            metrics={[
+              { icon: Eye, label: "Impressions", value: s.impressions },
+              { icon: Users, label: "Reach", value: s.reach },
+              { icon: MousePointer, label: "Clicks", value: s.clicks },
+              { icon: TrendingUp, label: "CTR", value: ctrText(s) },
+              { icon: Banknote, label: "Spend (30d)", value: money(s.spend) },
+              { icon: Coins, label: "CPC", value: money(s.cpc) },
+              { icon: Target, label: "Conversions", value: s.conversions },
+              { icon: Wallet, label: "Budget", value: budget },
+            ]}
+          />
+        );
+      })()}
 
       <ConfirmDialog
         open={!!pendingResume}

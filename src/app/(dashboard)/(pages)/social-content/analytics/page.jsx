@@ -19,6 +19,8 @@ import {
 import {
   Eye,
   MousePointer,
+  MessageCircle,
+  Bookmark,
   Users,
   Heart,
   Share2,
@@ -37,6 +39,7 @@ import {
 } from "../../../../../(lib)/integration";
 import { useAuth } from "@/context/AuthContext";
 import ResponsiveTable from "@/app/(components)/ui/ResponsiveTable";
+import ContentDetailsModal from "@/app/(components)/content/ContentDetailsModal";
 import { ChartFrame, useChartDensity } from "@/app/(components)/ui/ResponsiveChart";
 import { AnalyticsSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
@@ -180,6 +183,50 @@ function StatCard({ icon: Icon, label, value, sub, accent = false }) {
 }
 
 /**
+ * Pop-up for one row of the Post Performance table: the post itself (image,
+ * full caption, platform, publish date, link out) and every metric the
+ * backend returned for it. Missing metrics read "—", same as the table.
+ *
+ * `post` is kept by the caller after close so the exit animation still has
+ * content to show; `isOpen` alone drives visibility.
+ */
+function PostDetailsModal({ post, isOpen, onClose }) {
+  if (!post) return null;
+  const meta = PLATFORM_META[post.platform] || {
+    label: post.platform,
+    emoji: "🌐",
+  };
+  const s = post.stats || {};
+  const ctr = ctrOf(s.clicks, s.impressions);
+  const metrics = [
+    { icon: Eye, label: "Impressions", value: num(s.impressions) },
+    { icon: Users, label: "Reach", value: num(s.reach) },
+    { icon: MousePointer, label: "Clicks", value: num(s.clicks) },
+    { icon: TrendingUp, label: "CTR", value: ctr == null ? "—" : `${ctr.toFixed(2)}%` },
+    { icon: Heart, label: "Likes", value: num(s.likes) },
+    { icon: MessageCircle, label: "Comments", value: num(s.comments) },
+    { icon: Share2, label: "Shares", value: num(s.shares) },
+    { icon: Bookmark, label: "Saves", value: num(s.saves) },
+  ];
+
+  return (
+    <ContentDetailsModal
+      isOpen={isOpen}
+      onClose={onClose}
+      item={post}
+      platformLabel={meta.label}
+      platformIcon={meta.emoji}
+      dateLabel={
+        post.published_at
+          ? `Published ${format(new Date(post.published_at), "MMM d, yyyy · h:mm a")}`
+          : undefined
+      }
+      metrics={metrics}
+    />
+  );
+}
+
+/**
  * Recharts renders its tooltip through inline styles, so it can carry no
  * `dark:` class — the palette variables from globals.css are the only way it
  * follows the theme. Each var resolves to the hex it replaced in light mode,
@@ -199,6 +246,10 @@ const CUSTOM_TOOLTIP_STYLE = {
 export default function SocialAnalytics() {
   const [allPosts, setAllPosts] = useState([]);
   const [fetchingLive, setFetchingLive] = useState(false);
+  // The table row opened in the details pop-up. Kept after close (only
+  // `detailsOpen` flips) so the modal can animate out with its content.
+  const [detailsPost, setDetailsPost] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const { fetchIntegrations, activeBrandId } = useAuth();
 
   const [integrations, setIntegrations] = useState([]);
@@ -604,9 +655,19 @@ export default function SocialAnalytics() {
               rows={publishedPosts}
               rowKey={(post) => post.id}
               columns={POST_COLUMNS}
+              onRowClick={(post) => {
+                setDetailsPost(post);
+                setDetailsOpen(true);
+              }}
               className="border-0 rounded-none"
             />
           </div>
+
+          <PostDetailsModal
+            post={detailsPost}
+            isOpen={detailsOpen}
+            onClose={() => setDetailsOpen(false)}
+          />
         </div>
       )}
     </div>

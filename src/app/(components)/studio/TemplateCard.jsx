@@ -28,8 +28,14 @@
 // — the parent opens TemplateDetailsModal, and the card's already-painted
 // preview rides along so the modal shows artwork instead of a spinner.
 
-import { useEffect, useRef, useState } from "react";
-import { ArrowRight, ImageIcon, MoreHorizontal } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  ImageIcon,
+  MoreHorizontal,
+} from "lucide-react";
 import { renderDesignToThumbnail } from "@/(lib)/design/renderDesign";
 import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 
@@ -74,17 +80,105 @@ const asColor = (value) =>
  * @param {string} [props.columns]   Responsive column classes. Defaults to the
  *   rail's 1 → 2 → 3 → 4 ramp.
  * @param {string} [props.className] Extra classes for the grid itself.
+ * @param {boolean} [props.row=false] One horizontally-scrolling row instead of
+ *   wrapping onto more lines. Columns keep the rail's widths (≈1 → 2 → 3 → 4
+ *   visible), and the rest are reached by scrolling sideways. The grid is its
+ *   own scroll container here, so the -mr-px hairline stays inside it.
  */
 export function TemplateCardGrid({
   columns = DEFAULT_COLUMNS,
   className = "",
+  row = false,
   children,
 }) {
+  if (row) {
+    return <ScrollRow className={className}>{children}</ScrollRow>;
+  }
   return (
     <div
       className={`-mr-px grid grid-cols-1 border-t border-gray-200 ${columns} ${className}`}
     >
       {children}
+    </div>
+  );
+}
+
+/**
+ * TemplateCardGrid's one-row form: a sideways-scrolling strip with ‹ › arrows
+ * that only show when there IS more that way — no left arrow at the start, no
+ * right arrow at the end, none at all when everything fits. Each arrow pages
+ * by ~one screen of cards; snap points land it on a card edge.
+ *
+ * Edges are re-checked on scroll, on resize (ResizeObserver covers both the
+ * window and the strip's own content changing — a tab switch swapping in more
+ * or fewer cards), so the arrows never go stale.
+ */
+function ScrollRow({ className = "", children }) {
+  const scrollerRef = useRef(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  const measure = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    // 2px slack: sub-pixel widths leave scrollLeft a hair short of the end.
+    const left = el.scrollLeft > 2;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    setEdges((prev) =>
+      prev.left === left && prev.right === right ? prev : { left, right },
+    );
+  }, []);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    // No direct measure() here: a ResizeObserver reports every observed box
+    // once on observe(), which is the initial check.
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    // The cards' own size changes too (artwork painting in), so watch them.
+    Array.from(el.children).forEach((child) => ro.observe(child));
+    return () => ro.disconnect();
+  }, [measure, children]);
+
+  const page = (dir) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.9, behavior: "smooth" });
+  };
+
+  const arrow =
+    "absolute top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-surface text-gray-700 shadow-lg transition-all hover:scale-105 hover:text-gray-900";
+
+  return (
+    <div className="relative">
+      <div
+        ref={scrollerRef}
+        onScroll={measure}
+        className={`hide-scrollbar -mr-px grid snap-x snap-mandatory grid-flow-col auto-cols-[85%] overflow-x-auto border-t border-gray-200 sm:auto-cols-[50%] lg:auto-cols-[calc(100%/3)] xl:auto-cols-[25%] [&>*]:snap-start ${className}`}
+      >
+        {children}
+      </div>
+
+      {edges.left && (
+        <button
+          type="button"
+          onClick={() => page(-1)}
+          aria-label="Scroll left"
+          className={`${arrow} left-3`}
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+      )}
+      {edges.right && (
+        <button
+          type="button"
+          onClick={() => page(1)}
+          aria-label="Scroll right"
+          className={`${arrow} right-3`}
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      )}
     </div>
   );
 }

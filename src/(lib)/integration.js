@@ -1020,8 +1020,18 @@ export async function getInstagramPostStats({ post_id, brand_id }) {
   );
 }
 
-/** Platforms creatives/post-metrics answers for. */
-export const POST_STATS_PLATFORMS = ["facebook", "instagram", "youtube"];
+/**
+ * Platforms creatives/post-metrics answers for. Pinterest and TikTok included:
+ * checked 2026-11-19, the endpoint answers them with 200 (numbers, or
+ * `unavailable` with its reason) rather than refusing the platform.
+ */
+export const POST_STATS_PLATFORMS = [
+  "facebook",
+  "instagram",
+  "youtube",
+  "pinterest",
+  "tiktok",
+];
 
 /** One post's metrics on any of POST_STATS_PLATFORMS. */
 export async function getPostStats({ platform, post_id, brand_id }) {

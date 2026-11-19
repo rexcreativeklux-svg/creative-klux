@@ -13,7 +13,7 @@
  * standard page token.
  */
 
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Bot } from "lucide-react";
 import PlatformChip from "./_components/PlatformChip";
@@ -52,6 +52,26 @@ function CopilotHome() {
   const [activeCategory, setActiveCategory] = useState("Brand");
   const [naming, setNaming] = useState(false);
   const ideas = IDEAS[activeCategory] ?? [];
+  const composerRef = useRef(null);
+
+  /**
+   * An idea card's job: hand its task to the composer. It fills the box (it
+   * does NOT send — the user reads it, edits it if they like, and presses send
+   * themselves, which then names + creates the copilot as usual), scrolls the
+   * box into view and focuses it with the cursor at the end.
+   */
+  // Not `useIdea` — a `use…` name reads as a hook to the linter and to people.
+  const applyIdea = (description) => {
+    setTask(description);
+    const el = composerRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // After React has written the new value, so the caret lands after it.
+    requestAnimationFrame(() => {
+      el.focus({ preventScroll: true });
+      el.setSelectionRange(description.length, description.length);
+    });
+  };
 
   /**
    * "Give your Copilot its first task" — so it makes one and gives it the task.
@@ -97,6 +117,7 @@ function CopilotHome() {
           value={task}
           onChange={setTask}
           onSubmit={handleSubmit}
+          inputRef={composerRef}
           className="mt-10 w-full max-w-xl"
         />
 
@@ -145,9 +166,12 @@ function CopilotHome() {
             {ideas.map(({ title, platforms, description }, i) => {
               const tile = IDEA_TILES[i % IDEA_TILES.length];
               return (
-                <div
+                <button
+                  type="button"
                   key={title}
-                  className="group relative flex min-h-56 flex-col overflow-hidden rounded-xl p-6 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+                  onClick={() => applyIdea(description)}
+                  aria-label={`Use idea: ${title}`}
+                  className="group relative flex min-h-56 cursor-pointer flex-col overflow-hidden rounded-xl p-6 text-left transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                   style={{ backgroundColor: tile.bg }}
                 >
                   {/* Accent shape */}
@@ -183,7 +207,7 @@ function CopilotHome() {
                   >
                     {description}
                   </p>
-                </div>
+                </button>
               );
             })}
           </div>

@@ -24,7 +24,6 @@ import {
   Share2,
   TrendingUp,
   RefreshCw,
-  AlertCircle,
   CheckCircle2,
   Clock,
   BarChart3,
@@ -32,16 +31,10 @@ import {
 import { format, subDays } from "date-fns";
 import { toast } from "sonner";
 import {
-  getFacebookPostStats,
-  getInstagramPostStats,
+  getPostStats,
+  loadStatsForRows,
   fetchLivePostsFromConnectedAccounts,
 } from "../../../../../(lib)/integration";
-
-// Per-post metrics the backend serves today.
-const STATS_FETCHERS = {
-  facebook: getFacebookPostStats,
-  instagram: getInstagramPostStats,
-};
 import { useAuth } from "@/context/AuthContext";
 import ResponsiveTable from "@/app/(components)/ui/ResponsiveTable";
 import { ChartFrame, useChartDensity } from "@/app/(components)/ui/ResponsiveChart";
@@ -56,10 +49,34 @@ const PLATFORM_META = {
   tiktok_ads: { label: "TT Ads", color: "#0891b2", emoji: "🎯" },
   linkedin: { label: "LinkedIn", color: "#2563eb", emoji: "💼" },
   twitter: { label: "X/Twitter", color: "#475569", emoji: "🐦" },
+  youtube: { label: "YouTube", color: "#ef4444", emoji: "▶️" },
+  pinterest: { label: "Pinterest", color: "#e60023", emoji: "📌" },
 };
 
 /** Format a metric, falling back to an em dash so empty cells still read as cells. */
 const num = (v) => v?.toLocaleString?.() ?? "—";
+
+const METRIC_KEYS = ["impressions", "reach", "clicks", "likes", "shares", "comments"];
+
+/** A post's stats carry at least one real number from the backend. */
+const hasNumbers = (stats) =>
+  !!stats && METRIC_KEYS.some((k) => typeof stats[k] === "number");
+
+/**
+ * Sum one metric over posts — but only the numbers the backend actually sent.
+ * When no post has it, the total is `undefined` (shown as "—"), NOT 0: the
+ * backend answering "no numbers for this post" is not the same as the post
+ * getting zero engagement, and a 0 would claim the latter.
+ */
+const sumMetric = (posts, key) =>
+  posts.reduce((total, p) => {
+    const v = p.stats?.[key];
+    return typeof v === "number" ? (total ?? 0) + v : total;
+  }, undefined);
+
+/** Clicks over impressions as a percentage, or undefined when either is missing. */
+const ctrOf = (clicks, impressions) =>
+  typeof clicks === "number" && impressions ? (clicks / impressions) * 100 : undefined;
 
 /**
  * The Post Performance table, as data.
@@ -121,7 +138,10 @@ const POST_COLUMNS = [
     key: "ctr",
     header: "CTR",
     align: "center",
-    cell: (p) => (p.stats?.ctr ? `${Number(p.stats.ctr).toFixed(2)}%` : "—"),
+    cell: (p) => {
+      const ctr = ctrOf(p.stats?.clicks, p.stats?.impressions);
+      return ctr == null ? "—" : `${ctr.toFixed(2)}%`;
+    },
   },
   {
     key: "updated",
@@ -221,36 +241,31 @@ export default function SocialAnalytics() {
         const rows = await fetchLivePostsFromConnectedAccounts(integrations);
         if (rows.errors?.length) toast.error(rows.errors.join(" · "));
 
-        const failed = [];
-        const social = await Promise.all(
-          rows
-            .filter((p) => p.type === "social")
-            .map(async (p) => {
-              if (p.status !== "published" || !p.post_id) return p;
-              const getStats = STATS_FETCHERS[p.platform];
-              if (!getStats) return p;
-              try {
-                const stats = await getStats({
-                  brand_id: activeBrandId,
-                  post_id: p.post_id,
-                });
-                return {
-                  ...p,
-                  stats: { ...stats, last_updated: new Date().toISOString() },
-                };
-              } catch (err) {
-                failed.push(`${p.platform}: ${err.message}`);
-                return p;
-              }
+        // Every published post on every platform is asked — the backend's
+        // post-metrics answers for all of them, and says itself when it has no
+        // numbers. A few requests at a time; a platform that refuses twice is
+        // not asked again for its remaining posts (see loadStatsForRows).
+        const socialRows = rows.filter((p) => p.type === "social");
+        const { stats, errors } = await loadStatsForRows(
+          socialRows.filter((p) => p.status === "published" && p.post_id),
+          (p) =>
+            getPostStats({
+              platform: p.platform,
+              brand_id: activeBrandId,
+              post_id: p.post_id,
             }),
+        );
+        const social = socialRows.map((p) =>
+          stats[p.id] ? { ...p, stats: stats[p.id] } : p,
         );
         setAllPosts(social);
 
-        // A post whose metrics the backend refused: say so, with its words.
+        // A platform whose metrics request was refused: say so, in its words.
+        const failed = Object.entries(errors);
         if (failed.length) {
-          console.warn("Post metrics failed:", failed);
+          console.warn("Post metrics failed:", errors);
           toast.error(
-            `Couldn't load stats for ${failed.length} post${failed.length === 1 ? "" : "s"} — ${failed[0]}`,
+            `Couldn't load stats — ${failed.map(([p, m]) => `${p}: ${m}`).join(" · ")}`,
           );
         }
         if (!silent)
@@ -281,24 +296,13 @@ export default function SocialAnalytics() {
   const posts = allPosts.filter((p) => p.type === "social");
   const publishedPosts = posts.filter((p) => p.status === "published");
 
-  const totals = publishedPosts.reduce(
-    (acc, p) => {
-      const s = p.stats || {};
-      acc.impressions += s.impressions || 0;
-      acc.reach += s.reach || 0;
-      acc.clicks += s.clicks || 0;
-      acc.likes += s.likes || 0;
-      acc.shares += s.shares || 0;
-      acc.comments += s.comments || 0;
-      return acc;
-    },
-    { impressions: 0, reach: 0, clicks: 0, likes: 0, shares: 0, comments: 0 },
+  // Each total is undefined when no post reported that metric — see sumMetric.
+  const totals = Object.fromEntries(
+    METRIC_KEYS.map((k) => [k, sumMetric(publishedPosts, k)]),
   );
 
   // Clicks over impressions across every post, not an average of averages.
-  const avgCTR = totals.impressions
-    ? ((totals.clicks / totals.impressions) * 100).toFixed(2)
-    : "0.00";
+  const totalCTR = ctrOf(totals.clicks, totals.impressions);
 
   const platformMap = {};
   publishedPosts.forEach((p) => {
@@ -321,7 +325,15 @@ export default function SocialAnalytics() {
     platformMap[p.platform].likes += p.stats?.likes || 0;
     platformMap[p.platform].posts += 1;
   });
-  const platformData = Object.values(platformMap);
+  // Only platforms whose posts reported impressions — a bar at 0 would claim
+  // the posts were never seen, when the backend simply sent no number.
+  const platformData = Object.entries(platformMap)
+    .filter(([platform]) =>
+      publishedPosts.some(
+        (p) => p.platform === platform && typeof p.stats?.impressions === "number",
+      ),
+    )
+    .map(([, row]) => row);
 
   function isSameDay(a, b) {
     return format(a, "yyyy-MM-dd") === format(b, "yyyy-MM-dd");
@@ -351,9 +363,9 @@ export default function SocialAnalytics() {
     { name: "Clicks", value: totals.clicks, color: "#22c55e" },
   ].filter((e) => e.value > 0);
 
-  const hasAnyStats = publishedPosts.some(
-    (p) => p.stats && Object.keys(p.stats).length > 0,
-  );
+  // A real number from the backend, not just a stats object: posts the backend
+  // answered "unavailable" for still get one, holding only undefineds.
+  const hasAnyStats = publishedPosts.some((p) => hasNumbers(p.stats));
   // Every chart on this page shares these, so making them density-aware here
   // adapts all of them at once. What actually breaks on a narrow screen is the
   // X axis: fourteen date labels at desktop density overlap into a grey smear.
@@ -424,34 +436,34 @@ export default function SocialAnalytics() {
             <StatCard
               icon={Eye}
               label="Total Impressions"
-              value={totals.impressions.toLocaleString()}
+              value={num(totals.impressions)}
               accent
             />
             <StatCard
               icon={Users}
               label="Total Reach"
-              value={totals.reach.toLocaleString()}
+              value={num(totals.reach)}
             />
             <StatCard
               icon={MousePointer}
               label="Total Clicks"
-              value={totals.clicks.toLocaleString()}
+              value={num(totals.clicks)}
             />
             <StatCard
               icon={TrendingUp}
               label="CTR"
-              value={`${avgCTR}%`}
+              value={totalCTR == null ? "—" : `${totalCTR.toFixed(2)}%`}
               accent
             />
             <StatCard
               icon={Heart}
               label="Total Likes"
-              value={totals.likes.toLocaleString()}
+              value={num(totals.likes)}
             />
             <StatCard
               icon={Share2}
               label="Total Shares"
-              value={totals.shares.toLocaleString()}
+              value={num(totals.shares)}
             />
             <StatCard
               icon={CheckCircle2}
@@ -466,19 +478,18 @@ export default function SocialAnalytics() {
             />
           </div>
 
-          {!hasAnyStats && (
-            <div className="flex items-start gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-700">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              The backend returned no metrics for these posts. Per-post metrics
-              are served for Facebook and Instagram only.
-            </div>
-          )}
-
           {/* Timeline chart — each post's totals on the day it was published */}
           <div className="rounded-xl bg-surface border border-gray-200 p-5 ">
             <h3 className="font-semibold text-gray-800 text-sm mb-4">
               Posts published in the last 14 days — their totals, by publish day
             </h3>
+            {/* With no numbers at all the chart is a flat line at 0, which reads
+                as "no engagement" — say there's no data instead. */}
+            {!hasAnyStats ? (
+              <p className="text-xs text-gray-400 text-center py-8">
+                No metrics reported yet
+              </p>
+            ) : (
             <ChartFrame size="md"><ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={timelineData}
@@ -512,6 +523,7 @@ export default function SocialAnalytics() {
                 />
               </LineChart>
             </ResponsiveContainer></ChartFrame>
+            )}
           </div>
 
           {/* Platform breakdown + Engagement pie */}

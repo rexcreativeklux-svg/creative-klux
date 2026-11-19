@@ -23,6 +23,7 @@
  * @param {number} [props.rows=2]
  * @param {string} [props.className]           Width/margin from the caller.
  * @param {string} [props.sendLabel="Send task"]  Accessible name for send.
+ * @param {React.Ref<HTMLTextAreaElement>} [props.inputRef] Ref to the textarea.
  */
 
 import { Plus, Mic, ArrowUp, Loader2 } from "lucide-react";
@@ -39,6 +40,9 @@ export default function CopilotComposer({
   // which is a round trip long enough to press the button twice.
   busy = false,
   sendLabel = "Send task",
+  // Optional ref to the <textarea>, so a caller can focus it — the /copilot
+  // home does after an idea card drops its task in.
+  inputRef,
 }) {
   const submit = () => {
     if (busy || !value.trim()) return;
@@ -50,6 +54,7 @@ export default function CopilotComposer({
       className={`bg-surface rounded-2xl border border-gray-200 shadow-sm p-4 ${className}`}
     >
       <textarea
+        ref={inputRef}
         rows={rows}
         value={value}
         onChange={(e) => onChange(e.target.value)}

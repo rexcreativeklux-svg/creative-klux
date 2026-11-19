@@ -21,6 +21,9 @@ import {
   CheckCircle2,
   PauseCircle,
   BarChart3,
+  Banknote,
+  Coins,
+  Wallet,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -30,6 +33,7 @@ import {
 } from "../../../../../(lib)/integration";
 import { useAuth } from "@/context/AuthContext";
 import ResponsiveTable from "@/app/(components)/ui/ResponsiveTable";
+import ContentDetailsModal from "@/app/(components)/content/ContentDetailsModal";
 import { ChartFrame, useChartDensity } from "@/app/(components)/ui/ResponsiveChart";
 import { AnalyticsSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
@@ -46,6 +50,60 @@ const PLATFORM_META = {
 
 /** Format a metric, falling back to an em dash so empty cells still read as cells. */
 const num = (v) => v?.toLocaleString?.() ?? "—";
+
+/** A money value as the network sent it (no currency — each account has its own). */
+const money = (v) =>
+  v == null || v === "" || Number.isNaN(Number(v))
+    ? undefined
+    : Number(v).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+/** Pop-up for one Ad Performance row — the campaign and its 30-day numbers. */
+function CampaignDetailsModal({ campaign, isOpen, onClose }) {
+  if (!campaign) return null;
+  const meta = PLATFORM_META[campaign.platform] || {
+    label: campaign.platform,
+    emoji: "🌐",
+  };
+  const s = campaign.stats || {};
+  const budget =
+    money(campaign.daily_budget) != null
+      ? `${money(campaign.daily_budget)}/day`
+      : money(campaign.lifetime_budget) != null
+        ? `${money(campaign.lifetime_budget)} total`
+        : undefined;
+  return (
+    <ContentDetailsModal
+      isOpen={isOpen}
+      onClose={onClose}
+      item={campaign}
+      title="Campaign details"
+      platformLabel={meta.label}
+      platformIcon={meta.emoji}
+      dateLabel={
+        campaign.created_at
+          ? `Created ${format(new Date(campaign.created_at), "MMM d, yyyy")}`
+          : undefined
+      }
+      metrics={[
+        { icon: Eye, label: "Impressions", value: s.impressions },
+        { icon: Users, label: "Reach", value: s.reach },
+        { icon: MousePointer, label: "Clicks", value: s.clicks },
+        {
+          icon: TrendingUp,
+          label: "CTR",
+          value: s.ctr != null ? `${Number(s.ctr).toFixed(2)}%` : undefined,
+        },
+        { icon: Banknote, label: "Spend (30d)", value: money(s.spend) },
+        { icon: Coins, label: "CPC", value: money(s.cpc) },
+        { icon: Target, label: "Conversions", value: s.conversions },
+        { icon: Wallet, label: "Budget", value: budget },
+      ]}
+    />
+  );
+}
 
 /**
  * Sum one metric over campaigns — only the numbers the network actually sent.
@@ -187,6 +245,9 @@ const CUSTOM_TOOLTIP_STYLE = {
 export default function AdsAnalytics() {
   const [allPosts, setAllPosts] = useState([]);
   const [fetchingLive, setFetchingLive] = useState(false);
+  // The row opened in the details pop-up (kept after close for the exit animation).
+  const [detailsCampaign, setDetailsCampaign] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const { fetchIntegrations, activeBrandId } = useAuth();
 
   const [integrations, setIntegrations] = useState([]);
@@ -494,9 +555,19 @@ export default function AdsAnalytics() {
               rows={campaigns}
               rowKey={(post) => post.id}
               columns={AD_COLUMNS}
+              onRowClick={(campaign) => {
+                setDetailsCampaign(campaign);
+                setDetailsOpen(true);
+              }}
               className="border-0 rounded-none"
             />
           </div>
+
+          <CampaignDetailsModal
+            campaign={detailsCampaign}
+            isOpen={detailsOpen}
+            onClose={() => setDetailsOpen(false)}
+          />
         </div>
       )}
     </div>

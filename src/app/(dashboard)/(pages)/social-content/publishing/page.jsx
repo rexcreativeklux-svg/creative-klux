@@ -13,6 +13,7 @@ import {
   Users,
   Heart,
   MessageCircle,
+  Bookmark,
   ExternalLink,
   Share2,
   TrendingUp,
@@ -35,6 +36,7 @@ import {
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
+import ContentDetailsModal from "@/app/(components)/content/ContentDetailsModal";
 import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
 const BRAND = "#003dda";
@@ -177,8 +179,22 @@ const TABS = [
   { key: "scheduled", label: "Scheduled" },
 ];
 
+/** Clicks over impressions as a percentage string, or undefined if either is missing. */
+function ctrLabel(stats) {
+  const { clicks, impressions } = stats || {};
+  return typeof clicks === "number" && impressions
+    ? `${((clicks / impressions) * 100).toFixed(2)}%`
+    : undefined;
+}
+
 /* ─── Sub-components ─── */
-function StatCell({ value }) {
+// `loading`: the row's stats are still on their way — a shimmer, so a dash is
+// only ever "the backend sent no number", never "not asked yet".
+function StatCell({ value, loading = false }) {
+  if ((value === undefined || value === null) && loading)
+    return (
+      <span className="mx-auto block h-3 w-6 animate-pulse rounded bg-gray-200" />
+    );
   if (value === undefined || value === null)
     return <span className="text-gray-300 text-xs">—</span>;
   return (
@@ -234,6 +250,11 @@ export default function SocialPublishing() {
   const [allPosts, setAllPosts] = useState([]);
   const [refreshing, setRefreshing] = useState(null);
   const [fetchingLive, setFetchingLive] = useState(false);
+  // True while the background stats pass runs — empty cells shimmer meanwhile.
+  const [statsLoading, setStatsLoading] = useState(false);
+  // The row opened in the details pop-up (kept after close for the exit animation).
+  const [detailsPost, setDetailsPost] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   // The post the trash icon armed — deleting is irreversible, so it waits on a confirm.
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -285,13 +306,20 @@ export default function SocialPublishing() {
           p.type === matchType && p.post_id && STATS_PLATFORMS.includes(p.platform),
       );
       if (!targets.length) return;
-      const { stats, errors } = await loadStatsForRows(targets, (row) =>
-        getPostStats({
-          platform: row.platform,
-          post_id: row.post_id,
-          brand_id: activeBrandId,
-        }),
-      );
+      setStatsLoading(true);
+      let result;
+      try {
+        result = await loadStatsForRows(targets, (row) =>
+          getPostStats({
+            platform: row.platform,
+            post_id: row.post_id,
+            brand_id: activeBrandId,
+          }),
+        );
+      } finally {
+        setStatsLoading(false);
+      }
+      const { stats, errors } = result;
       setAllPosts((current) =>
         current.map((p) => (stats[p.id] ? { ...p, stats: stats[p.id] } : p)),
       );
@@ -669,10 +697,20 @@ export default function SocialPublishing() {
                     cls: "bg-gray-50 text-gray-700 border border-gray-200",
                   };
                   const stats = post.stats || {};
+                  // Shimmer only for rows the stats pass will actually answer.
+                  const cellLoading =
+                    statsLoading &&
+                    !post.stats?.last_updated &&
+                    !!post.post_id &&
+                    STATS_PLATFORMS.includes(post.platform);
                   return (
                     <tr
                       key={post.id}
-                      className={`border-b border-gray-100 transition-colors hover:bg-blue-50/40 ${i % 2 === 0 ? "bg-surface" : "bg-gray-50/50"}`}
+                      onClick={() => {
+                        setDetailsPost(post);
+                        setDetailsOpen(true);
+                      }}
+                      className={`cursor-pointer border-b border-gray-100 transition-colors hover:bg-blue-50/40 ${i % 2 === 0 ? "bg-surface" : "bg-gray-50/50"}`}
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -692,16 +730,6 @@ export default function SocialPublishing() {
                             {post.caption && (
                               <p className="text-[10px] text-gray-400 truncate max-w-[180px] mt-0.5">
                                 {post.caption}
-                              </p>
-                            )}
-                            {/* The platform answered but sent no numbers — its
-                                own reason, so the dashes aren't read as zeros. */}
-                            {stats.unavailable_reason && (
-                              <p
-                                className="text-[10px] text-amber-600 truncate max-w-[180px] mt-0.5"
-                                title={stats.unavailable_reason}
-                              >
-                                {stats.unavailable_reason}
                               </p>
                             )}
                           </div>
@@ -732,33 +760,28 @@ export default function SocialPublishing() {
                           : formatDate(post.published_at)}
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.impressions} />
+                        <StatCell value={stats.impressions} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.reach} />
+                        <StatCell value={stats.reach} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.clicks} />
+                        <StatCell value={stats.clicks} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.likes} />
+                        <StatCell value={stats.likes} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.comments} />
+                        <StatCell value={stats.comments} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.shares} />
+                        <StatCell value={stats.shares} loading={cellLoading} />
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <StatCell
-                          value={
-                            stats.ctr
-                              ? `${Number(stats.ctr).toFixed(2)}%`
-                              : undefined
-                          }
-                        />
+                        <StatCell value={ctrLabel(stats)} loading={cellLoading} />
                       </td>
-                      <td className="px-4 py-3">
+                      {/* Actions don't also open the details pop-up. */}
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           {post.permalink_url && (
                             <a
@@ -858,6 +881,47 @@ export default function SocialPublishing() {
           </div>
         </div>
       )}
+
+      {(() => {
+        // The live row, not the snapshot taken on click — so stats that land
+        // while the pop-up is open fill it in.
+        const post =
+          (detailsPost && allPosts.find((p) => p.id === detailsPost.id)) ||
+          detailsPost;
+        if (!post) return null;
+        const meta = PLATFORM_META[post.platform] || { label: post.platform, icon: "🌐" };
+        const s = post.stats || {};
+        const date =
+          post.status === "scheduled" ? post.scheduled_at : post.published_at;
+        return (
+          <ContentDetailsModal
+            isOpen={detailsOpen}
+            onClose={() => setDetailsOpen(false)}
+            item={post}
+            platformLabel={meta.label}
+            platformIcon={meta.icon}
+            badge={<StatusBadge post={post} />}
+            dateLabel={
+              date
+                ? `${post.status === "scheduled" ? "Scheduled" : "Published"} ${formatDate(date)}`
+                : undefined
+            }
+            statsLoading={
+              statsLoading && !s.last_updated && STATS_PLATFORMS.includes(post.platform)
+            }
+            metrics={[
+              { icon: Eye, label: "Impressions", value: s.impressions },
+              { icon: Users, label: "Reach", value: s.reach },
+              { icon: MousePointer, label: "Clicks", value: s.clicks },
+              { icon: TrendingUp, label: "CTR", value: ctrLabel(s) },
+              { icon: Heart, label: "Likes", value: s.likes },
+              { icon: MessageCircle, label: "Comments", value: s.comments },
+              { icon: Share2, label: "Shares", value: s.shares },
+              { icon: Bookmark, label: "Saves", value: s.saves },
+            ]}
+          />
+        );
+      })()}
 
       <ConfirmDialog
         open={!!pendingDelete}

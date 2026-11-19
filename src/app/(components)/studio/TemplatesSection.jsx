@@ -573,7 +573,9 @@ export default function TemplatesSection({
             onBrowseTemplates={() => setActiveTab(TAB_KLUX)}
           />
         ) : (
-          <TemplateCardGrid>
+          // One row, scrolled sideways — every tab, so the rail stays a single
+          // strip under the composer instead of growing line after line.
+          <TemplateCardGrid row>
             {items.map((item) =>
               // A chat has no layout to paint and no details to model, so it
               // gets its own card and opens the conversation directly.
@@ -621,7 +623,7 @@ export default function TemplatesSection({
 /** Skeleton cards, laid out in the same grid so nothing shifts on load. */
 function SkeletonGrid() {
   return (
-    <TemplateCardGrid>
+    <TemplateCardGrid row>
       {Array.from({ length: 4 }).map((_, index) => (
         <TemplateCardSkeleton key={index} />
       ))}

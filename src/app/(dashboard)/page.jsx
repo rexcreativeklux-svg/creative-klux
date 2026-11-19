@@ -371,8 +371,15 @@ export default function Home() {
           take whatever height is going and centres itself inside it, and the
           quick-start cards, which keep their own height at the foot. That split
           is what puts the cards just above the rail without pinning them there —
-          see the ⚠️ note in QuickStartCards.jsx. */}
-      <section className="relative flex min-h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav)-4rem)] flex-col bg-[#eef1f7] pt-[clamp(1.5rem,7vh,5rem)] lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))] dark:bg-page">
+          see the ⚠️ note in QuickStartCards.jsx.
+
+          ⚠️ RAISED: the template rail is now one sideways-scrolling row, and the
+          hero gives up an extra 14rem (lg) / 12rem (below lg) so that row's
+          tabs and the top of its cards are on screen when the page loads. That
+          trades away the old THEME-hairline alignment on purpose — the rail
+          being seen beats it lining up. It is a MIN height, so a short window
+          still fits the composer and quick-start cards in full. */}
+      <section className="relative flex min-h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav)-12rem)] flex-col bg-[#eef1f7] pt-[clamp(1rem,4vh,3rem)] lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top)-14rem)] dark:bg-page">
         <div className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-5 pb-10 sm:px-8">
           {/* Greeting — `font-manrope` on the header, not on each line, so the greeting and
               the line under it stay one voice — see --font-manrope in

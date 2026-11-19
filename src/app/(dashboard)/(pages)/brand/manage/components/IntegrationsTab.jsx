@@ -121,7 +121,7 @@ export default function IntegrationsTab() {
             href="/integrations"
             className="inline-flex items-center gap-0.5 font-semibold underline underline-offset-2 hover:text-blue-700"
           >
-            Integrations page
+            Connections page
             <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
           .

@@ -27,10 +27,74 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { toApiPlatform } from "@/(lib)/creativesApi";
 import { runServerOAuth } from "./serverOAuth";
+import { HIDDEN_PROVIDER_IDS } from "@/(lib)/integrations/platforms";
 
 // The API's keys, mapped back to the app's ids where they differ (X).
 const FROM_API_PLATFORM = { x: "twitter" };
 const fromApiPlatform = (provider) => FROM_API_PLATFORM[provider] || provider;
+
+/**
+ * Fired on `window` every time a catalogue is read, carrying the new connected
+ * count — so the sidebar's badge follows a connect/disconnect made on the
+ * Connections page (or the copilot's Plugins screen) without refetching.
+ */
+const COUNT_EVENT = "ck:connections-count";
+
+/**
+ * How many accounts are connected: rows the app actually offers (hidden
+ * providers don't count) that are fully connected. "Choose an account to
+ * finish" is NOT connected, so it isn't counted either.
+ */
+export const countConnected = (rows) =>
+  rows.filter((r) => r.connected && !HIDDEN_PROVIDER_IDS.has(r.id)).length;
+
+/** A catalogue response's rows, in the app's shape. */
+const toRows = (res) =>
+  res.integrations
+    .filter((e) => e?.provider)
+    .map((e) => ({
+      id: fromApiPlatform(e.provider),
+      provider: e.provider,
+      label: e.label || e.provider,
+      family: e.family ?? null,
+      isOauth: !!e.is_oauth,
+      connected: !!e.connected,
+      awaitingSelection: !!e.awaiting_selection,
+      selects: !!e.selects,
+      accountLabel: e.account_label || null,
+    }));
+
+/**
+ * Just the number of connected accounts for the active brand — for the
+ * sidebar's Connections badge. Reads the catalogue once per brand, then follows
+ * every later read made by useIntegrationCatalogue (COUNT_EVENT).
+ *
+ * @returns {number|null} The count, 0 when nothing is connected, or null while
+ *   loading / when the catalogue couldn't be read (so no badge is shown rather
+ *   than a misleading 0).
+ */
+export function useConnectedCount() {
+  const { activeBrandId, fetchIntegrationCatalogue } = useAuth();
+  const [count, setCount] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchIntegrationCatalogue(activeBrandId).then((res) => {
+      if (alive) setCount(res?.ok ? countConnected(toRows(res)) : null);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [fetchIntegrationCatalogue, activeBrandId]);
+
+  useEffect(() => {
+    const onCount = (e) => setCount(e.detail);
+    window.addEventListener(COUNT_EVENT, onCount);
+    return () => window.removeEventListener(COUNT_EVENT, onCount);
+  }, []);
+
+  return count;
+}
 
 /**
  * @param {object}   [options]
@@ -69,21 +133,12 @@ export function useIntegrationCatalogue({ notify } = {}) {
       setError(res?.message || "Couldn't load your integrations.");
       return null;
     }
-    const rows = res.integrations
-      .filter((e) => e?.provider)
-      .map((e) => ({
-        id: fromApiPlatform(e.provider),
-        provider: e.provider,
-        label: e.label || e.provider,
-        family: e.family ?? null,
-        isOauth: !!e.is_oauth,
-        connected: !!e.connected,
-        awaitingSelection: !!e.awaiting_selection,
-        selects: !!e.selects,
-        accountLabel: e.account_label || null,
-      }));
+    const rows = toRows(res);
     setEntries(rows);
     setError(null);
+    window.dispatchEvent(
+      new CustomEvent(COUNT_EVENT, { detail: countConnected(rows) }),
+    );
     return rows;
   }, []);
 

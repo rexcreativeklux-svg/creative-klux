@@ -18,7 +18,7 @@ import {
   Palette,
   Folder,
   Bot,
-  Brain,
+  BarChart3,
   Home,
   BookImage,
   Sparkles,
@@ -46,6 +46,15 @@ import { packageToSubscription } from "@/app/(components)/billing/billingData";
  * a fifth destination would push the labels below legible.
  */
 const BOTTOM_NAV_IDS = ["dashboard", "creatives", "magic-studio", "product-studio"];
+
+/** Category headers for the Designs tab, in display order. */
+const APPS_GROUPS = [
+  { id: "overview", label: "Overview" },
+  { id: "setup", label: "Set up" },
+  { id: "make", label: "Make" },
+  { id: "publish", label: "Publish" },
+  { id: "measure", label: "Measure" },
+];
 
 /**
  * ── THE THREE PLACES THIS COMPONENT RENDERS ─────────────────────────────────
@@ -249,10 +258,12 @@ const Sidebar = ({
   // slot, and "Creative S…" is worse than "Creative". Only the four items in
   // BOTTOM_NAV_IDS need one.
   const appsItems = [
-    { id: "dashboard", label: "Home", short: "Home", href: "/", icon: LayoutDashboard },
-    { id: "brand", label: "Brand Kits", href: "/brand/reuse", icon: Palette },
+    { id: "dashboard", group: "overview", label: "Home", short: "Home", href: "/", icon: LayoutDashboard },
+    { id: "brand", group: "setup", label: "Brand Kits", href: "/brand/reuse", icon: Palette },
+    { id: "integrations", group: "setup", label: "Integrations", href: "/integrations", icon: Workflow },
     {
       id: "creatives",
+      group: "make",
       label: "Creative Studio",
       short: "Creative",
       href: "/creatives",
@@ -260,6 +271,7 @@ const Sidebar = ({
     },
     {
       id: "product-studio",
+      group: "make",
       label: "Product Studio",
       short: "Product",
       href: "/product-studio",
@@ -267,6 +279,7 @@ const Sidebar = ({
     },
     {
       id: "magic-studio",
+      group: "make",
       label: "Magic Studio",
       short: "Magic",
       href: "/magic-studio",
@@ -274,21 +287,24 @@ const Sidebar = ({
     },
     {
       id: "social-content",
+      group: "publish",
       label: "Social",
       href: "/social-content",
       icon: Share2,
     },
     {
       id: "ads-content",
+      group: "publish",
       label: "Ads",
       href: "/ads-content",
       icon: Megaphone,
     },
     {
       id: "ad-intelligence",
+      group: "measure",
       label: "Ad Intelligence",
       href: "/ad-intelligence",
-      icon: Brain,
+      icon: BarChart3,
     },
     // Parked ideas (pages exist but are not surfaced yet):
     // { id: "brandPulse", label: "Brand Pulse", href: "/brandPulse", icon: Activity },
@@ -367,6 +383,34 @@ const Sidebar = ({
   const renderNavList = (items) => {
     const activeHref = activeHrefIn(items);
     return items.map((item) => renderNavItem(item, item.href === activeHref));
+  };
+
+  /**
+   * Apps list split under category headers (Overview / Set up / Make / …).
+   * The active item is still resolved across the WHOLE list, so longest-match
+   * keeps working between groups. Collapsed, a header has no room for its
+   * label, so it becomes a short hairline between groups instead.
+   */
+  const renderGroupedNavList = (items) => {
+    const activeHref = activeHrefIn(items);
+    return APPS_GROUPS.map(({ id: groupId, label }, i) => {
+      const groupItems = items.filter((item) => item.group === groupId);
+      if (!groupItems.length) return null;
+      return (
+        <div key={groupId} className="flex flex-col gap-1">
+          {isOpen ? (
+            <p
+              className={`px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 ${i === 0 ? "" : "pt-3"}`}
+            >
+              {label}
+            </p>
+          ) : (
+            i > 0 && <div className="mx-2 my-1.5 border-t border-gray-200" aria-hidden="true" />
+          )}
+          {groupItems.map((item) => renderNavItem(item, item.href === activeHref))}
+        </div>
+      );
+    });
   };
 
   // ── Apps/Copilot tab switcher ──────────────────────────────────
@@ -543,11 +587,16 @@ const Sidebar = ({
         >
           {activeTab === "apps" ? (
             <>
-              {renderNavList(appsItems)}
+              {renderGroupedNavList(appsItems)}
               {/* The three newest copilots, from GET /copilots — put where
                   someone working on designs passes them. Expanded only, same
                   reason as the Copilot sections below. */}
-              {isOpen && <RecentCopilots onNavigate={onNavigate} />}
+              {isOpen && (
+                <>
+                  <div className="mx-1 my-2 border-t border-gray-200" aria-hidden="true" />
+                  <RecentCopilots onNavigate={onNavigate} />
+                </>
+              )}
             </>
           ) : (
             <>

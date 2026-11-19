@@ -46,23 +46,6 @@ const PREVIEW_MAX_DIM = 480;
 /** The rail's column ramp. The modal's band passes its own three-up ramp. */
 const DEFAULT_COLUMNS = "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
 
-/** Relative-ish date label for a card's footer. */
-function formatMeta(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-
-  const days = Math.floor((Date.now() - date.getTime()) / 86_400_000);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 30) return `${days} days ago`;
-  if (days < 365) return `${Math.floor(days / 30)} months ago`;
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    year: "numeric",
-  });
-}
-
 /** Only paint a colour onto the tile when it really is a CSS colour string. */
 const asColor = (value) =>
   typeof value === "string" && /^(#|rgb|hsl)/i.test(value.trim())
@@ -114,13 +97,12 @@ export function TemplateCardSkeleton() {
   return (
     <div className={`border-b border-r border-gray-200 py-5 ${GUTTER}`}>
       <div className="aspect-16/10 animate-pulse rounded-lg bg-gray-100" />
-      <div className="mt-3.5 space-y-2">
-        <div className="h-3.5 w-2/3 animate-pulse rounded bg-gray-100" />
-        <div className="h-3 w-1/2 animate-pulse rounded bg-gray-100" />
-      </div>
-      <div className="mt-4 flex items-center justify-between">
-        <div className="h-3 w-20 animate-pulse rounded bg-gray-100" />
-        <div className="h-8 w-8 animate-pulse rounded-lg bg-gray-100" />
+      <div className="mt-3.5 flex items-center justify-between gap-2">
+        <div className="flex-1 space-y-2">
+          <div className="h-3.5 w-2/3 animate-pulse rounded bg-gray-100" />
+          <div className="h-3 w-1/2 animate-pulse rounded bg-gray-100" />
+        </div>
+        <div className="h-8 w-8 shrink-0 animate-pulse rounded-lg bg-gray-100" />
       </div>
     </div>
   );
@@ -266,7 +248,6 @@ function useDesignPreview(item) {
  *   since there is nothing to manage from inside a dialog.
  */
 export default function TemplateCard({ item, onOpenDetails, onItemMenu }) {
-  const meta = formatMeta(item.meta);
   const { ref, src, failed, onSrcError } = useDesignPreview(item);
   // The design's own background fills the letterbox around the contained
   // preview, so a portrait template reads as artwork rather than a crop.
@@ -351,8 +332,8 @@ export default function TemplateCard({ item, onOpenDetails, onItemMenu }) {
         )}
       </div>
 
-      {/* Title + format */}
-      <div className="mt-3.5 flex items-start justify-between gap-2">
+      {/* Title + format, with the arrow chip justified to the right */}
+      <div className="mt-3.5 flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold text-gray-900">
             {item.title}
@@ -372,31 +353,28 @@ export default function TemplateCard({ item, onOpenDetails, onItemMenu }) {
               onItemMenu(item);
             }}
             aria-label={`More options for ${item.title}`}
-            className="-mr-1 shrink-0 rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 cursor-pointer"
+            className="shrink-0 rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 cursor-pointer"
           >
             <MoreHorizontal className="h-4 w-4" />
           </button>
         )}
-      </div>
 
-      {/* Footer: date + "View details" affordance ─────────────────────────
-          One pill, two states. At rest it's the 32px arrow chip; on hover (or
-          keyboard focus) the label unrolls to its left and the chip grows into
-          a button, so the card says what a click does before you click it.
-          It is NOT a <button>: the whole card already opens the details modal,
-          and a real button in here would nest an interactive element inside a
-          role="button" div for no extra behaviour.
-          Below `md` there is no hover to give, so the label is simply always
-          out — a single-column card has room for it.
-          gray-900 / surface invert together, so this reads as a dark chip in
-          light mode and a light one in dark mode without a second rule. */}
-      <div className="mt-auto flex items-center justify-between gap-2 pt-4">
-        <span className="truncate text-[13px] text-gray-500">{meta}</span>
+        {/* "View details" affordance, justified opposite the title.
+            One pill, two states. At rest it's the 32px arrow chip; on hover (or
+            keyboard focus) the label unrolls to its left and the chip grows into
+            a button, so the card says what a click does before you click it.
+            It is NOT a <button>: the whole card already opens the details modal,
+            and a real button in here would nest an interactive element inside a
+            role="button" div for no extra behaviour.
+            Hover-only at every width: sharing the row with the title, an
+            always-out label would squeeze the title on phones.
+            gray-900 / surface invert together, so this reads as a dark chip in
+            light mode and a light one in dark mode without a second rule. */}
         <span
           aria-hidden="true"
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-gray-900 pl-3 text-surface transition-all duration-300 ease-out md:gap-0 md:pl-0 md:group-hover:gap-1.5 md:group-hover:pl-3 md:group-focus-visible:gap-1.5 md:group-focus-visible:pl-3"
+          className="flex h-8 shrink-0 items-center gap-0 rounded-lg bg-gray-900 pl-0 text-surface transition-all duration-300 ease-out group-hover:gap-1.5 group-hover:pl-3 group-focus-visible:gap-1.5 group-focus-visible:pl-3"
         >
-          <span className="max-w-28 overflow-hidden whitespace-nowrap text-[13px] font-medium opacity-100 transition-all duration-300 ease-out md:max-w-0 md:opacity-0 md:group-hover:max-w-28 md:group-hover:opacity-100 md:group-focus-visible:max-w-28 md:group-focus-visible:opacity-100">
+          <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] font-medium opacity-0 transition-all duration-300 ease-out group-hover:max-w-28 group-hover:opacity-100 group-focus-visible:max-w-28 group-focus-visible:opacity-100">
             View details
           </span>
           <span className="flex h-8 w-8 shrink-0 items-center justify-center">

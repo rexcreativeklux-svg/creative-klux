@@ -22,6 +22,21 @@ import CreateCopilotModal from "./_components/CreateCopilotModal";
 import { CATEGORIES, IDEAS } from "./_data/ideas";
 import { newConversationId } from "./_data/copilots";
 
+/**
+ * Colour sets for the idea tiles, cycled by position — taken from the home
+ * page's template artwork. Literal hex rather than theme tokens on purpose:
+ * these are "printed" tiles and must look the same in light and dark mode
+ * (gray-900 etc. flip in dark mode and would vanish on these backgrounds).
+ */
+const IDEA_TILES = [
+  { bg: "#1d4ed8", fg: "#ffffff", muted: "rgba(255,255,255,0.78)", eyebrow: "rgba(255,255,255,0.7)", accent: "#facc15" },
+  { bg: "#fdf1e4", fg: "#1f2937", muted: "#4b5563", eyebrow: "#e2553b", accent: "#e2553b" },
+  { bg: "#0f6b4f", fg: "#ffffff", muted: "rgba(255,255,255,0.78)", eyebrow: "#facc15", accent: "#facc15" },
+  { bg: "#0b3b3f", fg: "#ffffff", muted: "rgba(255,255,255,0.75)", eyebrow: "#f4a261", accent: "#f4a261" },
+  { bg: "#0f1736", fg: "#ffffff", muted: "rgba(255,255,255,0.72)", eyebrow: "#93c5fd", accent: "#3b82f6" },
+  { bg: "#fde68a", fg: "#1f2937", muted: "#4b5563", eyebrow: "#1d4ed8", accent: "#1d4ed8" },
+];
+
 function CopilotHome() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -63,27 +78,10 @@ function CopilotHome() {
     // bar for every route, so repeating it here would only add dead space.
     <div className="min-h-full pt-header flex flex-col bg-[#eef1f7] dark:bg-page">
       {/* ── Hero ──────────────────────────────────────────────────
-          ⚠️ THE HEIGHT IS MEASURED, NOT CHOSEN — the same trick the home page
-          uses. On desktop the hero is sized so that whatever follows it starts
-          exactly --ck-rail-top above the bottom of the window, which is where
-          the sidebar's THEME row begins. That makes the ideas section's top
-          rule continue the sidebar's THEME hairline straight across the screen
-          instead of cutting the window at an unrelated height.
-
-          Sizing it from the BOTTOM is the point: the rule has to land on the
-          sidebar's hairline, and only the viewport's bottom edge knows where
-          that is. Any fixed hero height would drift the moment the window
-          resized. See the --ck-rail-* block in globals.css.
-
-          ⚠️ `lg`, not `md` — one of the places that must agree on where the
-          sidebar appears. Below it there is no sidebar to line up with, so the
-          hero just takes its natural height and the section flows.
-
-          justify-center comes with the height: without it the content sits at
-          the top of a much taller box. pt-24 then nudges the centred group
-          down by half its value, the same way the home hero's pt-[clamp()]
-          does. */}
-      <section className="flex flex-col items-center px-gutter pt-10 sm:pt-14 lg:pt-24 pb-12 lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))] lg:justify-center">
+          Natural height: the ideas below sit in an inset, rounded panel now,
+          so they no longer need to line up with the sidebar's THEME hairline
+          (which is what the old measured --ck-rail-top height was for). */}
+      <section className="flex flex-col items-center px-gutter pt-10 sm:pt-14 lg:pt-16 pb-8">
         <h1 className="text-center text-3xl md:text-[44px] md:leading-[1.2] font-bold text-gray-900">
           Give your
           <br />
@@ -108,63 +106,92 @@ function CopilotHome() {
           onCreated={handleCreated}
         />
 
-        <p className="mt-14 text-xs text-gray-500">
+        <p className="mt-10 text-xs text-gray-500">
           Or start from one of these ideas:
         </p>
       </section>
 
       {/* ── Starter ideas ───────────────────────────────────────── */}
-      <section className="bg-surface border-t border-gray-200 flex-1 pb-20 md:pb-0">
-        {/* Category tabs — pinned to --ck-rail-row on desktop, the height of the
-            sidebar's THEME row. With the hero above sized to --ck-rail-top, that
-            puts this strip's two rules (the section's border-t above, the card
-            grid's border-t below) on exactly the same screen lines as the two
-            rules bracketing THEME, so both hairlines run unbroken across the
-            window. Same construction as the home rail's tab row — change one and
-            check the other. Below `lg` it just flows. */}
-        <div className="flex items-center md:justify-center gap-6 overflow-x-auto hide-scrollbar px-4 py-3 lg:h-(--ck-rail-row) lg:py-0">
-          {CATEGORIES.map((category) => {
-            const active = activeCategory === category;
-            return (
-              <button
-                key={category}
-                onClick={() => setActiveCategory(category)}
-                className={`flex items-center gap-1.5 shrink-0 text-[13px] cursor-pointer transition-colors
-                  ${active ? "text-gray-900 font-semibold" : "text-gray-500 hover:text-gray-900"}`}
-              >
-                {active && (
-                  <span className="h-1.5 w-1.5 rounded-[2px] bg-blue-600" />
-                )}
-                {category}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Idea cards — gap-px over a gray backdrop draws the hairline grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-gray-200 border-y border-gray-200">
-          {ideas.map(({ title, platforms, description }) => (
-            <div key={title} className="bg-surface p-6">
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-[15px] font-semibold text-gray-900">
-                  {title}
-                </p>
-                <span className="flex items-center gap-1.5">
-                  {platforms.map((platform) => (
-                    <PlatformChip key={platform} platform={platform} />
-                  ))}
+      {/* A rounded, bordered panel inset from the page edges, holding
+          its own header row (category tabs) and rounded idea cards — the same
+          box treatment as the home page's Templates panel. */}
+      <section className="flex-1 px-gutter pb-24 lg:pb-8">
+        <div className="w-full rounded-2xl border border-gray-200 bg-surface shadow-sm">
+          {/* Header row — category tabs, left-aligned, dot-separated */}
+          <div className="flex items-center gap-3 overflow-x-auto hide-scrollbar border-b border-gray-200 px-4 sm:px-5 py-3.5">
+            {CATEGORIES.map((category, i) => {
+              const active = activeCategory === category;
+              return (
+                <span key={category} className="flex shrink-0 items-center gap-3">
+                  {i > 0 && (
+                    <span className="h-1 w-1 rounded-full bg-gray-300" aria-hidden="true" />
+                  )}
+                  <button
+                    onClick={() => setActiveCategory(category)}
+                    className={`text-[13px] cursor-pointer transition-colors
+                      ${active ? "text-gray-900 font-semibold" : "text-gray-500 hover:text-gray-900"}`}
+                  >
+                    {category}
+                  </button>
                 </span>
-              </div>
-              <p className="mt-3 text-sm text-gray-500 leading-relaxed">
-                {description}
-              </p>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
 
-        <p className="text-center text-xs text-gray-400 py-4">
-          You can find these ideas anytime inside your Copilot.
-        </p>
+          {/* Idea cards — bold colour tiles, styled after the home page's
+              template artwork: category eyebrow, big headline, short copy, and
+              an accent shape along the bottom. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 sm:p-4">
+            {ideas.map(({ title, platforms, description }, i) => {
+              const tile = IDEA_TILES[i % IDEA_TILES.length];
+              return (
+                <div
+                  key={title}
+                  className="group relative flex min-h-56 flex-col overflow-hidden rounded-xl p-6 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+                  style={{ backgroundColor: tile.bg }}
+                >
+                  {/* Accent shape */}
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -bottom-8 -left-6 h-16 w-[75%] -rotate-6"
+                    style={{ backgroundColor: tile.accent }}
+                  />
+
+                  <div className="relative flex items-start justify-between gap-3">
+                    <p
+                      className="text-[10px] font-bold uppercase tracking-[0.18em]"
+                      style={{ color: tile.eyebrow }}
+                    >
+                      {activeCategory}
+                    </p>
+                    <span className="flex items-center gap-1.5">
+                      {platforms.map((platform) => (
+                        <PlatformChip key={platform} platform={platform} />
+                      ))}
+                    </span>
+                  </div>
+
+                  <p
+                    className="relative mt-4 text-2xl font-extrabold leading-tight tracking-tight"
+                    style={{ color: tile.fg }}
+                  >
+                    {title}
+                  </p>
+                  <p
+                    className="relative mt-2.5 pb-8 text-[13px] leading-relaxed"
+                    style={{ color: tile.muted }}
+                  >
+                    {description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="border-t border-gray-200 text-center text-xs text-gray-400 py-3.5">
+            You can find these ideas anytime inside your Copilot.
+          </p>
+        </div>
       </section>
     </div>
   );

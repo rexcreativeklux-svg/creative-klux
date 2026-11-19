@@ -2126,6 +2126,33 @@ export function AuthProvider({ children }) {
     [token],
   );
 
+  const bulkUploadMedia = useCallback(
+    async (files) => {
+      if (!token) throw new Error("Not authenticated");
+      if (!files?.length) throw new Error("No files provided");
+
+      const formData = new FormData();
+      files.forEach((file) => formData.append("files[]", file));
+
+      try {
+        // Multipart override for the same reason as uploadMedia above.
+        const { data } = await api.post(
+          `${BASE_URL}/gallery/bulk-upload`,
+          formData,
+          { headers: { "Content-Type": "multipart/form-data" } },
+        );
+        return data;
+      } catch (err) {
+        console.error("❌ Gallery bulk upload failed:", {
+          status: err?.response?.status,
+          body: err?.response?.data,
+        });
+        throw new Error(backendErrorMessage(err));
+      }
+    },
+    [token],
+  );
+
   const fetchTutorialVideos = useCallback(async () => {
     if (!token) {
       setTutorialVideos([]);
@@ -4005,6 +4032,7 @@ export function AuthProvider({ children }) {
         uploadMedia,
         deleteImage,
         bulkDeleteGalleryItems,
+        bulkUploadMedia,
         verifyEmail,
         resendVerificationEmail,
         sendVerificationCode,

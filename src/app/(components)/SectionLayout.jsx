@@ -43,6 +43,14 @@
  *                                  padding. Off by default: an ordinary section
  *                                  page expects the same frame the dashboard puts
  *                                  around every other route.
+ * @param {object}   [props.filter]  An optional pick-one list under the page
+ *                                  links — Social Content uses it for its
+ *                                  networks. Clicking an option calls
+ *                                  `onChange(id)`; the section owns the value.
+ * @param {string}   props.filter.heading
+ * @param {string}   props.filter.value
+ * @param {(id: string) => void} props.filter.onChange
+ * @param {Array<{id: string, label: string, Icon: import("react").ElementType, color?: string, dim?: boolean, hint?: string}>} props.filter.options
  * @param {import("react").ReactNode} props.children  The active section page
  */
 
@@ -52,12 +60,15 @@ import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useSecondarySidebar } from "@/context/SecondarySidebarContext";
 
-const SectionLayout = ({ title, items, bleed = false, children }) => {
+const SectionLayout = ({ title, items, filter, bleed = false, children }) => {
   const pathname = usePathname();
   const { isOpen, toggle } = useSecondarySidebar();
 
-  const isActive = (href) =>
-    pathname === href || pathname?.startsWith(href + "/");
+  // An item's href may carry a query (?platform=…) — match on the path alone.
+  const isActive = (href) => {
+    const path = href.split("?")[0];
+    return pathname === path || pathname?.startsWith(path + "/");
+  };
 
   // ── Collapsed-panel label tooltip ──────────────────────────────
   // Same pattern as the primary sidebar: the panel clips overflow while
@@ -140,6 +151,49 @@ const SectionLayout = ({ title, items, bleed = false, children }) => {
               </Fragment>
             );
           })}
+
+          {/* Optional pick-one list (Social Content: its networks) */}
+          {filter && (
+            <>
+              {isOpen ? (
+                <p className="px-3 pt-4 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-gray-400">
+                  {filter.heading}
+                </p>
+              ) : (
+                <div className="mx-2 my-2 border-t border-gray-200" />
+              )}
+              {filter.options.map(({ id, label, Icon, color, dim, hint }) => {
+                const active = filter.value === id;
+                const tip = hint ? `${label} · ${hint}` : label;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => filter.onChange(id)}
+                    aria-pressed={active}
+                    title={isOpen && hint ? tip : undefined}
+                    className={`group flex items-center gap-3 w-full cursor-pointer rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150
+                    ${active ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"}
+                    ${!isOpen ? "justify-center px-0" : ""}`}
+                    onMouseEnter={(e) => showTip(e, tip, active)}
+                    onMouseLeave={hideTip}
+                    onFocus={(e) => showTip(e, tip, active)}
+                    onBlur={hideTip}
+                  >
+                    <Icon
+                      className={`h-4 w-4 shrink-0 transition-opacity ${dim && !active ? "opacity-40" : ""}`}
+                      style={color ? { color } : undefined}
+                    />
+                    {isOpen && (
+                      <span className={`flex-1 truncate text-left ${dim && !active ? "text-gray-400" : ""}`}>
+                        {label}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </nav>
 
         {/* Panel footer — this panel's own collapse/expand toggle */}
@@ -217,6 +271,30 @@ const SectionLayout = ({ title, items, bleed = false, children }) => {
             );
           })}
         </nav>
+        {/* The pick-one list as a second row of chips */}
+        {filter && (
+          <nav
+            aria-label={filter.heading}
+            className="flex gap-2 overflow-x-auto hide-scrollbar px-4 pb-2"
+          >
+            {filter.options.map(({ id, label, Icon, color, dim }) => {
+              const active = filter.value === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => filter.onChange(id)}
+                  aria-pressed={active}
+                  className={`flex cursor-pointer items-center gap-1.5 shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors
+                    ${active ? "bg-blue-50 text-blue-600 border-blue-200" : `border-gray-200 hover:bg-gray-100 ${dim ? "text-gray-400" : "text-gray-500 hover:text-gray-900"}`}`}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" style={color ? { color } : undefined} />
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+        )}
       </div>
 
       {/* ── Section page content ────────────────────────────────── */}

@@ -239,9 +239,10 @@ export function CalendarSkeleton({ weeks = 6 }) {
 
       <FilterCardSkeleton />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        {/* Month grid */}
-        <div className="lg:col-span-3">
+      {/* Month grid — full width. The day details open in a slide-in drawer
+          now, so there is no side panel to hold space for. */}
+      <div>
+        <div>
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-surface">
             <div className="grid grid-cols-7 border-b border-gray-100">
               {Array.from({ length: 7 }).map((_, index) => (
@@ -276,14 +277,6 @@ export function CalendarSkeleton({ weeks = 6 }) {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Day detail panel */}
-        <div className="lg:col-span-1">
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-gray-200 bg-surface p-4 py-14">
-            <Skeleton w={32} h={32} className="rounded-lg" tone="soft" />
-            <Skeleton className="h-3 w-32" tone="soft" />
           </div>
         </div>
       </div>

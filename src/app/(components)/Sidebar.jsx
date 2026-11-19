@@ -32,7 +32,6 @@ import Link from "next/link";
 import LogoutModal from "./LogoutModal";
 import ThemeSwitcher from "./ThemeSwitcher";
 import CopilotNavSections from "@/app/(dashboard)/(pages)/copilot/_components/CopilotNavSections";
-import RecentCopilots from "@/app/(dashboard)/(pages)/copilot/_components/RecentCopilots";
 import { packageToSubscription } from "@/app/(components)/billing/billingData";
 import { useConnectedCount } from "@/app/(components)/integrations/useIntegrationCatalogue";
 
@@ -609,13 +608,7 @@ const Sidebar = ({
           onScroll={hideTip}
         >
           {activeTab === "apps" ? (
-            <>
-              {renderGroupedNavList(appsItems)}
-              {/* The three newest copilots, from GET /copilots — put where
-                  someone working on designs passes them. Expanded only, same
-                  reason as the Copilot sections below. */}
-              {isOpen && <RecentCopilots onNavigate={onNavigate} />}
-            </>
+            renderGroupedNavList(appsItems)
           ) : (
             <>
               {renderNavList(copilotItems)}

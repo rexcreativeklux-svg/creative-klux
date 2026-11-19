@@ -554,84 +554,80 @@ export default function AdsPublishing() {
       )}
 
       {/* ── Status Tabs ── */}
-      {posts.length > 0 && (
-        <div className="border-b border-gray-200 bg-surface rounded-t-xl shadow-sm">
-          {/* The tab row scrolls sideways on narrow screens instead of squeezing or
-              spilling out of the card. The -1px pull lives on the scroller (not on
-              each button) so the active tab's underline still covers the wrapper's
-              hairline without overflowing — and being clipped by — the scroll box. */}
-          <div className="-mb-px flex items-center overflow-x-auto hide-scrollbar px-2">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setStatusFilter(tab.key)}
-                className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+      <div className="border-b border-gray-200 bg-surface rounded-t-xl shadow-sm">
+        {/* The tab row scrolls sideways on narrow screens instead of squeezing or
+            spilling out of the card. The -1px pull lives on the scroller (not on
+            each button) so the active tab's underline still covers the wrapper's
+            hairline without overflowing — and being clipped by — the scroll box. */}
+        <div className="-mb-px flex items-center overflow-x-auto hide-scrollbar px-2">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+              className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                statusFilter === tab.key
+                  ? "border-[#003dda] text-[#003dda]"
+                  : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
+              }`}
+            >
+              {tab.label}
+              <span
+                className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                style={
                   statusFilter === tab.key
-                    ? "border-[#003dda] text-[#003dda]"
-                    : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
-                }`}
+                    ? { backgroundColor: BRAND, color: "#fff" }
+                    : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
+                }
               >
-                {tab.label}
-                <span
-                  className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                  style={
-                    statusFilter === tab.key
-                      ? { backgroundColor: BRAND, color: "#fff" }
-                      : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
-                  }
-                >
-                  {TAB_COUNTS[tab.key]}
-                </span>
-              </button>
-            ))}
-          </div>
+                {TAB_COUNTS[tab.key]}
+              </span>
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* ── Filter Bar ── */}
-      {posts.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-surface border-x border-b border-gray-200 rounded-b-xl mb-6 shadow-sm">
-          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-9">
-            <Filter className="w-3.5 h-3.5 text-gray-400" />
-            <select
-              value={platformFilter}
-              onChange={(e) => setPlatformFilter(e.target.value)}
-              className="bg-transparent text-xs text-gray-700 outline-none pr-1 cursor-pointer"
-            >
-              <option value="all">All Platforms</option>
-              <optgroup label="── Advertising">
-                {ADS_PLATFORMS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.icon} {p.label}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-          </div>
-
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by title or caption…"
-              className="w-full pl-8 pr-8 h-9 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-[#003dda] transition-colors"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          <span className="text-xs text-gray-400 ml-auto">
-            {filteredPosts.length} result{filteredPosts.length !== 1 ? "s" : ""}
-          </span>
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-surface border-x border-b border-gray-200 rounded-b-xl mb-6 shadow-sm">
+        <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-9">
+          <Filter className="w-3.5 h-3.5 text-gray-400" />
+          <select
+            value={platformFilter}
+            onChange={(e) => setPlatformFilter(e.target.value)}
+            className="bg-transparent text-xs text-gray-700 outline-none pr-1 cursor-pointer"
+          >
+            <option value="all">All Platforms</option>
+            <optgroup label="── Advertising">
+              {ADS_PLATFORMS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.icon} {p.label}
+                </option>
+              ))}
+            </optgroup>
+          </select>
         </div>
-      )}
+
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by title or caption…"
+            className="w-full pl-8 pr-8 h-9 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-[#003dda] transition-colors"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <span className="text-xs text-gray-400 ml-auto">
+          {filteredPosts.length} result{filteredPosts.length !== 1 ? "s" : ""}
+        </span>
+      </div>
 
       {/* ── Empty: filters active but no results ── */}
       {filteredPosts.length === 0 && posts.length > 0 && (

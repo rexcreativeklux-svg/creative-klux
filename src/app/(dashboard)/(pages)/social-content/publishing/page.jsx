@@ -1,22 +1,17 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
+  Loader2,
   BarChart3,
   Calendar,
   CheckCircle2,
   Clock,
   Trash2,
   RefreshCw,
+  Plus,
   Eye,
-  MousePointer,
-  Users,
-  Heart,
-  MessageCircle,
-  Bookmark,
   ExternalLink,
-  Share2,
-  TrendingUp,
   X,
   Search,
   ChevronLeft,
@@ -33,10 +28,19 @@ import {
   platformSupportsDelete,
   carryStats,
 } from "../../../../../(lib)/integration";
+import {
+  metricKeysOf,
+  metricLabel,
+  formatMetric,
+  postMetrics,
+  unavailableReason,
+} from "../../../../../(lib)/postMetrics";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import ContentDetailsModal from "@/app/(components)/content/ContentDetailsModal";
+import CreatePostComposer from "@/app/(components)/composer/CreatePostComposer";
+import { useSocialPlatform } from "@/app/(components)/content/socialPlatformScope";
 import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
 const BRAND = "#003dda";
@@ -157,19 +161,13 @@ const ADS_PLATFORMS = Object.entries(PLATFORM_META)
   .filter(([, v]) => v.group === "ads")
   .map(([k, v]) => ({ id: k, ...v }));
 
-const TABLE_COLS = [
+// The fixed columns; the metric columns between them and Actions are whatever
+// the backend sent for the rows on screen, under its own names.
+const LEAD_COLS = [
   { label: "Creative", align: "left" },
   { label: "Platform", align: "left" },
   { label: "Status", align: "left" },
   { label: "Date", align: "left" },
-  { label: "Impr.", align: "center", Icon: Eye },
-  { label: "Reach", align: "center", Icon: Users },
-  { label: "Clicks", align: "center", Icon: MousePointer },
-  { label: "Likes", align: "center", Icon: Heart },
-  { label: "Comments", align: "center", Icon: MessageCircle },
-  { label: "Shares", align: "center", Icon: Share2 },
-  { label: "CTR", align: "center", Icon: TrendingUp },
-  { label: "Actions", align: "right" },
 ];
 
 // "Scheduled" is a post the platform itself reports as scheduled.
@@ -179,22 +177,22 @@ const TABS = [
   { key: "scheduled", label: "Scheduled" },
 ];
 
-/** Clicks over impressions as a percentage string, or undefined if either is missing. */
-function ctrLabel(stats) {
-  const { clicks, impressions } = stats || {};
-  return typeof clicks === "number" && impressions
-    ? `${((clicks / impressions) * 100).toFixed(2)}%`
-    : undefined;
+/* ─── Sub-components ─── */
+/** A tiny spinner for a value that is still on its way. */
+function Spinner() {
+  return (
+    <Loader2
+      aria-label="Loading"
+      className="mx-auto h-3 w-3 animate-spin text-gray-300"
+    />
+  );
 }
 
-/* ─── Sub-components ─── */
 // `loading`: the row's stats are still on their way — a shimmer, so a dash is
 // only ever "the backend sent no number", never "not asked yet".
 function StatCell({ value, loading = false }) {
   if ((value === undefined || value === null) && loading)
-    return (
-      <span className="mx-auto block h-3 w-6 animate-pulse rounded bg-gray-200" />
-    );
+    return <Spinner />;
   if (value === undefined || value === null)
     return <span className="text-gray-300 text-xs">—</span>;
   return (
@@ -243,9 +241,10 @@ function SummaryCard({ label, value, Icon }) {
 
 /* ─── Main Component ─── */
 export default function SocialPublishing() {
-  // Hardcoded for social
-  const typeLabel = "Social";
   const matchType = "social";
+  // The network picked in the section sidebar (?platform=), or every network.
+  const { platform: scope, network, scoped, inScope } = useSocialPlatform();
+  const typeLabel = network?.label ?? "Social";
 
   const [allPosts, setAllPosts] = useState([]);
   const [refreshing, setRefreshing] = useState(null);
@@ -255,6 +254,8 @@ export default function SocialPublishing() {
   // The row opened in the details pop-up (kept after close for the exit animation).
   const [detailsPost, setDetailsPost] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // The "Create new post" composer.
+  const [composerOpen, setComposerOpen] = useState(false);
   // The post the trash icon armed — deleting is irreversible, so it waits on a confirm.
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -266,20 +267,38 @@ export default function SocialPublishing() {
 
   const { fetchIntegrations, activeBrandId } = useAuth();
   const [integrations, setIntegrations] = useState([]);
-  const [integrationsReady, setIntegrationsReady] = useState(false);
-  // First load only — see the skeleton guard below the hooks.
-  const [loading, setLoading] = useState(true);
+  // Which brand the integrations list belongs to, and which brand+network the
+  // posts on screen were loaded for. The page only counts as ready when both
+  // match what is current — so a brand or network switch goes back to the
+  // skeleton instead of flashing "Connect" / "No posts" for the old answer.
+  const [integrationsBrand, setIntegrationsBrand] = useState(undefined);
+  const integrationsReady = integrationsBrand === (activeBrandId ?? null);
+  const loadKey = `${activeBrandId ?? ""}|${scope}`;
+  const [loadedKey, setLoadedKey] = useState(null);
+  const latestKey = useRef(loadKey);
+  useEffect(() => {
+    latestKey.current = loadKey;
+  }, [loadKey]);
+  const loading = !integrationsReady || loadedKey !== loadKey;
+  // What gets fetched: one network's connection when one is picked.
+  const scopedIntegrations = useMemo(
+    () =>
+      scoped && Array.isArray(integrations)
+        ? integrations.filter((i) => i.platform === scope)
+        : integrations,
+    [integrations, scoped, scope],
+  );
 
   // A brand switch clears the previous brand's posts and holds the skeleton
   // until the backend answers for the new one.
   useEffect(() => {
     setAllPosts([]);
-    setLoading(true);
   }, [activeBrandId]);
 
   // 1. Load integrations first. Keyed on the active brand too: the endpoint scopes
   //    integrations to the brand the backend has active, so a switch must refetch.
   useEffect(() => {
+    const brand = activeBrandId ?? null;
     const loadIntegrations = async () => {
       try {
         const data = await fetchIntegrations();
@@ -291,7 +310,7 @@ export default function SocialPublishing() {
         toast.error(err.message);
         setIntegrations([]);
       } finally {
-        setIntegrationsReady(true);
+        setIntegrationsBrand(brand);
       }
     };
     loadIntegrations();
@@ -334,11 +353,16 @@ export default function SocialPublishing() {
   //    browser, so what's on screen is always the backend's answer.
   const loadPosts = useCallback(
     async (silent = false) => {
+      const key = loadKey;
       setFetchingLive(true);
-      let rows = [];
       try {
-        rows = await fetchLivePostsFromConnectedAccounts(integrations);
+        const rows = await fetchLivePostsFromConnectedAccounts(scopedIntegrations);
+        // The reader moved on (another network or brand) while this loaded.
+        if (latestKey.current !== key) return;
         setAllPosts((prev) => carryStats(prev, rows));
+        // Stats start in the same step the list lands, so the cells go straight
+        // from the page skeleton to spinners — never to bare dashes.
+        if (rows.length) loadAllStats(rows);
         // A platform the backend couldn't read: show its own error, always.
         if (rows.errors?.length) toast.error(rows.errors.join(" · "));
         if (!silent) {
@@ -349,28 +373,30 @@ export default function SocialPublishing() {
         toast.error(err.message || "Couldn't load posts");
       } finally {
         setFetchingLive(false);
-        setLoading(false);
+        setLoadedKey(key);
       }
-      // After the table is up — the numbers fill in as they arrive.
-      if (rows.length) loadAllStats(rows);
     },
-    [integrations, loadAllStats],
+    [scopedIntegrations, loadAllStats, loadKey],
   );
 
-  // 3. Load once integrations have resolved.
+  // 3. Load once integrations have resolved — and again when the sidebar's
+  //    network changes (scopedIntegrations, through loadPosts).
   useEffect(() => {
     if (!integrationsReady) return;
     loadPosts(true);
   }, [integrationsReady, integrations, loadPosts]);
 
-  const posts = allPosts.filter((p) => p.type === matchType);
+  // Only the picked network's rows, even before its refetch lands.
+  const posts = allPosts.filter((p) => p.type === matchType && inScope(p.platform));
+  // The in-page platform dropdown only applies across all networks.
+  const activePlatformFilter = scoped ? "all" : platformFilter;
 
   const filteredPosts = useMemo(() => {
     let result = posts;
     if (statusFilter !== "all")
       result = result.filter((p) => p.status === statusFilter);
-    if (platformFilter !== "all")
-      result = result.filter((p) => p.platform === platformFilter);
+    if (activePlatformFilter !== "all")
+      result = result.filter((p) => p.platform === activePlatformFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -387,7 +413,16 @@ export default function SocialPublishing() {
           : p.published_at || p.scheduled_at,
       ).getTime() || 0;
     return [...result].sort((a, b) => dateOf(b) - dateOf(a));
-  }, [posts, statusFilter, platformFilter, search]);
+  }, [posts, statusFilter, activePlatformFilter, search]);
+
+  // Every metric name the backend sent for these rows. A post that didn't send
+  // one shows a dash in that column.
+  const metricKeys = useMemo(() => metricKeysOf(filteredPosts), [filteredPosts]);
+  // Until the backend has named any metric (still loading, or none sent), one
+  // "Metrics" column holds the spinner / dash so columns don't pop in later.
+  const metricCols = metricKeys.length
+    ? metricKeys.map((key) => ({ key, label: metricLabel(key) }))
+    : [{ key: null, label: "Metrics" }];
 
   const integrationsMap = useMemo(() => {
     if (!Array.isArray(integrations)) return {};
@@ -406,7 +441,7 @@ export default function SocialPublishing() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, platformFilter, search]);
+  }, [statusFilter, activePlatformFilter, scope, search]);
 
   const handleDelete = async () => {
     const post = pendingDelete;
@@ -466,7 +501,9 @@ export default function SocialPublishing() {
             {typeLabel} Publishing
           </h1>
           <p className="text-gray-500 text-sm">
-            Your posts on each connected account.
+            {scoped
+              ? `Your posts on ${network.label}.`
+              : "Your posts on each connected account."}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -480,6 +517,16 @@ export default function SocialPublishing() {
                 className={`w-3.5 h-3.5 mr-2 text-gray-500 ${fetchingLive ? "animate-spin" : ""}`}
               />
               {fetchingLive ? "Refreshing…" : "Refresh"}
+            </button>
+          )}
+          {hasConnections && (
+            <button
+              className="inline-flex cursor-pointer items-center px-3 py-1.5 text-sm font-medium rounded-lg text-white shadow-sm hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: BRAND }}
+              onClick={() => setComposerOpen(true)}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Create new post
             </button>
           )}
           {!hasConnections && (
@@ -513,15 +560,14 @@ export default function SocialPublishing() {
             Icon={Calendar}
           />
           <SummaryCard
-            label="Impressions (loaded rows)"
-            // A dash until some row's stats are loaded — a 0 would claim no
-            // impressions when they simply haven't been asked for.
+            label="Posts with metrics"
+            // Only what the backend returned numbers for; never a guessed total.
             value={
-              posts.some((p) => p.stats?.impressions != null)
-                ? posts
-                    .reduce((s, p) => s + (p.stats?.impressions || 0), 0)
-                    .toLocaleString()
-                : "—"
+              statsLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-gray-300" />
+              ) : (
+                `${posts.filter((p) => postMetrics(p)).length} / ${posts.length}`
+              )
             }
             Icon={Eye}
           />
@@ -529,84 +575,84 @@ export default function SocialPublishing() {
       )}
 
       {/* ── Status Tabs ── */}
-      {posts.length > 0 && (
-        <div className="border-b border-gray-200 bg-surface rounded-t-xl shadow-sm">
-          {/* The tab row scrolls sideways on narrow screens instead of squeezing or
-              spilling out of the card. The -1px pull lives on the scroller (not on
-              each button) so the active tab's underline still covers the wrapper's
-              hairline without overflowing — and being clipped by — the scroll box. */}
-          <div className="-mb-px flex items-center overflow-x-auto hide-scrollbar px-2">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setStatusFilter(tab.key)}
-                className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                statusFilter === tab.key
-                    ? "border-[#003dda] text-[#003dda]"
-                    : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
-                }`}
+      <div className="border-b border-gray-200 bg-surface rounded-t-xl shadow-sm">
+        {/* The tab row scrolls sideways on narrow screens instead of squeezing or
+            spilling out of the card. The -1px pull lives on the scroller (not on
+            each button) so the active tab's underline still covers the wrapper's
+            hairline without overflowing — and being clipped by — the scroll box. */}
+        <div className="-mb-px flex items-center overflow-x-auto hide-scrollbar px-2">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+              className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              statusFilter === tab.key
+                  ? "border-[#003dda] text-[#003dda]"
+                  : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
+              }`}
+            >
+              {tab.label}
+              <span
+                className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                style={
+                  statusFilter === tab.key
+                    ? { backgroundColor: BRAND, color: "#fff" }
+                    : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
+                }
               >
-                {tab.label}
-                <span
-                  className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                  style={
-                    statusFilter === tab.key
-                      ? { backgroundColor: BRAND, color: "#fff" }
-                      : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
-                  }
-                >
-                  {TAB_COUNTS[tab.key]}
-                </span>
-              </button>
-            ))}
-          </div>
+                {TAB_COUNTS[tab.key]}
+              </span>
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* ── Filter Bar ── */}
-      {posts.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-surface border-x border-b border-gray-200 rounded-b-xl mb-6 shadow-sm">
-          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-9">
-            <Filter className="w-3.5 h-3.5 text-gray-400" />
-            <select
-              value={platformFilter}
-              onChange={(e) => setPlatformFilter(e.target.value)}
-              className="bg-transparent text-xs text-gray-700 outline-none pr-1 cursor-pointer"
-            >
-              <option value="all">All Platforms</option>
-              <optgroup label="── Social Media">
-                {SOCIAL_PLATFORMS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.icon} {p.label}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-          </div>
-
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by title or caption…"
-              className="w-full pl-8 pr-8 h-9 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-[#003dda] transition-colors"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          <span className="text-xs text-gray-400 ml-auto">
-            {filteredPosts.length} result{filteredPosts.length !== 1 ? "s" : ""}
-          </span>
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-surface border-x border-b border-gray-200 rounded-b-xl mb-6 shadow-sm">
+        {/* The sidebar's network already narrows the page — no second
+            platform picker while one is chosen. */}
+        {!scoped && (
+        <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-9">
+          <Filter className="w-3.5 h-3.5 text-gray-400" />
+          <select
+            value={platformFilter}
+            onChange={(e) => setPlatformFilter(e.target.value)}
+            className="bg-transparent text-xs text-gray-700 outline-none pr-1 cursor-pointer"
+          >
+            <option value="all">All Platforms</option>
+            <optgroup label="── Social Media">
+              {SOCIAL_PLATFORMS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.icon} {p.label}
+                </option>
+              ))}
+            </optgroup>
+          </select>
         </div>
-      )}
+        )}
+
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by title or caption…"
+            className="w-full pl-8 pr-8 h-9 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-[#003dda] transition-colors"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <span className="text-xs text-gray-400 ml-auto">
+          {filteredPosts.length} result{filteredPosts.length !== 1 ? "s" : ""}
+        </span>
+      </div>
 
       {/* ── Empty: filters active but no results ── */}
       {filteredPosts.length === 0 && posts.length > 0 && (
@@ -633,8 +679,28 @@ export default function SocialPublishing() {
         </div>
       )}
 
+      {/* ── Empty: the picked network isn't connected ── */}
+      {scoped && !integrationsMap[scope] && (
+        <div className="rounded-xl border border-dashed border-gray-200 bg-surface p-16 text-center shadow-sm">
+          <network.Icon className="mx-auto mb-4 h-10 w-10" style={{ color: network.color }} />
+          <p className="text-gray-900 font-semibold mb-1">
+            {network.label} isn&apos;t connected
+          </p>
+          <p className="text-gray-400 text-sm mb-5">
+            Connect it to see and publish its posts here.
+          </p>
+          <Link
+            href="/integrations"
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-white shadow-sm hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: BRAND }}
+          >
+            Connect {network.label}
+          </Link>
+        </div>
+      )}
+
       {/* ── Empty: no posts at all ── */}
-      {posts.length === 0 && (
+      {posts.length === 0 && !(scoped && !integrationsMap[scope]) && (
         <div className="rounded-xl border border-dashed border-gray-200 bg-surface p-16 text-center shadow-sm">
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
@@ -643,7 +709,7 @@ export default function SocialPublishing() {
             <Calendar className="w-7 h-7" style={{ color: BRAND }} />
           </div>
           <p className="text-gray-900 font-semibold mb-1">
-            No published or scheduled social posts yet
+            No published or scheduled {scoped ? network.label : "social"} posts yet
           </p>
           <p className="text-gray-400 text-sm mb-5">
             Go to your Creatives, hover a card, and click{" "}
@@ -666,7 +732,11 @@ export default function SocialPublishing() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  {TABLE_COLS.map((col) => (
+                  {[
+                    ...LEAD_COLS,
+                    ...metricCols.map((c) => ({ label: c.label, align: "center" })),
+                    { label: "Actions", align: "right" },
+                  ].map((col) => (
                     <th
                       key={col.label}
                       className={`px-4 py-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wide ${
@@ -696,7 +766,6 @@ export default function SocialPublishing() {
                     icon: "🌐",
                     cls: "bg-gray-50 text-gray-700 border border-gray-200",
                   };
-                  const stats = post.stats || {};
                   // Shimmer only for rows the stats pass will actually answer.
                   const cellLoading =
                     statsLoading &&
@@ -759,27 +828,20 @@ export default function SocialPublishing() {
                           ? formatDate(post.scheduled_at)
                           : formatDate(post.published_at)}
                       </td>
-                      <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.impressions} loading={cellLoading} />
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.reach} loading={cellLoading} />
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.clicks} loading={cellLoading} />
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.likes} loading={cellLoading} />
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.comments} loading={cellLoading} />
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <StatCell value={stats.shares} loading={cellLoading} />
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <StatCell value={ctrLabel(stats)} loading={cellLoading} />
-                      </td>
+                      {metricCols.map(({ key }) => (
+                        <td
+                          key={key ?? "metrics"}
+                          className="px-3 py-3 text-center"
+                          title={unavailableReason(post)}
+                        >
+                          <StatCell
+                            value={
+                              key ? formatMetric(key, postMetrics(post)?.[key]) : undefined
+                            }
+                            loading={cellLoading}
+                          />
+                        </td>
+                      ))}
                       {/* Actions don't also open the details pop-up. */}
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
@@ -909,16 +971,19 @@ export default function SocialPublishing() {
             statsLoading={
               statsLoading && !s.last_updated && STATS_PLATFORMS.includes(post.platform)
             }
-            metrics={[
-              { icon: Eye, label: "Impressions", value: s.impressions },
-              { icon: Users, label: "Reach", value: s.reach },
-              { icon: MousePointer, label: "Clicks", value: s.clicks },
-              { icon: TrendingUp, label: "CTR", value: ctrLabel(s) },
-              { icon: Heart, label: "Likes", value: s.likes },
-              { icon: MessageCircle, label: "Comments", value: s.comments },
-              { icon: Share2, label: "Shares", value: s.shares },
-              { icon: Bookmark, label: "Saves", value: s.saves },
-            ]}
+            // Only the names the backend sent for this post.
+            metrics={
+              Object.keys(postMetrics(post) || {}).length
+                ? Object.keys(postMetrics(post)).map((key) => ({
+                    label: metricLabel(key),
+                    value: formatMetric(key, postMetrics(post)[key]),
+                  }))
+                : // Nothing named yet: one tile that spins while stats load.
+                  statsLoading && !s.last_updated
+                  ? [{ label: "Metrics", value: undefined }]
+                  : []
+            }
+            metricsNote={unavailableReason(post)}
           />
         );
       })()}
@@ -932,6 +997,15 @@ export default function SocialPublishing() {
         busy={deleting}
         onConfirm={handleDelete}
         onCancel={() => setPendingDelete(null)}
+      />
+
+      {/* Published posts land on the platforms, so the list is refetched. */}
+      <CreatePostComposer
+        isOpen={composerOpen}
+        onClose={() => setComposerOpen(false)}
+        onPublished={() => loadPosts(true)}
+        // Opened from one network's page, it starts on that network.
+        initialPlatforms={scoped ? [scope] : []}
       />
     </div>
   );

@@ -21,19 +21,13 @@ import {
   CheckCircle2,
   PauseCircle,
   BarChart3,
-  Banknote,
-  Coins,
-  Wallet,
 } from "lucide-react";
-import { format } from "date-fns";
 import { toast } from "sonner";
 import {
   fetchLivePostsFromConnectedAccounts,
   getAdCampaignStats,
 } from "../../../../../(lib)/integration";
 import { useAuth } from "@/context/AuthContext";
-import ResponsiveTable from "@/app/(components)/ui/ResponsiveTable";
-import ContentDetailsModal from "@/app/(components)/content/ContentDetailsModal";
 import { ChartFrame, useChartDensity } from "@/app/(components)/ui/ResponsiveChart";
 import { AnalyticsSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
@@ -50,60 +44,6 @@ const PLATFORM_META = {
 
 /** Format a metric, falling back to an em dash so empty cells still read as cells. */
 const num = (v) => v?.toLocaleString?.() ?? "—";
-
-/** A money value as the network sent it (no currency — each account has its own). */
-const money = (v) =>
-  v == null || v === "" || Number.isNaN(Number(v))
-    ? undefined
-    : Number(v).toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
-
-/** Pop-up for one Ad Performance row — the campaign and its 30-day numbers. */
-function CampaignDetailsModal({ campaign, isOpen, onClose }) {
-  if (!campaign) return null;
-  const meta = PLATFORM_META[campaign.platform] || {
-    label: campaign.platform,
-    emoji: "🌐",
-  };
-  const s = campaign.stats || {};
-  const budget =
-    money(campaign.daily_budget) != null
-      ? `${money(campaign.daily_budget)}/day`
-      : money(campaign.lifetime_budget) != null
-        ? `${money(campaign.lifetime_budget)} total`
-        : undefined;
-  return (
-    <ContentDetailsModal
-      isOpen={isOpen}
-      onClose={onClose}
-      item={campaign}
-      title="Campaign details"
-      platformLabel={meta.label}
-      platformIcon={meta.emoji}
-      dateLabel={
-        campaign.created_at
-          ? `Created ${format(new Date(campaign.created_at), "MMM d, yyyy")}`
-          : undefined
-      }
-      metrics={[
-        { icon: Eye, label: "Impressions", value: s.impressions },
-        { icon: Users, label: "Reach", value: s.reach },
-        { icon: MousePointer, label: "Clicks", value: s.clicks },
-        {
-          icon: TrendingUp,
-          label: "CTR",
-          value: s.ctr != null ? `${Number(s.ctr).toFixed(2)}%` : undefined,
-        },
-        { icon: Banknote, label: "Spend (30d)", value: money(s.spend) },
-        { icon: Coins, label: "CPC", value: money(s.cpc) },
-        { icon: Target, label: "Conversions", value: s.conversions },
-        { icon: Wallet, label: "Budget", value: budget },
-      ]}
-    />
-  );
-}
 
 /**
  * Sum one metric over campaigns — only the numbers the network actually sent.
@@ -124,83 +64,6 @@ const platformSeries = (platformMap, rows, key) =>
       [key]: sumMetric(rows.filter((p) => p.platform === platform), key),
     }))
     .filter((row) => typeof row[key] === "number");
-
-/**
- * The Post Performance table, as data.
- *
- * One definition drives BOTH renderings in <ResponsiveTable> — the eight-column
- * table from `md` up, and the stacked label:value card below it. Writing the
- * cells once is the point: a metric added here appears in both, and the two
- * cannot drift apart the way a hand-maintained mobile variant would.
- *
- * `primary` marks the card's title (the post itself); the rest become labelled
- * rows inside it.
- */
-const AD_COLUMNS = [
-  {
-    key: "post",
-    header: "Ad",
-    primary: true,
-    thClassName: "px-4",
-    tdClassName: "px-4",
-    cell: (post) => (
-      <div className="flex items-center gap-2.5">
-        {post.image_url && (
-          <img
-            src={post.image_url}
-            alt=""
-            className="w-8 h-8 rounded object-cover shrink-0"
-          />
-        )}
-        {/* The cap only applies in the table, where eight columns share the
-            width. On a card the title gets the full row. */}
-        <p className="truncate text-xs text-gray-800 md:max-w-[160px]">
-          {post.project_title}
-        </p>
-      </div>
-    ),
-  },
-  {
-    key: "platform",
-    header: "Platform",
-    cell: (post) => {
-      const meta = PLATFORM_META[post.platform] || {
-        emoji: "🌐",
-        label: post.platform,
-      };
-      return (
-        // whitespace-nowrap keeps the emoji and the platform name on one line when
-        // the eight columns squeeze this cell.
-        <span className="text-xs text-gray-500 whitespace-nowrap">
-          {meta.emoji} {meta.label}
-        </span>
-      );
-    },
-  },
-  { key: "impressions", header: "Impressions", align: "center", cell: (p) => num(p.stats?.impressions) },
-  { key: "reach", header: "Reach", align: "center", cell: (p) => num(p.stats?.reach) },
-  { key: "clicks", header: "Clicks", align: "center", cell: (p) => num(p.stats?.clicks) },
-  { key: "conversions", header: "Conversions", align: "center", cell: (p) => num(p.stats?.conversions) },
-  {
-    key: "ctr",
-    header: "CTR",
-    align: "center",
-    // `!= null`: a real 0% (impressions, no clicks) is a number worth showing.
-    cell: (p) =>
-      p.stats?.ctr != null ? `${Number(p.stats.ctr).toFixed(2)}%` : "—",
-  },
-  {
-    key: "updated",
-    header: "Updated",
-    align: "right",
-    thClassName: "px-4",
-    tdClassName: "px-4",
-    cell: (p) =>
-      p.stats?.last_updated
-        ? format(new Date(p.stats.last_updated), "MMM d HH:mm")
-        : "—",
-  },
-];
 
 function StatCard({ icon: Icon, label, value, sub, accent = false }) {
   return (
@@ -245,9 +108,6 @@ const CUSTOM_TOOLTIP_STYLE = {
 export default function AdsAnalytics() {
   const [allPosts, setAllPosts] = useState([]);
   const [fetchingLive, setFetchingLive] = useState(false);
-  // The row opened in the details pop-up (kept after close for the exit animation).
-  const [detailsCampaign, setDetailsCampaign] = useState(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const { fetchIntegrations, activeBrandId } = useAuth();
 
   const [integrations, setIntegrations] = useState([]);
@@ -540,34 +400,6 @@ export default function AdsAnalytics() {
               )}
             </div>
           </div>
-
-          {/* Post-level table */}
-          <div className="rounded-xl bg-surface border border-gray-200 overflow-hidden ">
-            <div className="px-5 py-3 border-b border-gray-100">
-              <h3 className="font-semibold text-gray-800 text-sm">
-                Ad Performance
-              </h3>
-            </div>
-            {/* Eight metric columns are unreadable by sideways scrolling on a
-                phone. <ResponsiveTable> keeps the table from `md` up and stacks
-                each row into a labelled card below it, from one column config. */}
-            <ResponsiveTable
-              rows={campaigns}
-              rowKey={(post) => post.id}
-              columns={AD_COLUMNS}
-              onRowClick={(campaign) => {
-                setDetailsCampaign(campaign);
-                setDetailsOpen(true);
-              }}
-              className="border-0 rounded-none"
-            />
-          </div>
-
-          <CampaignDetailsModal
-            campaign={detailsCampaign}
-            isOpen={detailsOpen}
-            onClose={() => setDetailsOpen(false)}
-          />
         </div>
       )}
     </div>

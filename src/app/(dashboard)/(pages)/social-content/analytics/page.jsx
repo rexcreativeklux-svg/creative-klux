@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import Link from "next/link";
 import {
   BarChart,
   Bar,
@@ -17,18 +18,11 @@ import {
   Legend,
 } from "recharts";
 import {
-  Eye,
-  MousePointer,
-  MessageCircle,
-  Bookmark,
-  Users,
-  Heart,
-  Share2,
-  TrendingUp,
   RefreshCw,
   CheckCircle2,
   Clock,
   BarChart3,
+  Loader2,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { toast } from "sonner";
@@ -37,9 +31,17 @@ import {
   loadStatsForRows,
   fetchLivePostsFromConnectedAccounts,
 } from "../../../../../(lib)/integration";
+import {
+  metricKeysOf,
+  metricLabel,
+  formatMetric,
+  isSummable,
+  numeric,
+  postMetrics,
+  sumMetric,
+} from "../../../../../(lib)/postMetrics";
 import { useAuth } from "@/context/AuthContext";
-import ResponsiveTable from "@/app/(components)/ui/ResponsiveTable";
-import ContentDetailsModal from "@/app/(components)/content/ContentDetailsModal";
+import { useSocialPlatform } from "@/app/(components)/content/socialPlatformScope";
 import { ChartFrame, useChartDensity } from "@/app/(components)/ui/ResponsiveChart";
 import { AnalyticsSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
@@ -59,105 +61,24 @@ const PLATFORM_META = {
 /** Format a metric, falling back to an em dash so empty cells still read as cells. */
 const num = (v) => v?.toLocaleString?.() ?? "—";
 
-const METRIC_KEYS = ["impressions", "reach", "clicks", "likes", "shares", "comments"];
+// Chart line / bar colours, handed to metrics in the order the backend sent them.
+const SERIES_COLORS = ["#003dda", "#22c55e", "#ec4899", "#f59e0b", "#8b5cf6"];
 
-/** A post's stats carry at least one real number from the backend. */
-const hasNumbers = (stats) =>
-  !!stats && METRIC_KEYS.some((k) => typeof stats[k] === "number");
-
-/**
- * Sum one metric over posts — but only the numbers the backend actually sent.
- * When no post has it, the total is `undefined` (shown as "—"), NOT 0: the
- * backend answering "no numbers for this post" is not the same as the post
- * getting zero engagement, and a 0 would claim the latter.
- */
-const sumMetric = (posts, key) =>
-  posts.reduce((total, p) => {
-    const v = p.stats?.[key];
-    return typeof v === "number" ? (total ?? 0) + v : total;
-  }, undefined);
-
-/** Clicks over impressions as a percentage, or undefined when either is missing. */
-const ctrOf = (clicks, impressions) =>
-  typeof clicks === "number" && impressions ? (clicks / impressions) * 100 : undefined;
-
-/**
- * The Post Performance table, as data.
- *
- * One definition drives BOTH renderings in <ResponsiveTable> — the eight-column
- * table from `md` up, and the stacked label:value card below it. Writing the
- * cells once is the point: a metric added here appears in both, and the two
- * cannot drift apart the way a hand-maintained mobile variant would.
- *
- * `primary` marks the card's title (the post itself); the rest become labelled
- * rows inside it.
- */
-const POST_COLUMNS = [
-  {
-    key: "post",
-    header: "Post",
-    primary: true,
-    thClassName: "px-4",
-    tdClassName: "px-4",
-    cell: (post) => (
-      <div className="flex items-center gap-2.5">
-        {post.image_url && (
-          <img
-            src={post.image_url}
-            alt=""
-            className="w-8 h-8 rounded object-cover shrink-0"
-          />
-        )}
-        {/* The cap only applies in the table, where eight columns share the
-            width. On a card the title gets the full row. */}
-        <p className="truncate text-xs text-gray-800 md:max-w-[160px]">
-          {post.project_title}
-        </p>
-      </div>
-    ),
-  },
-  {
-    key: "platform",
-    header: "Platform",
-    cell: (post) => {
-      const meta = PLATFORM_META[post.platform] || {
-        emoji: "🌐",
-        label: post.platform,
-      };
-      return (
-        // whitespace-nowrap keeps the emoji and the platform name on one line when
-        // the eight columns squeeze this cell.
-        <span className="text-xs text-gray-500 whitespace-nowrap">
-          {meta.emoji} {meta.label}
-        </span>
-      );
-    },
-  },
-  { key: "impressions", header: "Impressions", align: "center", cell: (p) => num(p.stats?.impressions) },
-  { key: "reach", header: "Reach", align: "center", cell: (p) => num(p.stats?.reach) },
-  { key: "clicks", header: "Clicks", align: "center", cell: (p) => num(p.stats?.clicks) },
-  { key: "likes", header: "Likes", align: "center", cell: (p) => num(p.stats?.likes) },
-  {
-    key: "ctr",
-    header: "CTR",
-    align: "center",
-    cell: (p) => {
-      const ctr = ctrOf(p.stats?.clicks, p.stats?.impressions);
-      return ctr == null ? "—" : `${ctr.toFixed(2)}%`;
-    },
-  },
-  {
-    key: "updated",
-    header: "Updated",
-    align: "right",
-    thClassName: "px-4",
-    tdClassName: "px-4",
-    cell: (p) =>
-      p.stats?.last_updated
-        ? format(new Date(p.stats.last_updated), "MMM d HH:mm")
-        : "—",
-  },
+// Metrics that read as engagement, by the names the backend uses — the pie only
+// compares these, never audience size (reach, views) against them.
+const ENGAGEMENT_KEYS = [
+  "likes", "comments", "shares", "clicks", "saves",
+  "like_count", "comment_count", "share_count",
 ];
+
+/** A small spinner standing in for a chart whose numbers are still loading. */
+function ChartSpinner() {
+  return (
+    <div className="flex justify-center py-8">
+      <Loader2 aria-label="Loading" className="h-4 w-4 animate-spin text-gray-300" />
+    </div>
+  );
+}
 
 function StatCard({ icon: Icon, label, value, sub, accent = false }) {
   return (
@@ -183,50 +104,6 @@ function StatCard({ icon: Icon, label, value, sub, accent = false }) {
 }
 
 /**
- * Pop-up for one row of the Post Performance table: the post itself (image,
- * full caption, platform, publish date, link out) and every metric the
- * backend returned for it. Missing metrics read "—", same as the table.
- *
- * `post` is kept by the caller after close so the exit animation still has
- * content to show; `isOpen` alone drives visibility.
- */
-function PostDetailsModal({ post, isOpen, onClose }) {
-  if (!post) return null;
-  const meta = PLATFORM_META[post.platform] || {
-    label: post.platform,
-    emoji: "🌐",
-  };
-  const s = post.stats || {};
-  const ctr = ctrOf(s.clicks, s.impressions);
-  const metrics = [
-    { icon: Eye, label: "Impressions", value: num(s.impressions) },
-    { icon: Users, label: "Reach", value: num(s.reach) },
-    { icon: MousePointer, label: "Clicks", value: num(s.clicks) },
-    { icon: TrendingUp, label: "CTR", value: ctr == null ? "—" : `${ctr.toFixed(2)}%` },
-    { icon: Heart, label: "Likes", value: num(s.likes) },
-    { icon: MessageCircle, label: "Comments", value: num(s.comments) },
-    { icon: Share2, label: "Shares", value: num(s.shares) },
-    { icon: Bookmark, label: "Saves", value: num(s.saves) },
-  ];
-
-  return (
-    <ContentDetailsModal
-      isOpen={isOpen}
-      onClose={onClose}
-      item={post}
-      platformLabel={meta.label}
-      platformIcon={meta.emoji}
-      dateLabel={
-        post.published_at
-          ? `Published ${format(new Date(post.published_at), "MMM d, yyyy · h:mm a")}`
-          : undefined
-      }
-      metrics={metrics}
-    />
-  );
-}
-
-/**
  * Recharts renders its tooltip through inline styles, so it can carry no
  * `dark:` class — the palette variables from globals.css are the only way it
  * follows the theme. Each var resolves to the hex it replaced in light mode,
@@ -246,20 +123,36 @@ const CUSTOM_TOOLTIP_STYLE = {
 export default function SocialAnalytics() {
   const [allPosts, setAllPosts] = useState([]);
   const [fetchingLive, setFetchingLive] = useState(false);
-  // The table row opened in the details pop-up. Kept after close (only
-  // `detailsOpen` flips) so the modal can animate out with its content.
-  const [detailsPost, setDetailsPost] = useState(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const { fetchIntegrations, activeBrandId } = useAuth();
 
   const [integrations, setIntegrations] = useState([]);
   // This page loads in two hops — integrations, then live posts and per-post
   // stats — and only the second one produces numbers. Both are tracked so the
   // KPI tiles never render a page of zeroes on the way there.
-  const [integrationsReady, setIntegrationsReady] = useState(false);
-  const [statsLoaded, setStatsLoaded] = useState(false);
+  // Readiness is tied to the exact brand + network, so switching either goes
+  // back to the skeleton instead of showing the previous answer as an empty page.
+  const [integrationsBrand, setIntegrationsBrand] = useState(undefined);
+  const integrationsReady = integrationsBrand === (activeBrandId ?? null);
+  // The post list (posts + status counts) lands first; their metrics follow.
+  const [postsKey, setPostsKey] = useState(null);
+  const [statsKey, setStatsKey] = useState(null);
+  const [chartKey, setChartKey] = useState(null);
+
+  // The network picked in the section sidebar (?platform=), or every network.
+  // Only its connection is fetched.
+  const { platform: scope, network, scoped, inScope } = useSocialPlatform();
+  const loadKey = `${activeBrandId ?? ""}|${scope}`;
+  const latestKey = useRef(loadKey);
+  useEffect(() => {
+    latestKey.current = loadKey;
+  }, [loadKey]);
+  const scopedIntegrations = useMemo(
+    () => (scoped ? integrations.filter((i) => i.platform === scope) : integrations),
+    [integrations, scoped, scope],
+  );
 
   useEffect(() => {
+    const brand = activeBrandId ?? null;
     const loadIntegrations = async () => {
       try {
         const data = await fetchIntegrations();
@@ -268,7 +161,7 @@ export default function SocialAnalytics() {
         toast.error(err.message);
         setIntegrations([]);
       } finally {
-        setIntegrationsReady(true);
+        setIntegrationsBrand(brand);
       }
     };
 
@@ -279,7 +172,6 @@ export default function SocialAnalytics() {
   // tiles back into their loading state until the backend answers.
   useEffect(() => {
     setAllPosts([]);
-    setStatsLoaded(false);
   }, [activeBrandId]);
 
   // Every post the backend lists, and — for the platforms the backend serves
@@ -287,16 +179,21 @@ export default function SocialAnalytics() {
   // beyond this page's memory.
   const loadPosts = useCallback(
     async (silent = false) => {
+      const key = loadKey;
       setFetchingLive(true);
       try {
-        const rows = await fetchLivePostsFromConnectedAccounts(integrations);
+        const rows = await fetchLivePostsFromConnectedAccounts(scopedIntegrations);
+        if (latestKey.current !== key) return; // reader moved on
         if (rows.errors?.length) toast.error(rows.errors.join(" · "));
 
-        // Every published post on every platform is asked — the backend's
-        // post-metrics answers for all of them, and says itself when it has no
-        // numbers. A few requests at a time; a platform that refuses twice is
-        // not asked again for its remaining posts (see loadStatsForRows).
+        // The list is on screen now — counts and dates are real. Metrics follow.
         const socialRows = rows.filter((p) => p.type === "social");
+        setAllPosts(socialRows);
+        setPostsKey(key);
+
+        // Every published post is asked — the backend's post-metrics says
+        // itself when it has no numbers. A few requests at a time; a platform
+        // that refuses twice is not asked again (see loadStatsForRows).
         const { stats, errors } = await loadStatsForRows(
           socialRows.filter((p) => p.status === "published" && p.post_id),
           (p) =>
@@ -306,10 +203,10 @@ export default function SocialAnalytics() {
               post_id: p.post_id,
             }),
         );
-        const social = socialRows.map((p) =>
-          stats[p.id] ? { ...p, stats: stats[p.id] } : p,
+        if (latestKey.current !== key) return;
+        setAllPosts((current) =>
+          current.map((p) => (stats[p.id] ? { ...p, stats: stats[p.id] } : p)),
         );
-        setAllPosts(social);
 
         // A platform whose metrics request was refused: say so, in its words.
         const failed = Object.entries(errors);
@@ -321,70 +218,61 @@ export default function SocialAnalytics() {
         }
         if (!silent)
           toast.success(
-            `Loaded ${social.length} post${social.length === 1 ? "" : "s"}`,
+            `Loaded ${socialRows.length} post${socialRows.length === 1 ? "" : "s"}`,
           );
       } catch (err) {
         toast.error(err.message || "Couldn't load posts");
       } finally {
         setFetchingLive(false);
-        setStatsLoaded(true);
+        setPostsKey(key);
+        setStatsKey(key);
       }
     },
-    [integrations, activeBrandId],
+    [scopedIntegrations, activeBrandId, loadKey],
   );
 
   useEffect(() => {
-    if (!integrationsReady || !integrations.length) return;
+    if (!integrationsReady || !scopedIntegrations.length) return;
     loadPosts(true);
-  }, [integrationsReady, integrations, loadPosts]);
+  }, [integrationsReady, scopedIntegrations, loadPosts]);
 
   // Derived rather than a third state flag, so the "no connected accounts" case
   // needs no effect to resolve it: with nothing to fetch, the page is already in
   // its final state the moment the integrations lookup returns empty.
   const initializing =
-    !integrationsReady || (integrations.length > 0 && !statsLoaded);
+    !integrationsReady || (scopedIntegrations.length > 0 && postsKey !== loadKey);
+  // The list is up but its metrics are not: spinners where the numbers go.
+  const statsPending = scopedIntegrations.length > 0 && statsKey !== loadKey;
 
-  const posts = allPosts.filter((p) => p.type === "social");
+  // Only the picked network's rows, even before its refetch lands.
+  const posts = allPosts.filter((p) => p.type === "social" && inScope(p.platform));
   const publishedPosts = posts.filter((p) => p.status === "published");
 
-  // Each total is undefined when no post reported that metric — see sumMetric.
+  // Every metric name the backend sent for these posts, as it named them. A
+  // total is undefined (shown "—") when no post sent that metric.
+  const metricKeys = metricKeysOf(publishedPosts);
+  const summableKeys = metricKeys.filter(isSummable);
   const totals = Object.fromEntries(
-    METRIC_KEYS.map((k) => [k, sumMetric(publishedPosts, k)]),
+    summableKeys.map((k) => [k, sumMetric(publishedPosts, k)]),
   );
+  const reporting = (k) =>
+    publishedPosts.filter((p) => numeric(postMetrics(p)?.[k]) !== undefined).length;
+  // The metrics drawn over time: the ones most posts reported.
+  const timelineKeys = [...summableKeys]
+    .sort((a, b) => reporting(b) - reporting(a))
+    .slice(0, 3);
 
-  // Clicks over impressions across every post, not an average of averages.
-  const totalCTR = ctrOf(totals.clicks, totals.impressions);
-
+  // The metric the platform chart compares — the reader's pick, else the first.
+  const chartMetric = summableKeys.includes(chartKey) ? chartKey : summableKeys[0];
   const platformMap = {};
   publishedPosts.forEach((p) => {
-    const pm = PLATFORM_META[p.platform] || {
-      label: p.platform,
-      color: "#888",
-    };
-    if (!platformMap[p.platform]) {
-      platformMap[p.platform] = {
-        platform: pm.label,
-        color: pm.color,
-        impressions: 0,
-        clicks: 0,
-        likes: 0,
-        posts: 0,
-      };
-    }
-    platformMap[p.platform].impressions += p.stats?.impressions || 0;
-    platformMap[p.platform].clicks += p.stats?.clicks || 0;
-    platformMap[p.platform].likes += p.stats?.likes || 0;
-    platformMap[p.platform].posts += 1;
+    const v = numeric(postMetrics(p)?.[chartMetric]);
+    if (v === undefined) return; // no number from the backend → no bar
+    const pm = PLATFORM_META[p.platform] || { label: p.platform, color: "#888" };
+    platformMap[p.platform] ??= { platform: pm.label, color: pm.color, value: 0 };
+    platformMap[p.platform].value += v;
   });
-  // Only platforms whose posts reported impressions — a bar at 0 would claim
-  // the posts were never seen, when the backend simply sent no number.
-  const platformData = Object.entries(platformMap)
-    .filter(([platform]) =>
-      publishedPosts.some(
-        (p) => p.platform === platform && typeof p.stats?.impressions === "number",
-      ),
-    )
-    .map(([, row]) => row);
+  const platformData = Object.values(platformMap);
 
   function isSameDay(a, b) {
     return format(a, "yyyy-MM-dd") === format(b, "yyyy-MM-dd");
@@ -398,25 +286,23 @@ export default function SocialAnalytics() {
     );
     return {
       date: label,
-      impressions: dayPosts.reduce(
-        (a, p) => a + (p.stats?.impressions || 0),
-        0,
+      ...Object.fromEntries(
+        timelineKeys.map((k) => [k, sumMetric(dayPosts, k) ?? 0]),
       ),
-      clicks: dayPosts.reduce((a, p) => a + (p.stats?.clicks || 0), 0),
-      likes: dayPosts.reduce((a, p) => a + (p.stats?.likes || 0), 0),
     };
   });
 
-  const engagementPie = [
-    { name: "Likes", value: totals.likes, color: "#ec4899" },
-    { name: "Shares", value: totals.shares, color: "#8b5cf6" },
-    { name: "Comments", value: totals.comments, color: "#f59e0b" },
-    { name: "Clicks", value: totals.clicks, color: "#22c55e" },
-  ].filter((e) => e.value > 0);
+  const engagementPie = summableKeys
+    .filter((k) => ENGAGEMENT_KEYS.includes(k) && totals[k] > 0)
+    .map((k, i) => ({
+      name: metricLabel(k),
+      value: totals[k],
+      color: SERIES_COLORS[i % SERIES_COLORS.length],
+    }));
 
-  // A real number from the backend, not just a stats object: posts the backend
-  // answered "unavailable" for still get one, holding only undefineds.
-  const hasAnyStats = publishedPosts.some((p) => hasNumbers(p.stats));
+  // Whether the backend sent any metric at all; posts it answered
+  // "unavailable" for carry none.
+  const hasAnyStats = metricKeys.length > 0;
   // Every chart on this page shares these, so making them density-aware here
   // adapts all of them at once. What actually breaks on a narrow screen is the
   // X axis: fourteen date labels at desktop density overlap into a grey smear.
@@ -449,10 +335,12 @@ export default function SocialAnalytics() {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            Social Analytics
+            {network?.label ?? "Social"} Analytics
           </h1>
           <p className="text-gray-500 text-sm">
-            Aggregated social performance across platforms
+            {scoped
+              ? `${network.label} performance`
+              : "Aggregated social performance across platforms"}
           </p>
         </div>
         <div className="flex gap-2">
@@ -470,7 +358,24 @@ export default function SocialAnalytics() {
         </div>
       </div>
 
-      {publishedPosts.length === 0 ? (
+      {scoped && scopedIntegrations.length === 0 ? (
+        <div className="rounded-xl border-2 border-dashed border-gray-200 bg-surface p-16 text-center">
+          <network.Icon className="mx-auto mb-4 h-10 w-10" style={{ color: network.color }} />
+          <p className="text-gray-800 font-semibold mb-1">
+            {network.label} isn&apos;t connected
+          </p>
+          <p className="text-gray-400 text-sm mb-5">
+            Connect it to see its analytics here.
+          </p>
+          <Link
+            href="/integrations"
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-white shadow-sm hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: "#003dda" }}
+          >
+            Connect {network.label}
+          </Link>
+        </div>
+      ) : publishedPosts.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-gray-200 bg-surface p-16 text-center">
           <BarChart3 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-800 font-semibold mb-1">
@@ -484,38 +389,24 @@ export default function SocialAnalytics() {
         <div className="space-y-6">
           {/* KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              icon={Eye}
-              label="Total Impressions"
-              value={num(totals.impressions)}
-              accent
-            />
-            <StatCard
-              icon={Users}
-              label="Total Reach"
-              value={num(totals.reach)}
-            />
-            <StatCard
-              icon={MousePointer}
-              label="Total Clicks"
-              value={num(totals.clicks)}
-            />
-            <StatCard
-              icon={TrendingUp}
-              label="CTR"
-              value={totalCTR == null ? "—" : `${totalCTR.toFixed(2)}%`}
-              accent
-            />
-            <StatCard
-              icon={Heart}
-              label="Total Likes"
-              value={num(totals.likes)}
-            />
-            <StatCard
-              icon={Share2}
-              label="Total Shares"
-              value={num(totals.shares)}
-            />
+            {statsPending && (
+              <StatCard
+                icon={BarChart3}
+                label="Metrics"
+                value={<Loader2 className="h-5 w-5 animate-spin text-gray-300" />}
+                accent
+              />
+            )}
+            {summableKeys.map((key, i) => (
+              <StatCard
+                key={key}
+                icon={BarChart3}
+                label={`Total ${metricLabel(key)}`}
+                value={formatMetric(key, totals[key]) ?? "—"}
+                sub={`${reporting(key)} of ${publishedPosts.length} posts reported`}
+                accent={i === 0}
+              />
+            ))}
             <StatCard
               icon={CheckCircle2}
               label="Published Posts"
@@ -536,7 +427,9 @@ export default function SocialAnalytics() {
             </h3>
             {/* With no numbers at all the chart is a flat line at 0, which reads
                 as "no engagement" — say there's no data instead. */}
-            {!hasAnyStats ? (
+            {statsPending ? (
+              <ChartSpinner />
+            ) : !hasAnyStats ? (
               <p className="text-xs text-gray-400 text-center py-8">
                 No metrics reported yet
               </p>
@@ -551,27 +444,17 @@ export default function SocialAnalytics() {
                 <YAxis {...yAxisProps} />
                 <Tooltip {...CUSTOM_TOOLTIP_STYLE} />
                 <Legend wrapperStyle={{ fontSize: 11, color: "#6b7280" }} />
-                <Line
-                  type="monotone"
-                  dataKey="impressions"
-                  stroke="#003dda"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="clicks"
-                  stroke="#22c55e"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="likes"
-                  stroke="#ec4899"
-                  strokeWidth={2}
-                  dot={false}
-                />
+                {timelineKeys.map((k, i) => (
+                  <Line
+                    key={k}
+                    type="monotone"
+                    dataKey={k}
+                    name={metricLabel(k)}
+                    stroke={SERIES_COLORS[i]}
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                ))}
               </LineChart>
             </ResponsiveContainer></ChartFrame>
             )}
@@ -580,10 +463,27 @@ export default function SocialAnalytics() {
           {/* Platform breakdown + Engagement pie */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-xl bg-surface border border-gray-200 p-5 ">
-              <h3 className="font-semibold text-gray-800 text-sm mb-4">
-                Impressions by Platform
-              </h3>
-              {platformData.length === 0 ? (
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <h3 className="font-semibold text-gray-800 text-sm">
+                  {chartMetric ? metricLabel(chartMetric) : "Metric"} by Platform
+                </h3>
+                {summableKeys.length > 1 && (
+                  <select
+                    value={chartMetric}
+                    onChange={(e) => setChartKey(e.target.value)}
+                    className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 outline-none"
+                  >
+                    {summableKeys.map((k) => (
+                      <option key={k} value={k}>
+                        {metricLabel(k)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {statsPending ? (
+                <ChartSpinner />
+              ) : platformData.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-8">
                   No data
                 </p>
@@ -597,7 +497,7 @@ export default function SocialAnalytics() {
                     <XAxis dataKey="platform" {...xAxisProps} />
                     <YAxis {...yAxisProps} />
                     <Tooltip {...CUSTOM_TOOLTIP_STYLE} />
-                    <Bar dataKey="impressions" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="value" name={metricLabel(chartMetric)} radius={[4, 4, 0, 0]}>
                       {platformData.map((entry, i) => (
                         <Cell key={i} fill={entry.color} />
                       ))}
@@ -611,7 +511,9 @@ export default function SocialAnalytics() {
               <h3 className="font-semibold text-gray-800 text-sm mb-4">
                 Engagement Breakdown
               </h3>
-              {engagementPie.length === 0 ? (
+              {statsPending ? (
+                <ChartSpinner />
+              ) : engagementPie.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-8">
                   No engagement data yet
                 </p>
@@ -638,36 +540,6 @@ export default function SocialAnalytics() {
               )}
             </div>
           </div>
-
-          {/* Post-level table */}
-          <div className="rounded-xl bg-surface border border-gray-200 overflow-hidden ">
-            <div className="px-5 py-3 border-b border-gray-100">
-              <h3 className="font-semibold text-gray-800 text-sm">
-                Post Performance
-              </h3>
-            </div>
-            {/* Eight metric columns cannot be read on a phone by scrolling
-                sideways — the post you are looking at slides out from under its
-                own headers. <ResponsiveTable> keeps the table from `md` up and
-                stacks each row into a labelled card below it, from this single
-                column definition. */}
-            <ResponsiveTable
-              rows={publishedPosts}
-              rowKey={(post) => post.id}
-              columns={POST_COLUMNS}
-              onRowClick={(post) => {
-                setDetailsPost(post);
-                setDetailsOpen(true);
-              }}
-              className="border-0 rounded-none"
-            />
-          </div>
-
-          <PostDetailsModal
-            post={detailsPost}
-            isOpen={detailsOpen}
-            onClose={() => setDetailsOpen(false)}
-          />
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -10,6 +10,7 @@ import {
   Filter,
   Search,
   X,
+  ExternalLink,
 } from "lucide-react";
 import {
   startOfMonth,
@@ -32,6 +33,8 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import Link from "next/link";
+import Drawer from "@/app/(components)/ui/Drawer";
+import { useSocialPlatform } from "@/app/(components)/content/socialPlatformScope";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import { CalendarSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
@@ -115,9 +118,10 @@ function PostPill({ post, onDelete, onSelect, selected }) {
 }
 
 export default function SocialContentCalendar() {
-  // Hardcoded for social
-  const typeLabel = "Social";
   const matchType = "social";
+  // The network picked in the section sidebar (?platform=), or every network.
+  const { platform: scope, network, scoped, inScope } = useSocialPlatform();
+  const typeLabel = network?.label ?? "Social";
 
   const { fetchIntegrations, activeBrandId } = useAuth();
 
@@ -143,34 +147,48 @@ export default function SocialContentCalendar() {
   // An empty month grid is indistinguishable from a month with nothing posted,
   // so the page holds a skeleton until the backend has answered. Later
   // refetches (after a delete) keep the grid up.
-  const [loading, setLoading] = useState(true);
+  // Ready means "loaded for this brand and network" — switching either goes
+  // back to the skeleton instead of showing the old answer as an empty month.
+  const loadKey = `${activeBrandId ?? ""}|${scope}`;
+  const [loadedKey, setLoadedKey] = useState(null);
+  const latestKey = useRef(loadKey);
+  useEffect(() => {
+    latestKey.current = loadKey;
+  }, [loadKey]);
+  const loading = loadedKey !== loadKey;
 
-  // A brand switch clears the previous brand's month and holds the skeleton
-  // until the backend answers for the new one.
+  // A brand switch clears the previous brand's month.
   useEffect(() => {
     setAllPosts([]);
-    setLoading(true);
   }, [activeBrandId]);
 
   // The posts, exactly as the backend lists them — nothing kept locally.
   const fetchLive = useCallback(async () => {
+    const key = loadKey;
     try {
       const ints = (await fetchIntegrations()) || [];
-      const rows = await fetchLivePostsFromConnectedAccounts(ints);
+      // One network's connection when one is picked in the sidebar.
+      const rows = await fetchLivePostsFromConnectedAccounts(
+        scoped ? ints.filter((i) => i.platform === scope) : ints,
+      );
+      if (latestKey.current !== key) return; // reader moved on
       setAllPosts(rows);
       if (rows.errors?.length) toast.error(rows.errors.join(" · "));
     } catch (err) {
       toast.error(err.message || "Couldn't load posts");
     } finally {
-      setLoading(false);
+      setLoadedKey(key);
     }
-  }, [fetchIntegrations]);
+  }, [fetchIntegrations, scoped, scope, loadKey]);
 
   useEffect(() => {
     fetchLive();
   }, [fetchLive, activeBrandId]);
 
-  const posts = allPosts.filter((p) => p.type === matchType);
+  // Only the picked network's rows, even before its refetch lands.
+  const posts = allPosts.filter((p) => p.type === matchType && inScope(p.platform));
+  // The in-page platform dropdown only applies across all networks.
+  const activePlatformFilter = scoped ? "all" : platformFilter;
 
   // Platform options come from what's actually present, so the dropdown never lists empties.
   const platformOptions = useMemo(
@@ -193,8 +211,8 @@ export default function SocialContentCalendar() {
     let result = posts;
     if (statusFilter !== "all")
       result = result.filter((p) => p.status === statusFilter);
-    if (platformFilter !== "all")
-      result = result.filter((p) => p.platform === platformFilter);
+    if (activePlatformFilter !== "all")
+      result = result.filter((p) => p.platform === activePlatformFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -204,7 +222,7 @@ export default function SocialContentCalendar() {
       );
     }
     return result;
-  }, [posts, statusFilter, platformFilter, search]);
+  }, [posts, statusFilter, activePlatformFilter, search]);
 
   const handleDelete = async () => {
     const post = pendingDelete;
@@ -234,7 +252,12 @@ export default function SocialContentCalendar() {
       return d && isSameDay(new Date(d), day);
     });
 
-  const selectedDayPosts = selectedDay ? getPostsForDay(selectedDay) : [];
+  // The drawer stays mounted for its exit animation after selectedDay is
+  // cleared, so it renders the last picked day rather than sliding out blank.
+  const [lastDay, setLastDay] = useState(null);
+  if (selectedDay && selectedDay !== lastDay) setLastDay(selectedDay);
+  const panelDay = selectedDay || lastDay;
+  const selectedDayPosts = panelDay ? getPostsForDay(panelDay) : [];
   const totalScheduled = filteredPosts.filter(
     (p) => p.status === "scheduled",
   ).length;
@@ -305,98 +328,97 @@ export default function SocialContentCalendar() {
       </div>
 
       {/* ── Status Tabs (matches the Publishing page) ── */}
-      {posts.length > 0 && (
-        <div className="border-b border-gray-200 bg-surface rounded-t-xl shadow-sm">
-          {/* The tab row scrolls sideways on narrow screens instead of squeezing or
-              spilling out of the card. The -1px pull lives on the scroller (not on
-              each button) so the active tab's underline still covers the wrapper's
-              hairline without overflowing — and being clipped by — the scroll box. */}
-          <div className="-mb-px flex items-center overflow-x-auto hide-scrollbar px-2">
-            {STATUS_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setStatusFilter(tab.key)}
-                className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
+      <div className="border-b border-gray-200 bg-surface rounded-t-xl shadow-sm">
+        {/* The tab row scrolls sideways on narrow screens instead of squeezing or
+            spilling out of the card. The -1px pull lives on the scroller (not on
+            each button) so the active tab's underline still covers the wrapper's
+            hairline without overflowing — and being clipped by — the scroll box. */}
+        <div className="-mb-px flex items-center overflow-x-auto hide-scrollbar px-2">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+              className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
+                statusFilter === tab.key
+                  ? "border-[#003dda] text-[#003dda]"
+                  : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
+              }`}
+            >
+              {tab.label}
+              <span
+                className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                style={
                   statusFilter === tab.key
-                    ? "border-[#003dda] text-[#003dda]"
-                    : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
-                }`}
+                    ? { backgroundColor: "#003dda", color: "#fff" }
+                    : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
+                }
               >
-                {tab.label}
-                <span
-                  className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                  style={
-                    statusFilter === tab.key
-                      ? { backgroundColor: "#003dda", color: "#fff" }
-                      : { backgroundColor: "var(--color-gray-100)", color: "var(--color-gray-500)" }
-                  }
-                >
-                  {statusCounts[tab.key]}
-                </span>
-              </button>
-            ))}
-          </div>
+                {statusCounts[tab.key]}
+              </span>
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* ── Filter Bar (matches the Publishing page) ── */}
-      {posts.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-surface border-x border-b border-gray-200 rounded-b-xl mb-6 shadow-sm">
-          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-9">
-            <Filter className="w-3.5 h-3.5 text-gray-400" />
-            <select
-              value={platformFilter}
-              onChange={(e) => setPlatformFilter(e.target.value)}
-              className="bg-transparent text-xs text-gray-700 outline-none pr-1 cursor-pointer"
-            >
-              <option value="all">All Platforms</option>
-              <optgroup label="── Social Media">
-                {platformOptions.map((p) => {
-                  const m = PLATFORM_META[p] || { emoji: "🌐" };
-                  const name = p
-                    .split("_")
-                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                    .join(" ");
-                  return (
-                    <option key={p} value={p}>
-                      {m.emoji} {name}
-                    </option>
-                  );
-                })}
-              </optgroup>
-            </select>
-          </div>
-
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by title or caption…"
-              className="w-full pl-8 pr-8 h-9 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-[#003dda] transition-colors"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          <span className="text-xs text-gray-400 ml-auto">
-            {filteredPosts.length} result{filteredPosts.length !== 1 ? "s" : ""}
-          </span>
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-surface border-x border-b border-gray-200 rounded-b-xl mb-6 shadow-sm">
+        {/* The sidebar's network already narrows the page — no second
+            platform picker while one is chosen. */}
+        {!scoped && (
+        <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-9">
+          <Filter className="w-3.5 h-3.5 text-gray-400" />
+          <select
+            value={platformFilter}
+            onChange={(e) => setPlatformFilter(e.target.value)}
+            className="bg-transparent text-xs text-gray-700 outline-none pr-1 cursor-pointer"
+          >
+            <option value="all">All Platforms</option>
+            <optgroup label="── Social Media">
+              {platformOptions.map((p) => {
+                const m = PLATFORM_META[p] || { emoji: "🌐" };
+                const name = p
+                  .split("_")
+                  .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                  .join(" ");
+                return (
+                  <option key={p} value={p}>
+                    {m.emoji} {name}
+                  </option>
+                );
+              })}
+            </optgroup>
+          </select>
         </div>
-      )}
+        )}
 
-      {/* The calendar takes the full width until a day or post is picked; then
-          it slides over and the details panel opens beside it (below it on
-          small screens). */}
-      <div className="flex flex-col lg:flex-row lg:items-start">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by title or caption…"
+            className="w-full pl-8 pr-8 h-9 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-[#003dda] transition-colors"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <span className="text-xs text-gray-400 ml-auto">
+          {filteredPosts.length} result{filteredPosts.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {/* The calendar takes the full width; a picked day or post opens its
+          details in a drawer that slides in from the right. */}
+      <div>
         {/* ── Calendar grid ── */}
-        <div className="min-w-0 flex-1">
+        <div>
           <div className="rounded-xl border border-gray-200 bg-surface overflow-hidden">
             {/* Day headers */}
             <div className="grid grid-cols-7 border-b border-gray-100">
@@ -467,20 +489,17 @@ export default function SocialContentCalendar() {
           </div>
         </div>
 
-        {/* ── Day detail panel ──
-            Width animates 0 → 20rem on lg so the calendar visibly slides over.
-            The inner box keeps a fixed width so its content doesn't reflow
-            while the wrapper grows. */}
-        <div
-          className={`overflow-hidden transition-all duration-300 ease-out lg:sticky lg:top-6 lg:shrink-0 ${
-            selectedDay
-              ? "mt-6 opacity-100 lg:mt-0 lg:ml-6 lg:w-80"
-              : "hidden opacity-0 lg:block lg:ml-0 lg:w-0"
-          }`}
-          aria-hidden={!selectedDay}
+        {/* ── Day detail drawer — slides in from the right, full height ── */}
+        <Drawer
+          isOpen={!!selectedDay}
+          onClose={closePanel}
+          side="right"
+          label="Day details"
+          zIndex={90}
+          className="w-110"
         >
-          <div className="rounded-xl border border-gray-200 bg-surface p-4 lg:w-80">
-            {selectedDay && (
+          <div className="flex-1 overflow-y-auto p-5">
+            {panelDay && (
               <>
                 <div className="flex items-center gap-2 mb-4">
                   <CalendarDays
@@ -488,7 +507,7 @@ export default function SocialContentCalendar() {
                     style={{ color: "#003dda" }}
                   />
                   <h3 className="font-semibold text-gray-800 text-sm">
-                    {format(selectedDay, "EEE, MMM d")}
+                    {format(panelDay, "EEE, MMM d")}
                   </h3>
                   <button
                     onClick={closePanel}
@@ -536,47 +555,73 @@ export default function SocialContentCalendar() {
                               : "border-gray-100"
                           }`}
                         >
+                          {/* Whole image, uncropped — contain, not cover. */}
                           {post.image_url && (
                             <img
                               src={post.image_url}
                               alt=""
-                              className="w-full h-24 object-cover rounded-lg"
+                              className="w-full max-h-80 object-contain rounded-lg bg-gray-50"
                             />
                           )}
-                          <div className="flex items-start justify-between gap-1">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-gray-800 truncate">
-                                {post.project_title}
-                              </p>
-                              {post.caption && (
-                                <p className="text-[10px] text-gray-400 truncate mt-0.5">
-                                  {post.caption}
-                                </p>
-                              )}
-                            </div>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="flex-1 min-w-0 text-sm font-semibold text-gray-900">
+                              {post.project_title || "Untitled"}
+                            </p>
                             {canDelete(post) && (
                               <button
                                 onClick={() => setPendingDelete(post)}
-                                className="text-red-300 hover:text-red-500 shrink-0 transition-colors"
+                                aria-label="Delete post"
+                                className="text-red-300 hover:text-red-500 shrink-0 transition-colors cursor-pointer"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             )}
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span
-                              className={
-                                "text-[10px] font-medium px-1.5 py-0.5 rounded-full " +
-                                badge
-                              }
+                          {/* Full caption, line breaks kept. */}
+                          {post.caption && post.caption !== post.project_title && (
+                            <p className="whitespace-pre-line text-xs leading-relaxed text-gray-600">
+                              {post.caption}
+                            </p>
+                          )}
+                          {/* The rest of what the row carries. */}
+                          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 border-t border-gray-100 pt-2.5 text-xs">
+                            <dt className="text-gray-400">Platform</dt>
+                            <dd className="text-gray-700">
+                              {meta.emoji} {meta.name || meta.label}
+                            </dd>
+                            <dt className="text-gray-400">Status</dt>
+                            <dd>
+                              <span
+                                className={
+                                  "text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize " +
+                                  badge
+                                }
+                              >
+                                {post.status}
+                              </span>
+                            </dd>
+                            {dateStr && (
+                              <>
+                                <dt className="text-gray-400">
+                                  {post.status === "scheduled" ? "Scheduled" : "Published"}
+                                </dt>
+                                <dd className="text-gray-700">
+                                  {format(new Date(dateStr), "EEE, MMM d, yyyy · h:mm a")}
+                                </dd>
+                              </>
+                            )}
+                          </dl>
+                          {post.permalink_url && (
+                            <a
+                              href={post.permalink_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
                             >
-                              {post.status}
-                            </span>
-                            <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                              {meta.emoji}
-                              {dateStr && format(new Date(dateStr), "h:mm a")}
-                            </span>
-                          </div>
+                              View on {meta.name || meta.label}
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
                         </div>
                       );
                     })}
@@ -585,7 +630,7 @@ export default function SocialContentCalendar() {
               </>
             )}
           </div>
-        </div>
+        </Drawer>
       </div>
 
       <ConfirmDialog

@@ -531,6 +531,7 @@ import {
   setCampaignStatus,
   uploadForPublish,
 } from "./creativesApi";
+import { readMetrics } from "./postMetrics";
 
 // ─────────────────────────────────────────────────────────────
 // Meta API Versioning
@@ -1033,11 +1034,22 @@ export const POST_STATS_PLATFORMS = [
   "tiktok",
 ];
 
-/** One post's metrics on any of POST_STATS_PLATFORMS. */
+/**
+ * One post's metrics on any of POST_STATS_PLATFORMS, exactly as the backend
+ * sent them: `metrics` keeps the backend's own names (see postMetrics.js) —
+ * nothing is renamed or filled in. `metrics` is null, with the backend's
+ * `unavailable_reason`, when the network returned no numbers.
+ */
 export async function getPostStats({ platform, post_id, brand_id }) {
-  return normalizeMetrics(
-    await fetchPostMetrics({ brand_id, platform, post_id }),
-  );
+  const data = await fetchPostMetrics({ brand_id, platform, post_id });
+  const metrics = readMetrics(data?.metrics);
+  return {
+    metrics,
+    unavailable_reason: metrics
+      ? undefined
+      : data?.reason ||
+        (data?.unavailable ? "No numbers returned" : "No metrics returned"),
+  };
 }
 
 /**
@@ -1219,6 +1231,16 @@ function normalizeLivePosts(platform, data) {
           post.link ||
           null,
         live: true,
+        // The numbers the platform's own listing carries (TikTok sends
+        // view_count / like_count / comment_count), under its names. Shown only
+        // when post-metrics has none for the post.
+        listMetrics: readMetrics(
+          Object.fromEntries(
+            ["view_count", "like_count", "comment_count", "share_count"]
+              .filter((k) => post[k] != null)
+              .map((k) => [k, post[k]]),
+          ),
+        ),
         stats: {},
       };
     })

@@ -492,7 +492,11 @@ export default function TemplatesSection({
     // must not become a scroll container of its own, and the band's vertical
     // overflow is nobody's business here. TemplateDetailsModal does the same
     // thing for the same reason.
-    <section className="w-full overflow-x-clip border-t border-gray-200">
+    // The rail sits in a rounded, bordered panel inset from the page edges —
+    // the same box /copilot's ideas sit in. overflow-hidden on the panel clips
+    // the cards to its curved corners (and still swallows the grid's -mr-px).
+    <section className="w-full overflow-x-clip px-gutter pt-6 pb-24 lg:pb-8">
+      <div className="w-full overflow-hidden rounded-2xl border border-gray-200 bg-surface shadow-sm">
       {/* ── Tab row ───────────────────────────────────────────────────────
           On desktop this strip is pinned to --ck-rail-row (see globals.css) —
           the same height as the sidebar's THEME row. Together with the hero
@@ -592,6 +596,7 @@ export default function TemplatesSection({
             )}
           </TemplateCardGrid>
         ))}
+      </div>
 
       {/* Details modal — a TEMPLATE's route from a card into the item itself */}
       <TemplateDetailsModal

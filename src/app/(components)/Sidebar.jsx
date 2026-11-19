@@ -33,6 +33,7 @@ import ThemeSwitcher from "./ThemeSwitcher";
 import CopilotNavSections from "@/app/(dashboard)/(pages)/copilot/_components/CopilotNavSections";
 import RecentCopilots from "@/app/(dashboard)/(pages)/copilot/_components/RecentCopilots";
 import { packageToSubscription } from "@/app/(components)/billing/billingData";
+import { useConnectedCount } from "@/app/(components)/integrations/useIntegrationCatalogue";
 
 /**
  * Which app links get a permanent slot in the mobile bottom bar, in order.
@@ -112,6 +113,8 @@ const Sidebar = ({
   const pathname = usePathname();
   const { user, logout, activePackage, packageLoading } = useAuth();
   const planName = packageToSubscription(activePackage).planName;
+  // Connected accounts for the active brand — the Connections badge.
+  const connectedCount = useConnectedCount();
   // Overlay mode: hovering the collapsed strip expands the sidebar.
   const [hovered, setHovered] = useState(false);
   const isDrawer = variant === "drawer";
@@ -260,7 +263,15 @@ const Sidebar = ({
   const appsItems = [
     { id: "dashboard", group: "overview", label: "Home", short: "Home", href: "/", icon: LayoutDashboard },
     { id: "brand", group: "setup", label: "Brand Kits", href: "/brand/reuse", icon: Palette },
-    { id: "integrations", group: "setup", label: "Integrations", href: "/integrations", icon: Workflow },
+    {
+      id: "integrations",
+      group: "setup",
+      label: "Connections",
+      href: "/integrations",
+      icon: Workflow,
+      // A count, not an alert — neutral pill, and it shows "0" too.
+      count: connectedCount,
+    },
     {
       id: "creatives",
       group: "make",
@@ -334,7 +345,7 @@ const Sidebar = ({
   const bottomMenuLinks = [
     { label: "Profile Settings", href: "/profile", icon: User },
     { label: "Gallery", href: "/gallery", icon: Image },
-    { label: "Integrations", href: "/integrations", icon: Workflow },
+    { label: "Connections", href: "/integrations", icon: Workflow },
     { label: "Resell", href: "/resell", icon: ShoppingCart },
     { label: "Plans And Billing", href: "/billing", icon: CreditCard },
     { label: "Help", href: "/help", icon: HelpCircle },
@@ -343,7 +354,7 @@ const Sidebar = ({
   // ── Link item ──────────────────────────────────────────────────
   // `active` is decided by the LIST (see renderNavList), not by the item, so a
   // parent route can hand the highlight to a more specific sibling.
-  const renderNavItem = ({ id, href, icon: Icon, label, badge }, active) => {
+  const renderNavItem = ({ id, href, icon: Icon, label, badge, count }, active) => {
     return (
       <Link
         key={id}
@@ -373,6 +384,17 @@ const Sidebar = ({
         {isOpen && badge && (
           <span className="text-[10px] font-semibold bg-rose-500 text-white px-1.5 py-0.5 rounded-full leading-none">
             {badge}
+          </span>
+        )}
+        {/* `!= null`, not truthiness: 0 is a real answer ("none connected")
+            and must show; null means still loading, so nothing shows. */}
+        {isOpen && count != null && (
+          <span
+            className={`min-w-5 text-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
+              active ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            {count}
           </span>
         )}
       </Link>
@@ -591,12 +613,7 @@ const Sidebar = ({
               {/* The three newest copilots, from GET /copilots — put where
                   someone working on designs passes them. Expanded only, same
                   reason as the Copilot sections below. */}
-              {isOpen && (
-                <>
-                  <div className="mx-1 my-2 border-t border-gray-200" aria-hidden="true" />
-                  <RecentCopilots onNavigate={onNavigate} />
-                </>
-              )}
+              {isOpen && <RecentCopilots onNavigate={onNavigate} />}
             </>
           ) : (
             <>

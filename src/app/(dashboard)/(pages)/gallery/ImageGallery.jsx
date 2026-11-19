@@ -37,7 +37,8 @@ import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGaller
 import { FILE_LIMITS, getFileCategory, describeSupportedTypes } from "@/utils/helpers";
 
 export default function ImageGallery() {
-  const { uploadMedia, deleteImage, bulkDeleteGalleryItems } = useAuth();
+  const { uploadMedia, deleteImage, bulkDeleteGalleryItems, bulkUploadMedia } =
+    useAuth();
   const {
     tabs,
     activeType,
@@ -197,14 +198,22 @@ export default function ImageGallery() {
       let lastError = null;
       const uploadedCategories = new Set(); // Track what types were uploaded
 
-      for (const file of valid) {
+      if (valid.length > 1) {
+        // Several files go up in one request, and either all land or none do.
         try {
-          // console.log(file)
-          await uploadMedia(file);
-          uploadedCategories.add(getFileCategory(file));
-          ok++;
+          await bulkUploadMedia(valid);
+          valid.forEach((file) => uploadedCategories.add(getFileCategory(file)));
+          ok = valid.length;
         } catch (err) {
-          console.error(`❌ [gallery] upload failed for ${file.name}:`, err);
+          lastError = err;
+        }
+      } else {
+        try {
+          await uploadMedia(valid[0]);
+          uploadedCategories.add(getFileCategory(valid[0]));
+          ok = 1;
+        } catch (err) {
+          console.error(`❌ [gallery] upload failed for ${valid[0].name}:`, err);
           lastError = err;
         }
       }
@@ -221,10 +230,11 @@ export default function ImageGallery() {
       } else {
         toast.error(lastError?.message || "Nothing was uploaded", {
           id: toastId,
+          duration: 10000,
         });
       }
     },
-    [uploadMedia, refresh, setActiveType],
+    [uploadMedia, bulkUploadMedia, refresh, setActiveType],
   );
 
   const handleDrop = useCallback(

@@ -8,7 +8,8 @@ import {
   Power,
   Megaphone,
   Share2,
-  Workflow,
+  // Lucide's diagonal chain link. Renamed because `Link` is next/link here.
+  Link as ChainLink,
   ShoppingCart,
   CreditCard,
   ChevronRight,
@@ -268,7 +269,7 @@ const Sidebar = ({
       group: "setup",
       label: "Connections",
       href: "/integrations",
-      icon: Workflow,
+      icon: ChainLink,
       // A count, not an alert — neutral pill, and it shows "0" too.
       count: connectedCount,
     },
@@ -345,7 +346,7 @@ const Sidebar = ({
   const bottomMenuLinks = [
     { label: "Profile Settings", href: "/profile", icon: User },
     { label: "Gallery", href: "/gallery", icon: Image },
-    { label: "Connections", href: "/integrations", icon: Workflow },
+    { label: "Connections", href: "/integrations", icon: ChainLink },
     { label: "Resell", href: "/resell", icon: ShoppingCart },
     { label: "Plans And Billing", href: "/billing", icon: CreditCard },
     { label: "Help", href: "/help", icon: HelpCircle },

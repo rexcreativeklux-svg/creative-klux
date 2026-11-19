@@ -48,6 +48,26 @@ const PLATFORM_META = {
 const num = (v) => v?.toLocaleString?.() ?? "—";
 
 /**
+ * Sum one metric over campaigns — only the numbers the network actually sent.
+ * `undefined` (shown as "—") when no campaign has it, NOT 0: "no numbers
+ * reported" is not "zero impressions", and a 0 would claim the latter.
+ */
+const sumMetric = (rows, key) =>
+  rows.reduce((total, p) => {
+    const v = p.stats?.[key];
+    return typeof v === "number" ? (total ?? 0) + v : total;
+  }, undefined);
+
+/** Per-platform totals for one metric, keeping only platforms that reported it. */
+const platformSeries = (platformMap, rows, key) =>
+  Object.entries(platformMap)
+    .map(([platform, meta]) => ({
+      ...meta,
+      [key]: sumMetric(rows.filter((p) => p.platform === platform), key),
+    }))
+    .filter((row) => typeof row[key] === "number");
+
+/**
  * The Post Performance table, as data.
  *
  * One definition drives BOTH renderings in <ResponsiveTable> — the eight-column
@@ -107,7 +127,9 @@ const AD_COLUMNS = [
     key: "ctr",
     header: "CTR",
     align: "center",
-    cell: (p) => (p.stats?.ctr ? `${Number(p.stats.ctr).toFixed(2)}%` : "—"),
+    // `!= null`: a real 0% (impressions, no clicks) is a number worth showing.
+    cell: (p) =>
+      p.stats?.ctr != null ? `${Number(p.stats.ctr).toFixed(2)}%` : "—",
   },
   {
     key: "updated",
@@ -266,43 +288,32 @@ export default function AdsAnalytics() {
 
   // Only the numbers campaign metrics actually carry. Spend isn't totalled —
   // each ad account reports it in its own currency.
-  const totals = campaigns.reduce(
-    (acc, p) => {
-      const s = p.stats || {};
-      acc.impressions += s.impressions || 0;
-      acc.reach += s.reach || 0;
-      acc.clicks += s.clicks || 0;
-      acc.conversions += s.conversions || 0;
-      return acc;
-    },
-    { impressions: 0, reach: 0, clicks: 0, conversions: 0 },
-  );
+  // Each total is undefined when no campaign reported it — see sumMetric.
+  const totals = {
+    impressions: sumMetric(campaigns, "impressions"),
+    reach: sumMetric(campaigns, "reach"),
+    clicks: sumMetric(campaigns, "clicks"),
+    conversions: sumMetric(campaigns, "conversions"),
+  };
 
   // Clicks over impressions across every campaign, not an average of averages.
-  const overallCTR = totals.impressions
-    ? ((totals.clicks / totals.impressions) * 100).toFixed(2)
-    : "0.00";
+  const overallCTR =
+    typeof totals.clicks === "number" && totals.impressions
+      ? `${((totals.clicks / totals.impressions) * 100).toFixed(2)}%`
+      : "—";
 
+  // Label + colour per platform present; the series below fill in the numbers.
   const platformMap = {};
   campaigns.forEach((p) => {
     const pm = PLATFORM_META[p.platform] || {
       label: p.platform,
       color: "#888",
     };
-    if (!platformMap[p.platform]) {
-      platformMap[p.platform] = {
-        platform: pm.label,
-        color: pm.color,
-        impressions: 0,
-        clicks: 0,
-        posts: 0,
-      };
-    }
-    platformMap[p.platform].impressions += p.stats?.impressions || 0;
-    platformMap[p.platform].clicks += p.stats?.clicks || 0;
-    platformMap[p.platform].posts += 1;
+    platformMap[p.platform] ??= { platform: pm.label, color: pm.color };
   });
-  const platformData = Object.values(platformMap);
+  // A platform that sent no number gets no bar — a 0 bar would claim none.
+  const impressionsData = platformSeries(platformMap, campaigns, "impressions");
+  const clicksData = platformSeries(platformMap, campaigns, "clicks");
   // Shared by every chart here — see the matching note in social-content/analytics.
   const chart = useChartDensity();
   const xAxisProps = {
@@ -368,29 +379,29 @@ export default function AdsAnalytics() {
             <StatCard
               icon={Eye}
               label="Total Impressions"
-              value={totals.impressions.toLocaleString()}
+              value={num(totals.impressions)}
               accent
             />
             <StatCard
               icon={Users}
               label="Total Reach"
-              value={totals.reach.toLocaleString()}
+              value={num(totals.reach)}
             />
             <StatCard
               icon={MousePointer}
               label="Total Clicks"
-              value={totals.clicks.toLocaleString()}
+              value={num(totals.clicks)}
             />
             <StatCard
               icon={TrendingUp}
               label="CTR"
-              value={`${overallCTR}%`}
+              value={overallCTR}
               accent
             />
             <StatCard
               icon={Target}
               label="Conversions"
-              value={totals.conversions.toLocaleString()}
+              value={num(totals.conversions)}
             />
             <StatCard
               icon={BarChart3}
@@ -416,14 +427,14 @@ export default function AdsAnalytics() {
               <h3 className="font-semibold text-gray-800 text-sm mb-4">
                 Impressions by Platform
               </h3>
-              {platformData.length === 0 ? (
+              {impressionsData.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-8">
                   No data
                 </p>
               ) : (
                 <ChartFrame size="sm"><ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={platformData}
+                    data={impressionsData}
                     margin={{ top: 0, right: 8, left: -20, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -431,7 +442,7 @@ export default function AdsAnalytics() {
                     <YAxis {...yAxisProps} />
                     <Tooltip {...CUSTOM_TOOLTIP_STYLE} />
                     <Bar dataKey="impressions" radius={[4, 4, 0, 0]}>
-                      {platformData.map((entry, i) => (
+                      {impressionsData.map((entry, i) => (
                         <Cell key={i} fill={entry.color} />
                       ))}
                     </Bar>
@@ -444,14 +455,14 @@ export default function AdsAnalytics() {
               <h3 className="font-semibold text-gray-800 text-sm mb-4">
                 Clicks by Platform
               </h3>
-              {platformData.length === 0 ? (
+              {clicksData.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-8">
                   No data
                 </p>
               ) : (
                 <ChartFrame size="sm"><ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={platformData}
+                    data={clicksData}
                     margin={{ top: 0, right: 8, left: -20, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -459,7 +470,7 @@ export default function AdsAnalytics() {
                     <YAxis {...yAxisProps} />
                     <Tooltip {...CUSTOM_TOOLTIP_STYLE} />
                     <Bar dataKey="clicks" radius={[4, 4, 0, 0]}>
-                      {platformData.map((entry, i) => (
+                      {clicksData.map((entry, i) => (
                         <Cell key={i} fill={entry.color} />
                       ))}
                     </Bar>

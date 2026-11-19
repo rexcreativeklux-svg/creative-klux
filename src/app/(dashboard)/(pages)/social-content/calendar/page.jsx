@@ -77,7 +77,7 @@ const STATUS_TABS = [
   { key: "scheduled", label: "Scheduled" },
 ];
 
-function PostPill({ post, onDelete }) {
+function PostPill({ post, onDelete, onSelect, selected }) {
   const meta = PLATFORM_META[post.platform] || {
     label: post.platform,
     emoji: "🌐",
@@ -85,8 +85,13 @@ function PostPill({ post, onDelete }) {
   const borderColor = STATUS_BORDER[post.status] || "border-l-gray-300";
   return (
     <div
+      onClick={(e) => {
+        e.stopPropagation(); // the day cell's own click toggles the day
+        onSelect?.();
+      }}
       className={
-        "group flex cursor-pointer items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] border-l-2 bg-surface hover:bg-gray-50 transition-all cursor-default " +
+        "group flex cursor-pointer items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] border-l-2 transition-all " +
+        (selected ? "bg-blue-100 ring-1 ring-blue-300 " : "bg-surface hover:bg-gray-50 ") +
         borderColor
       }
     >
@@ -119,6 +124,12 @@ export default function SocialContentCalendar() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [allPosts, setAllPosts] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
+  // The post clicked in the grid — highlighted in the details panel.
+  const [selectedPostId, setSelectedPostId] = useState(null);
+  const closePanel = () => {
+    setSelectedDay(null);
+    setSelectedPostId(null);
+  };
 
   // The post the trash icon armed — deleting is irreversible, so it waits on a confirm.
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -380,9 +391,12 @@ export default function SocialContentCalendar() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* The calendar takes the full width until a day or post is picked; then
+          it slides over and the details panel opens beside it (below it on
+          small screens). */}
+      <div className="flex flex-col lg:flex-row lg:items-start">
         {/* ── Calendar grid ── */}
-        <div className="lg:col-span-3">
+        <div className="min-w-0 flex-1">
           <div className="rounded-xl border border-gray-200 bg-surface overflow-hidden">
             {/* Day headers */}
             <div className="grid grid-cols-7 border-b border-gray-100">
@@ -407,11 +421,12 @@ export default function SocialContentCalendar() {
                 return (
                   <div
                     key={idx}
-                    onClick={() =>
-                      setSelectedDay(isSameDay(day, selectedDay) ? null : day)
-                    }
+                    onClick={() => {
+                      setSelectedPostId(null);
+                      setSelectedDay(isSameDay(day, selectedDay) ? null : day);
+                    }}
                     className={
-                      "min-h-[90px] p-1.5 border-b cursor-pointer border-r border-gray-100 cursor-pointer transition-colors " +
+                      "min-h-[90px] p-1.5 border-b cursor-pointer border-r border-gray-100 transition-colors " +
                       (!inMonth ? "opacity-30 " : "") +
                       (isSelected ? "bg-blue-50 " : "hover:bg-gray-50 ") +
                       (idx % 7 === 6 ? "border-r-0" : "")
@@ -432,6 +447,11 @@ export default function SocialContentCalendar() {
                           key={post.id}
                           post={post}
                           onDelete={() => setPendingDelete(post)}
+                          selected={post.id === selectedPostId}
+                          onSelect={() => {
+                            setSelectedDay(day);
+                            setSelectedPostId(post.id);
+                          }}
                         />
                       ))}
                       {dayPosts.length > 3 && (
@@ -447,10 +467,20 @@ export default function SocialContentCalendar() {
           </div>
         </div>
 
-        {/* ── Day detail panel ── */}
-        <div className="lg:col-span-1">
-          <div className="rounded-xl border border-gray-200 bg-surface p-4 sticky top-6">
-            {selectedDay ? (
+        {/* ── Day detail panel ──
+            Width animates 0 → 20rem on lg so the calendar visibly slides over.
+            The inner box keeps a fixed width so its content doesn't reflow
+            while the wrapper grows. */}
+        <div
+          className={`overflow-hidden transition-all duration-300 ease-out lg:sticky lg:top-6 lg:shrink-0 ${
+            selectedDay
+              ? "mt-6 opacity-100 lg:mt-0 lg:ml-6 lg:w-80"
+              : "hidden opacity-0 lg:block lg:ml-0 lg:w-0"
+          }`}
+          aria-hidden={!selectedDay}
+        >
+          <div className="rounded-xl border border-gray-200 bg-surface p-4 lg:w-80">
+            {selectedDay && (
               <>
                 <div className="flex items-center gap-2 mb-4">
                   <CalendarDays
@@ -460,6 +490,13 @@ export default function SocialContentCalendar() {
                   <h3 className="font-semibold text-gray-800 text-sm">
                     {format(selectedDay, "EEE, MMM d")}
                   </h3>
+                  <button
+                    onClick={closePanel}
+                    aria-label="Close details"
+                    className="ml-auto rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 cursor-pointer transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
                 {selectedDayPosts.length === 0 ? (
                   <div className="text-center py-8">
@@ -489,7 +526,15 @@ export default function SocialContentCalendar() {
                       return (
                         <div
                           key={post.id}
-                          className="rounded-lg border border-gray-100 p-3 space-y-2"
+                          ref={(el) => {
+                            if (el && post.id === selectedPostId)
+                              el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                          }}
+                          className={`rounded-lg border p-3 space-y-2 transition-colors ${
+                            post.id === selectedPostId
+                              ? "border-blue-300 bg-blue-50/50 ring-1 ring-blue-200"
+                              : "border-gray-100"
+                          }`}
                         >
                           {post.image_url && (
                             <img
@@ -538,13 +583,6 @@ export default function SocialContentCalendar() {
                   </div>
                 )}
               </>
-            ) : (
-              <div className="text-center py-10">
-                <CalendarDays className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-xs text-gray-400">
-                  Click a day to see its posts
-                </p>
-              </div>
             )}
           </div>
         </div>

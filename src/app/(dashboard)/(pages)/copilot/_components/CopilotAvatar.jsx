@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * CopilotAvatar — the tinted glyph tile that stands in for a copilot everywhere
+ * CopilotAvatar — the tinted initial tile that stands in for a copilot everywhere
  * it is named: the sidebar's Recents rows, the /copilot/all cards, and whatever
  * detail screen the backend brings.
  *
@@ -16,22 +16,28 @@
  *                                           lg → grid card.
  */
 
+// The tile shows the copilot's initial (first letter of its name) rather than
+// an icon. `text` sizes the letter to roughly half the tile.
 const SIZES = {
-  sm: { tile: "h-5 w-5 rounded-md", glyph: "h-3 w-3" },
-  md: { tile: "h-9 w-9 rounded-lg", glyph: "h-4.5 w-4.5" },
-  lg: { tile: "h-12 w-12 rounded-xl", glyph: "h-6 w-6" },
+  sm: { tile: "h-5 w-5 rounded-md", text: "text-[11px]" },
+  md: { tile: "h-9 w-9 rounded-lg", text: "text-base" },
+  lg: { tile: "h-12 w-12 rounded-xl", text: "text-xl" },
 };
 
+/** First letter of the name, uppercased; "?" when there is no name. */
+const initialOf = (name) =>
+  (String(name ?? "").trim().match(/\p{L}|\p{N}/u)?.[0] ?? "?").toUpperCase();
+
 export default function CopilotAvatar({ copilot, size = "md" }) {
-  const { Icon, tint, name } = copilot;
-  const { tile, glyph } = SIZES[size] ?? SIZES.md;
+  const { tint, name } = copilot;
+  const { tile, text } = SIZES[size] ?? SIZES.md;
   return (
     <span
       aria-hidden="true"
       title={name}
-      className={`${tile} ${tint} flex items-center justify-center shrink-0`}
+      className={`${tile} ${tint} flex items-center justify-center shrink-0 font-semibold leading-none text-white select-none ${text}`}
     >
-      <Icon className={`${glyph} text-white`} />
+      {initialOf(name)}
     </span>
   );
 }

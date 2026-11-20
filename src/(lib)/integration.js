@@ -708,8 +708,8 @@ export const adDate = (offsetDays = 0) => {
  * `square_image_url`. Headline/description are cut to Google's 30/90.
  *
  * Nothing is checked here — whatever is missing or refused comes back as the
- * API's (or the network's) own sentence. Only Meta builds a full ad today; the
- * others refuse with a "not available yet" message.
+ * API's (or the network's) own sentence, with every detail it gave on
+ * `err.details`. Any other field passed is sent through unchanged.
  *
  * @returns {Promise<{post_id, campaign_id, adset_id, creative_id, ad_id, status, currency}>}
  */
@@ -724,6 +724,7 @@ export async function publishAd({
   description,
   objective,
   daily_budget,
+  lifetime_budget,
   start_date,
   end_date,
   status,
@@ -734,16 +735,23 @@ export async function publishAd({
   age_max,
   business_name,
   logo_url,
+  // Everything else the form collects — targeting (gender, languages,
+  // interests, keywords), placements, bidding, payer / beneficiary, extra
+  // ads — goes to the API as given; it uses what it knows.
+  ...extra
 }) {
   const isGoogle = platform === "google_ads";
   const age = (v) => (v == null || v === "" ? undefined : Number(v));
   const ad = await createAd({
+    ...extra,
     platform,
     name: (name || "Creative Klux Ad").slice(0, 200),
     objective: objective || defaultAdObjective(platform) || undefined,
     status: status || undefined,
     daily_budget:
       daily_budget == null || daily_budget === "" ? undefined : Number(daily_budget),
+    lifetime_budget:
+      lifetime_budget == null || lifetime_budget === "" ? undefined : Number(lifetime_budget),
     countries: countries?.length ? countries : country ? [country] : [],
     image_url,
     video_url,
@@ -956,6 +964,30 @@ export async function publishToLinkedIn({ text, image_url, video_url, brand_id }
 //
 // A pin is an image on a board. The API has no boards endpoint, so no board is
 // picked here — it is sent only if the caller has one, and the API answers.
+
+/**
+ * The brand's Pinterest boards, as far as they can be known: the backend has
+ * no boards endpoint, but every pin it lists carries its `board_id`. Uses the
+ * same cached pin list the Social pages read.
+ * @returns {Promise<Array<{id: string, pins: number, latest: string}>>}
+ */
+export async function fetchPinterestBoards() {
+  const brand = brandKey();
+  const data = await cached(`posts|${brand}|pinterest`, POSTS_TTL, () =>
+    fetchPlatformPosts({ platform: "pinterest", limit: 20 }),
+  );
+  const pins = Array.isArray(data) ? data : data?.items || data?.data || data?.posts || [];
+  const boards = new Map();
+  for (const p of pins) {
+    const id = p?.board_id;
+    if (!id) continue;
+    const b = boards.get(id) || { id: String(id), pins: 0, latest: "" };
+    b.pins += 1;
+    if (!b.latest) b.latest = (p.title || p.description || "").trim().slice(0, 40);
+    boards.set(id, b);
+  }
+  return [...boards.values()].sort((a, b) => b.pins - a.pins);
+}
 
 /** Create a Pin: `title` / `description`, a public `image_url`, optional `link` and `board_id`. */
 export async function publishToPinterest({
@@ -1287,6 +1319,8 @@ function normalizeLivePosts(platform, data) {
             ),
         scheduled_at: scheduledAt,
         post_id: String(id),
+        // The board a pin is on (Pinterest only).
+        board_id: post.board_id ? String(post.board_id) : null,
         // Pinterest's `link` is the website the pin points AT, not the pin —
         // the pin itself lives at pinterest.com/pin/<id>.
         permalink_url:

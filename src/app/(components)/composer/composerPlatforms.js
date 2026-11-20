@@ -160,9 +160,18 @@ export const COMPOSER_PLATFORMS = {
     // Pinterest API v5: a pin's description is at most 800 characters.
     maxChars: 800,
     media: "required",
-    // No board picker: the API takes a board_id, but nothing can list a
-    // brand's boards yet, so there is no honest way to offer one.
+    // A pin has to go on a board (board_id). There's no boards endpoint, so
+    // the composer offers the boards the brand's existing pins are on
+    // (fetchPinterestBoards) and takes a typed board ID too.
     fields: [
+      {
+        key: "board_id",
+        label: "Board",
+        type: "board",
+        required: true,
+        placeholder: "Board ID",
+        help: "Pick a board your pins are on, or paste a board ID.",
+      },
       {
         key: "title",
         label: "Title",
@@ -217,7 +226,7 @@ export const firstLine = (text = "") => text.trim().split("\n")[0]?.trim() || ""
  * @param {string[]} post.platforms
  * @returns {Array<{platform: string, message: string}>}
  */
-export function validatePost({ text: shared, textFor, media, mediaCount = media ? 1 : 0, platforms }) {
+export function validatePost({ text: shared, textFor, media, mediaCount = media ? 1 : 0, platforms, options = {} }) {
   const problems = [];
   if (!platforms.length) {
     problems.push({ platform: null, message: "Pick at least one account to post to." });
@@ -241,6 +250,9 @@ export function validatePost({ text: shared, textFor, media, mediaCount = media 
       problems.push({ platform, message: "Add at least 1 image or video." });
     if (rules.media === "video" && media?.type !== "video")
       problems.push({ platform, message: "Add a video — this network only posts video." });
+    for (const f of rules.fields || [])
+      if (f.required && !String(options[platform]?.[f.key] ?? "").trim())
+        problems.push({ platform, message: `Choose a ${f.label.toLowerCase()} in ${rules.label} settings.` });
     const max = rules.maxMedia ?? MAX_MEDIA;
     if (mediaCount > max)
       problems.push({ platform, message: `Max images or videos allowed ${max}.` });
@@ -309,6 +321,7 @@ export async function publishComposedPost(platform, { text, media, options = {},
     case "pinterest":
       await publishToPinterest({
         brand_id: brandId,
+        board_id: options.board_id?.trim() || undefined,
         title: title(100),
         description: caption,
         link: options.link?.trim() || undefined,

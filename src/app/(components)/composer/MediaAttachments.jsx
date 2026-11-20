@@ -24,7 +24,7 @@ const BRAND = "#003dda";
 const srcOf = (item) => item.previewUrl || item.url;
 
 /** The file itself, filling its box — a still frame for a video. */
-function Thumb({ item, className = "" }) {
+export function Thumb({ item, className = "" }) {
   return item.type === "video" ? (
     <video src={srcOf(item)} className={`bg-black object-cover ${className}`} muted playsInline preload="metadata" />
   ) : (
@@ -33,8 +33,8 @@ function Thumb({ item, className = "" }) {
   );
 }
 
-/** The ⋯ menu on one file: View, Edit alt text (images), Remove. */
-function ItemMenu({ item, onView, onAlt, onRemove, disabled, light = false }) {
+/** The ⋯ menu on one file: View, Edit alt text (images, when onAlt is given), Remove. */
+export function ItemMenu({ item, onView, onAlt, onRemove, disabled, light = false }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
   const panelRef = useRef(null);
@@ -97,7 +97,7 @@ function ItemMenu({ item, onView, onAlt, onRemove, disabled, light = false }) {
           className="w-52 rounded-xl border border-gray-200 bg-surface p-1.5 shadow-xl"
         >
           {row(Eye, item.type === "video" ? "View video" : "View image", onView)}
-          {item.type === "image" && row(Type, "Edit alt text", onAlt)}
+          {item.type === "image" && onAlt && row(Type, "Edit alt text", onAlt)}
           <div className="my-1 border-t border-gray-100" />
           {row(Trash2, "Remove", onRemove, true)}
         </FloatingPanel>

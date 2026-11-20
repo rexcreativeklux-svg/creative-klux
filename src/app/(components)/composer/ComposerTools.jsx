@@ -401,9 +401,13 @@ const replyText = (data) =>
     (v) => typeof v === "string" && v.trim(),
   ) || null;
 
-export function AiTextTool({ disabled, onInsert, platforms }) {
+/**
+ * @param {string} [props.initialTopic] Starts the brief — e.g. the prompt the
+ *   attached image was generated from, so a caption for it is one click away.
+ */
+export function AiTextTool({ disabled, onInsert, platforms, initialTopic = "" }) {
   const [open, setOpen] = useState(false);
-  const [topic, setTopic] = useState("");
+  const [topic, setTopic] = useState(initialTopic);
   const [tone, setTone] = useState("Positive");
   const [language, setLanguage] = useState("English");
   const [network, setNetwork] = useState("");

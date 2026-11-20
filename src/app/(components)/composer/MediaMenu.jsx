@@ -22,7 +22,9 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import {
+  ChevronDown,
   ChevronRight,
+  Plus,
   FolderOpen,
   ImageIcon,
   ImagePlus,
@@ -192,7 +194,7 @@ function StockPanel({ kind, onPick }) {
  *   Already-hosted media (library, stock).
  * @param {object} [props.activeBrand]
  */
-export default function MediaMenu({ disabled = false, onFile, onPick, activeBrand }) {
+export default function MediaMenu({ disabled = false, onFile, onPick, activeBrand, label }) {
   const [open, setOpen] = useState(false);
   const [flyout, setFlyout] = useState(null); // "image" | "video" | null
   const [picker, setPicker] = useState(null); // MediaPickerModal tab, or null
@@ -279,18 +281,34 @@ export default function MediaMenu({ disabled = false, onFile, onPick, activeBran
         }}
       />
 
-      <button
-        type="button"
-        onClick={() => (open ? close() : setOpen(true))}
-        disabled={disabled}
-        title="Add multimedia"
-        aria-expanded={open}
-        className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-          open ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-        }`}
-      >
-        <ImagePlus className="h-4.5 w-4.5" />
-      </button>
+      {label ? (
+        // The labelled form — Manage files' "+ Add files ⌄".
+        <button
+          type="button"
+          onClick={() => (open ? close() : setOpen(true))}
+          disabled={disabled}
+          aria-expanded={open}
+          className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ background: "#003dda" }}
+        >
+          <Plus className="h-4 w-4" />
+          {label}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => (open ? close() : setOpen(true))}
+          disabled={disabled}
+          title="Add multimedia"
+          aria-expanded={open}
+          className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            open ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+          }`}
+        >
+          <ImagePlus className="h-4.5 w-4.5" />
+        </button>
+      )}
 
       {open && (
         // Floats above the whole composer (the edit column scrolls and would

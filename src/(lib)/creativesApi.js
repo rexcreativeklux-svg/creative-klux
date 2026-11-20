@@ -70,16 +70,31 @@ function requireBrandId(brandId) {
   return id;
 }
 
-/** The most specific thing the server said about a failed request. */
+/**
+ * Take credentials out of a message before it's shown or logged. Some backend
+ * errors echo the network request they failed on — query string, access token
+ * and all ("…/posts?fields=…&access_token=EAAI…") — and that must never reach
+ * the screen or the console. Tokens and secrets are masked, and a URL keeps
+ * its host and path but loses its query string.
+ */
+export function redactSecrets(text = "") {
+  return String(text)
+    .replace(/((?:access|refresh|id)_?token|client_secret|appsecret_proof|api_?key|password|secret)=[^&\s"')]+/gi, "$1=[hidden]")
+    .replace(/(https?:\/\/[^\s?"')]+)\?[^\s"')]+/gi, "$1?…")
+    .replace(/\bBearer\s+[\w.\-~+/]+=*/gi, "Bearer [hidden]")
+    .replace(/\bEAA[A-Za-z0-9]{20,}\b/g, "[hidden]"); // Meta access tokens
+}
+
+/** The most specific thing the server said about a failed request — secrets masked. */
 function serverMessage(error, fallback) {
   const data = error?.response?.data;
   const fieldError = data?.errors ? Object.values(data.errors)[0]?.[0] : null;
   const status = error?.response?.status;
-  return (
+  return redactSecrets(
     fieldError ||
-    data?.message ||
-    data?.error ||
-    (status ? `${fallback} (HTTP ${status})` : error?.message || fallback)
+      data?.message ||
+      data?.error ||
+      (status ? `${fallback} (HTTP ${status})` : error?.message || fallback),
   );
 }
 

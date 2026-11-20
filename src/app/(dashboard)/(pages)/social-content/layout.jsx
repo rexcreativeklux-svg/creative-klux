@@ -1,33 +1,29 @@
 "use client";
 
 /**
- * Social Content section layout (/social-content/*)
- * The connected social accounts, "+ More connections", then Publishing /
- * Calendar / Analytics — see ContentSectionShell. Pages read the picked
- * account with useSocialPlatform().
+ * Social Content section layout (/social-content)
+ * The connected social accounts and "+ More connections" — see
+ * ContentSectionShell. There are no page tabs: each network has one page with
+ * its own tabs (NetworkInsightsPage), and no "All accounts" row — the first
+ * connected network opens when none is picked. Pages read the picked network
+ * with useSocialPlatform().
  */
 
-import { Share2, Calendar, Activity } from "lucide-react";
 import ContentSectionShell from "@/app/(components)/content/ContentSectionShell";
 import {
   SOCIAL_NETWORKS,
   SocialPlatformContext,
 } from "@/app/(components)/content/socialPlatformScope";
 
-const NAV_ITEMS = [
-  { label: "Publishing", href: "/social-content/publishing", icon: Share2 },
-  { label: "Calendar", href: "/social-content/calendar", icon: Calendar },
-  { label: "Analytics", href: "/social-content/analytics", icon: Activity },
-];
-
 export default function SocialContentLayout({ children }) {
   return (
     <ContentSectionShell
       title="Social Content"
       kind="social"
-      navItems={NAV_ITEMS}
+      navItems={[]}
       networks={SOCIAL_NETWORKS}
       Context={SocialPlatformContext}
+      allOption={false}
     >
       {children}
     </ContentSectionShell>

@@ -24,7 +24,7 @@
  * fallback is the same shell with nothing picked, so nothing jumps.
  */
 
-import { Fragment, Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
@@ -44,7 +44,7 @@ const notify = (message, type) =>
  * @param {Array<{id: string, label: string, Icon: React.ElementType, color: string}>} props.networks
  * @param {React.Context<string>} props.Context  Provides the picked id to pages.
  */
-function ScopedShell({ title, kind, navItems, networks, Context, children }) {
+function ScopedShell({ title, kind, navItems, networks, Context, allOption = true, children }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -90,6 +90,15 @@ function ScopedShell({ title, kind, navItems, networks, Context, children }) {
     [router, pathname, searchParams, kind],
   );
 
+  // Without an "All accounts" row, a page always shows one network: when none
+  // is picked (or the picked one isn't connected), open the first connected.
+  const firstConnected = connected[0]?.network.id;
+  const needsPick =
+    !allOption && !loading && firstConnected && !connected.some(({ network }) => network.id === platform);
+  useEffect(() => {
+    if (needsPick) onPick(firstConnected);
+  }, [needsPick, firstConnected, onPick]);
+
   const query = platform === "all" ? "" : `?platform=${platform}`;
   const items = navItems.map((item) => ({ ...item, href: item.href + query }));
 
@@ -101,7 +110,7 @@ function ScopedShell({ title, kind, navItems, networks, Context, children }) {
     emptyText: "No accounts connected yet.",
     options: connected.length
       ? [
-          { id: "all", label: "All accounts", Icon: LayoutGrid },
+          ...(allOption ? [{ id: "all", label: "All accounts", Icon: LayoutGrid }] : []),
           ...connected.map(({ network, row }) => ({
             id: network.id,
             label: network.label,

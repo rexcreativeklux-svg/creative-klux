@@ -377,7 +377,7 @@ const SectionLayout = ({ title, items, accounts, bleed = false, children }) => {
         {/* Desktop page tabs — Publishing / Calendar / Analytics across the top
             of the page, when the panel holds the accounts. Sticky, so they
             stay reachable down a long table. */}
-        {accounts && (
+        {accounts && items.length > 0 && (
           <nav
             aria-label={`${title} pages`}
             className="sticky top-0 z-20 hidden border-b border-gray-200 bg-surface/95 px-gutter backdrop-blur lg:flex"

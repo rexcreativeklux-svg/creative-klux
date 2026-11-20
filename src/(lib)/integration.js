@@ -528,12 +528,15 @@ import {
   fetchPlatformPosts,
   fetchPostMetrics,
   publishToPlatform,
+  redactSecrets,
   resolveBrandId,
   setCampaignStatus,
   uploadForPublish,
 } from "./creativesApi";
-import { readMetrics } from "./postMetrics";
+import { numeric, readMetrics } from "./postMetrics";
 import { cached, invalidate } from "./requestCache";
+
+export { redactSecrets };
 
 // How long a network's post list / a post's stats are reused across the
 // Social and Ads pages before the backend is asked again. A Refresh button
@@ -1150,6 +1153,45 @@ export async function getAdCampaignStats({ platform, campaign_id, days = 7 }) {
   };
 }
 
+/**
+ * One campaign's numbers over the last `days` (1–90), under the backend's OWN
+ * names — what the ads insights page shows. Checked 2026-11-20:
+ *   meta_ads    spend, impressions, reach, clicks, ctr, cpc, likes, shares,
+ *               comments, conversions (null when the network has none)
+ *   google_ads  spend, impressions, clicks, ctr (a fraction), cpc, conversions
+ *               — impressions / clicks arrive as strings
+ * Numeric strings become numbers; nulls are dropped (not reported ≠ 0). When
+ * the metrics come as rows (per day / breakdown) they're summed, and rates —
+ * which can't be summed — are left out.
+ */
+export async function getAdCampaignMetrics({ platform, campaign_id, days = 30, fresh = false }) {
+  const data = await cached(
+    `admetrics|${platform}|${campaign_id}|${days}`,
+    STATS_TTL,
+    () => fetchCampaignMetrics({ platform, campaign_id, days }),
+    { fresh },
+  );
+  const raw = data?.metrics ?? data ?? {};
+  const rows = Array.isArray(raw) ? raw : [raw];
+  const out = {};
+  for (const row of rows) {
+    for (const [k, v] of Object.entries(row || {})) {
+      const n = numeric(v);
+      if (n === undefined) continue;
+      out[k] = (out[k] ?? 0) + n;
+    }
+  }
+  if (rows.length > 1) for (const rate of ["ctr", "cpc", "cpm", "frequency"]) delete out[rate];
+  // Which names came back at all (null included) — for "everything this API returns".
+  const returned = [...new Set(rows.flatMap((r) => Object.keys(r || {})))];
+  return { metrics: out, returned };
+}
+
+/** Forget the cached campaign lists — after one is created elsewhere. */
+export function invalidateCampaigns() {
+  invalidate("campaigns|");
+}
+
 /** Pause or resume a campaign. Resuming ("ACTIVE") starts spending real money. */
 export async function setAdCampaignStatus({ platform, campaign_id, status }) {
   const res = await setCampaignStatus({ platform, campaign_id, status });
@@ -1281,7 +1323,7 @@ function normalizeLivePosts(platform, data) {
  * returned as it came.
  */
 export function readableError(message) {
-  const text = String(message || "");
+  const text = redactSecrets(String(message || ""));
   const at = text.indexOf("{");
   if (at === -1) return text;
   try {
@@ -1327,7 +1369,7 @@ export async function fetchLivePostsFromConnectedAccounts(
         );
         return normalizeLivePosts(platform, data);
       } catch (err) {
-        console.warn(`${platform} live posts fetch failed:`, err.message);
+        console.warn(`${platform} live posts fetch failed:`, redactSecrets(err.message));
         errorsByPlatform[platform] = readableError(err.message);
         fetchErrors.push(`${platform}: ${errorsByPlatform[platform]}`);
         return [];
@@ -1365,6 +1407,8 @@ export async function fetchLivePostsFromConnectedAccounts(
             project_id: null,
             project_title: c.name || `${platform} campaign`,
             caption: c.objective ? `Objective: ${c.objective}` : "",
+            // The network's own objective code (OUTCOME_TRAFFIC, DISPLAY…).
+            objective: c.objective || null,
             // The ad's own creative image, when the network gives one (Meta
             // does; Google sends null).
             image_url: c.thumbnail || null,
@@ -1384,7 +1428,7 @@ export async function fetchLivePostsFromConnectedAccounts(
           };
         });
       } catch (err) {
-        console.warn(`${platform} campaigns fetch failed:`, err.message);
+        console.warn(`${platform} campaigns fetch failed:`, redactSecrets(err.message));
         errorsByPlatform[platform] = readableError(err.message);
         fetchErrors.push(`${platform}: ${errorsByPlatform[platform]}`);
         return [];

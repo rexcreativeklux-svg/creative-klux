@@ -45,7 +45,6 @@ import {
   ChevronUp,
   Clock,
   Eye,
-  ImagePlus,
   Info,
   Loader2,
   Monitor,
@@ -63,7 +62,10 @@ import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import PlatformPageModal from "@/app/(components)/integrations/PlatformPageModal";
 import { useIntegrationCatalogue } from "@/app/(components)/integrations/useIntegrationCatalogue";
 import { useIsHydrated } from "@/utils/useIsHydrated";
-import PostPreview from "./PostPreview";
+import PostPreview, { DesktopFrame, PhoneFrame } from "./PostPreview";
+import MediaMenu from "./MediaMenu";
+import { AltTextDialog, ManageFiles, MediaStrip, MediaViewer } from "./MediaAttachments";
+import { AiTextTool, EmojiTool, HashtagTool, LinkTool, SavedTextsTool } from "./ComposerTools";
 import {
   COMPOSER_ORDER,
   COMPOSER_PLATFORMS,
@@ -83,6 +85,8 @@ const BRAND = "#003dda";
  * @param {string} [props.initialText]
  * @param {{url: string, type: "image"|"video"}} [props.initialMedia]
  * @param {string[]} [props.initialPlatforms]
+ * @param {string} [props.aiTopic] Pre-fills the AI text generator's topic —
+ *   e.g. the prompt the attached media was generated from.
  */
 export default function CreatePostComposer({ isOpen, ...props }) {
   const hydrated = useIsHydrated();
@@ -115,6 +119,7 @@ function ComposerScreen({
   initialText = "",
   initialMedia = null,
   initialPlatforms = [],
+  aiTopic = "",
 }) {
   const { activeBrand } = useAuth();
   const brandId = activeBrand?.id;
@@ -186,20 +191,29 @@ function ComposerScreen({
     setCustomText(({ [platform]: _dropped, ...rest }) => rest);
   const customiseFor = (platform) =>
     setCustomText((prev) => ({ ...prev, [platform]: prev[platform] ?? text }));
-  // { url, type, previewUrl?, name? } once hosted; `uploading` while it goes up.
-  const [media, setMedia] = useState(initialMedia);
-  const [uploading, setUploading] = useState(false);
-  const [options, setOptions] = useState({}); // { [platform]: { title, link, … } }
-  const fileRef = useRef(null);
-
-  // Object URLs are released when replaced and when the composer closes.
-  const previewUrlRef = useRef(null);
-  useEffect(
-    () => () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    },
-    [],
+  // The attached files, in posting order:
+  // { id, type, url (once hosted), previewUrl?, name?, alt?, uploading? }.
+  // The first is what publishing sends (the API takes one — see MAX_MEDIA).
+  const [mediaList, setMediaList] = useState(() =>
+    initialMedia ? [{ ...initialMedia, id: "initial" }] : [],
   );
+  const media = mediaList[0] || null;
+  const uploading = mediaList.some((m) => m.uploading);
+  const [options, setOptions] = useState({}); // { [platform]: { title, link, … } }
+  // Attachment screens: the Manage files view, the viewer, the alt-text dialog.
+  const [manageOpen, setManageOpen] = useState(false);
+  const [viewing, setViewing] = useState(null);
+  const [altFor, setAltFor] = useState(null);
+
+  // Object URLs of local files — released when their file goes and on close.
+  const objectUrls = useRef(new Set());
+  useEffect(() => {
+    const urls = objectUrls.current;
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, []);
+  const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+  const patchMedia = (id, patch) =>
+    setMediaList((list) => list.map((m) => (m.id === id ? { ...m, ...patch } : m)));
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -212,31 +226,47 @@ function ComposerScreen({
       toast.error("Pick an image or a video file.");
       return;
     }
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     const previewUrl = URL.createObjectURL(file);
-    previewUrlRef.current = previewUrl;
+    objectUrls.current.add(previewUrl);
+    const id = newId();
     // Shown straight away from the local file; publishable once hosted.
-    setMedia({ type, previewUrl, name: file.name, url: null });
-    setUploading(true);
+    setMediaList((list) => [...list, { id, type, previewUrl, name: file.name, url: null, uploading: true }]);
     try {
       console.log(`⬆️ [composer] uploading ${type} "${file.name}"`);
       const url = await uploadForPublish(file);
       if (!url) throw new Error("The upload didn't return a link.");
-      setMedia({ type, previewUrl, name: file.name, url });
+      patchMedia(id, { url, uploading: false });
     } catch (err) {
       console.error("❌ [composer] upload failed:", err);
       toast.error(err.message || "Upload failed. Please try again.");
-      setMedia(null);
-    } finally {
-      setUploading(false);
+      setMediaList((list) => list.filter((m) => m.id !== id));
     }
   };
 
-  const removeMedia = () => {
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    previewUrlRef.current = null;
-    setMedia(null);
+  // Media that's already online (library, stock): nothing to upload.
+  const pickHostedMedia = (picked) =>
+    setMediaList((list) => [...list, { ...picked, id: newId() }]);
+
+  const removeMedia = (ids) => {
+    const drop = new Set([].concat(ids));
+    setMediaList((list) => {
+      list
+        .filter((m) => drop.has(m.id) && objectUrls.current.has(m.previewUrl))
+        .forEach((m) => {
+          URL.revokeObjectURL(m.previewUrl);
+          objectUrls.current.delete(m.previewUrl);
+        });
+      return list.filter((m) => !drop.has(m.id));
+    });
   };
+
+  const moveMedia = (from, to) =>
+    setMediaList((list) => {
+      const next = [...list];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next;
+    });
 
   const setOption = (platform, key, value) =>
     setOptions((prev) => ({ ...prev, [platform]: { ...prev[platform], [key]: value } }));
@@ -251,7 +281,7 @@ function ComposerScreen({
   // checks and the next publish, so a retry only goes where it failed.
   const [results, setResults] = useState({}); // { [platform]: {status, message} }
   const pending = platforms.filter((p) => results[p]?.status !== "done");
-  const problems = validatePost({ text, textFor, media, platforms: pending });
+  const problems = validatePost({ text, textFor, media, mediaCount: mediaList.length, platforms: pending });
   const hasProblem = (platform) => problems.some((pr) => pr.platform === platform);
   const [errorsOpen, setErrorsOpen] = useState(true);
 
@@ -267,7 +297,7 @@ function ComposerScreen({
   const [publishMenuOpen, setPublishMenuOpen] = useState(false);
 
   // ── Close (with a discard check) ─────────────────────────────────────────
-  const dirty = !!text.trim() || !!media || Object.keys(customText).length > 0;
+  const dirty = !!text.trim() || mediaList.length > 0 || Object.keys(customText).length > 0;
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const requestClose = () => {
@@ -362,10 +392,33 @@ function ComposerScreen({
   );
   // A network tab that still follows the template shows it locked.
   const editorLocked = !!editingNetwork && customText[editingNetwork] == null;
+  // Nothing can be written into a locked tab or while publishing.
+  const textToolsOff = publishing || editorLocked;
   const setEditorText = (value) =>
     editingNetwork
       ? setCustomText((prev) => ({ ...prev, [editingNetwork]: value }))
       : setText(value);
+
+  // The toolbar's tools (emoji, hashtags, links, AI text, saved texts) put
+  // their text where the cursor is in the open editor — or at the end when it
+  // hasn't been focused — and leave the cursor after what they added.
+  const editorRef = useRef(null);
+  const insertText = (snippet) => {
+    const el = editorRef.current;
+    const current = editorText;
+    const start = el ? el.selectionStart ?? current.length : current.length;
+    const end = el ? el.selectionEnd ?? current.length : current.length;
+    // A space between the insert and a word right before it.
+    const before = current.slice(0, start);
+    const pad = before && !/\s$/.test(before) && /^[#\w]/.test(snippet) ? " " : "";
+    const next = `${before}${pad}${snippet}${current.slice(end)}`;
+    setEditorText(next);
+    const caret = start + pad.length + snippet.length;
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(caret, caret);
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-90 flex flex-col bg-page" role="dialog" aria-modal="true" aria-label="Create new post">
@@ -419,10 +472,36 @@ function ComposerScreen({
       <div className="mx-4 mb-4 flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-surface shadow-sm sm:mx-8 sm:mb-6">
         {/* ───────── Left: editor ───────── */}
         <div
-          className={`min-w-0 flex-1 flex-col lg:flex lg:border-r lg:border-gray-200 ${
+          className={`relative min-w-0 flex-1 flex-col lg:flex lg:border-r lg:border-gray-200 ${
             mobileTab === "edit" ? "flex" : "hidden"
           }`}
         >
+          {/* Manage files — takes over the edit column, as Metricool's does. */}
+          {manageOpen && (
+            <div className="absolute inset-0 z-20 bg-surface">
+              <ManageFiles
+                items={mediaList}
+                disabled={publishing}
+                onBack={() => setManageOpen(false)}
+                onMove={moveMedia}
+                onRemoveMany={(ids) => {
+                  removeMedia(ids);
+                  if (mediaList.length - ids.length < 2) setManageOpen(false);
+                }}
+                onView={setViewing}
+                onAlt={setAltFor}
+                addMenu={
+                  <MediaMenu
+                    label="Add files"
+                    disabled={publishing}
+                    onFile={handleFile}
+                    onPick={pickHostedMedia}
+                    activeBrand={activeBrand}
+                  />
+                }
+              />
+            </div>
+          )}
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
             {/* Accounts — Metricool's row: every connected account as its
                 network icon, coloured when the post goes there and grey when
@@ -568,6 +647,7 @@ function ComposerScreen({
               }`}
             >
               <textarea
+                ref={editorRef}
                 value={editorText}
                 onChange={(e) => setEditorText(e.target.value)}
                 disabled={publishing || editorLocked}
@@ -601,62 +681,42 @@ function ComposerScreen({
                 </div>
               )}
 
-              {/* Attached media */}
-              {media && (
-                <div className="px-4 pb-3">
-                  <div className="relative inline-block overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                    {media.type === "video" ? (
-                      <video
-                        src={media.previewUrl || media.url}
-                        className="h-28 w-auto max-w-56 bg-black object-contain"
-                        muted
-                        playsInline
-                        preload="metadata"
-                      />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={media.previewUrl || media.url} alt="" className="h-28 w-auto max-w-56 object-cover" />
-                    )}
-                    {uploading && (
-                      <span className="absolute inset-0 flex items-center justify-center bg-black/40">
-                        <Loader2 className="h-6 w-6 animate-spin text-white" />
-                      </span>
-                    )}
-                    {!uploading && !publishing && (
-                      <button
-                        type="button"
-                        onClick={removeMedia}
-                        aria-label="Remove media"
-                        className="absolute right-1.5 top-1.5 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
+              {/* Attached media — thumbnails with their ⋯ menu and ALT badge,
+                  and "Manage ›" once there are two or more. */}
+              <MediaStrip
+                items={mediaList}
+                disabled={publishing}
+                onView={setViewing}
+                onAlt={setAltFor}
+                onRemove={removeMedia}
+                onManage={() => setManageOpen(true)}
+              />
 
               {/* Toolbar + counters */}
               <div className="flex items-center gap-2 border-t border-gray-100 px-3 py-2">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*,video/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    handleFile(e.target.files?.[0]);
-                    e.target.value = ""; // the same file can be picked again
-                  }}
+                {/* Add multimedia — computer, library, AI, stock (Metricool's menu). */}
+                <MediaMenu
+                  disabled={publishing}
+                  onFile={handleFile}
+                  onPick={pickHostedMedia}
+                  activeBrand={activeBrand}
                 />
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading || publishing}
-                  title={media ? "Replace image or video" : "Add an image or video"}
-                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <ImagePlus className="h-4.5 w-4.5" />
-                </button>
+                {/* Text tools — each inserts at the cursor (Metricool's row). */}
+                <EmojiTool disabled={textToolsOff} onInsert={insertText} />
+                <HashtagTool disabled={textToolsOff} onInsert={insertText} text={editorText} platforms={connected} />
+                <LinkTool disabled={textToolsOff} onInsert={insertText} />
+                <AiTextTool
+                  disabled={textToolsOff}
+                  onInsert={insertText}
+                  platforms={platforms}
+                  initialTopic={aiTopic}
+                />
+                <SavedTextsTool
+                  disabled={textToolsOff}
+                  onInsert={insertText}
+                  currentText={editorText}
+                  brandId={brandId}
+                />
                 <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
                   {counters.map(({ platform, length, max, over }) => {
                     const { Icon, color } = COMPOSER_PLATFORMS[platform];
@@ -938,34 +998,27 @@ function ComposerScreen({
           <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
             {previewPlatform ? (
               device === "phone" ? (
-                /* A phone: bezel, status bar, the post as the app shows it.
-                   TikTok fills the whole screen, the rest sit in a feed. */
-                <div className="mx-auto flex h-full max-h-170 min-h-120 w-85 max-w-full flex-col overflow-hidden rounded-[2.5rem] border-10 border-gray-900 bg-surface shadow-xl">
-                  {previewPlatform !== "tiktok" && (
-                    <div className="flex shrink-0 items-center justify-between px-5 pb-1 pt-2 text-[11px] font-semibold text-gray-900">
-                      <span>9:41</span>
-                      <span className="h-5 w-20 rounded-full bg-gray-900" aria-hidden="true" />
-                      <span>100%</span>
-                    </div>
-                  )}
-                  <div
-                    className={`min-h-0 flex-1 ${
-                      previewPlatform === "tiktok" ? "" : "overflow-y-auto bg-gray-100 px-2 py-3"
-                    }`}
-                  >
-                    <PostPreview
-                      platform={previewPlatform}
-                      device="phone"
-                      name={accountName(previewPlatform)}
-                      logo={activeBrand?.logo}
-                      text={textFor(previewPlatform)}
-                      media={media}
-                      options={options[previewPlatform]}
-                    />
-                  </div>
-                </div>
+                /* A phone running the network's app — status bar, its top
+                   bar and tabs, the post in its feed (see PhoneFrame). */
+                <PhoneFrame
+                  platform={previewPlatform}
+                  name={accountName(previewPlatform)}
+                  logo={activeBrand?.logo}
+                >
+                  <PostPreview
+                    platform={previewPlatform}
+                    device="phone"
+                    name={accountName(previewPlatform)}
+                    logo={activeBrand?.logo}
+                    text={textFor(previewPlatform)}
+                    media={media}
+                    mediaList={mediaList}
+                    options={options[previewPlatform]}
+                  />
+                </PhoneFrame>
               ) : (
-                <div className="mx-auto max-w-xl">
+                /* A browser window on the network's site. */
+                <DesktopFrame platform={previewPlatform}>
                   <PostPreview
                     platform={previewPlatform}
                     device="desktop"
@@ -973,9 +1026,10 @@ function ComposerScreen({
                     logo={activeBrand?.logo}
                     text={textFor(previewPlatform)}
                     media={media}
+                    mediaList={mediaList}
                     options={options[previewPlatform]}
                   />
-                </div>
+                </DesktopFrame>
               )
             ) : (
               <p className="py-16 text-center text-sm text-gray-400">
@@ -1071,6 +1125,20 @@ function ComposerScreen({
           selectedPageId={null}
           onDisconnect={catalogue.chooser.onDisconnect}
           disconnecting={catalogue.chooser.disconnecting}
+        />
+      )}
+
+      {/* A file full size, and an image's alt text. */}
+      <MediaViewer item={viewing} onClose={() => setViewing(null)} />
+      {altFor && (
+        <AltTextDialog
+          key={altFor.id}
+          item={altFor}
+          onClose={() => setAltFor(null)}
+          onSave={(alt) => {
+            patchMedia(altFor.id, { alt });
+            setAltFor(null);
+          }}
         />
       )}
 

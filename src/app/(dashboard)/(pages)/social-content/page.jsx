@@ -1,11 +1,19 @@
+"use client";
+
 /**
- * /social-content — section index.
- * The section is its secondary sidebar's pages; landing here just forwards to
- * Publishing.
+ * /social-content — one network's page (see NetworkInsightsPage), for the
+ * network picked in the sidebar (?platform=). The section shell picks the
+ * first connected network when none is in the URL, so "all" only shows for
+ * the moment before that lands, or when nothing is connected.
  */
 
-import { redirect } from "next/navigation";
+import NetworkInsightsPage from "@/app/(components)/insights/NetworkInsightsPage";
+import { useSocialPlatform } from "@/app/(components)/content/socialPlatformScope";
+import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
-export default function SocialContentIndex() {
-  redirect("/social-content/publishing");
+export default function SocialContentPage() {
+  const { platform, scoped } = useSocialPlatform();
+  if (!scoped) return <PublishingSkeleton />;
+  // Keyed by network so switching starts from a clean page.
+  return <NetworkInsightsPage key={platform} platform={platform} />;
 }

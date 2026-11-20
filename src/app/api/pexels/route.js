@@ -9,6 +9,8 @@ export async function GET(request) {
   const page = searchParams.get("page") || "1";
   const perPage = searchParams.get("per_page") || "20";
   const orientation = searchParams.get("orientation");
+  // Pexels' own colour filter (photos only): a name like "blue" or a hex.
+  const color = searchParams.get("color");
 
   if (!PEXELS_API_KEY) {
     return NextResponse.json(
@@ -31,7 +33,7 @@ export async function GET(request) {
         : "https://api.pexels.com/v1/search";
 
     // Fix: Add missing closing brace and backtick
-    const url = `${baseUrl}?query=${encodeURIComponent(query)}&page=${page}&per_page=${perPage}${orientation ? `&orientation=${orientation}` : ''}`;
+    const url = `${baseUrl}?query=${encodeURIComponent(query)}&page=${page}&per_page=${perPage}${orientation ? `&orientation=${orientation}` : ''}${color && type !== "videos" ? `&color=${encodeURIComponent(color)}` : ''}`;
 
     const response = await fetch(url, {
       headers: {

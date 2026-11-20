@@ -179,6 +179,15 @@ export const COMPOSER_PLATFORMS = {
     ],
   },
 };
+/**
+ * How many images / videos one post can carry. 1 everywhere for now: the
+ * publish API (POST creatives/publish) takes a single image_url or video_url,
+ * so a second file couldn't go out. When the backend accepts several, give a
+ * network its own `maxMedia` (Instagram/Facebook carousels take 10, X 4,
+ * Pinterest 1) and send them all in publishComposedPost.
+ */
+export const MAX_MEDIA = 1;
+
 /** The order networks appear in the picker. */
 export const COMPOSER_ORDER = [
   "facebook",
@@ -208,7 +217,7 @@ export const firstLine = (text = "") => text.trim().split("\n")[0]?.trim() || ""
  * @param {string[]} post.platforms
  * @returns {Array<{platform: string, message: string}>}
  */
-export function validatePost({ text: shared, textFor, media, platforms }) {
+export function validatePost({ text: shared, textFor, media, mediaCount = media ? 1 : 0, platforms }) {
   const problems = [];
   if (!platforms.length) {
     problems.push({ platform: null, message: "Pick at least one account to post to." });
@@ -232,6 +241,9 @@ export function validatePost({ text: shared, textFor, media, platforms }) {
       problems.push({ platform, message: "Add at least 1 image or video." });
     if (rules.media === "video" && media?.type !== "video")
       problems.push({ platform, message: "Add a video — this network only posts video." });
+    const max = rules.maxMedia ?? MAX_MEDIA;
+    if (mediaCount > max)
+      problems.push({ platform, message: `Max images or videos allowed ${max}.` });
   }
   return problems;
 }

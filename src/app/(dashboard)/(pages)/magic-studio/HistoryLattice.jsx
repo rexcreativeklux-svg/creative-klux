@@ -48,7 +48,7 @@ import {
   saveUrlToGallery,
 } from "@/app/(components)/product-studio/saveToGallery";
 import { useAuth } from "@/context/AuthContext";
-import PublishModal from "@/app/(components)/PublishModal";
+import CreatePostComposer from "@/app/(components)/composer/CreatePostComposer";
 import GeneratingArt from "./GeneratingArt";
 import { toolById } from "./magicTools";
 import { generationIdOf } from "./useMagicHistory";
@@ -490,30 +490,6 @@ export default function HistoryLattice({
   // be a picture or a clip with a hosted URL behind it — the persona generator
   // is a publishing tool that returns text half the time, and a text tile has
   // nothing to post.
-  // The item being published, in the shape PublishModal wants.
-  //
-  // ⚠️ MEMOIZED, AND IT IS NOT AN OPTIMIZATION. PublishModal seeds its caption
-  // from `creative` in an effect keyed on that prop, so an object literal built
-  // inline in the JSX — a new identity on every render of this lattice — re-runs
-  // that effect and WIPES whatever the user has typed into the post, mid-compose,
-  // the next time anything here re-renders. Keyed on the item so it changes when
-  // the result being published does, and not before.
-  const publishCreative = useMemo(
-    () =>
-      publishItem && {
-        id: publishItem.id,
-        name: toolById(publishItem.tool)?.label || "Magic Studio creation",
-        // "all" → the picker offers social platforms AND ad accounts: what a
-        // Magic Studio result is for is decided by the person who made it, not
-        // by the tool that made it.
-        category: "all",
-        image: publishItem.url,
-        isVideo: publishItem.type === "video",
-        copy: {},
-      },
-    [publishItem],
-  );
-
   const canPublish = (item) =>
     !!toolById(item.tool)?.publish &&
     !!item.url &&
@@ -848,19 +824,20 @@ export default function HistoryLattice({
         onCancel={() => setDeleteItem(null)}
       />
 
-      {/* Publishing — the shared PublishModal, with the generation wrapped as a
-          minimal creative whose `image` is its hosted URL (see publishCreative).
-          The same shape MagicHistoryGrid passes, so a result published from the
-          lattice and one published from the modal's grid go out identically. */}
-      {publishItem && (
-        <PublishModal
-          creative={publishCreative}
-          onClose={() => setPublishItem(null)}
-          showToast={(message, type) =>
-            type === "error" ? toast.error(message) : toast.success(message)
-          }
-        />
-      )}
+      {/* Publishing — the Create new post composer (the same one Social
+          Content uses), opened with this result already attached: its hosted
+          URL is the post's media, nothing is uploaded again. The prompt it was
+          generated from seeds the AI text generator's topic — a prompt is an
+          instruction to the image model, not a caption, so it isn't put in the
+          post itself. */}
+      <CreatePostComposer
+        isOpen={!!publishItem}
+        onClose={() => setPublishItem(null)}
+        initialMedia={
+          publishItem ? { url: publishItem.url, type: publishItem.type } : null
+        }
+        aiTopic={publishItem?.prompt?.trim() || ""}
+      />
     </>
   );
 }

@@ -1,24 +1,30 @@
 "use client";
 
 /**
- * Ads Content section layout (/ads-content/*)
- * Wraps the ads pages (Publishing / Calendar / Analytics) in the shared
- * SectionLayout shell so they all share the same secondary sidebar.
+ * Ads Content section layout (/ads-content)
+ * The connected ad accounts and "+ More connections" — see
+ * ContentSectionShell. No page tabs and no "All accounts" row: each ad
+ * network has one page with its own tabs (AdsInsightsPage), and the first
+ * connected one opens when none is picked.
  */
 
-import SectionLayout from "@/app/(components)/SectionLayout";
-import { Megaphone, Calendar, Activity } from "lucide-react";
-
-const NAV_ITEMS = [
-  { label: "Publishing", href: "/ads-content/publishing", icon: Megaphone },
-  { label: "Calendar", href: "/ads-content/calendar", icon: Calendar },
-  { label: "Analytics", href: "/ads-content/analytics", icon: Activity },
-];
+import ContentSectionShell from "@/app/(components)/content/ContentSectionShell";
+import {
+  AD_NETWORKS,
+  AdsPlatformContext,
+} from "@/app/(components)/content/socialPlatformScope";
 
 export default function AdsContentLayout({ children }) {
   return (
-    <SectionLayout title="Ads Content" items={NAV_ITEMS}>
+    <ContentSectionShell
+      title="Ads Content"
+      kind="ads"
+      navItems={[]}
+      networks={AD_NETWORKS}
+      Context={AdsPlatformContext}
+      allOption={false}
+    >
       {children}
-    </SectionLayout>
+    </ContentSectionShell>
   );
 }

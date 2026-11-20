@@ -528,10 +528,22 @@ import {
   fetchPlatformPosts,
   fetchPostMetrics,
   publishToPlatform,
+  redactSecrets,
+  resolveBrandId,
   setCampaignStatus,
   uploadForPublish,
 } from "./creativesApi";
-import { readMetrics } from "./postMetrics";
+import { numeric, readMetrics } from "./postMetrics";
+import { cached, invalidate } from "./requestCache";
+
+export { redactSecrets };
+
+// How long a network's post list / a post's stats are reused across the
+// Social and Ads pages before the backend is asked again. A Refresh button
+// always asks again (`fresh`).
+const POSTS_TTL = 2 * 60_000;
+const STATS_TTL = 5 * 60_000;
+const brandKey = (brandId) => resolveBrandId(brandId) ?? "";
 
 // ─────────────────────────────────────────────────────────────
 // Meta API Versioning
@@ -1040,8 +1052,13 @@ export const POST_STATS_PLATFORMS = [
  * nothing is renamed or filled in. `metrics` is null, with the backend's
  * `unavailable_reason`, when the network returned no numbers.
  */
-export async function getPostStats({ platform, post_id, brand_id }) {
-  const data = await fetchPostMetrics({ brand_id, platform, post_id });
+export async function getPostStats({ platform, post_id, brand_id, fresh = false }) {
+  const data = await cached(
+    `stats|${brandKey(brand_id)}|${platform}|${post_id}`,
+    STATS_TTL,
+    () => fetchPostMetrics({ brand_id, platform, post_id }),
+    { fresh },
+  );
   const metrics = readMetrics(data?.metrics);
   return {
     metrics,
@@ -1062,11 +1079,14 @@ export async function getPostStats({ platform, post_id, brand_id }) {
  * @param {(row) => Promise<object>} load Fetches one row's stats.
  * @param {number} [concurrency=4]
  */
-export async function loadStatsForRows(rows, load, concurrency = 4) {
+export async function loadStatsForRows(rows, load, concurrency = 6) {
   const stats = {};
   const errors = {};
   const failures = {};
   const queue = [...rows];
+  // Every post is asked: "no numbers" is the backend's answer for THAT post
+  // ("…did not return numbers for this post"), so one post's answer says
+  // nothing about the next one's.
   const worker = async () => {
     while (queue.length) {
       const row = queue.shift();
@@ -1081,7 +1101,7 @@ export async function loadStatsForRows(rows, load, concurrency = 4) {
         };
       } catch (err) {
         failures[row.platform] = (failures[row.platform] || 0) + 1;
-        errors[row.platform] ??= err?.message || "Couldn't load stats";
+        errors[row.platform] ??= readableError(err?.message) || "Couldn't load stats";
       }
     }
   };
@@ -1133,14 +1153,57 @@ export async function getAdCampaignStats({ platform, campaign_id, days = 7 }) {
   };
 }
 
+/**
+ * One campaign's numbers over the last `days` (1–90), under the backend's OWN
+ * names — what the ads insights page shows. Checked 2026-11-20:
+ *   meta_ads    spend, impressions, reach, clicks, ctr, cpc, likes, shares,
+ *               comments, conversions (null when the network has none)
+ *   google_ads  spend, impressions, clicks, ctr (a fraction), cpc, conversions
+ *               — impressions / clicks arrive as strings
+ * Numeric strings become numbers; nulls are dropped (not reported ≠ 0). When
+ * the metrics come as rows (per day / breakdown) they're summed, and rates —
+ * which can't be summed — are left out.
+ */
+export async function getAdCampaignMetrics({ platform, campaign_id, days = 30, fresh = false }) {
+  const data = await cached(
+    `admetrics|${platform}|${campaign_id}|${days}`,
+    STATS_TTL,
+    () => fetchCampaignMetrics({ platform, campaign_id, days }),
+    { fresh },
+  );
+  const raw = data?.metrics ?? data ?? {};
+  const rows = Array.isArray(raw) ? raw : [raw];
+  const out = {};
+  for (const row of rows) {
+    for (const [k, v] of Object.entries(row || {})) {
+      const n = numeric(v);
+      if (n === undefined) continue;
+      out[k] = (out[k] ?? 0) + n;
+    }
+  }
+  if (rows.length > 1) for (const rate of ["ctr", "cpc", "cpm", "frequency"]) delete out[rate];
+  // Which names came back at all (null included) — for "everything this API returns".
+  const returned = [...new Set(rows.flatMap((r) => Object.keys(r || {})))];
+  return { metrics: out, returned };
+}
+
+/** Forget the cached campaign lists — after one is created elsewhere. */
+export function invalidateCampaigns() {
+  invalidate("campaigns|");
+}
+
 /** Pause or resume a campaign. Resuming ("ACTIVE") starts spending real money. */
 export async function setAdCampaignStatus({ platform, campaign_id, status }) {
-  return setCampaignStatus({ platform, campaign_id, status });
+  const res = await setCampaignStatus({ platform, campaign_id, status });
+  invalidate("campaigns|"); // the shared list has the old status
+  return res;
 }
 
 /** Delete a campaign on its network. Irreversible — the caller confirms first. */
 export async function deleteAdCampaign({ platform, campaign_id }) {
-  return deleteCampaign({ platform, campaign_id });
+  const res = await deleteCampaign({ platform, campaign_id });
+  invalidate("campaigns|"); // the shared list still has it
+  return res;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1209,7 +1272,8 @@ function normalizeLivePosts(platform, data) {
           null,
         platform,
         // Instagram's own kind of post (IMAGE, VIDEO, CAROUSEL_ALBUM).
-        media_type: post.media_type || null,
+        // Pinterest nests it: media.media_type ("image" / "video").
+        media_type: post.media_type || post.media?.media_type || null,
         type: "social",
         status: scheduledAt ? "scheduled" : "published",
         published_at: scheduledAt
@@ -1223,13 +1287,17 @@ function normalizeLivePosts(platform, data) {
             ),
         scheduled_at: scheduledAt,
         post_id: String(id),
+        // Pinterest's `link` is the website the pin points AT, not the pin —
+        // the pin itself lives at pinterest.com/pin/<id>.
         permalink_url:
-          post.permalink_url ||
-          post.permalink ||
-          post.share_url ||
-          post.url ||
-          post.link ||
-          null,
+          platform === "pinterest"
+            ? `https://www.pinterest.com/pin/${id}/`
+            : post.permalink_url ||
+              post.permalink ||
+              post.share_url ||
+              post.url ||
+              post.link ||
+              null,
         live: true,
         // The numbers the platform's own listing carries (TikTok sends
         // view_count / like_count / comment_count), under its names. Shown only
@@ -1247,10 +1315,37 @@ function normalizeLivePosts(platform, data) {
     .filter(Boolean);
 }
 
+/**
+ * A backend error as a sentence. Some arrive with the network's raw JSON glued
+ * on — `X list failed: {"detail":"credits depleted","status":402,"title":
+ * "Payment Required",…}` — so the JSON's own words are pulled out:
+ * "X list failed: credits depleted (Payment Required)". Anything else is
+ * returned as it came.
+ */
+export function readableError(message) {
+  const text = redactSecrets(String(message || ""));
+  const at = text.indexOf("{");
+  if (at === -1) return text;
+  try {
+    const body = JSON.parse(text.slice(at));
+    const what = body.detail || body.message || body.error?.message || body.error;
+    if (!what || typeof what !== "string") return text;
+    const lead = text.slice(0, at).replace(/[\s:]+$/, "");
+    const tail = body.title && body.title !== what ? ` (${body.title})` : "";
+    return `${lead ? `${lead}: ` : ""}${what}${tail}`;
+  } catch {
+    return text;
+  }
+}
+
 export async function fetchLivePostsFromConnectedAccounts(
   integrations = [],
+  { fresh = false } = {},
 ) {
+  const brand = brandKey();
   const livePosts = [];
+  // platform → the backend's reason that platform's list couldn't be read.
+  const errorsByPlatform = {};
 
   // ── Social platforms — read through the API (creatives/posts) ────────────
   // One call per connected platform; the API holds the tokens. `data` passes
@@ -1266,19 +1361,27 @@ export async function fetchLivePostsFromConnectedAccounts(
   const socialLists = await Promise.all(
     connected.map(async (platform) => {
       try {
-        const data = await fetchPlatformPosts({ platform, limit: 20 });
+        const data = await cached(
+          `posts|${brand}|${platform}`,
+          POSTS_TTL,
+          () => fetchPlatformPosts({ platform, limit: 20 }),
+          { fresh },
+        );
         return normalizeLivePosts(platform, data);
       } catch (err) {
-        console.warn(`${platform} live posts fetch failed:`, err.message);
-        fetchErrors.push(`${platform}: ${err.message}`);
+        console.warn(`${platform} live posts fetch failed:`, redactSecrets(err.message));
+        errorsByPlatform[platform] = readableError(err.message);
+        fetchErrors.push(`${platform}: ${errorsByPlatform[platform]}`);
         return [];
       }
     }),
   );
   socialLists.forEach((list) => livePosts.push(...list));
   // Riding on the array so existing callers keep working: the server's own
-  // words for each platform that failed, for the page to surface.
+  // words for each platform that failed, for the page to surface — as one
+  // list, and by platform for a page that shows each network on its own.
   livePosts.errors = fetchErrors;
+  livePosts.errorsByPlatform = errorsByPlatform;
 
   // ── Ad platforms — campaigns through the API (creatives/campaigns) ───────
   // One call per connected ad platform; the list comes back normalised. Each
@@ -1291,7 +1394,12 @@ export async function fetchLivePostsFromConnectedAccounts(
   const adLists = await Promise.all(
     connectedAds.map(async (platform) => {
       try {
-        const campaigns = await fetchCampaigns({ platform, limit: 25 });
+        const campaigns = await cached(
+          `campaigns|${brand}|${platform}`,
+          POSTS_TTL,
+          () => fetchCampaigns({ platform, limit: 25 }),
+          { fresh },
+        );
         return campaigns.map((c) => {
           const created = c.created_time ? new Date(c.created_time) : null;
           return {
@@ -1299,6 +1407,8 @@ export async function fetchLivePostsFromConnectedAccounts(
             project_id: null,
             project_title: c.name || `${platform} campaign`,
             caption: c.objective ? `Objective: ${c.objective}` : "",
+            // The network's own objective code (OUTCOME_TRAFFIC, DISPLAY…).
+            objective: c.objective || null,
             // The ad's own creative image, when the network gives one (Meta
             // does; Google sends null).
             image_url: c.thumbnail || null,
@@ -1318,8 +1428,9 @@ export async function fetchLivePostsFromConnectedAccounts(
           };
         });
       } catch (err) {
-        console.warn(`${platform} campaigns fetch failed:`, err.message);
-        fetchErrors.push(`${platform}: ${err.message}`);
+        console.warn(`${platform} campaigns fetch failed:`, redactSecrets(err.message));
+        errorsByPlatform[platform] = readableError(err.message);
+        fetchErrors.push(`${platform}: ${errorsByPlatform[platform]}`);
         return [];
       }
     }),
@@ -1355,6 +1466,8 @@ export async function deletePostFromPlatform(post, brandId) {
     platform: post.platform,
     post_id: post.post_id,
   });
+  // The list everyone shares still has the deleted post in it.
+  invalidate(`posts|${brandKey(brandId)}|${post.platform}`);
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -43,24 +43,29 @@
  *                                  padding. Off by default: an ordinary section
  *                                  page expects the same frame the dashboard puts
  *                                  around every other route.
- * @param {object}   [props.filter]  An optional pick-one list under the page
- *                                  links — Social Content uses it for its
- *                                  networks. Clicking an option calls
- *                                  `onChange(id)`; the section owns the value.
- * @param {string}   props.filter.heading
- * @param {string}   props.filter.value
- * @param {(id: string) => void} props.filter.onChange
- * @param {Array<{id: string, label: string, Icon: import("react").ElementType, color?: string, dim?: boolean, hint?: string}>} props.filter.options
+ * @param {object}   [props.accounts] The section's connected accounts, listed
+ *                                  ABOVE the page links the way Metricool lists
+ *                                  networks (Social and Ads Content). Clicking
+ *                                  one calls `onChange(id)`; the section owns
+ *                                  the value. `action` is the "+ More
+ *                                  connections" button under the list.
+ * @param {string}   props.accounts.heading
+ * @param {string}   props.accounts.value
+ * @param {(id: string) => void} props.accounts.onChange
+ * @param {Array<{id: string, label: string, sublabel?: string, Icon: import("react").ElementType, color?: string}>} props.accounts.options
+ * @param {boolean}  [props.accounts.loading] Shimmer rows while the list loads.
+ * @param {string}   [props.accounts.emptyText] Shown when nothing is connected.
+ * @param {{label: string, onClick: () => void}} [props.accounts.action]
  * @param {import("react").ReactNode} props.children  The active section page
  */
 
 import { Fragment, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { useSecondarySidebar } from "@/context/SecondarySidebarContext";
 
-const SectionLayout = ({ title, items, filter, bleed = false, children }) => {
+const SectionLayout = ({ title, items, accounts, bleed = false, children }) => {
   const pathname = usePathname();
   const { isOpen, toggle } = useSecondarySidebar();
 
@@ -116,7 +121,103 @@ const SectionLayout = ({ title, items, filter, bleed = false, children }) => {
           className={`flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar pb-4 flex flex-col gap-1 ${isOpen ? "px-3" : "px-2"}`}
           onScroll={hideTip}
         >
-          {items.map(({ label, href, icon: Icon, group }, index) => {
+          {/* Connected accounts first, then "+ More connections" — as Metricool
+              lists its networks above everything else. */}
+          {accounts && (
+            <>
+              {isOpen && (
+                <p className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-gray-400">
+                  {accounts.heading}
+                </p>
+              )}
+              {accounts.loading
+                ? [0, 1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center gap-3 rounded-xl py-2 ${isOpen ? "px-3" : "justify-center"}`}
+                    >
+                      <span className="h-5 w-5 shrink-0 animate-pulse rounded-full bg-gray-200" />
+                      {isOpen && <span className="h-3 flex-1 animate-pulse rounded bg-gray-200" />}
+                    </div>
+                  ))
+                : accounts.options.map(({ id, label, sublabel, Icon, color }) => {
+                    const active = accounts.value === id;
+                    const tip = sublabel ? `${label} · ${sublabel}` : label;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => accounts.onChange(id)}
+                        aria-pressed={active}
+                        title={isOpen && sublabel ? tip : undefined}
+                        className={`group flex items-center gap-3 w-full cursor-pointer rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150
+                        ${active ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"}
+                        ${!isOpen ? "justify-center px-0" : ""}`}
+                        onMouseEnter={(e) => showTip(e, tip, active)}
+                        onMouseLeave={hideTip}
+                        onFocus={(e) => showTip(e, tip, active)}
+                        onBlur={hideTip}
+                      >
+                        <Icon
+                          className="h-4.5 w-4.5 shrink-0"
+                          style={color ? { color } : undefined}
+                        />
+                        {isOpen && (
+                          <span className="min-w-0 flex-1 text-left leading-tight">
+                            <span className="block truncate">{label}</span>
+                            {sublabel && (
+                              <span
+                                className={`block truncate text-[11px] font-normal ${active ? "text-blue-500" : "text-gray-400"}`}
+                              >
+                                {sublabel}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                        {/* The account's mark on the right, as Metricool shows
+                            each connected profile's avatar. */}
+                        {isOpen && sublabel && (
+                          <span
+                            className="flex h-5.5 w-5.5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                            style={{ backgroundColor: color || "#6b7280" }}
+                          >
+                            {sublabel.replace(/^@/, "").charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+              {!accounts.loading && accounts.options.length === 0 && isOpen && accounts.emptyText && (
+                <p className="px-3 py-1 text-xs text-gray-400">{accounts.emptyText}</p>
+              )}
+              {accounts.action &&
+                (isOpen ? (
+                  <button
+                    type="button"
+                    onClick={accounts.action.onClick}
+                    className="mx-auto mt-2 flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#003dda] px-3 py-1.5 text-xs font-semibold text-[#003dda] transition-colors hover:bg-[#003dda] hover:text-white"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {accounts.action.label}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={accounts.action.onClick}
+                    aria-label={accounts.action.label}
+                    className="mx-auto mt-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#003dda] text-[#003dda] transition-colors hover:bg-[#003dda] hover:text-white"
+                    onMouseEnter={(e) => showTip(e, accounts.action.label)}
+                    onMouseLeave={hideTip}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                ))}
+            </>
+          )}
+
+          {/* With accounts in the panel, the pages move to tabs across the top
+              of the content instead (see below). */}
+          {!accounts && items.map(({ label, href, icon: Icon, group }, index) => {
             const active = isActive(href);
             // Optional grouping: a heading (or, collapsed, a hairline) wherever
             // `group` changes. Sections that don't set it render as before.
@@ -151,49 +252,6 @@ const SectionLayout = ({ title, items, filter, bleed = false, children }) => {
               </Fragment>
             );
           })}
-
-          {/* Optional pick-one list (Social Content: its networks) */}
-          {filter && (
-            <>
-              {isOpen ? (
-                <p className="px-3 pt-4 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-gray-400">
-                  {filter.heading}
-                </p>
-              ) : (
-                <div className="mx-2 my-2 border-t border-gray-200" />
-              )}
-              {filter.options.map(({ id, label, Icon, color, dim, hint }) => {
-                const active = filter.value === id;
-                const tip = hint ? `${label} · ${hint}` : label;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => filter.onChange(id)}
-                    aria-pressed={active}
-                    title={isOpen && hint ? tip : undefined}
-                    className={`group flex items-center gap-3 w-full cursor-pointer rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150
-                    ${active ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"}
-                    ${!isOpen ? "justify-center px-0" : ""}`}
-                    onMouseEnter={(e) => showTip(e, tip, active)}
-                    onMouseLeave={hideTip}
-                    onFocus={(e) => showTip(e, tip, active)}
-                    onBlur={hideTip}
-                  >
-                    <Icon
-                      className={`h-4 w-4 shrink-0 transition-opacity ${dim && !active ? "opacity-40" : ""}`}
-                      style={color ? { color } : undefined}
-                    />
-                    {isOpen && (
-                      <span className={`flex-1 truncate text-left ${dim && !active ? "text-gray-400" : ""}`}>
-                        {label}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </>
-          )}
         </nav>
 
         {/* Panel footer — this panel's own collapse/expand toggle */}
@@ -255,6 +313,40 @@ const SectionLayout = ({ title, items, filter, bleed = false, children }) => {
         <p className="px-4 pt-3 pb-1 text-sm font-bold text-gray-900 truncate">
           {title}
         </p>
+        {/* The accounts as a row of chips, then "+ More", above the pages */}
+        {accounts && (
+          <nav
+            aria-label={accounts.heading}
+            className="flex gap-2 overflow-x-auto hide-scrollbar px-4 pt-1"
+          >
+            {accounts.options.map(({ id, label, Icon, color }) => {
+              const active = accounts.value === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => accounts.onChange(id)}
+                  aria-pressed={active}
+                  className={`flex cursor-pointer items-center gap-1.5 shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors
+                    ${active ? "bg-blue-50 text-blue-600 border-blue-200" : "border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900"}`}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" style={color ? { color } : undefined} />
+                  {label}
+                </button>
+              );
+            })}
+            {accounts.action && (
+              <button
+                type="button"
+                onClick={accounts.action.onClick}
+                className="flex cursor-pointer items-center gap-1 shrink-0 rounded-full border border-[#003dda] px-3 py-1 text-xs font-semibold text-[#003dda] hover:bg-[#003dda] hover:text-white"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {accounts.action.label}
+              </button>
+            )}
+          </nav>
+        )}
         <nav className="flex gap-2 overflow-x-auto hide-scrollbar px-4 py-2">
           {items.map(({ label, href, icon: Icon }) => {
             const active = isActive(href);
@@ -271,30 +363,6 @@ const SectionLayout = ({ title, items, filter, bleed = false, children }) => {
             );
           })}
         </nav>
-        {/* The pick-one list as a second row of chips */}
-        {filter && (
-          <nav
-            aria-label={filter.heading}
-            className="flex gap-2 overflow-x-auto hide-scrollbar px-4 pb-2"
-          >
-            {filter.options.map(({ id, label, Icon, color, dim }) => {
-              const active = filter.value === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => filter.onChange(id)}
-                  aria-pressed={active}
-                  className={`flex cursor-pointer items-center gap-1.5 shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors
-                    ${active ? "bg-blue-50 text-blue-600 border-blue-200" : `border-gray-200 hover:bg-gray-100 ${dim ? "text-gray-400" : "text-gray-500 hover:text-gray-900"}`}`}
-                >
-                  <Icon className="h-3.5 w-3.5 shrink-0" style={color ? { color } : undefined} />
-                  {label}
-                </button>
-              );
-            })}
-          </nav>
-        )}
       </div>
 
       {/* ── Section page content ────────────────────────────────── */}
@@ -306,6 +374,33 @@ const SectionLayout = ({ title, items, filter, bleed = false, children }) => {
       <div
         className={`flex-1 min-w-0 bg-page ${bleed ? "overflow-hidden" : "overflow-y-auto"}`}
       >
+        {/* Desktop page tabs — Publishing / Calendar / Analytics across the top
+            of the page, when the panel holds the accounts. Sticky, so they
+            stay reachable down a long table. */}
+        {accounts && items.length > 0 && (
+          <nav
+            aria-label={`${title} pages`}
+            className="sticky top-0 z-20 hidden border-b border-gray-200 bg-surface/95 px-gutter backdrop-blur lg:flex"
+          >
+            <div className="-mb-px flex gap-1 overflow-x-auto hide-scrollbar">
+              {items.map(({ label, href, icon: Icon }) => {
+                const active = isActive(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex shrink-0 items-center gap-2 border-b-2 px-4 py-3.5 text-sm font-medium transition-colors
+                      ${active ? "border-[#003dda] text-[#003dda]" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900"}`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+        )}
         {bleed ? (
           children
         ) : (

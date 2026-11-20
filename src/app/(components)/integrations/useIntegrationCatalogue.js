@@ -27,6 +27,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { toApiPlatform } from "@/(lib)/creativesApi";
 import { runServerOAuth } from "./serverOAuth";
+import { invalidate } from "@/(lib)/requestCache";
 import { HIDDEN_PROVIDER_IDS } from "@/(lib)/integrations/platforms";
 
 // The API's keys, mapped back to the app's ids where they differ (X).
@@ -144,7 +145,15 @@ export function useIntegrationCatalogue({ notify } = {}) {
 
   /** Re-read the catalogue. Safe from an event handler. */
   const refresh = useCallback(
-    async () => applyCatalogue(await fetchIntegrationCatalogue(activeBrandId)),
+    // Always the server's current answer — this runs after a connect, a
+    // choice or a disconnect, which the shared cache can't know about.
+    async () => {
+      // The pages' integrations list is stale now too.
+      invalidate("integrations|");
+      return applyCatalogue(
+        await fetchIntegrationCatalogue(activeBrandId, { fresh: true }),
+      );
+    },
     [applyCatalogue, fetchIntegrationCatalogue, activeBrandId],
   );
 

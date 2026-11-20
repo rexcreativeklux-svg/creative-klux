@@ -23,6 +23,8 @@ import {
   Clock,
   BarChart3,
   Loader2,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { toast } from "sonner";
@@ -32,6 +34,7 @@ import {
   fetchLivePostsFromConnectedAccounts,
 } from "../../../../../(lib)/integration";
 import {
+  groupByNetwork,
   metricKeysOf,
   metricLabel,
   formatMetric,
@@ -41,7 +44,13 @@ import {
   sumMetric,
 } from "../../../../../(lib)/postMetrics";
 import { useAuth } from "@/context/AuthContext";
-import { useSocialPlatform } from "@/app/(components)/content/socialPlatformScope";
+import {
+  SOCIAL_NETWORKS,
+  useSocialPlatform,
+} from "@/app/(components)/content/socialPlatformScope";
+
+// The order networks appear in on All accounts — the sidebar's.
+const NETWORK_ORDER = SOCIAL_NETWORKS.map((n) => n.id);
 import { ChartFrame, useChartDensity } from "@/app/(components)/ui/ResponsiveChart";
 import { AnalyticsSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
@@ -137,6 +146,8 @@ export default function SocialAnalytics() {
   const [postsKey, setPostsKey] = useState(null);
   const [statsKey, setStatsKey] = useState(null);
   const [chartKey, setChartKey] = useState(null);
+  // platform → why the backend couldn't list that network's posts.
+  const [listErrors, setListErrors] = useState({});
 
   // The network picked in the section sidebar (?platform=), or every network.
   // Only its connection is fetched.
@@ -184,7 +195,8 @@ export default function SocialAnalytics() {
       try {
         const rows = await fetchLivePostsFromConnectedAccounts(scopedIntegrations);
         if (latestKey.current !== key) return; // reader moved on
-        if (rows.errors?.length) toast.error(rows.errors.join(" · "));
+        // A network the backend couldn't read: its words, shown on the page.
+        setListErrors(rows.errorsByPlatform || {});
 
         // The list is on screen now — counts and dates are real. Metrics follow.
         const socialRows = rows.filter((p) => p.type === "social");
@@ -264,15 +276,22 @@ export default function SocialAnalytics() {
 
   // The metric the platform chart compares — the reader's pick, else the first.
   const chartMetric = summableKeys.includes(chartKey) ? chartKey : summableKeys[0];
-  const platformMap = {};
-  publishedPosts.forEach((p) => {
-    const v = numeric(postMetrics(p)?.[chartMetric]);
-    if (v === undefined) return; // no number from the backend → no bar
-    const pm = PLATFORM_META[p.platform] || { label: p.platform, color: "#888" };
-    platformMap[p.platform] ??= { platform: pm.label, color: pm.color, value: 0 };
-    platformMap[p.platform].value += v;
-  });
-  const platformData = Object.values(platformMap);
+  // This network's five best posts on the picked metric — only posts the
+  // backend sent that number for.
+  const barColor = network?.color || "#003dda";
+  const platformData = publishedPosts
+    .map((p) => ({ p, v: numeric(postMetrics(p)?.[chartMetric]) }))
+    .filter(({ v }) => v !== undefined)
+    .sort((a, b) => b.v - a.v)
+    .slice(0, 5)
+    .map(({ p, v }) => {
+      const title = p.project_title || p.caption || "Untitled";
+      return {
+        platform: title.length > 18 ? `${title.slice(0, 17)}…` : title,
+        color: barColor,
+        value: v,
+      };
+    });
 
   function isSameDay(a, b) {
     return format(a, "yyyy-MM-dd") === format(b, "yyyy-MM-dd");
@@ -299,6 +318,16 @@ export default function SocialAnalytics() {
       value: totals[k],
       color: SERIES_COLORS[i % SERIES_COLORS.length],
     }));
+
+  // All accounts: one summary per network, each in that network's own metric
+  // names — Facebook's totals are never added to TikTok's, whose backend
+  // fields are different ones.
+  const networkGroups = groupByNetwork(publishedPosts, NETWORK_ORDER);
+  const accountOf = (platform) => {
+    const i = integrations.find((x) => x.platform === platform);
+    return i?.int_name || i?.account_label;
+  };
+  const errorEntries = Object.entries(listErrors).filter(([p]) => inScope(p));
 
   // Whether the backend sent any metric at all; posts it answered
   // "unavailable" for carry none.
@@ -358,6 +387,26 @@ export default function SocialAnalytics() {
         </div>
       </div>
 
+      {/* Networks the backend couldn't read — its reason, in its words. */}
+      {errorEntries.length > 0 && (
+        <div className="mb-6 space-y-2">
+          {errorEntries.map(([platform, message]) => (
+            <div
+              key={platform}
+              className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                <span className="font-semibold">
+                  {`${PLATFORM_META[platform]?.label || platform} couldn't be read:`}
+                </span>{" "}
+                {message}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {scoped && scopedIntegrations.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-gray-200 bg-surface p-16 text-center">
           <network.Icon className="mx-auto mb-4 h-10 w-10" style={{ color: network.color }} />
@@ -384,6 +433,71 @@ export default function SocialAnalytics() {
           <p className="text-gray-400 text-sm">
             Publish content from Creatives to start seeing analytics.
           </p>
+        </div>
+      ) : !scoped ? (
+        /* All accounts — each network on its own, with its own metrics. Pick
+           an account in the sidebar for its charts. */
+        <div className="space-y-8">
+          {networkGroups.map((group) => {
+            const net = SOCIAL_NETWORKS.find((n) => n.id === group.platform);
+            const keys = group.metricKeys.filter(isSummable);
+            const reported = (k) =>
+              group.posts.filter((p) => numeric(postMetrics(p)?.[k]) !== undefined).length;
+            const pending = statsPending && !group.metricKeys.length;
+            return (
+              <section key={group.platform}>
+                <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {net && <net.Icon className="h-5 w-5" style={{ color: net.color }} />}
+                  <h2 className="text-base font-semibold text-gray-900">
+                    {net?.label || PLATFORM_META[group.platform]?.label || group.platform}
+                  </h2>
+                  {accountOf(group.platform) && (
+                    <span className="text-sm text-gray-500">{accountOf(group.platform)}</span>
+                  )}
+                  {net && (
+                    <Link
+                      href={`/social-content/analytics?platform=${net.id}`}
+                      className="ml-auto text-xs font-semibold text-[#003dda] hover:underline"
+                    >
+                      Open {net.label} analytics →
+                    </Link>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                  <StatCard
+                    icon={CheckCircle2}
+                    label="Published Posts"
+                    value={group.posts.length}
+                    accent
+                  />
+                  {pending ? (
+                    <StatCard
+                      icon={BarChart3}
+                      label="Metrics"
+                      value={<Loader2 className="h-5 w-5 animate-spin text-gray-300" />}
+                    />
+                  ) : (
+                    keys.map((key) => (
+                      <StatCard
+                        key={key}
+                        icon={BarChart3}
+                        label={`Total ${metricLabel(key)}`}
+                        value={formatMetric(key, sumMetric(group.posts, key)) ?? "—"}
+                        sub={`${reported(key)} of ${group.posts.length} posts reported`}
+                      />
+                    ))
+                  )}
+                </div>
+                {/* No numbers for this network: the backend's own reason. */}
+                {!pending && !group.metricKeys.length && (
+                  <p className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+                    <Info className="h-3.5 w-3.5 shrink-0" />
+                    {group.note || `${net?.label || group.platform} sent no metrics for these posts.`}
+                  </p>
+                )}
+              </section>
+            );
+          })}
         </div>
       ) : (
         <div className="space-y-6">
@@ -465,7 +579,7 @@ export default function SocialAnalytics() {
             <div className="rounded-xl bg-surface border border-gray-200 p-5 ">
               <div className="mb-4 flex items-center justify-between gap-2">
                 <h3 className="font-semibold text-gray-800 text-sm">
-                  {chartMetric ? metricLabel(chartMetric) : "Metric"} by Platform
+                  Top posts by {chartMetric ? metricLabel(chartMetric) : "metric"}
                 </h3>
                 {summableKeys.length > 1 && (
                   <select

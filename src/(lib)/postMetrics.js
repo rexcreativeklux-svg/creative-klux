@@ -3,9 +3,17 @@
 // Social post metrics, exactly as the backend names them.
 //
 // creatives/post-metrics answers `{ metrics: { <name>: <value>, … } }` and the
-// names differ per network (checked 2026-11-19: Facebook sends shares, likes,
-// comments, reach, views, clicks, video_views, ctr — no impressions; Pinterest
-// and TikTok send `metrics: null` with an `unavailable` reason). Nothing here
+// names differ per network. Checked against live responses 2026-11-20:
+//   Facebook   post-metrics: shares, likes, comments, reach, views, clicks,
+//              ctr ("1.03", a percent string), video_views on videos.
+//              Listing: id, message, created_time, permalink_url, full_picture.
+//   TikTok     post-metrics: `metrics: null`, unavailable + reason. Its LISTING
+//              carries view_count, like_count, comment_count (→ listMetrics).
+//   Pinterest  post-metrics: `metrics: null`, unavailable + reason. Listing:
+//              title, description, created_at, link (the pin's destination
+//              site), media.images, board_owner; `pin_metrics: null`.
+//   X          creatives/posts refused: "credits depleted" (402) from X.
+// So pages show each network with its own names (groupByNetwork) — nothing here
 // renames, maps or invents a metric: a page shows the keys that came back, under
 // the name the backend gave, and a network that didn't send one shows a dash.
 
@@ -71,6 +79,43 @@ export function metricKeysOf(posts) {
     }
   }
   return keys;
+}
+
+/**
+ * Posts split by network, so each network is shown with ITS metrics only —
+ * Facebook's post-metrics names (likes, reach, views…) never share columns
+ * with TikTok's listing names (like_count, view_count…), and a network that
+ * sent no numbers says why in its own words.
+ *
+ * @param {object[]} posts
+ * @param {string[]} order  Network ids in display order; others follow.
+ * @returns {Array<{platform: string, posts: object[], metricKeys: string[],
+ *   note?: string}>}  `note` — the backend's reason, when none of the
+ *   network's posts carried a number.
+ */
+export function groupByNetwork(posts, order = []) {
+  const groups = new Map();
+  for (const post of posts) {
+    if (!groups.has(post.platform)) groups.set(post.platform, []);
+    groups.get(post.platform).push(post);
+  }
+  const rank = (p) => {
+    const i = order.indexOf(p);
+    return i === -1 ? order.length : i;
+  };
+  return [...groups.entries()]
+    .sort(([a], [b]) => rank(a) - rank(b))
+    .map(([platform, list]) => {
+      const metricKeys = metricKeysOf(list);
+      return {
+        platform,
+        posts: list,
+        metricKeys,
+        note: metricKeys.length
+          ? undefined
+          : list.map(unavailableReason).find(Boolean),
+      };
+    });
 }
 
 /** A metric that makes sense to add up across posts (a rate does not). */

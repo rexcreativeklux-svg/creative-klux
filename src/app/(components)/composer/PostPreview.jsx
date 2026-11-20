@@ -7,7 +7,7 @@
 // the composer says so under them, the way Metricool does, because no network
 // publishes a pixel-exact spec of its feed.
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   Bookmark,
   Globe,
@@ -66,10 +66,86 @@ function Media({ media, className = "", placeholder = false }) {
   );
 }
 
-/** Post text with line breaks kept; a placeholder while it's still empty. */
-function Text({ text, className = "" }) {
+/**
+ * Text cut to a few lines with the network's own "See more" after it, the way
+ * a feed shows a long post. The link only appears when the text really runs
+ * past the cut, and opens it in place.
+ */
+function ClampedText({ children, lines = 3, moreLabel = "See more", moreHref, className = "" }) {
+  const ref = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || open) return;
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [children, lines, open]);
+
+  // A link, sat at the end of the last visible line like the network's own:
+  // with `moreHref` it opens the post on the network, without one it opens the
+  // text in place.
+  // Blue, with an underline that draws in from the left on hover / focus.
+  const linkCls =
+    "cursor-pointer font-semibold text-[#003dda] bg-[linear-gradient(currentColor,currentColor)] bg-no-repeat bg-bottom-left bg-size-[0%_1px] transition-[background-size,opacity] duration-300 ease-out hover:bg-size-[100%_1px] hover:opacity-85 focus-visible:bg-size-[100%_1px] focus-visible:outline-none";
+
+  return (
+    <div className={`relative ${className}`}>
+      <p
+        ref={ref}
+        className="whitespace-pre-line wrap-break-word text-sm text-gray-800"
+        style={
+          open
+            ? undefined
+            : { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" }
+        }
+      >
+        {children}
+      </p>
+      {overflows && !open && (
+        <span className="absolute bottom-0 right-0 bg-surface pl-1 text-sm text-gray-800">
+          …{" "}
+          {moreHref ? (
+            <a href={moreHref} target="_blank" rel="noopener noreferrer" className={linkCls}>
+              {moreLabel}
+            </a>
+          ) : (
+            <a
+              href="#"
+              role="button"
+              onClick={(e) => {
+                e.preventDefault();
+                setOpen(true);
+              }}
+              className={linkCls}
+            >
+              {moreLabel}
+            </a>
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Post text with line breaks kept; a placeholder while it's still empty.
+ * `clamp` (lines) cuts it with "See more" — for a published post's preview;
+ * the composer leaves it off so the whole draft stays visible while typing.
+ */
+function Text({ text, className = "", clamp, moreLabel, moreHref }) {
   if (!text.trim())
     return <p className={`text-sm italic text-gray-300 ${className}`}>Your text will appear here</p>;
+  if (clamp)
+    return (
+      <ClampedText lines={clamp} moreLabel={moreLabel} moreHref={moreHref} className={className}>
+        {text}
+      </ClampedText>
+    );
   return <p className={`whitespace-pre-line wrap-break-word text-sm text-gray-800 ${className}`}>{text}</p>;
 }
 
@@ -77,7 +153,29 @@ const Card = ({ children }) => (
   <div className="overflow-hidden rounded-xl border border-gray-200 bg-surface shadow-sm">{children}</div>
 );
 
-function FacebookPreview({ name, logo, text, media }) {
+/**
+ * A published post's counts under it — the icon, then the number when the
+ * network sent one (no number reads as none sent, not zero).
+ */
+function CountsRow({ counts }) {
+  const items = [
+    { Icon: ThumbsUp, v: counts.likes, label: "Likes" },
+    { Icon: MessageCircle, v: counts.comments, label: "Comments" },
+    { Icon: Share2, v: counts.shares, label: "Shares" },
+  ];
+  return (
+    <div className="flex items-center gap-4 border-t border-gray-100 px-3 py-2 text-xs text-gray-600">
+      {items.map(({ Icon, v, label }) => (
+        <span key={label} className="flex items-center gap-1" title={label}>
+          <Icon className="h-4 w-4" />
+          {v != null && v !== "0" && v}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function FacebookPreview({ name, logo, text, media, timeLabel = "Just now", clamp, counts, moreHref }) {
   return (
     <Card>
       <div className="flex items-center gap-2.5 p-3">
@@ -85,23 +183,27 @@ function FacebookPreview({ name, logo, text, media }) {
         <div className="leading-tight">
           <p className="text-sm font-semibold text-gray-900">{name}</p>
           <p className="flex items-center gap-1 text-[11px] text-gray-400">
-            Just now · <Globe className="h-3 w-3" />
+            {timeLabel} · <Globe className="h-3 w-3" />
           </p>
         </div>
         <MoreHorizontal className="ml-auto h-4 w-4 text-gray-400" />
       </div>
-      <Text text={text} className="px-3 pb-3" />
+      <Text text={text} className="px-3 pb-3" clamp={clamp} moreHref={moreHref} />
       <Media media={media} className="max-h-96" />
-      <div className="flex items-center justify-around border-t border-gray-100 px-3 py-2 text-xs font-medium text-gray-500">
-        <span className="flex items-center gap-1.5"><ThumbsUp className="h-4 w-4" /> Like</span>
-        <span className="flex items-center gap-1.5"><MessageCircle className="h-4 w-4" /> Comment</span>
-        <span className="flex items-center gap-1.5"><Share2 className="h-4 w-4" /> Share</span>
-      </div>
+      {counts ? (
+        <CountsRow counts={counts} />
+      ) : (
+        <div className="flex items-center justify-around border-t border-gray-100 px-3 py-2 text-xs font-medium text-gray-500">
+          <span className="flex items-center gap-1.5"><ThumbsUp className="h-4 w-4" /> Like</span>
+          <span className="flex items-center gap-1.5"><MessageCircle className="h-4 w-4" /> Comment</span>
+          <span className="flex items-center gap-1.5"><Share2 className="h-4 w-4" /> Share</span>
+        </div>
+      )}
     </Card>
   );
 }
 
-function InstagramPreview({ name, logo, text, media }) {
+function InstagramPreview({ name, logo, text, media, clamp, moreHref }) {
   return (
     <Card>
       <div className="flex items-center gap-2.5 p-3">
@@ -117,7 +219,12 @@ function InstagramPreview({ name, logo, text, media }) {
         <Bookmark className="ml-auto h-5 w-5" />
       </div>
       <div className="px-3 py-2.5">
-        {text.trim() ? (
+        {text.trim() && clamp ? (
+          <ClampedText lines={clamp} moreLabel="more" moreHref={moreHref}>
+            <span className="mr-1 font-semibold">{name}</span>
+            {text}
+          </ClampedText>
+        ) : text.trim() ? (
           <p className="whitespace-pre-line wrap-break-word text-sm text-gray-800">
             <span className="mr-1 font-semibold">{name}</span>
             {text}
@@ -130,7 +237,7 @@ function InstagramPreview({ name, logo, text, media }) {
   );
 }
 
-function TwitterPreview({ name, logo, text, media }) {
+function TwitterPreview({ name, logo, text, media, timeLabel = "now", clamp, moreHref }) {
   const handle = `@${(name || "brand").toLowerCase().replace(/[^a-z0-9_]/g, "")}`;
   return (
     <Card>
@@ -139,9 +246,9 @@ function TwitterPreview({ name, logo, text, media }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm">
             <span className="font-semibold text-gray-900">{name}</span>{" "}
-            <span className="text-gray-400">{handle} · now</span>
+            <span className="text-gray-400">{handle} · {timeLabel}</span>
           </p>
-          <Text text={text} className="mt-0.5" />
+          <Text text={text} className="mt-0.5" clamp={clamp} moreLabel="Show more" moreHref={moreHref} />
           {media && (
             <div className="mt-2.5 overflow-hidden rounded-2xl border border-gray-200">
               <Media media={media} className="max-h-80" />
@@ -159,7 +266,7 @@ function TwitterPreview({ name, logo, text, media }) {
   );
 }
 
-function PinterestPreview({ name, logo, text, media, options }) {
+function PinterestPreview({ name, logo, text, media, options, clamp, moreHref }) {
   const title = options?.title?.trim() || firstLine(text);
   return (
     <div className="mx-auto max-w-72">
@@ -175,7 +282,7 @@ function PinterestPreview({ name, logo, text, media, options }) {
         <span className="rounded-full bg-[#E60023] px-4 py-2 text-sm font-semibold text-white">Save</span>
       </div>
       {title && <p className="mt-2 text-base font-semibold text-gray-900">{title}</p>}
-      <Text text={text} className="mt-1 text-gray-600" />
+      <Text text={text} className="mt-1 text-gray-600" clamp={clamp} moreLabel="more" moreHref={moreHref} />
       <div className="mt-2 flex items-center gap-2">
         <Avatar name={name} logo={logo} color="#E60023" size={28} />
         <p className="text-sm font-semibold text-gray-900">{name}</p>
@@ -184,7 +291,7 @@ function PinterestPreview({ name, logo, text, media, options }) {
   );
 }
 
-function YouTubePreview({ name, logo, text, media, options }) {
+function YouTubePreview({ name, logo, text, media, options, timeLabel = "just now" }) {
   const title = options?.title?.trim() || firstLine(text) || "Untitled";
   return (
     <Card>
@@ -193,7 +300,7 @@ function YouTubePreview({ name, logo, text, media, options }) {
         <Avatar name={name} logo={logo} color="#FF0000" />
         <div className="min-w-0">
           <p className="line-clamp-2 text-sm font-semibold text-gray-900">{title}</p>
-          <p className="text-xs text-gray-400">{name} · just now</p>
+          <p className="text-xs text-gray-400">{name} · {timeLabel}</p>
         </div>
       </div>
     </Card>
@@ -359,7 +466,7 @@ function TikTokPreview({ name, logo, text, media, options, device = "phone" }) {
 }
 
 /** LinkedIn — the feed card: name, a follower line, text, media, the four actions. */
-function LinkedInPreview({ name, logo, text, media }) {
+function LinkedInPreview({ name, logo, text, media, timeLabel = "Now", clamp, moreHref }) {
   return (
     <Card>
       <div className="flex items-start gap-2.5 p-3">
@@ -368,12 +475,12 @@ function LinkedInPreview({ name, logo, text, media }) {
           <p className="truncate text-sm font-semibold text-gray-900">{name}</p>
           <p className="truncate text-[11px] text-gray-500">Followers</p>
           <p className="flex items-center gap-1 text-[11px] text-gray-400">
-            Now · <Globe className="h-3 w-3" />
+            {timeLabel} · <Globe className="h-3 w-3" />
           </p>
         </div>
         <MoreHorizontal className="ml-auto h-4 w-4 shrink-0 text-gray-400" />
       </div>
-      <Text text={text} className="px-3 pb-3" />
+      <Text text={text} className="px-3 pb-3" clamp={clamp} moreHref={moreHref} />
       <Media media={media} className="max-h-96" />
       <div className="flex items-center justify-around border-t border-gray-100 px-2 py-2 text-xs font-semibold text-gray-500">
         <span className="flex items-center gap-1.5"><ThumbsUp className="h-4 w-4" /> Like</span>
@@ -385,7 +492,7 @@ function LinkedInPreview({ name, logo, text, media }) {
   );
 }
 
-function GenericPreview({ platform, name, logo, text, media }) {
+function GenericPreview({ platform, name, logo, text, media, timeLabel = "now", clamp, moreHref }) {
   const meta = COMPOSER_PLATFORMS[platform];
   return (
     <Card>
@@ -393,11 +500,11 @@ function GenericPreview({ platform, name, logo, text, media }) {
         <Avatar name={name} logo={logo} color={meta?.color || "#374151"} />
         <div className="leading-tight">
           <p className="text-sm font-semibold text-gray-900">{name}</p>
-          <p className="text-[11px] text-gray-400">{meta?.label} · now</p>
+          <p className="text-[11px] text-gray-400">{meta?.label} · {timeLabel}</p>
         </div>
         <MoreHorizontal className="ml-auto h-4 w-4 text-gray-400" />
       </div>
-      <Text text={text} className="px-3 pb-3" />
+      <Text text={text} className="px-3 pb-3" clamp={clamp} moreHref={moreHref} />
       <Media media={media} className="max-h-96" />
     </Card>
   );
@@ -421,6 +528,13 @@ const PREVIEWS = {
  * @param {string} props.text
  * @param {object|null} props.media  { type, url, previewUrl }
  * @param {object} [props.options]   That network's extra fields (title…).
+ * @param {string} [props.timeLabel] When it went out (defaults to "now" — the
+ *                                   composer's case); a published post's date.
+ * @param {number} [props.clamp]     Cut the text to this many lines with
+ *                                   "See more" — a published post's preview.
+ * @param {{likes?: string, comments?: string, shares?: string}} [props.counts]
+ *                                   A published post's counts (Facebook shows
+ *                                   them in place of the Like/Comment/Share row).
  */
 export default function PostPreview(props) {
   const Preview = PREVIEWS[props.platform] || GenericPreview;

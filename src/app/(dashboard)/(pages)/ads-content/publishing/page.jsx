@@ -39,6 +39,7 @@ import { useAuth } from "@/context/AuthContext";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import ContentDetailsModal from "@/app/(components)/content/ContentDetailsModal";
 import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
+import { useAdsPlatform } from "@/app/(components)/content/socialPlatformScope";
 
 const BRAND = "#003dda";
 const BRAND_LIGHT = "#003dda14";
@@ -267,7 +268,11 @@ export default function AdsPublishing() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [platformFilter, setPlatformFilter] = useState("all");
+  // The ad account picked in the section sidebar wins over the in-page
+  // dropdown, which is hidden while one is picked.
+  const { platform: adScope, scoped: adScoped } = useAdsPlatform();
+  const [pickedPlatform, setPlatformFilter] = useState("all");
+  const platformFilter = adScoped ? adScope : pickedPlatform;
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -588,7 +593,7 @@ export default function AdsPublishing() {
 
       {/* ── Filter Bar ── */}
       <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-surface border-x border-b border-gray-200 rounded-b-xl mb-6 shadow-sm">
-        <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-9">
+        <div className={`flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-9 ${adScoped ? "hidden" : ""}`}>
           <Filter className="w-3.5 h-3.5 text-gray-400" />
           <select
             value={platformFilter}

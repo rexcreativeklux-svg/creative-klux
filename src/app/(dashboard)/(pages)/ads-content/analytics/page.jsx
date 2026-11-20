@@ -30,6 +30,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { ChartFrame, useChartDensity } from "@/app/(components)/ui/ResponsiveChart";
 import { AnalyticsSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
+import { useAdsPlatform } from "@/app/(components)/content/socialPlatformScope";
 
 const PLATFORM_META = {
   facebook: { label: "Facebook", color: "#3b82f6", emoji: "🔵" },
@@ -106,6 +107,8 @@ const CUSTOM_TOOLTIP_STYLE = {
 };
 
 export default function AdsAnalytics() {
+  // The ad account picked in the section sidebar (?platform=), or all of them.
+  const { inScope } = useAdsPlatform();
   const [allPosts, setAllPosts] = useState([]);
   const [fetchingLive, setFetchingLive] = useState(false);
   const { fetchIntegrations, activeBrandId } = useAuth();
@@ -205,7 +208,8 @@ export default function AdsAnalytics() {
   const initializing =
     !integrationsReady || (integrations.length > 0 && !statsLoaded);
 
-  const campaigns = allPosts.filter((p) => p.type === "ad");
+  // Only the ad account picked in the sidebar, or every one.
+  const campaigns = allPosts.filter((p) => p.type === "ad" && inScope(p.platform));
 
   // Only the numbers campaign metrics actually carry. Spend isn't totalled —
   // each ad account reports it in its own currency.

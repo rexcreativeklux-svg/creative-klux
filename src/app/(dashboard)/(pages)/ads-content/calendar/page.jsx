@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import Drawer from "@/app/(components)/ui/Drawer";
 import { CalendarSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
+import { useAdsPlatform } from "@/app/(components)/content/socialPlatformScope";
 
 // `label` is the abbreviation the dense calendar pills use; `name` is the full one.
 const PLATFORM_META = {
@@ -110,7 +111,11 @@ export default function AdsContentCalendar() {
 
   // Filters (mirror the Publishing page): status / platform / free-text search.
   const [statusFilter, setStatusFilter] = useState("all");
-  const [platformFilter, setPlatformFilter] = useState("all");
+  // The ad account picked in the section sidebar wins over the in-page
+  // dropdown, which is hidden while one is picked.
+  const { platform: adScope, scoped: adScoped } = useAdsPlatform();
+  const [pickedPlatform, setPlatformFilter] = useState("all");
+  const platformFilter = adScoped ? adScope : pickedPlatform;
   const [search, setSearch] = useState("");
 
   // An empty month grid is indistinguishable from a month with no campaigns,
@@ -297,7 +302,7 @@ export default function AdsContentCalendar() {
 
       {/* ── Filter Bar (matches the Publishing page) ── */}
       <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-surface border-x border-b border-gray-200 rounded-b-xl mb-6 shadow-sm">
-        <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-9">
+        <div className={`flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-9 ${adScoped ? "hidden" : ""}`}>
           <Filter className="w-3.5 h-3.5 text-gray-400" />
           <select
             value={platformFilter}

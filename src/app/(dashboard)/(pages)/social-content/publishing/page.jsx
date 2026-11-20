@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -29,7 +31,7 @@ import {
   carryStats,
 } from "../../../../../(lib)/integration";
 import {
-  metricKeysOf,
+  groupByNetwork,
   metricLabel,
   formatMetric,
   postMetrics,
@@ -38,9 +40,15 @@ import {
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
-import ContentDetailsModal from "@/app/(components)/content/ContentDetailsModal";
+import PostInsightsPanel from "@/app/(components)/content/PostInsightsPanel";
 import CreatePostComposer from "@/app/(components)/composer/CreatePostComposer";
-import { useSocialPlatform } from "@/app/(components)/content/socialPlatformScope";
+import {
+  SOCIAL_NETWORKS,
+  useSocialPlatform,
+} from "@/app/(components)/content/socialPlatformScope";
+
+// The order networks' sections appear in — the sidebar's.
+const NETWORK_ORDER = SOCIAL_NETWORKS.map((n) => n.id);
 import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
 const BRAND = "#003dda";
@@ -71,7 +79,6 @@ function deleteMessage(post) {
 const STATS_PLATFORMS = POST_STATS_PLATFORMS;
 
 const PLATFORM_LABEL = (platform) => PLATFORM_META[platform]?.label || platform;
-
 /* ─── Platform config ─── */
 const PLATFORM_META = {
   facebook: {
@@ -262,7 +269,10 @@ export default function SocialPublishing() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  // Current page of each network's table: { [platform]: n }.
+  const [pages, setPages] = useState({});
+  // platform → why the backend couldn't list that network's posts.
+  const [listErrors, setListErrors] = useState({});
   const PAGE_SIZE = 10;
 
   const { fetchIntegrations, activeBrandId } = useAuth();
@@ -363,8 +373,9 @@ export default function SocialPublishing() {
         // Stats start in the same step the list lands, so the cells go straight
         // from the page skeleton to spinners — never to bare dashes.
         if (rows.length) loadAllStats(rows);
-        // A platform the backend couldn't read: show its own error, always.
-        if (rows.errors?.length) toast.error(rows.errors.join(" · "));
+        // A platform the backend couldn't read: its own words, shown in that
+        // network's section.
+        setListErrors(rows.errorsByPlatform || {});
         if (!silent) {
           const count = rows.filter((p) => p.type === matchType).length;
           toast.success(`Loaded ${count} post${count === 1 ? "" : "s"}`);
@@ -415,14 +426,24 @@ export default function SocialPublishing() {
     return [...result].sort((a, b) => dateOf(b) - dateOf(a));
   }, [posts, statusFilter, activePlatformFilter, search]);
 
-  // Every metric name the backend sent for these rows. A post that didn't send
-  // one shows a dash in that column.
-  const metricKeys = useMemo(() => metricKeysOf(filteredPosts), [filteredPosts]);
-  // Until the backend has named any metric (still loading, or none sent), one
-  // "Metrics" column holds the spinner / dash so columns don't pop in later.
-  const metricCols = metricKeys.length
-    ? metricKeys.map((key) => ({ key, label: metricLabel(key) }))
-    : [{ key: null, label: "Metrics" }];
+  // The rows split by network — each with only the metric names the backend
+  // sent for that network — plus a section for each network whose list the
+  // backend couldn't read, carrying its reason.
+  const sections = useMemo(() => {
+    const groups = groupByNetwork(filteredPosts, NETWORK_ORDER);
+    for (const [platform, error] of Object.entries(listErrors)) {
+      if (!inScope(platform)) continue;
+      if (activePlatformFilter !== "all" && activePlatformFilter !== platform) continue;
+      const group = groups.find((g) => g.platform === platform);
+      if (group) group.error = error;
+      else groups.push({ platform, posts: [], metricKeys: [], error });
+    }
+    return groups.sort(
+      (a, b) => NETWORK_ORDER.indexOf(a.platform) - NETWORK_ORDER.indexOf(b.platform),
+    );
+    // inScope is rebuilt each render from `scope`, which is listed instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredPosts, listErrors, scope, activePlatformFilter]);
 
   const integrationsMap = useMemo(() => {
     if (!Array.isArray(integrations)) return {};
@@ -433,14 +454,9 @@ export default function SocialPublishing() {
     }, {});
   }, [integrations]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / PAGE_SIZE));
-  const pagedPosts = filteredPosts.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE,
-  );
-
+  // Each network's table pages on its own; a new filter starts them all over.
   useEffect(() => {
-    setPage(1);
+    setPages({});
   }, [statusFilter, activePlatformFilter, scope, search]);
 
   const handleDelete = async () => {
@@ -725,7 +741,63 @@ export default function SocialPublishing() {
         </div>
       )}
 
-      {/* ── Table ── */}
+      {/* ── One table per network ──
+          Each network gets its own columns: the metric names the backend sent
+          for THAT network's posts (Facebook's post-metrics, TikTok's listing
+          counts…), never another network's. A network the backend couldn't
+          read, or that sent no numbers, says why in its own words. */}
+      <div className="space-y-6">
+      {sections.map((section) => {
+        const net = SOCIAL_NETWORKS.find((n) => n.id === section.platform);
+        const account =
+          integrationsMap[section.platform]?.int_name ||
+          integrationsMap[section.platform]?.account_label;
+        // The names the table below already uses, scoped to this network.
+        const filteredPosts = section.posts;
+        const page = pages[section.platform] || 1;
+        const setPage = (next) =>
+          setPages((all) => ({
+            ...all,
+            [section.platform]: typeof next === "function" ? next(page) : next,
+          }));
+        const totalPages = Math.max(1, Math.ceil(filteredPosts.length / PAGE_SIZE));
+        const pagedPosts = filteredPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+        // Until the backend has named any metric (still loading, or none sent),
+        // one "Metrics" column holds the spinner / dash.
+        const metricCols = section.metricKeys.length
+          ? section.metricKeys.map((key) => ({ key, label: metricLabel(key) }))
+          : [{ key: null, label: "Metrics" }];
+        return (
+        <section key={section.platform}>
+          {/* Network header — which account these rows are, how many, and
+              anything the backend said about them. */}
+          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+            {net && <net.Icon className="h-5 w-5" style={{ color: net.color }} />}
+            <h2 className="text-base font-semibold text-gray-900">
+              {net?.label || PLATFORM_LABEL(section.platform)}
+            </h2>
+            {account && <span className="text-sm text-gray-500">{account}</span>}
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
+              {filteredPosts.length} post{filteredPosts.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          {section.error && (
+            <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                <span className="font-semibold">
+                  {`${net?.label || section.platform} couldn't be read:`}
+                </span>{" "}
+                {section.error}
+              </p>
+            </div>
+          )}
+          {section.note && !statsLoading && (
+            <p className="mb-3 flex items-center gap-2 text-xs text-gray-500">
+              <Info className="h-3.5 w-3.5 shrink-0" />
+              {section.note}
+            </p>
+          )}
       {pagedPosts.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-surface overflow-hidden ">
           <div className="overflow-x-auto">
@@ -943,6 +1015,10 @@ export default function SocialPublishing() {
           </div>
         </div>
       )}
+        </section>
+        );
+      })}
+      </div>
 
       {(() => {
         // The live row, not the snapshot taken on click — so stats that land
@@ -951,39 +1027,22 @@ export default function SocialPublishing() {
           (detailsPost && allPosts.find((p) => p.id === detailsPost.id)) ||
           detailsPost;
         if (!post) return null;
-        const meta = PLATFORM_META[post.platform] || { label: post.platform, icon: "🌐" };
-        const s = post.stats || {};
-        const date =
-          post.status === "scheduled" ? post.scheduled_at : post.published_at;
         return (
-          <ContentDetailsModal
+          <PostInsightsPanel
             isOpen={detailsOpen}
             onClose={() => setDetailsOpen(false)}
-            item={post}
-            platformLabel={meta.label}
-            platformIcon={meta.icon}
-            badge={<StatusBadge post={post} />}
-            dateLabel={
-              date
-                ? `${post.status === "scheduled" ? "Scheduled" : "Published"} ${formatDate(date)}`
-                : undefined
-            }
+            post={post}
+            allPosts={allPosts}
             statsLoading={
-              statsLoading && !s.last_updated && STATS_PLATFORMS.includes(post.platform)
+              statsLoading &&
+              !post.stats?.last_updated &&
+              STATS_PLATFORMS.includes(post.platform)
             }
-            // Only the names the backend sent for this post.
-            metrics={
-              Object.keys(postMetrics(post) || {}).length
-                ? Object.keys(postMetrics(post)).map((key) => ({
-                    label: metricLabel(key),
-                    value: formatMetric(key, postMetrics(post)[key]),
-                  }))
-                : // Nothing named yet: one tile that spins while stats load.
-                  statsLoading && !s.last_updated
-                  ? [{ label: "Metrics", value: undefined }]
-                  : []
+            accountName={
+              integrationsMap[post.platform]?.int_name ||
+              integrationsMap[post.platform]?.account_label
             }
-            metricsNote={unavailableReason(post)}
+            badge={<StatusBadge post={post} />}
           />
         );
       })()}

@@ -1081,7 +1081,7 @@ export async function loadStatsForRows(rows, load, concurrency = 4) {
         };
       } catch (err) {
         failures[row.platform] = (failures[row.platform] || 0) + 1;
-        errors[row.platform] ??= err?.message || "Couldn't load stats";
+        errors[row.platform] ??= readableError(err?.message) || "Couldn't load stats";
       }
     }
   };
@@ -1223,13 +1223,17 @@ function normalizeLivePosts(platform, data) {
             ),
         scheduled_at: scheduledAt,
         post_id: String(id),
+        // Pinterest's `link` is the website the pin points AT, not the pin —
+        // the pin itself lives at pinterest.com/pin/<id>.
         permalink_url:
-          post.permalink_url ||
-          post.permalink ||
-          post.share_url ||
-          post.url ||
-          post.link ||
-          null,
+          platform === "pinterest"
+            ? `https://www.pinterest.com/pin/${id}/`
+            : post.permalink_url ||
+              post.permalink ||
+              post.share_url ||
+              post.url ||
+              post.link ||
+              null,
         live: true,
         // The numbers the platform's own listing carries (TikTok sends
         // view_count / like_count / comment_count), under its names. Shown only
@@ -1247,10 +1251,35 @@ function normalizeLivePosts(platform, data) {
     .filter(Boolean);
 }
 
+/**
+ * A backend error as a sentence. Some arrive with the network's raw JSON glued
+ * on — `X list failed: {"detail":"credits depleted","status":402,"title":
+ * "Payment Required",…}` — so the JSON's own words are pulled out:
+ * "X list failed: credits depleted (Payment Required)". Anything else is
+ * returned as it came.
+ */
+export function readableError(message) {
+  const text = String(message || "");
+  const at = text.indexOf("{");
+  if (at === -1) return text;
+  try {
+    const body = JSON.parse(text.slice(at));
+    const what = body.detail || body.message || body.error?.message || body.error;
+    if (!what || typeof what !== "string") return text;
+    const lead = text.slice(0, at).replace(/[\s:]+$/, "");
+    const tail = body.title && body.title !== what ? ` (${body.title})` : "";
+    return `${lead ? `${lead}: ` : ""}${what}${tail}`;
+  } catch {
+    return text;
+  }
+}
+
 export async function fetchLivePostsFromConnectedAccounts(
   integrations = [],
 ) {
   const livePosts = [];
+  // platform → the backend's reason that platform's list couldn't be read.
+  const errorsByPlatform = {};
 
   // ── Social platforms — read through the API (creatives/posts) ────────────
   // One call per connected platform; the API holds the tokens. `data` passes
@@ -1270,15 +1299,18 @@ export async function fetchLivePostsFromConnectedAccounts(
         return normalizeLivePosts(platform, data);
       } catch (err) {
         console.warn(`${platform} live posts fetch failed:`, err.message);
-        fetchErrors.push(`${platform}: ${err.message}`);
+        errorsByPlatform[platform] = readableError(err.message);
+        fetchErrors.push(`${platform}: ${errorsByPlatform[platform]}`);
         return [];
       }
     }),
   );
   socialLists.forEach((list) => livePosts.push(...list));
   // Riding on the array so existing callers keep working: the server's own
-  // words for each platform that failed, for the page to surface.
+  // words for each platform that failed, for the page to surface — as one
+  // list, and by platform for a page that shows each network on its own.
   livePosts.errors = fetchErrors;
+  livePosts.errorsByPlatform = errorsByPlatform;
 
   // ── Ad platforms — campaigns through the API (creatives/campaigns) ───────
   // One call per connected ad platform; the list comes back normalised. Each
@@ -1319,7 +1351,8 @@ export async function fetchLivePostsFromConnectedAccounts(
         });
       } catch (err) {
         console.warn(`${platform} campaigns fetch failed:`, err.message);
-        fetchErrors.push(`${platform}: ${err.message}`);
+        errorsByPlatform[platform] = readableError(err.message);
+        fetchErrors.push(`${platform}: ${errorsByPlatform[platform]}`);
         return [];
       }
     }),

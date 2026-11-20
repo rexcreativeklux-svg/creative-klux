@@ -29,7 +29,10 @@ import {
   deletePostFromPlatform,
   platformSupportsDelete,
   fetchLivePostsFromConnectedAccounts,
+  getPostStats,
+  POST_STATS_PLATFORMS,
 } from "../../../../../(lib)/integration";
+import PostInsightsPanel from "@/app/(components)/content/PostInsightsPanel";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -135,6 +138,13 @@ export default function SocialContentCalendar() {
     setSelectedPostId(null);
   };
 
+  // The post opened in the insights panel — the same panel Publishing opens.
+  // Kept after close so the panel can slide out with its content.
+  const [detailsId, setDetailsId] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [statsLoadingId, setStatsLoadingId] = useState(null);
+  const [integrations, setIntegrations] = useState([]);
+
   // The post the trash icon armed — deleting is irreversible, so it waits on a confirm.
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -167,6 +177,7 @@ export default function SocialContentCalendar() {
     const key = loadKey;
     try {
       const ints = (await fetchIntegrations()) || [];
+      setIntegrations(ints);
       // One network's connection when one is picked in the sidebar.
       const rows = await fetchLivePostsFromConnectedAccounts(
         scoped ? ints.filter((i) => i.platform === scope) : ints,
@@ -223,6 +234,39 @@ export default function SocialContentCalendar() {
     }
     return result;
   }, [posts, statusFilter, activePlatformFilter, search]);
+
+  // Open a post's insights. The calendar doesn't load every post's numbers up
+  // front, so this one's are fetched from the backend as it opens.
+  const openPost = async (post) => {
+    setSelectedPostId(post.id);
+    setDetailsId(post.id);
+    setDetailsOpen(true);
+    if (
+      !post.post_id ||
+      post.stats?.last_updated ||
+      !POST_STATS_PLATFORMS.includes(post.platform)
+    )
+      return;
+    setStatsLoadingId(post.id);
+    try {
+      const stats = await getPostStats({
+        platform: post.platform,
+        post_id: post.post_id,
+        brand_id: activeBrandId,
+      });
+      setAllPosts((rows) =>
+        rows.map((p) =>
+          p.id === post.id
+            ? { ...p, stats: { ...stats, last_updated: new Date().toISOString() } }
+            : p,
+        ),
+      );
+    } catch (err) {
+      toast.error(`Couldn't load stats: ${err.message}`);
+    } finally {
+      setStatsLoadingId(null);
+    }
+  };
 
   const handleDelete = async () => {
     const post = pendingDelete;
@@ -470,10 +514,7 @@ export default function SocialContentCalendar() {
                           post={post}
                           onDelete={() => setPendingDelete(post)}
                           selected={post.id === selectedPostId}
-                          onSelect={() => {
-                            setSelectedDay(day);
-                            setSelectedPostId(post.id);
-                          }}
+                          onSelect={() => openPost(post)}
                         />
                       ))}
                       {dayPosts.length > 3 && (
@@ -549,10 +590,12 @@ export default function SocialContentCalendar() {
                             if (el && post.id === selectedPostId)
                               el.scrollIntoView({ block: "nearest", behavior: "smooth" });
                           }}
-                          className={`rounded-lg border p-3 space-y-2 transition-colors ${
+                          // The whole card opens the post's insights.
+                          onClick={() => openPost(post)}
+                          className={`cursor-pointer rounded-lg border p-3 space-y-2 transition-colors ${
                             post.id === selectedPostId
                               ? "border-blue-300 bg-blue-50/50 ring-1 ring-blue-200"
-                              : "border-gray-100"
+                              : "border-gray-100 hover:border-blue-200 hover:bg-gray-50"
                           }`}
                         >
                           {/* Whole image, uncropped — contain, not cover. */}
@@ -569,7 +612,10 @@ export default function SocialContentCalendar() {
                             </p>
                             {canDelete(post) && (
                               <button
-                                onClick={() => setPendingDelete(post)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPendingDelete(post);
+                                }}
                                 aria-label="Delete post"
                                 className="text-red-300 hover:text-red-500 shrink-0 transition-colors cursor-pointer"
                               >
@@ -611,17 +657,23 @@ export default function SocialContentCalendar() {
                               </>
                             )}
                           </dl>
-                          {post.permalink_url && (
-                            <a
-                              href={post.permalink_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
-                            >
-                              View on {meta.name || meta.label}
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                          )}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-[#003dda]">
+                              View insights →
+                            </span>
+                            {post.permalink_url && (
+                              <a
+                                href={post.permalink_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-800 hover:underline"
+                              >
+                                View on {meta.name || meta.label}
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -632,6 +684,24 @@ export default function SocialContentCalendar() {
           </div>
         </Drawer>
       </div>
+
+      {/* A post's insights — the same panel Publishing opens. The live row,
+          so its stats fill in as they land. */}
+      <PostInsightsPanel
+        isOpen={detailsOpen}
+        onClose={() => {
+          setDetailsOpen(false);
+          if (!selectedDay) setSelectedPostId(null);
+        }}
+        post={allPosts.find((p) => p.id === detailsId)}
+        allPosts={allPosts}
+        statsLoading={statsLoadingId === detailsId}
+        accountName={(() => {
+          const platform = allPosts.find((p) => p.id === detailsId)?.platform;
+          const i = integrations.find((x) => x.platform === platform);
+          return i?.int_name || i?.account_label;
+        })()}
+      />
 
       <ConfirmDialog
         open={!!pendingDelete}

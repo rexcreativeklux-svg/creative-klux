@@ -52,6 +52,7 @@ import {
 // The order networks appear in on All accounts — the sidebar's.
 const NETWORK_ORDER = SOCIAL_NETWORKS.map((n) => n.id);
 import { ChartFrame, useChartDensity } from "@/app/(components)/ui/ResponsiveChart";
+import SocialPageActions from "@/app/(components)/content/SocialPageActions";
 import { AnalyticsSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 
 const PLATFORM_META = {
@@ -189,11 +190,15 @@ export default function SocialAnalytics() {
   // per-post metrics for — those metrics from the backend. Nothing is kept
   // beyond this page's memory.
   const loadPosts = useCallback(
-    async (silent = false) => {
+    async (silent = false, fresh = false) => {
       const key = loadKey;
       setFetchingLive(true);
       try {
-        const rows = await fetchLivePostsFromConnectedAccounts(scopedIntegrations);
+        // Shared for a couple of minutes across the section's pages (see
+        // requestCache); `fresh` (Refresh, a new post) asks the backend again.
+        const rows = await fetchLivePostsFromConnectedAccounts(scopedIntegrations, {
+          fresh,
+        });
         if (latestKey.current !== key) return; // reader moved on
         // A network the backend couldn't read: its words, shown on the page.
         setListErrors(rows.errorsByPlatform || {});
@@ -213,6 +218,7 @@ export default function SocialAnalytics() {
               platform: p.platform,
               brand_id: activeBrandId,
               post_id: p.post_id,
+              fresh,
             }),
         );
         if (latestKey.current !== key) return;
@@ -372,19 +378,10 @@ export default function SocialAnalytics() {
               : "Aggregated social performance across platforms"}
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            className="inline-flex items-center cursor-pointer hover:scale-95 gap-2 px-3 py-2 rounded-lg border text-sm font-medium  disabled:opacity-50 transition-all duration-200 text-white"
-            style={{ background: "#003dda", borderColor: "#003dda" }}
-            onClick={() => loadPosts(false)}
-            disabled={fetchingLive}
-          >
-            <RefreshCw
-              className={"w-3.5 h-3.5 " + (fetchingLive ? "animate-spin" : "")}
-            />
-            {fetchingLive ? "Refreshing..." : "Refresh"}
-          </button>
-        </div>
+        <SocialPageActions
+          onRefresh={({ fresh, silent }) => loadPosts(!!silent, fresh)}
+          refreshing={fetchingLive}
+        />
       </div>
 
       {/* Networks the backend couldn't read — its reason, in its words. */}

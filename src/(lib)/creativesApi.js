@@ -54,7 +54,7 @@ export const SERVER_DELETE_PLATFORMS = [
  * The brand a call acts on: the one passed in, else the signed-in user's saved
  * active brand (AuthContext caches the profile under `user`).
  */
-function resolveBrandId(brandId) {
+export function resolveBrandId(brandId) {
   if (brandId) return brandId;
   try {
     const user = JSON.parse(localStorage.getItem("user") || "null");

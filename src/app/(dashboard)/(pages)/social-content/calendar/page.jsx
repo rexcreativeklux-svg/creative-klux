@@ -33,6 +33,7 @@ import {
   POST_STATS_PLATFORMS,
 } from "../../../../../(lib)/integration";
 import PostInsightsPanel from "@/app/(components)/content/PostInsightsPanel";
+import SocialPageActions from "@/app/(components)/content/SocialPageActions";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -172,15 +173,20 @@ export default function SocialContentCalendar() {
     setAllPosts([]);
   }, [activeBrandId]);
 
-  // The posts, exactly as the backend lists them — nothing kept locally.
-  const fetchLive = useCallback(async () => {
+  // The posts, exactly as the backend lists them. Shared for a couple of
+  // minutes across the section's pages (see requestCache); `fresh` (Refresh,
+  // a new post) asks the backend again.
+  const [refreshing, setRefreshing] = useState(false);
+  const fetchLive = useCallback(async ({ fresh = false } = {}) => {
     const key = loadKey;
+    setRefreshing(true);
     try {
-      const ints = (await fetchIntegrations()) || [];
+      const ints = (await fetchIntegrations({ fresh })) || [];
       setIntegrations(ints);
       // One network's connection when one is picked in the sidebar.
       const rows = await fetchLivePostsFromConnectedAccounts(
         scoped ? ints.filter((i) => i.platform === scope) : ints,
+        { fresh },
       );
       if (latestKey.current !== key) return; // reader moved on
       setAllPosts(rows);
@@ -188,6 +194,7 @@ export default function SocialContentCalendar() {
     } catch (err) {
       toast.error(err.message || "Couldn't load posts");
     } finally {
+      setRefreshing(false);
       setLoadedKey(key);
     }
   }, [fetchIntegrations, scoped, scope, loadKey]);
@@ -332,14 +339,10 @@ export default function SocialContentCalendar() {
             <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block ml-2" />{" "}
             Scheduled
           </div>
-          <Link href="/creatives">
-            <button
-              className="inline-flex items-center cursor-pointer hover:scale-95 gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white transition-all duration-200 hover:opacity-90"
-              style={{ background: "#003dda" }}
-            >
-              <Plus className="w-3.5 h-3.5" /> New Post
-            </button>
-          </Link>
+          <SocialPageActions
+            onRefresh={({ fresh }) => fetchLive({ fresh })}
+            refreshing={refreshing}
+          />
         </div>
       </div>
 

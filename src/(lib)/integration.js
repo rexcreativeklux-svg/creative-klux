@@ -528,10 +528,19 @@ import {
   fetchPlatformPosts,
   fetchPostMetrics,
   publishToPlatform,
+  resolveBrandId,
   setCampaignStatus,
   uploadForPublish,
 } from "./creativesApi";
 import { readMetrics } from "./postMetrics";
+import { cached, invalidate } from "./requestCache";
+
+// How long a network's post list / a post's stats are reused across the
+// Social and Ads pages before the backend is asked again. A Refresh button
+// always asks again (`fresh`).
+const POSTS_TTL = 2 * 60_000;
+const STATS_TTL = 5 * 60_000;
+const brandKey = (brandId) => resolveBrandId(brandId) ?? "";
 
 // ─────────────────────────────────────────────────────────────
 // Meta API Versioning
@@ -1040,8 +1049,13 @@ export const POST_STATS_PLATFORMS = [
  * nothing is renamed or filled in. `metrics` is null, with the backend's
  * `unavailable_reason`, when the network returned no numbers.
  */
-export async function getPostStats({ platform, post_id, brand_id }) {
-  const data = await fetchPostMetrics({ brand_id, platform, post_id });
+export async function getPostStats({ platform, post_id, brand_id, fresh = false }) {
+  const data = await cached(
+    `stats|${brandKey(brand_id)}|${platform}|${post_id}`,
+    STATS_TTL,
+    () => fetchPostMetrics({ brand_id, platform, post_id }),
+    { fresh },
+  );
   const metrics = readMetrics(data?.metrics);
   return {
     metrics,
@@ -1062,11 +1076,14 @@ export async function getPostStats({ platform, post_id, brand_id }) {
  * @param {(row) => Promise<object>} load Fetches one row's stats.
  * @param {number} [concurrency=4]
  */
-export async function loadStatsForRows(rows, load, concurrency = 4) {
+export async function loadStatsForRows(rows, load, concurrency = 6) {
   const stats = {};
   const errors = {};
   const failures = {};
   const queue = [...rows];
+  // Every post is asked: "no numbers" is the backend's answer for THAT post
+  // ("…did not return numbers for this post"), so one post's answer says
+  // nothing about the next one's.
   const worker = async () => {
     while (queue.length) {
       const row = queue.shift();
@@ -1135,12 +1152,16 @@ export async function getAdCampaignStats({ platform, campaign_id, days = 7 }) {
 
 /** Pause or resume a campaign. Resuming ("ACTIVE") starts spending real money. */
 export async function setAdCampaignStatus({ platform, campaign_id, status }) {
-  return setCampaignStatus({ platform, campaign_id, status });
+  const res = await setCampaignStatus({ platform, campaign_id, status });
+  invalidate("campaigns|"); // the shared list has the old status
+  return res;
 }
 
 /** Delete a campaign on its network. Irreversible — the caller confirms first. */
 export async function deleteAdCampaign({ platform, campaign_id }) {
-  return deleteCampaign({ platform, campaign_id });
+  const res = await deleteCampaign({ platform, campaign_id });
+  invalidate("campaigns|"); // the shared list still has it
+  return res;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1209,7 +1230,8 @@ function normalizeLivePosts(platform, data) {
           null,
         platform,
         // Instagram's own kind of post (IMAGE, VIDEO, CAROUSEL_ALBUM).
-        media_type: post.media_type || null,
+        // Pinterest nests it: media.media_type ("image" / "video").
+        media_type: post.media_type || post.media?.media_type || null,
         type: "social",
         status: scheduledAt ? "scheduled" : "published",
         published_at: scheduledAt
@@ -1276,7 +1298,9 @@ export function readableError(message) {
 
 export async function fetchLivePostsFromConnectedAccounts(
   integrations = [],
+  { fresh = false } = {},
 ) {
+  const brand = brandKey();
   const livePosts = [];
   // platform → the backend's reason that platform's list couldn't be read.
   const errorsByPlatform = {};
@@ -1295,7 +1319,12 @@ export async function fetchLivePostsFromConnectedAccounts(
   const socialLists = await Promise.all(
     connected.map(async (platform) => {
       try {
-        const data = await fetchPlatformPosts({ platform, limit: 20 });
+        const data = await cached(
+          `posts|${brand}|${platform}`,
+          POSTS_TTL,
+          () => fetchPlatformPosts({ platform, limit: 20 }),
+          { fresh },
+        );
         return normalizeLivePosts(platform, data);
       } catch (err) {
         console.warn(`${platform} live posts fetch failed:`, err.message);
@@ -1323,7 +1352,12 @@ export async function fetchLivePostsFromConnectedAccounts(
   const adLists = await Promise.all(
     connectedAds.map(async (platform) => {
       try {
-        const campaigns = await fetchCampaigns({ platform, limit: 25 });
+        const campaigns = await cached(
+          `campaigns|${brand}|${platform}`,
+          POSTS_TTL,
+          () => fetchCampaigns({ platform, limit: 25 }),
+          { fresh },
+        );
         return campaigns.map((c) => {
           const created = c.created_time ? new Date(c.created_time) : null;
           return {
@@ -1388,6 +1422,8 @@ export async function deletePostFromPlatform(post, brandId) {
     platform: post.platform,
     post_id: post.post_id,
   });
+  // The list everyone shares still has the deleted post in it.
+  invalidate(`posts|${brandKey(brandId)}|${post.platform}`);
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -45,7 +45,6 @@ import {
   ChevronUp,
   Clock,
   Eye,
-  ImagePlus,
   Info,
   Loader2,
   Monitor,
@@ -64,6 +63,8 @@ import PlatformPageModal from "@/app/(components)/integrations/PlatformPageModal
 import { useIntegrationCatalogue } from "@/app/(components)/integrations/useIntegrationCatalogue";
 import { useIsHydrated } from "@/utils/useIsHydrated";
 import PostPreview from "./PostPreview";
+import MediaMenu from "./MediaMenu";
+import { AiTextTool, EmojiTool, HashtagTool, LinkTool, SavedTextsTool } from "./ComposerTools";
 import {
   COMPOSER_ORDER,
   COMPOSER_PLATFORMS,
@@ -190,7 +191,6 @@ function ComposerScreen({
   const [media, setMedia] = useState(initialMedia);
   const [uploading, setUploading] = useState(false);
   const [options, setOptions] = useState({}); // { [platform]: { title, link, … } }
-  const fileRef = useRef(null);
 
   // Object URLs are released when replaced and when the composer closes.
   const previewUrlRef = useRef(null);
@@ -230,6 +230,13 @@ function ComposerScreen({
     } finally {
       setUploading(false);
     }
+  };
+
+  // Media that's already online (library, stock): nothing to upload.
+  const pickHostedMedia = (picked) => {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    previewUrlRef.current = null;
+    setMedia(picked);
   };
 
   const removeMedia = () => {
@@ -362,10 +369,33 @@ function ComposerScreen({
   );
   // A network tab that still follows the template shows it locked.
   const editorLocked = !!editingNetwork && customText[editingNetwork] == null;
+  // Nothing can be written into a locked tab or while publishing.
+  const textToolsOff = publishing || editorLocked;
   const setEditorText = (value) =>
     editingNetwork
       ? setCustomText((prev) => ({ ...prev, [editingNetwork]: value }))
       : setText(value);
+
+  // The toolbar's tools (emoji, hashtags, links, AI text, saved texts) put
+  // their text where the cursor is in the open editor — or at the end when it
+  // hasn't been focused — and leave the cursor after what they added.
+  const editorRef = useRef(null);
+  const insertText = (snippet) => {
+    const el = editorRef.current;
+    const current = editorText;
+    const start = el ? el.selectionStart ?? current.length : current.length;
+    const end = el ? el.selectionEnd ?? current.length : current.length;
+    // A space between the insert and a word right before it.
+    const before = current.slice(0, start);
+    const pad = before && !/\s$/.test(before) && /^[#\w]/.test(snippet) ? " " : "";
+    const next = `${before}${pad}${snippet}${current.slice(end)}`;
+    setEditorText(next);
+    const caret = start + pad.length + snippet.length;
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(caret, caret);
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-90 flex flex-col bg-page" role="dialog" aria-modal="true" aria-label="Create new post">
@@ -568,6 +598,7 @@ function ComposerScreen({
               }`}
             >
               <textarea
+                ref={editorRef}
                 value={editorText}
                 onChange={(e) => setEditorText(e.target.value)}
                 disabled={publishing || editorLocked}
@@ -638,25 +669,24 @@ function ComposerScreen({
 
               {/* Toolbar + counters */}
               <div className="flex items-center gap-2 border-t border-gray-100 px-3 py-2">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*,video/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    handleFile(e.target.files?.[0]);
-                    e.target.value = ""; // the same file can be picked again
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
+                {/* Add multimedia — computer, library, AI, stock (Metricool's menu). */}
+                <MediaMenu
                   disabled={uploading || publishing}
-                  title={media ? "Replace image or video" : "Add an image or video"}
-                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <ImagePlus className="h-4.5 w-4.5" />
-                </button>
+                  onFile={handleFile}
+                  onPick={pickHostedMedia}
+                  activeBrand={activeBrand}
+                />
+                {/* Text tools — each inserts at the cursor (Metricool's row). */}
+                <EmojiTool disabled={textToolsOff} onInsert={insertText} />
+                <HashtagTool disabled={textToolsOff} onInsert={insertText} text={editorText} platforms={connected} />
+                <LinkTool disabled={textToolsOff} onInsert={insertText} />
+                <AiTextTool disabled={textToolsOff} onInsert={insertText} platforms={platforms} />
+                <SavedTextsTool
+                  disabled={textToolsOff}
+                  onInsert={insertText}
+                  currentText={editorText}
+                  brandId={brandId}
+                />
                 <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
                   {counters.map(({ platform, length, max, over }) => {
                     const { Icon, color } = COMPOSER_PLATFORMS[platform];

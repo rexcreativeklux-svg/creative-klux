@@ -41,7 +41,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import PostInsightsPanel from "@/app/(components)/content/PostInsightsPanel";
-import CreatePostComposer from "@/app/(components)/composer/CreatePostComposer";
+import SocialPageActions from "@/app/(components)/content/SocialPageActions";
 import {
   SOCIAL_NETWORKS,
   useSocialPlatform,
@@ -261,8 +261,6 @@ export default function SocialPublishing() {
   // The row opened in the details pop-up (kept after close for the exit animation).
   const [detailsPost, setDetailsPost] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  // The "Create new post" composer.
-  const [composerOpen, setComposerOpen] = useState(false);
   // The post the trash icon armed — deleting is irreversible, so it waits on a confirm.
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -329,7 +327,7 @@ export default function SocialPublishing() {
   // Every row's metrics, fetched after the list so the table can render first.
   // Each platform's refusal is reported once, in the server's words.
   const loadAllStats = useCallback(
-    async (rows) => {
+    async (rows, fresh = false) => {
       const targets = rows.filter(
         (p) =>
           p.type === matchType && p.post_id && STATS_PLATFORMS.includes(p.platform),
@@ -343,6 +341,7 @@ export default function SocialPublishing() {
             platform: row.platform,
             post_id: row.post_id,
             brand_id: activeBrandId,
+            fresh,
           }),
         );
       } finally {
@@ -359,20 +358,23 @@ export default function SocialPublishing() {
     [activeBrandId],
   );
 
-  // 2. The posts, exactly as the backend lists them. Nothing is kept in the
-  //    browser, so what's on screen is always the backend's answer.
+  // 2. The posts, exactly as the backend lists them. Answers are shared for a
+  //    couple of minutes across Publishing / Calendar / Analytics (see
+  //    requestCache); `fresh` (Refresh, a new post) asks the backend again.
   const loadPosts = useCallback(
-    async (silent = false) => {
+    async (silent = false, fresh = false) => {
       const key = loadKey;
       setFetchingLive(true);
       try {
-        const rows = await fetchLivePostsFromConnectedAccounts(scopedIntegrations);
+        const rows = await fetchLivePostsFromConnectedAccounts(scopedIntegrations, {
+          fresh,
+        });
         // The reader moved on (another network or brand) while this loaded.
         if (latestKey.current !== key) return;
         setAllPosts((prev) => carryStats(prev, rows));
         // Stats start in the same step the list lands, so the cells go straight
         // from the page skeleton to spinners — never to bare dashes.
-        if (rows.length) loadAllStats(rows);
+        if (rows.length) loadAllStats(rows, fresh);
         // A platform the backend couldn't read: its own words, shown in that
         // network's section.
         setListErrors(rows.errorsByPlatform || {});
@@ -483,6 +485,7 @@ export default function SocialPublishing() {
         platform: post.platform,
         brand_id: activeBrandId,
         post_id: post.post_id,
+        fresh: true, // the row's own refresh — always the backend's latest
       });
       const stats = { ...newStats, last_updated: new Date().toISOString() };
       setAllPosts((rows) =>
@@ -524,26 +527,10 @@ export default function SocialPublishing() {
         </div>
         <div className="flex items-center gap-2">
           {hasConnections && (
-            <button
-              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-surface text-gray-700 hover:bg-gray-50 shadow-sm transition-colors disabled:opacity-50"
-              onClick={() => loadPosts(false)}
-              disabled={fetchingLive}
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 mr-2 text-gray-500 ${fetchingLive ? "animate-spin" : ""}`}
-              />
-              {fetchingLive ? "Refreshing…" : "Refresh"}
-            </button>
-          )}
-          {hasConnections && (
-            <button
-              className="inline-flex cursor-pointer items-center px-3 py-1.5 text-sm font-medium rounded-lg text-white shadow-sm hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: BRAND }}
-              onClick={() => setComposerOpen(true)}
-            >
-              <Plus className="w-3.5 h-3.5 mr-1.5" />
-              Create new post
-            </button>
+            <SocialPageActions
+              onRefresh={({ fresh, silent }) => loadPosts(!!silent, fresh)}
+              refreshing={fetchingLive}
+            />
           )}
           {!hasConnections && (
             <Link
@@ -1056,15 +1043,6 @@ export default function SocialPublishing() {
         busy={deleting}
         onConfirm={handleDelete}
         onCancel={() => setPendingDelete(null)}
-      />
-
-      {/* Published posts land on the platforms, so the list is refetched. */}
-      <CreatePostComposer
-        isOpen={composerOpen}
-        onClose={() => setComposerOpen(false)}
-        onPublished={() => loadPosts(true)}
-        // Opened from one network's page, it starts on that network.
-        initialPlatforms={scoped ? [scope] : []}
       />
     </div>
   );

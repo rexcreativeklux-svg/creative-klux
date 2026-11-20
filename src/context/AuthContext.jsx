@@ -12,6 +12,7 @@ import { backendErrorMessage, classifyResult } from "@/utils/errorHelper";
 import { throwClassifiedAuthError } from "@/utils/authErrors";
 import { clearImpersonating } from "@/utils/impersonation";
 import api from "@/app/api/axios";
+import { cached, invalidate } from "@/(lib)/requestCache";
 import {
   CREATIVE_ENGINE,
   DEFAULT_DESIGN_COUNT,
@@ -3568,9 +3569,7 @@ export function AuthProvider({ children }) {
 
   // Throws with the server's own message when the lookup fails, so a broken
   // endpoint is never mistaken for "no accounts connected".
-  const fetchIntegrations = useCallback(async () => {
-    if (!token) return null;
-
+  const loadIntegrationsList = useCallback(async () => {
     let res;
     try {
       res = await authFetch(API_INTEGRATIONS_URL, {
@@ -3618,6 +3617,21 @@ export function AuthProvider({ children }) {
         row?.platform === "x" ? { ...row, platform: "twitter" } : row,
       );
   }, [token]);
+
+  // Shared for a minute per brand (see requestCache): the Social / Ads pages
+  // and the publish flows all ask for it. `fresh` goes back to the server.
+  const fetchIntegrations = useCallback(
+    async ({ fresh = false } = {}) => {
+      if (!token) return null;
+      return cached(
+        `integrations|${token}|${activeBrandId ?? ""}`,
+        60_000,
+        loadIntegrationsList,
+        { fresh },
+      );
+    },
+    [token, activeBrandId, loadIntegrationsList],
+  );
 
   // ── Connecting accounts — server-side OAuth for EVERY platform ───────────────
   // The backend runs the whole OAuth round trip: it hands out a consent URL,
@@ -3692,18 +3706,31 @@ export function AuthProvider({ children }) {
   // account_label, tools }] } — keyed by `provider`. The only source that
   // reflects what the server actually stored, so it is re-read after every
   // connect / select / disconnect. Returns { ok, integrations, message }.
+  // Several surfaces read it at once (the section sidebar, the Connections
+  // badge, the page), so answers are shared for a minute — see requestCache.
+  // `fresh` (after a connect, a refresh) goes back to the server.
   const fetchIntegrationCatalogue = useCallback(
-    async (brand_id) => {
-      const res = await integrationsRequest("catalogue", {
-        query: { brand_id },
-      });
-      if (!res.ok) return { ok: false, integrations: [], message: res.message };
-      // The list arrives under `catalogue` (it was `integrations` in the first
-      // version of the endpoint — still accepted).
-      const rows = res.data?.catalogue ?? res.data?.integrations;
-      return { ok: true, integrations: Array.isArray(rows) ? rows : [] };
+    async (brand_id, { fresh = false } = {}) => {
+      const key = `catalogue|${token}|${brand_id ?? ""}`;
+      const result = await cached(
+        key,
+        60_000,
+        async () => {
+          const res = await integrationsRequest("catalogue", {
+            query: { brand_id },
+          });
+          if (!res.ok) return { ok: false, integrations: [], message: res.message };
+          // The list arrives under `catalogue` (it was `integrations` in the
+          // first version of the endpoint — still accepted).
+          const rows = res.data?.catalogue ?? res.data?.integrations;
+          return { ok: true, integrations: Array.isArray(rows) ? rows : [] };
+        },
+        { fresh },
+      );
+      if (!result.ok) invalidate(key); // never keep a refusal
+      return result;
     },
-    [integrationsRequest],
+    [integrationsRequest, token],
   );
 
   // GET /integrations/{platform}/accounts → the Pages / Instagram accounts / ad
@@ -3728,22 +3755,32 @@ export function AuthProvider({ children }) {
   // POST /integrations/{platform}/select — finishes a connection that needed an
   // account choice. Until this succeeds the row is not connected.
   const selectIntegrationAccount = useCallback(
-    (platform, account_id, brand_id) =>
-      integrationsRequest(`${platform}/select`, {
+    async (platform, account_id, brand_id) => {
+      const res = await integrationsRequest(`${platform}/select`, {
         method: "POST",
         body: { ...(brand_id ? { brand_id } : {}), account_id },
-      }),
+      });
+      // What's connected changed — nobody may reuse the old answer.
+      invalidate("catalogue|");
+      invalidate("integrations|");
+      return res;
+    },
     [integrationsRequest],
   );
 
   // DELETE /integrations/{platform} — removes the brand's stored tokens. Does
   // NOT revoke the grant at the provider.
   const disconnectIntegrationPlatform = useCallback(
-    (platform, brand_id) =>
-      integrationsRequest(platform, {
+    async (platform, brand_id) => {
+      const res = await integrationsRequest(platform, {
         method: "DELETE",
         body: brand_id ? { brand_id } : undefined,
-      }),
+      });
+      // What's connected changed — nobody may reuse the old answer.
+      invalidate("catalogue|");
+      invalidate("integrations|");
+      return res;
+    },
     [integrationsRequest],
   );
 

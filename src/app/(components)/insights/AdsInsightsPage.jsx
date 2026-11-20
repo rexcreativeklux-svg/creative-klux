@@ -61,6 +61,7 @@ import {
   adReadings,
   adWhatWorks,
   bestCampaign,
+  derived,
   isAdditive,
   objectiveLabel,
   spendShare,
@@ -68,6 +69,9 @@ import {
 import { BRAND, BarRows, Card, KpiCard, KpiPlaceholder, NotAvailable, SERIES, ago, longDate, money, num, shortDate } from "./parts";
 
 const DAY = 86_400_000;
+// Campaigns deleted in this session — kept out of the list even while the
+// network still returns them.
+const DELETED = new Set();
 const PERIODS = [7, 30, 90];
 
 // Each network's tabs, as the design gives them.
@@ -429,7 +433,12 @@ export default function AdsInsightsPage({ platform }) {
         }
         const rows = await fetchLivePostsFromConnectedAccounts(mine, { fresh });
         if (latest.current !== k) return;
-        const list = rows.filter((r) => r.type === "ad" && r.platform === platform);
+        // Deleted campaigns can still be listed for a while after the network
+        // accepts the delete — leave out the ones deleted here and any the
+        // network itself marks deleted / removed.
+        const list = rows.filter(
+          (r) => r.type === "ad" && r.platform === platform && !DELETED.has(r.id) && !/^(deleted|removed)$/i.test(r.status || ""),
+        );
         setCampaigns(list);
         setListError(rows.errorsByPlatform?.[platform] || null);
         setSyncedAt(Date.now());
@@ -533,6 +542,8 @@ export default function AdsInsightsPage({ platform }) {
     for (const c of pendingDelete.list) {
       try {
         await deleteAdCampaign({ platform: c.platform, campaign_id: c.post_id });
+        DELETED.add(c.id);
+        setCampaigns((cur) => cur.filter((x) => x.id !== c.id));
         ok++;
       } catch (err) {
         toast.error(`“${c.project_title}”: ${err.message}`);
@@ -717,20 +728,71 @@ export default function AdsInsightsPage({ platform }) {
       {(() => {
         const c = openCampaign && (campaigns.find((x) => x.id === openCampaign.id) || openCampaign);
         if (!c) return null;
+        // Totals as the backend sent them; rates worked out from those totals
+        // (Google's ctr arrives as a fraction, Meta's as a percent — clicks ÷
+        // impressions reads the same on both).
+        const totalKeys = metricKeys.filter(isAdditive);
+        const cur = c.cur || {};
+        const has = (k) => typeof cur[k] === "number";
+        const r = derived(Object.fromEntries(totalKeys.filter(has).map((k) => [k, cur[k]])));
+        const rates = [
+          r.ctr !== undefined && { label: "CTR", value: `${r.ctr.toFixed(2)}%`, hint: "Clicks ÷ impressions" },
+          r.cpc !== undefined && { label: "Cost per click", value: money(r.cpc), hint: "Spend ÷ clicks" },
+          r.cpm !== undefined && { label: "CPM", value: money(r.cpm), hint: "Spend per 1,000 impressions" },
+          r.costPerResult !== undefined && { label: "Cost per result", value: money(r.costPerResult), hint: "Spend ÷ conversions" },
+          r.frequency !== undefined && { label: "Frequency", value: r.frequency.toFixed(2), hint: "Impressions ÷ reach" },
+        ].filter(Boolean);
+        const objective = c.objective ? objectiveLabel(c.objective) : null;
         return (
           <ContentDetailsModal
             isOpen={panelOpen}
             onClose={() => setPanelOpen(false)}
             item={c}
             title="Campaign details"
+            heading={c.project_title}
             platformLabel={network.label}
             badge={<StatusBadge status={c.status} />}
-            dateLabel={c.created_at ? `Created ${longDate(new Date(c.created_at))} · last ${days} days` : `Last ${days} days`}
+            dateLabel={objective ? `${objective} · last ${days} days` : `Last ${days} days`}
             statsLoading={statsLoading && !c.cur}
-            metrics={[
-              { label: "Budget", value: budgetOf(c) },
-              ...metricKeys.map((k) => ({ label: metricLabel(k), value: showMetric(k, c.cur?.[k]) })),
-            ]}
+            metricsNote={`${network.label} hasn't sent numbers for this campaign over the last ${days} days.`}
+            metrics={totalKeys.map((k) => ({ label: metricLabel(k), value: showMetric(k, cur[k]), hint: k }))}
+            sections={
+              rates.length
+                ? [{ title: "Rates", sub: `Worked out from this campaign's totals over the last ${days} days`, metrics: rates }]
+                : c.cur && has("impressions") && !cur.impressions
+                  ? [{ title: "Rates", sub: `CTR, cost per click and CPM show once the campaign is delivered — it had no impressions in the last ${days} days.`, metrics: [] }]
+                  : []
+            }
+            details={{
+              title: "Campaign",
+              rows: [
+                { label: "Objective", value: objective || "Not returned" },
+                { label: "Status", value: statusLabel(c.status) },
+                { label: "Budget", value: budgetOf(c) },
+                { label: "Created", value: c.created_at ? longDate(new Date(c.created_at)) : "Not returned" },
+                { label: "Network", value: network.label },
+                { label: "Campaign ID", value: <span className="font-mono text-[13px]">{c.post_id}</span> },
+              ],
+            }}
+            preview={
+              <div className="overflow-hidden rounded-xl border border-gray-200">
+                {c.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={c.image_url} alt="" className="aspect-square w-full object-cover" />
+                ) : (
+                  <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 bg-gray-50 text-center text-xs text-gray-400">
+                    <network.Icon className="h-8 w-8" style={{ color: network.color }} />
+                    {network.label} didn&apos;t send this campaign&apos;s creative
+                  </div>
+                )}
+                <div className="space-y-1 p-3">
+                  <p className="line-clamp-2 text-sm font-semibold text-gray-900">{c.project_title}</p>
+                  <p className="text-xs text-gray-500">
+                    {[objective, budgetOf(c) !== "—" && budgetOf(c)].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+              </div>
+            }
           />
         );
       })()}

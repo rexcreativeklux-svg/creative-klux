@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { uploadForPublish } from "@/(lib)/creativesApi";
+import { fetchPinterestBoards } from "@/(lib)/integration";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import PlatformPageModal from "@/app/(components)/integrations/PlatformPageModal";
 import { useIntegrationCatalogue } from "@/app/(components)/integrations/useIntegrationCatalogue";
@@ -109,6 +110,60 @@ function NetworkIcon({ platform, active = true, size = 36 }) {
       }}
     >
       <Icon style={{ color: active ? "#fff" : "var(--color-gray-400)", fontSize: size * 0.48 }} />
+    </span>
+  );
+}
+
+/**
+ * Pinterest's board: the boards the brand's pins are on, as one-click
+ * choices, plus the ID box itself (a board with no pins yet is pasted in).
+ */
+function BoardField({ value, onChange, disabled, placeholder }) {
+  const [boards, setBoards] = useState(null); // null = loading
+  useEffect(() => {
+    let alive = true;
+    fetchPinterestBoards()
+      .then((b) => alive && setBoards(b))
+      .catch(() => alive && setBoards([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return (
+    <span className="block space-y-2">
+      {boards === null ? (
+        <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
+          <Loader2 className="h-3 w-3 animate-spin" /> Finding your boards…
+        </span>
+      ) : boards.length > 0 ? (
+        <span className="flex flex-wrap gap-1.5">
+          {boards.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(b.id)}
+              title={`Board ${b.id}`}
+              className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors disabled:cursor-not-allowed ${
+                value === b.id ? "border-[#003dda] bg-blue-50 text-[#003dda]" : "border-gray-200 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <span className="block font-medium">{b.latest ? `“${b.latest}”` : `Board …${b.id.slice(-6)}`}</span>
+              <span className="block text-[10px] text-gray-500">
+                {b.pins} pin{b.pins === 1 ? "" : "s"} · …{b.id.slice(-6)}
+              </span>
+            </button>
+          ))}
+        </span>
+      ) : null}
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value.trim())}
+        disabled={disabled}
+        placeholder={placeholder}
+        inputMode="numeric"
+        className="h-9 w-full rounded-lg border border-gray-200 bg-surface px-3 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-blue-400"
+      />
     </span>
   );
 }
@@ -281,7 +336,7 @@ function ComposerScreen({
   // checks and the next publish, so a retry only goes where it failed.
   const [results, setResults] = useState({}); // { [platform]: {status, message} }
   const pending = platforms.filter((p) => results[p]?.status !== "done");
-  const problems = validatePost({ text, textFor, media, mediaCount: mediaList.length, platforms: pending });
+  const problems = validatePost({ text, textFor, media, mediaCount: mediaList.length, platforms: pending, options });
   const hasProblem = (platform) => problems.some((pr) => pr.platform === platform);
   const [errorsOpen, setErrorsOpen] = useState(true);
 
@@ -760,7 +815,14 @@ function ComposerScreen({
                         {fields.map((f) => (
                           <label key={f.key} className="block">
                             <span className="mb-1 block text-xs font-medium text-gray-600">{f.label}</span>
-                            {f.type === "select" ? (
+                            {f.type === "board" ? (
+                              <BoardField
+                                value={options[p]?.[f.key] ?? ""}
+                                onChange={(v) => setOption(p, f.key, v)}
+                                disabled={publishing}
+                                placeholder={f.placeholder}
+                              />
+                            ) : f.type === "select" ? (
                               <select
                                 value={options[p]?.[f.key] ?? f.options[0].value}
                                 onChange={(e) => setOption(p, f.key, e.target.value)}

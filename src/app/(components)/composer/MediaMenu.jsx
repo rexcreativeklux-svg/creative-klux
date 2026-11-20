@@ -193,8 +193,11 @@ function StockPanel({ kind, onPick }) {
  * @param {(media: {type, url, previewUrl?, name?}) => void} props.onPick
  *   Already-hosted media (library, stock).
  * @param {object} [props.activeBrand]
+ * @param {string} [props.label]        A labelled button instead of the icon.
+ * @param {boolean} [props.tile]        A square "+" tile (the ad form's).
+ * @param {boolean} [props.imagesOnly]  Leave out the video rows.
  */
-export default function MediaMenu({ disabled = false, onFile, onPick, activeBrand, label }) {
+export default function MediaMenu({ disabled = false, onFile, onPick, activeBrand, label, tile = false, imagesOnly = false }) {
   const [open, setOpen] = useState(false);
   const [flyout, setFlyout] = useState(null); // "image" | "video" | null
   const [picker, setPicker] = useState(null); // MediaPickerModal tab, or null
@@ -281,7 +284,21 @@ export default function MediaMenu({ disabled = false, onFile, onPick, activeBran
         }}
       />
 
-      {label ? (
+      {tile ? (
+        <button
+          type="button"
+          onClick={() => (open ? close() : setOpen(true))}
+          disabled={disabled}
+          title="Add multimedia"
+          aria-label="Add multimedia"
+          aria-expanded={open}
+          className={`flex h-16 w-16 cursor-pointer items-center justify-center rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            open ? "border-[#003dda] bg-blue-50 text-[#003dda]" : "border-gray-200 bg-surface text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          <Plus className="h-5 w-5" />
+        </button>
+      ) : label ? (
         // The labelled form — Manage files' "+ Add files ⌄".
         <button
           type="button"
@@ -316,7 +333,7 @@ export default function MediaMenu({ disabled = false, onFile, onPick, activeBran
         <FloatingPanel anchorRef={rootRef} panelRef={panelRef} className="flex items-start gap-2">
           <div className="w-56 rounded-xl border border-gray-200 bg-surface p-1.5 shadow-xl">
             {item({ icon: ImageIcon, label: "Add image", onClick: chooseImage })}
-            {item({ icon: Video, label: "Add video", onClick: chooseVideo })}
+            {!imagesOnly && item({ icon: Video, label: "Add video", onClick: chooseVideo })}
             <div className="my-1 border-t border-gray-100" />
             {item({ icon: FolderOpen, label: "My library", onClick: () => { setPicker("library"); close(); } })}
             {item({ icon: Images, label: "Brand images", onClick: () => { setPicker("brand"); close(); } })}
@@ -329,13 +346,14 @@ export default function MediaMenu({ disabled = false, onFile, onPick, activeBran
               active: flyout === "image",
               onClick: () => setFlyout("image"),
             })}
-            {item({
-              icon: Clapperboard,
-              label: "Stock videos",
-              sub: "video",
-              active: flyout === "video",
-              onClick: () => setFlyout("video"),
-            })}
+            {!imagesOnly &&
+              item({
+                icon: Clapperboard,
+                label: "Stock videos",
+                sub: "video",
+                active: flyout === "video",
+                onClick: () => setFlyout("video"),
+              })}
           </div>
           {flyout && <StockPanel key={flyout} kind={flyout} onPick={pick} />}
         </FloatingPanel>

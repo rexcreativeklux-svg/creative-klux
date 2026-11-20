@@ -86,6 +86,57 @@ export function redactSecrets(text = "") {
 }
 
 /** The most specific thing the server said about a failed request — secrets masked. */
+/**
+ * Everything the backend said about a failed request, readable: its message,
+ * every field error ("field: problem"), and the network's own explanation
+ * when it passed one through (Meta's error_user_title / error_user_msg…).
+ * @returns {{ message: string, details: string[], status?: number }}
+ */
+export function serverError(error, fallback) {
+  const data = error?.response?.data;
+  const status = error?.response?.status;
+  const details = [];
+  const push = (s) => {
+    const t = typeof s === "string" ? s.trim() : "";
+    if (t && !details.includes(t)) details.push(redactSecrets(t));
+  };
+  if (data?.errors && typeof data.errors === "object")
+    for (const [field, msgs] of Object.entries(data.errors))
+      for (const m of [].concat(msgs)) push(typeof m === "string" && !m.toLowerCase().includes(field.replace(/_/g, " ")) ? `${field.replace(/_/g, " ")}: ${m}` : m);
+  const nested = [data?.error, data?.details, data?.network_error, data?.data?.error].filter(Boolean);
+  for (const n of nested) {
+    if (typeof n === "string") push(n);
+    else if (Array.isArray(n)) n.forEach((x) => push(typeof x === "string" ? x : x?.message));
+    else if (typeof n === "object") {
+      push(n.error_user_title);
+      push(n.error_user_msg);
+      push(n.message);
+      push(n.error?.message);
+    }
+  }
+  let message = redactSecrets(
+    (typeof data?.message === "string" && data.message.trim()) ||
+      details.shift() ||
+      (status ? `${fallback} (HTTP ${status})` : error?.message || fallback),
+  );
+  // "API call failed: <network's sentence> (created so far: {"campaign_id":"…"})"
+  // → the sentence, plus a line naming what was left behind.
+  message = message.replace(/^API call failed:\s*/i, "");
+  const partial = message.match(/\s*\(created so far:\s*(\{.*\})\)\s*$/i);
+  if (partial) {
+    message = message.slice(0, partial.index).trim();
+    try {
+      const made = Object.entries(JSON.parse(partial[1]))
+        .map(([k, v]) => `${k.replace(/_id$/, "").replace(/_/g, " ")} ${v}`)
+        .join(", ");
+      if (made) details.unshift(`Part of it was created before this — ${made}. Delete it from the Campaigns table if you don't need it.`);
+    } catch {
+      details.unshift(`Part of it was created before this: ${partial[1]}`);
+    }
+  }
+  return { message, details: details.filter((d) => d !== message), status };
+}
+
 function serverMessage(error, fallback) {
   const data = error?.response?.data;
   const fieldError = data?.errors ? Object.values(data.errors)[0]?.[0] : null;
@@ -260,7 +311,11 @@ export async function createAd(ad) {
       error?.response?.status,
       error?.response?.data || error?.message,
     );
-    throw new Error(serverMessage(error, "Couldn't create the ad"));
+    const { message, details, status } = serverError(error, "Couldn't create the ad");
+    const err = new Error(message);
+    err.details = details;
+    err.status = status;
+    throw err;
   }
 }
 

@@ -79,7 +79,7 @@ function Label({ children, hint }) {
 function Figure({ value, loading, size = "text-2xl" }) {
   if (loading && value == null)
     return <span className="my-1.5 block h-6 w-14 animate-pulse rounded bg-gray-200" />;
-  return <p className={`${size} font-normal tabular-nums text-gray-900`}>{display(value)}</p>;
+  return <p className={`${size} wrap-break-word font-normal leading-tight tabular-nums text-gray-900`}>{display(value)}</p>;
 }
 
 /** "This post received more views compared to your recent Facebook posts." */
@@ -229,11 +229,12 @@ function InteractionsCard({ interactions, platformLabel, loading }) {
 }
 
 /** A heading and a wrapping row of figures — the Overview card. */
-function OverviewCard({ metrics, loading }) {
+function OverviewCard({ title = "Overview", sub, metrics, loading }) {
   return (
     <Card>
-      <h3 className="mb-4 text-sm font-semibold text-gray-900">Overview</h3>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 xl:grid-cols-5">
+      <h3 className={`text-sm font-semibold text-gray-900 ${sub ? "" : "mb-4"}`}>{title}</h3>
+      {sub && <p className="mb-4 mt-0.5 text-xs text-gray-500">{sub}</p>}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 xl:grid-cols-4">
         {metrics.map(({ icon: Icon, label, value, hint }) => (
           <div key={label} className="min-w-0">
             <Label hint={hint}>
@@ -248,16 +249,36 @@ function OverviewCard({ metrics, loading }) {
   );
 }
 
+/** Label / value rows — what the thing is, as opposed to how it did. */
+function DetailsCard({ title, rows }) {
+  return (
+    <Card>
+      <h3 className="mb-3 text-sm font-semibold text-gray-900">{title}</h3>
+      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+        {rows.map(({ label, value }) => (
+          <div key={label} className="min-w-0">
+            <dt className="text-xs font-medium text-gray-500">{label}</dt>
+            <dd className="mt-0.5 wrap-break-word text-sm text-gray-900">{value ?? "--"}</dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
+  );
+}
+
 export default function ContentDetailsModal({
   isOpen,
   onClose,
   item,
   title = "Post details",
+  heading: headingProp,
   platformLabel,
   platformIcon,
   dateLabel,
   insights,
   metrics = [],
+  details,
+  sections = [],
   badge,
   preview,
   statsLoading = false,
@@ -265,7 +286,7 @@ export default function ContentDetailsModal({
 }) {
   if (!item) return null;
   const updated = item.stats?.last_updated;
-  const heading = item.caption || item.project_title || title;
+  const heading = headingProp || item.caption || item.project_title || title;
   const overview = insights?.overview ?? metrics;
   const empty = overview.length === 0 && !insights?.views && !insights?.interactions;
 
@@ -355,6 +376,10 @@ export default function ContentDetailsModal({
                 loading={statsLoading}
               />
             )}
+            {sections.map((s) => (
+              <OverviewCard key={s.title} title={s.title} sub={s.sub} metrics={s.metrics} loading={statsLoading} />
+            ))}
+            {details?.rows?.length > 0 && <DetailsCard title={details.title} rows={details.rows} />}
             {insights?.views && (
               <ViewsCard views={insights.views} platformLabel={platformLabel} loading={statsLoading} />
             )}

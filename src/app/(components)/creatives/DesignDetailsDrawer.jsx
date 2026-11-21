@@ -37,7 +37,8 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import Drawer from "@/app/(components)/ui/Drawer";
-import PublishModal from "@/app/(components)/PublishModal";
+import { usePublishFlow } from "@/app/(components)/composer/PublishFlow";
+import { copyAsText } from "@/(lib)/designCopy";
 import { downloadBlob } from "@/utils/downloadName";
 import DesignDetailsPanel, {
   EditCopyModal,
@@ -70,8 +71,8 @@ export default function DesignDetailsDrawer({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
-  const [publishTarget, setPublishTarget] = useState(null);
-  const [publishStartSchedule, setPublishStartSchedule] = useState(false);
+  // Publish ▾ → the Create new post or Create campaign composer.
+  const publish = usePublishFlow();
 
   const open = isOpen ?? Boolean(design);
 
@@ -140,8 +141,11 @@ export default function DesignDetailsDrawer({
   /** Copy the generated-copy block to the clipboard. */
   const handleCopyText = () => {
     if (!panelDesign) return;
-    const copy = panelDesign.copy;
-    const text = typeof copy === "string" ? copy : JSON.stringify(copy, null, 2);
+    const text = copyAsText(panelDesign.copy);
+    if (!text) {
+      toast.info("This design has no copy yet.");
+      return;
+    }
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -190,14 +194,15 @@ export default function DesignDetailsDrawer({
             copied={copied}
             onDeleteRequest={() => setConfirmingDelete(true)}
             onEdit={setEditTarget}
-            onPublish={() => {
-              setPublishStartSchedule(false);
-              setPublishTarget(panelDesign); // capture it before the drawer closes
+            publishing={publish.preparing}
+            onPublish={async (kind) => {
+              const item = panelDesign; // captured before the drawer closes
+              await (kind === "campaign" ? publish.openCampaign(item) : publish.openSocial(item));
               onClose?.();
             }}
-            onSchedule={() => {
-              setPublishStartSchedule(true); // straight into scheduling
-              setPublishTarget(panelDesign);
+            // Scheduling lives in the post composer's publish menu.
+            onSchedule={async () => {
+              await publish.openSocial(panelDesign);
               onClose?.();
             }}
             onDownload={handleDownload}
@@ -214,17 +219,8 @@ export default function DesignDetailsDrawer({
         />
       )}
 
-      {/* ── Publish Modal ── */}
-      {publishTarget && (
-        <PublishModal
-          creative={publishTarget}
-          startInSchedule={publishStartSchedule}
-          onClose={() => setPublishTarget(null)}
-          showToast={(message, type = "success") =>
-            type === "error" ? toast.error(message) : toast.success(message)
-          }
-        />
-      )}
+      {/* ── Publish: the post / campaign composers ── */}
+      {publish.composers}
 
       {/* ── Delete confirm modal ── */}
       {confirmingDelete && (

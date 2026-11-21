@@ -27,7 +27,8 @@ import { useAuth } from "@/context/AuthContext";
 import SelectionMark from "@/app/(components)/bulk/SelectionMark";
 import useBulkSelection from "@/app/(components)/bulk/useBulkSelection";
 import Toast from "@/app/(components)/Toast";
-import PublishModal from "@/app/(components)/PublishModal";
+import { usePublishFlow } from "@/app/(components)/composer/PublishFlow";
+import { copyAsText } from "@/(lib)/designCopy";
 // The app's edge-anchored panel primitive — the same one the mobile nav uses.
 // Brings the scrim, Escape, focus trap, swipe-to-dismiss, the notch insets and
 // (the reason it's here) a width that cannot exceed the screen.
@@ -455,8 +456,8 @@ export default function CreativesPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [page, setPage] = useState(1);
   const [actionLoading, setActionLoading] = useState(false);
-  const [publishTarget, setPublishTarget] = useState(null);
-  const [publishStartSchedule, setPublishStartSchedule] = useState(false);
+  // Publish ▾ → the Create new post or Create campaign composer.
+  const publish = usePublishFlow();
 
   // Toast state
   const [toast, setToast] = useState({
@@ -711,9 +712,11 @@ export default function CreativesPage() {
 
   const handleCopy = () => {
     if (!selected) return;
-    const copy = selected.copy;
-    const text =
-      typeof copy === "string" ? copy : JSON.stringify(copy, null, 2);
+    const text = copyAsText(selected.copy);
+    if (!text) {
+      toast.info("This design has no copy yet.");
+      return;
+    }
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -1053,14 +1056,15 @@ export default function CreativesPage() {
             copied={copied}
             onDeleteRequest={setDeleteConfirm}
             onEdit={setEditTarget}
-            onPublish={() => {
-              setPublishStartSchedule(false);
-              setPublishTarget(panelCreative); // capture the creative
-              setSelectedId(null); // close the panel
+            publishing={publish.preparing}
+            onPublish={async (kind) => {
+              const item = panelCreative; // captured before the panel closes
+              await (kind === "campaign" ? publish.openCampaign(item) : publish.openSocial(item));
+              setSelectedId(null);
             }}
-            onSchedule={() => {
-              setPublishStartSchedule(true); // open the modal straight into scheduling
-              setPublishTarget(panelCreative);
+            // Scheduling lives in the post composer's publish menu.
+            onSchedule={async () => {
+              await publish.openSocial(panelCreative);
               setSelectedId(null);
             }}
             onDownload={handleDownloadDesign}
@@ -1077,15 +1081,8 @@ export default function CreativesPage() {
         />
       )}
 
-      {/* ── Publish Modal ── */}
-      {publishTarget && (
-        <PublishModal
-          creative={publishTarget}
-          startInSchedule={publishStartSchedule}
-          onClose={() => setPublishTarget(null)}
-          showToast={showToast}
-        />
-      )}
+      {/* ── Publish: the post / campaign composers ── */}
+      {publish.composers}
 
       {/* ── Delete confirm modal ── */}
       {deleteConfirm && (

@@ -35,7 +35,6 @@ import {
   FileText,
   Loader2,
   Pencil,
-  Send,
   Star,
   Trash2,
   Wand2,
@@ -47,6 +46,8 @@ import {
   renderDesignToCanvas,
   renderDesignToBlob,
 } from "@/(lib)/design/renderDesign";
+import { PublishButton } from "@/app/(components)/composer/PublishFlow";
+import DesignCopy from "./DesignCopy";
 
 // ── DesignCanvas ──────────────────────────────────────────────────────────────
 // Read-only preview. Paints via the SAME renderer the editor uses
@@ -271,8 +272,9 @@ export async function renderDesignToPngBlob(c) {
  * @param {boolean} props.copied               Show the copied confirmation.
  * @param {(id: number|string) => void} props.onDeleteRequest
  * @param {(creative: object) => void} props.onEdit      Open the copy editor.
- * @param {() => void} props.onPublish
+ * @param {(kind: "social"|"campaign") => void} props.onPublish  Publish ▾'s choice.
  * @param {() => void} props.onSchedule
+ * @param {boolean} [props.publishing]  The design is being prepared to publish.
  * @param {(creative: object) => Promise<void>} props.onDownload
  */
 export default function DesignDetailsPanel({
@@ -286,17 +288,10 @@ export default function DesignDetailsPanel({
   onPublish,
   onSchedule,
   onDownload,
+  publishing = false,
 }) {
   const [downloading, setDownloading] = useState(false);
   const tc = TYPE_COLOR[c.type?.toLowerCase()] || DEFAULT_COLOR;
-  const [expandedCopy, setExpandedCopy] = useState(false);
-
-  const copy = c.copy || {};
-  const copyEntries =
-    typeof copy === "string"
-      ? [["content", copy]]
-      : Object.entries(copy).filter(([, v]) => v && typeof v === "string");
-
   const hasCanvas = c.canvas && c.elements?.length > 0;
 
   return (
@@ -482,12 +477,13 @@ export default function DesignDetailsPanel({
                 phone. `whitespace-nowrap` + `min-w-0` keep "Downloading…" on one
                 line there instead of wrapping and growing the row's height. */}
             <div className="flex gap-2">
-              <button
-                onClick={onPublish}
-                className="flex-1 min-w-0 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded-lg transition-all shadow-sm sm:gap-2"
-              >
-                <Send className="w-3 h-3 shrink-0" /> Publish
-              </button>
+              {/* Publish ▾ — Social post or Ad campaign, as in Magic Studio */}
+              <PublishButton
+                onSocial={() => onPublish("social")}
+                onCampaign={() => onPublish("campaign")}
+                busy={publishing}
+                className="w-full min-w-0 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded-lg transition-all shadow-sm disabled:opacity-70 disabled:cursor-wait"
+              />
               <button
                 onClick={onSchedule}
                 className="flex-1 min-w-0 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold py-2 rounded-lg transition-all sm:gap-2"
@@ -514,34 +510,8 @@ export default function DesignDetailsPanel({
             </div>
           </div>
 
-          {/* Generated Copy */}
-          {copyEntries.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider mb-2">
-                Generated Copy
-              </p>
-              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 leading-relaxed border border-gray-100 space-y-2">
-                {(expandedCopy ? copyEntries : copyEntries.slice(0, 3)).map(
-                  ([key, val]) => (
-                    <div key={key}>
-                      <span className="text-[9px] uppercase tracking-wider font-bold text-gray-400">
-                        {key.replace(/_/g, " ")}
-                      </span>
-                      <p className="mt-0.5 text-gray-700">{val}</p>
-                    </div>
-                  ),
-                )}
-                {copyEntries.length > 3 && (
-                  <button
-                    onClick={() => setExpandedCopy((v) => !v)}
-                    className="text-blue-500 hover:text-blue-700 font-semibold text-xs cursor-pointer transition"
-                  >
-                    {expandedCopy ? "Show less" : "See more"}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Generated copy — everything the backend wrote for this design */}
+          <DesignCopy key={c.id} copy={c.copy} />
         </div>
       </div>
 

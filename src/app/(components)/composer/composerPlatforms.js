@@ -32,6 +32,21 @@ import {
   publishToYouTube,
 } from "@/(lib)/integration";
 import { LINKEDIN_POSTING_ENABLED } from "@/(lib)/linkedinConfig";
+import { Clapperboard, CirclePlus, LayoutGrid, PlaySquare, Smartphone } from "lucide-react";
+
+/**
+ * Post types, for the networks that have more than one (Metricool's "POST ⌄"
+ * pill next to the network's icon). The first is the default. `media`
+ * overrides the network's own media rule for that type; `vertical` marks the
+ * full-screen 9:16 formats, which the preview draws as the app's player.
+ *
+ * The chosen id goes to the publish API as `post_type`.
+ */
+const META_TYPES = (network) => [
+  { id: "post", label: "Post", description: `Standard ${network} publication`, Icon: LayoutGrid },
+  { id: "reel", label: "Reel", description: "Short vertical video", Icon: Clapperboard, media: "video", vertical: true },
+  { id: "story", label: "Story", description: "Shown for 24 hours", Icon: CirclePlus, media: "required", vertical: true },
+];
 
 /**
  * Each network the composer can post to.
@@ -55,6 +70,7 @@ export const COMPOSER_PLATFORMS = {
     Icon: FaFacebook,
     maxChars: 63206,
     media: "optional",
+    types: META_TYPES("Facebook"),
     fields: [
       {
         key: "link",
@@ -71,6 +87,7 @@ export const COMPOSER_PLATFORMS = {
     Icon: FaInstagram,
     maxChars: 2200,
     media: "required",
+    types: META_TYPES("Instagram"),
     // The publisher sends the caption and the image or video — nothing else.
     fields: [],
   },
@@ -132,6 +149,10 @@ export const COMPOSER_PLATFORMS = {
     Icon: FaYoutube,
     maxChars: 5000,
     media: "video",
+    types: [
+      { id: "video", label: "Video", description: "Standard YouTube video", Icon: PlaySquare },
+      { id: "short", label: "Short", description: "Short-form, vertical video", Icon: Smartphone, media: "video", vertical: true },
+    ],
     fields: [
       {
         key: "title",
@@ -212,6 +233,20 @@ export const COMPOSER_ORDER = [
 export const isComposable = (platform) =>
   !!COMPOSER_PLATFORMS[platform] && COMPOSER_PLATFORMS[platform].enabled !== false;
 
+/**
+ * The post type chosen for a network — kept in its options as `post_type` —
+ * or its first (default) type. Null for a network with no types.
+ *
+ * @param {string} platform
+ * @param {object} [options] That network's options.
+ * @returns {object|null} One of COMPOSER_PLATFORMS[platform].types.
+ */
+export function postTypeOf(platform, options) {
+  const types = COMPOSER_PLATFORMS[platform]?.types;
+  if (!types?.length) return null;
+  return types.find((t) => t.id === options?.post_type) || types[0];
+}
+
 /** The first line of the text — the default title wherever a network has one. */
 export const firstLine = (text = "") => text.trim().split("\n")[0]?.trim() || "";
 
@@ -238,18 +273,26 @@ export function validatePost({ text: shared, textFor, media, mediaCount = media 
     if (!rules) continue;
     const text = textFor ? textFor(platform) : shared;
     const trimmed = text.trim();
+    // A Reel / Story / Short has its own media rule, and its messages say
+    // which type it is about ("Reel → Add at least 1 video.").
+    const type = postTypeOf(platform, options[platform]);
+    const mediaRule = type?.media || rules.media;
+    const prefix = type && type !== rules.types[0] ? `${type.label} → ` : "";
     // Networks that insist on media already say so below, more usefully.
-    if (!trimmed && !media && rules.media === "optional")
+    if (!trimmed && !media && mediaRule === "optional")
       problems.push({ platform, message: "Add some text or an image or video." });
     if (text.length > rules.maxChars)
       problems.push({
         platform,
         message: `Text is ${(text.length - rules.maxChars).toLocaleString()} characters over the ${rules.maxChars.toLocaleString()} limit.`,
       });
-    if (rules.media === "required" && !media)
-      problems.push({ platform, message: "Add at least 1 image or video." });
-    if (rules.media === "video" && media?.type !== "video")
-      problems.push({ platform, message: "Add a video — this network only posts video." });
+    if (mediaRule === "required" && !media)
+      problems.push({ platform, message: `${prefix}Add at least 1 image or video.` });
+    if (mediaRule === "video" && media?.type !== "video")
+      problems.push({
+        platform,
+        message: prefix ? `${prefix}Add at least 1 video.` : "Add a video — this network only posts video.",
+      });
     for (const f of rules.fields || [])
       if (f.required && !String(options[platform]?.[f.key] ?? "").trim())
         problems.push({ platform, message: `Choose a ${f.label.toLowerCase()} in ${rules.label} settings.` });
@@ -279,18 +322,22 @@ export async function publishComposedPost(platform, { text, media, options = {},
       : { image_url: media.url }
     : {};
   const title = (max) => (options.title?.trim() || firstLine(caption)).slice(0, max);
+  // post / reel / story (Facebook, Instagram) · video / short (YouTube).
+  const post_type = postTypeOf(platform, options)?.id;
 
   switch (platform) {
     case "facebook":
       await publishToFacebook({
         brand_id: brandId,
         caption,
-        link: options.link?.trim() || undefined,
+        // A link preview only exists on a feed post.
+        link: post_type === "post" ? options.link?.trim() || undefined : undefined,
+        post_type,
         ...mediaArgs,
       });
       return {};
     case "instagram":
-      await publishToInstagram({ brand_id: brandId, caption, ...mediaArgs });
+      await publishToInstagram({ brand_id: brandId, caption, post_type, ...mediaArgs });
       return {};
     case "twitter":
       await publishToTwitter({ brand_id: brandId, text: caption, ...mediaArgs });
@@ -315,6 +362,7 @@ export async function publishComposedPost(platform, { text, media, options = {},
         title: title(100) || "Untitled",
         description: caption,
         privacyStatus: options.privacy || "public",
+        post_type,
         ...mediaArgs,
       });
       return {};

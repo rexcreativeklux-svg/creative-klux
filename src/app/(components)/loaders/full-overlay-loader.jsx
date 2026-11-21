@@ -21,7 +21,9 @@ export default function FullOverlayLoader({
 }) {
     const wrapClass = embedded
         ? "relative isolate overflow-hidden w-full max-w-[480px] min-h-[240px] rounded-2xl border border-black/10 dark:border-white/10 bg-page dark:bg-canvas flex flex-col items-center justify-center p-10"
-        : "fixed right-0 bottom-0 z-[120] isolate overflow-hidden flex flex-col items-center justify-center bg-page/95 dark:bg-canvas/95 backdrop-blur-xl";
+        // ck-opaque-screen, not bg-page/95: under a skin bg-page is itself
+        // translucent, and 95% of it let the page show through the loader.
+        : "fixed right-0 bottom-0 z-[120] isolate overflow-hidden flex flex-col items-center justify-center ck-opaque-screen dark:bg-canvas";
 
     // Non-embedded: start after the sidebar (left) and below the header (top).
     // Both vars are published by the dashboard layout and fall back to 0 so it's

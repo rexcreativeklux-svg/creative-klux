@@ -861,6 +861,10 @@ const BannersPrintDigitalForm = ({
             <BrandImagesStrip
               onSelect={handleBrandImageUse}
               onCrop={handleBrandImageCrop}
+              onDeselect={(url) => {
+                const idx = croppedImages.findIndex((f) => (f?.sourceUrl || f?.previewUrl) === url);
+                if (idx >= 0) removeCroppedImage(idx);
+              }}
               selectedUrls={croppedImages
                 .filter(Boolean)
                 .map((f) => f?.sourceUrl || f?.previewUrl)

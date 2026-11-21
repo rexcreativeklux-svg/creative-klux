@@ -35,6 +35,9 @@ import {
   GitCompareArrows,
   Mail,
   HardDrive,
+  Share2,
+  Megaphone,
+  ChevronRight,
 } from "lucide-react";
 
 const MENU_WIDTH = 208; // matches w-52
@@ -49,6 +52,8 @@ const MENU_WIDTH = 208; // matches w-52
  * @param {() => void} [cb.onGenerateVideo]   Send this image to the video tool.
  * @param {() => void} [cb.onCompare]         Send this image to Creative Comparison.
  * @param {() => void} [cb.onPublish]         Publish the asset to a platform.
+ * @param {() => void} [cb.onPublishCampaign] Use the asset in an ad campaign —
+ *   given alongside onPublish, Publish becomes a "Social post / Ad campaign" submenu.
  * @param {() => void} [cb.onEmailToClient]   Email the asset to a client.
  * @param {() => void} [cb.onDownload]        Download the asset.
  * @param {() => void} [cb.onCopyLink]        Copy the asset's hosted URL.
@@ -64,6 +69,7 @@ export function buildResultActions({
   onGenerateVideo,
   onCompare,
   onPublish,
+  onPublishCampaign,
   onEmailToClient,
   onDownload,
   onCopyLink,
@@ -97,7 +103,18 @@ export function buildResultActions({
       icon: GitCompareArrows,
       onClick: onCompare,
     });
-  if (onPublish)
+  // With a campaign destination too, Publish opens a submenu that asks where
+  // to: a social post or an ad campaign. Without one it publishes directly.
+  if (onPublish && onPublishCampaign)
+    items.push({
+      label: "Publish",
+      icon: Send,
+      submenu: [
+        { label: "Social post", icon: Share2, onClick: onPublish },
+        { label: "Ad campaign", icon: Megaphone, onClick: onPublishCampaign },
+      ],
+    });
+  else if (onPublish)
     items.push({ label: "Publish", icon: Send, onClick: onPublish });
   if (onEmailToClient)
     items.push({
@@ -159,6 +176,10 @@ export default function ResultActionsMenu({ x, y, actions, onClose }) {
   const menuRef = useRef(null);
   // Start at the anchor point, hidden, until measured + clamped into view.
   const [pos, setPos] = useState({ top: y, left: x, ready: false });
+  // The submenu that's open (by its row's label), and which side it flies out
+  // on: right when it fits, else left, else folded inline under its row.
+  const [openSub, setOpenSub] = useState(null);
+  const [subSide, setSubSide] = useState("right");
 
   // Clamp into the viewport once the menu's real size is known.
   useLayoutEffect(() => {
@@ -173,11 +194,20 @@ export default function ResultActionsMenu({ x, y, actions, onClose }) {
       left = window.innerWidth - w - margin;
     if (top + h > window.innerHeight - margin)
       top = window.innerHeight - h - margin;
+    left = Math.max(margin, left);
     setPos({
       top: Math.max(margin, top),
-      left: Math.max(margin, left),
+      left,
       ready: true,
     });
+    const subW = 192 + 4; // w-48 + the gap
+    setSubSide(
+      left + w + subW <= window.innerWidth - margin
+        ? "right"
+        : left - subW >= margin
+          ? "left"
+          : "inline",
+    );
   }, [x, y, actions]);
 
   // Escape closes (matches the other dropdowns in these modals).
@@ -216,6 +246,75 @@ export default function ResultActionsMenu({ x, y, actions, onClose }) {
               />
             );
           const Icon = item.icon;
+          if (item.submenu?.length) {
+            const open = openSub === item.label;
+            return (
+              <div
+                key={item.label}
+                className="relative"
+                // Hover opens it for a mouse only — a tap fires these too, and
+                // the click that follows would toggle it straight shut.
+                onPointerEnter={(e) => {
+                  if (e.pointerType === "mouse") setOpenSub(item.label);
+                }}
+                onPointerLeave={(e) => {
+                  if (e.pointerType === "mouse") setOpenSub(null);
+                }}
+              >
+                <button
+                  role="menuitem"
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  onClick={() => setOpenSub(item.label)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors cursor-pointer text-gray-900 ${open ? "bg-gray-100" : "hover:bg-gray-100"}`}
+                >
+                  {Icon && <Icon className="w-4 h-4 shrink-0" />}
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <ChevronRight
+                    className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${open && subSide === "inline" ? "rotate-90" : ""}`}
+                  />
+                </button>
+                {open && (
+                  <div
+                    role="menu"
+                    className={
+                      subSide === "inline"
+                        ? "pb-1 pl-6"
+                        : // The padding, not a margin, makes the gap — the
+                          // pointer stays inside the row's box crossing it.
+                          `absolute top-0 ${subSide === "left" ? "right-full pr-1" : "left-full pl-1"}`
+                    }
+                  >
+                    <div
+                      className={
+                        subSide === "inline"
+                          ? ""
+                          : "bg-surface rounded-xl shadow-2xl border border-gray-200 w-48 py-1 -mt-1"
+                      }
+                    >
+                      {item.submenu.map((sub) => {
+                        const SubIcon = sub.icon;
+                        return (
+                          <button
+                            key={sub.label}
+                            role="menuitem"
+                            onClick={() => {
+                              sub.onClick?.();
+                              onClose?.();
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer rounded-md"
+                          >
+                            {SubIcon && <SubIcon className="w-4 h-4 shrink-0" />}
+                            {sub.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          }
           return (
             <button
               key={item.label}

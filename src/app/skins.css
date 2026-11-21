@@ -822,3 +822,44 @@
   --color-page: rgb(14 14 17 / 0.62);
   --color-surface: rgb(28 28 32 / 0.94);
 }
+
+/* ── Full-screen overlays ────────────────────────────────────────────────
+   A screen that opens OVER the app (the Create new post composer) can't use
+   `bg-page` alone: under a skin or a wallpaper that is a translucent window,
+   so the page underneath shows through the overlay's header and gaps.
+
+   `.ck-opaque-screen` repaints the wallpaper on the overlay itself — the
+   same layers <html> paints, with `bg-page`'s tint on top — so it looks like
+   the app's own background with nothing of the page behind it. The extra
+   leading `cover` in background-size is for the tint layer, which keeps a
+   skin's --ck-skin-art-size list lined up with its own layers. */
+.ck-opaque-screen {
+  background-color: var(--color-page);
+}
+
+:root[data-skin] .ck-opaque-screen {
+  background-color: var(--ck-skin-base);
+  background-image:
+    linear-gradient(var(--color-page), var(--color-page)),
+    var(--ck-skin-image, none),
+    var(--ck-skin-art);
+  background-size: cover, var(--ck-skin-art-size, cover);
+  background-attachment: fixed;
+  background-position: center;
+}
+
+/* After the skin rule on purpose: <html> shows the wallpaper over a skin's
+   art when both are on (the data-wallpaper rule comes later there too). */
+:root[data-wallpaper] .ck-opaque-screen {
+  background-color: var(--ck-skin-base, #f7f8fc);
+  background-image:
+    linear-gradient(var(--color-page), var(--color-page)),
+    var(--ck-wallpaper);
+  background-size: cover;
+  background-attachment: fixed;
+  background-position: center;
+}
+
+:root.dark[data-wallpaper] .ck-opaque-screen {
+  background-color: var(--ck-skin-base, #0e0e11);
+}

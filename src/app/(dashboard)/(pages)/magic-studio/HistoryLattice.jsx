@@ -49,6 +49,8 @@ import {
 } from "@/app/(components)/product-studio/saveToGallery";
 import { useAuth } from "@/context/AuthContext";
 import CreatePostComposer from "@/app/(components)/composer/CreatePostComposer";
+import CreateAdComposer from "@/app/(components)/composer/CreateAdComposer";
+import { AD_NETWORKS } from "@/app/(components)/content/socialPlatformScope";
 import GeneratingArt from "./GeneratingArt";
 import { toolById } from "./magicTools";
 import { generationIdOf } from "./useMagicHistory";
@@ -378,8 +380,26 @@ export default function HistoryLattice({
   // taken as a prop: this lattice is rendered by the tool page AND is about to
   // be one more surface offering the same action, and threading an uploader
   // through every one of them is a prop that exists only to be passed on.
-  const { uploadMedia } = useAuth();
+  const { uploadMedia, fetchIntegrations } = useAuth();
   const [menu, setMenu] = useState(null); // { item, x, y }
+  // Publish → Ad campaign: the result going into a new campaign, and the brand's
+  // connected ad networks (looked up first, so the flow opens on one of them).
+  const [campaignItem, setCampaignItem] = useState(null);
+  const [adNetworks, setAdNetworks] = useState([]);
+  const openCampaign = async (item) => {
+    let ints = [];
+    try {
+      ints = (await fetchIntegrations?.()) || [];
+    } catch (err) {
+      console.error("❌ [magic-studio] couldn't load ad accounts:", err);
+    }
+    setAdNetworks(
+      ints
+        .map((i) => i.platform)
+        .filter((p) => AD_NETWORKS.some((n) => n.id === p)),
+    );
+    setCampaignItem(item);
+  };
   // The result being published, or null. Held here rather than on the menu so
   // the sheet survives the ⋯ closing under it — picking "Publish" dismisses the
   // menu, and a modal keyed off menu state would go with it.
@@ -509,6 +529,9 @@ export default function HistoryLattice({
           ? () => onCompare(item)
           : undefined,
       onPublish: canPublish(item) ? () => setPublishItem(item) : undefined,
+      onPublishCampaign: canPublish(item)
+        ? () => openCampaign(item)
+        : undefined,
       onEmailToClient: item.url
         ? () => toast.info("Email to client is coming soon.")
         : undefined,
@@ -837,6 +860,20 @@ export default function HistoryLattice({
           publishItem ? { url: publishItem.url, type: publishItem.type } : null
         }
         aiTopic={publishItem?.prompt?.trim() || ""}
+      />
+
+      {/* Publish → Ad campaign — the Ads Content Create campaign flow, with
+          this result as the first ad's media (its hosted URL, no re-upload). */}
+      <CreateAdComposer
+        isOpen={!!campaignItem}
+        onClose={() => setCampaignItem(null)}
+        connected={adNetworks}
+        initialPlatform={adNetworks[0]}
+        initialMedia={
+          campaignItem
+            ? { url: campaignItem.url, type: campaignItem.type }
+            : null
+        }
       />
     </>
   );

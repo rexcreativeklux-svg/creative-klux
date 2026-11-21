@@ -65,12 +65,14 @@ import { useIntegrationCatalogue } from "@/app/(components)/integrations/useInte
 import { useIsHydrated } from "@/utils/useIsHydrated";
 import PostPreview, { DesktopFrame, PhoneFrame } from "./PostPreview";
 import MediaMenu from "./MediaMenu";
+import FormatToolbar, { applyFormat } from "./FormatToolbar";
 import { AltTextDialog, ManageFiles, MediaStrip, MediaViewer } from "./MediaAttachments";
 import { AiTextTool, EmojiTool, HashtagTool, LinkTool, SavedTextsTool } from "./ComposerTools";
 import {
   COMPOSER_ORDER,
   COMPOSER_PLATFORMS,
   isComposable,
+  postTypeOf,
   publishComposedPost,
   validatePost,
 } from "./composerPlatforms";
@@ -86,6 +88,10 @@ const BRAND = "#003dda";
  * @param {string} [props.initialText]
  * @param {{url: string, type: "image"|"video"}} [props.initialMedia]
  * @param {string[]} [props.initialPlatforms]
+ * @param {Object<string, string>} [props.initialNetworkText] Text written for
+ *   particular networks (a design's copy) — those start on their own text.
+ * @param {Object<string, object>} [props.initialOptions] Per-network fields to
+ *   start with, e.g. { youtube: { title } }.
  * @param {string} [props.aiTopic] Pre-fills the AI text generator's topic —
  *   e.g. the prompt the attached media was generated from.
  */
@@ -110,6 +116,71 @@ function NetworkIcon({ platform, active = true, size = 36 }) {
       }}
     >
       <Icon style={{ color: active ? "#fff" : "var(--color-gray-400)", fontSize: size * 0.48 }} />
+    </span>
+  );
+}
+
+/**
+ * Metricool's type pill next to a network's icon — "POST ⌄" — and its menu:
+ * each type with its icon, a one-line description and a check on the current
+ * one. Only for networks with `types` (Facebook, Instagram, YouTube).
+ */
+function PostTypePill({ platform, value, onChange, disabled }) {
+  const types = COMPOSER_PLATFORMS[platform]?.types;
+  const [open, setOpen] = useState(false);
+  if (!types?.length) return null;
+  const current = types.find((t) => t.id === value) || types[0];
+  return (
+    <span className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`${COMPOSER_PLATFORMS[platform].label} post type: ${current.label}`}
+        className={`flex h-6 cursor-pointer items-center gap-0.5 rounded-full px-2 text-[10px] font-bold uppercase tracking-wide text-gray-800 transition-colors disabled:cursor-not-allowed ${
+          open ? "bg-gray-300" : "bg-gray-100 hover:bg-gray-200"
+        }`}
+      >
+        {current.label}
+        <ChevronDown className="h-3 w-3" strokeWidth={2.5} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div
+            role="menu"
+            className="absolute left-0 top-full z-40 mt-1.5 w-64 overflow-hidden rounded-xl border border-gray-200 bg-surface py-1 shadow-xl"
+          >
+            {types.map((t) => {
+              const on = t.id === current.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={on}
+                  onClick={() => {
+                    onChange(t.id);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full cursor-pointer items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${
+                    on ? "bg-gray-100" : "hover:bg-gray-50"
+                  }`}
+                >
+                  <t.Icon className="h-5 w-5 shrink-0 text-gray-800" />
+                  <span className="min-w-0 flex-1">
+                    <span className={`block text-sm text-gray-900 ${on ? "font-semibold" : ""}`}>{t.label}</span>
+                    <span className="block text-xs text-gray-500">{t.description}</span>
+                  </span>
+                  {on && <Check className="h-4 w-4 shrink-0 text-gray-800" />}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </span>
   );
 }
@@ -174,6 +245,8 @@ function ComposerScreen({
   initialText = "",
   initialMedia = null,
   initialPlatforms = [],
+  initialNetworkText = null,
+  initialOptions = null,
   aiTopic = "",
 }) {
   const { activeBrand } = useAuth();
@@ -237,10 +310,14 @@ function ComposerScreen({
   const [text, setText] = useState(initialText);
   // …unless that network was edited on its own: { [platform]: string }. A
   // network with no entry follows the template; one with an entry has left it.
-  const [customText, setCustomText] = useState({});
+  // A design's copy can bring text written for particular networks — those
+  // start on their own text, with the network tabs open so it shows.
+  const [customText, setCustomText] = useState(() => ({ ...(initialNetworkText || {}) }));
   const textFor = (platform) => customText[platform] ?? text;
   // "Edit by network" mode and which tab of it is open ("template" | platform).
-  const [editByNetwork, setEditByNetwork] = useState(false);
+  const [editByNetwork, setEditByNetwork] = useState(
+    () => Object.keys(initialNetworkText || {}).length > 0,
+  );
   const [editTab, setEditTab] = useState("template");
   const followTemplate = (platform) =>
     setCustomText(({ [platform]: _dropped, ...rest }) => rest);
@@ -254,7 +331,7 @@ function ComposerScreen({
   );
   const media = mediaList[0] || null;
   const uploading = mediaList.some((m) => m.uploading);
-  const [options, setOptions] = useState({}); // { [platform]: { title, link, … } }
+  const [options, setOptions] = useState(() => ({ ...(initialOptions || {}) })); // { [platform]: { title, link, … } }
   // Attachment screens: the Manage files view, the viewer, the alt-text dialog.
   const [manageOpen, setManageOpen] = useState(false);
   const [viewing, setViewing] = useState(null);
@@ -458,6 +535,41 @@ function ComposerScreen({
   // their text where the cursor is in the open editor — or at the end when it
   // hasn't been focused — and leave the cursor after what they added.
   const editorRef = useRef(null);
+
+  // ── Formatting a selection ───────────────────────────────────────────────
+  // Selecting text in the editor pops the format bar up over it; its buttons
+  // restyle just the selection (see FormatToolbar — Unicode look-alikes, since
+  // posts are plain text) and keep it selected, so styles can be stacked.
+  const [formatAt, setFormatAt] = useState(null); // { x, y } | null
+  const [selectedText, setSelectedText] = useState("");
+  const showFormatBar = (at) => {
+    const el = editorRef.current;
+    if (!at || !el || textToolsOff || el.selectionStart === el.selectionEnd) {
+      setFormatAt(null);
+      return;
+    }
+    setSelectedText(editorText.slice(el.selectionStart, el.selectionEnd));
+    // Kept on screen: never above the window or past its sides.
+    setFormatAt({
+      x: Math.min(Math.max(at.x, 130), window.innerWidth - 130),
+      y: Math.max(at.y, 56),
+    });
+  };
+  const formatSelection = (format) => {
+    const el = editorRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    if (start === end) return;
+    const styled = applyFormat(editorText.slice(start, end), format);
+    setEditorText(editorText.slice(0, start) + styled + editorText.slice(end));
+    setSelectedText(styled);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start, start + styled.length);
+    });
+  };
+
   const insertText = (snippet) => {
     const el = editorRef.current;
     const current = editorText;
@@ -569,9 +681,10 @@ function ComposerScreen({
                   {connected.map((p) => {
                     const on = platforms.includes(p);
                     const r = results[p];
+                    const type = on ? postTypeOf(p, options[p]) : null;
                     return (
+                      <span key={p} className="flex items-center gap-1">
                       <button
-                        key={p}
                         type="button"
                         onClick={() => togglePlatform(p)}
                         disabled={publishing}
@@ -597,7 +710,22 @@ function ComposerScreen({
                             <Loader2 className="h-3 w-3 animate-spin text-gray-500" />
                           </span>
                         )}
+                        {/* The post type on the icon's corner, as Metricool shows it */}
+                        {type && !r?.status && (
+                          <span className="absolute -bottom-1 -right-1 flex h-4.5 w-4.5 items-center justify-center rounded-md bg-surface text-gray-800 shadow ring-1 ring-gray-200">
+                            <type.Icon className="h-3 w-3" strokeWidth={2.25} />
+                          </span>
+                        )}
                       </button>
+                      {type && (
+                        <PostTypePill
+                          platform={p}
+                          value={type.id}
+                          disabled={publishing}
+                          onChange={(id) => setOption(p, "post_type", id)}
+                        />
+                      )}
+                      </span>
                     );
                   })}
                   <button
@@ -704,18 +832,36 @@ function ComposerScreen({
               <textarea
                 ref={editorRef}
                 value={editorText}
-                onChange={(e) => setEditorText(e.target.value)}
+                onChange={(e) => {
+                  setEditorText(e.target.value);
+                  setFormatAt(null);
+                }}
                 disabled={publishing || editorLocked}
                 placeholder={
                   editByNetwork && !editingNetwork
                     ? "Write the content you'll use as a template on the rest of the networks"
                     : "What do you want to share?"
                 }
-                rows={8}
-                className={`block w-full resize-y rounded-t-xl bg-transparent px-4 py-3 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400 ${
+                onMouseUp={(e) => showFormatBar({ x: e.clientX, y: e.clientY - 14 })}
+                onKeyUp={(e) => {
+                  // Keyboard selections (Shift+arrows, Ctrl+A) put the bar
+                  // over the top of the box — there's no pointer to follow.
+                  if (e.shiftKey || e.key === "a" || e.key === "A") {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    showFormatBar({ x: r.left + r.width / 2, y: r.top + 6 });
+                  } else showFormatBar(null);
+                }}
+                onBlur={() => setFormatAt(null)}
+                onScroll={() => setFormatAt(null)}
+                // Metricool's editor: tall enough to write in, filling the
+                // column down to the settings, never shorter than ~10 lines.
+                className={`block h-[max(240px,calc(100dvh-470px))] w-full resize-y rounded-t-xl bg-transparent px-4 py-3 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400 ${
                   editorLocked ? "opacity-30" : ""
                 }`}
               />
+              {formatAt && selectedText && (
+                <FormatToolbar at={formatAt} selected={selectedText} onFormat={formatSelection} />
+              )}
 
               {/* A network tab following the template is locked until you
                   choose to give it its own text. */}
@@ -1064,6 +1210,7 @@ function ComposerScreen({
                    bar and tabs, the post in its feed (see PhoneFrame). */
                 <PhoneFrame
                   platform={previewPlatform}
+                  immersive={!!postTypeOf(previewPlatform, options[previewPlatform])?.vertical}
                   name={accountName(previewPlatform)}
                   logo={activeBrand?.logo}
                 >
@@ -1076,6 +1223,7 @@ function ComposerScreen({
                     media={media}
                     mediaList={mediaList}
                     options={options[previewPlatform]}
+                    postType={postTypeOf(previewPlatform, options[previewPlatform])}
                   />
                 </PhoneFrame>
               ) : (
@@ -1090,6 +1238,7 @@ function ComposerScreen({
                     media={media}
                     mediaList={mediaList}
                     options={options[previewPlatform]}
+                    postType={postTypeOf(previewPlatform, options[previewPlatform])}
                   />
                 </DesktopFrame>
               )

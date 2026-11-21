@@ -31,7 +31,7 @@ import {
   downloadImageUrl,
 } from "@/app/(components)/product-studio/saveToGallery";
 import Lightbox from "@/app/(components)/Lightbox";
-import PublishModal from "@/app/(components)/PublishModal";
+import { usePublishFlow } from "@/app/(components)/composer/PublishFlow";
 
 // Width of ResultActionsMenu (its w-52). Used to right-align the menu under the
 // ⋯ trigger so it opens INSIDE the tile instead of spilling past its right edge.
@@ -114,7 +114,8 @@ export default function MagicHistoryGrid({
   const canSelectType = (type) =>
     Array.isArray(selectableTypes) && selectableTypes.includes(type);
   const [menu, setMenu] = useState(null); // { item, x, y }
-  const [publishItem, setPublishItem] = useState(null); // item being published
+  // Publish ▸ Social post / Ad campaign → the post or campaign composer.
+  const publish = usePublishFlow();
   const [lightboxIndex, setLightboxIndex] = useState(null); // index into mediaItems
 
   // Only images/videos are viewable in the lightbox (persona text isn't). We
@@ -180,7 +181,8 @@ export default function MagicHistoryGrid({
     }
     if (item.type === "video") {
       return buildResultActions({
-        onPublish: item.url ? () => setPublishItem(item) : undefined,
+        onPublish: item.url ? () => publish.openSocial(item) : undefined,
+        onPublishCampaign: item.url ? () => publish.openCampaign(item) : undefined,
         onDownload: () => handleDownload(item),
         onCopyLink: item.url ? () => copyLink(item.url) : undefined,
         // A clip belongs in the library as much as a picture does — it is how
@@ -195,7 +197,10 @@ export default function MagicHistoryGrid({
         onGenerateVideo && item.url && item.type !== "audio"
           ? () => onGenerateVideo(item.url)
           : undefined,
-      onPublish: item.url ? () => setPublishItem(item) : undefined,
+      // A voice take has nothing a post or an ad can carry.
+      onPublish: item.url && item.type === "image" ? () => publish.openSocial(item) : undefined,
+      onPublishCampaign:
+        item.url && item.type === "image" ? () => publish.openCampaign(item) : undefined,
       onDownload: () => handleDownload(item),
       onCopyLink: item.url ? () => copyLink(item.url) : undefined,
       onSaveToGallery: item.url ? () => handleSaveToGallery(item) : undefined,
@@ -388,26 +393,8 @@ export default function MagicHistoryGrid({
         />
       )}
 
-      {/* Publish flow — reuses the shared PublishModal with the generated media
-          wrapped as a minimal creative (its hosted URL is the image to post). */}
-      {publishItem && (
-        <PublishModal
-          creative={{
-            id: publishItem.id,
-            name: "Magic Studio creation",
-            // "all" → the picker offers both social platforms and ad platforms,
-            // so Magic Studio media can go out as a post or an ad.
-            category: "all",
-            image: publishItem.url,
-            isVideo: publishItem.type === "video",
-            copy: {},
-          }}
-          onClose={() => setPublishItem(null)}
-          showToast={(msg, type) =>
-            type === "error" ? toast.error(msg) : toast.success(msg)
-          }
-        />
-      )}
+      {/* Publish — the post / campaign composers, with the hosted file attached */}
+      {publish.composers}
     </div>
   );
 }

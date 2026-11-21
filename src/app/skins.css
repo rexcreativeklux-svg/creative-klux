@@ -823,6 +823,26 @@
   --color-surface: rgb(28 28 32 / 0.94);
 }
 
+/* ── Modals, drawers, menus ──────────────────────────────────────────────
+   Under a skin or wallpaper `bg-surface` is ~94% opaque — right for a card
+   on the page, where what shows through is the pale wallpaper. A modal sits
+   on a dark `bg-black/40` backdrop instead, so the same 6% lets the backdrop
+   and the page behind it bleed in and the panel goes muddy grey.
+
+   Anything painted `bg-surface` inside a FIXED layer (every modal, drawer,
+   dropdown and popover in the app is one, or sits in one) gets an opaque
+   base under its colour: the skin's own base, with the surface tint layered
+   on top as an image. Same colour on screen, nothing behind it showing. */
+:root[data-skin] :is(.fixed.bg-surface, .fixed .bg-surface),
+:root[data-wallpaper] :is(.fixed.bg-surface, .fixed .bg-surface) {
+  background-color: var(--ck-skin-base, #f7f8fc);
+  background-image: linear-gradient(var(--color-surface), var(--color-surface));
+}
+
+:root.dark[data-wallpaper]:not([data-skin]) :is(.fixed.bg-surface, .fixed .bg-surface) {
+  background-color: #0e0e11;
+}
+
 /* ── Full-screen overlays ────────────────────────────────────────────────
    A screen that opens OVER the app (the Create new post composer) can't use
    `bg-page` alone: under a skin or a wallpaper that is a translucent window,

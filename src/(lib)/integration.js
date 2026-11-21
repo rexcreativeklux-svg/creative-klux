@@ -590,6 +590,7 @@ export async function publishToFacebook({
   video_url,
   caption,
   link,
+  post_type, // "post" | "reel" | "story"
   scheduled_publish_time, // unix seconds — not supported by the publishing API yet
   brand_id,
 }) {
@@ -606,18 +607,20 @@ export async function publishToFacebook({
     image_url,
     video_url,
     link,
+    ...(post_type ? { post_type } : {}),
   });
 }
 
 /**
- * Publish to Instagram Business account
+ * Publish to Instagram Business account. `post_type`: "post" | "reel" | "story".
  */
-export async function publishToInstagram({ image_url, video_url, caption, brand_id }) {
+export async function publishToInstagram({ image_url, video_url, caption, post_type, brand_id }) {
   return publishToPlatform("instagram", {
     brand_id,
     text: caption,
     image_url,
     video_url,
+    ...(post_type ? { post_type } : {}),
   });
 }
 
@@ -889,6 +892,7 @@ export async function publishToYouTube({
   video_url: hostedVideoUrl,
   video,
   privacyStatus = "public",
+  post_type, // "video" | "short"
   publishAt,
   brand_id,
 }) {
@@ -908,6 +912,7 @@ export async function publishToYouTube({
     image_url,
     video_url,
     privacy_level: privacyStatus,
+    ...(post_type ? { post_type } : {}),
   });
   return {
     ...res,

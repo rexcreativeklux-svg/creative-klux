@@ -655,6 +655,96 @@ function TikTokPreview({ name, logo, text, media, options, device = "phone" }) {
   );
 }
 
+/**
+ * A Reel, Story or Short — the full-screen 9:16 player each app shows them in.
+ *   story        progress bar and account on top, the media, "Send message"
+ *                at the bottom. A story shows no caption.
+ *   reel / short the media with the action column down the right, and the
+ *                account, caption (a Short's title) and sound line at the bottom.
+ * On a phone it fills the screen; on desktop it is the same player as a card.
+ */
+function VerticalPreview({ platform, postType, name, logo, text, media, options, timeLabel = "Just now" }) {
+  const device = useContext(DeviceContext);
+  const color = COMPOSER_PLATFORMS[platform]?.color || "#111";
+  const kind = postType?.id;
+  const story = kind === "story";
+  const caption = kind === "short" ? options?.title?.trim() || firstLine(text) : text;
+  const actions =
+    kind === "short"
+      ? [[ThumbsUp, "Like"], [MessageCircle, "0"], [Share2, "Share"], [Repeat2, "Remix"]]
+      : [[platform === "instagram" ? Heart : ThumbsUp, "0"], [MessageCircle, "0"], [Send, "Send"]];
+
+  const player = (
+    <div className="relative h-full w-full overflow-hidden bg-black">
+      <TikTokClip media={media} />
+      {!media && (
+        <p className="absolute inset-x-0 top-[58%] text-center text-xs text-white/60">
+          {postType?.media === "video" ? "Video not available" : "Video/image not available"}
+        </p>
+      )}
+
+      {story ? (
+        <>
+          <div className="absolute inset-x-0 top-0 bg-linear-to-b from-black/50 to-transparent px-3 pb-6 pt-9">
+            <span className="block h-0.5 rounded-full bg-white/40">
+              <span className="block h-full w-1/3 rounded-full bg-white" />
+            </span>
+            <span className="mt-2.5 flex items-center gap-2 text-white">
+              <Avatar name={name} logo={logo} color={color} size={28} />
+              <span className="text-[13px] font-semibold drop-shadow">{name}</span>
+              <span className="text-[12px] text-white/70">{timeLabel}</span>
+              <MoreHorizontal className="ml-auto h-4 w-4" />
+            </span>
+          </div>
+          <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 px-3 pb-5 pt-8 text-white">
+            <span className="flex-1 rounded-full border border-white/60 px-3.5 py-1.5 text-[12px] text-white/90">
+              Send message
+            </span>
+            <Heart className="h-5 w-5" />
+            <Send className="h-5 w-5" />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pb-6 pt-9 text-[15px] font-bold text-white drop-shadow">
+            {kind === "short" ? "Shorts" : "Reels"}
+            <Search className="h-5 w-5" />
+          </div>
+          <div className="absolute bottom-5 right-2.5 flex flex-col items-center gap-4 text-white">
+            {actions.map(([Icon, label], i) => (
+              <span key={i} className="flex flex-col items-center gap-0.5">
+                <Icon className="h-6 w-6 drop-shadow" />
+                <span className="text-[10px] font-semibold drop-shadow">{label}</span>
+              </span>
+            ))}
+            <MoreHorizontal className="h-5 w-5" />
+          </div>
+          <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/30 to-transparent px-3 pb-5 pr-14 pt-12 text-white">
+            <span className="flex items-center gap-2">
+              <Avatar name={name} logo={logo} color={color} size={28} />
+              <span className="truncate text-[13px] font-semibold drop-shadow">{name}</span>
+              <span className="rounded-md border border-white/80 px-2 py-0.5 text-[11px] font-semibold">
+                {kind === "short" ? "Subscribe" : "Follow"}
+              </span>
+            </span>
+            {caption?.trim() ? (
+              <p className="mt-1.5 line-clamp-2 whitespace-pre-line wrap-break-word text-[12.5px] leading-snug drop-shadow">
+                {caption}
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[12.5px] italic text-white/50">Your text will appear here</p>
+            )}
+            <p className="mt-1 truncate text-[11px] text-white/85">♫ {name} · Original audio</p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  if (device === "phone") return player;
+  return <div className="mx-auto aspect-9/16 w-72 overflow-hidden rounded-xl shadow-lg">{player}</div>;
+}
+
 /** LinkedIn — the feed card: name, a follower line, text, media, the four actions. */
 function LinkedInPreview({ name, logo, text, media, mediaList, timeLabel = "Now", clamp, moreHref }) {
   return (
@@ -899,8 +989,9 @@ function AppChrome({ platform, name, logo, children }) {
  * @param {string} [props.name]   Account name (the app's own avatar spots).
  * @param {string} [props.logo]
  */
-export function PhoneFrame({ platform, name, logo, children }) {
-  const immersive = platform === "tiktok";
+export function PhoneFrame({ platform, name, logo, immersive: fullScreen = false, children }) {
+  // TikTok is always full screen; a Reel / Story / Short is too.
+  const immersive = fullScreen || platform === "tiktok";
   return (
     <div className="relative mx-auto aspect-[9/19] h-full max-h-[640px] min-h-[480px] max-w-full rounded-[2.75rem] bg-gray-900 p-[10px] shadow-[0_30px_60px_-20px_rgba(15,23,42,0.45)] ring-1 ring-gray-700">
       {/* Side buttons */}
@@ -994,7 +1085,9 @@ export function DesktopFrame({ platform, children }) {
  *                                   them in place of the Like/Comment/Share row).
  */
 export default function PostPreview(props) {
-  const Preview = PREVIEWS[props.platform] || GenericPreview;
+  const Preview = props.postType?.vertical
+    ? VerticalPreview
+    : PREVIEWS[props.platform] || GenericPreview;
   return (
     <DeviceContext.Provider value={props.device === "phone" ? "phone" : "desktop"}>
       <Preview {...props} />

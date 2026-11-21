@@ -72,7 +72,8 @@ import ResultActionsMenu, {
 } from "@/app/(components)/product-studio/ResultActionsMenu";
 import { saveUrlToGallery } from "@/app/(components)/product-studio/saveToGallery";
 import Lightbox from "@/app/(components)/Lightbox";
-import PublishModal from "@/app/(components)/PublishModal";
+import { usePublishFlow } from "@/app/(components)/composer/PublishFlow";
+import CopySnippet from "@/app/(components)/creatives/CopySnippet";
 import Toast from "@/app/(components)/Toast";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import ChatHistoryPanel from "./ChatHistoryPanel";
@@ -742,9 +743,6 @@ function PreviewPanel({
   // handler, because they close over the refs below and React won't have refs
   // read (or handed to closures) during render.
   const [menu, setMenu] = useState(null);
-  // Held apart from `menu`: picking Publish closes the menu, and a sheet keyed
-  // off menu state would close with it.
-  const [publishVariation, setPublishVariation] = useState(null);
   const [lightbox, setLightbox] = useState(null); // { items, index }
   // Which card's Edit is saving, so a second click can't save it twice.
   const [editingId, setEditingId] = useState(null);
@@ -765,24 +763,21 @@ function PreviewPanel({
     grid?.scrollTo({ top: grid.scrollHeight, behavior: "smooth" });
   }, [runActive]);
 
-  // ⚠️ MEMOIZED ON PURPOSE — PublishModal seeds its caption in an effect keyed
-  // on `creative`, so a fresh object each render would wipe what the user typed.
-  const publishCreative = React.useMemo(() => {
-    const v = publishVariation;
-    if (!v) return null;
+  // Publish ▸ Social post / Ad campaign. A Magic Design goes out as its hosted
+  // file; a creative has none, so its canvas + elements are painted and
+  // uploaded (see PublishFlow).
+  const publish = usePublishFlow();
+  const publishItemFor = (v) => {
     const design = paintableDesign(v);
     return {
-      id: v.id,
       name: v.name || "Design",
-      category: publishCategoryFor(v, creativeType),
-      // A Magic Design publishes its hosted file; a creative has none, so
-      // PublishModal paints canvas + elements and uploads that instead.
-      image: hostedUrlOf(v),
+      url: hostedUrlOf(v),
+      type: v.type === "video" ? "video" : "image",
       canvas: design.canvas,
       elements: design.elements,
-      copy: v.copy || {},
+      copy: v.copy,
     };
-  }, [publishVariation, creativeType]);
+  };
 
   const openMenu = (variation, event) => {
     event.stopPropagation();
@@ -937,7 +932,8 @@ function PreviewPanel({
       // so their order and icons match Magic Studio. The last two need a
       // hosted file, which only a Magic Design has.
       ...buildResultActions({
-        onPublish: () => setPublishVariation(variation),
+        onPublish: () => publish.openSocial(publishItemFor(variation)),
+        onPublishCampaign: () => publish.openCampaign(publishItemFor(variation)),
         onDownload: () => handleDownload(variation),
         onCopyLink: url
           ? () => {
@@ -1383,53 +1379,8 @@ function PreviewPanel({
                   )}
                 </div>
 
-                {/* headline */}
-                {v.copy?.headline && (
-                  <p
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: "var(--color-gray-900)",
-                      margin: "0 0 2px",
-                      lineHeight: 1.35,
-                    }}
-                  >
-                    {v.copy.headline}
-                  </p>
-                )}
-
-                {/* tagline */}
-                {v.copy?.tagline && (
-                  <p
-                    style={{
-                      fontSize: 9.5,
-                      color: "var(--color-gray-500)",
-                      margin: "0 0 6px",
-                      lineHeight: 1.4,
-                      fontStyle: "italic",
-                    }}
-                  >
-                    {v.copy.tagline}
-                  </p>
-                )}
-
-                {/* body */}
-                {v.copy?.body && (
-                  <p
-                    style={{
-                      fontSize: 9,
-                      color: "var(--color-gray-400)",
-                      margin: "0 0 8px",
-                      lineHeight: 1.55,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {v.copy.body}
-                  </p>
-                )}
+                {/* Title · two lines of description · hashtags */}
+                <CopySnippet copy={v.copy} size={11} />
 
                 {/* CTA + score row */}
                 <div
@@ -1538,17 +1489,7 @@ function PreviewPanel({
               />
             )}
 
-            {publishCreative && (
-              <PublishModal
-                creative={publishCreative}
-                onClose={() => setPublishVariation(null)}
-                showToast={(message, type) =>
-                  type === "error"
-                    ? sonner.error(message)
-                    : sonner.success(message)
-                }
-              />
-            )}
+            {publish.composers}
           </>,
           document.body,
         )}

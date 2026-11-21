@@ -162,6 +162,7 @@ const newAd = (base = {}) => ({
  * @param {string} [props.initialPlatform]    The ad network switched on first.
  * @param {{url, type}} [props.initialMedia]  An already-hosted image / video.
  * @param {string[]} [props.connected]        Connected ad networks.
+ * @param {{title?, description?, text?}} [props.initialAd] First ad's copy.
  */
 export default function CreateAdComposer({ isOpen, ...props }) {
   const hydrated = useIsHydrated();
@@ -349,7 +350,7 @@ function keywordIdeas({ link, name, ads }) {
 
 // ── The window ────────────────────────────────────────────────────────────
 
-function AdWindow({ onClose, onCreated, initialPlatform, initialMedia = null, connected = [] }) {
+function AdWindow({ onClose, onCreated, initialPlatform, initialMedia = null, initialAd = null, connected = [] }) {
   const { activeBrand } = useAuth();
 
   // Networks to offer: the connected ones, else the one the page is on.
@@ -382,6 +383,9 @@ function AdWindow({ onClose, onCreated, initialPlatform, initialMedia = null, co
 
   const [ads, setAds] = useState(() => [
     newAd({
+      // A design's copy (title / description / text), blanks where it has
+      // none. Kept as written — the Design step flags anything too long.
+      ...(initialAd || {}),
       businessName: (activeBrand?.name || "").slice(0, BUSINESS_MAX),
       media: initialMedia ? { id: "m0", ...initialMedia } : null,
       logo: activeBrand?.logo ? { id: "logo", type: "image", url: activeBrand.logo } : null,

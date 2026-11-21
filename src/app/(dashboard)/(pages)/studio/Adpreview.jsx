@@ -21,6 +21,7 @@ import {
 // so this ad preview matches exactly what opens in the editor.
 import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
 import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
+import CopySnippet from "@/app/(components)/creatives/CopySnippet";
 
 /* ─── DesignCanvas (shared renderer) ───────────────────────── */
 function DesignCanvas({ variation, scraive = variation?.source === "scraive" }) {
@@ -539,40 +540,8 @@ function DesignResultPanel({
                   </span>
                 </div>
 
-                {v.copy?.headline && (
-                  <p
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: "var(--color-gray-900)",
-                      margin: "0 0 2px",
-                      lineHeight: 1.3,
-                      overflow: "hidden",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 1,
-                      WebkitBoxOrient: "vertical",
-                    }}
-                  >
-                    {v.copy.headline}
-                  </p>
-                )}
-
-                {(v.copy?.tagline || v.copy?.hook) && (
-                  <p
-                    style={{
-                      fontSize: 9,
-                      color: "var(--color-gray-500)",
-                      margin: "0 0 5px",
-                      fontStyle: "italic",
-                      overflow: "hidden",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 1,
-                      WebkitBoxOrient: "vertical",
-                    }}
-                  >
-                    {v.copy.tagline || v.copy.hook}
-                  </p>
-                )}
+                {/* Title · two lines of description · hashtags */}
+                <CopySnippet copy={v.copy} size={10} />
 
                 <div
                   style={{

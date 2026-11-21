@@ -476,7 +476,7 @@ function ComposerScreen({
   };
 
   return (
-    <div className="fixed inset-0 z-90 flex flex-col bg-page" role="dialog" aria-modal="true" aria-label="Create new post">
+    <div className="fixed inset-0 z-90 flex flex-col ck-opaque-screen" role="dialog" aria-modal="true" aria-label="Create new post">
       {/* ── Header ── */}
       <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3 sm:px-8 sm:py-4">
         <div className="flex min-w-0 items-center gap-3">

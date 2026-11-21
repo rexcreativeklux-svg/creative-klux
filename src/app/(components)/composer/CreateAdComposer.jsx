@@ -1068,7 +1068,7 @@ function AdWindow({ onClose, onCreated, initialPlatform, initialMedia = null, co
       aria-label="Create campaign"
       onKeyDown={(e) => e.key === "Escape" && requestClose()}
     >
-      <div className="relative flex h-full w-full max-w-5xl flex-col overflow-hidden bg-surface shadow-2xl sm:h-[min(760px,94vh)] sm:rounded-2xl">
+      <div className="relative flex h-full w-full max-w-[min(1400px,96vw)] flex-col overflow-hidden bg-surface shadow-2xl sm:h-[min(960px,94vh)] sm:rounded-2xl">
         {/* Header — the title and Metricool's step trail */}
         <div className="relative shrink-0 border-b border-gray-200">
           <div className="flex items-center gap-4 px-5 py-4 sm:px-6">

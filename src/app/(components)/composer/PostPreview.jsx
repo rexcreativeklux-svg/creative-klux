@@ -105,7 +105,7 @@ const AltBadge = ({ item }) =>
   ) : null;
 
 /** One image or video filling its box. */
-function MediaFill({ item, className = "", fit = "cover", controls = true }) {
+function MediaFill({ item, className = "", fit = "cover", controls = true, onRatio }) {
   if (item.type === "video")
     return (
       <video
@@ -114,13 +114,22 @@ function MediaFill({ item, className = "", fit = "cover", controls = true }) {
         controls={controls}
         playsInline
         preload="metadata"
+        onLoadedMetadata={(e) => onRatio?.(e.currentTarget.videoWidth / e.currentTarget.videoHeight)}
       />
     );
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={srcOf(item)} alt={item.alt || ""} className={`h-full w-full object-${fit} ${className}`} />
+    <img
+      src={srcOf(item)}
+      alt={item.alt || ""}
+      className={`h-full w-full object-${fit} ${className}`}
+      onLoad={(e) => onRatio?.(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight)}
+    />
   );
 }
+
+/** landscape / portrait / square from width ÷ height (unknown → square). */
+const shapeOf = (r) => (!r ? "square" : r > 1.15 ? "landscape" : r < 0.87 ? "portrait" : "square");
 
 /** The single-file form: natural height up to a cap, or a placeholder. */
 function Media({ media, className = "", placeholder = false }) {
@@ -159,21 +168,32 @@ function Media({ media, className = "", placeholder = false }) {
  */
 function MediaGallery({ items, layout = "facebook", className = "" }) {
   const [index, setIndex] = useState(0);
+  // Each file's width ÷ height, by source, as it loads — Facebook picks its
+  // grid from the files' shapes rather than cropping them all the same way.
+  const [ratios, setRatios] = useState({});
   if (!items?.length) return null;
-  if (items.length === 1) return <Media media={items[0]} className={className} />;
+  const noteRatio = (item) => (r) =>
+    r && setRatios((prev) => (prev[srcOf(item)] === r ? prev : { ...prev, [srcOf(item)]: r }));
 
   if (layout === "carousel") {
+    // Instagram sizes the post from its first file, between 4:5 (tall) and
+    // 1.91:1 (wide); every slide is cropped to that box.
     const at = Math.min(index, items.length - 1);
+    const first = ratios[srcOf(items[0])];
+    const box = first ? Math.min(1.91, Math.max(0.8, first)) : 1;
+    const many = items.length > 1;
     return (
       <div>
-        <div className="relative aspect-square bg-gray-100">
-          <MediaFill item={items[at]} />
+        <div className="relative bg-gray-100" style={{ aspectRatio: box }}>
+          <MediaFill item={items[at]} onRatio={at === 0 ? noteRatio(items[0]) : undefined} />
           <AltBadge item={items[at]} />
-          <span className="absolute right-2.5 top-2.5 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold text-white">
-            {at + 1}/{items.length}
-          </span>
+          {many && (
+            <span className="absolute right-2.5 top-2.5 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold text-white">
+              {at + 1}/{items.length}
+            </span>
+          )}
         </div>
-        <div className="flex justify-center gap-1 pt-2">
+        {many && <div className="flex justify-center gap-1 pt-2">
           {items.map((item, i) => (
             <button
               key={item.id ?? i}
@@ -183,16 +203,17 @@ function MediaGallery({ items, layout = "facebook", className = "" }) {
               className={`h-1.5 w-1.5 cursor-pointer rounded-full transition-colors ${i === at ? "bg-[#0095f6]" : "bg-gray-300"}`}
             />
           ))}
-        </div>
+        </div>}
       </div>
     );
   }
 
+  if (items.length === 1) return <Media media={items[0]} className={className} />;
   const shown = items.slice(0, 4);
   const extra = items.length - shown.length;
   const cell = (item, i, cls = "") => (
     <div key={item.id ?? i} className={`relative overflow-hidden bg-gray-100 ${cls}`}>
-      <MediaFill item={item} controls={false} />
+      <MediaFill item={item} controls={false} onRatio={noteRatio(item)} />
       {item.type === "video" && (
         <span className="absolute inset-0 flex items-center justify-center">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white">
@@ -211,11 +232,37 @@ function MediaGallery({ items, layout = "facebook", className = "" }) {
 
   const gap = layout === "twitter" ? "gap-0.5" : "gap-1";
   const wrap = layout === "twitter" ? "overflow-hidden rounded-2xl border border-gray-200" : "";
-  if (shown.length === 2)
-    return <div className={`grid h-56 grid-cols-2 ${gap} ${wrap}`}>{shown.map((m, i) => cell(m, i))}</div>;
+  const shapes = shown.map((m) => shapeOf(ratios[srcOf(m)]));
+
+  if (shown.length === 2) {
+    // X: two 7:8 halves side by side — a 7:4 block, whatever the photos' shapes.
+    if (layout === "twitter")
+      return <div className={`grid aspect-7/4 grid-cols-2 ${gap} ${wrap}`}>{shown.map((m, i) => cell(m, i))}</div>;
+    // Facebook: two wide photos stack; two tall ones sit side by side at full
+    // height; anything else is two squares.
+    if (shapes.every((s) => s === "landscape"))
+      return <div className={`grid grid-cols-1 ${gap}`}>{shown.map((m, i) => cell(m, i, "aspect-2/1"))}</div>;
+    const tall = shapes.every((s) => s === "portrait");
+    return (
+      <div className={`grid grid-cols-2 ${gap}`}>
+        {shown.map((m, i) => cell(m, i, tall ? "aspect-1/2" : "aspect-square"))}
+      </div>
+    );
+  }
+  if (shown.length === 3 && layout !== "twitter" && ratios[srcOf(shown[0])] && shapes[0] !== "landscape")
+    // Facebook with a tall or square first photo: it fills the left, the
+    // other two stack on the right (a wide one goes across the top instead).
+    return (
+      <div className={`grid aspect-square grid-cols-2 grid-rows-2 ${gap}`}>
+        {cell(shown[0], 0, "row-span-2")}
+        {cell(shown[1], 1)}
+        {cell(shown[2], 2)}
+      </div>
+    );
   if (shown.length === 3)
     return layout === "twitter" ? (
-      <div className={`grid h-64 grid-cols-2 grid-rows-2 ${gap} ${wrap}`}>
+      // X: one tall on the left, two stacked on the right, in a 16:9 block.
+      <div className={`grid aspect-video grid-cols-2 grid-rows-2 ${gap} ${wrap}`}>
         {cell(shown[0], 0, "row-span-2")}
         {cell(shown[1], 1)}
         {cell(shown[2], 2)}
@@ -227,8 +274,15 @@ function MediaGallery({ items, layout = "facebook", className = "" }) {
         {cell(shown[2], 2, "aspect-square")}
       </div>
     );
+  // X: a 2×2 grid in a 16:9 block; Facebook: four squares.
+  if (layout === "twitter")
+    return (
+      <div className={`grid aspect-video grid-cols-2 grid-rows-2 ${gap} ${wrap}`}>
+        {shown.map((m, i) => cell(m, i))}
+      </div>
+    );
   return (
-    <div className={`grid grid-cols-2 ${gap} ${wrap}`}>
+    <div className={`grid grid-cols-2 ${gap}`}>
       {shown.map((m, i) => cell(m, i, "aspect-square"))}
     </div>
   );
@@ -517,28 +571,61 @@ function YouTubePreview({ name, logo, text, media, options, timeLabel = "just no
   );
 }
 
-/** The clip — filling whatever box it's put in. */
-function TikTokClip({ media }) {
+/**
+ * The clip in a vertical player. Vertical media (taller than about 2:3) fills
+ * the screen as the apps fill it; anything squarer is shown whole and centred
+ * — on a blurred copy of itself (Stories, Reels, Shorts) or on black (TikTok) —
+ * rather than cropped to the screen's shape.
+ */
+function TikTokClip({ media, backdrop = "black" }) {
+  // width ÷ height once the file has loaded; null until then (fills meanwhile).
+  const [loaded, setLoaded] = useState({ src: null, ratio: null });
   if (!media)
     return (
       <div className="absolute inset-0 flex items-center justify-center text-white/25">
         <ImageIcon className="h-10 w-10" />
       </div>
     );
-  if (media.type === "video")
-    return (
-      <video
-        src={srcOf(media)}
-        className="absolute inset-0 h-full w-full object-cover"
-        autoPlay
-        muted
-        loop
-        playsInline
-      />
-    );
+  const src = srcOf(media);
+  const ratio = loaded.src === src ? loaded.ratio : null;
+  const fill = !ratio || ratio < 0.7;
+  const note = (w, h) => w && h && setLoaded({ src, ratio: w / h });
+  const fit = `absolute inset-0 h-full w-full ${fill ? "object-cover" : "object-contain"}`;
+  const video = media.type === "video";
+
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={srcOf(media)} alt={media.alt || ""} className="absolute inset-0 h-full w-full object-cover" />
+    <>
+      {!fill &&
+        (backdrop === "blur" ? (
+          video ? (
+            <video src={src} className="absolute inset-0 h-full w-full scale-110 object-cover opacity-70 blur-2xl" muted playsInline preload="metadata" aria-hidden="true" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={src} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-70 blur-2xl" aria-hidden="true" />
+          )
+        ) : (
+          <span className="absolute inset-0 bg-black" aria-hidden="true" />
+        ))}
+      {video ? (
+        <video
+          src={src}
+          className={fit}
+          autoPlay
+          muted
+          loop
+          playsInline
+          onLoadedMetadata={(e) => note(e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
+        />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={media.alt || ""}
+          className={fit}
+          onLoad={(e) => note(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+        />
+      )}
+    </>
   );
 }
 
@@ -738,7 +825,7 @@ const OVER = "drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]";
 function VerticalMedia({ media, postType }) {
   return (
     <>
-      <TikTokClip media={media} />
+      <TikTokClip media={media} backdrop="blur" />
       {!media && (
         <p className="absolute inset-x-0 top-[56%] text-center text-[11px] text-white/45">
           {postType?.media === "video" ? "Add a video to preview it" : "Add an image or video to preview it"}

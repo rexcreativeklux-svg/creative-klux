@@ -329,7 +329,10 @@ function CreativePanel({ onFile, onDone }) {
     try {
       const blob = await withFileTimeout(designToBlob(design));
       const ext = blob.type?.includes("jpeg") ? "jpg" : "png";
-      onFile(new File([blob], `${fileSlug(design.name)}.${ext}`, { type: blob.type || "image/png" }));
+      // The design's copy goes along, for the composer to fill the text from.
+      onFile(new File([blob], `${fileSlug(design.name)}.${ext}`, { type: blob.type || "image/png" }), {
+        copy: design.copy,
+      });
       onDone();
     } catch (err) {
       console.error("❌ [creative studio flyout] couldn't paint design:", design.id, err);
@@ -400,7 +403,8 @@ function CreativePanel({ onFile, onDone }) {
  * @param {object} props
  * @param {"magic"|"creative"} props.source
  * @param {(media: {type, url, previewUrl?, name?}) => void} props.onPick A hosted file.
- * @param {(file: File) => void} props.onFile A painted design, for the composer to upload.
+ * @param {(file: File, extra?: {copy?: object}) => void} props.onFile A painted
+ *   design (and its copy), for the composer to upload.
  * @param {() => void} props.onDone Close the menu once something's been added.
  * @param {boolean} [props.imagesOnly] Leave videos out.
  */

@@ -12,6 +12,9 @@
 //   Brand images              → the brand's own images
 //   Generate with AI          → Magic Studio's stock-image generator
 //   ───────────
+//   Magic Studio              → what its tools have generated (StudioMediaPicker)
+//   Creative Studio           → the brand's saved designs, painted to an image
+//   ───────────
 //   Stock images          ›   → Pexels search, with Pexels' colour filter
 //   Stock videos          ›   → Pexels search
 //
@@ -20,7 +23,7 @@
 // Stock media comes through the app's /api/pexels proxy (free, the key stays
 // on the server). A pick hands back a hosted link the networks can fetch.
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -33,9 +36,12 @@ import {
   Sparkles,
   Video,
   Clapperboard,
+  Palette,
+  Wand2,
 } from "lucide-react";
 import MediaPickerModal from "@/app/(components)/MediaPickerModal";
 import FloatingPanel from "./FloatingPanel";
+import StudioPanel from "./StudioPanel";
 
 // Pexels' named colours (photos only).
 const COLORS = [
@@ -62,6 +68,50 @@ function pickVideoFile(video) {
   const fit = files.filter((f) => (f.height || 0) <= 1920 && (f.width || 0) <= 1920);
   const pool = fit.length ? fit : files;
   return pool.sort((a, b) => (b.width || 0) - (a.width || 0))[0];
+}
+
+/**
+ * Where a flyout sits: beside the menu, level with the row it opened from, and
+ * kept inside the window — moved up if it would run off the bottom, and onto
+ * the menu's left if there's no room on the right. Writes straight to the
+ * element's style (no state), like FloatingPanel.
+ *
+ * The 8px between menu and flyout is PADDING, not margin, so it belongs to the
+ * flyout: the pointer crossing it is still inside the menu's subtree, and the
+ * menu's mouseleave doesn't close the flyout on the way over.
+ */
+function Flyout({ top, children }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const place = () => {
+      el.style.top = `${top}px`;
+      el.style.left = "100%";
+      el.style.right = "auto";
+      el.style.paddingLeft = "8px";
+      el.style.paddingRight = "0";
+      const r = el.getBoundingClientRect();
+      if (r.right > window.innerWidth - 8) {
+        el.style.left = "auto";
+        el.style.right = "100%";
+        el.style.paddingLeft = "0";
+        el.style.paddingRight = "8px";
+      }
+      const overflow = r.bottom - (window.innerHeight - 8);
+      if (overflow > 0) el.style.top = `${Math.max(top - overflow, 8 - el.offsetParent.getBoundingClientRect().top)}px`;
+      el.style.visibility = "visible";
+    };
+    place();
+    const resize = new ResizeObserver(place);
+    resize.observe(el);
+    return () => resize.disconnect();
+  }, [top]);
+  return (
+    <div ref={ref} className="absolute" style={{ visibility: "hidden" }}>
+      {children}
+    </div>
+  );
 }
 
 /** One flyout: search Pexels, click a result to add it to the post. */
@@ -199,7 +249,9 @@ function StockPanel({ kind, onPick }) {
  */
 export default function MediaMenu({ disabled = false, onFile, onPick, activeBrand, label, tile = false, imagesOnly = false }) {
   const [open, setOpen] = useState(false);
-  const [flyout, setFlyout] = useState(null); // "image" | "video" | null
+  // The open flyout and the row it hangs from: { kind, top } or null, where
+  // kind is "image" | "video" | "magic" | "creative".
+  const [flyout, setFlyout] = useState(null);
   const [picker, setPicker] = useState(null); // MediaPickerModal tab, or null
   const rootRef = useRef(null); // the button's wrapper — the menu's anchor
   const panelRef = useRef(null); // the floating menu (portalled)
@@ -245,14 +297,19 @@ export default function MediaMenu({ disabled = false, onFile, onPick, activeBran
     close();
   };
 
-  const item = ({ icon: Icon, label, onClick, sub, active }) => (
+  // A row with a submenu opens it on hover (and on click, for touch); any other
+  // row closes it. `top` is the row's place in the menu, so the flyout lines up
+  // with the row it came from.
+  const openSub = (sub, el) => setFlyout(sub ? { kind: sub, top: el.offsetTop } : null);
+
+  const item = ({ icon: Icon, label, onClick, sub }) => (
     <button
       key={label}
       type="button"
-      onClick={onClick}
-      onMouseEnter={() => setFlyout(sub || null)}
+      onClick={sub ? (e) => openSub(sub, e.currentTarget) : onClick}
+      onMouseEnter={(e) => openSub(sub, e.currentTarget)}
       className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-gray-700 transition-colors hover:bg-gray-100 ${
-        active ? "bg-gray-100" : ""
+        sub && flyout?.kind === sub ? "bg-gray-100" : ""
       }`}
     >
       <Icon className="h-4 w-4 shrink-0 text-gray-500" />
@@ -330,8 +387,18 @@ export default function MediaMenu({ disabled = false, onFile, onPick, activeBran
       {open && (
         // Floats above the whole composer (the edit column scrolls and would
         // clip it), under the button — or above it when there's no room below.
-        <FloatingPanel anchorRef={rootRef} panelRef={panelRef} className="flex items-start gap-2">
-          <div className="w-56 rounded-xl border border-gray-200 bg-surface p-1.5 shadow-xl">
+        //
+        // ⚠️ ONLY THE MENU IS MEASURED. The flyout hangs off its side
+        // (absolutely positioned), so opening one doesn't change the panel's
+        // size — when it was a flex sibling, a tall flyout grew the panel and
+        // FloatingPanel moved the whole menu to make room.
+        <FloatingPanel anchorRef={rootRef} panelRef={panelRef}>
+          <div
+            className="relative w-56 rounded-xl border border-gray-200 bg-surface p-1.5 shadow-xl"
+            // Leaving the menu and its flyout together closes the flyout. The
+            // flyout is a descendant, so crossing into it doesn't count.
+            onMouseLeave={() => setFlyout(null)}
+          >
             {item({ icon: ImageIcon, label: "Add image", onClick: chooseImage })}
             {!imagesOnly && item({ icon: Video, label: "Add video", onClick: chooseVideo })}
             <div className="my-1 border-t border-gray-100" />
@@ -339,23 +406,30 @@ export default function MediaMenu({ disabled = false, onFile, onPick, activeBran
             {item({ icon: Images, label: "Brand images", onClick: () => { setPicker("brand"); close(); } })}
             {item({ icon: Sparkles, label: "Generate with AI", onClick: () => { setPicker("stock"); close(); } })}
             <div className="my-1 border-t border-gray-100" />
-            {item({
-              icon: Images,
-              label: "Stock images",
-              sub: "image",
-              active: flyout === "image",
-              onClick: () => setFlyout("image"),
-            })}
-            {!imagesOnly &&
-              item({
-                icon: Clapperboard,
-                label: "Stock videos",
-                sub: "video",
-                active: flyout === "video",
-                onClick: () => setFlyout("video"),
-              })}
+            {/* What the app has already made. */}
+            {item({ icon: Wand2, label: "Magic Studio", sub: "magic" })}
+            {item({ icon: Palette, label: "Creative Studio", sub: "creative" })}
+            <div className="my-1 border-t border-gray-100" />
+            {item({ icon: Images, label: "Stock images", sub: "image" })}
+            {!imagesOnly && item({ icon: Clapperboard, label: "Stock videos", sub: "video" })}
+
+            {flyout && (
+              <Flyout top={flyout.top}>
+                {flyout.kind === "magic" || flyout.kind === "creative" ? (
+                  <StudioPanel
+                    key={flyout.kind}
+                    source={flyout.kind}
+                    onPick={pick}
+                    onFile={(file) => onFile(file)}
+                    onDone={close}
+                    imagesOnly={imagesOnly}
+                  />
+                ) : (
+                  <StockPanel key={flyout.kind} kind={flyout.kind} onPick={pick} />
+                )}
+              </Flyout>
+            )}
           </div>
-          {flyout && <StockPanel key={flyout} kind={flyout} onPick={pick} />}
         </FloatingPanel>
       )}
 

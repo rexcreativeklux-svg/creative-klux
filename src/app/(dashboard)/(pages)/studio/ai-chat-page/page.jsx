@@ -77,6 +77,7 @@ import CopySnippet from "@/app/(components)/creatives/CopySnippet";
 import Toast from "@/app/(components)/Toast";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import ChatHistoryPanel from "./ChatHistoryPanel";
+import ChatDesignsBulkBar from "./ChatDesignsBulkBar";
 import { useLeaveGuard } from "./useLeaveGuard";
 import { normalizeSessionMessages } from "@/app/(components)/studio/chatSessions";
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
@@ -727,11 +728,45 @@ function PreviewPanel({
   expectedCount,
   onPickTemplate,
   selectedTemplateId,
+  onRemoveDesigns,
 }) {
   const { colorRgb, colorLight } = config;
   // Owned here rather than by the page: the save belongs to this panel's
   // toolbar, and nothing outside it needs to know the button is busy.
   const [saving, setSaving] = useState(false);
+
+  /**
+   * Save the ticked designs to My Creations — the bulk bar's Save. Not instant:
+   * saveDesign paints a full-canvas thumbnail for every design before it
+   * uploads, so the bar is locked while it runs and a second click can't start
+   * a duplicate save of the same selection.
+   */
+  const handleSaveSelected = async () => {
+    if (saving || !selectedDesigns?.length) return;
+    setSaving(true);
+    try {
+      // The real creative type, so cards show the right Ads/Social/Design/Magic
+      // badge (see saveTypeFor). Magic Design videos save through here too.
+      const res = await saveDesign(
+        activeBrandId,
+        selectedDesigns,
+        saveTypeFor(creativeType),
+      );
+      if (res?.ok) {
+        setSelectedDesigns([]);
+        showToast("Design(s) saved successfully", "success");
+      } else {
+        showToast(res?.message || "Failed to save designs", "error");
+      }
+    } catch (err) {
+      // saveDesign resolves rather than throws, but a thumbnail render is
+      // browser work and can still blow up.
+      console.error("❌ [chat] save threw:", err);
+      showToast("Couldn't save the design(s). Please try again.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   /* ── per-card ⋯ menu — same menu, lightbox and publish sheet as Magic
      Studio's history tiles, for Magic Designs AND creatives alike (see
@@ -1063,128 +1098,34 @@ function PreviewPanel({
         total={stage ? Math.max(expectedCount, freshCount) : variations.length}
       />
 
+      {/* ── bulk actions: floats over the bottom of the grid, as in My
+          Creations, while anything is ticked ── */}
       {selectedDesigns?.length > 0 && (
         <div
           style={{
-            position: "sticky",
-            top: 0,
+            position: "absolute",
+            left: 12,
+            right: 12,
+            // Clears the "Generated in" footer.
+            bottom: 44,
             zIndex: 20,
-            background: "var(--color-surface)",
-            padding: "10px 12px",
             display: "flex",
-            justifyContent: "flex-end",
-            gap: 10,
-            borderBottom: "1px solid var(--color-gray-200)",
-            transform: "translateY(-10px)",
-            animation: "slideDown 0.25s ease forwards",
+            justifyContent: "center",
+            pointerEvents: "none",
+            animation: "ck-bulk-up 0.22s ease both",
           }}
         >
-          {/* Saving is NOT instant — saveDesign paints a full-canvas thumbnail
-              for every selected design before it uploads anything, so a
-              four-design save is seconds of work with nothing else on screen to
-              show for it. The button owns that state: spinner while it runs,
-              and disabled so a second click can't start a duplicate save of the
-              same selection. */}
-          <button
-            className={saving ? "" : "hover:scale-95"}
-            disabled={saving}
-            onClick={async () => {
-              if (saving) return;
-              setSaving(true);
-              try {
-                // Persist the real creative type so cards show the correct Ads/Social/Design/Magic badge.
-                // saveDesign strips the "_creative" suffix; "general" has no category so default it to "ads".
-                // Magic Design videos save through here too: they're designs
-                // with a still frame under a video layer (see magicDesign.js).
-                const res = await saveDesign(
-                  activeBrandId,
-                  selectedDesigns,
-                  saveTypeFor(creativeType),
-                );
-
-                if (res?.ok) {
-                  setSelectedDesigns([]);
-                  showToast("Design(s) saved successfully", "success");
-                } else {
-                  showToast(res?.message || "Failed to save designs", "error");
-                }
-              } catch (err) {
-                // saveDesign resolves rather than throws, but a thumbnail
-                // render is browser work and can still blow up — without this
-                // the button would stay stuck on "Saving…" forever.
-                console.error("❌ [chat] save threw:", err);
-                showToast(
-                  "Couldn't save the design(s). Please try again.",
-                  "error",
-                );
-              } finally {
-                setSaving(false);
-              }
-            }}
-            style={{
-              background: "#22c55e",
-              color: "#fff",
-              border: "none",
-              padding: "8px 12px",
-              borderRadius: 10,
-              fontSize: 12,
-              fontWeight: 600,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              cursor: saving ? "not-allowed" : "pointer",
-              opacity: saving ? 0.75 : 1,
-              transition: "opacity 0.2s",
-            }}
-          >
-            {saving && (
-              <span
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: "50%",
-                  border: "2px solid rgba(255,255,255,0.4)",
-                  borderTopColor: "#fff",
-                  animation: "ck-btn-spin 0.7s linear infinite",
-                  display: "inline-block",
-                  flexShrink: 0,
-                }}
-              />
-            )}
-            {saving ? (
-              "Saving…"
-            ) : (
-              <>
-                Save {selectedDesigns.length} design
-                {selectedDesigns.length > 1 ? "s" : ""}
-              </>
-            )}
-            <style>{`@keyframes ck-btn-spin { to { transform: rotate(360deg); } }`}</style>
-          </button>
-
-          {/* Clear goes too: wiping the selection mid-save would leave the
-              request writing designs the user can no longer see selected.
-              `hover:scale-95` is dropped while saving — a button that still
-              springs under the cursor reads as clickable however it is
-              coloured, which is the one signal that matters here. */}
-          <button
-            className={saving ? "" : "hover:scale-95"}
-            disabled={saving}
-            onClick={() => setSelectedDesigns([])}
-            style={{
-              background: "var(--color-gray-100)",
-              color: saving ? "var(--color-gray-400)" : "var(--color-gray-900)",
-              border: "1px solid var(--color-gray-200)",
-              padding: "8px 10px",
-              borderRadius: 10,
-              fontSize: 12,
-              cursor: saving ? "not-allowed" : "pointer",
-              opacity: saving ? 0.55 : 1,
-              transition: "opacity 0.2s, color 0.2s",
-            }}
-          >
-            Clear
-          </button>
+          <div style={{ pointerEvents: "auto", maxWidth: "100%" }}>
+            <ChatDesignsBulkBar
+              selected={selectedDesigns}
+              all={variations}
+              setSelected={setSelectedDesigns}
+              onSave={handleSaveSelected}
+              saving={saving}
+              onRemove={onRemoveDesigns}
+              running={Boolean(stage)}
+            />
+          </div>
         </div>
       )}
 
@@ -1195,6 +1136,8 @@ function PreviewPanel({
           flex: 1,
           overflowY: "auto",
           padding: 12,
+          // Room for the floating bulk bar, so it never sits on the last row.
+          paddingBottom: selectedDesigns?.length > 0 ? 96 : 12,
           display: "grid",
           gridTemplateColumns: DESIGN_GRID_COLUMNS,
           gap: 10,
@@ -1500,16 +1443,10 @@ function PreviewPanel({
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
 
-        @keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+        @keyframes ck-bulk-up {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
 
       `}</style>
     </div>
@@ -2651,6 +2588,24 @@ export default function AiCreativeChatPage() {
     });
   }, []);
 
+  // The bulk bar's Delete: takes designs off the pane (and out of the
+  // selection). Only allowed between runs, so `freshCount` just shrinks by
+  // however many of the last run's cards went with them.
+  const removeDesigns = useCallback((ids) => {
+    const gone = new Set(ids);
+    setPreviewResult((current) => {
+      if (current?.type !== "design") return current;
+      const all = current.variations || [];
+      const fresh = all.slice(all.length - (current.freshCount ?? all.length));
+      return {
+        ...current,
+        variations: all.filter((v) => !gone.has(v.id)),
+        freshCount: fresh.filter((v) => !gone.has(v.id)).length,
+      };
+    });
+    setSelectedDesigns((prev) => prev.filter((d) => !gone.has(d.id)));
+  }, []);
+
   /* ── render ── */
   return (
     // No pb-nav here: `main` in (dashboard)/layout.js ends the scroll viewport
@@ -3066,6 +3021,7 @@ export default function AiCreativeChatPage() {
               expectedCount={expectedCount}
               onPickTemplate={handlePickTemplate}
               selectedTemplateId={selectedTemplate?.id || null}
+              onRemoveDesigns={removeDesigns}
             />
           </div>
         </div>

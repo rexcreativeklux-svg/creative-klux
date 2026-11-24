@@ -1228,7 +1228,13 @@ function ComposerScreen({
                 </PhoneFrame>
               ) : (
                 /* A browser window on the network's site. */
-                <DesktopFrame platform={previewPlatform}>
+                <DesktopFrame
+                  platform={previewPlatform}
+                  immersive={
+                    previewPlatform === "tiktok" ||
+                    !!postTypeOf(previewPlatform, options[previewPlatform])?.vertical
+                  }
+                >
                   <PostPreview
                     platform={previewPlatform}
                     device="desktop"

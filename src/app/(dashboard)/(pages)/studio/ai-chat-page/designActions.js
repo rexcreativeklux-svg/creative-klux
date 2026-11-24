@@ -17,6 +17,7 @@ import {
 import { fromScraiveElements } from "@/(lib)/design/scraiveCompat";
 import {
   downloadImageUrl,
+  fetchHostedBlob,
   galleryFileMeta,
 } from "@/app/(components)/product-studio/saveToGallery";
 
@@ -104,6 +105,30 @@ export async function downloadVariation(v) {
   document.body.removeChild(a);
   URL.revokeObjectURL(objectUrl);
 }
+
+/**
+ * A design as a file, for the bulk bar: a Magic Design's hosted file fetched,
+ * or a creative painted to PNG. Throws with a readable message.
+ *
+ * @returns {Promise<{blob: Blob, ext: string, mime: string, category: string}>}
+ */
+export async function variationToFile(v) {
+  const url = hostedUrlOf(v);
+  if (url) {
+    const { ext, mime, category } = galleryMetaFor(v);
+    return { blob: await fetchHostedBlob(url), ext, mime, category };
+  }
+  if (!v?.canvas) throw new Error("This design has nothing to download.");
+  const blob = await renderDesignToBlob(paintableDesign(v));
+  return { blob, ext: "png", mime: "image/png", category: "image" };
+}
+
+/** A file-name-safe version of a design's name. */
+export const fileSlugOf = (v) =>
+  String(v?.name || "design")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "design";
 
 /**
  * The id of the design row a single-design saveDesign() just created.

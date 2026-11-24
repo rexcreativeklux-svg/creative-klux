@@ -25,9 +25,16 @@ import {
   Bell,
   Bookmark,
   Briefcase,
+  Camera,
   Cast,
+  ChartNoAxesColumn,
+  ChevronDown,
   ChevronLeft,
+  ChevronRight,
   Clapperboard,
+  Compass,
+  EllipsisVertical,
+  Forward,
   Globe,
   Heart,
   Home,
@@ -35,22 +42,29 @@ import {
   Mail,
   Menu,
   MessageCircle,
+  MessageCircleMore,
+  MessageSquareText,
   MoreHorizontal,
+  Music2,
   Play,
   Plus,
   PlusSquare,
+  Radio,
   Repeat2,
   Search,
   Send,
   Share2,
   Store,
+  ThumbsDown,
   ThumbsUp,
   Tv,
+  Upload,
   Users,
   Wifi,
+  X,
   Zap,
 } from "lucide-react";
-import { FaFacebook, FaLinkedin, FaPinterest, FaYoutube } from "react-icons/fa";
+import { FaFacebook, FaLinkedin, FaPinterest, FaTiktok, FaYoutube } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { COMPOSER_PLATFORMS, firstLine } from "./composerPlatforms";
 
@@ -418,9 +432,11 @@ function TwitterPreview({ name, logo, text, media, mediaList, timeLabel = "now",
       <div className="flex gap-2.5 px-3 py-3">
         <Avatar name={name} logo={logo} color="#14171A" size={40} />
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1 truncate text-[15px] leading-tight">
-            <span className="truncate font-bold text-gray-900">{name}</span>
-            <span className="shrink-0 text-gray-500">{handle} · {timeLabel}</span>
+          {/* The name keeps its room; the handle is what X truncates. */}
+          <p className="flex min-w-0 items-center gap-1 text-[15px] leading-tight">
+            <span className="max-w-[60%] shrink-0 truncate font-bold text-gray-900">{name}</span>
+            <span className="min-w-0 truncate text-gray-500">{handle}</span>
+            <span className="shrink-0 text-gray-500">· {timeLabel}</span>
             <MoreHorizontal className="ml-auto h-4.5 w-4.5 shrink-0 text-gray-500" />
           </p>
           <Text text={text} className="mt-0.5 text-[15px]" clamp={clamp} moreLabel="Show more" moreHref={moreHref} />
@@ -429,11 +445,15 @@ function TwitterPreview({ name, logo, text, media, mediaList, timeLabel = "now",
               <MediaGallery items={items} layout="twitter" className="max-h-90" />
             </div>
           )}
-          <div className="mt-2.5 flex items-center justify-between pr-4 text-gray-500">
+          <div className="mt-3 flex items-center justify-between text-gray-500">
             <MessageCircle className="h-4.5 w-4.5" />
             <Repeat2 className="h-4.5 w-4.5" />
             <Heart className="h-4.5 w-4.5" />
-            <Share2 className="h-4.5 w-4.5" />
+            <ChartNoAxesColumn className="h-4.5 w-4.5" />
+            <span className="flex items-center gap-3">
+              <Bookmark className="h-4.5 w-4.5" />
+              <Upload className="h-4.5 w-4.5" />
+            </span>
           </div>
         </div>
       </div>
@@ -522,227 +542,645 @@ function TikTokClip({ media }) {
   );
 }
 
+// TikTok's column, solid white icons as the app draws them. No counts on a
+// post that has none yet, except Share, which is always labelled.
 const TIKTOK_ACTIONS = [
-  { id: "like", Icon: Heart, label: "0" },
-  { id: "comment", Icon: MessageCircle, label: "0" },
-  { id: "save", Icon: Bookmark, label: "0" },
-  { id: "share", Icon: Share2, label: "Share" },
+  { id: "like", Icon: Heart, label: "Like" },
+  { id: "comment", Icon: MessageCircleMore, label: "Comment" },
+  { id: "save", Icon: Bookmark, label: "Save" },
+  { id: "share", Icon: Forward, label: "Share" },
 ];
 
 /** The caption block — handle, optional title, text, sound line. */
 function TikTokCaption({ handle, title, text, name, dark = true }) {
-  const tone = dark ? "text-white drop-shadow" : "text-gray-900";
+  const tone = dark ? `text-white ${OVER}` : "text-gray-900";
   return (
     <>
-      <p className={`text-sm font-semibold ${tone}`}>{handle}</p>
-      {title && <p className={`mt-0.5 text-[13px] font-semibold ${tone}`}>{title}</p>}
+      {handle && <p className={`text-[14px] font-bold ${tone}`}>{handle}</p>}
+      {title && <p className={`mt-1 text-[13px] font-semibold ${tone}`}>{title}</p>}
       {text.trim() ? (
-        <p className={`mt-0.5 line-clamp-3 whitespace-pre-line wrap-break-word text-[13px] leading-snug ${tone}`}>
+        <p className={`mt-1 line-clamp-2 whitespace-pre-line wrap-break-word text-[13px] leading-snug ${tone}`}>
           {text}
         </p>
       ) : (
-        <p className={`mt-0.5 text-[13px] italic ${dark ? "text-white/50" : "text-gray-300"}`}>
+        <p className={`mt-1 text-[13px] italic ${dark ? "text-white/55" : "text-gray-300"}`}>
           Your caption will appear here
         </p>
       )}
-      <p className={`mt-1.5 flex items-center gap-1.5 truncate text-[12px] ${dark ? "text-white/90" : "text-gray-500"}`}>
-        <span aria-hidden="true">♫</span> original sound · {name}
+      <p className={`mt-2 flex items-center gap-1.5 truncate text-[12px] font-medium ${dark ? `text-white ${OVER}` : "text-gray-600"}`}>
+        <Music2 className="h-3 w-3 shrink-0" />
+        <span className="truncate">original sound - {name}</span>
       </p>
     </>
   );
 }
 
+/** The account avatar with TikTok's red "+" follow badge. */
+function TikTokAvatar({ name, logo, size = 44 }) {
+  return (
+    <span className="relative mb-2">
+      <span className="block rounded-full ring-[1.5px] ring-white">
+        <Avatar name={name} logo={logo} color="#010101" size={size} />
+      </span>
+      <span className="absolute -bottom-2.5 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-[#FE2C55] text-white">
+        <Plus className="h-3.5 w-3.5" strokeWidth={3} />
+      </span>
+    </span>
+  );
+}
+
+/** The spinning record at the foot of the column. */
+const TikTokDisc = ({ name, logo }) => (
+  <span className="flex h-9 w-9 animate-spin items-center justify-center rounded-full bg-[radial-gradient(circle,#444_0%,#111_70%)] [animation-duration:5s]">
+    <span className="overflow-hidden rounded-full">
+      <Avatar name={name} logo={logo} color="#010101" size={18} />
+    </span>
+  </span>
+);
+
 /**
  * TikTok.
- *   phone    the app: the clip fills the screen, For You tabs on top, the
- *            action column down the right, caption over the bottom, and the
- *            app's own bottom bar.
- *   desktop  tiktok.com's feed: account row and caption above, the 9:16 clip
- *            on the left, the action buttons in a column beside it.
+ *   phone    the app: the clip fills the screen, LIVE / Following / For You /
+ *            search on top, the action column down the right, caption over
+ *            the bottom, and the app's own tab bar.
+ *   desktop  tiktok.com: its left nav, the clip centred with the caption over
+ *            it, round action buttons beside it.
  */
 function TikTokPreview({ name, logo, text, media, options, device = "phone" }) {
-  const handle = `@${(name || "brand").toLowerCase().replace(/[^a-z0-9_.]/g, "")}`;
+  const handle = `@${handleOf(name)}`;
   const title = options?.title?.trim();
 
   if (device === "desktop")
     return (
-      <Card>
-        <div className="flex items-start gap-3 p-4">
-          <Avatar name={name} logo={logo} color="#010101" size={44} />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm">
-              <span className="font-bold text-gray-900">{name}</span>{" "}
-              <span className="text-gray-400">{handle}</span>
-            </p>
-            <div className="mt-1">
-              <TikTokCaption handle="" title={title} text={text} name={name} dark={false} />
+      <div className="flex h-[500px] bg-surface">
+        {/* tiktok.com's left nav */}
+        <aside className="hidden w-40 shrink-0 flex-col gap-0.5 border-r border-gray-100 px-3 py-3 text-[13px] font-semibold text-gray-900 md:flex">
+          <span className="mb-3 flex items-center gap-1.5 text-[17px] font-extrabold tracking-tight">
+            <FaTiktok className="h-5 w-5" /> TikTok
+          </span>
+          {[
+            [Home, "For You", true],
+            [Compass, "Explore"],
+            [Users, "Following"],
+            [Radio, "LIVE"],
+            [Avatar, "Profile"],
+          ].map(([I, l, on]) => (
+            <span key={l} className={`flex items-center gap-2.5 rounded-md px-2 py-2 ${on ? "text-[#FE2C55]" : ""}`}>
+              {I === Avatar ? <Avatar name={name} logo={logo} color="#010101" size={20} /> : <I className="h-5 w-5" />}
+              {l}
+            </span>
+          ))}
+        </aside>
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-4">
+          <div className="relative aspect-9/16 h-[460px] shrink-0 overflow-hidden rounded-2xl bg-black">
+            <TikTokClip media={media} />
+            <span className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-linear-to-t from-black/70 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 px-3.5 pb-4">
+              <TikTokCaption handle={handle} title={title} text={text} name={name} />
             </div>
           </div>
-          <span className="shrink-0 rounded-md border border-[#FE2C55] px-4 py-1 text-sm font-semibold text-[#FE2C55]">
-            Follow
-          </span>
-        </div>
-        <div className="flex items-end gap-4 px-4 pb-4 pl-18">
-          <div className="relative aspect-9/16 w-60 overflow-hidden rounded-xl bg-black">
-            <TikTokClip media={media} />
-          </div>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col items-center gap-3 self-end pb-6 text-gray-900">
+            <TikTokAvatar name={name} logo={logo} size={44} />
             {TIKTOK_ACTIONS.map(({ id, Icon, label }) => (
               <span key={id} className="flex flex-col items-center gap-1">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-gray-800">
-                  <Icon className="h-5 w-5" fill={Icon === Heart ? "currentColor" : "none"} />
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100">
+                  <Icon className="h-5 w-5" fill={id === "share" ? "none" : "currentColor"} />
                 </span>
                 <span className="text-[11px] font-semibold text-gray-600">{label}</span>
               </span>
             ))}
+            <TikTokDisc name={name} logo={logo} />
           </div>
         </div>
-      </Card>
+      </div>
     );
 
   return (
     <div className="flex h-full w-full flex-col bg-black">
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <TikTokClip media={media} />
+        <span className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-linear-to-b from-black/50 to-transparent" />
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 h-52 bg-linear-to-t from-black/70 via-black/30 to-transparent" />
 
-        {/* Top tabs */}
-        <div className="absolute inset-x-0 top-0 flex justify-center gap-4 bg-linear-to-b from-black/50 to-transparent pb-6 pt-9 text-[13px] font-semibold">
-          <span className="text-white/60">Following</span>
-          <span className="border-b-2 border-white pb-0.5 text-white">For You</span>
+        {/* Top bar, under the status bar */}
+        <div className={`absolute inset-x-0 top-11 flex items-center justify-between px-3.5 text-white ${OVER}`}>
+          <Radio className="h-5 w-5" />
+          <span className="flex items-center gap-4 text-[14.5px] font-semibold">
+            <span className="text-white/65">Following</span>
+            <span className="relative">
+              For You
+              <span className="absolute -bottom-1.5 left-1/2 h-[2.5px] w-6 -translate-x-1/2 rounded-full bg-white" />
+            </span>
+          </span>
+          <Search className="h-5 w-5" strokeWidth={2.25} />
         </div>
 
         {/* Right-hand action column */}
-        <div className="absolute bottom-4 right-2 flex flex-col items-center gap-3.5 text-white">
-          <span className="relative mb-1">
-            <span className="block rounded-full ring-2 ring-white">
-              <Avatar name={name} logo={logo} color="#010101" size={38} />
-            </span>
-            <span className="absolute -bottom-2 left-1/2 flex h-4 w-4 -translate-x-1/2 items-center justify-center rounded-full bg-[#FE2C55] text-[11px] font-bold leading-none">
-              +
-            </span>
-          </span>
+        <div className="absolute bottom-4 right-2 flex flex-col items-center gap-4 text-white">
+          <TikTokAvatar name={name} logo={logo} size={40} />
           {TIKTOK_ACTIONS.map(({ id, Icon, label }) => (
-            <span key={id} className="flex flex-col items-center gap-0.5">
-              <Icon className="h-6 w-6 drop-shadow" fill={Icon === Heart ? "currentColor" : "none"} />
-              <span className="text-[10px] font-semibold drop-shadow">{label}</span>
+            <span key={id} className="flex flex-col items-center gap-1">
+              <Icon
+                className={`h-7 w-7 ${OVER}`}
+                fill={id === "share" ? "none" : "currentColor"}
+                strokeWidth={id === "share" ? 2.25 : 0}
+              />
+              <span className={`text-[10.5px] font-semibold ${OVER}`}>{label}</span>
             </span>
           ))}
-          {/* Spinning sound disc */}
-          <span className="mt-1 flex h-8 w-8 animate-spin items-center justify-center rounded-full bg-linear-to-br from-gray-700 to-gray-900 [animation-duration:4s]">
-            <span className="h-3 w-3 overflow-hidden rounded-full">
-              <Avatar name={name} logo={logo} color="#010101" size={12} />
-            </span>
-          </span>
+          <TikTokDisc name={name} logo={logo} />
         </div>
 
         {/* Caption over the bottom */}
-        <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/30 to-transparent px-3 pb-4 pr-14 pt-10">
+        <div className="absolute inset-x-0 bottom-4 pl-3 pr-16">
           <TikTokCaption handle={handle} title={title} text={text} name={name} />
         </div>
       </div>
 
-      {/* The app's bottom bar */}
-      <div className="flex shrink-0 items-center justify-around bg-black px-2 pb-5 pt-2 text-[9px] font-medium text-white/80">
-        <span className="text-white">Home</span>
-        <span>Friends</span>
-        <span className="flex h-6 w-10 items-center justify-center rounded-md bg-white text-base font-bold leading-none text-black shadow-[-2px_0_0_#25F4EE,2px_0_0_#FE2C55]">
-          +
+      {/* The app's tab bar */}
+      <nav className="flex shrink-0 items-end justify-around bg-black px-1 pb-6 pt-2 text-[9.5px] font-medium text-white/70">
+        <span className="flex flex-col items-center gap-0.5 text-white">
+          <Home className="h-5.5 w-5.5" fill="currentColor" />
+          Home
         </span>
-        <span>Inbox</span>
-        <span>Profile</span>
+        <span className="flex flex-col items-center gap-0.5">
+          <Users className="h-5.5 w-5.5" />
+          Friends
+        </span>
+        <span className="mb-1 flex h-7 w-11 items-center justify-center rounded-lg bg-white text-black shadow-[-2.5px_0_0_#25F4EE,2.5px_0_0_#FE2C55]">
+          <Plus className="h-4.5 w-4.5" strokeWidth={3} />
+        </span>
+        <span className="flex flex-col items-center gap-0.5">
+          <MessageSquareText className="h-5.5 w-5.5" />
+          Inbox
+        </span>
+        <span className="flex flex-col items-center gap-0.5">
+          <Avatar name={name} logo={logo} color="#333" size={22} />
+          Profile
+        </span>
+      </nav>
+    </div>
+  );
+}
+
+// ── Reels, Stories and Shorts ────────────────────────────────────────────────
+//
+// Each app's own full-screen player, not one shared overlay: the controls, the
+// order they come in and what's written under them differ per network, and
+// that difference is most of what makes a preview read as the real thing.
+
+const handleOf = (name) => (name || "brand").toLowerCase().replace(/[^a-z0-9_.]/g, "");
+
+/** Soft shadow under white text and icons drawn over a photo. */
+const OVER = "drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]";
+
+/** The media behind a vertical player, or the app's own "nothing here" look. */
+function VerticalMedia({ media, postType }) {
+  return (
+    <>
+      <TikTokClip media={media} />
+      {!media && (
+        <p className="absolute inset-x-0 top-[56%] text-center text-[11px] text-white/45">
+          {postType?.media === "video" ? "Add a video to preview it" : "Add an image or video to preview it"}
+        </p>
+      )}
+    </>
+  );
+}
+
+/** One control in a Reel/Short's action column — icon over its label. */
+function ReelAction({ Icon, label, fill = false, round = false, dark = false }) {
+  return (
+    <span className="flex flex-col items-center gap-1">
+      <span
+        className={
+          round
+            ? `flex h-11 w-11 items-center justify-center rounded-full ${dark ? "bg-white/15 text-white" : "bg-gray-100 text-gray-900"}`
+            : ""
+        }
+      >
+        <Icon
+          className={`${round ? "h-5 w-5" : `h-[26px] w-[26px] ${OVER}`}`}
+          strokeWidth={round ? 2 : 1.9}
+          fill={fill ? "currentColor" : "none"}
+        />
+      </span>
+      {label && (
+        <span className={`text-[11px] font-semibold leading-none ${round ? (dark ? "text-white/80" : "text-gray-700") : OVER}`}>
+          {label}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** The spinning-record / album square at the foot of the action column. */
+function AudioThumb({ name, logo, shape = "square" }) {
+  return (
+    <span
+      className={`block overflow-hidden border-2 border-white ${shape === "disc" ? "rounded-full" : "rounded-md"}`}
+      style={{ width: 28, height: 28 }}
+    >
+      <Avatar name={name} logo={logo} color="#333" size={24} />
+    </span>
+  );
+}
+
+/** What each network puts in its Reel / Short action column. */
+function reelActions(platform, kind) {
+  if (kind === "short")
+    return [
+      { Icon: ThumbsUp, label: "Like" },
+      { Icon: ThumbsDown, label: "Dislike" },
+      { Icon: MessageSquareText, label: "0" },
+      { Icon: Forward, label: "Share" },
+      { Icon: Repeat2, label: "Remix" },
+    ];
+  if (platform === "facebook")
+    return [
+      { Icon: ThumbsUp, label: "Like" },
+      { Icon: MessageCircle, label: "Comment" },
+      { Icon: Forward, label: "Share" },
+    ];
+  // Instagram — no counts on a post that has none yet.
+  return [
+    { Icon: Heart },
+    { Icon: MessageCircle, flip: true },
+    { Icon: Repeat2 },
+    { Icon: Send },
+  ];
+}
+
+/** Account, caption and audio line at the foot of a Reel / Short. */
+function ReelInfo({ platform, kind, name, logo, caption }) {
+  const color = COMPOSER_PLATFORMS[platform]?.color || "#111";
+  const short = kind === "short";
+  const who = platform === "facebook" ? name : short ? `@${handleOf(name)}` : handleOf(name);
+  return (
+    <div className="text-white">
+      <div className="flex items-center gap-2">
+        <span className="rounded-full ring-1 ring-white/70">
+          <Avatar name={name} logo={logo} color={color} size={30} />
+        </span>
+        <span className={`truncate text-[13px] font-semibold ${OVER}`}>{who}</span>
+        {short ? (
+          <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11.5px] font-semibold text-gray-950">
+            Subscribe
+          </span>
+        ) : (
+          <span className="shrink-0 rounded-lg border border-white/70 px-2.5 py-[3px] text-[11.5px] font-semibold">
+            Follow
+          </span>
+        )}
+      </div>
+      {caption?.trim() ? (
+        <p className={`mt-2 line-clamp-2 whitespace-pre-line wrap-break-word text-[12.5px] leading-snug ${OVER}`}>
+          {caption}
+        </p>
+      ) : (
+        <p className="mt-2 text-[12.5px] italic text-white/55">
+          {short ? "Your title will appear here" : "Your caption will appear here"}
+        </p>
+      )}
+      <p className="mt-2 inline-flex max-w-full items-center gap-1.5 truncate rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-medium backdrop-blur-sm">
+        <Music2 className="h-3 w-3 shrink-0" />
+        <span className="truncate">
+          {short ? `Original sound · ${handleOf(name)}` : `${platform === "facebook" ? name : handleOf(name)} · Original audio`}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+/** A Reel or Short on a phone — the app's own player, edge to edge. */
+function ReelPhone({ platform, kind, name, logo, caption, media, postType }) {
+  const short = kind === "short";
+  const instagram = platform === "instagram";
+  const actions = reelActions(platform, kind);
+  const icon = "h-[22px] w-[22px]";
+
+  return (
+    <div className="flex h-full w-full flex-col bg-black">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <VerticalMedia media={media} postType={postType} />
+
+        {/* Shade top and bottom so the status bar, controls and text stay
+            readable over a light photo, as the apps do. */}
+        <span className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-linear-to-b from-black/55 to-transparent" />
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-linear-to-t from-black/75 via-black/35 to-transparent" />
+
+        {/* Top bar, under the status bar */}
+        <div className={`absolute inset-x-0 top-11 flex items-center justify-between px-4 text-white ${OVER}`}>
+          {short ? (
+            <span />
+          ) : (
+            <span className="flex items-center gap-1 text-[19px] font-bold tracking-tight">
+              Reels {instagram && <ChevronDown className="h-4 w-4" strokeWidth={2.5} />}
+            </span>
+          )}
+          <span className="flex items-center gap-4">
+            {short ? (
+              <>
+                <Search className={icon} />
+                <EllipsisVertical className={icon} />
+              </>
+            ) : instagram ? (
+              <Camera className={icon} />
+            ) : (
+              <>
+                <Search className={icon} />
+                <Camera className={icon} />
+              </>
+            )}
+          </span>
+        </div>
+
+        {/* Action column */}
+        <div className={`absolute right-2.5 flex flex-col items-center gap-4.5 text-white ${short || instagram ? "bottom-4" : "bottom-8"}`}>
+          {actions.map(({ Icon, label, flip }, i) => (
+            <span key={i} className={flip ? "[&_svg]:-scale-x-100" : ""}>
+              <ReelAction Icon={Icon} label={label} />
+            </span>
+          ))}
+          {short ? (
+            <AudioThumb name={name} logo={logo} />
+          ) : (
+            <>
+              <MoreHorizontal className={`h-5 w-5 ${OVER}`} />
+              <AudioThumb name={name} logo={logo} shape={instagram ? "square" : "disc"} />
+            </>
+          )}
+        </div>
+
+        {/* Account, caption, audio */}
+        <div className={`absolute inset-x-0 pl-3 pr-16 ${short || instagram ? "bottom-4" : "bottom-8"}`}>
+          <ReelInfo platform={platform} kind={kind} name={name} logo={logo} caption={caption} />
+        </div>
+      </div>
+
+      {/* The app's tab bar — Instagram's and YouTube's stay on screen in their
+          players; Facebook's Reels viewer takes the whole screen. */}
+      {instagram && (
+        <nav className="flex shrink-0 items-center justify-around bg-black px-2 pb-6 pt-2.5 text-white">
+          <Home className={icon} />
+          <Search className={icon} />
+          <PlusSquare className={icon} />
+          <Clapperboard className={icon} fill="currentColor" stroke="black" />
+          <span className="rounded-full ring-1 ring-white">
+            <Avatar name={name} logo={logo} color="#E1306C" size={22} />
+          </span>
+        </nav>
+      )}
+      {short && (
+        <nav className="flex shrink-0 items-end justify-around border-t border-white/10 bg-[#0f0f0f] px-2 pb-6 pt-1.5 text-[9.5px] text-white">
+          {[
+            [Home, "Home"],
+            [Zap, "Shorts", true],
+          ].map(([I, l, on]) => (
+            <span key={l} className="flex flex-col items-center gap-0.5">
+              <I className="h-5 w-5" fill={on ? "currentColor" : "none"} />
+              {l}
+            </span>
+          ))}
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
+            <Plus className="h-5 w-5" />
+          </span>
+          <span className="flex flex-col items-center gap-0.5">
+            <Tv className="h-5 w-5" />
+            Subscriptions
+          </span>
+          <span className="flex flex-col items-center gap-0.5">
+            <Avatar name={name} logo={logo} color="#FF0000" size={20} />
+            You
+          </span>
+        </nav>
+      )}
+    </div>
+  );
+}
+
+/** The story's header: progress, account, time, ··· and ✕. */
+function StoryHeader({ platform, name, logo, time, segments = 1 }) {
+  const fb = platform === "facebook";
+  return (
+    <div className="absolute inset-x-0 top-0 bg-linear-to-b from-black/50 to-transparent px-2 pb-10 pt-2 text-white">
+      <div className="flex gap-[3px]">
+        {Array.from({ length: segments }).map((_, i) => (
+          <span key={i} className="h-[2.5px] flex-1 overflow-hidden rounded-full bg-white/35">
+            {i === 0 && <span className="block h-full w-2/5 rounded-full bg-white" />}
+          </span>
+        ))}
+      </div>
+      <div className={`mt-2.5 flex items-center gap-2 px-1 ${OVER}`}>
+        <Avatar name={name} logo={logo} color={COMPOSER_PLATFORMS[platform]?.color || "#111"} size={fb ? 34 : 30} />
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate text-[13px] font-semibold">{fb ? name : handleOf(name)}</span>
+          {fb && (
+            <span className="flex items-center gap-1 text-[11px] text-white/80">
+              {time} · <Globe className="h-2.5 w-2.5" />
+            </span>
+          )}
+        </span>
+        {!fb && <span className="text-[13px] text-white/75">{time}</span>}
+        <span className="ml-auto flex items-center gap-3">
+          <MoreHorizontal className="h-5 w-5" />
+          <X className="h-6 w-6" strokeWidth={1.75} />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** The reply bar under / at the foot of a story. */
+function StoryReply({ platform, className = "" }) {
+  const fb = platform === "facebook";
+  return (
+    <div className={`flex items-center gap-3 text-white ${className}`}>
+      <span className="flex-1 truncate rounded-full border border-white/55 px-4 py-2 text-[12.5px] text-white/90">
+        {fb ? "Send message…" : "Send message"}
+      </span>
+      {fb ? (
+        <span className="flex items-center gap-1.5 text-[19px] leading-none" aria-hidden="true">
+          <span>👍</span>
+          <span>❤️</span>
+          <span>😆</span>
+        </span>
+      ) : (
+        <>
+          <Heart className="h-6 w-6" strokeWidth={1.75} />
+          <Send className="h-6 w-6" strokeWidth={1.75} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** A story on a phone — the media in a rounded panel, the reply bar beneath. */
+function StoryPhone({ platform, name, logo, media, postType, time }) {
+  return (
+    <div className="flex h-full w-full flex-col bg-black pt-11">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-[#1c1c1c]">
+        <VerticalMedia media={media} postType={postType} />
+        <StoryHeader platform={platform} name={name} logo={logo} time={time} />
+      </div>
+      <StoryReply platform={platform} className="shrink-0 px-3 pb-7 pt-3" />
+    </div>
+  );
+}
+
+/** A blurred, dimmed neighbour card in the desktop story viewer. */
+function StoryNeighbour({ name, logo, color, tall = false }) {
+  return (
+    <span
+      className={`relative hidden shrink-0 items-center justify-center overflow-hidden rounded-lg bg-linear-to-b from-[#3a3a3a] to-[#1f1f1f] sm:flex ${
+        tall ? "h-52 w-[117px]" : "h-40 w-[90px]"
+      }`}
+      aria-hidden="true"
+    >
+      <span className="flex flex-col items-center gap-1.5 opacity-70">
+        <span className="rounded-full bg-linear-to-tr from-[#feda75] via-[#d62976] to-[#4f5bd5] p-[2px]">
+          <Avatar name={name} logo={logo} color={color} size={30} />
+        </span>
+        <span className="h-1.5 w-12 rounded-full bg-white/25" />
+      </span>
+    </span>
+  );
+}
+
+const ArrowButton = ({ Icon }) => (
+  <span className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/90 text-gray-800 shadow sm:flex" aria-hidden="true">
+    <Icon className="h-4 w-4" strokeWidth={2.5} />
+  </span>
+);
+
+/** A story in the network's desktop viewer — dark, centred, its neighbours dimmed. */
+function StoryDesktop({ platform, name, logo, media, postType, time }) {
+  const fb = platform === "facebook";
+  const color = COMPOSER_PLATFORMS[platform]?.color || "#111";
+  const card = (
+    <div className="relative aspect-9/16 h-[430px] shrink-0 overflow-hidden rounded-lg bg-[#1c1c1c]">
+      <VerticalMedia media={media} postType={postType} />
+      <StoryHeader platform={platform} name={name} logo={logo} time={time} />
+      {!fb && (
+        <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/45 to-transparent px-3 pb-3 pt-8">
+          <StoryReply platform={platform} />
+        </div>
+      )}
+    </div>
+  );
+
+  if (fb)
+    return (
+      <div className="flex h-[500px] bg-black">
+        {/* Facebook's left rail of stories */}
+        <aside className="hidden w-44 shrink-0 flex-col border-r border-white/10 bg-[#242526] p-3 text-white md:flex">
+          <span className="flex items-center gap-2">
+            <X className="h-5 w-5 text-white/70" />
+            <FaFacebook className="h-7 w-7 text-[#1877F2]" />
+          </span>
+          <p className="mt-4 text-[17px] font-bold">Stories</p>
+          <p className="mt-3 text-[12px] font-semibold text-white/60">All stories</p>
+          <span className="mt-2 flex items-center gap-2 rounded-lg bg-white/10 p-2">
+            <span className="rounded-full ring-2 ring-[#1877F2] ring-offset-1 ring-offset-[#242526]">
+              <Avatar name={name} logo={logo} color={color} size={34} />
+            </span>
+            <span className="min-w-0 leading-tight">
+              <span className="block truncate text-[12.5px] font-semibold">{name}</span>
+              <span className="text-[11px] text-[#2d88ff]">1 new · {time}</span>
+            </span>
+          </span>
+        </aside>
+        <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 py-4">
+          <div className="flex items-center gap-4">
+            <ArrowButton Icon={ChevronLeft} />
+            {card}
+            <ArrowButton Icon={ChevronRight} />
+          </div>
+          <StoryReply platform={platform} className="w-[242px]" />
+        </div>
+      </div>
+    );
+
+  return (
+    <div className="relative flex h-[500px] items-center justify-center gap-3 bg-[#1a1a1a] px-4">
+      <span className="absolute left-4 top-3 font-serif text-[22px] font-semibold italic tracking-tight text-white">
+        Instagram
+      </span>
+      <X className="absolute right-4 top-4 h-6 w-6 text-white" strokeWidth={1.75} />
+      <StoryNeighbour name={name} logo={logo} color={color} />
+      <StoryNeighbour name={name} logo={logo} color={color} tall />
+      <ArrowButton Icon={ChevronLeft} />
+      {card}
+      <ArrowButton Icon={ChevronRight} />
+      <StoryNeighbour name={name} logo={logo} color={color} tall />
+      <StoryNeighbour name={name} logo={logo} color={color} />
+    </div>
+  );
+}
+
+/** A Reel or Short on the network's website — the clip centred, actions beside it. */
+function ReelDesktop({ platform, kind, name, logo, caption, media, postType }) {
+  const short = kind === "short";
+  const dark = platform === "facebook";
+  const instagram = platform === "instagram";
+  const actions = reelActions(platform, kind);
+
+  return (
+    <div className={`flex h-[500px] items-center justify-center gap-4 ${dark ? "bg-[#18191a]" : "bg-surface"}`}>
+      <div className="relative aspect-9/16 h-[460px] shrink-0 overflow-hidden rounded-xl bg-black">
+        <VerticalMedia media={media} postType={postType} />
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-linear-to-t from-black/75 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 px-3.5 pb-4">
+          <ReelInfo platform={platform} kind={kind} name={name} logo={logo} caption={caption} />
+        </div>
+      </div>
+      <div className={`flex flex-col items-center gap-3.5 self-end pb-6 ${dark ? "text-white" : "text-gray-900"}`}>
+        {actions.map(({ Icon, label, flip }, i) =>
+          instagram ? (
+            <span key={i} className={flip ? "[&_svg]:-scale-x-100" : ""}>
+              <Icon className="h-6 w-6" strokeWidth={1.9} />
+            </span>
+          ) : (
+            <ReelAction key={i} Icon={Icon} label={label} round dark={dark} />
+          ),
+        )}
+        {instagram ? (
+          <>
+            <Bookmark className="h-6 w-6" strokeWidth={1.9} />
+            <MoreHorizontal className="h-6 w-6" />
+          </>
+        ) : (
+          <span className={`flex h-11 w-11 items-center justify-center rounded-full ${dark ? "bg-white/15" : "bg-gray-100"}`}>
+            <MoreHorizontal className="h-5 w-5" />
+          </span>
+        )}
+        <span className={`overflow-hidden rounded-md border ${dark ? "border-white/40" : "border-gray-300"}`}>
+          <Avatar name={name} logo={logo} color="#333" size={28} />
+        </span>
       </div>
     </div>
   );
 }
 
 /**
- * A Reel, Story or Short — the full-screen 9:16 player each app shows them in.
- *   story        progress bar and account on top, the media, "Send message"
- *                at the bottom. A story shows no caption.
- *   reel / short the media with the action column down the right, and the
- *                account, caption (a Short's title) and sound line at the bottom.
- * On a phone it fills the screen; on desktop it is the same player as a card.
+ * A Reel, Story or Short, in the player its own app shows it in.
+ *   story        progress bar, account, ··· and ✕ over the media; the reply
+ *                bar under it. A story shows no caption.
+ *   reel / short the network's action column, the account with Follow /
+ *                Subscribe, caption (a Short's title) and audio line; Instagram
+ *                and YouTube keep their tab bar under the player.
+ * Desktop is the network's web viewer: a dark story viewer with its
+ * neighbours, or the clip centred with its actions beside it.
  */
-function VerticalPreview({ platform, postType, name, logo, text, media, options, timeLabel = "Just now" }) {
+function VerticalPreview({ platform, postType, name, logo, text, media, options, timeLabel }) {
   const device = useContext(DeviceContext);
-  const color = COMPOSER_PLATFORMS[platform]?.color || "#111";
   const kind = postType?.id;
-  const story = kind === "story";
+  const time = timeLabel || (platform === "facebook" ? "Just now" : "1m");
   const caption = kind === "short" ? options?.title?.trim() || firstLine(text) : text;
-  const actions =
-    kind === "short"
-      ? [[ThumbsUp, "Like"], [MessageCircle, "0"], [Share2, "Share"], [Repeat2, "Remix"]]
-      : [[platform === "instagram" ? Heart : ThumbsUp, "0"], [MessageCircle, "0"], [Send, "Send"]];
+  const props = { platform, kind, name, logo, caption, media, postType, time };
 
-  const player = (
-    <div className="relative h-full w-full overflow-hidden bg-black">
-      <TikTokClip media={media} />
-      {!media && (
-        <p className="absolute inset-x-0 top-[58%] text-center text-xs text-white/60">
-          {postType?.media === "video" ? "Video not available" : "Video/image not available"}
-        </p>
-      )}
-
-      {story ? (
-        <>
-          <div className="absolute inset-x-0 top-0 bg-linear-to-b from-black/50 to-transparent px-3 pb-6 pt-9">
-            <span className="block h-0.5 rounded-full bg-white/40">
-              <span className="block h-full w-1/3 rounded-full bg-white" />
-            </span>
-            <span className="mt-2.5 flex items-center gap-2 text-white">
-              <Avatar name={name} logo={logo} color={color} size={28} />
-              <span className="text-[13px] font-semibold drop-shadow">{name}</span>
-              <span className="text-[12px] text-white/70">{timeLabel}</span>
-              <MoreHorizontal className="ml-auto h-4 w-4" />
-            </span>
-          </div>
-          <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 px-3 pb-5 pt-8 text-white">
-            <span className="flex-1 rounded-full border border-white/60 px-3.5 py-1.5 text-[12px] text-white/90">
-              Send message
-            </span>
-            <Heart className="h-5 w-5" />
-            <Send className="h-5 w-5" />
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pb-6 pt-9 text-[15px] font-bold text-white drop-shadow">
-            {kind === "short" ? "Shorts" : "Reels"}
-            <Search className="h-5 w-5" />
-          </div>
-          <div className="absolute bottom-5 right-2.5 flex flex-col items-center gap-4 text-white">
-            {actions.map(([Icon, label], i) => (
-              <span key={i} className="flex flex-col items-center gap-0.5">
-                <Icon className="h-6 w-6 drop-shadow" />
-                <span className="text-[10px] font-semibold drop-shadow">{label}</span>
-              </span>
-            ))}
-            <MoreHorizontal className="h-5 w-5" />
-          </div>
-          <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/30 to-transparent px-3 pb-5 pr-14 pt-12 text-white">
-            <span className="flex items-center gap-2">
-              <Avatar name={name} logo={logo} color={color} size={28} />
-              <span className="truncate text-[13px] font-semibold drop-shadow">{name}</span>
-              <span className="rounded-md border border-white/80 px-2 py-0.5 text-[11px] font-semibold">
-                {kind === "short" ? "Subscribe" : "Follow"}
-              </span>
-            </span>
-            {caption?.trim() ? (
-              <p className="mt-1.5 line-clamp-2 whitespace-pre-line wrap-break-word text-[12.5px] leading-snug drop-shadow">
-                {caption}
-              </p>
-            ) : (
-              <p className="mt-1.5 text-[12.5px] italic text-white/50">Your text will appear here</p>
-            )}
-            <p className="mt-1 truncate text-[11px] text-white/85">♫ {name} · Original audio</p>
-          </div>
-        </>
-      )}
-    </div>
-  );
-
-  if (device === "phone") return player;
-  return <div className="mx-auto aspect-9/16 w-72 overflow-hidden rounded-xl shadow-lg">{player}</div>;
+  if (kind === "story") return device === "phone" ? <StoryPhone {...props} /> : <StoryDesktop {...props} />;
+  return device === "phone" ? <ReelPhone {...props} /> : <ReelDesktop {...props} />;
 }
 
 /** LinkedIn — the feed card: name, a follower line, text, media, the four actions. */
@@ -993,13 +1431,17 @@ export function PhoneFrame({ platform, name, logo, immersive: fullScreen = false
   // TikTok is always full screen; a Reel / Story / Short is too.
   const immersive = fullScreen || platform === "tiktok";
   return (
-    <div className="relative mx-auto aspect-[9/19] h-full max-h-[640px] min-h-[480px] max-w-full rounded-[2.75rem] bg-gray-900 p-[10px] shadow-[0_30px_60px_-20px_rgba(15,23,42,0.45)] ring-1 ring-gray-700">
+    // ⚠️ LITERAL COLOURS ON THE BODY. It's a phone, not part of the app: the
+    // theme's gray-900 is tinted under a skin and turned the bezel brown.
+    // min-w-0: without it a long handle's min-content width beat the aspect
+    // ratio, and X's phone came out wider than Facebook's.
+    <div className="relative mx-auto aspect-[9/19] h-full max-h-[640px] min-h-[480px] min-w-0 max-w-full rounded-[2.75rem] bg-[#0b0b0c] p-2.25 shadow-[0_30px_60px_-20px_rgba(15,23,42,0.5),inset_0_0_0_1.5px_#3a3a3c] ring-1 ring-black/60">
       {/* Side buttons */}
-      <span className="absolute -left-[3px] top-28 h-8 w-[3px] rounded-l bg-gray-700" aria-hidden="true" />
-      <span className="absolute -left-[3px] top-40 h-12 w-[3px] rounded-l bg-gray-700" aria-hidden="true" />
-      <span className="absolute -right-[3px] top-36 h-16 w-[3px] rounded-r bg-gray-700" aria-hidden="true" />
+      <span className="absolute -left-[3px] top-28 h-8 w-[3px] rounded-l bg-[#2c2c2e]" aria-hidden="true" />
+      <span className="absolute -left-[3px] top-40 h-12 w-[3px] rounded-l bg-[#2c2c2e]" aria-hidden="true" />
+      <span className="absolute -right-[3px] top-36 h-16 w-[3px] rounded-r bg-[#2c2c2e]" aria-hidden="true" />
 
-      <div className={`relative flex h-full flex-col overflow-hidden rounded-[2.2rem] ${immersive ? "bg-black" : "bg-surface"}`}>
+      <div className={`ck-device-screen relative flex h-full flex-col overflow-hidden rounded-[2.2rem] ${immersive ? "bg-black" : "bg-surface"}`}>
         {/* Status bar */}
         <div
           className={`z-10 flex shrink-0 items-center justify-between px-6 pb-1 pt-3 text-[12px] font-semibold ${
@@ -1040,24 +1482,41 @@ const SITES = {
   pinterest: { host: "pinterest.com", bg: "bg-surface", Icon: FaPinterest, color: "#E60023" },
 };
 
-/** A browser window open on the network's site, the post in its feed column. */
-export function DesktopFrame({ platform, children }) {
-  const site = SITES[platform] || { host: "", bg: "bg-gray-100" };
+/** The browser's window bar: traffic lights and the site's address. */
+function BrowserBar({ site }) {
   return (
-    <div className="mx-auto max-w-2xl overflow-hidden rounded-xl border border-gray-300 bg-surface shadow-[0_20px_50px_-20px_rgba(15,23,42,0.35)]">
-      {/* Window bar */}
-      <div className="flex items-center gap-3 border-b border-gray-200 bg-gray-100 px-3 py-2">
-        <span className="flex gap-1.5" aria-hidden="true">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
-        </span>
-        <span className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-surface px-3 py-1 text-[11px] text-gray-500">
-          {site.Icon && <site.Icon className="h-3 w-3" style={{ color: site.color }} />}
-          {site.host}
-        </span>
-        <span className="w-10" />
+    <div className="flex items-center gap-3 border-b border-gray-200 bg-gray-100 px-3 py-2">
+      <span className="flex gap-1.5" aria-hidden="true">
+        <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+        <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
+        <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
+      </span>
+      <span className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-surface px-3 py-1 text-[11px] text-gray-500">
+        {site.Icon && <site.Icon className="h-3 w-3" style={{ color: site.color }} />}
+        {site.host}
+      </span>
+      <span className="w-10" />
+    </div>
+  );
+}
+
+/**
+ * A browser window open on the network's site, the post in its feed column.
+ * `immersive` (a Reel, Story or Short): the page is the network's full-width
+ * viewer, which the preview draws itself — no feed column, no padding.
+ */
+export function DesktopFrame({ platform, immersive = false, children }) {
+  const site = SITES[platform] || { host: "", bg: "bg-gray-100" };
+  if (immersive)
+    return (
+      <div className="ck-device-screen mx-auto max-w-2xl overflow-hidden rounded-xl border border-gray-300 bg-surface shadow-[0_20px_50px_-20px_rgba(15,23,42,0.35)]">
+        <BrowserBar site={site} />
+        {children}
       </div>
+    );
+  return (
+    <div className="ck-device-screen mx-auto max-w-2xl overflow-hidden rounded-xl border border-gray-300 bg-surface shadow-[0_20px_50px_-20px_rgba(15,23,42,0.35)]">
+      <BrowserBar site={site} />
       <div className={`max-h-[560px] overflow-y-auto px-6 py-5 ${site.bg}`}>
         <div className="mx-auto max-w-[500px]">{children}</div>
       </div>

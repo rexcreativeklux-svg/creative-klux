@@ -411,8 +411,15 @@ export async function uploadForPublish(file) {
     o?.src ||
     null;
   const inner = data?.data ?? data;
+  // ⚠️ The gallery now answers {success, message, file: {image_url, …}} — the
+  // URL one level down under `file` (uploadMedia in AuthContext lifts it the
+  // same way). Missing it failed every composer upload with "no file URL".
   const url =
-    pick(data) || pick(inner) || (Array.isArray(inner) ? pick(inner[0]) : null);
+    pick(data) ||
+    pick(data?.file) ||
+    pick(inner) ||
+    pick(inner?.file) ||
+    (Array.isArray(inner) ? pick(inner[0]) : null);
   if (!url) throw new Error("The upload returned no file URL.");
   return url;
 }

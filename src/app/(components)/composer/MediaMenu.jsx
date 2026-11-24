@@ -420,7 +420,7 @@ export default function MediaMenu({ disabled = false, onFile, onPick, activeBran
                     key={flyout.kind}
                     source={flyout.kind}
                     onPick={pick}
-                    onFile={(file) => onFile(file)}
+                    onFile={(file, extra) => onFile(file, extra)}
                     onDone={close}
                     imagesOnly={imagesOnly}
                   />

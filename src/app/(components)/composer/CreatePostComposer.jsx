@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { uploadForPublish } from "@/(lib)/creativesApi";
+import { parseCopy, postFromCopy, str } from "@/(lib)/designCopy";
 import { fetchPinterestBoards } from "@/(lib)/integration";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import PlatformPageModal from "@/app/(components)/integrations/PlatformPageModal";
@@ -125,7 +126,7 @@ function NetworkIcon({ platform, active = true, size = 36 }) {
  * each type with its icon, a one-line description and a check on the current
  * one. Only for networks with `types` (Facebook, Instagram, YouTube).
  */
-function PostTypePill({ platform, value, onChange, disabled }) {
+function PostTypePill({ platform, value, onChange, disabled, mediaType }) {
   const types = COMPOSER_PLATFORMS[platform]?.types;
   const [open, setOpen] = useState(false);
   if (!types?.length) return null;
@@ -155,24 +156,32 @@ function PostTypePill({ platform, value, onChange, disabled }) {
           >
             {types.map((t) => {
               const on = t.id === current.id;
+              // A video-only type (Reel, Short) can't carry the image attached
+              const blocked = t.media === "video" && mediaType === "image";
               return (
                 <button
                   key={t.id}
                   type="button"
                   role="menuitemradio"
                   aria-checked={on}
+                  disabled={blocked}
+                  title={blocked ? `${t.label}s need a video` : undefined}
                   onClick={() => {
                     onChange(t.id);
                     setOpen(false);
                   }}
-                  className={`flex w-full cursor-pointer items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${
-                    on ? "bg-gray-100" : "hover:bg-gray-50"
+                  className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${
+                    blocked
+                      ? "cursor-not-allowed opacity-40"
+                      : `cursor-pointer ${on ? "bg-gray-100" : "hover:bg-gray-50"}`
                   }`}
                 >
                   <t.Icon className="h-5 w-5 shrink-0 text-gray-800" />
                   <span className="min-w-0 flex-1">
                     <span className={`block text-sm text-gray-900 ${on ? "font-semibold" : ""}`}>{t.label}</span>
-                    <span className="block text-xs text-gray-500">{t.description}</span>
+                    <span className="block text-xs text-gray-500">
+                      {blocked ? "Needs a video — remove the image to use this" : t.description}
+                    </span>
                   </span>
                   {on && <Check className="h-4 w-4 shrink-0 text-gray-800" />}
                 </button>
@@ -347,7 +356,17 @@ function ComposerScreen({
   const patchMedia = (id, patch) =>
     setMediaList((list) => list.map((m) => (m.id === id ? { ...m, ...patch } : m)));
 
-  const handleFile = async (file) => {
+  // A picked creative that carries copy: its description replaces the text —
+  // every network's, so the new copy is what actually goes out.
+  const applyCopy = (copy) => {
+    const c = parseCopy(copy);
+    const description = str(c.description) || postFromCopy(c).text;
+    if (!description) return;
+    setText(description);
+    setCustomText({});
+  };
+
+  const handleFile = async (file, { copy } = {}) => {
     if (!file) return;
     const type = file.type.startsWith("video/")
       ? "video"
@@ -358,6 +377,7 @@ function ComposerScreen({
       toast.error("Pick an image or a video file.");
       return;
     }
+    if (copy) applyCopy(copy);
     const previewUrl = URL.createObjectURL(file);
     objectUrls.current.add(previewUrl);
     const id = newId();
@@ -376,8 +396,10 @@ function ComposerScreen({
   };
 
   // Media that's already online (library, stock): nothing to upload.
-  const pickHostedMedia = (picked) =>
+  const pickHostedMedia = ({ copy, ...picked }) => {
+    if (copy) applyCopy(copy);
     setMediaList((list) => [...list, { ...picked, id: newId() }]);
+  };
 
   const removeMedia = (ids) => {
     const drop = new Set([].concat(ids));
@@ -402,6 +424,20 @@ function ComposerScreen({
 
   const setOption = (platform, key, value) =>
     setOptions((prev) => ({ ...prev, [platform]: { ...prev[platform], [key]: value } }));
+
+  // An image attached while a Reel / Short is chosen: fall back to the
+  // network's default type, since the video-only types are greyed out.
+  useEffect(() => {
+    if (media?.type !== "image") return;
+    setOptions((prev) => {
+      let next = prev;
+      for (const [platform, opts] of Object.entries(prev)) {
+        if (postTypeOf(platform, opts)?.media !== "video") continue;
+        next = { ...next, [platform]: { ...opts, post_type: COMPOSER_PLATFORMS[platform].types[0].id } };
+      }
+      return next;
+    });
+  }, [media?.type]);
 
   const togglePlatform = (platform) =>
     setPlatforms((prev) =>
@@ -722,6 +758,7 @@ function ComposerScreen({
                           platform={p}
                           value={type.id}
                           disabled={publishing}
+                          mediaType={media?.type}
                           onChange={(id) => setOption(p, "post_type", id)}
                         />
                       )}

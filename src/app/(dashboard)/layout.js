@@ -17,6 +17,7 @@ import '../globals.css';
 
 const NO_PADDING_ROUTES = [
     "/studio/ai-chat-page",
+    "/studio/instant", // the AI composer page that used to be the home page
     "/studio/select",
     // Copilot pages are full-bleed (own tinted background + padding).
     "/copilot",

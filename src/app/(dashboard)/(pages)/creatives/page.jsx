@@ -322,6 +322,13 @@ function LoadCountSelect({ value, options, onChange }) {
 // motion live on the shared class string at the call site.
 const CREATE_ACTIONS = [
   {
+    href: "/studio/instant",
+    label: "Instant Creation",
+    description: "Describe it in one prompt and let AI build it.",
+    buttonClass:
+      "border border-gray-300 bg-surface hover:bg-gray-100 text-gray-900 font-medium",
+  },
+  {
     href: "/studio/create-from-url",
     label: "Create from URL",
     description: "Pull copy, colours and images straight from a web page.",
@@ -334,14 +341,6 @@ const CREATE_ACTIONS = [
   //   label: "Create using Scraive",
   //   description: "Redesign an existing page with the Scraive engine.",
   //   buttonClass: "bg-violet-600 hover:bg-violet-700 text-white font-medium",
-  // },
-  // Instant Creation — kept out of the UI for now.
-  // {
-  //   href: "/",
-  //   label: "Instant Creation",
-  //   description: "Jump straight into a one-click creative.",
-  //   buttonClass:
-  //     "border border-gray-300 hover:bg-gray-200 text-gray-900 font-medium",
   // },
   {
     href: "/studio/select",

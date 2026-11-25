@@ -1,0 +1,168 @@
+/* Home dashboard — ported from the creativeklux-app.html prototype.
+   Every selector is scoped under .ck-home so none of these short class names
+   (.card, .row, .pill …) can leak into the rest of the app. */
+
+.ck-home {
+  --brand: #1447e6;
+  --brand-dark: #0e33a8;
+  --brand-tint: #eef2fd;
+  --brand-ring: #c9d6fb;
+  --bg: #eef0f4;
+  --panel: #ffffff;
+  --line: #e6e8ec;
+  --line-2: #eef0f3;
+  --input: #e3e5ea;
+  --text: #0d0f14;
+  --text-2: #30343d;
+  --text-3: #4a4f5c;
+  --muted: #6b7080;
+  --hover: #f4f5f7;
+  --green: #0a7a48; --green-bg: #ebf8f1; --green-ring: #bfe8d2;
+  --red: #b42328; --red-bg: #fdeeee; --red-ring: #f6c9cb;
+  --orange: #9a4a06; --orange-bg: #fff5eb; --orange-ring: #fbd9b0;
+  --gray-bg: #f4f5f7; --gray-ring: #dfe2e8;
+  --shadow: 0 12px 32px rgba(13, 15, 20, .12);
+  --radius: 12px;
+
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  padding: calc(var(--spacing-header) + 18px) 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.dark .ck-home {
+  --brand-tint: #14214a;
+  --brand-ring: #2a3d78;
+  --bg: #090b10;
+  --panel: #12151c;
+  --line: #232835;
+  --line-2: #1d222d;
+  --input: #2a3040;
+  --text: #eef0f4;
+  --text-2: #d6d9e0;
+  --text-3: #b4b8c2;
+  --muted: #8a90a0;
+  --hover: #1b1f28;
+  --green: #4ade80; --green-bg: #0f2a1d; --green-ring: #1e4d33;
+  --red: #f87171; --red-bg: #2c1214; --red-ring: #5b2327;
+  --orange: #fbbf24; --orange-bg: #2b1d08; --orange-ring: #5a3a0f;
+  --gray-bg: #1b1f28; --gray-ring: #2a3040;
+  --shadow: 0 12px 32px rgba(0, 0, 0, .5);
+}
+
+.ck-home h2, .ck-home p { margin: 0; }
+.ck-home a { color: var(--brand); text-decoration: none; }
+.dark .ck-home a { color: #8fb0ff; }
+.ck-home button { font-family: inherit; cursor: pointer; }
+.ck-home svg { flex: none; }
+
+.ck-home .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.ck-home .card-pad { padding: 14px; }
+.ck-home .card-head { display: flex; align-items: flex-start; gap: 10px; }
+.ck-home .h2 { font-size: 14px; font-weight: 600; }
+.ck-home .sub { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
+.ck-home .muted { font-size: 12px; color: var(--muted); }
+.ck-home .tiny { font-size: 11px; color: var(--muted); }
+.ck-home .row { display: flex; align-items: center; gap: 8px; }
+.ck-home .wrap { flex-wrap: wrap; }
+.ck-home .grow { flex: 1; min-width: 0; }
+.ck-home .between { justify-content: space-between; }
+.ck-home .stack { display: flex; flex-direction: column; gap: 10px; }
+.ck-home .grid-auto { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); }
+.ck-home .flex-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: stretch; }
+.ck-home .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.ck-home .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--input); background: var(--panel); color: var(--text-2); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.ck-home .btn:hover { border-color: var(--brand); color: var(--brand); }
+.ck-home .btn-primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.ck-home .btn-primary:hover { background: var(--brand-dark); border-color: var(--brand-dark); color: #fff; }
+.ck-home .btn-sm { min-height: 28px; padding: 0 9px; font-size: 12px; border-radius: 8px; }
+.ck-home .btn-autopilot { border-color: var(--green-ring); background: var(--green-bg); color: var(--green); }
+
+.ck-home .pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; font-size: 11px; font-weight: 600; padding: 2px 8px; border: 1px solid var(--gray-ring); background: var(--gray-bg); color: var(--text-3); white-space: nowrap; }
+.ck-home .pill-green { border-color: var(--green-ring); background: var(--green-bg); color: var(--green); }
+.ck-home .pill-red { border-color: var(--red-ring); background: var(--red-bg); color: var(--red); }
+.ck-home .pill-blue { border-color: var(--brand-ring); background: var(--brand-tint); color: var(--brand); }
+.ck-home .pill-orange { border-color: var(--orange-ring); background: var(--orange-bg); color: var(--orange); }
+
+.ck-home .seg { display: inline-flex; max-width: 100%; overflow-x: auto; border: 1px solid var(--input); border-radius: 9px; background: var(--panel); }
+.ck-home .seg button { white-space: nowrap; border: 0; border-right: 1px solid var(--input); background: transparent; color: var(--text-3); font-size: 13px; font-weight: 500; padding: 0 12px; min-height: 32px; }
+.ck-home .seg button:last-child { border-right: 0; }
+.ck-home .seg button.on { background: var(--text); color: var(--panel); }
+
+.ck-home .pf { width: 18px; height: 18px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 9px; font-weight: 700; flex: none; }
+.ck-home .avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 10px; flex: none; }
+.ck-home .ic { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; flex: none; background: var(--panel); }
+.ck-home .ic-sm { width: 30px; height: 30px; font-size: 13px; font-weight: 700; }
+
+.ck-home .bar { height: 6px; border-radius: 3px; background: var(--line-2); overflow: hidden; }
+.ck-home .bar > i { display: block; height: 100%; border-radius: 3px; background: var(--brand); }
+
+.ck-home .table { width: 100%; border-collapse: collapse; min-width: 560px; }
+.ck-home .table th { font-size: 11px; font-weight: 600; color: var(--muted); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.ck-home .table td { font-size: 12px; padding: 9px 10px; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+.ck-home .table tr:last-child td { border-bottom: 0; }
+.ck-home .table .num { text-align: right; }
+.ck-home .scroll-x { overflow-x: auto; }
+
+.ck-home .kpi { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.ck-home .kpi-top { display: flex; align-items: center; justify-content: space-between; }
+.ck-home .kpi-label { font-size: 12px; color: var(--text-3); font-weight: 500; }
+.ck-home .kpi-val { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.ck-home .kpi-num { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.ck-home .up { font-size: 11px; font-weight: 600; color: var(--green); }
+.ck-home .down { font-size: 11px; font-weight: 600; color: var(--red); }
+
+.ck-home .chart-wrap { display: flex; gap: 8px; }
+.ck-home .yticks { display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: var(--muted); padding-bottom: 22px; text-align: right; min-width: 36px; }
+.ck-home .chart-area { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.ck-home .chart-box { position: relative; height: 240px; }
+.ck-home .chart-box svg { width: 100%; height: 240px; display: block; }
+.ck-home .chart-tip { position: absolute; background: var(--panel); border: 1px solid var(--input); border-radius: 8px; box-shadow: var(--shadow); padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; transform: translate(-50%, -110%); white-space: nowrap; }
+.ck-home .xlabels { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); font-size: 11px; color: var(--muted); text-align: center; }
+.ck-home .stat-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr)); gap: 8px; border-top: 1px solid var(--line-2); padding-top: 10px; }
+.ck-home .stat-strip b { display: block; font-size: 15px; margin-top: 2px; }
+.ck-home .legend-i { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-3); }
+.ck-home .legend-i i { width: 10px; height: 3px; border-radius: 2px; }
+
+.ck-home .camp { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ck-home .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ck-home .mini-row { display: flex; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--line-2); border-radius: 10px; color: var(--text); }
+.ck-home .mini-row img { width: 44px; height: 54px; border-radius: 6px; object-fit: cover; flex: none; }
+.ck-home .heat { display: grid; grid-template-columns: 32px repeat(6, minmax(0, 1fr)); gap: 3px; align-items: center; }
+.ck-home .heat span.c { height: 20px; border-radius: 4px; }
+
+.ck-home .posts { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+.ck-home .post { flex: 0 0 236px; overflow: hidden; display: flex; flex-direction: column; }
+.ck-home .post img { width: 100%; height: 176px; object-fit: cover; object-position: top; display: block; border-top: 1px solid var(--line-2); }
+.ck-home .post-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 2px 6px 10px; text-align: center; }
+.ck-home .post-stats div { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.ck-home .post-stats .ic { width: 26px; height: 26px; }
+.ck-home .post-stats b { font-size: 12px; }
+
+.ck-home .btn:disabled { opacity: .5; cursor: not-allowed; border-color: var(--input) !important; color: var(--text-2) !important; }
+.ck-home .backend-wait { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px; border: 1px dashed var(--orange-ring); border-radius: 10px; background: color-mix(in srgb, var(--orange-bg) 45%, transparent); }
+.ck-home .backend-wait p { font-size: 12px; color: var(--text-3); line-height: 1.5; }
+.ck-home .backend-wait ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.ck-home .backend-wait li { font-size: 12px; color: var(--text-2); line-height: 1.45; }
+.ck-home .kpi-skel { display: block; height: 26px; width: 70%; border-radius: 6px; background: linear-gradient(90deg, var(--line-2), var(--hover), var(--line-2)); background-size: 200% 100%; animation: ck-skel 1.2s ease-in-out infinite; }
+@keyframes ck-skel { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .ck-home .kpi-skel { animation: none; } }
+/* Expanded campaigns scroll inside the card, so the row beside it keeps its height. */
+.ck-home .camp-list-open { max-height: 440px; overflow-y: auto; padding-right: 4px; }
+.ck-home .see-more { align-self: center; margin: 2px 0 6px; }
+/* Expanded top posts wrap onto rows instead of one long sideways strip. */
+.ck-home .posts.posts-all { flex-wrap: wrap; overflow-x: visible; }
+.ck-home .note { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 14px; border: 1px dashed var(--input); border-radius: 10px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.ck-home .post-noimg { height: 176px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); background: var(--hover); border-top: 1px solid var(--line-2); }
+.ck-home .report { background: #0b1533; border-color: #0b1533; color: #fff; }
+.ck-home .report .report-loader span { color: #c7d4ff; }
+.ck-home .report .btn:disabled { opacity: .55; cursor: not-allowed; }
+.ck-home .report p { font-size: 13px; line-height: 1.55; color: #dbe3ff; }
+
+@media (max-width: 640px) {
+  .ck-home { padding-left: 12px; padding-right: 12px; }
+}

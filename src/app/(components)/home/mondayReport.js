@@ -68,7 +68,8 @@ export function buildReport({ posts, campaigns, inbox, brandName, now = new Date
   const inboxTotals = s
     ? {
         conversations: s.conversations_7d ?? 0,
-        aiPercent: s.answered_by_ai ?? 0,
+        // null until the AI has answered something — shown as "–", never 0%.
+        aiPercent: s.answered_by_ai,
         waiting: inbox.needs ?? s.waiting ?? 0,
         customers: s.customers_7d,
       }
@@ -104,7 +105,7 @@ export function buildReport({ posts, campaigns, inbox, brandName, now = new Date
   if (inboxTotals) {
     parts.push(
       inboxTotals.conversations
-        ? `Smart Inbox: ${inboxTotals.conversations} conversations, ${inboxTotals.aiPercent}% answered by AI, ${inboxTotals.waiting} waiting for you.`
+        ? `Smart Inbox: ${inboxTotals.conversations} conversations${inboxTotals.aiPercent == null ? "" : `, ${inboxTotals.aiPercent}% answered by AI`}, ${inboxTotals.waiting} waiting for you.`
         : "Smart Inbox: no conversations yet.",
     );
   }
@@ -235,7 +236,7 @@ export async function downloadReportPdf(report) {
   const i = report.inbox;
   text(
     i
-      ? `Conversations: ${i.conversations}   ·   Answered by AI: ${i.aiPercent}%   ·   Waiting for you: ${i.waiting}` +
+      ? `Conversations: ${i.conversations}   ·   Answered by AI: ${i.aiPercent == null ? "–" : `${i.aiPercent}%`}   ·   Waiting for you: ${i.waiting}` +
           (i.customers !== undefined ? `   ·   New customers: ${i.customers}` : "")
       : "Smart Inbox data wasn't available.",
     { size: 10, color: [74, 79, 92] },

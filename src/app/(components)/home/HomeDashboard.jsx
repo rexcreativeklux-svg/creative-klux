@@ -935,16 +935,19 @@ export default function HomeDashboard() {
             title="Smart Inbox"
             sub={
               inbox.summary
-                ? `${inbox.summary.conversations_7d ?? 0} conversations this week · AI answered ${inbox.summary.answered_by_ai ?? 0}%`
+                ? `${inbox.summary.conversations_7d ?? 0} conversations this week` +
+                  // null until the AI has had something to answer — not 0%.
+                  (inbox.summary.answered_by_ai == null ? "" : ` · AI answered ${inbox.summary.answered_by_ai}%`)
                 : "DMs and comments from your connected accounts"
             }
           >
             {!inbox.loading && !inbox.error &&
               (inbox.needs ? (
-                <span className="pill pill-red">{inbox.needs} need you</span>
+                <Link href="/smart-inbox" className="pill pill-red">{inbox.needs} need you</Link>
               ) : (
                 <span className="pill pill-green">All clear</span>
               ))}
+            <Link href="/smart-inbox" style={{ fontSize: 12, fontWeight: 600 }}>Open inbox</Link>
           </CardHead>
           {inbox.loading ? (
             <KluxLoader label="Checking your inbox" />
@@ -959,7 +962,7 @@ export default function HomeDashboard() {
               const [cls, label] = STATUS_PILL[c.status] || ["", c.status];
               const [bg, fg] = tintFor(c.id);
               return (
-                <div key={c.id} className="mini-row">
+                <Link key={c.id} href={`/smart-inbox?c=${c.id}`} className="mini-row" style={{ color: "var(--text)" }}>
                   {c.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={c.avatar_url} alt="" className="avatar" style={{ width: 32, height: 32, objectFit: "cover" }} />
@@ -976,7 +979,7 @@ export default function HomeDashboard() {
                     <span className="ellipsis" style={{ fontSize: 12, color: "var(--text-3)" }}>{c.last?.text || ""}</span>
                   </span>
                   <span className={`pill ${cls}`}>{label}</span>
-                </div>
+                </Link>
               );
             })
           )}

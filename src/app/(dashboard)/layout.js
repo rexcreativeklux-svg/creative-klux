@@ -18,6 +18,9 @@ import '../globals.css';
 const NO_PADDING_ROUTES = [
     "/studio/ai-chat-page",
     "/studio/instant", // the AI composer page that used to be the home page
+    // Smart pages draw their own padded .ck-home background, like the home page.
+    "/smart-inbox",
+    "/smart-links",
     "/studio/select",
     // Copilot pages are full-bleed (own tinted background + padding).
     "/copilot",

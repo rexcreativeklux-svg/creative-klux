@@ -26,7 +26,10 @@ import {
   Image,
   MoreHorizontal,
   X,
+  Inbox,
+  Smartphone,
 } from "lucide-react";
+import useSmartCounts from "@/app/(components)/smart/useSmartCounts";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import LogoutModal from "./LogoutModal";
@@ -115,6 +118,8 @@ const Sidebar = ({
   const planName = packageToSubscription(activePackage).planName;
   // Connected accounts for the active brand — the Connections badge.
   const connectedCount = useConnectedCount();
+  // Smart Inbox "needs you" and SmartLinks totals for their badges.
+  const smartCounts = useSmartCounts();
   // Overlay mode: hovering the collapsed strip expands the sidebar.
   const [hovered, setHovered] = useState(false);
   const isDrawer = variant === "drawer";
@@ -309,6 +314,23 @@ const Sidebar = ({
       label: "Ads",
       href: "/ads-content",
       icon: Megaphone,
+    },
+    {
+      id: "smart-inbox",
+      group: "publish",
+      label: "Smart Inbox",
+      href: "/smart-inbox",
+      icon: Inbox,
+      // An alert: conversations waiting for a person. Hidden at 0.
+      badge: smartCounts.needs || null,
+    },
+    {
+      id: "smart-links",
+      group: "publish",
+      label: "SmartLinks",
+      href: "/smart-links",
+      icon: Smartphone,
+      count: smartCounts.links,
     },
     {
       id: "ad-intelligence",

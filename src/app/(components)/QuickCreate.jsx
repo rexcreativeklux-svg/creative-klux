@@ -12,7 +12,7 @@ import {
 
 const QUICK_ACTIONS = [
   {
-    href: "/",
+    href: "/studio/instant",
     icon: MessageSquare,
     label: "AI Studio",
     description: "Describe your creative and let AI build it",

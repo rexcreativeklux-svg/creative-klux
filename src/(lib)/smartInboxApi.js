@@ -154,6 +154,18 @@ export const deleteRule = (id, { brandId } = {}) =>
 export const updateInboxSettings = ({ brandId, aiOn }) =>
   call("put", "/settings", { brandId, body: { ai_on: !!aiOn } }, "Couldn't change the inbox AI setting");
 
-/** Connected inbox accounts (tokens are never returned). */
+/**
+ * Re-register the brand's connected Pages / accounts with the inbox and
+ * subscribe them to Meta's webhook (added by the backend on 2026-11-25; not in
+ * the original doc). Changes the Meta webhook setup — only on a user's click.
+ */
+export const syncInboxAccounts = ({ brandId } = {}) =>
+  call("post", "/accounts/sync", { brandId }, "Couldn't sync your connected accounts");
+
+/**
+ * Connected inbox accounts (tokens are never returned). Checked 2026-11-25:
+ * {accounts[{id, platform, external_id, name, subscribed, fields[], error,
+ * synced_at}]} — `subscribed` false + `error` = Meta refused the webhook.
+ */
 export const fetchInboxAccounts = ({ brandId } = {}) =>
   call("get", "/accounts", { brandId }, "Couldn't load connected inbox accounts");

@@ -249,7 +249,7 @@ export default function SmartLinks() {
         </>
       )}
 
-      {modal?.type === "new" && <NewLinkModal brandId={activeBrandId} brandName={activeBrand?.name} onClose={() => setModal(null)} />}
+      {modal?.type === "new" && <NewLinkModal brandId={activeBrandId} brandName={activeBrand?.name} sampleLink={data.links[0]} onClose={() => setModal(null)} />}
       {modal?.type === "qr" && <QrModal link={modal.link} onClose={() => setModal(null)} />}
       {modal?.type === "preview" && <PreviewModal link={modal.link} onClose={() => setModal(null)} />}
       {modal?.type === "delete" && (

@@ -2,202 +2,228 @@
 
 // app/(components)/skeletons/HomeSkeleton.jsx
 // ─────────────────────────────────────────────────────────────────────────────
-// Loading state for "/" — the AI interface that replaced the old overview
-// dashboard (greeting → prompt composer → template rail).
+// Loading state for "/" — the analytics dashboard (home/HomeDashboard.jsx).
+// A mirror of that page's layout, so the real cards drop into the same slots:
 //
-// This file is a mirror of (dashboard)/page.jsx and has to be edited alongside
-// it. In particular it repeats that page's ONE structural trick: the hero is
-// sized against --ck-rail-top so the rail underneath starts on the sidebar's
-// THEME hairline. Getting that wrong here is very visible — the rail's rules
-// would sit a few pixels off the sidebar's and then jump into place on load.
+//   platform tabs ············ Inbox AI · date range
+//   six number cards
+//   engagement chart ········· campaigns snapshot
+//   approvals · ad campaigns table · best time to post
+//   top performing posts (a sideways row of post cards)
+//   Smart Inbox · followers · Monday report (dark)
 //
-// It is CONTENT ONLY — no sidebar, no header. The real chrome is already mounted
-// by the time this shows, and drawing a second set would double it up.
-//
-// The backdrop is deliberately omitted. RotatingHeroBackdrop paints instantly
-// (it's CSS gradients, not a fetch), so the loading frame is the one moment the
-// page has no artwork to preview and a flat surface is the honest placeholder.
+// Edit it alongside HomeDashboard.jsx. CONTENT ONLY — no sidebar or header; the
+// real chrome is already mounted when this shows.
 
 import Skeleton from "./Skeleton";
 
-/** Card count in the rail — TEMPLATE_DISPLAY_LIMIT's first row, xl:grid-cols-4. */
-const RAIL_CARDS = 4;
+/** A white card, like the dashboard's .card. */
+function Card({ className = "", style, children }) {
+  return (
+    <div className={`rounded-xl border border-gray-200 bg-surface ${className}`} style={style}>
+      {children}
+    </div>
+  );
+}
 
-/** Tab-label widths, in px — "Klux templates • Recent designs". */
-const TAB_WIDTHS = [106, 92];
+/** Card heading: round icon, title and subtitle. */
+function Head({ wide = 140, action = true }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <Skeleton w={36} h={36} className="rounded-full" tone="soft" />
+      <div className="flex flex-1 flex-col gap-1.5 pt-1">
+        <Skeleton h={12} w={wide} />
+        <Skeleton h={10} w={wide + 60} tone="soft" />
+      </div>
+      {action && <Skeleton h={12} w={44} tone="soft" />}
+    </div>
+  );
+}
 
-/**
- * Starter-prompt chip widths, in px — five pills over two centred rows, sized
- * to the real copy in home/homeSuggestions.js so the row doesn't visibly
- * re-flow the moment the page loads.
- *
- * These track the FIRST FIVE of that file's Ai Chat pool, because that is the
- * tab the composer opens on. Derived from the chip's own box: ~6.4px per
- * character at 13px/500, plus 52px of chrome (the 16px dot, its 8px gap and
- * 14px of padding each side). The three widest must still total under the
- * composer's 768px with two 8px gaps, or the skeleton wraps 2/3 while the real
- * row wraps 3/2 — which is the exact re-flow this constant exists to prevent.
- * Re-derive when the Ai Chat copy changes.
- */
-const SUGGESTION_CHIP_WIDTHS = [256, 238, 250, 232, 238];
+/** Chart line drawn faintly, so the loading frame already reads as "a chart". */
+function ChartGhost() {
+  return (
+    <svg viewBox="0 0 700 220" preserveAspectRatio="none" className="h-[220px] w-full" aria-hidden="true">
+      {[1, 55, 110, 165].map((y) => (
+        <line key={y} x1="0" x2="700" y1={y} y2={y} stroke="currentColor" className="text-gray-100" />
+      ))}
+      <path
+        d="M0 170 C60 150 90 120 140 130 S230 175 290 150 S380 70 430 90 S520 160 580 120 S660 80 700 95 L700 220 L0 220 Z"
+        className="animate-pulse fill-gray-100 motion-reduce:animate-none"
+      />
+      <path
+        d="M0 170 C60 150 90 120 140 130 S230 175 290 150 S380 70 430 90 S520 160 580 120 S660 80 700 95"
+        fill="none"
+        strokeWidth="2"
+        stroke="currentColor"
+        className="animate-pulse text-gray-200 motion-reduce:animate-none"
+      />
+    </svg>
+  );
+}
 
 /**
  * @param {object} props
  * @param {boolean} [props.clearsHeader]  Reserve space for the app header.
- *   TRUE (default) when the real, FIXED header overlays this — i.e. every use
- *   inside the live layout. FALSE inside AppShellSkeleton, whose stand-in header
- *   sits in the flex flow and has therefore already taken its own 4rem.
+ *   TRUE (default) when the real, FIXED header overlays this — every use inside
+ *   the live layout. FALSE inside AppShellSkeleton, whose stand-in header sits
+ *   in the flex flow and has already taken its own height.
  */
 export default function HomeSkeleton({ clearsHeader = true }) {
   return (
-    <div className={`relative min-h-full bg-page ${clearsHeader ? "pt-header" : ""}`}>
-      {/* ── Hero ────────────────────────────────────────────────────────────
-          Same height expression as (dashboard)/page.jsx, so the rail below
-          starts on the sidebar's THEME hairline in both states. */}
-      <section className="relative flex min-h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav)-4rem)] flex-col justify-center pt-[clamp(1.5rem,7vh,5rem)] lg:min-h-[calc(100dvh-var(--spacing-header)-var(--ck-rail-top))]">
-        <div className="relative mx-auto w-full max-w-5xl px-5 pb-10 sm:px-8">
-          {/* Greeting — centred, two bars at the two DIFFERENT heights the real
-              heading uses: "Good <time>, <name>." at the h1's ~36px, then the
-              subtitle under it at roughly half that. Matching the heights is
-              the whole job here; a subtitle bar drawn at the h1's height leaves
-              the hero taller than the page it's standing in for. The top bar's
-              width tracks the greeting, which is a good deal longer than the
-              old "Hi <name>." it replaced. */}
-          <div className="mb-7 flex flex-col items-center gap-3">
-            <Skeleton className="h-8 w-56 rounded-lg sm:h-9 sm:w-64" />
-            <Skeleton className="h-4 w-72 rounded-md sm:h-5 sm:w-96" />
-          </div>
-
-          {/* Composer — ComposerShell's footprint, in the same three pieces: the
-              tab row, the milky tray, and the input inside it. Every number
-              below is copied from the real shell (see ComposerShell.jsx) — get
-              one wrong and the whole assembly visibly resizes on load. The
-              tray's 6px of padding is the easiest one to drop and the most
-              obvious when it's missing: it's the rim you see around the input. */}
-          <div className="mx-auto w-full max-w-3xl">
-            {/* Tab row. SITTING ON the tray — no gap — and FLUSH with its left
-                edge, so the first tab covers the tray's square top-left corner
-                and the two share one left side. The first is at full height
-                (it's the selected one) and the other two rest 3px lower,
-                exactly as the live strip draws it. */}
-            <div className="flex h-10 items-end gap-1 sm:h-11 sm:gap-1.5">
-              {/* `rounded` (the inline prop) rather than a class — it has to beat
-                  Skeleton's own default radius on the two BOTTOM corners, which
-                  must stay square where the tab meets the tray. */}
-              <Skeleton
-                rounded="15px 15px 0 0"
-                className="h-10 w-24 sm:h-11 sm:w-37"
-              />
-              {[0, 1].map((index) => (
-                <Skeleton
-                  key={index}
-                  tone="soft"
-                  rounded="15px 15px 0 0"
-                  // Height = the row minus the 3px an unselected tab rests at.
-                  className="h-9.25 w-24 sm:h-10.25 sm:w-37"
-                />
-              ))}
-            </div>
-
-            {/* TRAY_SHAPE + TRAY_PAD — top-left square, the other three rounded,
-                6px of rim around the input — and the shell's resting shadow, so
-                the assembly doesn't gain its lift the moment the real one swaps
-                in. The shadow costs no layout; the padding very much does. */}
-            <div className="rounded-[21px] rounded-tl-none bg-gray-100 p-1.5 shadow-[0_2px_8px_-3px_rgba(16,24,40,0.10),0_24px_64px_-20px_rgba(16,24,40,0.35)]">
-              <div className="rounded-[15px] bg-surface px-5 pb-3 pt-5">
-                {/* Prompt area (rows={3}) */}
-                <div className="flex flex-col gap-2.5">
-                  <Skeleton className="h-3.5 w-3/4" tone="soft" />
-                  <Skeleton className="h-3.5 w-1/2" tone="soft" />
-                </div>
-
-                {/* Toolbar: model ▾ │ attach … mic · send. The model menu leads,
-                    then the divider, then the three round controls — no
-                    Build/Plan and no hint line, which the home composer hides. */}
-                <div className="mt-8 flex items-center gap-2">
-                  {/* The menu trigger is text, not a circle — a pill roughly as
-                      wide as "Model ▾", so nothing shifts when the live toolbar
-                      replaces it. It stays that width whatever model is
-                      selected, because the trigger names the setting rather
-                      than reporting the value. */}
-                  <Skeleton className="h-7 w-20 rounded-lg" tone="soft" />
-                  <span className="h-5 w-px shrink-0 bg-gray-100" />
-                  <Skeleton w={40} h={40} className="rounded-full" tone="soft" />
-                  <div className="flex-1" />
-                  <Skeleton w={40} h={40} className="rounded-full" tone="soft" />
-                  <Skeleton w={40} h={40} className="rounded-full" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Starter prompts — the "Not sure where to start?" line and five
-              chips over two centred rows, matching HomePromptSuggestions. */}
-          <div className="mx-auto mt-6 max-w-4xl sm:mt-7">
-            <div className="flex justify-center">
-              <Skeleton className="h-2.5 w-48" tone="soft" />
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              {SUGGESTION_CHIP_WIDTHS.map((width, index) => (
-                <Skeleton
-                  key={index}
-                  tone="soft"
-                  className="h-9 rounded-full"
-                  w={width}
-                />
-              ))}
-            </div>
-          </div>
+    <div
+      className={`flex min-h-full flex-col gap-3.5 bg-page px-3 pb-7 sm:px-5 ${clearsHeader ? "pt-[calc(var(--spacing-header)+18px)]" : "pt-[18px]"}`}
+      role="status"
+      aria-label="Loading your dashboard"
+    >
+      {/* Platform tabs · Inbox AI · date range */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Skeleton h={34} w={430} className="max-w-full rounded-[9px]" />
+        <div className="ml-auto flex gap-2">
+          <Skeleton h={34} w={120} className="rounded-[9px]" tone="soft" />
+          <Skeleton h={34} w={170} className="rounded-[9px]" tone="soft" />
         </div>
-      </section>
+      </div>
 
-      {/* ── Template rail ───────────────────────────────────────────────────
-          Full-bleed, and its two hairlines (this border-t, and the grid's) are
-          the ones that continue the sidebar's across the window.
-          overflow-x-clip for the same reason the real rail has it: the grid
-          below carries `-mr-px`, and without the clip that hairline reaches the
-          dashboard's scroll frame and draws a horizontal scrollbar — here it
-          would appear for as long as the skeleton is up. */}
-      <section className="w-full overflow-x-clip border-t border-gray-200">
-        {/* Tab row — pinned to --ck-rail-row on desktop, as the real one is */}
-        <div className="flex items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:h-(--ck-rail-row) lg:py-0">
-          <div className="flex items-center gap-2.5">
-            {TAB_WIDTHS.map((width, index) => (
-              <div key={index} className="flex items-center gap-2.5">
-                {index > 0 && (
-                  <span
-                    aria-hidden="true"
-                    className="h-1 w-1 shrink-0 rounded-full bg-gray-300"
-                  />
-                )}
-                <Skeleton h={12} w={width} tone="soft" />
+      {/* Six number cards */}
+      <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr))]">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Card key={i} className="flex flex-col gap-2 p-3">
+            <div className="flex items-center justify-between">
+              <Skeleton w={30} h={30} className="rounded-full" tone="soft" />
+              <Skeleton w={56} h={14} tone="soft" />
+            </div>
+            <Skeleton h={11} w={110} tone="soft" />
+            <Skeleton h={24} w={80} />
+          </Card>
+        ))}
+      </div>
+
+      {/* Engagement chart · Campaigns snapshot */}
+      <div className="flex flex-wrap gap-3.5">
+        <Card className="flex min-w-0 flex-col gap-3 p-3.5" style={{ flex: "999 1 560px" }}>
+          <Head wide={170} />
+          <div className="flex items-center justify-between">
+            <Skeleton h={32} w={260} className="rounded-[9px]" tone="soft" />
+            <Skeleton h={10} w={130} tone="soft" />
+          </div>
+          <ChartGhost />
+          <div className="grid grid-cols-2 gap-2 border-t border-gray-100 pt-2.5 sm:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex flex-col gap-1.5">
+                <Skeleton h={10} w={80} tone="soft" />
+                <Skeleton h={14} w={50} />
               </div>
             ))}
           </div>
-          <Skeleton h={12} w={68} tone="soft" />
-        </div>
-
-        {/* Card grid — same columns and dividers as TemplateCard.jsx's
-            TemplateCardGrid, so the real cards drop straight into these slots. */}
-        <div className="-mr-px grid grid-cols-1 border-t border-gray-200 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: RAIL_CARDS }).map((_, index) => (
-            <div
-              key={index}
-              className="border-b border-r border-gray-200 px-4 py-5 sm:px-6"
-            >
-              <Skeleton className="aspect-16/10 w-full rounded-lg" tone="soft" />
-              <div className="mt-3.5 flex flex-col gap-2">
-                <Skeleton className="h-3.5 w-2/3" tone="soft" />
-                <Skeleton className="h-3 w-1/2" tone="soft" />
+        </Card>
+        <Card className="flex flex-col gap-2.5 p-3.5" style={{ flex: "1 1 340px" }}>
+          <Head wide={150} />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex flex-col gap-2 rounded-xl border border-gray-100 px-3 py-2.5">
+              <div className="flex items-center justify-between">
+                <Skeleton h={12} w={150} />
+                <Skeleton h={18} w={58} className="rounded-full" tone="soft" />
               </div>
-              <div className="mt-4 flex items-center justify-between">
-                <Skeleton className="h-3 w-20" tone="soft" />
-                <Skeleton w={32} h={32} className="rounded-lg" tone="soft" />
+              <div className="grid grid-cols-2 gap-3">
+                <Skeleton h={10} tone="soft" />
+                <Skeleton h={10} tone="soft" />
               </div>
             </div>
           ))}
+        </Card>
+      </div>
+
+      {/* Approvals · Ad campaigns table · Best time to post */}
+      <div className="flex flex-wrap gap-3.5">
+        <Card className="flex flex-col gap-2.5 p-3.5" style={{ flex: "1 1 360px" }}>
+          <Head wide={150} action={false} />
+          <Skeleton h={150} className="rounded-[10px]" tone="soft" />
+        </Card>
+        <Card className="flex min-w-0 flex-col gap-2 py-3.5" style={{ flex: "2 1 540px" }}>
+          <div className="px-3.5"><Head wide={120} /></div>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 border-b border-gray-100 px-3.5 py-2 last:border-0">
+              <Skeleton w={28} h={28} className="rounded-md" tone="soft" />
+              <Skeleton h={11} className="flex-1" />
+              <Skeleton h={11} w={50} tone="soft" />
+              <Skeleton h={18} w={64} className="rounded-full" tone="soft" />
+              <Skeleton h={11} w={40} tone="soft" />
+            </div>
+          ))}
+        </Card>
+        <Card className="flex flex-col gap-2.5 p-3.5" style={{ flex: "1 1 300px" }}>
+          <Head wide={130} action={false} />
+          <div className="grid grid-cols-[32px_repeat(6,minmax(0,1fr))] gap-[3px]">
+            {Array.from({ length: 49 }).map((_, i) =>
+              i % 7 === 0 ? <Skeleton key={i} h={10} w={24} tone="soft" /> : <Skeleton key={i} h={20} className="rounded" tone={i % 3 ? "soft" : undefined} />,
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Top performing posts */}
+      <Card className="flex flex-col gap-3 p-3.5">
+        <Head wide={160} />
+        <div className="flex gap-3 overflow-hidden">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex w-[236px] shrink-0 flex-col overflow-hidden rounded-xl border border-gray-200">
+              <div className="flex flex-col gap-1.5 px-3 py-2.5">
+                <Skeleton h={10} w={90} tone="soft" />
+                <Skeleton h={12} w={180} />
+              </div>
+              <div className="grid grid-cols-4 gap-1 px-2 pb-2.5">
+                {Array.from({ length: 4 }).map((__, j) => (
+                  <div key={j} className="flex flex-col items-center gap-1">
+                    <Skeleton w={26} h={26} className="rounded-full" tone="soft" />
+                    <Skeleton w={30} h={10} tone="soft" />
+                  </div>
+                ))}
+              </div>
+              <Skeleton h={176} rounded="0" tone="soft" />
+            </div>
+          ))}
         </div>
-      </section>
+      </Card>
+
+      {/* Smart Inbox · Followers · Monday report */}
+      <div className="flex flex-wrap gap-3.5">
+        <Card className="flex flex-col gap-2.5 p-3.5" style={{ flex: "1 1 340px" }}>
+          <Head wide={100} />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-2.5 rounded-[10px] border border-gray-100 p-2">
+              <Skeleton w={32} h={32} className="rounded-full" tone="soft" />
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Skeleton h={11} w={150} />
+                <Skeleton h={10} tone="soft" />
+              </div>
+              <Skeleton h={18} w={64} className="rounded-full" tone="soft" />
+            </div>
+          ))}
+        </Card>
+        <Card className="flex flex-col gap-3 p-3.5" style={{ flex: "1 1 300px" }}>
+          <Head wide={150} action={false} />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-2.5">
+              <Skeleton w={18} h={18} className="rounded" tone="soft" />
+              <Skeleton h={10} w={70} tone="soft" />
+              <Skeleton h={6} className="flex-1 rounded-full" tone="soft" />
+              <Skeleton h={10} w={40} tone="soft" />
+            </div>
+          ))}
+        </Card>
+        {/* Monday report is the page's one dark card, so its placeholder is dark too. */}
+        <div className="flex flex-col gap-3 rounded-xl bg-[#0b1533] p-3.5" style={{ flex: "1 1 300px" }}>
+          <div className="flex items-center justify-between">
+            <span className="h-3.5 w-28 animate-pulse rounded bg-white/20 motion-reduce:animate-none" />
+            <span className="h-5 w-32 animate-pulse rounded-full bg-white/10 motion-reduce:animate-none" />
+          </div>
+          {[100, 92, 96, 60].map((w, i) => (
+            <span key={i} className="h-3 animate-pulse rounded bg-white/15 motion-reduce:animate-none" style={{ width: `${w}%` }} />
+          ))}
+          <span className="mt-auto h-8 w-32 animate-pulse rounded-[9px] bg-white/80 motion-reduce:animate-none" />
+        </div>
+      </div>
     </div>
   );
 }

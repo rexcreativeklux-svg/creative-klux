@@ -14,7 +14,38 @@ import { Modal, ch, fmtNum, notifySmartChanged } from "./shared";
 import { TEMPLATES, shortUrl, slugError, slugify } from "./linkBlocks";
 import { PhonePreview } from "./PhonePreview";
 
-const PUBLIC_PREFIX = "api.creativeklux.com/api/sl/";
+/**
+ * The public address minus the link's own part, e.g. "api.creativeklux.com/api/sl/"
+ * — read from an address the backend sent, so it follows SMARTLINK_PUBLIC_BASE
+ * (and becomes "creativeklux.link/" when the backend switches to it).
+ */
+export function prefixFrom(url, slug) {
+  const s = String(url || "").replace(/^https?:\/\//, "");
+  if (!s) return "";
+  return slug && s.endsWith(slug) ? s.slice(0, -slug.length) : s.replace(/[^/]*$/, "");
+}
+
+/**
+ * The prefix to show in front of an address box. Uses `knownUrl` (+ its slug)
+ * when there is one; otherwise asks the backend's address check, which answers
+ * with the full public url for a sample address.
+ */
+export function usePublicPrefix({ brandId, knownUrl, knownSlug } = {}) {
+  const known = knownUrl ? prefixFrom(knownUrl, knownSlug) : "";
+  const [asked, setAsked] = useState("");
+  useEffect(() => {
+    if (known || !brandId) return;
+    let alive = true;
+    const sample = "your-name";
+    checkSlug(sample, undefined, { brandId })
+      .then((r) => alive && setAsked(prefixFrom(r.url, r.slug || sample)))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [known, brandId]);
+  return known || asked;
+}
 
 export const copyText = (text, msg = "Copied") => {
   const done = () => toast.success(msg);
@@ -37,7 +68,15 @@ export function useSlugCheck(slug, { ignore, brandId, enabled = true } = {}) {
     let alive = true;
     const t = setTimeout(() => {
       checkSlug(slug, ignore, { brandId })
-        .then((r) => alive && setRes(r.available ? { state: "ok", msg: `${PUBLIC_PREFIX}${slug} is free` } : { state: "bad", msg: r.error || "Another SmartLink already uses this address." }))
+        .then(
+          (r) =>
+            alive &&
+            setRes(
+              r.available
+                ? { state: "ok", msg: `${String(r.url || slug).replace(/^https?:\/\//, "")} is free`, url: r.url }
+                : { state: "bad", msg: r.error || "Another SmartLink already uses this address." },
+            ),
+        )
         .catch((e) => alive && setRes({ state: "bad", msg: e.message }));
     }, 350);
     return () => {
@@ -48,7 +87,8 @@ export function useSlugCheck(slug, { ignore, brandId, enabled = true } = {}) {
   return res;
 }
 
-export function NewLinkModal({ brandId, brandName, onClose }) {
+export function NewLinkModal({ brandId, brandName, sampleLink, onClose }) {
+  const prefix = usePublicPrefix({ brandId, knownUrl: sampleLink?.url, knownSlug: sampleLink?.slug });
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [tpl, setTpl] = useState("bookings");
@@ -131,7 +171,7 @@ export function NewLinkModal({ brandId, brandName, onClose }) {
       <label className="field">
         Link address
         <span className={`prefix ${check.state === "bad" ? "bad" : ""}`}>
-          <span>{PUBLIC_PREFIX}</span>
+          {prefix && <span>{prefix}</span>}
           <input
             value={slug}
             placeholder="your-name"

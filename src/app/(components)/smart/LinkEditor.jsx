@@ -45,13 +45,12 @@ import {
 import { CH, Confirm, Kpi, Menu, Modal, amount, fmtNum, isHex, notifySmartChanged } from "./shared";
 import { BT, LINK_TYPES, SOCIAL_KEYS, THEMES, blockMeta, blockTitle, copyBlock, newBlock, shortUrl, urlHint } from "./linkBlocks";
 import { PhonePreview } from "./PhonePreview";
-import { PreviewModal, QrModal, Sources, VisitsChart, copyText, useSlugCheck } from "./LinkParts";
+import { PreviewModal, QrModal, Sources, VisitsChart, copyText, prefixFrom, useSlugCheck } from "./LinkParts";
 import "@/app/(components)/home/homeDashboard.css";
 import "./smart.css";
 
 const EDITABLE = ["title", "slug", "design", "settings", "blocks"];
 const pickEditable = (l) => (l ? Object.fromEntries(EDITABLE.map((k) => [k, l[k]])) : null);
-const PUBLIC_PREFIX = "api.creativeklux.com/api/sl/";
 
 export default function LinkEditor({ id }) {
   const router = useRouter();
@@ -399,7 +398,8 @@ export default function LinkEditor({ id }) {
             <label className="field">
               Link address
               <span className={`prefix ${slugBad ? "bad" : ""}`}>
-                <span>{PUBLIC_PREFIX}</span>
+                {/* From this link's own public address, as the backend sent it. */}
+                <span>{prefixFrom(base.url, base.slug)}</span>
                 <input value={l.slug} onChange={(e) => upd((x) => ({ ...x, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))} />
               </span>
               <span className={slugBad ? "err" : l.slug !== base.slug && slugCheck.state === "ok" ? "ok" : "hint"}>

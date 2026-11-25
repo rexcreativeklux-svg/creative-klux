@@ -44,7 +44,6 @@ import {
   discardDrafts,
   draftReplies,
   fetchConversation,
-  fetchInboxAccounts,
   fetchInboxConversations,
   fetchInboxSummary,
   syncInboxAccounts,
@@ -412,6 +411,8 @@ export default function SmartInbox() {
           <p className="sub">Every DM and comment from every platform. AI answers, you step in when money or a complaint is on the table.</p>
         </div>
         <div className="row wrap">
+          <a className="btn" href="/integrations">Connections</a>
+          <SyncButton brand={brand} onSynced={() => loadList({ quiet: true })} />
           <button className="btn" onClick={() => setModal("replies")}><FileText size={14} />Saved replies</button>
           <button className="btn" onClick={() => setModal("rules")}><Sparkles size={14} />AI rules</button>
           <button className={`btn ${aiOn ? "btn-autopilot" : ""}`} onClick={toggleAi} disabled={!summary || summary.error}>
@@ -427,8 +428,6 @@ export default function SmartInbox() {
         Week-on-week changes and trend lines need /smart-inbox/summary to also send each of the last 7 days.
         {summary?.error && <span className="err"> · {summary.error}</span>}
       </div>
-
-      <AccountsPanel brand={brand} />
 
       <div className="card inbox">
         {/* ── Conversation list ── */}
@@ -616,49 +615,16 @@ export default function SmartInbox() {
 
 const fmt = (n) => (n === null || n === undefined ? "–" : Number(n).toLocaleString("en-US"));
 
-// ── Connected accounts ──────────────────────────────────────────────────────
-// Which Pages / accounts feed the inbox, as GET /smart-inbox/accounts reports
-// them — including Meta's own error when it refused to send their messages.
+// ── Sync again ──────────────────────────────────────────────────────────────
+// Re-subscribes the brand's Pages / accounts to Meta's updates, then reloads.
 
-/** Meta's permission names → what the person has to do about it. */
-const explainError = (err) => {
-  const m = String(err || "").match(/pages_[a-z_]+|instagram_[a-z_]+|whatsapp_[a-z_]+/);
-  return m
-    ? `Facebook needs the "${m[0]}" permission before it sends this account's messages. Reconnect the account on Connections and allow every permission it asks for.`
-    : null;
-};
-
-function AccountsPanel({ brand }) {
-  const [state, setState] = useState({ loading: true, accounts: [] });
+function SyncButton({ brand, onSynced }) {
   const [syncing, setSyncing] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetchInboxAccounts(brand);
-      setState({ loading: false, accounts: res.accounts || [] });
-    } catch (err) {
-      setState({ loading: false, accounts: [], error: err.message });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brand.brandId]);
-
-  useEffect(() => {
-    if (!brand.brandId) return;
-    let alive = true;
-    fetchInboxAccounts(brand)
-      .then((res) => alive && setState({ loading: false, accounts: res.accounts || [] }))
-      .catch((err) => alive && setState({ loading: false, accounts: [], error: err.message }));
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brand.brandId]);
-
   const sync = async () => {
     setSyncing(true);
     try {
       await syncInboxAccounts(brand);
-      await load();
+      onSynced?.();
       toast.success("Accounts synced");
     } catch (err) {
       toast.error(err.message);
@@ -666,55 +632,10 @@ function AccountsPanel({ brand }) {
       setSyncing(false);
     }
   };
-
-  const { accounts } = state;
-  const live = accounts.filter((a) => a.subscribed && !a.error).length;
-
   return (
-    <section className="card card-pad stack" style={{ gap: 10 }} aria-label="Connected accounts">
-      <div className="card-head">
-        <div className="grow">
-          <h2 className="h2">Connected accounts</h2>
-          <p className="sub">
-            {state.loading
-              ? "Checking which accounts send messages here…"
-              : accounts.length
-                ? `${live} of ${accounts.length} receiving messages`
-                : "Messages arrive once a Facebook Page, Instagram or WhatsApp account is connected."}
-          </p>
-        </div>
-        <div className="row wrap">
-          <a className="btn btn-sm" href="/integrations">Connections</a>
-          <button className="btn btn-sm" onClick={sync} disabled={syncing || state.loading}>
-            <RefreshCw size={13} />{syncing ? "Syncing…" : "Sync again"}
-          </button>
-        </div>
-      </div>
-      {state.error && <span className="err">{state.error}</span>}
-      {accounts.map((a) => {
-        const ok = a.subscribed && !a.error;
-        const help = explainError(a.error);
-        return (
-          <div key={a.id} className="rule" style={{ alignItems: "center" }}>
-            <NetBadge platform={a.platform} style={{ width: 28, height: 28, borderRadius: 8, fontSize: 11 }} />
-            <div className="grow stack" style={{ gap: 3 }}>
-              <span className="row" style={{ gap: 8 }}>
-                <strong style={{ fontSize: 13 }}>{a.name || ch(a.platform).name}</strong>
-                <span className="tiny">{ch(a.platform).name}</span>
-                {ok ? <span className="pill pill-green">Receiving messages</span> : <span className="pill pill-red">Not receiving messages</span>}
-              </span>
-              {a.error && (
-                <span className="muted" style={{ lineHeight: 1.5 }}>
-                  {help || "Meta refused to send this account's messages."} <span className="tiny">Meta said: {a.error}</span>
-                </span>
-              )}
-              {!a.error && !a.subscribed && <span className="muted">Not subscribed to Meta&apos;s updates yet. Try “Sync again”.</span>}
-            </div>
-            {a.synced_at && <span className="tiny" style={{ flex: "none" }}>Synced {agoLong(a.synced_at)}</span>}
-          </div>
-        );
-      })}
-    </section>
+    <button className="btn" onClick={sync} disabled={syncing || !brand.brandId}>
+      <RefreshCw size={14} />{syncing ? "Syncing…" : "Sync again"}
+    </button>
   );
 }
 

@@ -130,7 +130,7 @@ export default function SmartLinks() {
       <div className="page-head">
         <div className="grow">
           <h1 className="h1">SmartLinks</h1>
-          <p className="sub">One link for every bio, flyer and QR code. It sends people to book, buy or message you, and shows which button brings customers.</p>
+          <p className="sub">One link for every bio, flyer and QR code. It sends people to book,<br />buy or message you, and shows which button brings customers.</p>
         </div>
         {!noneAtAll && (
           <div className="row wrap"><button className="btn btn-primary" onClick={() => setModal({ type: "new" })}><Plus size={14} />New SmartLink</button></div>
@@ -175,15 +175,8 @@ export default function SmartLinks() {
           </div>
 
           <div className="link-grid">
-            <button className="card link-card link-new" onClick={() => setModal({ type: "new" })}>
-              <span className="big-ic" style={{ width: 52, height: 52, borderRadius: 14, background: "var(--brand-tint)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                <Plus size={24} />
-              </span>
-              <strong style={{ fontSize: 14 }}>New SmartLink</strong>
-              <span className="muted" style={{ maxWidth: 200 }}>Start from a template or a blank page</span>
-            </button>
             {!data.links.length ? (
-              <div className="card empty-state" style={{ gridColumn: "span 2" }}>
+              <div className="card empty-state" style={{ gridColumn: "1 / -1" }}>
                 <span className="big-ic"><Search size={24} /></span>
                 <strong>No SmartLinks match</strong>
                 <span className="muted">Try another word or clear the filter.</span>

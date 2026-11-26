@@ -258,6 +258,18 @@ function CampaignsTable({ campaigns, loading, keys, onOpen, onToggle, onDelete, 
                 >
                   <Pause className="h-3.5 w-3.5" /> Pause {picked.filter(isLive).length} running
                 </button>
+                {picked.some((c) => !isLive(c)) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkOpen(false);
+                      onToggle(picked.filter((c) => !isLive(c)), "ACTIVE", () => setSelected([]));
+                    }}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100"
+                  >
+                    <Play className="h-3.5 w-3.5" /> Activate {picked.filter((c) => !isLive(c)).length} not running
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -353,10 +365,24 @@ function CampaignsTable({ campaigns, loading, keys, onOpen, onToggle, onDelete, 
                         type="button"
                         onClick={() => onToggle([c], isLive(c) ? "PAUSED" : "ACTIVE")}
                         disabled={busyId === c.id}
-                        title={isLive(c) ? "Pause" : "Resume — starts spending"}
-                        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40"
+                        title={isLive(c) ? "Pause — stops spending" : "Activate — starts spending its budget"}
+                        className={`flex h-7 min-w-[86px] cursor-pointer items-center justify-center gap-1 rounded-md border px-2 text-xs font-medium disabled:opacity-40 ${
+                          isLive(c)
+                            ? "border-amber-200 text-amber-700 hover:bg-amber-50"
+                            : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                        }`}
                       >
-                        {busyId === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isLive(c) ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                        {busyId === c.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : isLive(c) ? (
+                          <>
+                            <Pause className="h-3.5 w-3.5" /> Pause
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-3.5 w-3.5" /> Activate
+                          </>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -520,10 +546,16 @@ export default function AdsInsightsPage({ platform }) {
       return;
     }
     setWorking(true);
+    let ok = 0;
     for (const c of list) {
       setBusyId(c.id);
       try {
-        await setAdCampaignStatus({ platform: c.platform, campaign_id: c.post_id, status });
+        const res = await setAdCampaignStatus({ platform: c.platform, campaign_id: c.post_id, status });
+        // The row takes the status the backend confirms. No list reload here:
+        // the network reports the old status for a few seconds after the
+        // change, and a reload would put it back on screen.
+        setCampaigns((cur) => cur.map((x) => (x.id === c.id ? { ...x, status: res?.status || status } : x)));
+        ok++;
       } catch (err) {
         toast.error(`“${c.project_title}”: ${err.message}`);
       }
@@ -532,8 +564,7 @@ export default function AdsInsightsPage({ platform }) {
     setWorking(false);
     setPendingResume(null);
     done?.();
-    toast.success(status === "ACTIVE" ? "Resumed" : "Paused");
-    load({ fresh: true });
+    if (ok) toast.success(`${ok === 1 ? "Campaign" : `${ok} campaigns`} ${status === "ACTIVE" ? "activated" : "paused"}`);
   };
 
   const removeCampaigns = async () => {
@@ -820,9 +851,9 @@ export default function AdsInsightsPage({ platform }) {
 
       <ConfirmDialog
         open={!!pendingResume}
-        title={`Resume ${pendingResume?.list.length === 1 ? "this campaign" : `${pendingResume?.list.length} campaigns`}?`}
+        title={`Activate ${pendingResume?.list.length === 1 ? "this campaign" : `${pendingResume?.list.length} campaigns`}?`}
         message={`${pendingResume?.list.map((c) => `“${c.project_title}”`).join(", ")} will go live on ${network.label} and start spending its budget.`}
-        confirmLabel={working ? "Resuming…" : "Resume"}
+        confirmLabel={working ? "Activating…" : "Activate"}
         busy={working}
         onConfirm={() => toggle(pendingResume.list, "ACTIVE", pendingResume.done)}
         onCancel={() => setPendingResume(null)}

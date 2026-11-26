@@ -51,6 +51,7 @@ import {
 import { metricLabel } from "@/(lib)/postMetrics";
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import ContentDetailsModal from "@/app/(components)/content/ContentDetailsModal";
+import useOpenFromUrl from "./useOpenFromUrl";
 import CreateAdComposer from "@/app/(components)/composer/CreateAdComposer";
 import { AD_NETWORKS } from "@/app/(components)/content/socialPlatformScope";
 import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
@@ -555,6 +556,18 @@ export default function AdsInsightsPage({ platform }) {
     setWorking(false);
     load({ fresh: true });
   };
+
+  // ?campaign=<row id> — Home's ad campaigns table links straight to one.
+  useOpenFromUrl(
+    "campaign",
+    campaigns,
+    loadedKey === key,
+    (c) => {
+      setOpenCampaign(c);
+      setPanelOpen(true);
+    },
+    "That campaign isn't on this ad account any more.",
+  );
 
   if (!network) return null;
   if (loadedKey !== key && !campaigns.length) return <PublishingSkeleton />;

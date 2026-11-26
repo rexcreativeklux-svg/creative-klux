@@ -104,7 +104,9 @@ const copilotPerson = (c) => ({ id: c.id, name: c.name, avatar_url: /^https?:\/\
 
 /**
  * Which copilot replies to Smart Inbox. One per brand; with nobody in charge
- * every new message waits for a person, even with AI replies on.
+ * every new message waits for a person. This is the inbox's only AI control:
+ * a copilot left in charge with ai_on off (the old "paused") shows as not
+ * replying, and picking it again turns it back on.
  */
 function CopilotPicker({ settings, busy, onPick }) {
   if (!settings || settings.error) {
@@ -116,21 +118,28 @@ function CopilotPicker({ settings, busy, onPick }) {
     );
   }
   const current = settings.copilot;
+  const replying = !!current && settings.ai_on !== false;
   const copilots = settings.copilots || [];
   return (
     <Menu
       style={{ minWidth: 260 }}
       button={({ open, toggle }) => (
         <button
-          className={`btn ${current ? "" : "btn-warn"}`}
+          className={`btn ${replying ? "" : "btn-warn"}`}
           onClick={toggle}
           disabled={busy}
           aria-haspopup="menu"
           aria-expanded={open}
-          title={current ? `${current.name} replies to Smart Inbox` : "No copilot is in charge, so every new message waits for you"}
+          title={
+            replying
+              ? `${current.name} replies to Smart Inbox`
+              : current
+                ? `${current.name} isn't replying, so every new message waits for you. Pick ${current.name} to turn replies on.`
+                : "No copilot is in charge, so every new message waits for you"
+          }
         >
           {current ? <Avatar person={copilotPerson(current)} style={{ width: 20, height: 20, fontSize: 8 }} /> : <Bot size={14} />}
-          {busy ? "Switching…" : current ? `${current.name} replies` : "No copilot in charge"}
+          {busy ? "Switching…" : replying ? `${current.name} replies` : current ? `${current.name} isn't replying` : "No copilot in charge"}
           <ChevronDown size={14} />
         </button>
       )}
@@ -138,7 +147,7 @@ function CopilotPicker({ settings, busy, onPick }) {
       <div className="menu-head">Replies to Smart Inbox</div>
       {copilots.length ? (
         copilots.map((c) => (
-          <button key={c.id} role="menuitemradio" aria-checked={c.id === current?.id} className={c.id === current?.id ? "on" : ""} onClick={() => c.id !== current?.id && onPick(c.id)}>
+          <button key={c.id} role="menuitemradio" aria-checked={c.id === current?.id} className={c.id === current?.id ? "on" : ""} onClick={() => !(replying && c.id === current?.id) && onPick(c.id)}>
             <Avatar person={copilotPerson(c)} style={{ width: 24, height: 24, fontSize: 9 }} />
             <span className="grow ellipsis">{c.name}</span>
             {c.id === current?.id && <Check size={14} />}
@@ -357,13 +366,16 @@ export default function SmartInbox() {
   };
 
   // ── Actions ──
-  /** Put a copilot in charge of replying here (null = nobody). */
+  /**
+   * Put a copilot in charge of replying here (null = nobody). There's no
+   * separate AI on/off switch any more, so picking a copilot also turns AI
+   * replies on; Nobody leaves every message for a person.
+   */
   const pickCopilot = async (copilotId) => {
     setBusy("copilot");
     try {
-      const res = await updateInboxSettings({ ...brand, copilotId });
+      const res = await updateInboxSettings({ ...brand, copilotId, ...(copilotId != null ? { aiOn: true } : {}) });
       setSettings(res || {});
-      if (res?.ai_on !== undefined) setSummary((s) => (s ? { ...s, ai_on: res.ai_on } : s));
       toast.success(
         res?.message ||
           (res?.copilot ? `${res.copilot.name} now replies to Smart Inbox.` : "No copilot is in charge. Every new message will wait for you."),
@@ -372,19 +384,6 @@ export default function SmartInbox() {
       toast.error(err.message);
     } finally {
       setBusy("");
-    }
-  };
-
-  const toggleAi = async () => {
-    const on = !summary?.ai_on;
-    setSummary((s) => ({ ...s, ai_on: on }));
-    try {
-      const res = await updateInboxSettings({ ...brand, aiOn: on });
-      setSummary((s) => ({ ...s, ai_on: res?.ai_on ?? on }));
-      toast.success(on ? "AI replies are on" : "AI replies paused. Every message waits for you.");
-    } catch (err) {
-      setSummary((s) => ({ ...s, ai_on: !on }));
-      toast.error(err.message);
     }
   };
 
@@ -490,8 +489,6 @@ export default function SmartInbox() {
     },
   ].map((k) => ({ ...k, loading: !summary }));
 
-  const aiOn = summary?.ai_on;
-
   return (
     <div className="ck-home ib-page">
       <div className="page-head">
@@ -503,10 +500,6 @@ export default function SmartInbox() {
           <a className="btn" href="/integrations">Connections</a>
           <SyncButton brand={brand} onSynced={() => loadList({ quiet: true })} />
           <CopilotPicker settings={settings} busy={busy === "copilot"} onPick={pickCopilot} />
-          <button className={`btn ${aiOn ? "btn-autopilot" : ""}`} onClick={toggleAi} disabled={!summary || summary.error}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: aiOn ? "#12a05c" : "#9aa0ad" }} />
-            {aiOn ? "AI replies on" : "AI replies paused"}
-          </button>
         </div>
       </div>
 

@@ -68,6 +68,7 @@ import { formatMetric, metricKeysOf, metricLabel, numeric, postMetrics } from "@
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import CreatePostComposer from "@/app/(components)/composer/CreatePostComposer";
 import PostInsightsPanel from "@/app/(components)/content/PostInsightsPanel";
+import useOpenFromUrl from "./useOpenFromUrl";
 import { SOCIAL_NETWORKS } from "@/app/(components)/content/socialPlatformScope";
 import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 import {
@@ -488,6 +489,8 @@ export default function NetworkInsightsPage({ platform }) {
     setOpenPost(p);
     setPanelOpen(true);
   };
+  // ?post=<row id> — Home's top posts link straight to one post.
+  useOpenFromUrl("post", posts, loadedKey === key, openPostPanel, "That post isn't in this account's latest posts any more.");
 
   if (!network) return null;
   if (loadedKey !== key && !posts.length) return <PublishingSkeleton />;

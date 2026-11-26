@@ -5,7 +5,7 @@
 // Loading state for "/" — the analytics dashboard (home/HomeDashboard.jsx).
 // A mirror of that page's layout, so the real cards drop into the same slots:
 //
-//   platform tabs ············ Inbox AI · date range
+//   platform tabs ············ date range
 //   six number cards
 //   engagement chart ········· followers by platform
 //   approvals · ad campaigns table · best time to post
@@ -76,11 +76,10 @@ export default function HomeSkeleton({ clearsHeader = true }) {
       role="status"
       aria-label="Loading your dashboard"
     >
-      {/* Platform tabs · Inbox AI · date range */}
+      {/* Platform tabs · date range */}
       <div className="flex flex-wrap items-center gap-2">
         <Skeleton h={34} w={430} className="max-w-full rounded-[9px]" />
         <div className="ml-auto flex gap-2">
-          <Skeleton h={34} w={120} className="rounded-[9px]" tone="soft" />
           <Skeleton h={34} w={170} className="rounded-[9px]" tone="soft" />
         </div>
       </div>

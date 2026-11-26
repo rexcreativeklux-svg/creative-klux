@@ -8,20 +8,27 @@
 // placeholder figures.
 //
 //   Live, from the brand's own data:
-//     number cards        posts' interactions / views / engagement (this week
-//                         vs last), ad conversions and cost per conversion
-//     engagement chart    likes / comments / shares / saves per day, by the day
-//                         each post went out, this week against last
-//     campaigns snapshot  creatives/campaigns + campaign-metrics (7 days)
-//     ad campaigns table  same, every campaign loaded
+//     number cards        posts' interactions / views / engagement (the picked
+//                         range vs the one before), ad conversions and cost
+//                         per conversion
+//     engagement chart    likes / comments / shares / views per day (per week
+//                         past a month), by when each post went out, against
+//                         the period before
+//
+//   The tab strip shows "All" and the connected social networks — five, the
+//   rest under "More". The date picker sets the range (7 / 14 / 30 / 90 days).
+//     ad campaigns table  creatives/campaigns + campaign-metrics (picked range)
 //     best time to post   the brand's own posts over 90 days (bestTimes)
 //     top posts           creatives/posts + post-metrics
 //     Smart Inbox         smart-inbox/summary + conversations; the "Inbox AI"
 //                         switch is smart-inbox/settings (ai_on)
+//     follower growth     dashboard/followers (Facebook Pages + Instagram),
+//     + by platform       saved once a day; growth needs 7 recorded days
+//     waiting for         autopilot/posts (drafting + pending), approve one,
+//     approval            approve all, or reject
 //     Monday report       built from all of the above, downloadable as PDF
 //
 //   Waiting on backend:
-//     follower growth, followers by platform, posts waiting for approval, and
 //     the AI action on each ad.
 //
 // The metric maths reuses insights/networkInsights.js — the same helpers the
@@ -33,6 +40,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   Calendar,
+  ChevronDown,
   Clock,
   Download,
   Eye,
@@ -47,6 +55,7 @@ import {
   Users,
 } from "lucide-react";
 import KluxLoader from "@/app/(components)/KluxLoader";
+import { Menu } from "@/app/(components)/smart/shared";
 import { useAuth } from "@/context/AuthContext";
 import {
   HOUR_ROWS,
@@ -108,16 +117,32 @@ const NETWORK = {
 };
 const networkName = (p) => NETWORK[p]?.[0] || p;
 
-/** The tab strip: which social network each tab shows, and which ad network goes with it. */
-const PLATFORM_TABS = [
+/** The ad network that goes with each social network's tab. */
+const ADS_FOR = { facebook: "meta_ads", instagram: "meta_ads", tiktok: "tiktok_ads", pinterest: "pinterest_ads" };
+/** Network tabs shown beside "All"; any further connected networks go under "More". */
+const VISIBLE_TABS = 5;
+/** The tab strip: "All", then one tab per connected social network. */
+const platformTabs = (networks) => [
   { id: "All" },
-  { id: "Facebook", social: "facebook", ads: "meta_ads" },
-  { id: "Instagram", social: "instagram", ads: "meta_ads" },
-  { id: "X", social: "twitter" },
-  { id: "TikTok", social: "tiktok", ads: "tiktok_ads" },
-  { id: "LinkedIn", social: "linkedin" },
-  { id: "YouTube", social: "youtube" },
+  ...networks.map((social) => ({ id: networkName(social), social, ads: ADS_FOR[social] })),
 ];
+
+/** The date picker's choices. Every number on the page covers the picked range. */
+const RANGES = [7, 14, 30, 90].map((days) => ({ days, name: `Last ${days} days`, prev: `Previous ${days} days` }));
+
+/**
+ * The chart's points across a period: one per day up to a month, one per week
+ * beyond (the last week may be short). `offset` shifts them back, for the
+ * period before.
+ */
+function bucketsOf(period, offset = 0) {
+  const size = period.days > 31 ? 7 : 1;
+  return Array.from({ length: Math.ceil(period.days / size) }, (_, i) => {
+    const start = period.from - offset + i * size * DAY;
+    return { start, end: Math.min(period.to - offset, start + size * DAY), size };
+  });
+}
+const inBucket = (list, b) => list.filter((p) => +new Date(p.published_at) >= b.start && +new Date(p.published_at) < b.end);
 
 const AVATAR_TINTS = [
   ["#fde3cf", "#8a4b00"], ["#dbe4ff", "#1447e6"], ["#e6f6ee", "#0a7a48"],
@@ -134,7 +159,7 @@ const STATUS_PILL = {
   done: ["pill-green", "Done"],
 };
 
-const CHART_METRICS = ["Likes", "Comments", "Shares", "Saves"];
+const CHART_METRICS = ["Likes", "Comments", "Shares", "Views"];
 const HEAT_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const SLOT_LABEL = { 6: "6a", 8: "8a", 10: "10a", 13: "1p", 17: "5p", 20: "8p" };
 
@@ -165,26 +190,64 @@ function SectionNote({ children, action }) {
   );
 }
 
-/** A section the backend can't fill yet: what it will show, and what it needs. */
-function WaitingOnBackend({ what, needs }) {
-  return (
-    <div className="backend-wait">
-      <span className="pill pill-orange">Waiting on backend</span>
-      <p>{what}</p>
-      <span className="tiny" style={{ fontWeight: 600, color: "var(--text-3)" }}>What&apos;s needed</span>
-      <ul>
-        {needs.map((n) => (
-          <li key={n}>{n}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 /** How many each list shows before its "See more". */
-const SNAPSHOT_COUNT = 4;
 const TABLE_COUNT = 5;
 const POSTS_COUNT = 6;
+const APPROVALS_COUNT = 3;
+
+// ── Followers ───────────────────────────────────────────────────────────────
+
+/** Tabs the backend counts followers for → its platform filter. */
+const FOLLOWER_TABS = { Facebook: "facebook", Instagram: "instagram" };
+
+/**
+ * Follower change over the picked range, from the saved daily counts when
+ * they reach back that far; otherwise the backend's 7-day change (null until
+ * 7 days are recorded). → {change, pct, days} — change undefined when unknown.
+ */
+function followerGrowth(data, days) {
+  const daily = data?.daily || [];
+  const first = daily[0];
+  const latest = daily[daily.length - 1];
+  if (days > 7 && first && latest && new Date(first.day) <= new Date(Date.now() - (days - 1) * DAY)) {
+    const change = latest.followers - first.followers;
+    return { change, pct: first.followers ? (change / first.followers) * 100 : undefined, days };
+  }
+  if (data?.change_7d == null) return { days: 7 };
+  return { change: data.change_7d, pct: data.change_7d_pct ?? undefined, days: 7 };
+}
+
+/** The "Follower growth" number card. */
+function followerKpi(followers, tab, rangeDays) {
+  const k = { label: "Follower growth", color: "#1c64d6", tint: "#eef4fe", ring: "#d1e0fb", glyph: "+", loading: followers.loading };
+  if (tab.social && !FOLLOWER_TABS[tab.id]) return { ...k, loading: false, value: "–", note: "Counted for Facebook and Instagram only" };
+  if (followers.error) return { ...k, value: "–", note: followers.error };
+  const f = followers.data;
+  if (!f?.accounts?.length) return { ...k, value: "–", note: "Connect a Facebook Page or Instagram account" };
+  const g = followerGrowth(f, rangeDays);
+  const series = (f.daily || []).map((d) => d.followers);
+  if (g.change === undefined) {
+    return {
+      ...k,
+      value: fmtK(f.total ?? 0),
+      note: `followers · growth shows after 7 days of tracking${f.tracking_since ? ` (since ${shortDate(f.tracking_since)})` : ""}`,
+      series,
+    };
+  }
+  return {
+    ...k,
+    value: `${g.change >= 0 ? "+" : "−"}${fmtK(Math.abs(g.change))}`,
+    delta: g.pct === undefined ? null : `${g.pct >= 0 ? "+" : ""}${g.pct.toFixed(1)}% in ${g.days} days`,
+    deltaBad: g.change < 0,
+    note: `${fmtK(f.total ?? 0)} followers${g.days !== rangeDays ? " · only 7 days tracked so far" : ""}`,
+    series,
+  };
+}
+
+// ── Waiting for approval ────────────────────────────────────────────────────
+
+const whenText = (iso) =>
+  iso ? new Date(iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 
 /** "See more (6 of 23)" / "Show less" — only when there's more than is shown. */
 function SeeMore({ shown, total, open, onToggle }) {
@@ -235,7 +298,7 @@ function KpiCard({ k }) {
   );
 }
 
-const deltaText = (d, unit = "%", suffix = " vs last week") =>
+const deltaText = (d, unit, suffix) =>
   d === undefined ? null : `${d >= 0 ? "+" : ""}${unit === "%" ? Math.round(d) : d.toFixed(1)}${unit === "%" ? "%" : " pts"}${suffix}`;
 
 /**
@@ -269,9 +332,9 @@ function smoothPath(pts) {
   return d;
 }
 
-/** Save the chart's two weeks as a CSV the user can open in a spreadsheet. */
-function exportChartCsv(chart, metric) {
-  const rows = [["Day", `${metric} (this week)`, `${metric} (last week)`, "Posts published"]];
+/** Save the chart's two periods as a CSV the user can open in a spreadsheet. */
+function exportChartCsv(chart, metric, range) {
+  const rows = [[chart.unit === "week" ? "Week" : "Day", `${metric} (${range.name})`, `${metric} (${range.prev})`, "Posts published"]];
   chart.days.forEach((d, i) => rows.push([d.label, chart.cur[i] ?? "", chart.prev[i] ?? "", d.posts]));
   const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -285,20 +348,46 @@ function exportChartCsv(chart, metric) {
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function HomeDashboard() {
-  const [platform, setPlatform] = useState("All");
+  const [picked, setPlatform] = useState("All");
   const [metric, setMetric] = useState("Likes");
+  const [range, setRange] = useState(RANGES[0]);
   const [downloading, setDownloading] = useState(false);
   const [togglingAi, setTogglingAi] = useState(false);
-  const { inbox, campaigns, posts, setInboxAi, loadMoreInbox } = useHomeData();
+  const { inbox, campaigns, posts, networks, followers, approvals, setInboxAi, loadMoreInbox, refreshFollowerCounts, decideApproval } =
+    useHomeData(range.days, FOLLOWER_TABS[picked]);
   const { activeBrand } = useAuth();
   // Which lists are expanded by their "See more".
-  const [showAll, setShowAll] = useState({ camps: false, ads: false, posts: false });
+  const [showAll, setShowAll] = useState({ ads: false, posts: false, approvals: false });
   const toggleAll = (key) => setShowAll((s) => ({ ...s, [key]: !s[key] }));
 
-  const tab = PLATFORM_TABS.find((t) => t.id === platform) || PLATFORM_TABS[0];
-  // One clock read per mount, so every section agrees on what "this week" is.
+  // Waiting for approval: approve one / all, or turn one down.
+  const pending = approvals.list.filter((p) => p.status === "pending");
+  const decide = async (action, id, post) => {
+    try {
+      const approved = await decideApproval(action, id);
+      if (action === "reject") toast.success("Post turned down — it won't go out.");
+      else if (action === "approve-all") toast.success(`${approved} post${approved === 1 ? "" : "s"} approved.`);
+      else
+        toast.success(
+          post?.scheduled_at && new Date(post.scheduled_at) > new Date()
+            ? `Approved — it goes out ${whenText(post.scheduled_at)}.`
+            : "Approved — it goes out within a couple of minutes.",
+        );
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const tabs = useMemo(() => platformTabs(networks), [networks]);
+  const shownTabs = tabs.slice(0, VISIBLE_TABS + 1);
+  const moreTabs = tabs.slice(VISIBLE_TABS + 1);
+  // A network that's no longer connected (brand switch) falls back to "All".
+  const tab = tabs.find((t) => t.id === picked) || tabs[0];
+  const platform = tab.id;
+  // One clock read per mount, so every section agrees on what "now" is.
   const [now] = useState(() => Date.now());
-  const period = useMemo(() => periods(7, now), [now]);
+  const period = useMemo(() => periods(range.days, now), [range.days, now]);
+  const vs = ` vs previous ${range.days} days`;
   const rangeLabel = `${shortDate(new Date(period.from).toISOString())} – ${shortDate(new Date(period.to - 1).toISOString())}, ${new Date(period.to - 1).getFullYear()}`;
 
   // ── Filtered by the platform tab ──
@@ -315,19 +404,15 @@ export default function HomeDashboard() {
   );
   const ads = useMemo(() => {
     const all = campaigns.all || [];
-    if (platform === "All") return all;
+    if (!tab.social) return all;
     return tab.ads ? all.filter((c) => c.platform === tab.ads) : [];
-  }, [campaigns.all, platform, tab.ads]);
+  }, [campaigns.all, tab.social, tab.ads]);
 
   // ── Number cards ──
   const kpis = useMemo(() => {
     const cur = within(rawPosts, period.from, period.to);
     const prev = within(rawPosts, period.prevFrom, period.prevTo);
-    const daily = (fn) =>
-      Array.from({ length: 7 }, (_, i) => {
-        const start = period.from + i * DAY;
-        return sumBy(cur.filter((p) => +new Date(p.published_at) >= start && +new Date(p.published_at) < start + DAY), fn) ?? 0;
-      });
+    const daily = (fn) => bucketsOf(period).map((b) => sumBy(inBucket(cur, b), fn) ?? 0);
     const views = (p) => roleValue(p, "views") ?? roleValue(p, "reach");
 
     const inter = sumBy(cur, interactionsOf);
@@ -343,7 +428,8 @@ export default function HomeDashboard() {
 
     const loadingPosts = posts.loading;
     const loadingAds = campaigns.loading;
-    const postsNote = !cur.length ? "No posts published this week" : undefined;
+    const postsNote = !cur.length ? `No posts published in the last ${range.days} days` : undefined;
+    const span = range.name.toLowerCase();
 
     return [
       {
@@ -351,22 +437,18 @@ export default function HomeDashboard() {
         color: "#e8590c", tint: "#fff4ed", ring: "#fde2cf", glyph: "♥",
         loading: loadingPosts,
         value: inter === undefined ? "–" : fmtK(inter),
-        delta: deltaText(pctChange(inter, interPrev)),
+        delta: deltaText(pctChange(inter, interPrev), "%", vs),
         deltaBad: inter !== undefined && interPrev !== undefined && inter < interPrev,
         note: inter === undefined ? postsNote : undefined,
         series: daily(interactionsOf),
       },
-      {
-        label: "Follower growth",
-        color: "#1c64d6", tint: "#eef4fe", ring: "#d1e0fb", glyph: "+",
-        waiting: "Needs follower counts per account",
-      },
+      followerKpi(followers, tab, range.days),
       {
         label: "Views",
         color: "#0a7a48", tint: "#edf8f2", ring: "#cdeedc", glyph: "◉",
         loading: loadingPosts,
         value: seen === undefined ? "–" : fmtK(seen),
-        delta: deltaText(pctChange(seen, seenPrev)),
+        delta: deltaText(pctChange(seen, seenPrev), "%", vs),
         deltaBad: seen !== undefined && seenPrev !== undefined && seen < seenPrev,
         note: seen === undefined ? postsNote : undefined,
         series: daily(views),
@@ -376,7 +458,7 @@ export default function HomeDashboard() {
         color: "#7c3aed", tint: "#f4effe", ring: "#e2d6fb", glyph: "%",
         loading: loadingPosts,
         value: rate === undefined ? "–" : `${rate.toFixed(1)}%`,
-        delta: rate !== undefined && ratePrev !== undefined ? deltaText(rate - ratePrev, "pts") : null,
+        delta: rate !== undefined && ratePrev !== undefined ? deltaText(rate - ratePrev, "pts", vs) : null,
         deltaBad: rate !== undefined && ratePrev !== undefined && rate < ratePrev,
         note: rate === undefined ? postsNote : undefined,
         series: daily(engagementOf),
@@ -386,7 +468,7 @@ export default function HomeDashboard() {
         color: "#1447e6", tint: "#eef2fd", ring: "#c9d6fb", glyph: "★",
         loading: loadingAds,
         value: noAds ? "–" : count(conv ?? 0),
-        note: noAds ? "No ad campaigns" : "last 7 days",
+        note: noAds ? "No ad campaigns" : span,
       },
       {
         label: "Cost per conversion",
@@ -397,30 +479,34 @@ export default function HomeDashboard() {
           ? "No ad campaigns"
           : !conv
             ? `${amount(spend ?? 0)} spent, no conversions yet`
-            : "spend ÷ conversions, last 7 days · currency not sent by backend",
+            : `spend ÷ conversions, ${span} · currency not sent by backend`,
       },
     ];
-  }, [rawPosts, period, ads, posts.loading, campaigns.loading]);
+  }, [rawPosts, period, range, vs, ads, posts.loading, campaigns.loading, followers, tab]);
 
-  // ── Engagement chart: per day, this week vs last ──
+  // ── Engagement chart: per day (per week past a month), this period vs the one before ──
   const chart = useMemo(() => {
     const role = metric.toLowerCase();
     const cur = within(rawPosts, period.from, period.to);
     const prev = within(rawPosts, period.prevFrom, period.prevTo);
     const reported = rawPosts.some((p) => roleValue(p, role) !== undefined);
-    const bucket = (list, from) =>
-      Array.from({ length: 7 }, (_, i) => {
-        const start = from + i * DAY;
-        const inDay = list.filter((p) => +new Date(p.published_at) >= start && +new Date(p.published_at) < start + DAY);
+    const bucket = (list, offset) =>
+      bucketsOf(period, offset).map((b) => {
+        const inDay = inBucket(list, b);
         return { posts: inDay, value: sumBy(inDay, (p) => roleValue(p, role)) };
       });
-    const curDays = bucket(cur, period.from);
-    const prevDays = bucket(prev, period.prevFrom);
-    const days = curDays.map((d, i) => {
-      const date = new Date(period.from + i * DAY);
+    const curDays = bucket(cur, 0);
+    const prevDays = bucket(prev, period.days * DAY);
+    const weekly = bucketsOf(period)[0].size > 1;
+    // At most ~8 labels under the chart, so a month's days don't crowd.
+    const step = Math.ceil(curDays.length / 8);
+    const days = bucketsOf(period).map((b, i) => {
+      const date = new Date(b.start);
+      const monthDay = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const d = curDays[i];
       return {
-        short: date.toLocaleDateString("en-US", { weekday: "short" }),
-        label: date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+        short: i % step ? "" : curDays.length <= 7 ? date.toLocaleDateString("en-US", { weekday: "short" }) : monthDay,
+        label: weekly ? `Week of ${monthDay}` : date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
         posts: d.posts.length,
         top: [...d.posts].sort((a, b) => (roleValue(b, role) ?? 0) - (roleValue(a, role) ?? 0))[0],
       };
@@ -435,6 +521,7 @@ export default function HomeDashboard() {
     });
     return {
       reported,
+      unit: weekly ? "week" : "day",
       days,
       cur: curVals,
       prev: prevVals,
@@ -454,12 +541,15 @@ export default function HomeDashboard() {
     () =>
       inbox.loading || campaigns.loading || posts.loading
         ? null
-        : buildReport({ posts, campaigns, inbox, brandName: activeBrand?.name, now: new Date(now) }),
+        : buildReport({ posts, campaigns: { ...campaigns, all: campaigns.week }, inbox, brandName: activeBrand?.name, now: new Date(now) }),
     [inbox, campaigns, posts, activeBrand?.name, now],
   );
 
   const aiOn = inbox.summary?.ai_on;
-  const X = (i) => (i / 6) * 700;
+  const last = Math.max(1, chart.cur.length - 1);
+  const X = (i) => (i / last) * 700;
+  // The best-day band: as wide as one point's share of the chart, at most 60.
+  const bandW = Math.min(60, 700 / last);
   const Y = (v) => 240 - (v / chart.max) * 234;
   const path = (vals) => smoothPath(vals.map((v, i) => [X(i), Y(v)]));
 
@@ -467,18 +557,41 @@ export default function HomeDashboard() {
     <div className="ck-home">
       {/* ── Filters ─────────────────────────────────────────────────── */}
       <div className="row wrap">
-        <div className="seg" role="tablist" aria-label="Platform">
-          {PLATFORM_TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={platform === t.id}
-              className={platform === t.id ? "on" : ""}
-              onClick={() => setPlatform(t.id)}
+        <div className="row" style={{ gap: 6 }}>
+          <div className="seg" role="tablist" aria-label="Platform">
+            {shownTabs.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={tab.id === t.id}
+                className={tab.id === t.id ? "on" : ""}
+                onClick={() => setPlatform(t.id)}
+              >
+                {t.id}
+              </button>
+            ))}
+          </div>
+          {moreTabs.length > 0 && (
+            <Menu
+              align="left"
+              style={{ minWidth: 160 }}
+              button={({ open, toggle }) => {
+                const inMore = moreTabs.some((t) => t.id === tab.id);
+                return (
+                  <button className={`btn ${inMore ? "btn-on" : ""}`} onClick={toggle} aria-haspopup="menu" aria-expanded={open}>
+                    {inMore ? tab.id : "More"}
+                    <ChevronDown size={14} />
+                  </button>
+                );
+              }}
             >
-              {t.id}
-            </button>
-          ))}
+              {moreTabs.map((t) => (
+                <button key={t.id} role="menuitemradio" aria-checked={tab.id === t.id} className={tab.id === t.id ? "on" : ""} onClick={() => setPlatform(t.id)}>
+                  {t.id}
+                </button>
+              ))}
+            </Menu>
+          )}
         </div>
         <div className="row" style={{ marginLeft: "auto" }}>
           <button
@@ -500,10 +613,22 @@ export default function HomeDashboard() {
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: aiOn ? "#12a05c" : "#9aa0ad" }} />
             {inbox.loading ? "Inbox AI…" : !inbox.summary ? "Inbox AI unavailable" : aiOn ? "Inbox AI on" : "Inbox AI paused"}
           </button>
-          <span className="btn" style={{ cursor: "default" }} title="Every number on this page covers the last 7 days">
-            <Calendar size={14} />
-            {rangeLabel}
-          </span>
+          <Menu
+            style={{ minWidth: 180 }}
+            button={({ open, toggle }) => (
+              <button className="btn" onClick={toggle} aria-haspopup="menu" aria-expanded={open} title={`Every number on this page covers the ${range.name.toLowerCase()}`}>
+                <Calendar size={14} />
+                {rangeLabel}
+                <ChevronDown size={14} />
+              </button>
+            )}
+          >
+            {RANGES.map((r) => (
+              <button key={r.days} role="menuitemradio" aria-checked={range.days === r.days} className={range.days === r.days ? "on" : ""} onClick={() => setRange(r)}>
+                {r.name}
+              </button>
+            ))}
+          </Menu>
         </div>
       </div>
 
@@ -521,9 +646,9 @@ export default function HomeDashboard() {
             icon={Flame}
             color="#e8590c"
             title="Engagement performance"
-            sub={`${platform === "All" ? "All connected networks" : platform} · totals of the posts published each day`}
+            sub={`${platform === "All" ? "All connected networks" : platform} · totals of the posts published each ${chart.unit}`}
           >
-            <button className="btn" disabled={posts.loading || !chart.hasData} onClick={() => exportChartCsv(chart, metric)}>
+            <button className="btn" disabled={posts.loading || !chart.hasData} onClick={() => exportChartCsv(chart, metric, range)}>
               <Download size={14} />
               Export
             </button>
@@ -537,8 +662,8 @@ export default function HomeDashboard() {
               ))}
             </div>
             <div className="row" style={{ gap: 14 }}>
-              <span className="legend-i"><i style={{ background: "#1447e6" }} />This week</span>
-              <span className="legend-i"><i style={{ background: "#b9c1d3" }} />Last week</span>
+              <span className="legend-i"><i style={{ background: "#1447e6" }} />{range.name}</span>
+              <span className="legend-i"><i style={{ background: "#b9c1d3" }} />{range.prev}</span>
             </div>
           </div>
           {posts.loading ? (
@@ -563,7 +688,7 @@ export default function HomeDashboard() {
                 </div>
                 <div className="chart-area">
                   <div className="chart-box">
-                    <svg viewBox="0 0 700 240" preserveAspectRatio="none" role="img" aria-label={`${metric} per day this week`}>
+                    <svg viewBox="0 0 700 240" preserveAspectRatio="none" role="img" aria-label={`${metric} per ${chart.unit}, ${range.name.toLowerCase()}`}>
                       <defs>
                         <linearGradient id="ckHomeFill" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0" stopColor="#1447e6" stopOpacity=".22" />
@@ -575,7 +700,7 @@ export default function HomeDashboard() {
                       ))}
                       <line x1="0" x2="700" y1="239" y2="239" stroke="var(--input)" />
                       {chart.cur[chart.pk] > 0 && (
-                        <rect x={Math.max(0, Math.min(640, X(chart.pk) - 30)).toFixed(0)} y="0" width="60" height="240" fill="#1447e6" fillOpacity=".05" stroke="#c9d6fb" />
+                        <rect x={Math.max(0, Math.min(700 - bandW, X(chart.pk) - bandW / 2)).toFixed(0)} y="0" width={bandW.toFixed(0)} height="240" fill="#1447e6" fillOpacity=".05" stroke="#c9d6fb" />
                       )}
                       <path d={path(chart.prev)} fill="none" stroke="#b9c1d3" strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
                       <path d={`${path(chart.cur)} L700 240 L0 240 Z`} fill="url(#ckHomeFill)" />
@@ -585,13 +710,13 @@ export default function HomeDashboard() {
                       <div
                         className="chart-tip"
                         style={{
-                          left: `${Math.min(85, Math.max(15, (chart.pk / 6) * 100)).toFixed(1)}%`,
+                          left: `${Math.min(85, Math.max(15, (chart.pk / last) * 100)).toFixed(1)}%`,
                           // The tip sits above its point; held 70px down so a peak at
                           // the top of the chart can't push it over the metric tabs.
                           top: `${Math.max(70, Y(chart.cur[chart.pk]) - 6).toFixed(0)}px`,
                         }}
                       >
-                        <span className="tiny" style={{ fontWeight: 600, color: "var(--text-3)" }}>Best day · {chart.days[chart.pk].label}</span>
+                        <span className="tiny" style={{ fontWeight: 600, color: "var(--text-3)" }}>Best {chart.unit} · {chart.days[chart.pk].label}</span>
                         <strong style={{ color: "var(--brand)", fontSize: 13 }}>
                           {fmtK(chart.cur[chart.pk])} {metric.toLowerCase()}
                         </strong>
@@ -603,7 +728,7 @@ export default function HomeDashboard() {
                       </div>
                     )}
                   </div>
-                  <div className="xlabels">
+                  <div className="xlabels" style={{ "--n": chart.days.length }}>
                     {chart.days.map((d) => (
                       <span key={d.label}>{d.short}</span>
                     ))}
@@ -617,16 +742,16 @@ export default function HomeDashboard() {
                 </div>
                 <div>
                   <span className="muted">Daily average</span>
-                  <b>{count((chart.total ?? 0) / 7)}</b>
+                  <b>{count((chart.total ?? 0) / range.days)}</b>
                 </div>
                 <div>
-                  <span className="muted">vs last week</span>
+                  <span className="muted">vs previous {range.days} days</span>
                   <b style={{ color: chart.change === undefined ? undefined : chart.change >= 0 ? "var(--green)" : "var(--red)" }}>
                     {chart.change === undefined ? "–" : `${chart.change >= 0 ? "+" : ""}${chart.change.toFixed(1)}%`}
                   </b>
                 </div>
                 <div>
-                  <span className="muted">Posts this week</span>
+                  <span className="muted">Posts in {range.days} days</span>
                   <b>{chart.days.reduce((t, d) => t + d.posts, 0)}</b>
                 </div>
               </div>
@@ -634,59 +759,72 @@ export default function HomeDashboard() {
           )}
         </section>
 
-        <section className="card card-pad stack" style={{ flex: "1 1 340px" }}>
-          <CardHead icon={Calendar} color="var(--brand)" title="Campaigns snapshot" sub="Your ad campaigns · spend and results over the last 7 days">
-            <Link href="/ads-content" style={{ fontSize: 12, fontWeight: 600 }}>View all</Link>
+        <section className="card card-pad stack" style={{ flex: "1 1 340px", gap: 12 }}>
+          <CardHead
+            icon={Users}
+            color="#7c3aed"
+            title="Followers by platform"
+            sub={
+              followers.data?.accounts?.length
+                ? `${fmtK(followers.data.total ?? 0)} followers · change over the last 7 days`
+                : "Facebook Pages and Instagram accounts"
+            }
+          >
+            {!followers.loading && !followers.error && followers.data?.accounts?.length > 0 && (
+              <button
+                className="btn btn-sm"
+                disabled={followers.refreshing}
+                title="Read the counts from Facebook and Instagram now"
+                onClick={() => refreshFollowerCounts().then(() => toast.success("Followers updated"), (err) => toast.error(err.message))}
+              >
+                {followers.refreshing ? "Refreshing…" : "Refresh"}
+              </button>
+            )}
           </CardHead>
-          {campaigns.loading ? (
-            <KluxLoader label="Fetching your campaigns" />
-          ) : campaigns.error ? (
-            <SectionNote>{campaigns.error}</SectionNote>
-          ) : !ads.length ? (
-            <SectionNote action={<Link href="/integrations" className="btn btn-sm">Connect ads</Link>}>
-              {platform !== "All" && campaigns.all?.length
-                ? `No ${platform} ad campaigns.`
-                : campaigns.connected
-                  ? "No campaigns on your connected ad accounts yet."
-                  : "Connect an ad account to see your campaigns here."}
+          {tab.social && !FOLLOWER_TABS[tab.id] ? (
+            <SectionNote>Followers are counted for Facebook Pages and Instagram accounts only — not {platform} yet.</SectionNote>
+          ) : followers.loading ? (
+            <KluxLoader label="Counting your followers" />
+          ) : followers.error ? (
+            <SectionNote>{followers.error}</SectionNote>
+          ) : !followers.data?.accounts?.length ? (
+            <SectionNote action={<Link href="/integrations" className="btn btn-sm">Connect accounts</Link>}>
+              Connect a Facebook Page or Instagram account to track your followers.
             </SectionNote>
           ) : (
             <>
-              <div className={`stack ${showAll.camps ? "camp-list-open" : ""}`}>
-              {(showAll.camps ? ads : ads.slice(0, SNAPSHOT_COUNT)).map((c) => {
-                const [pc, label] = campaignPill(c.status);
-                const cell = (name, value) => (
-                  <div className="row between">
-                    <span className="tiny">{name}</span>
-                    <span className="tiny" style={{ fontWeight: 600, color: "var(--text)" }}>{value}</span>
-                  </div>
-                );
-                return (
-                  <div key={c.id} className="card camp">
-                    <div className="row between">
-                      <span className="ellipsis" style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</span>
-                      <span className={`pill ${pc}`}>{label}</span>
-                    </div>
-                    <div className="two">
-                      <div className="stack" style={{ gap: 4 }}>
-                        {cell(`Spend · ${networkName(c.platform)}`, amount(c.spend))}
-                        {cell("Daily budget", amount(c.dailyBudget))}
-                      </div>
-                      <div className="stack" style={{ gap: 4 }}>
-                        {cell("Clicks", raw(c.clicks))}
-                        {cell("Conversions", raw(c.conversions))}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              </div>
-              <SeeMore
-                shown={showAll.camps ? ads.length : Math.min(SNAPSHOT_COUNT, ads.length)}
-                total={ads.length}
-                open={showAll.camps}
-                onToggle={() => toggleAll("camps")}
-              />
+              {followers.data.accounts.map((a) => (
+                <div key={a.integration_id ?? `${a.platform}-${a.name}`} className="mini-row">
+                  <span className="pf" style={{ width: 28, height: 28, borderRadius: 6, background: NETWORK[a.platform]?.[1] || "#6b7080" }}>
+                    {networkName(a.platform).slice(0, 2)}
+                  </span>
+                  <span className="grow stack" style={{ gap: 2, minWidth: 0 }}>
+                    <span className="ellipsis" style={{ fontSize: 12, fontWeight: 600 }}>{a.name || networkName(a.platform)}</span>
+                    <span className="tiny">{networkName(a.platform)}</span>
+                  </span>
+                  <span className="stack" style={{ gap: 2, alignItems: "flex-end" }}>
+                    <b style={{ fontSize: 13 }}>{count(a.followers)}</b>
+                    {a.change_7d == null ? (
+                      <span className="tiny">–</span>
+                    ) : (
+                      <span className={a.change_7d < 0 ? "down" : "up"}>
+                        {a.change_7d >= 0 ? "+" : "−"}
+                        {fmtK(Math.abs(a.change_7d))}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ))}
+              {followers.data.errors?.length > 0 && (
+                <span className="tiny" style={{ color: "var(--orange)" }}>
+                  Couldn&apos;t read{" "}
+                  {followers.data.errors.map((e) => (typeof e === "string" ? e : e?.name || e?.platform || e?.error || "an account")).join(", ")}{" "}
+                  — showing the last saved count. Reconnecting the account usually fixes it.
+                </span>
+              )}
+              {followers.data.change_7d == null && followers.data.tracking_since && (
+                <span className="tiny">Growth shows once 7 days are recorded — tracking since {shortDate(followers.data.tracking_since)}.</span>
+              )}
             </>
           )}
         </section>
@@ -695,16 +833,68 @@ export default function HomeDashboard() {
       {/* ── Approvals, ad campaigns, best time ──────────────────────── */}
       <div className="flex-row">
         <section className="card card-pad stack" style={{ flex: "1 1 360px" }}>
-          <CardHead icon={Sparkles} color="#7c3aed" title="Waiting for approval" sub="Posts the autopilot drafted for you to approve" />
-          <WaitingOnBackend
-            what="This will list the posts the autopilot has drafted and scheduled, so you can approve them before they go out."
-            needs={[
-              "An autopilot that drafts posts and stores them as drafts",
-              "GET a list of drafts: image, text, network and planned time",
-              "POST to approve one draft, and to approve all",
-              "PUT to edit or reschedule a draft before it posts",
-            ]}
-          />
+          <CardHead icon={Sparkles} color="#7c3aed" title="Waiting for approval" sub="Posts your copilots planned, waiting for your OK">
+            {pending.length > 1 && (
+              <button className="btn btn-sm btn-primary" disabled={!!approvals.busy} onClick={() => decide("approve-all", pending.map((p) => p.id))}>
+                {approvals.busy === "approve-all" ? "Approving…" : `Approve all (${pending.length})`}
+              </button>
+            )}
+          </CardHead>
+          {approvals.loading ? (
+            <KluxLoader label="Checking for posts to approve" />
+          ) : approvals.error ? (
+            <SectionNote>{approvals.error}</SectionNote>
+          ) : !approvals.list.length ? (
+            <SectionNote action={<Link href="/copilot" className="btn btn-sm">Set up Autopilot</Link>}>
+              Nothing waiting. Turn on Autopilot for a copilot and it plans and designs your week&apos;s posts, then asks you here before they go out.
+            </SectionNote>
+          ) : (
+            <>
+              {(showAll.approvals ? approvals.list : approvals.list.slice(0, APPROVALS_COUNT)).map((p) => {
+                const drafting = p.status === "drafting";
+                const nets = [...new Set((p.targets || []).map((t) => networkName(t.platform)))].join(", ");
+                return (
+                  <div key={p.id} className="mini-row" style={{ alignItems: "flex-start" }}>
+                    {p.image_url ? (
+                      <a href={p.image_url} target="_blank" rel="noreferrer" title="Open the design">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.image_url} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", display: "block" }} />
+                      </a>
+                    ) : (
+                      <span className="avatar" style={{ width: 44, height: 44, borderRadius: 8, background: "var(--brand-tint)", color: "var(--brand)" }}>
+                        <Sparkles size={16} />
+                      </span>
+                    )}
+                    <span className="grow stack" style={{ gap: 2, minWidth: 0 }}>
+                      <span className="ellipsis" style={{ fontSize: 12, fontWeight: 600 }}>{p.headline || p.idea || "Untitled post"}</span>
+                      {p.caption && <span className="ellipsis" style={{ fontSize: 12, color: "var(--text-3)" }}>{p.caption}</span>}
+                      <span className="tiny">
+                        {[p.copilot?.name, nets, whenText(p.scheduled_at)].filter(Boolean).join(" · ")}
+                      </span>
+                      {drafting ? (
+                        <span className="pill pill-blue" style={{ alignSelf: "flex-start", marginTop: 4 }}>Designing…</span>
+                      ) : (
+                        <span className="row" style={{ gap: 6, marginTop: 4 }}>
+                          <button className="btn btn-sm btn-primary" disabled={!!approvals.busy} onClick={() => decide("approve", p.id, p)}>
+                            {approvals.busy === p.id ? "…" : "Approve"}
+                          </button>
+                          <button className="btn btn-sm" disabled={!!approvals.busy} onClick={() => decide("reject", p.id)}>
+                            Reject
+                          </button>
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+              <SeeMore
+                shown={showAll.approvals ? approvals.list.length : Math.min(APPROVALS_COUNT, approvals.list.length)}
+                total={approvals.list.length}
+                open={showAll.approvals}
+                onToggle={() => toggleAll("approvals")}
+              />
+            </>
+          )}
         </section>
 
         <section className="card stack" style={{ flex: "2 1 540px", minWidth: 0, padding: "14px 0 4px", gap: 8 }}>
@@ -714,8 +904,8 @@ export default function HomeDashboard() {
             title="Ad campaigns"
             sub={
               campaigns.loading
-                ? "Last 7 days"
-                : `Last 7 days · ${amount(sumBy(ads, (c) => c.spend) ?? 0)} spent across ${ads.length} campaign${ads.length === 1 ? "" : "s"} · amounts as the backend sends them (no currency given)`
+                ? range.name
+                : `${range.name} · ${amount(sumBy(ads, (c) => c.spend) ?? 0)} spent across ${ads.length} campaign${ads.length === 1 ? "" : "s"} · amounts as the backend sends them (no currency given)`
             }
             style={{ padding: "0 14px" }}
           >
@@ -926,7 +1116,7 @@ export default function HomeDashboard() {
         )}
       </section>
 
-      {/* ── Inbox, followers, report ────────────────────────────────── */}
+      {/* ── Inbox, report ───────────────────────────────────────────── */}
       <div className="flex-row">
         <section className="card card-pad stack" style={{ flex: "1 1 340px" }}>
           <CardHead
@@ -992,18 +1182,6 @@ export default function HomeDashboard() {
               {inbox.loadingMore ? "Loading…" : `See more (${inbox.list.length} of ${inbox.total})`}
             </button>
           )}
-        </section>
-
-        <section className="card card-pad stack" style={{ flex: "1 1 300px", gap: 12 }}>
-          <CardHead icon={Users} color="#7c3aed" title="Followers by platform" sub="Followers on each connected account, and this week's change" />
-          <WaitingOnBackend
-            what="This will show how many followers each connected account has, and how many it gained this week."
-            needs={[
-              "The follower count of each connected account (Facebook Page, Instagram, TikTok, YouTube, LinkedIn, X), read from each network",
-              "A daily saved snapshot of those counts, so this week's growth can be worked out",
-              "An endpoint returning, per account: followers now and followers 7 days ago",
-            ]}
-          />
         </section>
 
         <section className="card card-pad stack report" style={{ flex: "1 1 300px" }}>

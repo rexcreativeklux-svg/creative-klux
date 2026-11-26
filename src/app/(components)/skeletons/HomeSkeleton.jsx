@@ -7,10 +7,10 @@
 //
 //   platform tabs ············ Inbox AI · date range
 //   six number cards
-//   engagement chart ········· campaigns snapshot
+//   engagement chart ········· followers by platform
 //   approvals · ad campaigns table · best time to post
 //   top performing posts (a sideways row of post cards)
-//   Smart Inbox · followers · Monday report (dark)
+//   Smart Inbox · Monday report (dark)
 //
 // Edit it alongside HomeDashboard.jsx. CONTENT ONLY — no sidebar or header; the
 // real chrome is already mounted when this shows.
@@ -99,7 +99,7 @@ export default function HomeSkeleton({ clearsHeader = true }) {
         ))}
       </div>
 
-      {/* Engagement chart · Campaigns snapshot */}
+      {/* Engagement chart · Followers by platform */}
       <div className="flex flex-wrap gap-3.5">
         <Card className="flex min-w-0 flex-col gap-3 p-3.5" style={{ flex: "999 1 560px" }}>
           <Head wide={170} />
@@ -120,14 +120,15 @@ export default function HomeSkeleton({ clearsHeader = true }) {
         <Card className="flex flex-col gap-2.5 p-3.5" style={{ flex: "1 1 340px" }}>
           <Head wide={150} />
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex flex-col gap-2 rounded-xl border border-gray-100 px-3 py-2.5">
-              <div className="flex items-center justify-between">
-                <Skeleton h={12} w={150} />
-                <Skeleton h={18} w={58} className="rounded-full" tone="soft" />
+            <div key={i} className="flex items-center gap-2.5 rounded-[10px] border border-gray-100 p-2">
+              <Skeleton w={28} h={28} className="rounded-md" tone="soft" />
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Skeleton h={11} w={130} />
+                <Skeleton h={10} w={60} tone="soft" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Skeleton h={10} tone="soft" />
-                <Skeleton h={10} tone="soft" />
+              <div className="flex flex-col items-end gap-1.5">
+                <Skeleton h={12} w={44} />
+                <Skeleton h={10} w={28} tone="soft" />
               </div>
             </div>
           ))}
@@ -186,7 +187,7 @@ export default function HomeSkeleton({ clearsHeader = true }) {
         </div>
       </Card>
 
-      {/* Smart Inbox · Followers · Monday report */}
+      {/* Smart Inbox · Monday report */}
       <div className="flex flex-wrap gap-3.5">
         <Card className="flex flex-col gap-2.5 p-3.5" style={{ flex: "1 1 340px" }}>
           <Head wide={100} />
@@ -198,17 +199,6 @@ export default function HomeSkeleton({ clearsHeader = true }) {
                 <Skeleton h={10} tone="soft" />
               </div>
               <Skeleton h={18} w={64} className="rounded-full" tone="soft" />
-            </div>
-          ))}
-        </Card>
-        <Card className="flex flex-col gap-3 p-3.5" style={{ flex: "1 1 300px" }}>
-          <Head wide={150} action={false} />
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-2.5">
-              <Skeleton w={18} h={18} className="rounded" tone="soft" />
-              <Skeleton h={10} w={70} tone="soft" />
-              <Skeleton h={6} className="flex-1 rounded-full" tone="soft" />
-              <Skeleton h={10} w={40} tone="soft" />
             </div>
           ))}
         </Card>

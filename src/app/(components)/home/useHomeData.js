@@ -4,13 +4,15 @@
 //
 //   inbox      GET smart-inbox/summary + smart-inbox/conversations
 //   campaigns  the brand's connected ad accounts → creatives/campaigns, then
-//              creatives/campaign-metrics (last 7 days) for the first four
+//              creatives/campaign-metrics over the picked range (`days`)
+//   networks   the brand's connected social networks, for the tab strip
+//   followers  dashboard/followers (Facebook Pages + Instagram) over the range
+//   approvals  autopilot/posts waiting for approval, with approve / reject
 //   posts      the brand's connected social accounts → creatives/posts, then
 //              creatives/post-metrics, ranked by engagement
 //
 // Each section loads on its own and carries {loading, error, …}, so one slow or
-// failing network never blanks the others. Everything else on the home page is
-// still sample data — the backend has no endpoint for it yet.
+// failing network never blanks the others.
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -22,6 +24,15 @@ import {
   getPostStats,
   loadStatsForRows,
 } from "@/(lib)/integration";
+import { SERVER_PUBLISH_PLATFORMS } from "@/(lib)/creativesApi";
+import {
+  approveAllAutopilotPosts,
+  approveAutopilotPost,
+  fetchAutopilotPosts,
+  fetchFollowers,
+  refreshFollowers,
+  rejectAutopilotPost,
+} from "@/(lib)/dashboardApi";
 import { numeric, postMetrics } from "@/(lib)/postMetrics";
 
 /** First numeric value under any of `keys` — networks name the same count differently. */
@@ -50,12 +61,12 @@ const INBOX_PAGE = 5;
  * converted — a daily_budget of 2000 is shown as 2,000. Not all campaigns
  * are capped any more, so totals cover every one the backend lists.
  */
-async function loadCampaigns(rows) {
+async function loadCampaigns(rows, days) {
   const list = rows
     .filter((r) => r.type === "ad" && !/^(deleted|removed|archived)$/i.test(r.status || ""))
     .sort((a, b) => (STATUS_RANK[a.status] ?? 2) - (STATUS_RANK[b.status] ?? 2));
   const { stats } = await loadStatsForRows(list, (c) =>
-    getAdCampaignMetrics({ platform: c.platform, campaign_id: c.post_id, days: 7 }),
+    getAdCampaignMetrics({ platform: c.platform, campaign_id: c.post_id, days }),
   );
   const all = list.map((c) => {
     const m = stats[c.id]?.metrics || {};
@@ -117,12 +128,24 @@ async function loadTopPosts(rows) {
   return { list: [...recent].sort((a, b) => b.score - a.score).slice(0, 6), recent, raw };
 }
 
-export default function useHomeData() {
+/**
+ * @param {number} [days=7] The date picker's range (7–90 days): the period the
+ *   ad metrics and the follower history cover. Changing it reloads only those.
+ * @param {string} [followerPlatform] "facebook" or "instagram" to count only
+ *   that network's followers; left out = every tracked account.
+ */
+export default function useHomeData(days = 7, followerPlatform) {
   const { activeBrandId, fetchIntegrations } = useAuth();
 
   const [inbox, setInbox] = useState({ loading: true });
   const [campaigns, setCampaigns] = useState({ loading: true, list: [] });
   const [posts, setPosts] = useState({ loading: true, list: [] });
+  const [followers, setFollowers] = useState({ loading: true });
+  const [approvals, setApprovals] = useState({ loading: true, list: [] });
+  // Connected social networks (app-side ids, publishing order) — the tab strip.
+  const [networks, setNetworks] = useState([]);
+  // The integrations read, kept so a new date range only reloads ad metrics.
+  const [source, setSource] = useState(null);
 
   // ── Smart Inbox ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -164,6 +187,7 @@ export default function useHomeData() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset before a brand switch reloads
     setCampaigns({ loading: true, list: [] });
     setPosts({ loading: true, list: [] });
+    setSource(null);
     (async () => {
       let rows;
       let ints = [];
@@ -181,9 +205,8 @@ export default function useHomeData() {
       const hasAds = ints.some((i) => /_ads$/.test(i?.platform || ""));
       const hasSocial = ints.some((i) => i?.platform && !/_ads$/.test(i.platform));
 
-      loadCampaigns(rows)
-        .then(({ list, all }) => alive && setCampaigns({ loading: false, list, all, connected: hasAds, errors }))
-        .catch((err) => alive && setCampaigns({ loading: false, error: err.message, list: [], all: [], connected: hasAds }));
+      setNetworks(SERVER_PUBLISH_PLATFORMS.filter((p) => ints.some((i) => i?.platform === p)));
+      setSource({ rows, errors, hasAds });
       loadTopPosts(rows)
         .then(({ list, recent, raw }) => alive && setPosts({ loading: false, list, recent, raw, connected: hasSocial, errors }))
         .catch((err) => alive && setPosts({ loading: false, error: err.message, list: [], recent: [], raw: [], connected: hasSocial }));
@@ -192,6 +215,23 @@ export default function useHomeData() {
       alive = false;
     };
   }, [activeBrandId, fetchIntegrations]);
+
+  // ── Campaign metrics for the picked range ─────────────────────────────────
+  useEffect(() => {
+    if (!source) return;
+    let alive = true;
+    const { rows, errors, hasAds } = source;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset before a new range reloads
+    setCampaigns((c) => ({ ...c, loading: true }));
+    // The Monday report is always last 7 days, whatever range is picked; its
+    // metrics are cached, so this is free once the week has loaded.
+    Promise.all([loadCampaigns(rows, days), days === 7 ? null : loadCampaigns(rows, 7)])
+      .then(([{ list, all }, week]) => alive && setCampaigns({ loading: false, list, all, week: (week || { all }).all, connected: hasAds, errors }))
+      .catch((err) => alive && setCampaigns({ loading: false, error: err.message, list: [], all: [], week: [], connected: hasAds }));
+    return () => {
+      alive = false;
+    };
+  }, [source, days]);
 
   /**
    * Turn the Smart Inbox AI on or off (PUT smart-inbox/settings). Off = every
@@ -211,6 +251,82 @@ export default function useHomeData() {
       }
     },
     [activeBrandId],
+  );
+
+  // ── Followers (Facebook Pages + Instagram, saved once a day) ───────────────
+  useEffect(() => {
+    if (!activeBrandId) return;
+    let alive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset before a new range reloads
+    setFollowers((f) => ({ ...f, loading: true, error: undefined }));
+    fetchFollowers({ brandId: activeBrandId, days, platform: followerPlatform })
+      .then((data) => alive && setFollowers({ loading: false, data }))
+      .catch((err) => alive && setFollowers({ loading: false, error: err.message }));
+    return () => {
+      alive = false;
+    };
+  }, [activeBrandId, days, followerPlatform]);
+
+  /** Read the counts fresh from the platforms (the card's Refresh). */
+  const refreshFollowerCounts = useCallback(async () => {
+    setFollowers((f) => ({ ...f, refreshing: true }));
+    try {
+      await refreshFollowers({ brandId: activeBrandId });
+      // Refresh answers for the whole brand over its default days; read again
+      // for this tab and range.
+      const data = await fetchFollowers({ brandId: activeBrandId, days, platform: followerPlatform });
+      setFollowers({ loading: false, data });
+    } catch (err) {
+      setFollowers((f) => ({ ...f, refreshing: false }));
+      throw err;
+    }
+  }, [activeBrandId, days, followerPlatform]);
+
+  // ── Waiting for approval (autopilot posts: drafting + pending) ─────────────
+  const loadApprovals = useCallback(async () => {
+    const res = await fetchAutopilotPosts({ brandId: activeBrandId });
+    setApprovals({ loading: false, list: res?.posts || [], total: res?.total ?? (res?.posts || []).length });
+  }, [activeBrandId]);
+
+  useEffect(() => {
+    if (!activeBrandId) return;
+    let alive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset before a brand switch reloads
+    setApprovals({ loading: true, list: [] });
+    fetchAutopilotPosts({ brandId: activeBrandId })
+      .then((res) => alive && setApprovals({ loading: false, list: res?.posts || [], total: res?.total ?? (res?.posts || []).length }))
+      .catch((err) => alive && setApprovals({ loading: false, error: err.message, list: [] }));
+    return () => {
+      alive = false;
+    };
+  }, [activeBrandId]);
+
+  /**
+   * Approve (`approve`), turn down (`reject`) or approve every pending post
+   * (`approve-all`, `id` = the ids shown). Approved and turned-down posts
+   * leave the list.
+   * @returns {Promise<number>} how many posts were approved
+   */
+  const decideApproval = useCallback(
+    async (action, id) => {
+      setApprovals((a) => ({ ...a, busy: id ?? action }));
+      try {
+        let approved = 0;
+        if (action === "approve-all") {
+          approved = (await approveAllAutopilotPosts(id, { brandId: activeBrandId }))?.approved ?? 0;
+        } else if (action === "approve") {
+          await approveAutopilotPost(id, { brandId: activeBrandId });
+          approved = 1;
+        } else {
+          await rejectAutopilotPost(id, { brandId: activeBrandId });
+        }
+        await loadApprovals();
+        return approved;
+      } finally {
+        setApprovals((a) => ({ ...a, busy: undefined }));
+      }
+    },
+    [activeBrandId, loadApprovals],
   );
 
   /** Smart Inbox "See more": the next page of conversations, appended. */
@@ -236,5 +352,16 @@ export default function useHomeData() {
     }
   }, [activeBrandId, inbox.page]);
 
-  return { inbox, campaigns, posts, setInboxAi, loadMoreInbox };
+  return {
+    inbox,
+    campaigns,
+    posts,
+    networks,
+    followers,
+    approvals,
+    setInboxAi,
+    loadMoreInbox,
+    refreshFollowerCounts,
+    decideApproval,
+  };
 }

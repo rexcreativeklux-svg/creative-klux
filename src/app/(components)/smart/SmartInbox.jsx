@@ -11,11 +11,14 @@
 //   · "Past orders" on the profile (no orders field on a conversation)
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   AlertTriangle,
+  Bot,
   Calendar,
   Check,
+  ChevronDown,
   Eye,
   EyeOff,
   FileText,
@@ -47,7 +50,7 @@ import {
   fetchInboxConversations,
   fetchInboxSummary,
   syncInboxAccounts,
-  fetchRules,
+  fetchInboxSettings,
   fetchSavedReplies,
   hideComment,
   replyToConversation,
@@ -72,7 +75,7 @@ import {
   duration,
   notifySmartChanged,
 } from "./shared";
-import { RulesModal, SavedRepliesModal } from "./InboxModals";
+import { SavedRepliesModal } from "./InboxModals";
 import "@/app/(components)/home/homeDashboard.css";
 import "./smart.css";
 
@@ -96,6 +99,71 @@ function StatusPill({ status }) {
   return <span className={`pill ${cls}`}>{label}</span>;
 }
 
+/** A copilot from /settings as an <Avatar> person; `avatar` is used only when it's an image URL. */
+const copilotPerson = (c) => ({ id: c.id, name: c.name, avatar_url: /^https?:\/\//.test(c.avatar || "") ? c.avatar : undefined });
+
+/**
+ * Which copilot replies to Smart Inbox. One per brand; with nobody in charge
+ * every new message waits for a person, even with AI replies on.
+ */
+function CopilotPicker({ settings, busy, onPick }) {
+  if (!settings || settings.error) {
+    return (
+      <button className="btn" disabled title={settings?.error}>
+        <Bot size={14} />
+        {settings ? "Copilot unavailable" : "Copilot…"}
+      </button>
+    );
+  }
+  const current = settings.copilot;
+  const copilots = settings.copilots || [];
+  return (
+    <Menu
+      style={{ minWidth: 260 }}
+      button={({ open, toggle }) => (
+        <button
+          className={`btn ${current ? "" : "btn-warn"}`}
+          onClick={toggle}
+          disabled={busy}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          title={current ? `${current.name} replies to Smart Inbox` : "No copilot is in charge, so every new message waits for you"}
+        >
+          {current ? <Avatar person={copilotPerson(current)} style={{ width: 20, height: 20, fontSize: 8 }} /> : <Bot size={14} />}
+          {busy ? "Switching…" : current ? `${current.name} replies` : "No copilot in charge"}
+          <ChevronDown size={14} />
+        </button>
+      )}
+    >
+      <div className="menu-head">Replies to Smart Inbox</div>
+      {copilots.length ? (
+        copilots.map((c) => (
+          <button key={c.id} role="menuitemradio" aria-checked={c.id === current?.id} className={c.id === current?.id ? "on" : ""} onClick={() => c.id !== current?.id && onPick(c.id)}>
+            <Avatar person={copilotPerson(c)} style={{ width: 24, height: 24, fontSize: 9 }} />
+            <span className="grow ellipsis">{c.name}</span>
+            {c.id === current?.id && <Check size={14} />}
+          </button>
+        ))
+      ) : (
+        <div className="tiny" style={{ padding: "4px 10px 8px" }}>You don&apos;t have a copilot yet.</div>
+      )}
+      <div className="menu-sep" />
+      <button disabled={!current} onClick={() => onPick(null)}>
+        <Bot size={14} />
+        <span className="grow">
+          Nobody
+          <br />
+          <small>Every new message waits for you</small>
+        </span>
+      </button>
+      <Link href="/copilot">
+        <Plus size={14} />
+        Manage copilots
+      </Link>
+    </Menu>
+  );
+}
+
 export default function SmartInbox() {
   const { activeBrandId, user, teams } = useAuth();
   const brand = { brandId: activeBrandId };
@@ -105,7 +173,8 @@ export default function SmartInbox() {
   const [summary, setSummary] = useState(null);
   const [list, setList] = useState({ loading: true, items: [], counts: {}, done: 0, page: 1, last: 1 });
   const [replies, setReplies] = useState([]);
-  const [rules, setRules] = useState({ rules: [], actions: [] });
+  // {ai_on, copilot_id, copilot, copilots[]} — which copilot replies here.
+  const [settings, setSettings] = useState(null);
   const [convo, setConvo] = useState(null); // the open conversation (full shape)
   const [convoLoading, setConvoLoading] = useState(false);
 
@@ -119,7 +188,7 @@ export default function SmartInbox() {
   const [composer, setComposer] = useState({});
   const [mode, setMode] = useState({});
   const [draftIdx, setDraftIdx] = useState({});
-  const [modal, setModal] = useState(null); // "replies" | "rules" | {confirmDelete}
+  const [modal, setModal] = useState(null); // "replies" | "delete"
   const [busy, setBusy] = useState("");
   const prevStatus = useRef({}); // for Reopen: the API has no "open" status
   const replyRef = useRef(null);
@@ -188,7 +257,9 @@ export default function SmartInbox() {
     if (!activeBrandId) return;
     loadSummary();
     fetchSavedReplies(brand).then((r) => setReplies(r.replies || [])).catch(() => {});
-    fetchRules(brand).then((r) => setRules({ rules: r.rules || [], actions: r.actions || [] })).catch(() => {});
+    fetchInboxSettings(brand)
+      .then((s) => setSettings(s || {}))
+      .catch((err) => setSettings({ error: err.message }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeBrandId, loadSummary]);
 
@@ -286,6 +357,24 @@ export default function SmartInbox() {
   };
 
   // ── Actions ──
+  /** Put a copilot in charge of replying here (null = nobody). */
+  const pickCopilot = async (copilotId) => {
+    setBusy("copilot");
+    try {
+      const res = await updateInboxSettings({ ...brand, copilotId });
+      setSettings(res || {});
+      if (res?.ai_on !== undefined) setSummary((s) => (s ? { ...s, ai_on: res.ai_on } : s));
+      toast.success(
+        res?.message ||
+          (res?.copilot ? `${res.copilot.name} now replies to Smart Inbox.` : "No copilot is in charge. Every new message will wait for you."),
+      );
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setBusy("");
+    }
+  };
+
   const toggleAi = async () => {
     const on = !summary?.ai_on;
     setSummary((s) => ({ ...s, ai_on: on }));
@@ -404,7 +493,7 @@ export default function SmartInbox() {
   const aiOn = summary?.ai_on;
 
   return (
-    <div className="ck-home">
+    <div className="ck-home ib-page">
       <div className="page-head">
         <div className="grow">
           <h1 className="h1">Smart Inbox</h1>
@@ -413,8 +502,7 @@ export default function SmartInbox() {
         <div className="row wrap">
           <a className="btn" href="/integrations">Connections</a>
           <SyncButton brand={brand} onSynced={() => loadList({ quiet: true })} />
-          <button className="btn" onClick={() => setModal("replies")}><FileText size={14} />Saved replies</button>
-          <button className="btn" onClick={() => setModal("rules")}><Sparkles size={14} />AI rules</button>
+          <CopilotPicker settings={settings} busy={busy === "copilot"} onPick={pickCopilot} />
           <button className={`btn ${aiOn ? "btn-autopilot" : ""}`} onClick={toggleAi} disabled={!summary || summary.error}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: aiOn ? "#12a05c" : "#9aa0ad" }} />
             {aiOn ? "AI replies on" : "AI replies paused"}
@@ -423,11 +511,6 @@ export default function SmartInbox() {
       </div>
 
       <section className="grid-auto">{kpis.map((k) => <Kpi key={k.label} k={k} />)}</section>
-      <div className="kpi-note">
-        <span className="pill pill-orange">Waiting on backend</span>
-        Week-on-week changes and trend lines need /smart-inbox/summary to also send each of the last 7 days.
-        {summary?.error && <span className="err"> · {summary.error}</span>}
-      </div>
 
       <div className="card inbox">
         {/* ── Conversation list ── */}
@@ -590,15 +673,6 @@ export default function SmartInbox() {
       </div>
 
       {modal === "replies" && <SavedRepliesModal replies={replies} setReplies={setReplies} brandId={activeBrandId} onClose={() => setModal(null)} />}
-      {modal === "rules" && (
-        <RulesModal
-          rules={rules.rules}
-          setRules={(fn) => setRules((r) => ({ ...r, rules: typeof fn === "function" ? fn(r.rules) : fn }))}
-          actions={rules.actions}
-          brandId={activeBrandId}
-          onClose={() => setModal(null)}
-        />
-      )}
       {modal === "delete" && convo && (
         <Confirm
           title={`Delete conversation with ${convo.name}?`}

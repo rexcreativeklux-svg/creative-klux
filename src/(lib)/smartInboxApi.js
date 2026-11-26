@@ -150,9 +150,33 @@ export const deleteRule = (id, { brandId } = {}) =>
 
 // ── Settings ────────────────────────────────────────────────────────────────
 
-/** Switch the inbox AI on or off. Off = every message waits for a person. → {ai_on} */
-export const updateInboxSettings = ({ brandId, aiOn }) =>
-  call("put", "/settings", { brandId, body: { ai_on: !!aiOn } }, "Couldn't change the inbox AI setting");
+/**
+ * → {ai_on, copilot_id, copilot{id,name,avatar}, copilots[]}. One copilot per
+ * brand replies to Smart Inbox; with none in charge every new message waits
+ * for a person, even with ai_on.
+ */
+export const fetchInboxSettings = ({ brandId } = {}) =>
+  call("get", "/settings", { brandId }, "Couldn't load the inbox settings");
+
+/**
+ * Switch the inbox AI on or off (`aiOn`; off = every message waits for a
+ * person) and/or put a copilot in charge (`copilotId`, null = nobody). Only
+ * the fields passed are sent. → the same shape as fetchInboxSettings, plus
+ * `message`.
+ */
+export const updateInboxSettings = ({ brandId, aiOn, copilotId }) =>
+  call(
+    "put",
+    "/settings",
+    {
+      brandId,
+      body: {
+        ...(aiOn !== undefined ? { ai_on: !!aiOn } : {}),
+        ...(copilotId !== undefined ? { copilot_id: copilotId } : {}),
+      },
+    },
+    "Couldn't change the inbox settings",
+  );
 
 /**
  * Re-register the brand's connected Pages / accounts with the inbox and

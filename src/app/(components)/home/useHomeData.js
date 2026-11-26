@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { fetchInboxConversations, fetchInboxSummary, updateInboxSettings } from "@/(lib)/smartInboxApi";
+import { fetchInboxConversations, fetchInboxSummary } from "@/(lib)/smartInboxApi";
 import {
   POST_STATS_PLATFORMS,
   fetchLivePostsFromConnectedAccounts,
@@ -233,26 +233,6 @@ export default function useHomeData(days = 7, followerPlatform) {
     };
   }, [source, days]);
 
-  /**
-   * Turn the Smart Inbox AI on or off (PUT smart-inbox/settings). Off = every
-   * new DM and comment waits for a person. Optimistic, rolled back on failure.
-   */
-  const setInboxAi = useCallback(
-    async (on) => {
-      setInbox((s) => (s.summary ? { ...s, summary: { ...s.summary, ai_on: on } } : s));
-      try {
-        const res = await updateInboxSettings({ brandId: activeBrandId, aiOn: on });
-        const saved = res?.ai_on ?? on;
-        setInbox((s) => (s.summary ? { ...s, summary: { ...s.summary, ai_on: saved } } : s));
-        return saved;
-      } catch (err) {
-        setInbox((s) => (s.summary ? { ...s, summary: { ...s.summary, ai_on: !on } } : s));
-        throw err;
-      }
-    },
-    [activeBrandId],
-  );
-
   // ── Followers (Facebook Pages + Instagram, saved once a day) ───────────────
   useEffect(() => {
     if (!activeBrandId) return;
@@ -359,7 +339,6 @@ export default function useHomeData(days = 7, followerPlatform) {
     networks,
     followers,
     approvals,
-    setInboxAi,
     loadMoreInbox,
     refreshFollowerCounts,
     decideApproval,

@@ -68,6 +68,7 @@ import { formatMetric, metricKeysOf, metricLabel, numeric, postMetrics } from "@
 import ConfirmDialog from "@/app/(components)/ConfirmDialog";
 import CreatePostComposer from "@/app/(components)/composer/CreatePostComposer";
 import PostInsightsPanel from "@/app/(components)/content/PostInsightsPanel";
+import useOpenFromUrl from "./useOpenFromUrl";
 import { SOCIAL_NETWORKS } from "@/app/(components)/content/socialPlatformScope";
 import { PublishingSkeleton } from "@/app/(components)/skeletons/ContentSectionSkeletons";
 import {
@@ -125,6 +126,13 @@ const postDate = (p) =>
   });
 // ── Posts table ──────────────────────────────────────────────────────────────
 
+/**
+ * Networks whose APIs don't let an app delete a published post. The backend
+ * is still asked elsewhere and answers with the reason (creativesApi.js
+ * SERVER_DELETE_PLATFORMS), but here they get no Delete at all.
+ */
+const NO_API_DELETE = ["instagram", "tiktok"];
+
 function PostsTable({ title = "Posts", posts, statsLoading, onOpen, onDelete, platform }) {
   const keys = useMemo(() => metricKeysOf(posts), [posts]);
   const [hidden, setHidden] = useState([]);
@@ -133,7 +141,7 @@ function PostsTable({ title = "Posts", posts, statsLoading, onOpen, onDelete, pl
   const [selected, setSelected] = useState([]);
   const [colsOpen, setColsOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const canDelete = platformSupportsDelete(platform);
+  const canDelete = platformSupportsDelete(platform) && !NO_API_DELETE.includes(platform);
 
   const columns = [
     ...keys.map((k) => ({ key: k, label: metricLabel(k), get: (p) => numeric(postMetrics(p)?.[k]), show: (p) => formatMetric(k, postMetrics(p)?.[k]) })),
@@ -288,6 +296,7 @@ function PostsTable({ title = "Posts", posts, statsLoading, onOpen, onDelete, pl
                     </button>
                   </th>
                 ))}
+                {canDelete && <th className="px-4 py-2.5 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -333,6 +342,21 @@ function PostsTable({ title = "Posts", posts, statsLoading, onOpen, onDelete, pl
                         </td>
                       );
                     })}
+                    {canDelete && (
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end">
+                          <button
+                            type="button"
+                            onClick={() => onDelete([p])}
+                            disabled={!p.post_id}
+                            title={p.post_id ? "Delete from the network" : "This post has no network id, so it can't be deleted from here"}
+                            className="flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 text-xs font-medium text-red-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Delete
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -488,6 +512,8 @@ export default function NetworkInsightsPage({ platform }) {
     setOpenPost(p);
     setPanelOpen(true);
   };
+  // ?post=<row id> — Home's top posts link straight to one post.
+  useOpenFromUrl("post", posts, loadedKey === key, openPostPanel, "That post isn't in this account's latest posts any more.");
 
   if (!network) return null;
   if (loadedKey !== key && !posts.length) return <PublishingSkeleton />;

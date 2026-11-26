@@ -3,9 +3,8 @@
 // HomeDashboard — the "/" home page.
 //
 // NOTHING ON THIS PAGE IS HARDCODED. Every number comes from the backend
-// (useHomeData), and a section the backend can't fill yet is shown as a
-// "Waiting on backend" card that says exactly what it needs — never with
-// placeholder figures.
+// (useHomeData); a section the backend can't fill yet is left off the page
+// rather than shown with placeholder figures.
 //
 //   Live, from the brand's own data:
 //     number cards        posts' interactions / views / engagement (the picked
@@ -20,16 +19,15 @@
 //     ad campaigns table  creatives/campaigns + campaign-metrics (picked range)
 //     best time to post   the brand's own posts over 90 days (bestTimes)
 //     top posts           creatives/posts + post-metrics
-//     Smart Inbox         smart-inbox/summary + conversations; the "Inbox AI"
-//                         switch is smart-inbox/settings (ai_on)
+//     Smart Inbox         smart-inbox/summary + conversations
 //     follower growth     dashboard/followers (Facebook Pages + Instagram),
 //     + by platform       saved once a day; growth needs 7 recorded days
 //     waiting for         autopilot/posts (drafting + pending), approve one,
 //     approval            approve all, or reject
 //     Monday report       built from all of the above, downloadable as PDF
 //
-//   Waiting on backend:
-//     the AI action on each ad.
+//   Left off until the backend has it: the AI action (scale / test / pause)
+//   on each ad.
 //
 // The metric maths reuses insights/networkInsights.js — the same helpers the
 // Social insights pages use, so Home and those pages agree.
@@ -37,6 +35,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -352,10 +351,10 @@ export default function HomeDashboard() {
   const [metric, setMetric] = useState("Likes");
   const [range, setRange] = useState(RANGES[0]);
   const [downloading, setDownloading] = useState(false);
-  const [togglingAi, setTogglingAi] = useState(false);
-  const { inbox, campaigns, posts, networks, followers, approvals, setInboxAi, loadMoreInbox, refreshFollowerCounts, decideApproval } =
+  const { inbox, campaigns, posts, networks, followers, approvals, loadMoreInbox, refreshFollowerCounts, decideApproval } =
     useHomeData(range.days, FOLLOWER_TABS[picked]);
   const { activeBrand } = useAuth();
+  const router = useRouter();
   // Which lists are expanded by their "See more".
   const [showAll, setShowAll] = useState({ ads: false, posts: false, approvals: false });
   const toggleAll = (key) => setShowAll((s) => ({ ...s, [key]: !s[key] }));
@@ -545,7 +544,6 @@ export default function HomeDashboard() {
     [inbox, campaigns, posts, activeBrand?.name, now],
   );
 
-  const aiOn = inbox.summary?.ai_on;
   const last = Math.max(1, chart.cur.length - 1);
   const X = (i) => (i / last) * 700;
   // The best-day band: as wide as one point's share of the chart, at most 60.
@@ -594,25 +592,6 @@ export default function HomeDashboard() {
           )}
         </div>
         <div className="row" style={{ marginLeft: "auto" }}>
-          <button
-            className={`btn ${aiOn ? "btn-autopilot" : ""}`}
-            disabled={inbox.loading || !inbox.summary || togglingAi}
-            title={aiOn ? "The AI answers new DMs and comments on its own. Click to pause." : "Every new DM and comment waits for a person. Click to let the AI answer."}
-            onClick={async () => {
-              setTogglingAi(true);
-              try {
-                const saved = await setInboxAi(!aiOn);
-                toast.success(saved ? "Inbox AI is on — it will answer new messages." : "Inbox AI paused — new messages will wait for you.");
-              } catch (err) {
-                toast.error(err.message);
-              } finally {
-                setTogglingAi(false);
-              }
-            }}
-          >
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: aiOn ? "#12a05c" : "#9aa0ad" }} />
-            {inbox.loading ? "Inbox AI…" : !inbox.summary ? "Inbox AI unavailable" : aiOn ? "Inbox AI on" : "Inbox AI paused"}
-          </button>
           <Menu
             style={{ minWidth: 180 }}
             button={({ open, toggle }) => (
@@ -941,10 +920,12 @@ export default function HomeDashboard() {
                 <tbody>
                   {(showAll.ads ? ads : ads.slice(0, TABLE_COUNT)).map((c) => {
                     const [pc, label] = campaignPill(c.status);
+                    const href = `/ads-content?platform=${encodeURIComponent(c.platform)}&campaign=${encodeURIComponent(c.id)}`;
                     return (
-                      <tr key={c.id}>
+                      <tr key={c.id} className="open-row" title={`Open in Ads · ${networkName(c.platform)}`} onClick={() => router.push(href)}>
                         <td style={{ paddingLeft: 14, fontWeight: 600, maxWidth: 260 }}>
-                          <span className="row">
+                          {/* The row opens on click; this link is the keyboard way in. */}
+                          <Link href={href} className="row" style={{ color: "inherit" }} onClick={(e) => e.stopPropagation()}>
                             {c.image ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={c.image} alt="" style={{ width: 28, height: 28, borderRadius: 6, objectFit: "cover" }} />
@@ -954,7 +935,7 @@ export default function HomeDashboard() {
                               </span>
                             )}
                             <span className="ellipsis">{c.name}</span>
-                          </span>
+                          </Link>
                         </td>
                         <td>{networkName(c.platform)}</td>
                         <td><span className={`pill ${pc}`}>{label}</span></td>
@@ -982,10 +963,6 @@ export default function HomeDashboard() {
               />
             </div>
           )}
-          <div className="tiny" style={{ padding: "6px 14px 8px", borderTop: "1px solid var(--line-2)" }}>
-            <span className="pill pill-orange" style={{ marginRight: 6 }}>Waiting on backend</span>
-            AI budget actions (scale, test, pause) need an ads autopilot that decides them and an endpoint that returns each campaign&apos;s latest action.
-          </div>
         </section>
 
         <section className="card card-pad stack" style={{ flex: "1 1 300px" }}>
@@ -1064,16 +1041,15 @@ export default function HomeDashboard() {
           <>
           <div className={`posts ${showAll.posts ? "posts-all" : ""}`}>
             {(showAll.posts ? topPosts : topPosts.slice(0, POSTS_COUNT)).map((p) => (
-              <article key={p.id} className="card post">
+              <Link
+                key={p.id}
+                href={`/social-content?platform=${encodeURIComponent(p.platform)}&post=${encodeURIComponent(p.id)}`}
+                className="card post open-link"
+                title={`Open in Social · ${networkName(p.platform)}`}
+              >
                 <div className="stack" style={{ padding: "10px 12px" }}>
                   <span className="tiny">{[shortDate(p.date), networkName(p.platform)].filter(Boolean).join(" · ")}</span>
-                  <span className="ellipsis" style={{ fontSize: 13, fontWeight: 600, marginTop: -6 }}>
-                    {p.url ? (
-                      <a href={p.url} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>{p.title}</a>
-                    ) : (
-                      p.title
-                    )}
-                  </span>
+                  <span className="ellipsis" style={{ fontSize: 13, fontWeight: 600, marginTop: -6 }}>{p.title}</span>
                 </div>
                 <div className="post-stats">
                   <div>
@@ -1103,7 +1079,7 @@ export default function HomeDashboard() {
                 ) : (
                   <div className="post-noimg">No image</div>
                 )}
-              </article>
+              </Link>
             ))}
           </div>
           <SeeMore

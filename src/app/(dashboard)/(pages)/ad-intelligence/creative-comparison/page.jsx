@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import useMagicImageResults from "./useMagicImageResults";
-import { fetchHostedBlob } from "@/app/(components)/product-studio/saveToGallery";
+import { fitUploadLimit, hostedImageToFile } from "../hostedImageFile";
 
 /**
  * A creative picked by URL (a Magic Studio result) as an uploadable File.
@@ -36,54 +36,11 @@ import { fetchHostedBlob } from "@/app/(components)/product-studio/saveToGallery
  */
 async function withFile(creative) {
   if (!creative.file && !creative.url) return creative;
+  if (!creative.file) {
+    return { ...creative, file: await hostedImageToFile(creative.url, creative.label) };
+  }
   const base = (creative.label || "creative").replace(/\W+/g, "-");
-  let file = creative.file;
-  if (!file) {
-    const blob = await fetchHostedBlob(creative.url);
-    const ext = (blob.type.split("/")[1] || "png").replace("jpeg", "jpg");
-    file = new File([blob], `${base}.${ext}`, { type: blob.type || "image/png" });
-  }
-  return { ...creative, file: await fitUploadLimit(file, base) };
-}
-
-// The comparison endpoint rejects images over 2MB ("The uploaded image exceeds
-// 2MB"). Magic Studio renders and phone photos are routinely bigger, so a file
-// over the line is re-encoded here — just under it, to leave room for headers.
-const UPLOAD_LIMIT = 2 * 1024 * 1024;
-const TARGET = UPLOAD_LIMIT * 0.95;
-const MAX_SIDE = 2048; // plenty for scoring a creative
-
-/**
- * A file the endpoint will accept: unchanged when already under the limit,
- * otherwise scaled to at most MAX_SIDE and re-encoded as JPEG at the highest
- * quality that fits.
- */
-async function fitUploadLimit(file, base) {
-  if (file.size <= TARGET) return file;
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const ctx = canvas.getContext("2d");
-  // JPEG has no alpha — a transparent PNG would otherwise go black behind it.
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close?.();
-
-  for (const quality of [0.92, 0.85, 0.75, 0.6, 0.45]) {
-    const blob = await new Promise((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", quality),
-    );
-    if (blob && blob.size <= TARGET) {
-      console.log(
-        `🗜️ [comparison] ${base}: ${(file.size / 1048576).toFixed(1)}MB → ${(blob.size / 1048576).toFixed(1)}MB`,
-      );
-      return new File([blob], `${base}.jpg`, { type: "image/jpeg" });
-    }
-  }
-  throw new Error("That image is too large to compare, even after compressing it.");
+  return { ...creative, file: await fitUploadLimit(creative.file, base) };
 }
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint
 // and export, so previews and the exported PNG match what opens in the editor.
@@ -978,7 +935,8 @@ function WebsiteInput({ label, value, onChange }) {
 /* ─── ResultsPanel ────────────────────────────────────────────── */
 function ResultsPanel({ result, onReset }) {
   if (!result) return null;
-  const { itemA, itemB, verdict, winner, marginOfVictory, mode } = result;
+  const { itemA, itemB, verdict, winner, marginOfVictory, mode, compared } =
+    result;
   const scores = mode === "creatives" ? CREATIVE_SCORES : WEBSITE_SCORES;
 
   const WinnerBadge = ({ which }) => {
@@ -1001,8 +959,50 @@ function ResultsPanel({ result, onReset }) {
       className="space-y-5"
     >
       {/* Header row */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-bold text-gray-900">Comparison Results</h2>
+
+        {/* The two creatives that were compared, winner ringed in green */}
+        {compared && (
+          <div className="order-last sm:order-0 w-full sm:w-auto flex items-center justify-center gap-3">
+            {["A", "B"].map((which, i) => {
+              const c = compared[which];
+              const isWinner = winner === which;
+              return (
+                <React.Fragment key={which}>
+                  {i === 1 && (
+                    <span className="text-[10px] font-bold text-gray-400">
+                      VS
+                    </span>
+                  )}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div
+                      className={`relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 border-2 shrink-0 ${isWinner ? "border-emerald-400" : "border-gray-200"}`}
+                    >
+                      {c?.url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={c.url}
+                          alt={c.label}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                      {isWinner && (
+                        <span className="absolute top-1 right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
+                          <CheckCircle className="w-3 h-3 text-white" />
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs font-semibold text-gray-700 truncate max-w-[110px]">
+                      {c?.label || `Creative ${which}`}
+                    </p>
+                  </div>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        )}
+
         <button
           onClick={onReset}
           className="text-xs font-medium text-gray-500 hover:text-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 bg-surface transition"
@@ -1260,7 +1260,17 @@ export default function Comparison() {
     if (!response.ok) {
       setError(response.message || "Comparison failed. Please try again.");
     } else {
-      setResult({ mode, ...response.data });
+      // The pictures that were compared ride along with the result, so the
+      // results header shows exactly what was sent (not later picker edits).
+      setResult({
+        mode,
+        ...response.data,
+        compared:
+          mode === "creatives"
+            ? { A: { url: creativeA.url, label: creativeA.label },
+                B: { url: creativeB.url, label: creativeB.label } }
+            : null,
+      });
     }
     setLoading(false);
   };

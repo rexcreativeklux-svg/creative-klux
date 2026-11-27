@@ -21,8 +21,12 @@ import {
   Image as ImageIcon,
   Search,
   RefreshCw,
+  Palette,
+  Wand2,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import useMagicImageResults from "../creative-comparison/useMagicImageResults";
+import { hostedImageToFile } from "../hostedImageFile";
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
 // so these thumbnails match exactly what opens in the editor.
 import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
@@ -232,6 +236,16 @@ export default function ComplianceChecker() {
   const [designsLoaded, setDesignsLoaded] = useState(false);
   const [search, setSearch] = useState("");
 
+  // ── design source: "creative" (Creative Studio designs) | "magic" (Magic
+  // Studio pictures). Magic results are hosted images, not designs, so a pick
+  // is sent to the checker as an image file.
+  const [designSource, setDesignSource] = useState("creative");
+  const [magicRequested, setMagicRequested] = useState(false);
+  const [selectedMagic, setSelectedMagic] = useState(null);
+  const { items: magicItems, loading: magicLoading } = useMagicImageResults({
+    enabled: magicRequested,
+  });
+
   // ── platform + check state ──
   const [selectedPlatforms, setSelectedPlatforms] = useState([
     "Meta",
@@ -265,8 +279,9 @@ export default function ComplianceChecker() {
 
   const handleTabSwitch = (tab) => {
     setActiveTab(tab);
-    if (tab === "designs" && !designsLoaded) {
-      loadDesigns();
+    if (tab === "designs") {
+      if (designSource === "creative" && !designsLoaded) loadDesigns();
+      if (designSource === "magic") setMagicRequested(true);
     }
     if (tab === "upload" && !file) {
       setTimeout(() => fileRef.current?.click(), 50);
@@ -283,11 +298,20 @@ export default function ComplianceChecker() {
     [designs, search],
   );
 
+  const handleSourceSwitch = (source) => {
+    setDesignSource(source);
+    if (source === "creative" && !designsLoaded && !designsLoading) {
+      loadDesigns();
+    }
+    if (source === "magic") setMagicRequested(true);
+  };
+
   /* ── file handlers ── */
   const acceptFile = (f) => {
     if (!f) return;
     setFile(f);
     setSelectedDesign(null);
+    setSelectedMagic(null);
     setData(null);
     setError("");
     const reader = new FileReader();
@@ -305,12 +329,23 @@ export default function ComplianceChecker() {
     setFile(null);
     setPreview(null);
     setSelectedDesign(null);
+    setSelectedMagic(null);
+    setData(null);
+    setError("");
+  };
+
+  const handleSelectMagic = (item) => {
+    setSelectedMagic(item);
+    setSelectedDesign(null);
+    setFile(null);
+    setPreview(null);
     setData(null);
     setError("");
   };
 
   const handleSelectDesign = (design) => {
     setSelectedDesign(design);
+    setSelectedMagic(null);
     setFile(null);
     setPreview(null);
     setData(null);
@@ -338,6 +373,22 @@ export default function ComplianceChecker() {
         image: file,
         platforms: selectedPlatforms,
       });
+    } else if (selectedMagic) {
+      let magicFile;
+      try {
+        magicFile = await hostedImageToFile(
+          selectedMagic.url,
+          selectedMagic.label,
+        );
+      } catch (err) {
+        setError(err?.message || "Couldn't load that Magic Studio image.");
+        setLoading(false);
+        return;
+      }
+      response = await checkCompliance({
+        image: magicFile,
+        platforms: selectedPlatforms,
+      });
     } else if (selectedDesign) {
       const canvasPayload =
         typeof selectedDesign.raw.canvas === "string"
@@ -361,7 +412,7 @@ export default function ComplianceChecker() {
     setLoading(false);
   };
 
-  const hasInput = !!file || !!selectedDesign;
+  const hasInput = !!file || !!selectedDesign || !!selectedMagic;
 
   return (
     <div className="" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -518,6 +569,102 @@ export default function ComplianceChecker() {
                 {/* ── Designs tab ── */}
                 {activeTab === "designs" && (
                   <div className="space-y-3">
+                    {/* Source switcher — Creative Studio designs or Magic
+                        Studio pictures */}
+                    <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+                      {[
+                        { id: "creative", label: "Creative Studio", icon: Palette },
+                        { id: "magic", label: "Magic Studio", icon: Wand2 },
+                      ].map(({ id, label, icon: Icon }) => (
+                        <button
+                          key={id}
+                          onClick={() => handleSourceSwitch(id)}
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                            designSource === id
+                              ? "bg-surface text-emerald-600 shadow-sm"
+                              : "text-gray-500 hover:text-gray-700"
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" /> {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* ── Magic Studio pictures ── */}
+                    {designSource === "magic" &&
+                      (magicLoading ? (
+                        <div className="flex flex-col items-center justify-center py-16 gap-3">
+                          <Loader2 className="w-7 h-7 animate-spin text-emerald-500" />
+                          <p className="text-sm text-gray-400">
+                            Loading Magic Studio images…
+                          </p>
+                        </div>
+                      ) : magicItems.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-14 gap-2">
+                          <Wand2 className="w-9 h-9 text-gray-200" />
+                          <p className="text-sm text-gray-400">
+                            No Magic Studio images yet.
+                          </p>
+                          <p className="text-xs text-gray-300">
+                            Generate one in Magic Studio first.
+                          </p>
+                        </div>
+                      ) : (
+                        <div
+                          className="grid grid-cols-3 gap-2 overflow-y-auto pr-0.5"
+                          style={{ maxHeight: 340 }}
+                        >
+                          {magicItems.map((item) => {
+                            const isSel = selectedMagic?.id === item.id;
+                            return (
+                              <button
+                                key={item.id}
+                                onClick={() => handleSelectMagic(item)}
+                                title={item.label}
+                                className={`relative aspect-square rounded-xl overflow-hidden border-2 bg-gray-100 transition-all cursor-pointer ${
+                                  isSel
+                                    ? "border-emerald-400 shadow-lg shadow-emerald-100/60"
+                                    : "border-transparent hover:border-emerald-300"
+                                }`}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={item.url}
+                                  alt={item.label}
+                                  loading="lazy"
+                                  className="w-full h-full object-cover"
+                                />
+                                <span className="absolute inset-x-0 bottom-0 px-1.5 pb-1 pt-3 bg-linear-to-t from-black/60 to-transparent text-[9px] font-medium text-white truncate text-left">
+                                  {item.label}
+                                </span>
+                                {isSel && (
+                                  <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm">
+                                    <CheckCircle className="w-3.5 h-3.5 text-white" />
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ))}
+
+                    {designSource === "magic" && selectedMagic && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl">
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <p className="text-xs font-semibold text-emerald-700 flex-1 truncate">
+                          {selectedMagic.label}
+                        </p>
+                        <button
+                          onClick={clearAll}
+                          className="text-emerald-400 hover:text-emerald-600 cursor-pointer transition shrink-0"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    {designSource === "creative" && (
+                  <>
                     {/* Search + refresh */}
                     {!designsLoading && designs.length > 0 && (
                       <div className="flex gap-2">
@@ -688,6 +835,8 @@ export default function ComplianceChecker() {
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                    )}
+                  </>
                     )}
                   </div>
                 )}

@@ -40,7 +40,10 @@ const LIMIT = 40;
  * @returns {{ items: Array<{id, url, label, createdAt}>, loading: boolean }}
  */
 export default function useMagicImageResults({ enabled = true } = {}) {
-  const [state, setState] = useState({ items: [], loading: enabled });
+  // `loading` is derived, not stored: it may be enabled after mount (Ad Guard
+  // turns it on when its Magic Studio tab first opens), and should read as
+  // loading from that moment until the first fetch lands.
+  const [state, setState] = useState({ items: [], loaded: false });
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -70,12 +73,12 @@ export default function useMagicImageResults({ enabled = true } = {}) {
           label: toolById(item.tool)?.label || "Magic Studio",
           createdAt: item.createdAt,
         }));
-      setState({ items, loading: false });
+      setState({ items, loaded: true });
     })();
     return () => {
       alive = false;
     };
   }, [enabled]);
 
-  return state;
+  return { items: state.items, loading: enabled && !state.loaded };
 }

@@ -552,15 +552,12 @@ export default function AdsSection({ data }) {
 
       {src.length === 0 ? (
         <div className="rounded-xl bg-gray-50 px-5 py-10 text-center">
-          <p className="text-sm text-gray-600">
-            The backend returned no {current.label} ads for this site.
-          </p>
           {links[tab] && (
             <a
               href={links[tab]}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 mt-3 text-sm font-semibold text-blue-600 hover:underline"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:underline"
             >
               <ExternalLink className="w-4 h-4" /> Open {current.label} ad library
             </a>

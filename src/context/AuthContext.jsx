@@ -3340,7 +3340,7 @@ export function AuthProvider({ children }) {
   );
 
   const getCompetitorInsights = useCallback(
-    async ({ url }) => {
+    async ({ url, country }) => {
       if (!token) {
         console.error("getCompetitorInsights: no auth token.");
         return { ok: false, message: "Not authenticated" };
@@ -3362,6 +3362,9 @@ export function AuthProvider({ children }) {
           },
           body: JSON.stringify({
             url: normalizedUrl,
+            // Only sent when a country is picked; the backend reports the one
+            // it used in competitorAds.country (defaults to ALL).
+            ...(country ? { country } : {}),
           }),
         });
 
@@ -3530,8 +3533,13 @@ export function AuthProvider({ children }) {
     [token],
   );
 
+  // POST /creative-insights — the Ad Performance report.
+  // `days` is the period (7 / 30 / 90). ⚠️ The field is `days`: the response
+  // echoes it back as `periodDays`, but SENDING `periodDays` is ignored and
+  // silently returns 30 days. Results are cached per brand + period, so the
+  // first request for a period takes ~30s and repeats take ~2s.
   const creativeInsights = useCallback(
-    async ({ brand }) => {
+    async ({ brand, days }) => {
       if (!token) return { ok: false, message: "Not authenticated" };
       if (!brand?.trim())
         return { ok: false, message: "Brand name is required" };
@@ -3543,7 +3551,7 @@ export function AuthProvider({ children }) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ brand }),
+          body: JSON.stringify(days ? { brand, days } : { brand }),
         });
 
         const text = await res.text();

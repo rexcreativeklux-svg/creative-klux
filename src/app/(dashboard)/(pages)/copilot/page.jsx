@@ -76,7 +76,10 @@ function CopilotHome() {
           Natural height: the ideas below sit in an inset, rounded panel now,
           so they no longer need to line up with the sidebar's THEME hairline
           (which is what the old measured --ck-rail-top height was for). */}
-      <section className="flex flex-col items-center px-gutter pt-10 sm:pt-14 lg:pt-16 pb-8">
+      {/* Hero + ideas are centred vertically as one block, so the space above
+          and below is equal; the gaps between the elements are unchanged. */}
+      <div className="flex flex-1 flex-col justify-center">
+      <section className="flex flex-col items-center px-gutter pb-8">
         <h1 className="text-center text-3xl md:text-[44px] md:leading-[1.2] font-bold text-gray-900">
           Give your
           <br />
@@ -110,7 +113,7 @@ function CopilotHome() {
       {/* A rounded, bordered panel inset from the page edges, holding
           its own header row (category tabs) and rounded idea cards — the same
           box treatment as the home page's Templates panel. */}
-      <section className="flex-1 px-gutter pb-24 lg:pb-8">
+      <section className="px-gutter pb-24 lg:pb-0">
         <div className="w-full rounded-2xl border border-gray-200 bg-surface shadow-sm">
           {/* Header row — category tabs, left-aligned and dot-separated, with
               "View all" (the full template list) on the right */}
@@ -164,6 +167,7 @@ function CopilotHome() {
           </p>
         </div>
       </section>
+      </div>
     </div>
   );
 }

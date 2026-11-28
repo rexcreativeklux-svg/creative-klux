@@ -26,8 +26,15 @@
  * @param {React.Ref<HTMLTextAreaElement>} [props.inputRef] Ref to the textarea.
  */
 
+import { useLayoutEffect, useRef } from "react";
 import { Plus, Mic, ArrowUp, Loader2 } from "lucide-react";
 import { notifyPending } from "../_data/copilots";
+
+// The textarea grows with what you type — `rows` is only its resting height —
+// up to this many lines, then scrolls inside. A fixed one-line box hid
+// everything but the line being typed, which made a long task unreadable.
+const MAX_LINES = 8;
+const LINE_HEIGHT = 20; // text-sm
 
 export default function CopilotComposer({
   value,
@@ -49,12 +56,27 @@ export default function CopilotComposer({
     onSubmit?.();
   };
 
+  // Measure through the caller's ref object when given one, else our own.
+  const localRef = useRef(null);
+  const ref = inputRef ?? localRef;
+
+  // Fit the height to the text: reset to `auto` (the `rows` height) so it can
+  // also shrink after a send, then take the content height up to the cap.
+  useLayoutEffect(() => {
+    const ta = ref.current;
+    if (!ta) return;
+    const max = MAX_LINES * LINE_HEIGHT;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, max)}px`;
+    ta.style.overflowY = ta.scrollHeight > max ? "auto" : "hidden";
+  }, [value, rows, ref]);
+
   return (
     <div
       className={`bg-surface rounded-2xl border border-gray-200 shadow-sm p-4 ${className}`}
     >
       <textarea
-        ref={inputRef}
+        ref={ref}
         rows={rows}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -65,7 +87,7 @@ export default function CopilotComposer({
           }
         }}
         placeholder={placeholder}
-        className="w-full resize-none bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
+        className="w-full resize-none bg-transparent text-sm leading-5 text-gray-900 placeholder-gray-400 focus:outline-none"
       />
       <div className="flex items-center justify-between mt-2">
         <button

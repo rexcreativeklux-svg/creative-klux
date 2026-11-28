@@ -58,39 +58,49 @@ export const CATEGORIES = [
 // "Never let creative go stale" reads as a slogan, "Fortnightly creative
 // refresh" reads as a job. Keep them to about two to four words, and let the
 // cadence word carry over from the description where there is one.
+// ⚠️ EVERY IDEA HAS A UNIQUE `name` — the copilot it becomes. Using a
+// template creates a copilot under this name (the user can rename it later),
+// so two templates sharing one would put two identical names in Recents.
+// Names say the job as a role ("Brand Sentinel"), where the title says the task.
 export const IDEAS = {
   Brand: [
     {
+      name: "Brand Sentinel",
       title: "Weekly brand check",
       platforms: [],
       description:
         "Every Friday, check the week's new designs against my brand kit and flag the ones that drift from my colors, fonts or logo.",
     },
     {
+      name: "Kit Keeper",
       title: "Monthly kit refresh",
       platforms: [],
       description:
         "Every month, re-import my website and show me what changed — new colors, a new logo, updated copy — before I approve it.",
     },
     {
+      name: "Launch Builder",
       title: "New product launch set",
       platforms: ["instagram", "meta_ads"],
       description:
         "When I add a product, build its launch set — post, story, ad and banner — in my brand's colors and fonts.",
     },
     {
+      name: "Logo Swapper",
       title: "Old logo rebuild",
       platforms: [],
       description:
         "When I upload a new logo, find every design still carrying the old one and rebuild them for my review.",
     },
     {
+      name: "Voice Guard",
       title: "Brand voice gate",
       platforms: ["meta_ads", "linkedin"],
       description:
         "Before anything publishes, flag the copy that drifts from my brand voice and show me a rewrite beside it.",
     },
     {
+      name: "Brand Starter",
       title: "New brand setup",
       platforms: [],
       description:
@@ -99,36 +109,42 @@ export const IDEAS = {
   ],
   Social: [
     {
+      name: "Calendar Crafter",
       title: "Weekly content calendar",
       platforms: ["instagram", "tiktok"],
       description:
         "Every Thursday, draft seven posts in my brand voice, size them per platform, and load them into next week's calendar.",
     },
     {
+      name: "Resize Runner",
       title: "Every-platform resize",
       platforms: ["instagram", "pinterest", "linkedin"],
       description:
         "Whenever I save a design, produce it in every platform's size and queue the whole set for my review.",
     },
     {
+      name: "Recap Reporter",
       title: "Weekly performance recap",
       platforms: ["instagram", "facebook"],
       description:
         "Every Monday, pull last week's reach and engagement per post and tell me which creative earned it.",
     },
     {
+      name: "Reply Desk",
       title: "Daily comment replies",
       platforms: ["instagram", "facebook"],
       description:
         "Every morning, draft replies to the comments on my posts and queue them for me to approve or edit.",
     },
     {
+      name: "Rerun Scout",
       title: "Monthly top-post rerun",
       platforms: ["instagram", "linkedin"],
       description:
         "Each month, find my top performer, refresh the creative so it doesn't repeat, and schedule it to run again.",
     },
     {
+      name: "Trend Spotter",
       title: "Daily trend roundup",
       platforms: ["tiktok"],
       description:
@@ -137,36 +153,42 @@ export const IDEAS = {
   ],
   Ads: [
     {
+      name: "Creative Refresher",
       title: "Fortnightly creative refresh",
       platforms: ["meta_ads", "google_ads"],
       description:
         "Every two weeks, build fresh variants for each running campaign and stage them ready to swap in.",
     },
     {
+      name: "Policy Checker",
       title: "Pre-launch policy check",
       platforms: ["meta_ads", "tiktok_ads"],
       description:
         "Run every new ad through Ad Guard for policy issues and hold anything that would get knocked back.",
     },
     {
+      name: "Season Planner",
       title: "Seasonal campaign prep",
       platforms: ["meta_ads", "pinterest_ads"],
       description:
         "A month before each sale, build the full ad set — every size, copy variant and headline — and schedule it.",
     },
     {
+      name: "Headline Lab",
       title: "Headline split test",
       platforms: ["meta_ads", "google_ads"],
       description:
         "For each new ad, write five headline variants against the same creative and set them up as a test.",
     },
     {
+      name: "Fatigue Watch",
       title: "Daily fatigue alerts",
       platforms: ["meta_ads"],
       description:
         "Watch my running ads daily and alert me as soon as a creative's performance starts falling off.",
     },
     {
+      name: "Market Adapter",
       title: "Per-market campaign builds",
       platforms: ["meta_ads", "snapchat_ads"],
       description:
@@ -175,36 +197,42 @@ export const IDEAS = {
   ],
   Performance: [
     {
+      name: "Score Coach",
       title: "Pre-flight creative score",
       platforms: ["meta_ads"],
       description:
         "Score each new creative out of 100 and send me the priority fixes while there's still time to make them.",
     },
     {
+      name: "Rival Analyst",
       title: "Weekly competitor briefing",
       platforms: ["tiktok", "meta_ads"],
       description:
         "Every Monday, break down the ads my competitors are running and brief me on the angles they're testing.",
     },
     {
+      name: "Split Judge",
       title: "Weekly A/B verdict",
       platforms: ["meta_ads", "google_ads"],
       description:
         "Compare my two running creatives head to head each week and say which to scale and which to cut.",
     },
     {
+      name: "Library Auditor",
       title: "Quarterly library audit",
       platforms: [],
       description:
         "Every quarter, score everything I've made and show me the pattern behind the creatives that won.",
     },
     {
+      name: "Drop Detective",
       title: "Underperformance diagnosis",
       platforms: ["meta_ads"],
       description:
         "When a creative drops below my benchmark, break down what's likely causing it and what to change first.",
     },
     {
+      name: "Share Tracker",
       title: "Monthly share of voice",
       platforms: ["instagram", "tiktok"],
       description:
@@ -213,36 +241,42 @@ export const IDEAS = {
   ],
   Product: [
     {
+      name: "Photo Cleaner",
       title: "Product photo cleanup",
       platforms: [],
       description:
         "When I upload product photos, strip the backgrounds, straighten and beautify them, and file the set ready to use.",
     },
     {
+      name: "Stage Manager",
       title: "Weekly batch staging",
       platforms: ["instagram", "pinterest"],
       description:
         "Run each week's new arrivals through batch staging so every product gets a lifestyle shot and a flat lay.",
     },
     {
+      name: "Model Maker",
       title: "Apparel model shots",
       platforms: ["instagram", "tiktok"],
       description:
         "For every new apparel item, generate ghost-mannequin and virtual-model versions sized for my shop and socials.",
     },
     {
+      name: "Clip Cutter",
       title: "Product video cuts",
       platforms: ["tiktok", "youtube"],
       description:
         "For every new product, build a short video from its photos and cut it to length for TikTok and YouTube.",
     },
     {
+      name: "Catalog Inspector",
       title: "Catalog consistency check",
       platforms: [],
       description:
         "Check new product images against the ones already live and flag any whose framing or lighting breaks the set.",
     },
     {
+      name: "Season Stager",
       title: "Seasonal best-seller restage",
       platforms: ["pinterest", "instagram"],
       description:
@@ -251,36 +285,42 @@ export const IDEAS = {
   ],
   Studio: [
     {
+      name: "Script Director",
       title: "Script to video",
       platforms: ["youtube", "tiktok"],
       description:
         "Give me a finished voiceover video from each script I write, cut to length for YouTube and TikTok.",
     },
     {
+      name: "Remix Artist",
       title: "Weekly top-image variations",
       platforms: ["instagram"],
       description:
         "Take my top performing image each week and generate a set of variations to test against it.",
     },
     {
+      name: "Persona Writer",
       title: "Per-persona campaign versions",
       platforms: ["linkedin", "twitter"],
       description:
         "Regenerate my current campaign once per audience persona, with the copy and imagery rewritten for who they are.",
     },
     {
+      name: "Voice Artist",
       title: "Script voiceovers",
       platforms: [],
       description:
         "Turn each script I write into a voiceover in the voice I've chosen, ready to drop onto a video.",
     },
     {
+      name: "Repurpose Engine",
       title: "Video repurposing",
       platforms: ["linkedin", "twitter"],
       description:
         "After each video, pull the transcript and turn it into posts, captions and quote cards.",
     },
     {
+      name: "Visual Batcher",
       title: "Weekly visual batch",
       platforms: ["instagram"],
       description:

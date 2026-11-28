@@ -13,29 +13,19 @@
  * standard page token.
  */
 
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bot } from "lucide-react";
-import PlatformChip from "./_components/PlatformChip";
+import { Bot, ArrowRight } from "lucide-react";
+import IdeaTile from "./_components/IdeaTile";
+import useTemplateLauncher from "./_components/useTemplateLauncher";
 import CopilotComposer from "./_components/CopilotComposer";
 import CreateCopilotModal from "./_components/CreateCopilotModal";
 import { CATEGORIES, IDEAS } from "./_data/ideas";
 import { newConversationId } from "./_data/copilots";
 
-/**
- * Colour sets for the idea tiles, cycled by position — taken from the home
- * page's template artwork. Literal hex rather than theme tokens on purpose:
- * these are "printed" tiles and must look the same in light and dark mode
- * (gray-900 etc. flip in dark mode and would vanish on these backgrounds).
- */
-const IDEA_TILES = [
-  { bg: "#1d4ed8", fg: "#ffffff", muted: "rgba(255,255,255,0.78)", eyebrow: "rgba(255,255,255,0.7)", accent: "#facc15" },
-  { bg: "#fdf1e4", fg: "#1f2937", muted: "#4b5563", eyebrow: "#e2553b", accent: "#e2553b" },
-  { bg: "#0f6b4f", fg: "#ffffff", muted: "rgba(255,255,255,0.78)", eyebrow: "#facc15", accent: "#facc15" },
-  { bg: "#0b3b3f", fg: "#ffffff", muted: "rgba(255,255,255,0.75)", eyebrow: "#f4a261", accent: "#f4a261" },
-  { bg: "#0f1736", fg: "#ffffff", muted: "rgba(255,255,255,0.72)", eyebrow: "#93c5fd", accent: "#3b82f6" },
-  { bg: "#fde68a", fg: "#1f2937", muted: "#4b5563", eyebrow: "#1d4ed8", accent: "#1d4ed8" },
-];
+// How many templates the home shows per category: one row of the desktop grid.
+const HOME_TEMPLATE_COUNT = 3;
 
 function CopilotHome() {
   const router = useRouter();
@@ -51,27 +41,12 @@ function CopilotHome() {
   const [task, setTask] = useState(() => searchParams.get("task") ?? "");
   const [activeCategory, setActiveCategory] = useState("Brand");
   const [naming, setNaming] = useState(false);
-  const ideas = IDEAS[activeCategory] ?? [];
-  const composerRef = useRef(null);
-
-  /**
-   * An idea card's job: hand its task to the composer. It fills the box (it
-   * does NOT send — the user reads it, edits it if they like, and presses send
-   * themselves, which then names + creates the copilot as usual), scrolls the
-   * box into view and focuses it with the cursor at the end.
-   */
-  // Not `useIdea` — a `use…` name reads as a hook to the linter and to people.
-  const applyIdea = (description) => {
-    setTask(description);
-    const el = composerRef.current;
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    // After React has written the new value, so the caret lands after it.
-    requestAnimationFrame(() => {
-      el.focus({ preventScroll: true });
-      el.setSelectionRange(description.length, description.length);
-    });
-  };
+  // One row per category here — the full set lives on /copilot/templates,
+  // behind "View all".
+  const ideas = (IDEAS[activeCategory] ?? []).slice(0, HOME_TEMPLATE_COUNT);
+  // A template click creates its copilot under the template's name and asks
+  // its task — see useTemplateLauncher.
+  const { launch, busyName } = useTemplateLauncher();
 
   /**
    * "Give your Copilot its first task" — so it makes one and gives it the task.
@@ -117,7 +92,6 @@ function CopilotHome() {
           value={task}
           onChange={setTask}
           onSubmit={handleSubmit}
-          inputRef={composerRef}
           className="mt-10 w-full max-w-xl"
         />
 
@@ -138,8 +112,10 @@ function CopilotHome() {
           box treatment as the home page's Templates panel. */}
       <section className="flex-1 px-gutter pb-24 lg:pb-8">
         <div className="w-full rounded-2xl border border-gray-200 bg-surface shadow-sm">
-          {/* Header row — category tabs, left-aligned, dot-separated */}
-          <div className="flex items-center gap-3 overflow-x-auto hide-scrollbar border-b border-gray-200 px-4 sm:px-5 py-3.5">
+          {/* Header row — category tabs, left-aligned and dot-separated, with
+              "View all" (the full template list) on the right */}
+          <div className="flex items-center gap-3 border-b border-gray-200 px-4 sm:px-5 py-3.5">
+          <div className="flex flex-1 min-w-0 items-center gap-3 overflow-x-auto hide-scrollbar">
             {CATEGORIES.map((category, i) => {
               const active = activeCategory === category;
               return (
@@ -158,58 +134,29 @@ function CopilotHome() {
               );
             })}
           </div>
+            <Link
+              href={`/copilot/templates?category=${encodeURIComponent(activeCategory)}`}
+              className="flex shrink-0 items-center gap-1 text-[13px] font-medium text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              View all
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
 
           {/* Idea cards — bold colour tiles, styled after the home page's
               template artwork: category eyebrow, big headline, short copy, and
               an accent shape along the bottom. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 sm:p-4">
-            {ideas.map(({ title, platforms, description }, i) => {
-              const tile = IDEA_TILES[i % IDEA_TILES.length];
-              return (
-                <button
-                  type="button"
-                  key={title}
-                  onClick={() => applyIdea(description)}
-                  aria-label={`Use idea: ${title}`}
-                  className="group relative flex min-h-56 cursor-pointer flex-col overflow-hidden rounded-xl p-6 text-left transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  style={{ backgroundColor: tile.bg }}
-                >
-                  {/* Accent shape */}
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute -bottom-8 -left-6 h-16 w-[75%] -rotate-6"
-                    style={{ backgroundColor: tile.accent }}
-                  />
-
-                  <div className="relative flex items-start justify-between gap-3">
-                    <p
-                      className="text-[10px] font-bold uppercase tracking-[0.18em]"
-                      style={{ color: tile.eyebrow }}
-                    >
-                      {activeCategory}
-                    </p>
-                    <span className="flex items-center gap-1.5">
-                      {platforms.map((platform) => (
-                        <PlatformChip key={platform} platform={platform} />
-                      ))}
-                    </span>
-                  </div>
-
-                  <p
-                    className="relative mt-4 text-2xl font-extrabold leading-tight tracking-tight"
-                    style={{ color: tile.fg }}
-                  >
-                    {title}
-                  </p>
-                  <p
-                    className="relative mt-2.5 pb-8 text-[13px] leading-relaxed"
-                    style={{ color: tile.muted }}
-                  >
-                    {description}
-                  </p>
-                </button>
-              );
-            })}
+            {ideas.map((idea, i) => (
+              <IdeaTile
+                key={idea.name}
+                idea={idea}
+                index={i}
+                onClick={() => launch(idea)}
+                busy={busyName === idea.name}
+                disabled={!!busyName && busyName !== idea.name}
+              />
+            ))}
           </div>
 
           <p className="border-t border-gray-200 text-center text-xs text-gray-400 py-3.5">

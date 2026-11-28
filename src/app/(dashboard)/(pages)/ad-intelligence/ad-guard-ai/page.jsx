@@ -1,35 +1,18 @@
 "use client";
 
-import React, {
-  useState,
-  useRef,
-  useEffect,
-  useMemo,
-  useCallback,
-} from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShieldCheck,
-  Upload,
   Loader2,
-  X,
   CheckCircle,
   XCircle,
   AlertTriangle,
   AlertCircle,
-  LayoutGrid,
-  Image as ImageIcon,
-  Search,
-  RefreshCw,
-  Palette,
-  Wand2,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import useMagicImageResults from "../creative-comparison/useMagicImageResults";
+import { CreativeSourcePicker } from "../CreativePicker";
 import { hostedImageToFile } from "../hostedImageFile";
-// Shared, read-only renderer — same one the editor (/design/[id]) uses to paint,
-// so these thumbnails match exactly what opens in the editor.
-import { renderDesignToCanvas } from "@/(lib)/design/renderDesign";
 
 const PLATFORMS = [
   { id: "Meta", label: "Meta" },
@@ -72,8 +55,6 @@ const GRADE_COLOR = {
   F: "#7f1d1d",
 };
 
-const scoreColor = (s) =>
-  s >= 80 ? "#10b981" : s >= 60 ? "#2563eb" : s >= 40 ? "#f97316" : "#ef4444";
 
 function StatusBadge({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.Warning;
@@ -129,122 +110,14 @@ function IssueRow({
   );
 }
 
-/* ─── MiniDesignCanvas ────────────────────────────────────────── */
-function MiniDesignCanvas({ canvasData, elements, maxW = 180, maxH = 110 }) {
-  const canvasRef = useRef();
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !canvasData) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const off = await renderDesignToCanvas({
-          canvas: canvasData,
-          elements: elements || [],
-        });
-        if (cancelled || !canvasRef.current) return;
-        const target = canvasRef.current;
-        target.width = off.width;
-        target.height = off.height;
-        const ctx = target.getContext("2d");
-        ctx.clearRect(0, 0, off.width, off.height);
-        ctx.drawImage(off, 0, 0);
-      } catch {
-        /* leave blank if rendering fails */
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [canvasData, elements]);
-
-  if (!canvasData) return null;
-  const scale = Math.min(maxW / canvasData.width, maxH / canvasData.height, 1);
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        width: canvasData.width * scale,
-        height: canvasData.height * scale,
-        display: "block",
-      }}
-    />
-  );
-}
-
-/* ─── normalizeDesign ─────────────────────────────────────────── */
-function normalizeDesign(raw) {
-  let parsed = raw.canvas;
-  if (typeof parsed === "string") {
-    try {
-      parsed = JSON.parse(parsed);
-    } catch {
-      parsed = null;
-    }
-  }
-  let canvasData = null,
-    elements = [];
-  if (parsed && typeof parsed === "object") {
-    if (parsed.canvas && Array.isArray(parsed.elements)) {
-      canvasData = parsed.canvas;
-      elements = parsed.elements;
-    } else if (parsed.width && parsed.height) {
-      canvasData = parsed;
-    }
-  }
-  let copy = raw.copy || {};
-  if (typeof copy === "string") {
-    try {
-      copy = JSON.parse(copy);
-    } catch {
-      copy = { body: copy };
-    }
-  }
-
-  return {
-    id: raw.id,
-    name: raw.name || "Untitled Design",
-    score: raw.score || 0,
-    copy,
-    canvas: canvasData || { width: 800, height: 450, background: "#ffffff" },
-    elements,
-    raw,
-  };
-}
-
 /* ─── Main ────────────────────────────────────────────────────── */
 export default function ComplianceChecker() {
-  const { checkCompliance, fetchDesigns } = useAuth();
-  const fileRef = useRef();
-  const [dragging, setDragging] = useState(false);
+  const { checkCompliance } = useAuth();
 
-  // ── tab state ──
-  const [activeTab, setActiveTab] = useState("upload"); // "upload" | "designs"
-
-  // ── input state ──
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [selectedDesign, setSelectedDesign] = useState(null);
-
-  // ── designs list ──
-  const [designs, setDesigns] = useState([]);
-  const [designsLoading, setDesignsLoading] = useState(false);
-  const [designsError, setDesignsError] = useState("");
-  const [designsLoaded, setDesignsLoaded] = useState(false);
-  const [search, setSearch] = useState("");
-
-  // ── design source: "creative" (Creative Studio designs) | "magic" (Magic
-  // Studio pictures). Magic results are hosted images, not designs, so a pick
-  // is sent to the checker as an image file.
-  const [designSource, setDesignSource] = useState("creative");
-  const [magicRequested, setMagicRequested] = useState(false);
-  const [selectedMagic, setSelectedMagic] = useState(null);
-  const { items: magicItems, loading: magicLoading } = useMagicImageResults({
-    enabled: magicRequested,
-  });
+  // ── the creative to check — one pick from CreativeSourcePicker:
+  // { kind: "design", design } | { kind: "magic", item } |
+  // { kind: "file", file, preview } | null
+  const [pick, setPick] = useState(null);
 
   // ── platform + check state ──
   const [selectedPlatforms, setSelectedPlatforms] = useState([
@@ -256,98 +129,8 @@ export default function ComplianceChecker() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
-  /* ── load designs ── */
-  const loadDesigns = useCallback(async () => {
-    setDesignsLoading(true);
-    setDesignsError("");
-    const result = await fetchDesigns(50);
-    if (!result) {
-      setDesignsError(
-        "Failed to load designs. Make sure you have an active brand selected.",
-      );
-    } else {
-      const arr = Array.isArray(result)
-        ? result
-        : Array.isArray(result.data)
-          ? result.data
-          : [];
-      setDesigns(arr.map(normalizeDesign));
-      setDesignsLoaded(true);
-    }
-    setDesignsLoading(false);
-  }, [fetchDesigns]);
-
-  const handleTabSwitch = (tab) => {
-    setActiveTab(tab);
-    if (tab === "designs") {
-      if (designSource === "creative" && !designsLoaded) loadDesigns();
-      if (designSource === "magic") setMagicRequested(true);
-    }
-    if (tab === "upload" && !file) {
-      setTimeout(() => fileRef.current?.click(), 50);
-    }
-  };
-
-  const filtered = useMemo(
-    () =>
-      designs.filter(
-        (d) =>
-          d.name.toLowerCase().includes(search.toLowerCase()) ||
-          (d.copy?.tagline || "").toLowerCase().includes(search.toLowerCase()),
-      ),
-    [designs, search],
-  );
-
-  const handleSourceSwitch = (source) => {
-    setDesignSource(source);
-    if (source === "creative" && !designsLoaded && !designsLoading) {
-      loadDesigns();
-    }
-    if (source === "magic") setMagicRequested(true);
-  };
-
-  /* ── file handlers ── */
-  const acceptFile = (f) => {
-    if (!f) return;
-    setFile(f);
-    setSelectedDesign(null);
-    setSelectedMagic(null);
-    setData(null);
-    setError("");
-    const reader = new FileReader();
-    reader.onload = (e) => setPreview(e.target.result);
-    reader.readAsDataURL(f);
-  };
-
-  const onDrop = useCallback((e) => {
-    e.preventDefault();
-    setDragging(false);
-    acceptFile(e.dataTransfer.files?.[0]);
-  }, []);
-
-  const clearAll = () => {
-    setFile(null);
-    setPreview(null);
-    setSelectedDesign(null);
-    setSelectedMagic(null);
-    setData(null);
-    setError("");
-  };
-
-  const handleSelectMagic = (item) => {
-    setSelectedMagic(item);
-    setSelectedDesign(null);
-    setFile(null);
-    setPreview(null);
-    setData(null);
-    setError("");
-  };
-
-  const handleSelectDesign = (design) => {
-    setSelectedDesign(design);
-    setSelectedMagic(null);
-    setFile(null);
-    setPreview(null);
+  const handlePick = (next) => {
+    setPick(next);
     setData(null);
     setError("");
   };
@@ -368,18 +151,16 @@ export default function ComplianceChecker() {
     setData(null);
 
     let response;
-    if (file) {
+    if (pick?.kind === "file") {
       response = await checkCompliance({
-        image: file,
+        image: pick.file,
         platforms: selectedPlatforms,
       });
-    } else if (selectedMagic) {
+    } else if (pick?.kind === "magic") {
+      // A Magic Studio result is a hosted image — sent as a file like an upload.
       let magicFile;
       try {
-        magicFile = await hostedImageToFile(
-          selectedMagic.url,
-          selectedMagic.label,
-        );
+        magicFile = await hostedImageToFile(pick.item.url, pick.item.label);
       } catch (err) {
         setError(err?.message || "Couldn't load that Magic Studio image.");
         setLoading(false);
@@ -389,13 +170,11 @@ export default function ComplianceChecker() {
         image: magicFile,
         platforms: selectedPlatforms,
       });
-    } else if (selectedDesign) {
-      const canvasPayload =
-        typeof selectedDesign.raw.canvas === "string"
-          ? selectedDesign.raw.canvas
-          : JSON.stringify(selectedDesign.raw.canvas);
+    } else if (pick?.kind === "design") {
+      const rawCanvas = pick.design.raw.canvas;
       response = await checkCompliance({
-        canvas: canvasPayload,
+        canvas:
+          typeof rawCanvas === "string" ? rawCanvas : JSON.stringify(rawCanvas),
         platforms: selectedPlatforms,
       });
     } else {
@@ -412,7 +191,7 @@ export default function ComplianceChecker() {
     setLoading(false);
   };
 
-  const hasInput = !!file || !!selectedDesign || !!selectedMagic;
+  const hasInput = !!pick;
 
   return (
     <div className="" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -471,375 +250,13 @@ export default function ComplianceChecker() {
                 </div>
               </div>
 
-              {/* Tab switcher */}
-              <div className="flex border-b border-gray-100 px-4">
-                <button
-                  onClick={() => handleTabSwitch("upload")}
-                  className={`flex-1 flex items-center justify-center rounded-xl gap-2 py-3.5 text-sm font-semibold transition-all cursor-pointer border-2 ${
-                    activeTab === "upload"
-                      ? "border-emerald-500 text-emerald-600 bg-emerald-50/40"
-                      : "border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  <Upload className="w-4 h-4" /> Upload Image
-                </button>
-                <button
-                  onClick={() => handleTabSwitch("designs")}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-semibold rounded-xl transition-all cursor-pointer border-2 ${
-                    activeTab === "designs"
-                      ? "border-emerald-500 text-emerald-600 bg-emerald-50/40"
-                      : "border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  <LayoutGrid className="w-4 h-4" /> Choose Design
-                </button>
-              </div>
-
-              <div className="p-5">
-                {/* ── Upload tab ── */}
-                {activeTab === "upload" && (
-                  <>
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => acceptFile(e.target.files?.[0])}
-                    />
-
-                    {!preview ? (
-                      <div
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          setDragging(true);
-                        }}
-                        onDragLeave={() => setDragging(false)}
-                        onDrop={onDrop}
-                        onClick={() => fileRef.current?.click()}
-                        className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed cursor-pointer transition-all py-12 group"
-                        style={{
-                          borderColor: dragging ? "#10b981" : "#e5e7eb",
-                          background: dragging ? "#f0fdf4" : "#f9fafb",
-                        }}
-                      >
-                        <div className="w-12 h-12 rounded-xl bg-gray-100 group-hover:bg-emerald-100 flex items-center justify-center mb-3 transition-colors">
-                          <Upload className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 transition-colors" />
-                        </div>
-                        <p className="text-sm font-semibold text-gray-700">
-                          Click to upload or drag & drop
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          PNG, JPG, WEBP supported
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <div className="relative rounded-xl overflow-hidden">
-                          <img
-                            src={preview}
-                            alt="Ad creative"
-                            className="w-full object-contain max-h-72 bg-gray-100"
-                          />
-                          <button
-                            onClick={clearAll}
-                            className="absolute top-2 right-2 w-7 h-7 bg-surface rounded-full border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition cursor-pointer shadow-sm"
-                          >
-                            <X className="w-3.5 h-3.5 text-gray-500 hover:text-red-500" />
-                          </button>
-                          <div className="absolute bottom-2 left-2 bg-surface/90 rounded-lg px-2 py-0.5 shadow-sm">
-                            <p className="text-xs font-semibold text-gray-700 truncate max-w-[180px]">
-                              {file?.name}
-                            </p>
-                            <p className="text-[10px] text-gray-400">
-                              {(file?.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => fileRef.current?.click()}
-                          className="w-full py-2 rounded-xl text-xs font-medium text-gray-500 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600 transition cursor-pointer"
-                        >
-                          Replace image
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* ── Designs tab ── */}
-                {activeTab === "designs" && (
-                  <div className="space-y-3">
-                    {/* Source switcher — Creative Studio designs or Magic
-                        Studio pictures */}
-                    <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
-                      {[
-                        { id: "creative", label: "Creative Studio", icon: Palette },
-                        { id: "magic", label: "Magic Studio", icon: Wand2 },
-                      ].map(({ id, label, icon: Icon }) => (
-                        <button
-                          key={id}
-                          onClick={() => handleSourceSwitch(id)}
-                          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                            designSource === id
-                              ? "bg-surface text-emerald-600 shadow-sm"
-                              : "text-gray-500 hover:text-gray-700"
-                          }`}
-                        >
-                          <Icon className="w-3.5 h-3.5" /> {label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* ── Magic Studio pictures ── */}
-                    {designSource === "magic" &&
-                      (magicLoading ? (
-                        <div className="flex flex-col items-center justify-center py-16 gap-3">
-                          <Loader2 className="w-7 h-7 animate-spin text-emerald-500" />
-                          <p className="text-sm text-gray-400">
-                            Loading Magic Studio images…
-                          </p>
-                        </div>
-                      ) : magicItems.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-14 gap-2">
-                          <Wand2 className="w-9 h-9 text-gray-200" />
-                          <p className="text-sm text-gray-400">
-                            No Magic Studio images yet.
-                          </p>
-                          <p className="text-xs text-gray-300">
-                            Generate one in Magic Studio first.
-                          </p>
-                        </div>
-                      ) : (
-                        <div
-                          className="grid grid-cols-3 gap-2 overflow-y-auto pr-0.5"
-                          style={{ maxHeight: 340 }}
-                        >
-                          {magicItems.map((item) => {
-                            const isSel = selectedMagic?.id === item.id;
-                            return (
-                              <button
-                                key={item.id}
-                                onClick={() => handleSelectMagic(item)}
-                                title={item.label}
-                                className={`relative aspect-square rounded-xl overflow-hidden border-2 bg-gray-100 transition-all cursor-pointer ${
-                                  isSel
-                                    ? "border-emerald-400 shadow-lg shadow-emerald-100/60"
-                                    : "border-transparent hover:border-emerald-300"
-                                }`}
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={item.url}
-                                  alt={item.label}
-                                  loading="lazy"
-                                  className="w-full h-full object-cover"
-                                />
-                                <span className="absolute inset-x-0 bottom-0 px-1.5 pb-1 pt-3 bg-linear-to-t from-black/60 to-transparent text-[9px] font-medium text-white truncate text-left">
-                                  {item.label}
-                                </span>
-                                {isSel && (
-                                  <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm">
-                                    <CheckCircle className="w-3.5 h-3.5 text-white" />
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ))}
-
-                    {designSource === "magic" && selectedMagic && (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl">
-                        <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        <p className="text-xs font-semibold text-emerald-700 flex-1 truncate">
-                          {selectedMagic.label}
-                        </p>
-                        <button
-                          onClick={clearAll}
-                          className="text-emerald-400 hover:text-emerald-600 cursor-pointer transition shrink-0"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-
-                    {designSource === "creative" && (
-                  <>
-                    {/* Search + refresh */}
-                    {!designsLoading && designs.length > 0 && (
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                          <input
-                            type="text"
-                            placeholder="Search designs…"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-8 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition"
-                          />
-                        </div>
-                        <button
-                          onClick={loadDesigns}
-                          className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 text-gray-400 hover:text-emerald-500 hover:border-emerald-200 transition cursor-pointer shrink-0"
-                          title="Refresh"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Loading */}
-                    {designsLoading && (
-                      <div className="flex flex-col items-center justify-center py-16 gap-3">
-                        <Loader2 className="w-7 h-7 animate-spin text-emerald-500" />
-                        <p className="text-sm text-gray-400">
-                          Loading designs…
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Error */}
-                    {!designsLoading && designsError && (
-                      <div className="flex items-start gap-2 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
-                        <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                        <p className="text-xs text-red-600">{designsError}</p>
-                      </div>
-                    )}
-
-                    {/* Empty */}
-                    {!designsLoading &&
-                      !designsError &&
-                      designs.length === 0 && (
-                        <div className="flex flex-col items-center justify-center py-14 gap-2">
-                          <LayoutGrid className="w-9 h-9 text-gray-200" />
-                          <p className="text-sm text-gray-400">
-                            No saved designs found.
-                          </p>
-                          <p className="text-xs text-gray-300">
-                            Create a design first from the Studio.
-                          </p>
-                        </div>
-                      )}
-
-                    {/* No search match */}
-                    {!designsLoading &&
-                      !designsError &&
-                      filtered.length === 0 &&
-                      designs.length > 0 && (
-                        <div className="flex flex-col items-center justify-center py-10 gap-2">
-                          <p className="text-sm text-gray-400">
-                            No designs match "{search}"
-                          </p>
-                          <button
-                            onClick={() => setSearch("")}
-                            className="text-xs text-emerald-500 hover:text-emerald-600 cursor-pointer transition"
-                          >
-                            Clear search
-                          </button>
-                        </div>
-                      )}
-
-                    {/* Design grid */}
-                    {!designsLoading && filtered.length > 0 && (
-                      <div
-                        className="grid grid-cols-2 gap-2.5 overflow-y-auto pr-0.5"
-                        style={{ maxHeight: 340 }}
-                      >
-                        {filtered.map((design) => {
-                          const isSel = selectedDesign?.id === design.id;
-                          return (
-                            <button
-                              key={design.id}
-                              onClick={() => handleSelectDesign(design)}
-                              className={`text-left rounded-xl border-2 overflow-hidden cursor-pointer transition-all duration-200 hover:border-emerald-300 hover:shadow-md group ${
-                                isSel
-                                  ? "border-emerald-400 shadow-lg shadow-emerald-100/60"
-                                  : "border-gray-100"
-                              }`}
-                            >
-                              {/* Canvas preview */}
-                              <div
-                                className="w-full flex items-center justify-center overflow-hidden relative"
-                                style={{
-                                  background:
-                                    design.canvas?.background || "#f3f4f6",
-                                  height: 100,
-                                }}
-                              >
-                                {design.elements?.length > 0 ? (
-                                  <MiniDesignCanvas
-                                    canvasData={design.canvas}
-                                    elements={design.elements}
-                                    maxW={170}
-                                    maxH={100}
-                                  />
-                                ) : (
-                                  <div className="flex flex-col items-center gap-1 text-gray-300">
-                                    <ImageIcon className="w-6 h-6" />
-                                    <span className="text-[10px]">
-                                      No preview
-                                    </span>
-                                  </div>
-                                )}
-
-                                {design.score > 0 && (
-                                  <div
-                                    className="absolute bottom-1.5 right-1.5 bg-surface/90 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold border border-green-100"
-                                    style={{ color: scoreColor(design.score) }}
-                                  >
-                                    ★ {design.score}
-                                  </div>
-                                )}
-                                {isSel && (
-                                  <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm">
-                                    <CheckCircle className="w-3.5 h-3.5 text-white" />
-                                  </div>
-                                )}
-                                <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 transition-colors duration-200" />
-                              </div>
-
-                              {/* Card body */}
-                              <div
-                                className={`px-2.5 py-2 transition-colors ${isSel ? "bg-emerald-50" : "bg-surface"}`}
-                              >
-                                <p className="text-xs font-semibold text-gray-800 truncate">
-                                  {design.name}
-                                </p>
-                                {design.copy?.tagline ? (
-                                  <p className="text-[10px] text-gray-400 truncate italic mt-0.5">
-                                    {design.copy.tagline}
-                                  </p>
-                                ) : design.copy?.headline ? (
-                                  <p className="text-[10px] text-gray-400 truncate mt-0.5">
-                                    {design.copy.headline}
-                                  </p>
-                                ) : null}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Selection confirmation strip */}
-                    {selectedDesign && (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl">
-                        <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        <p className="text-xs font-semibold text-emerald-700 flex-1 truncate">
-                          {selectedDesign.name}
-                        </p>
-                        <button
-                          onClick={clearAll}
-                          className="text-emerald-400 hover:text-emerald-600 cursor-pointer transition shrink-0"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </>
-                    )}
-                  </div>
-                )}
+              {/* Creative source — From Creatives · Magic Studio · Upload */}
+              <div className="px-5 pb-5">
+                <CreativeSourcePicker
+                  value={pick}
+                  onChange={handlePick}
+                  accent="emerald"
+                />
               </div>
             </div>
 

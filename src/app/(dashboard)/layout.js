@@ -40,15 +40,16 @@ const NO_PADDING_ROUTES = [
 // through SecondarySidebarContext.
 //
 // ⚠️ An entry is a PREFIX STRING or a RegExp. A copilot's workspace lives at
-// /copilot/<id>, which no prefix can describe without also swallowing /copilot
-// and /copilot/all — the two catalog pages, which have no secondary sidebar and
-// must keep the primary rail. The lookahead is what excludes them.
+// /copilot/<id>, which no prefix can describe without also swallowing /copilot,
+// /copilot/all and /copilot/templates — the catalog pages, which have no
+// secondary sidebar and must keep the primary rail. The lookahead is what
+// excludes them.
 const SECONDARY_SIDEBAR_ROUTES = [
     "/ad-intelligence",
     "/social-content",
     "/ads-content",
     "/magic-studio",
-    /^\/copilot\/(?!all(?:\/|$))[^/]+/,
+    /^\/copilot\/(?!(?:all|templates)(?:\/|$))[^/]+/,
 ];
 
 /** Does `pathname` fall under a route entry (prefix string or RegExp)? */

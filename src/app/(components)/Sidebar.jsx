@@ -16,6 +16,7 @@ import {
   User,
   LayoutDashboard,
   LayoutGrid,
+  LayoutTemplate,
   Palette,
   Folder,
   Bot,
@@ -354,6 +355,12 @@ const Sidebar = ({
       label: "All Copilots",
       href: "/copilot/all",
       icon: LayoutGrid,
+    },
+    {
+      id: "copilot-templates",
+      label: "Templates",
+      href: "/copilot/templates",
+      icon: LayoutTemplate,
     },
   ];
 

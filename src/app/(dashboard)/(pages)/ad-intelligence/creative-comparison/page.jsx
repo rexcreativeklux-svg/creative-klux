@@ -19,11 +19,11 @@ import {
   Check,
   Wand2,
   Star,
-  Clock,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import useMagicImageResults from "./useMagicImageResults";
 import { fitUploadLimit, hostedImageToFile } from "../hostedImageFile";
+import { CreativePickerCard, normalizeDesign } from "../CreativePicker";
 
 /**
  * A creative picked by URL (a Magic Studio result) as an uploadable File.
@@ -45,7 +45,6 @@ async function withFile(creative) {
 // Shared, read-only renderer — same one the editor (/design/[id]) uses to paint
 // and export, so previews and the exported PNG match what opens in the editor.
 import {
-  renderDesignToCanvas,
   renderDesignToBlob,
 } from "@/(lib)/design/renderDesign";
 
@@ -243,34 +242,6 @@ const marginColor = {
   Decisive: "text-red-600 bg-red-50",
 };
 
-// Type → badge colours, mirroring the Creatives library so the picker cards read
-// identically to /creatives.
-const TYPE_COLOR = {
-  ads: { text: "text-blue-600", border: "border-blue-100", dot: "bg-blue-500" },
-  social: {
-    text: "text-indigo-600",
-    border: "border-indigo-100",
-    dot: "bg-indigo-500",
-  },
-  card: {
-    text: "text-violet-600",
-    border: "border-violet-100",
-    dot: "bg-violet-500",
-  },
-  banner: {
-    text: "text-teal-600",
-    border: "border-teal-100",
-    dot: "bg-teal-500",
-  },
-  image: { text: "text-blue-600", border: "border-blue-100", dot: "bg-blue-400" },
-  video: { text: "text-cyan-600", border: "border-cyan-100", dot: "bg-cyan-500" },
-};
-const DEFAULT_COLOR = {
-  text: "text-gray-600",
-  border: "border-gray-200",
-  dot: "bg-gray-400",
-};
-
 /* ─── ScoreBar ────────────────────────────────────────────────── */
 function ScoreBar({ label, scoreA, scoreB, labelA, labelB }) {
   const diff = scoreA - scoreB;
@@ -408,183 +379,6 @@ function WebsiteMetrics({ item }) {
         </div>
       )}
     </div>
-  );
-}
-
-// ── PreviewCanvas ─────────────────────────────────────────────────────────────
-// Full-width read-only preview painted with the SAME renderer the editor uses,
-// so a picker card's thumbnail matches /creatives and /design/[id] exactly.
-function PreviewCanvas({ canvas, elements }) {
-  const canvasRef = useRef(null);
-  useEffect(() => {
-    const node = canvasRef.current;
-    if (!node || !canvas) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const off = await renderDesignToCanvas({
-          canvas,
-          elements: elements || [],
-        });
-        if (cancelled || !canvasRef.current) return;
-        const target = canvasRef.current;
-        target.width = off.width;
-        target.height = off.height;
-        const ctx = target.getContext("2d");
-        ctx.clearRect(0, 0, off.width, off.height);
-        ctx.drawImage(off, 0, 0);
-      } catch {
-        /* leave blank if rendering fails */
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [canvas, elements]);
-
-  if (!canvas) return null;
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{ width: "100%", maxWidth: "100%", height: "auto", display: "block" }}
-    />
-  );
-}
-
-// ── normalizeDesign (same as your Creatives page) ─────────────────────────────
-function normalizeDesign(raw) {
-  let parsed = raw.canvas;
-  if (typeof parsed === "string") {
-    try {
-      parsed = JSON.parse(parsed);
-    } catch {
-      parsed = null;
-    }
-  }
-  let canvasData = null,
-    elements = [];
-  if (parsed && typeof parsed === "object") {
-    if (parsed.canvas && Array.isArray(parsed.elements)) {
-      canvasData = parsed.canvas;
-      elements = parsed.elements;
-    } else if (parsed.width && parsed.height) canvasData = parsed;
-  }
-  let copy = raw.copy || {};
-  if (typeof copy === "string") {
-    try {
-      copy = JSON.parse(copy);
-    } catch {
-      copy = { body: copy };
-    }
-  }
-  return {
-    id: raw.id,
-    name: raw.name || "Untitled Design",
-    type: raw.sub_type || raw.type || "image",
-    category: raw.type || "ads",
-    date: raw.created_at
-      ? new Date(raw.created_at).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        })
-      : "—",
-    score: raw.score || 0,
-    copy,
-    canvas: canvasData || { width: 800, height: 450, background: "#ffffff" },
-    elements,
-    image: raw.image_url || null,
-  };
-}
-
-// ── CreativePickerCard ────────────────────────────────────────────────────────
-// A selectable card that mirrors the /creatives library card style (16/9 canvas
-// preview, type badge, score, name, tagline, date). It's a picker, so it swaps
-// the favourite/delete actions for a selected-state ring + check.
-function CreativePickerCard({ design: c, selected, onSelect }) {
-  const tc = TYPE_COLOR[c.type?.toLowerCase()] || DEFAULT_COLOR;
-  const hasCanvas = c.canvas && c.elements?.length > 0;
-  const tagline = c.copy?.tagline || "";
-
-  return (
-    <button
-      onClick={() => onSelect(c)}
-      className={`group text-left bg-surface rounded-lg border-2 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 flex flex-col relative ${
-        selected
-          ? "border-indigo-500 shadow-lg shadow-indigo-100/60"
-          : "border-gray-100 hover:border-gray-200"
-      }`}
-    >
-      {/* Preview */}
-      <div
-        className="relative overflow-hidden bg-gray-100 flex items-center justify-center"
-        style={{ aspectRatio: "16/9", minHeight: 96 }}
-      >
-        {hasCanvas ? (
-          <div className="w-full flex items-center justify-center p-2 bg-gray-50">
-            <PreviewCanvas canvas={c.canvas} elements={c.elements} />
-          </div>
-        ) : c.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={c.image}
-            alt={c.name}
-            className="w-full h-auto block"
-            onError={(e) => {
-              e.target.style.display = "none";
-            }}
-          />
-        ) : (
-          <div className="flex flex-col items-center gap-1 text-gray-300">
-            <Wand2 className="w-6 h-6" />
-            <span className="text-[10px]">No preview</span>
-          </div>
-        )}
-
-        {/* Type badge */}
-        <div className="absolute top-2 left-2">
-          <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border backdrop-blur-sm bg-surface/90 ${tc.text} ${tc.border} capitalize`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${tc.dot}`} />
-            {c.category}
-          </span>
-        </div>
-
-        {/* Selected check */}
-        {selected && (
-          <div className="absolute top-2 right-2 w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center shadow-sm">
-            <Check className="w-3.5 h-3.5 text-white" />
-          </div>
-        )}
-
-        {/* Score */}
-        {c.score > 0 && (
-          <div className="absolute bottom-2 right-2 bg-surface/90 backdrop-blur-sm rounded-full px-2 py-0.5 text-[10px] font-bold text-green-600 border border-green-100">
-            ★ {c.score}
-          </div>
-        )}
-      </div>
-
-      {/* Body */}
-      <div className="flex flex-col flex-1 px-3 pt-2 pb-2.5">
-        <p className="text-xs font-semibold text-gray-900 truncate">{c.name}</p>
-        {tagline ? (
-          <p className="text-[10px] text-gray-400 mt-0.5 truncate italic">
-            {tagline}
-          </p>
-        ) : (
-          <p className="text-[10px] text-gray-300 mt-0.5 truncate capitalize">
-            {c.category}
-          </p>
-        )}
-        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-50">
-          <Clock className="w-3 h-3 text-gray-300" />
-          <span className="text-[10px] text-gray-400">{c.date}</span>
-        </div>
-      </div>
-    </button>
   );
 }
 

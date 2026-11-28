@@ -20,6 +20,7 @@
  * @param {Object} props.copilot  Whose conversation this is (names the speaker).
  */
 
+import { useEffect, useState } from "react";
 import { AlertTriangle, Copy, Volume2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -98,6 +99,53 @@ const MARKDOWN = {
 
 const REMARK_PLUGINS = [remarkGfm];
 
+// What the wait says as it goes on. A reply can take a while when the copilot
+// calls tools, and the same "Thinking" for 20 seconds starts to read as stuck.
+const WAIT_STAGES = [
+  { after: 0, label: "Thinking" },
+  { after: 4, label: "Working on it" },
+  { after: 12, label: "Still working — bigger tasks take a little longer" },
+];
+
+/**
+ * The reply while it is being written: bouncing dots in a bubble (someone about
+ * to speak — a spinner here would read as the page loading) and a status line
+ * that moves on with the wait, with the seconds once it gets long.
+ */
+function PendingReply() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const started = Date.now();
+    const id = setInterval(
+      () => setSeconds(Math.floor((Date.now() - started) / 1000)),
+      1000,
+    );
+    return () => clearInterval(id);
+  }, []);
+
+  const stage = [...WAIT_STAGES].reverse().find((s) => seconds >= s.after);
+
+  return (
+    <div className="mt-3 flex items-center gap-3" role="status" aria-live="polite">
+      <div className="flex items-center gap-1 rounded-2xl bg-gray-100 px-3.5 py-3">
+        {[0, 160, 320].map((delay) => (
+          <span
+            key={delay}
+            className="h-2 w-2 rounded-full bg-gray-500 animate-bounce"
+            style={{ animationDelay: `${delay}ms`, animationDuration: "1s" }}
+          />
+        ))}
+      </div>
+      <p className="text-[13px] text-gray-500 animate-pulse">
+        {stage.label}…
+        {seconds >= 12 && (
+          <span className="ml-1.5 tabular-nums text-gray-400">{seconds}s</span>
+        )}
+      </p>
+    </div>
+  );
+}
+
 export default function ChatMessage({ message, copilot }) {
   const { role, text, body, at, pending, error } = message;
 
@@ -119,17 +167,7 @@ export default function ChatMessage({ message, copilot }) {
       </div>
 
       {pending ? (
-        // Three dots rather than a spinner: a spinner in the body of a message
-        // reads as the page loading, this reads as someone about to speak.
-        <div className="mt-3 flex items-center gap-1.5" aria-label="Thinking">
-          {[0, 150, 300].map((delay) => (
-            <span
-              key={delay}
-              className="h-1.5 w-1.5 rounded-full bg-gray-300 animate-pulse"
-              style={{ animationDelay: `${delay}ms` }}
-            />
-          ))}
-        </div>
+        <PendingReply />
       ) : error ? (
         /* ⚠️ A FAILURE IS NOT THE COPILOT SPEAKING. Rendered as page text in the
            same voice as an answer, "500 — Target class [CopilotController] does
